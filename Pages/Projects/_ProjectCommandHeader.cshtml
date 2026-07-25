@@ -10,8 +10,13 @@
         : Model.CanManageJdp ? "Link an industry partner" : "No JDP recorded";
     var lifecycleStatus = Model.LifecycleSummary.Status;
     var isCompleted = lifecycleStatus == ProjectLifecycleStatus.Completed;
+    var isCancelled = lifecycleStatus == ProjectLifecycleStatus.Cancelled;
     var isActive = lifecycleStatus == ProjectLifecycleStatus.Active;
     var completionDisplay = Model.LifecycleSummary.CompletionDisplay ?? "Date not recorded";
+    var cancellationDisplay = Model.LifecycleSummary.CancellationDisplay ?? "Date not recorded";
+    var lifecycleHeaderClass = isCompleted
+        ? " project-command-header--completed"
+        : isCancelled ? " project-command-header--cancelled" : string.Empty;
     static string DisplayUser(ApplicationUser? user)
     {
         if (user is null) return "—";
@@ -21,7 +26,7 @@
     static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
         stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
-<section class="project-command-header@(isCompleted ? " project-command-header--completed" : string.Empty)" aria-labelledby="project-title">
+<section class="project-command-header@lifecycleHeaderClass" aria-labelledby="project-title">
     <div class="project-command-header__main">
         <div class="project-command-header__identity">
             <div class="project-command-header__eyebrow">Project portfolio</div>
@@ -31,7 +36,7 @@
                 {
                     <span class="project-command-header__case">@project.CaseFileNumber</span>
                 }
-                @if (!isActive && !isCompleted)
+                @if (!isActive && !isCompleted && !isCancelled)
                 {
                     <span class="badge rounded-pill text-bg-secondary">@Model.LifecycleSummary.StatusLabel</span>
                 }
@@ -41,6 +46,13 @@
                 <span><i class="bi bi-calendar3" aria-hidden="true"></i> Created @(project is { } value ? value.CreatedAt.ToString("dd MMM yyyy") : "—")</span>
                 <span><i class="bi bi-person-badge" aria-hidden="true"></i> PO @DisplayUser(project?.LeadPoUser)</span>
                 <span><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
+                @if (Model.LifecycleSummary.IsLegacy)
+                {
+                    <span class="project-command-header__legacy">
+                        <i class="bi bi-archive" aria-hidden="true"></i>
+                        Legacy record
+                    </span>
+                }
             </div>
         </div>
         <div class="project-command-header__commands">
@@ -81,13 +93,27 @@
             </div>
             @if (isCompleted)
             {
-                <div class="project-completion-lockup" aria-label="Project completed. Completion date: @completionDisplay.">
-                    <span class="project-completion-lockup__icon" aria-hidden="true">
+                <div class="project-lifecycle-lockup project-lifecycle-lockup--completed"
+                     aria-label="Project completed. Completion date: @completionDisplay.">
+                    <span class="project-lifecycle-lockup__icon" aria-hidden="true">
                         <i class="bi bi-check2"></i>
                     </span>
-                    <span class="project-completion-lockup__copy">
-                        <span class="project-completion-lockup__label">Project completed</span>
-                        <strong class="project-completion-lockup__date">@completionDisplay</strong>
+                    <span class="project-lifecycle-lockup__copy">
+                        <span class="project-lifecycle-lockup__label">Project completed</span>
+                        <strong class="project-lifecycle-lockup__date">@completionDisplay</strong>
+                    </span>
+                </div>
+            }
+            else if (isCancelled)
+            {
+                <div class="project-lifecycle-lockup project-lifecycle-lockup--cancelled"
+                     aria-label="Project cancelled. Cancellation date: @cancellationDisplay.">
+                    <span class="project-lifecycle-lockup__icon" aria-hidden="true">
+                        <i class="bi bi-x-lg"></i>
+                    </span>
+                    <span class="project-lifecycle-lockup__copy">
+                        <span class="project-lifecycle-lockup__label">Project cancelled</span>
+                        <strong class="project-lifecycle-lockup__date">@cancellationDisplay</strong>
                     </span>
                 </div>
             }
@@ -109,6 +135,16 @@
                 projectId = project!.Id,
                 canManage = Model.CanManageTot
             })
+        }
+        else if (isCancelled)
+        {
+            <div class="project-intelligence-card" role="group" aria-label="Project cancellation reason">
+                <span class="project-intelligence-card__label">Cancellation reason</span>
+                <strong title="@(Model.LifecycleSummary.CancellationReason ?? "Not recorded")">
+                    @(Model.LifecycleSummary.CancellationReason ?? "Not recorded")
+                </strong>
+                <span>Project lifecycle concluded</span>
+            </div>
         }
         else
         {

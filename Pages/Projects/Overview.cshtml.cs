@@ -1447,6 +1447,8 @@ namespace ProjectManagement.Pages.Projects
             string? primaryDetail = null;
             string? secondaryDetail = null;
             string? completionDisplay = null;
+            string? cancellationDisplay = null;
+            string? cancellationReason = null;
 
             if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
             {
@@ -1488,18 +1490,20 @@ namespace ProjectManagement.Pages.Projects
             {
                 if (project.CancelledOn.HasValue)
                 {
-                    var cancelledOn = project.CancelledOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
-                    primaryDetail = string.Format(CultureInfo.InvariantCulture, "Project cancelled on {0}.", cancelledOn);
-                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Cancelled on", cancelledOn));
+                    cancellationDisplay = project.CancelledOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                    primaryDetail = string.Format(CultureInfo.InvariantCulture, "Project cancelled on {0}.", cancellationDisplay);
+                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Cancelled on", cancellationDisplay));
                 }
                 else
                 {
+                    cancellationDisplay = "Date not recorded";
                     primaryDetail = "Project marked as cancelled.";
                 }
 
                 if (!string.IsNullOrWhiteSpace(project.CancelReason))
                 {
-                    secondaryDetail = string.Format(CultureInfo.InvariantCulture, "Reason: {0}", project.CancelReason);
+                    cancellationReason = project.CancelReason.Trim();
+                    secondaryDetail = string.Format(CultureInfo.InvariantCulture, "Reason: {0}", cancellationReason);
                 }
             }
             else if (project.IsLegacy)
@@ -1530,6 +1534,8 @@ namespace ProjectManagement.Pages.Projects
                 PrimaryDetail = primaryDetail,
                 SecondaryDetail = secondaryDetail,
                 CompletionDisplay = completionDisplay,
+                CancellationDisplay = cancellationDisplay,
+                CancellationReason = cancellationReason,
                 BadgeText = project.IsLegacy ? "Legacy" : null,
                 Facts = facts
             };

@@ -125,6 +125,8 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.True(overview.LifecycleActions.HasActions);
         Assert.True(overview.LifecycleActions.CanReactivate);
         Assert.Equal(ProjectLifecycleStatus.Cancelled, overview.LifecycleActions.Status);
+        Assert.Equal("15 Mar 2024", overview.LifecycleSummary.CancellationDisplay);
+        Assert.Equal("Funding withdrawn", overview.LifecycleSummary.CancellationReason);
     }
 
     [Fact]

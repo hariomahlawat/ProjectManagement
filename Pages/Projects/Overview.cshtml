@@ -25,11 +25,6 @@
 
     <div class="project-portfolio-layout mb-4">
         <main class="d-flex flex-column gap-3 project-portfolio-main">
-            @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
-            {
-                <partial name="_ProjectLifecycleSummaryPanel" model="Model" />
-            }
-
             <partial name="_ProjectOverviewCard" model="Model" />
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
             <partial name="_ProjectLifecyclePosition" model="Model.Portfolio" />

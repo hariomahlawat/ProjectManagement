@@ -15,6 +15,8 @@ public sealed class ProjectLifecycleSummaryViewModel
     public string? PrimaryDetail { get; init; }
     public string? SecondaryDetail { get; init; }
     public string? CompletionDisplay { get; init; }
+    public string? CancellationDisplay { get; init; }
+    public string? CancellationReason { get; init; }
     public string? BadgeText { get; init; }
     public IReadOnlyList<LifecycleFact> Facts { get; init; } = Array.Empty<LifecycleFact>();
 
