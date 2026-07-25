@@ -1,0 +1,152 @@
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var tot = Model.TotSummary;
+    var pending = tot.PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
+}
+<div class="project-tot-drawer" data-tot-root>
+    <div class="project-tot-drawer__loading" data-tot-loading>
+        <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+        <span>Loading Transfer of Technology details…</span>
+    </div>
+
+    <div class="d-none" data-tot-content>
+        <section class="project-tot-summary" data-tot-summary-view>
+            <div class="project-tot-status-card">
+                <div>
+                    <span class="project-tot-status-card__label">Current position</span>
+                    <strong data-tot-status-label>@tot.StatusLabel</strong>
+                    <p class="mb-0" data-tot-summary-text>@tot.Summary</p>
+                </div>
+                <span class="badge rounded-pill" data-tot-status-badge>@tot.StatusLabel</span>
+            </div>
+
+            <div class="project-tot-facts" data-tot-facts>
+                @foreach (var fact in tot.Facts)
+                {
+                    <div class="project-tot-fact">
+                        <span>@fact.Label</span>
+                        <strong>@fact.Value</strong>
+                    </div>
+                }
+            </div>
+
+            @if (pending && tot.PendingRequest is { } request)
+            {
+                <div class="alert alert-info mb-0" data-tot-pending>
+                    <strong class="d-block">Pending approval</strong>
+                    <span>Proposed status: @request.ProposedStatusLabel</span>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info mb-0 d-none" data-tot-pending></div>
+            }
+
+            <div class="project-tot-remark" data-tot-latest-remark-wrap>
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <h6 class="mb-0">Latest ToT remark</h6>
+                    <i class="bi bi-chat-text text-muted" aria-hidden="true"></i>
+                </div>
+                <p class="mb-1" data-tot-latest-remark>@(tot.LatestRemark?.Body ?? "No ToT remark recorded.")</p>
+                <small class="text-muted" data-tot-latest-remark-meta>
+                    @if (tot.LatestRemark is { } remark)
+                    {
+                        @($"{remark.TypeLabel} · {remark.AuthorDisplayName ?? "Unknown"}")
+                    }
+                </small>
+            </div>
+        </section>
+
+        @if (Model.CanManageTot && !pending)
+        {
+            <section class="project-tot-editor d-none" data-tot-edit-view>
+                <form method="post"
+                      asp-page-handler="Tot"
+                      asp-route-id="@Model.Project.Id"
+                      data-tot-form
+                      novalidate>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="ProjectId" value="@Model.Project.Id" />
+
+                    <div class="alert alert-danger d-none" role="alert" data-tot-errors></div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="tot-status">ToT status</label>
+                        <select class="form-select" id="tot-status" name="Status" data-tot-status>
+                            <option value="NotRequired">Not required</option>
+                            <option value="NotStarted">Not started</option>
+                            <option value="InProgress">In progress</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3" data-tot-date-fields>
+                        <div class="col-12" data-tot-start-wrap>
+                            <label class="form-label">Start date</label>
+                            <div class="row g-2">
+                                <div class="col-4"><input class="form-control" name="StartYear" type="number" min="1900" max="2100" placeholder="yyyy" inputmode="numeric" /></div>
+                                <div class="col-4"><input class="form-control" name="StartMonth" type="number" min="1" max="12" placeholder="mm" inputmode="numeric" /></div>
+                                <div class="col-4"><input class="form-control" name="StartDay" type="number" min="1" max="31" placeholder="dd" inputmode="numeric" /></div>
+                            </div>
+                            <div class="form-text">At least the year is required when ToT is in progress.</div>
+                        </div>
+                        <div class="col-12" data-tot-completion-wrap>
+                            <label class="form-label">Completion date</label>
+                            <div class="row g-2">
+                                <div class="col-4"><input class="form-control" name="CompletionYear" type="number" min="1900" max="2100" placeholder="yyyy" inputmode="numeric" /></div>
+                                <div class="col-4"><input class="form-control" name="CompletionMonth" type="number" min="1" max="12" placeholder="mm" inputmode="numeric" /></div>
+                                <div class="col-4"><input class="form-control" name="CompletionDay" type="number" min="1" max="31" placeholder="dd" inputmode="numeric" /></div>
+                            </div>
+                            <div class="form-text">At least the year is required when ToT is completed.</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label" for="tot-met-details">MET details</label>
+                        <textarea class="form-control" id="tot-met-details" name="MetDetails" rows="3" maxlength="2000"></textarea>
+                    </div>
+
+                    <div class="row g-3 mt-0">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="tot-met-completed">MET completed on</label>
+                            <input class="form-control" id="tot-met-completed" name="MetCompletedOn" type="date" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="tot-fopm">First production model manufactured?</label>
+                            <select class="form-select" id="tot-fopm" name="FirstProductionModelManufactured" data-tot-fopm>
+                                <option value="">Not specified</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-3" data-tot-fopm-date-wrap>
+                        <label class="form-label" for="tot-fopm-date">Manufactured on</label>
+                        <input class="form-control" id="tot-fopm-date" name="FirstProductionModelManufacturedOn" type="date" />
+                    </div>
+                </form>
+            </section>
+        }
+    </div>
+
+    <div class="project-tot-drawer__footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Close</button>
+        <a class="btn btn-outline-primary"
+           asp-area="ProjectOfficeReports"
+           asp-page="/Tot/Index"
+           asp-route-selectedProjectId="@Model.Project.Id">
+            Open tracker
+        </a>
+        @if (Model.CanManageTot && !pending)
+        {
+            <button type="button" class="btn btn-primary" data-tot-edit-button>Update details</button>
+            <button type="button" class="btn btn-outline-secondary d-none" data-tot-cancel-button>Cancel</button>
+            <button type="button" class="btn btn-primary d-none" data-tot-save-button>
+                <span data-tot-save-label>Save details</span>
+                <span class="spinner-border spinner-border-sm ms-1 d-none" data-tot-save-spinner aria-hidden="true"></span>
+            </button>
+        }
+    </div>
+</div>
