@@ -1,0 +1,152 @@
+.project-tot-offcanvas {
+    --tot-border: color-mix(in srgb, var(--pm-border, #d9e1ec) 88%, transparent);
+    --tot-soft: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 6%, var(--pm-surface-bg, #fff));
+    width: min(34rem, 100vw);
+}
+
+.project-tot-offcanvas .offcanvas-header {
+    border-bottom: 1px solid var(--tot-border);
+}
+
+.project-tot-drawer {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.project-tot-drawer__loading {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: 1rem;
+    color: var(--pm-text-muted, #64748b);
+}
+
+.project-tot-drawer [data-tot-content] {
+    flex: 1 1 auto;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.project-tot-status-card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .9rem;
+    border: 1px solid var(--tot-border);
+    border-radius: .85rem;
+    background: var(--tot-soft);
+}
+
+.project-tot-status-card__label {
+    display: block;
+    margin-bottom: .15rem;
+    color: var(--pm-text-muted, #64748b);
+    font-size: .69rem;
+    font-weight: 750;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.project-tot-status-card strong {
+    display: block;
+    margin-bottom: .2rem;
+    color: var(--pm-text-strong, #0f172a);
+    font-size: 1rem;
+}
+
+.project-tot-status-card p {
+    color: var(--pm-text-muted, #64748b);
+    font-size: .82rem;
+}
+
+.project-tot-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem;
+    margin-top: .9rem;
+}
+
+.project-tot-fact {
+    min-width: 0;
+    padding: .7rem .75rem;
+    border: 1px solid var(--tot-border);
+    border-radius: .75rem;
+    background: var(--pm-card, #fff);
+}
+
+.project-tot-fact span,
+.project-tot-fact strong {
+    display: block;
+}
+
+.project-tot-fact span {
+    margin-bottom: .12rem;
+    color: var(--pm-text-muted, #64748b);
+    font-size: .7rem;
+}
+
+.project-tot-fact strong {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .82rem;
+    overflow-wrap: anywhere;
+}
+
+.project-tot-remark {
+    margin-top: .9rem;
+    padding: .85rem;
+    border: 1px solid var(--tot-border);
+    border-radius: .8rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+}
+
+.project-tot-remark p {
+    font-size: .84rem;
+    white-space: pre-wrap;
+}
+
+.project-tot-editor {
+    padding-bottom: .25rem;
+}
+
+.project-tot-editor .form-label {
+    margin-bottom: .35rem;
+    font-size: .8rem;
+    font-weight: 650;
+}
+
+.project-tot-editor .form-text {
+    font-size: .72rem;
+}
+
+.project-tot-drawer__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: .5rem;
+    padding: .8rem 1rem;
+    border-top: 1px solid var(--tot-border);
+    background: var(--pm-card, #fff);
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+}
+
+.project-intelligence-card--tot .project-intelligence-card__label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+@media (max-width: 575.98px) {
+    .project-tot-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .project-tot-drawer__footer .btn {
+        flex: 1 1 auto;
+    }
+}

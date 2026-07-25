@@ -1,4 +1,5 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
+@using ProjectManagement.Models
 @using ProjectManagement.Models.Plans
 <partial name="Projects/_BackfillModal" model="Model.Backfill" />
 <partial name="_StageDirectApplyModal" />
@@ -84,3 +85,26 @@
         }
     </div>
 </div>
+
+@if (Model.Project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+{
+    <div class="offcanvas offcanvas-end project-tot-offcanvas"
+         tabindex="-1"
+         id="offcanvasTot"
+         aria-labelledby="offcanvasTotLabel"
+         data-bs-backdrop="static"
+         data-bs-keyboard="false"
+         data-project-id="@Model.Project.Id"
+         data-can-manage="@Model.CanManageTot.ToString().ToLowerInvariant()">
+        <div class="offcanvas-header">
+            <div>
+                <h5 id="offcanvasTotLabel" class="mb-0">Transfer of Technology</h5>
+                <p class="text-muted small mb-0 mt-1">@Model.Project.Name</p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body p-0">
+            <partial name="_ProjectTotDrawer" model="Model" />
+        </div>
+    </div>
+}

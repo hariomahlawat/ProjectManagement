@@ -27,7 +27,6 @@
         <main class="d-flex flex-column gap-3 project-portfolio-main">
             @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
             {
-                <!-- SECTION: Lifecycle summary banner -->
                 <partial name="_ProjectLifecycleSummaryPanel" model="Model" />
             }
 
@@ -37,8 +36,6 @@
             <section class="project-portfolio-files-column">
                 <partial name="_ProjectMediaCards" model="Model" />
             </section>
-
-            <partial name="_ProjectExploitationTransfer" model="Model" />
         </main>
         <aside class="d-flex flex-column gap-3 project-portfolio-rail">
             <partial name="_ProjectPendingActions" model="Model" />
@@ -47,17 +44,16 @@
     </div>
 
     <partial name="_ProjectWorkspaceHosts" model="Model" />
-
 </div>
 
 <partial name="_ProjectRecordCompleteness" model="Model" />
-
 <partial name="_PlanDiscardDraftModal" model="Model.Project.Id" />
 
 @section Styles {
     <link rel="stylesheet" href="~/css/projects/timeline.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/project-portfolio.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/project-lifecycle-actions.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-tot-drawer.css" asp-append-version="true" />
 }
 
 @section Scripts {
@@ -65,6 +61,7 @@
     <script src="~/js/projects/remarks-panel.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview-multi-jdp.js" asp-append-version="true"></script>
+    <script src="~/js/projects/overview-tot.js" asp-append-version="true"></script>
     <script src="~/js/projects/lifecycle-actions.js" asp-append-version="true"></script>
     <script src="~/js/pages/project-portfolio.js" asp-append-version="true"></script>
     <script src="~/js/projects/actuals-edit.js" asp-append-version="true"></script>
