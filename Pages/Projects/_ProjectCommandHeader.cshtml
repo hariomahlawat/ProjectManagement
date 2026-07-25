@@ -138,7 +138,9 @@
         }
         else if (isCancelled)
         {
-            <div class="project-intelligence-card" role="group" aria-label="Project cancellation reason">
+            <div class="project-intelligence-card project-intelligence-card--cancellation"
+                 role="group"
+                 aria-label="Project cancellation reason">
                 <span class="project-intelligence-card__label">Cancellation reason</span>
                 <strong title="@(Model.LifecycleSummary.CancellationReason ?? "Not recorded")">
                     @(Model.LifecycleSummary.CancellationReason ?? "Not recorded")

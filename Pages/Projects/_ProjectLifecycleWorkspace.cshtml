@@ -1,4 +1,6 @@
 @using System.Text.Json
+@using ProjectManagement.Models
+@using ProjectManagement.Models.Execution
 @using ProjectManagement.ViewModels
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
@@ -9,7 +11,10 @@
     var isHoD = access.IsHoD;
     var hasMyDraft = planState.HasMyDraft;
     var pendingOwnedByCurrentUser = planState.PendingOwnedByCurrentUser;
-    var canEditTimeline = access.CanEditTimeline;
+    var isActiveLifecycle = project?.LifecycleStatus == ProjectLifecycleStatus.Active;
+    var isCompletedLifecycle = project?.LifecycleStatus == ProjectLifecycleStatus.Completed;
+    var isCancelledLifecycle = project?.LifecycleStatus == ProjectLifecycleStatus.Cancelled;
+    var canEditTimeline = access.CanEditTimeline && isActiveLifecycle && project?.IsLegacy != true;
     var submissionBlocked = planState.HasPendingSubmission && !pendingOwnedByCurrentUser;
     var completedStages = portfolio.CompletedStages;
     var skippedStages = portfolio.SkippedStages;
@@ -19,6 +24,14 @@
     var totalStages = portfolio.TotalStages;
     var progressMax = portfolio.ProgressMaximum;
     var pendingStageUpdateCount = Model.Timeline.PendingRequests.Count;
+    var hasRecordedStageHistory = Model.Timeline.Items.Any(item =>
+        item.Status != StageStatus.NotStarted ||
+        item.HasPlanDates ||
+        item.HasActualDates);
+    var showLegacyHistoryUnavailable =
+        isCompletedLifecycle &&
+        project?.IsLegacy == true &&
+        !hasRecordedStageHistory;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
             <div class="card pm-card project-lifecycle-panel" data-panel-project-id="@Model.Project!.Id">
@@ -34,12 +47,18 @@
                                                 <i class="bi bi-clock-history"></i>
                                             </span>
                                             <div>
-                                                <h5 class="pm-card-title mb-0">Timeline</h5>
-                                                <p class="pm-card-subtitle mb-0">Project lifecycle and stage outcomes.</p>
+                                                <h5 class="pm-card-title mb-0">@(isActiveLifecycle ? "Timeline" : "Historical timeline")</h5>
+                                                <p class="pm-card-subtitle mb-0">
+                                                    @(isCancelledLifecycle
+                                                        ? "Stage position when the project was cancelled."
+                                                        : isCompletedLifecycle
+                                                            ? "Recorded stage history and outcomes."
+                                                            : "Project lifecycle and stage outcomes.")
+                                                </p>
                                             </div>
                                         </div>
                                         <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
-                                            @if (pendingStageUpdateCount > 0)
+                                            @if (isActiveLifecycle && pendingStageUpdateCount > 0)
                                             {
                                                 <span class="badge text-bg-warning">
                                                     @(pendingStageUpdateCount == 1
@@ -47,30 +66,41 @@
                                                         : $"{pendingStageUpdateCount} stage updates awaiting HoD approval")
                                                 </span>
                                             }
-                                            @if (pendingOwnedByCurrentUser)
+                                            @if (isActiveLifecycle && pendingOwnedByCurrentUser)
                                             {
                                                 <span class="badge text-bg-warning">Timeline plan submitted for approval</span>
                                             }
-                                            else if (Model.Timeline.PlanPendingApproval)
+                                            else if (isActiveLifecycle && Model.Timeline.PlanPendingApproval)
                                             {
                                                 <span class="badge text-bg-warning">Another submission pending</span>
                                             }
-                                            else if (hasMyDraft)
+                                            else if (isActiveLifecycle && hasMyDraft)
                                             {
                                                 <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
                                             }
-                                            <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
-                                                  title="Resolve procurement backfill to proceed"
-                                                  data-backfill-summary>
-                                                Backfill required
-                                            </span>
+                                            @if (isActiveLifecycle)
+                                            {
+                                                <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
+                                                      title="Resolve procurement backfill to proceed"
+                                                      data-backfill-summary>
+                                                    Backfill required
+                                                </span>
+                                            }
+                                            else if (showLegacyHistoryUnavailable)
+                                            {
+                                                <span class="badge text-bg-secondary">Historical record</span>
+                                            }
+                                            else if (isCancelledLifecycle)
+                                            {
+                                                <span class="badge project-terminal-badge project-terminal-badge--cancelled">Cancelled</span>
+                                            }
                                             @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
                                             {
                                                 <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
                                             }
                                         </div>
                                     </div>
-                                    @if (hasMyDraft && !pendingOwnedByCurrentUser)
+                                    @if (isActiveLifecycle && hasMyDraft && !pendingOwnedByCurrentUser)
                                     {
                                         <div class="d-flex flex-wrap align-items-center gap-2">
                                             <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
@@ -132,7 +162,7 @@
                                             @if (Model.RemarksPanel.ShowDeletedToggle)
                                             {
                                                 <div class="form-check form-switch remarks-deleted-toggle">
-                                                    <input class="form-check-input" type="checkbox" role="switch" id="remarks-include-deleted" data-remarks-include-deleted>
+                                                    <input class="form-check-input" type="checkbox" id="remarks-include-deleted" data-remarks-include-deleted>
                                                     <label class="form-check-label" for="remarks-include-deleted">Show deleted</label>
                                                 </div>
                                             }
@@ -147,7 +177,7 @@
                                 </div>
                                 <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end" data-panel-section="timeline" id="project-panel-section-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
                                     @{
-                                        var canReviewTimeline = planState.HasPendingSubmission && isHoD;
+                                        var canReviewTimeline = isActiveLifecycle && planState.HasPendingSubmission && isHoD;
                                         var canEditTimelinePlan = canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser);
 
                                         if (canReviewTimeline || canEditTimelinePlan)
@@ -203,37 +233,65 @@
                             </div>
                         </div>
                         <div class="pm-card-meta w-100" data-panel-section="timeline" id="project-panel-meta-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
-                            <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
-                                      value="@resolvedStages"
-                                      max="@progressMax"
-                                      aria-label="Timeline stages resolved">
-                            </progress>
-                            <span class="text-muted small">
-                                @if (completedStagesRequiringBackfill > 0)
-                                {
-                                    <text>@completedStages completed · @fullyRecordedCompletedStages fully recorded · @completedStagesRequiringBackfill backfill pending@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
-                                }
-                                else if (skippedStages == 0)
-                                {
-                                    <text>@completedStages of @totalStages stages complete</text>
-                                }
-                                else
-                                {
-                                    <text>@resolvedStages of @totalStages progressed · @completedStages completed · @skippedStages skipped</text>
-                                }
-                            </span>
+                            @if (showLegacyHistoryUnavailable)
+                            {
+                                <span class="text-muted small">Historical stage data not recorded</span>
+                            }
+                            else
+                            {
+                                <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
+                                          value="@resolvedStages"
+                                          max="@progressMax"
+                                          aria-label="Timeline stages resolved">
+                                </progress>
+                                <span class="text-muted small">
+                                    @if (completedStagesRequiringBackfill > 0)
+                                    {
+                                        <text>@completedStages completed · @fullyRecordedCompletedStages fully recorded · @completedStagesRequiringBackfill backfill pending@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
+                                    }
+                                    else if (skippedStages == 0)
+                                    {
+                                        <text>@completedStages of @totalStages stages complete@(isCancelledLifecycle ? " before cancellation" : string.Empty)</text>
+                                    }
+                                    else
+                                    {
+                                        <text>@resolvedStages of @totalStages progressed · @completedStages completed · @skippedStages skipped@(isCancelledLifecycle ? " before cancellation" : string.Empty)</text>
+                                    }
+                                </span>
+                            }
                         </div>
                     </div>
                 </div>
                 <div class="card-body pm-card-body">
                     <div data-panel="timeline" id="project-panel-body-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
-                        @if (submissionBlocked)
+                        @if (showLegacyHistoryUnavailable)
                         {
-                            <div class="alert alert-warning" role="status">
-                                Another plan is already awaiting approval. You can keep editing your draft, but submitting is disabled until the review is complete.
+                            <div class="project-timeline-history-note" role="note">
+                                <span class="project-timeline-history-note__icon" aria-hidden="true">
+                                    <i class="bi bi-archive"></i>
+                                </span>
+                                <div>
+                                    <strong>Stage-by-stage history is not available for this legacy project.</strong>
+                                    <span>The recorded project completion remains authoritative.</span>
+                                </div>
                             </div>
                         }
-                        <partial name="_ProjectTimeline" model="Model.TimelinePanel" />
+                        else
+                        {
+                            @if (isCancelledLifecycle)
+                            {
+                                <div class="project-timeline-terminal-note project-timeline-terminal-note--cancelled" role="note">
+                                    This is a historical snapshot. Any unfinished stage ceased when the project was cancelled.
+                                </div>
+                            }
+                            @if (isActiveLifecycle && submissionBlocked)
+                            {
+                                <div class="alert alert-warning" role="status">
+                                    Another plan is already awaiting approval. You can keep editing your draft, but submitting is disabled until the review is complete.
+                                </div>
+                            }
+                            <partial name="_ProjectTimeline" model="Model.TimelinePanel" />
+                        }
                     </div>
                     <div class="d-none" data-panel="remarks" id="project-panel-body-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
                         <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>

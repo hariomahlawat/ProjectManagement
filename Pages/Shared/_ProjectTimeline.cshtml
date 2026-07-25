@@ -1,21 +1,26 @@
 @model ProjectManagement.ViewModels.ProjectTimelinePanelVm
 @using System.Globalization
+@using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
     var timeline = Model.Timeline;
     var access = Model.Access;
-    var isHod = access.CanApplyStageChangeDirectly;
-    var canSubmitStageUpdate = access.CanSubmitStageUpdate;
-    var canEditTimeline = access.CanEditTimeline;
+    var isActiveLifecycle = Model.LifecycleStatus == ProjectLifecycleStatus.Active;
+    var isCancelledLifecycle = Model.LifecycleStatus == ProjectLifecycleStatus.Cancelled;
+    var isHod = isActiveLifecycle && access.CanApplyStageChangeDirectly;
+    var canSubmitStageUpdate = isActiveLifecycle && access.CanSubmitStageUpdate;
+    var canEditTimeline = isActiveLifecycle && access.CanEditTimeline;
     var pendingSectionStarted = false;
     var futureSectionStarted = false;
-    var currentStageCode = timeline.Items
-        .OrderBy(item => item.SortOrder)
-        .FirstOrDefault(item => item.Status == StageStatus.InProgress)?.Code
-        ?? timeline.Items
+    var currentStageCode = isActiveLifecycle
+        ? timeline.Items
             .OrderBy(item => item.SortOrder)
-            .FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped)?.Code;
+            .FirstOrDefault(item => item.Status == StageStatus.InProgress)?.Code
+            ?? timeline.Items
+                .OrderBy(item => item.SortOrder)
+                .FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped)?.Code
+        : null;
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -98,7 +103,7 @@
   <div class="pm-items">
     @foreach (var s in timeline.Items.OrderBy(i => i.SortOrder))
     {
-      if (!pendingSectionStarted && s.HasPendingRequest)
+      if (isActiveLifecycle && !pendingSectionStarted && s.HasPendingRequest)
       {
         pendingSectionStarted = true;
         <div class="pm-future-stage-heading pm-pending-stage-heading" role="separator" aria-label="Pending lifecycle updates">
@@ -106,18 +111,39 @@
           <small>Official stage states remain unchanged until the HoD decides.</small>
         </div>
       }
-      if (!futureSectionStarted && s.Status == StageStatus.NotStarted && !s.HasPendingRequest)
+      if (!futureSectionStarted &&
+          s.Status == StageStatus.NotStarted &&
+          (!isActiveLifecycle || !s.HasPendingRequest))
       {
         futureSectionStarted = true;
-        <div class="pm-future-stage-heading" role="separator" aria-label="Later stages">
-          <span>Later stages</span>
-          <small>Planned dates may be added when available.</small>
+        <div class="pm-future-stage-heading" role="separator" aria-label="@(isCancelledLifecycle ? "Stages not reached" : "Later stages")">
+          <span>@(isCancelledLifecycle ? "Stages not reached" : "Later stages")</span>
+          <small>
+            @(isCancelledLifecycle
+              ? "The project ended before these stages began."
+              : "Planned dates may be added when available.")
+          </small>
         </div>
       }
 
+      var isCeasedStage = isCancelledLifecycle &&
+          s.Status is StageStatus.InProgress or StageStatus.Blocked;
+      var isUnreachedStage = isCancelledLifecycle && s.Status == StageStatus.NotStarted;
+      var displayedStatus = isCeasedStage
+          ? "Ceased"
+          : isUnreachedStage
+              ? "Not reached"
+              : StatusLabel(s.Status);
+      var displayedPillClass = isCeasedStage
+          ? "pm-pill pm-pill-cancelled"
+          : isUnreachedStage
+              ? "pm-pill pm-pill-muted"
+              : StatusPillClass(s.Status);
       var itemClass = s.Status switch
       {
         StageStatus.Completed  => "pm-item is-complete",
+        StageStatus.InProgress when isCancelledLifecycle => "pm-item is-terminal-unresolved",
+        StageStatus.Blocked when isCancelledLifecycle => "pm-item is-terminal-unresolved",
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
@@ -127,20 +153,27 @@
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
             <div class="pm-item-heading">
-              <span class="@StatusPillClass(s.Status)"
+              <span class="@displayedPillClass"
                     data-stage-status
                     data-stage-status-pill
-                    aria-label="Stage status: @StatusLabel(s.Status)">
-                @StatusLabel(s.Status)
+                    aria-label="Stage status: @displayedStatus">
+                @displayedStatus
               </span>
-              <button type="button"
-                      class="pm-pill pm-pill-warning@(s.RequiresBackfill ? string.Empty : " d-none")"
-                      data-action="open-backfill"
-                      data-stage-backfill-pill
-                      aria-label="Backfill required for @s.Name">
-                Backfill required
-              </button>
-              @if (s.ShowPlanWarning)
+              @if (isActiveLifecycle)
+              {
+                <button type="button"
+                        class="pm-pill pm-pill-warning@(s.RequiresBackfill ? string.Empty : " d-none")"
+                        data-action="open-backfill"
+                        data-stage-backfill-pill
+                        aria-label="Backfill required for @s.Name">
+                  Backfill required
+                </button>
+              }
+              else if (s.RequiresBackfill)
+              {
+                <span class="pm-pill pm-pill-muted">Completion date not recorded</span>
+              }
+              @if (isActiveLifecycle && s.ShowPlanWarning)
               {
                 @if (canEditTimeline)
                 {
@@ -403,15 +436,15 @@
             {
               <span class="pm-flag" title="Auto-completed when a later stage finished." data-stage-autocomplete>Inferred</span>
             }
-            <span class="pm-flag pm-flag-danger@(s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>Overdue</span>
-            <span class="visually-hidden@(s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
-              @if (s.HasPendingRequest)
+            <span class="pm-flag pm-flag-danger@(isActiveLifecycle && s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>Overdue</span>
+            <span class="visually-hidden@(isActiveLifecycle && s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
+              @if (isActiveLifecycle && s.HasPendingRequest)
               {
                   <text>Stage update awaiting HoD approval</text>
               }
             </span>
           </div>
-          @if (s.HasPendingRequest)
+          @if (isActiveLifecycle && s.HasPendingRequest)
           {
             <section class="pm-stage-pending-update" aria-label="Stage update awaiting HoD approval">
               <div class="pm-stage-pending-update__header">
@@ -473,6 +506,19 @@
                 <span class="@variance.cssClass" aria-label="@variance.description" title="@variance.description">@variance.text</span>
               </div>
             }
+          }
+          else if (isCeasedStage)
+          {
+            <div class="pm-stage-terminal-context">
+              @if (s.ActualStart.HasValue)
+              {
+                <span>
+                  <i class="bi bi-calendar3" aria-hidden="true"></i>
+                  Started @D(s.ActualStart)
+                </span>
+              }
+              <strong>Ceased when the project was cancelled</strong>
+            </div>
           }
           else if (s.Status == StageStatus.InProgress)
           {

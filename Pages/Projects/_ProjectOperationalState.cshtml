@@ -51,7 +51,7 @@
 {
     <partial name="_ProjectModerationActions" model="Model" />
 }
-<div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3@(Model.HasBackfill ? string.Empty : " d-none")" role="alert" data-backfill-banner>
+<div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3@(project?.LifecycleStatus == ProjectLifecycleStatus.Active && Model.HasBackfill ? string.Empty : " d-none")" role="alert" data-backfill-banner>
     <div>
         <strong>Action needed:</strong>
         @if (Model.Backfill.HasStages)

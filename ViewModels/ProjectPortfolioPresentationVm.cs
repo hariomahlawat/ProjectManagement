@@ -291,4 +291,6 @@ public sealed class ProjectTimelinePanelVm
 {
     public TimelineVm Timeline { get; init; } = new();
     public ProjectOverviewAccessVm Access { get; init; } = new();
+    public ProjectLifecycleStatus LifecycleStatus { get; init; } = ProjectLifecycleStatus.Active;
+    public bool IsLegacy { get; init; }
 }

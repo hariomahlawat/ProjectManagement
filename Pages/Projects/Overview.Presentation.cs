@@ -25,6 +25,8 @@ public partial class OverviewModel
     public ProjectTimelinePanelVm TimelinePanel => new()
     {
         Timeline = Timeline,
-        Access = Access
+        Access = Access,
+        LifecycleStatus = Project?.LifecycleStatus ?? ProjectManagement.Models.ProjectLifecycleStatus.Active,
+        IsLegacy = Project?.IsLegacy == true
     };
 }

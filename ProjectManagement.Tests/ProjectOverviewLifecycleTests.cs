@@ -75,6 +75,7 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Contains("completed on", overview.LifecycleSummary.PrimaryDetail!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(overview.LifecycleSummary.Facts, fact => fact.Label == "Completed on");
         Assert.Equal("05 Apr 2024", overview.LifecycleSummary.CompletionDisplay);
+        Assert.Equal(ProjectLifecycleStatus.Completed, overview.TimelinePanel.LifecycleStatus);
         Assert.Equal(2, overview.MediaSummary.PhotoCount);
         Assert.True(overview.MediaSummary.HasAdditionalPhotos);
         Assert.Equal(1, overview.DocumentSummary.PublishedCount);
@@ -127,6 +128,7 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(ProjectLifecycleStatus.Cancelled, overview.LifecycleActions.Status);
         Assert.Equal("15 Mar 2024", overview.LifecycleSummary.CancellationDisplay);
         Assert.Equal("Funding withdrawn", overview.LifecycleSummary.CancellationReason);
+        Assert.Equal(ProjectLifecycleStatus.Cancelled, overview.TimelinePanel.LifecycleStatus);
     }
 
     [Fact]
