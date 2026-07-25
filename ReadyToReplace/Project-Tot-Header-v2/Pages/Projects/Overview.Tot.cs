@@ -67,27 +67,7 @@ public partial class OverviewModel
         var project = await _db.Projects
             .AsNoTracking()
             .Include(item => item.Tot)
-            .Where(item => item.Id == id && !item.IsDeleted)
-            .Select(item => new
-            {
-                item.Id,
-                item.LifecycleStatus,
-                item.IsArchived,
-                item.LeadPoUserId,
-                Tot = item.Tot == null
-                    ? null
-                    : new
-                    {
-                        item.Tot.Status,
-                        item.Tot.StartedOn,
-                        item.Tot.CompletedOn,
-                        item.Tot.MetDetails,
-                        item.Tot.MetCompletedOn,
-                        item.Tot.FirstProductionModelManufactured,
-                        item.Tot.FirstProductionModelManufacturedOn
-                    }
-            })
-            .SingleOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(item => item.Id == id && !item.IsDeleted, ct);
 
         if (project is null)
         {
