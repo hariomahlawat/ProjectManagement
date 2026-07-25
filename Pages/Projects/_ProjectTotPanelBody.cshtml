@@ -2,6 +2,7 @@
 @using System.Linq
 @using ProjectManagement.Models
 @using ProjectManagement.Utilities
+@using ProjectManagement.Utilities.PartialDates
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
@@ -31,6 +32,9 @@
     {
         return value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
     }
+
+    string? FormatPartialDate(DateOnly? value, PartialDatePrecision precision)
+        => PartialDateDisplay.Format(value, precision);
 }
 
 <!-- SECTION: ToT summary -->
@@ -73,7 +77,7 @@
     <div class="alert alert-@alertVariant mb-0 mt-2" role="status">
         <div class="fw-semibold">@request.StateLabel</div>
         <ul class="mb-0">
-            <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {FormatDate(request.ProposedStartedOn)}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {FormatDate(request.ProposedCompletedOn)}" : string.Empty).</li>
+            <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {FormatPartialDate(request.ProposedStartedOn, request.ProposedStartDatePrecision)}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {FormatPartialDate(request.ProposedCompletedOn, request.ProposedCompletionDatePrecision)}" : string.Empty).</li>
             @if (!string.IsNullOrWhiteSpace(request.ProposedMetDetails) || request.ProposedMetCompletedOn.HasValue)
             {
                 var metDescription = string.IsNullOrWhiteSpace(request.ProposedMetDetails)

@@ -2,6 +2,7 @@
 @using System.Globalization
 @using ProjectManagement.Models
 @using ProjectManagement.Utilities
+@using ProjectManagement.Utilities.PartialDates
 
 @if (Model.RequestState is null)
 {
@@ -70,8 +71,8 @@
     var stateLabel = RequestStateLabel(requestState);
     var requestedStatusLabel = StatusLabel(Model.RequestedStatus ?? Model.TotStatus ?? ProjectTotStatus.NotStarted);
     var currentStatusLabel = StatusLabel(Model.TotStatus ?? ProjectTotStatus.NotStarted);
-    var proposedStart = FormatDate(Model.RequestedStartedOn) ?? "—";
-    var proposedCompletion = FormatDate(Model.RequestedCompletedOn) ?? "—";
+    var proposedStart = PartialDateDisplay.Format(Model.RequestedStartedOn, Model.RequestedStartDatePrecision) ?? "—";
+    var proposedCompletion = PartialDateDisplay.Format(Model.RequestedCompletedOn, Model.RequestedCompletionDatePrecision) ?? "—";
     var requestedMetDetails = string.IsNullOrWhiteSpace(Model.RequestedMetDetails) ? "—" : Model.RequestedMetDetails;
     var requestedMetCompletedOn = FormatDate(Model.RequestedMetCompletedOn) ?? "—";
     var requestedFoPmManufactured = FoPmLabel(Model.RequestedFirstProductionModelManufactured);

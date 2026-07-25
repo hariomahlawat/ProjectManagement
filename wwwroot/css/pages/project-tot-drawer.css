@@ -150,3 +150,5 @@
         flex: 1 1 auto;
     }
 }
+
+.project-tot-footer-group{display:flex;justify-content:flex-end;gap:.5rem;width:100%;flex-wrap:wrap}.project-tot-remark-editor{border-top:1px solid var(--bs-border-color);padding-top:1rem}.project-tot-additional>summary{cursor:pointer;font-weight:600}.project-tot-drawer [data-tot-success],.project-tot-drawer [data-tot-global-error]{position:sticky;top:0;z-index:2}

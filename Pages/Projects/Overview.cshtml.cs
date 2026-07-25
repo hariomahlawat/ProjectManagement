@@ -34,6 +34,7 @@ using ProjectManagement.Services.Workspace;
 using ProjectManagement.ViewModels.Workspace;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -1606,7 +1607,9 @@ namespace ProjectManagement.Pages.Projects
         private sealed record TotSnapshot(
             ProjectTotStatus Status,
             DateOnly? StartedOn,
+            PartialDatePrecision StartDatePrecision,
             DateOnly? CompletedOn,
+            PartialDatePrecision CompletionDatePrecision,
             string? MetDetails,
             DateOnly? MetCompletedOn,
             bool? FirstProductionModelManufactured,
@@ -1620,7 +1623,9 @@ namespace ProjectManagement.Pages.Projects
             ProjectTotRequestDecisionState State,
             ProjectTotStatus ProposedStatus,
             DateOnly? ProposedStartedOn,
+            PartialDatePrecision ProposedStartDatePrecision,
             DateOnly? ProposedCompletedOn,
+            PartialDatePrecision ProposedCompletionDatePrecision,
             string? ProposedMetDetails,
             DateOnly? ProposedMetCompletedOn,
             bool? ProposedFirstProductionModelManufactured,
@@ -1670,7 +1675,9 @@ namespace ProjectManagement.Pages.Projects
                 return query.Select(t => new TotSnapshot(
                     t.Status,
                     t.StartedOn,
+                    t.StartDatePrecision,
                     t.CompletedOn,
+                    t.CompletionDatePrecision,
                     t.MetDetails,
                     t.MetCompletedOn,
                     t.FirstProductionModelManufactured,
@@ -1684,7 +1691,9 @@ namespace ProjectManagement.Pages.Projects
             return query.Select(t => new TotSnapshot(
                 t.Status,
                 t.StartedOn,
+                t.StartDatePrecision,
                 t.CompletedOn,
+                t.CompletionDatePrecision,
                 null,
                 null,
                 null,
@@ -1707,7 +1716,9 @@ namespace ProjectManagement.Pages.Projects
                     r.DecisionState,
                     r.ProposedStatus,
                     r.ProposedStartedOn,
+                    r.ProposedStartDatePrecision,
                     r.ProposedCompletedOn,
+                    r.ProposedCompletionDatePrecision,
                     r.ProposedMetDetails,
                     r.ProposedMetCompletedOn,
                     r.ProposedFirstProductionModelManufactured,
@@ -1726,7 +1737,9 @@ namespace ProjectManagement.Pages.Projects
                 r.DecisionState,
                 r.ProposedStatus,
                 r.ProposedStartedOn,
+                r.ProposedStartDatePrecision,
                 r.ProposedCompletedOn,
+                r.ProposedCompletionDatePrecision,
                 null,
                 null,
                 null,
@@ -1829,13 +1842,13 @@ namespace ProjectManagement.Pages.Projects
 
             if (tot.StartedOn.HasValue)
             {
-                var started = tot.StartedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                var started = PartialDateDisplay.Format(tot.StartedOn.Value, tot.StartDatePrecision);
                 facts.Add(new ProjectTotSummaryViewModel.TotFact("Started on", started));
             }
 
             if (tot.CompletedOn.HasValue)
             {
-                var completed = tot.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                var completed = PartialDateDisplay.Format(tot.CompletedOn.Value, tot.CompletionDatePrecision);
                 facts.Add(new ProjectTotSummaryViewModel.TotFact("Completed on", completed));
             }
 
@@ -1867,10 +1880,10 @@ namespace ProjectManagement.Pages.Projects
                 ProjectTotStatus.NotRequired => "Transfer of Technology was not required for this project.",
                 ProjectTotStatus.NotStarted => "Transfer of Technology has not started.",
                 ProjectTotStatus.InProgress when tot.StartedOn.HasValue
-                    => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology started on {0} and is in progress.", tot.StartedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
+                    => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology started {0} and is in progress.", PartialDateDisplay.Format(tot.StartedOn.Value, tot.StartDatePrecision)),
                 ProjectTotStatus.InProgress => "Transfer of Technology is in progress.",
                 ProjectTotStatus.Completed when tot.CompletedOn.HasValue
-                    => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology completed on {0}.", tot.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
+                    => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology completed {0}.", PartialDateDisplay.Format(tot.CompletedOn.Value, tot.CompletionDatePrecision)),
                 ProjectTotStatus.Completed => "Transfer of Technology is marked as completed.",
                 _ => "Transfer of Technology details are unavailable."
             };
@@ -1945,7 +1958,9 @@ namespace ProjectManagement.Pages.Projects
                 request.ProposedStatus,
                 proposedStatusLabel,
                 request.ProposedStartedOn,
+                request.ProposedStartDatePrecision,
                 request.ProposedCompletedOn,
+                request.ProposedCompletionDatePrecision,
                 proposedMetDetails,
                 request.ProposedMetCompletedOn,
                 request.ProposedFirstProductionModelManufactured,

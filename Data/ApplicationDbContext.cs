@@ -1348,7 +1348,9 @@ namespace ProjectManagement.Data
 
                 statusBuilder.ValueGeneratedNever();
                 e.Property(x => x.StartedOn).HasColumnType("date");
+                e.Property(x => x.StartDatePrecision).HasConversion<int>().IsRequired();
                 e.Property(x => x.CompletedOn).HasColumnType("date");
+                e.Property(x => x.CompletionDatePrecision).HasConversion<int>().IsRequired();
                 e.Property(x => x.MetDetails).HasMaxLength(2000);
                 e.Property(x => x.MetCompletedOn).HasColumnType("date");
                 e.Property(x => x.FirstProductionModelManufactured).IsRequired(false);
@@ -1377,6 +1379,8 @@ namespace ProjectManagement.Data
                     .HasMaxLength(32)
                     .IsRequired();
                 e.Property(x => x.ProposedMetDetails).HasMaxLength(2000);
+                e.Property(x => x.ProposedStartDatePrecision).HasConversion<int>().IsRequired();
+                e.Property(x => x.ProposedCompletionDatePrecision).HasConversion<int>().IsRequired();
                 e.Property(x => x.ProposedMetCompletedOn).HasColumnType("date");
                 e.Property(x => x.ProposedFirstProductionModelManufactured).IsRequired(false);
                 e.Property(x => x.ProposedFirstProductionModelManufacturedOn).HasColumnType("date");

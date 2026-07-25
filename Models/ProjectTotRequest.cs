@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Models
 {
@@ -17,7 +18,11 @@ namespace ProjectManagement.Models
 
         public DateOnly? ProposedStartedOn { get; set; }
 
+        public PartialDatePrecision ProposedStartDatePrecision { get; set; } = PartialDatePrecision.None;
+
         public DateOnly? ProposedCompletedOn { get; set; }
+
+        public PartialDatePrecision ProposedCompletionDatePrecision { get; set; } = PartialDatePrecision.None;
 
         [MaxLength(2000)]
         public string? ProposedMetDetails { get; set; }

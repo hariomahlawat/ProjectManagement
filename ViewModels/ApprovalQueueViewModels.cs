@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities.PartialDates;
 using ProjectManagement.Models.Plans;
 
 namespace ProjectManagement.ViewModels;
@@ -179,9 +180,13 @@ public sealed record TotRequestDetailVm(
     ProjectTotStatus CurrentStatus,
     ProjectTotStatus ProposedStatus,
     DateOnly? CurrentStartedOn,
+    PartialDatePrecision CurrentStartDatePrecision,
     DateOnly? ProposedStartedOn,
+    PartialDatePrecision ProposedStartDatePrecision,
     DateOnly? CurrentCompletedOn,
+    PartialDatePrecision CurrentCompletionDatePrecision,
     DateOnly? ProposedCompletedOn,
+    PartialDatePrecision ProposedCompletionDatePrecision,
     string? CurrentMetDetails,
     string? ProposedMetDetails,
     DateOnly? CurrentMetCompletedOn,

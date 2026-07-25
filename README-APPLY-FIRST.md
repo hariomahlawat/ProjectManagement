@@ -1,53 +1,85 @@
-# PRISM ERP — Project Overview JDP Header
+# PRISM ERP — ToT precision and workflow hardening
 
-## Which bundle to use
+This package is ready to extract over the folder containing
+`ProjectManagement.csproj`. Preserve the relative paths and replace existing
+files when prompted. New files must also be copied.
 
-- **Incremental production bundle**: use when `Project-Overview-Proliferation-v1` has already been applied.
-- **Cumulative production bundle**: use when starting from the uploaded `ProjectManagement-master (6)(3).zip`, or when unsure whether the proliferation files were all applied.
-- **Ready-to-replace bundle**: cumulative production files plus regression tests and this guide.
+## What this package changes
 
-Extract the selected ZIP into the directory containing `ProjectManagement.csproj` and allow matching files to be replaced.
+- Preserves year-only, month-and-year and exact-day precision for ToT start and
+  completion dates.
+- Displays `2026`, `Dec 2026` or `31 Dec 2026` according to what was entered.
+- Adds precision fields to approved ToT records and pending approval requests.
+- Conservatively backfills legacy boundary dates so an inferred boundary is not
+  presented as an exact user-entered day.
+- Enforces completed, non-archived, non-deleted project eligibility in
+  `ProjectTotService.UpdateAsync`, `SubmitRequestAsync` and request approval.
+- Applies the same lifecycle guard to Overview handlers and the dedicated ToT
+  Edit page.
+- Separates summary and edit actions in the drawer.
+- Adds the inline ToT remark composer.
+- Shows status-specific guidance and hides inapplicable dates and milestones.
+- Shows AJAX success feedback inside the drawer.
+- Replaces failed cover images with the designed neutral fallback.
+- Carries partial-date precision through the ToT tracker and approval details.
 
-## Implemented behaviour
+## Database migration
 
-- Replaces the low-value **Lifecycle progress** header card with **JDP**.
-- A project has either one JDP or no JDP.
-- The JDP card shows the linked organisation and whether that organisation is linked to other ongoing or completed projects.
-- Clicking the card opens a right-side JDP drawer.
-- Authorised users can search the existing Industry Directory, link/change the JDP, or remove it without leaving the project page.
-- The same drawer remains read-only for users without edit authority.
-- JDP edit rights are enforced server-side for Admin, HoD, Comdt and the assigned Project Officer.
-- The lower JDP panel remains synchronised after an AJAX update and links to the organisation record.
-- Existing directory creation remains available as a secondary action when an organisation is not yet recorded.
-- Existing legacy records with more than one JDP link are explicitly flagged; selecting and saving the correct JDP safely removes only the extra links for that project.
-- Existing partner links to other projects are never removed when this project's JDP is changed or removed.
+The package adds:
 
-## Database impact
+`Migrations/20261206100000_AddProjectTotDatePrecision.cs`
 
-The JDP enhancement requires **no new migration**. It uses the existing `IndustryPartnerProjects` relationship. The application service now enforces the one-project/one-JDP contract across both the overview workflow and the existing directory link workflow.
+The application’s existing automatic migration startup will apply it. The
+migration is also registered in `Migrations/immutable-migration-ids.txt` and the
+EF model snapshot is updated.
 
-The cumulative bundle also contains the previously supplied proliferation migration because it includes the complete proliferation implementation.
+The conservative backfill uses these historical storage conventions:
 
-## Verification
+- start date on 01 January → year precision;
+- start date on the first of another month → month precision;
+- completion date on 31 December → year precision;
+- completion date on another month-end → month precision;
+- other values → exact-day precision.
 
-Run from the project root:
+This deliberately avoids retaining known range-boundary values as invented
+exact dates. A genuine exact boundary date may therefore be understated and can
+be refined by an authorised user.
+
+## Apply
+
+1. Stop the IIS application pool or take the application offline.
+2. Back up the application folder and PostgreSQL database.
+3. Extract this package into the project source folder.
+4. Rebuild and publish the application.
+5. Start the application and confirm the migration completes.
+
+## Required verification
+
+Run:
 
 ```powershell
-dotnet build ProjectManagement.sln
-dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+dotnet clean
+dotnet restore
+dotnet build
+dotnet test
 ```
 
 Then verify:
 
-1. Open a project with no JDP and link an organisation from the header card.
-2. Confirm the card and lower JDP panel update without a page reload.
-3. Open a project whose JDP is linked to other projects and confirm ongoing/completed counts and project links.
-4. Change the JDP and confirm links belonging to other projects remain intact.
-5. Sign in as an unrelated Project Officer and confirm the drawer is read-only.
+1. Completion year `2026` displays as `2026`.
+2. Completion month December 2026 displays as `Dec 2026`.
+3. Exact date 31 December 2026 displays as `31 Dec 2026`.
+4. Active, archived and deleted projects cannot be changed through Overview,
+   the dedicated Edit page, request submission or approval.
+5. Summary mode shows `Close`, `Open tracker`, `Update details`.
+6. Edit mode shows only `Cancel`, `Save details`.
+7. An inline ToT remark saves without a page reload.
+8. Status guidance and field visibility change correctly.
+9. Success feedback does not cover the drawer header.
+10. A failed cover-photo request shows `Cover photo unavailable`.
 
-## Validation completed in this environment
+## Validation note
 
-- JavaScript syntax validation passed with `node --check`.
-- Static source-contract and delimiter checks passed.
-- The .NET SDK was not available in this environment, so the C# build and xUnit suite could not be executed here.
-- The repository-wide JavaScript suite could not be completed because `jsdom` is not installed in this environment.
+JavaScript syntax and source/migration consistency were checked while preparing
+the package. The preparation environment did not contain the .NET SDK, so the
+four `dotnet` commands above must be completed before deployment.

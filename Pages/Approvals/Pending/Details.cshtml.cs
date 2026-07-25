@@ -15,6 +15,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.ViewModels;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Pages.Approvals.Pending;
 
@@ -138,6 +139,9 @@ public sealed class DetailsModel : PageModel
 
     public string FormatDate(DateOnly? value)
         => value?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "—";
+
+    public string FormatDate(DateOnly? value, PartialDatePrecision precision)
+        => PartialDateDisplay.Format(value, precision) ?? "—";
 
     public string FormatDateTime(DateTimeOffset? value)
         => value.HasValue

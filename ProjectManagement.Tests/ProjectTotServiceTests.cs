@@ -37,7 +37,8 @@ public sealed class ProjectTotServiceTests
             Id = 1,
             Name = "Alpha",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -89,7 +90,8 @@ public sealed class ProjectTotServiceTests
             Id = 41,
             Name = "Lambda",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -211,7 +213,7 @@ public sealed class ProjectTotServiceTests
     }
 
     [Fact]
-    public async Task SubmitRequestAsync_AllowsActiveProjectPortfolioStatus()
+    public async Task SubmitRequestAsync_RejectsActiveProject()
     {
         await using var db = CreateContext();
         db.Projects.Add(new Project
@@ -232,10 +234,8 @@ public sealed class ProjectTotServiceTests
             CreateRequest(ProjectTotStatus.NotRequired),
             "project-officer");
 
-        Assert.True(result.IsSuccess);
-        var request = await db.ProjectTotRequests.SingleAsync(item => item.ProjectId == 51);
-        Assert.Equal(ProjectTotStatus.NotRequired, request.ProposedStatus);
-        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+        Assert.Equal(ProjectTotRequestActionStatus.ValidationFailed, result.Status);
+        Assert.False(await db.ProjectTotRequests.AnyAsync(item => item.ProjectId == 51));
     }
 
     [Fact]
@@ -247,7 +247,8 @@ public sealed class ProjectTotServiceTests
             Id = 5,
             Name = "Beta",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -282,7 +283,8 @@ public sealed class ProjectTotServiceTests
             Id = 7,
             Name = "Gamma",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -327,7 +329,8 @@ public sealed class ProjectTotServiceTests
             Id = 8,
             Name = "Project Nova",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
 
         await db.SaveChangesAsync();
@@ -339,7 +342,8 @@ public sealed class ProjectTotServiceTests
             8,
             CreateRequest(
                 ProjectTotStatus.Completed,
-                completedOn: new DateOnly(2023, 12, 31)),
+                completedOn: new DateOnly(2023, 12, 31),
+                completionPrecision: PartialDatePrecision.Year),
             "actor");
 
         Assert.True(result.IsSuccess);
@@ -347,6 +351,7 @@ public sealed class ProjectTotServiceTests
         Assert.Equal(ProjectTotStatus.Completed, tot.Status);
         Assert.Null(tot.StartedOn);
         Assert.Equal(new DateOnly(2023, 12, 31), tot.CompletedOn);
+        Assert.Equal(PartialDatePrecision.Year, tot.CompletionDatePrecision);
     }
 
     [Fact]
@@ -358,7 +363,8 @@ public sealed class ProjectTotServiceTests
             Id = 8,
             Name = "Project Vega",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
 
         await db.SaveChangesAsync();
@@ -384,7 +390,8 @@ public sealed class ProjectTotServiceTests
             Id = 9,
             Name = "Project Orion",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
 
         await db.SaveChangesAsync();
@@ -396,13 +403,90 @@ public sealed class ProjectTotServiceTests
             9,
             CreateRequest(
                 ProjectTotStatus.InProgress,
-                startedOn: new DateOnly(2022, 1, 1)),
+                startedOn: new DateOnly(2022, 1, 1),
+                startPrecision: PartialDatePrecision.Year),
             "actor");
 
         Assert.True(result.IsSuccess);
         var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 9);
         Assert.Equal(new DateOnly(2022, 1, 1), tot.StartedOn);
+        Assert.Equal(PartialDatePrecision.Year, tot.StartDatePrecision);
         Assert.Null(tot.CompletedOn);
+    }
+
+    [Fact]
+    public async Task SubmitRequestAsync_PreservesPartialDatePrecision()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 91,
+            Name = "Precision request",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(
+            db,
+            new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.SubmitRequestAsync(
+            91,
+            CreateRequest(
+                ProjectTotStatus.Completed,
+                completedOn: new DateOnly(2024, 6, 30),
+                completionPrecision: PartialDatePrecision.Month),
+            "project-officer");
+
+        Assert.True(result.IsSuccess);
+        var request = await db.ProjectTotRequests.SingleAsync(item => item.ProjectId == 91);
+        Assert.Equal(PartialDatePrecision.Month, request.ProposedCompletionDatePrecision);
+    }
+
+    [Fact]
+    public async Task DecideRequestAsync_WhenProjectBecomesArchived_RejectsApproval()
+    {
+        await using var db = CreateContext();
+        var project = new Project
+        {
+            Id = 92,
+            Name = "Archived approval",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            IsArchived = true
+        };
+        var request = new ProjectTotRequest
+        {
+            ProjectId = 92,
+            ProposedStatus = ProjectTotStatus.NotRequired,
+            SubmittedByUserId = "project-officer",
+            SubmittedOnUtc = new DateTime(2024, 1, 2),
+            DecisionState = ProjectTotRequestDecisionState.Pending,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+        project.TotRequest = request;
+        db.Projects.Add(project);
+        db.ProjectTotRequests.Add(request);
+        await db.SaveChangesAsync();
+
+        var service = new ProjectTotService(
+            db,
+            new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero)));
+
+        var result = await service.DecideRequestAsync(
+            92,
+            approve: true,
+            decisionUserId: "hod",
+            isAdmin: false,
+            isHoD: true,
+            expectedRowVersion: request.RowVersion);
+
+        Assert.Equal(ProjectTotRequestActionStatus.ValidationFailed, result.Status);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+        Assert.Null(project.Tot);
     }
 
     [Fact]
@@ -414,7 +498,8 @@ public sealed class ProjectTotServiceTests
             Id = 9,
             Name = "Project Helios",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
 
         db.ProjectTots.Add(new ProjectTot
@@ -449,7 +534,8 @@ public sealed class ProjectTotServiceTests
             Id = 10,
             Name = "Project Lumen",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
 
         db.ProjectTots.Add(new ProjectTot
@@ -491,7 +577,8 @@ public sealed class ProjectTotServiceTests
             Id = 21,
             Name = "Theta",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -529,7 +616,8 @@ public sealed class ProjectTotServiceTests
             Id = 22,
             Name = "Iota",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -567,7 +655,8 @@ public sealed class ProjectTotServiceTests
             Id = 23,
             Name = "Kappa",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -604,7 +693,8 @@ public sealed class ProjectTotServiceTests
             Id = 11,
             Name = "Delta",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -642,7 +732,8 @@ public sealed class ProjectTotServiceTests
             Id = 15,
             Name = "Epsilon",
             CreatedAt = new DateTime(2024, 1, 1),
-            CreatedByUserId = "creator"
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
         });
         db.ProjectTots.Add(new ProjectTot
         {
@@ -684,9 +775,9 @@ public sealed class ProjectTotServiceTests
         new(
             status,
             startedOn,
-            startPrecision,
+            startedOn.HasValue ? startPrecision : PartialDatePrecision.None,
             completedOn,
-            completionPrecision,
+            completedOn.HasValue ? completionPrecision : PartialDatePrecision.None,
             metDetails,
             metCompletedOn,
             firstProductionModelManufactured,

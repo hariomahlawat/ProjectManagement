@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +8,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Pages.Projects;
@@ -117,18 +120,21 @@ public partial class OverviewModel
                 projectId = id,
                 status = status.ToString(),
                 startYear = tot?.StartedOn?.Year,
-                startMonth = tot?.StartedOn?.Month,
-                startDay = tot?.StartedOn?.Day,
+                startMonth = tot is not null && tot.StartDatePrecision >= PartialDatePrecision.Month ? tot.StartedOn?.Month : null,
+                startDay = tot is not null && tot.StartDatePrecision == PartialDatePrecision.Day ? tot.StartedOn?.Day : null,
                 completionYear = tot?.CompletedOn?.Year,
-                completionMonth = tot?.CompletedOn?.Month,
-                completionDay = tot?.CompletedOn?.Day,
+                completionMonth = tot is not null && tot.CompletionDatePrecision >= PartialDatePrecision.Month ? tot.CompletedOn?.Month : null,
+                completionDay = tot is not null && tot.CompletionDatePrecision == PartialDatePrecision.Day ? tot.CompletedOn?.Day : null,
                 metDetails = tot?.MetDetails,
                 metCompletedOn = tot?.MetCompletedOn?.ToString("yyyy-MM-dd"),
                 firstProductionModelManufactured = tot?.FirstProductionModelManufactured,
                 firstProductionModelManufacturedOn = tot?.FirstProductionModelManufacturedOn?.ToString("yyyy-MM-dd")
             },
-            card = BuildTotCard(status, hasRecord, pending?.ProposedStatus),
-            summary = BuildTotSummaryPayload(tot)
+            card = BuildTotCard(status, hasRecord, pending?.ProposedStatus,
+                tot?.StartedOn, tot?.StartDatePrecision ?? PartialDatePrecision.None,
+                tot?.CompletedOn, tot?.CompletionDatePrecision ?? PartialDatePrecision.None),
+            summary = BuildTotSummaryPayload(tot),
+            latestRemark = await LoadLatestTotRemarkPayloadAsync(id, ct)
         });
     }
 
@@ -231,8 +237,104 @@ public partial class OverviewModel
         {
             success = true,
             message = "Transfer of Technology details updated.",
-            card = BuildTotCard(input.Status, true, null)
+            card = BuildTotCard(input.Status, true, null,
+                request!.StartedOn, request.StartDatePrecision,
+                request.CompletedOn, request.CompletionDatePrecision)
         });
+    }
+
+    public async Task<IActionResult> OnPostTotRemarkAsync(
+        int id,
+        [FromForm] int projectId,
+        [FromForm] string? body,
+        CancellationToken ct)
+    {
+        if (id <= 0 || projectId != id)
+        {
+            return new JsonResult(new { error = "The ToT remark form is not valid for this project." })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(item => item.Id == id && !item.IsDeleted)
+            .Select(item => new { item.LifecycleStatus, item.IsArchived, item.LeadPoUserId })
+            .SingleOrDefaultAsync(ct);
+
+        if (project is null)
+        {
+            return new JsonResult(new { error = "Project not found." })
+            {
+                StatusCode = StatusCodes.Status404NotFound
+            };
+        }
+
+        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived ||
+            !await CanManageTotFromOverviewAsync(id, project.LeadPoUserId, project.IsArchived, ct))
+        {
+            return new JsonResult(new { error = "You are not authorised to add a ToT remark for this project." })
+            {
+                StatusCode = StatusCodes.Status403Forbidden
+            };
+        }
+
+        var normalized = body?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length < 4 || normalized.Length > 2000)
+        {
+            return new JsonResult(new { error = "Remarks must contain between 4 and 2000 characters." })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
+
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId)) return Forbid();
+
+        var role = User.IsInRole("Admin")
+            ? RemarkActorRole.Administrator
+            : User.IsInRole("HoD")
+                ? RemarkActorRole.HeadOfDepartment
+                : RemarkActorRole.ProjectOfficer;
+
+        var remark = new Remark
+        {
+            ProjectId = id,
+            AuthorUserId = userId,
+            AuthorRole = role,
+            Type = RemarkType.Internal,
+            Scope = RemarkScope.TransferOfTechnology,
+            Body = normalized,
+            EventDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst())),
+            CreatedAtUtc = _clock.UtcNow.UtcDateTime,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+        _db.Remarks.Add(remark);
+        await _db.SaveChangesAsync(ct);
+
+        return new JsonResult(new { success = true, message = "Transfer of Technology remark added." });
+    }
+
+    private async Task<object?> LoadLatestTotRemarkPayloadAsync(int projectId, CancellationToken ct)
+    {
+        var latest = await _db.Remarks
+            .AsNoTracking()
+            .Where(item => item.ProjectId == projectId && !item.IsDeleted && item.Scope == RemarkScope.TransferOfTechnology)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(item => new { item.Body, item.Type, item.AuthorUserId, item.CreatedAtUtc })
+            .FirstOrDefaultAsync(ct);
+        if (latest is null) return null;
+        var author = await _db.Users.AsNoTracking()
+            .Where(item => item.Id == latest.AuthorUserId)
+            .Select(item => item.FullName ?? item.UserName ?? item.Email ?? item.Id)
+            .FirstOrDefaultAsync(ct) ?? "Unknown";
+        return new
+        {
+            body = latest.Body,
+            meta = $"{(latest.Type == RemarkType.External ? "External" : "Internal")} · {author}"
+        };
     }
 
     private async Task<bool> CanManageTotFromOverviewAsync(
@@ -342,16 +444,15 @@ public partial class OverviewModel
     private static object BuildTotCard(
         ProjectTotStatus status,
         bool hasRecord,
-        ProjectTotStatus? proposedStatus)
+        ProjectTotStatus? proposedStatus,
+        DateOnly? startedOn,
+        PartialDatePrecision startPrecision,
+        DateOnly? completedOn,
+        PartialDatePrecision completionPrecision)
     {
         if (proposedStatus.HasValue)
         {
-            return new
-            {
-                title = "Approval pending",
-                summary = $"Proposed: {TotStatusLabel(proposedStatus.Value)}",
-                tone = "info"
-            };
+            return new { title = "Approval pending", summary = $"Proposed: {TotStatusLabel(proposedStatus.Value)}", tone = "info" };
         }
 
         var title = hasRecord ? TotStatusLabel(status) : "Not recorded";
@@ -359,7 +460,9 @@ public partial class OverviewModel
         {
             ProjectTotStatus.NotRequired => "No ToT action required",
             ProjectTotStatus.NotStarted => hasRecord ? "ToT action pending" : "Record ToT position",
+            ProjectTotStatus.InProgress when startedOn.HasValue => $"Started {FormatPartialDate(startedOn.Value, startPrecision)}",
             ProjectTotStatus.InProgress => "ToT is in progress",
+            ProjectTotStatus.Completed when completedOn.HasValue => $"Completed {FormatPartialDate(completedOn.Value, completionPrecision)}",
             ProjectTotStatus.Completed => "ToT marked completed",
             _ => "Record ToT position"
         };
@@ -370,7 +473,6 @@ public partial class OverviewModel
             ProjectTotStatus.NotRequired => "neutral",
             _ => "warning"
         };
-
         return new { title, summary, tone };
     }
 
@@ -388,12 +490,12 @@ public partial class OverviewModel
         }
 
         var facts = new System.Collections.Generic.List<object>();
-        if (tot.StartedOn.HasValue) facts.Add(new { label = "Started on", value = tot.StartedOn.Value.ToString("dd MMM yyyy") });
-        if (tot.CompletedOn.HasValue) facts.Add(new { label = "Completed on", value = tot.CompletedOn.Value.ToString("dd MMM yyyy") });
+        if (tot.StartedOn.HasValue) facts.Add(new { label = "Started on", value = FormatPartialDate(tot.StartedOn.Value, tot.StartDatePrecision) });
+        if (tot.CompletedOn.HasValue) facts.Add(new { label = "Completed on", value = FormatPartialDate(tot.CompletedOn.Value, tot.CompletionDatePrecision) });
         if (!string.IsNullOrWhiteSpace(tot.MetDetails)) facts.Add(new { label = "MET details", value = tot.MetDetails });
-        if (tot.MetCompletedOn.HasValue) facts.Add(new { label = "MET completed on", value = tot.MetCompletedOn.Value.ToString("dd MMM yyyy") });
+        if (tot.MetCompletedOn.HasValue) facts.Add(new { label = "MET completed on", value = tot.MetCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) });
         if (tot.FirstProductionModelManufactured.HasValue) facts.Add(new { label = "First production model", value = tot.FirstProductionModelManufactured.Value ? "Manufactured" : "Not manufactured" });
-        if (tot.FirstProductionModelManufacturedOn.HasValue) facts.Add(new { label = "Manufactured on", value = tot.FirstProductionModelManufacturedOn.Value.ToString("dd MMM yyyy") });
+        if (tot.FirstProductionModelManufacturedOn.HasValue) facts.Add(new { label = "Manufactured on", value = tot.FirstProductionModelManufacturedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) });
 
         var summary = tot.Status switch
         {
@@ -403,15 +505,11 @@ public partial class OverviewModel
             ProjectTotStatus.Completed => "Transfer of Technology is completed.",
             _ => "Transfer of Technology details are unavailable."
         };
-
-        return new
-        {
-            hasRecord = true,
-            statusLabel = TotStatusLabel(tot.Status),
-            summary,
-            facts
-        };
+        return new { hasRecord = true, statusLabel = TotStatusLabel(tot.Status), summary, facts };
     }
+
+    private static string FormatPartialDate(DateOnly value, PartialDatePrecision precision)
+        => PartialDateDisplay.Format(value, precision);
 
     private static string TotStatusLabel(ProjectTotStatus status) => status switch
     {

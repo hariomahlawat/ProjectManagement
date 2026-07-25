@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.ViewModels;
 
@@ -29,7 +30,9 @@ public sealed class ProjectTotSummaryViewModel
         ProjectTotStatus ProposedStatus,
         string ProposedStatusLabel,
         DateOnly? ProposedStartedOn,
+        PartialDatePrecision ProposedStartDatePrecision,
         DateOnly? ProposedCompletedOn,
+        PartialDatePrecision ProposedCompletionDatePrecision,
         string? ProposedMetDetails,
         DateOnly? ProposedMetCompletedOn,
         bool? ProposedFirstProductionModelManufactured,

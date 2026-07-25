@@ -188,8 +188,8 @@
                     <div class="decision-change-table">
                         <div class="decision-change-row decision-change-row--head"><span>Field</span><span>Current</span><span>Proposed</span></div>
                         <div class="decision-change-row"><strong>Status</strong><span>@Model.FormatStatus(tot.CurrentStatus.ToString())</span><span class="is-proposed">@Model.FormatStatus(tot.ProposedStatus.ToString())</span></div>
-                        <div class="decision-change-row"><strong>Started on</strong><span>@Model.FormatDate(tot.CurrentStartedOn)</span><span class="is-proposed">@Model.FormatDate(tot.ProposedStartedOn)</span></div>
-                        <div class="decision-change-row"><strong>Completed on</strong><span>@Model.FormatDate(tot.CurrentCompletedOn)</span><span class="is-proposed">@Model.FormatDate(tot.ProposedCompletedOn)</span></div>
+                        <div class="decision-change-row"><strong>Started on</strong><span>@Model.FormatDate(tot.CurrentStartedOn, tot.CurrentStartDatePrecision)</span><span class="is-proposed">@Model.FormatDate(tot.ProposedStartedOn, tot.ProposedStartDatePrecision)</span></div>
+                        <div class="decision-change-row"><strong>Completed on</strong><span>@Model.FormatDate(tot.CurrentCompletedOn, tot.CurrentCompletionDatePrecision)</span><span class="is-proposed">@Model.FormatDate(tot.ProposedCompletedOn, tot.ProposedCompletionDatePrecision)</span></div>
                         <div class="decision-change-row"><strong>MET details</strong><span>@(tot.CurrentMetDetails ?? "—")</span><span class="is-proposed">@(tot.ProposedMetDetails ?? "—")</span></div>
                     </div>
                 </section>

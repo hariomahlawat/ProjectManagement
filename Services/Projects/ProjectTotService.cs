@@ -48,6 +48,11 @@ public sealed class ProjectTotService
             return ProjectTotUpdateResult.NotFound();
         }
 
+        if (GetEligibilityError(project) is { } eligibilityError)
+        {
+            return ProjectTotUpdateResult.ValidationFailed(eligibilityError);
+        }
+
         var todayLocal = GetTodayInIst();
         var validation = ValidateRequest(request, todayLocal, out var normalizedRequest);
         if (!validation.IsSuccess)
@@ -87,8 +92,10 @@ public sealed class ProjectTotService
             return ProjectTotRequestActionResult.NotFound();
         }
 
-        // ToT is a project-level portfolio record throughout the lifecycle. It may be
-        // recorded as Not required, Not started, In progress or Completed at any stage.
+        if (GetEligibilityError(project) is { } eligibilityError)
+        {
+            return ProjectTotRequestActionResult.ValidationFailed(eligibilityError);
+        }
 
         var todayLocal = GetTodayInIst();
         var validation = ValidateRequest(request, todayLocal, out var normalizedRequest);
@@ -115,7 +122,9 @@ public sealed class ProjectTotService
 
         totRequest.ProposedStatus = normalizedRequest.Status;
         totRequest.ProposedStartedOn = normalizedRequest.StartedOn;
+        totRequest.ProposedStartDatePrecision = normalizedRequest.StartDatePrecision;
         totRequest.ProposedCompletedOn = normalizedRequest.CompletedOn;
+        totRequest.ProposedCompletionDatePrecision = normalizedRequest.CompletionDatePrecision;
         totRequest.ProposedMetDetails = normalizedRequest.MetDetails;
         totRequest.ProposedMetCompletedOn = normalizedRequest.MetCompletedOn;
         totRequest.ProposedFirstProductionModelManufactured = normalizedRequest.FirstProductionModelManufactured;
@@ -177,12 +186,17 @@ public sealed class ProjectTotService
 
         if (approve)
         {
+            if (GetEligibilityError(project) is { } eligibilityError)
+            {
+                return ProjectTotRequestActionResult.ValidationFailed(eligibilityError);
+            }
+
             var updateRequest = new ProjectTotUpdateRequest(
                 request.ProposedStatus,
                 request.ProposedStartedOn,
-                PartialDatePrecision.Day,
+                request.ProposedStartDatePrecision,
                 request.ProposedCompletedOn,
-                PartialDatePrecision.Day,
+                request.ProposedCompletionDatePrecision,
                 request.ProposedMetDetails,
                 request.ProposedMetCompletedOn,
                 request.ProposedFirstProductionModelManufactured,
@@ -211,6 +225,23 @@ public sealed class ProjectTotService
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectTotRequestActionResult.Success();
+    }
+
+    private static string? GetEligibilityError(Project project)
+    {
+        if (project.IsDeleted)
+        {
+            return "Transfer of Technology cannot be changed for a deleted project.";
+        }
+
+        if (project.IsArchived)
+        {
+            return "Transfer of Technology cannot be changed while the project is archived.";
+        }
+
+        return project.LifecycleStatus == ProjectLifecycleStatus.Completed
+            ? null
+            : "Transfer of Technology can be changed only after the project is completed.";
     }
 
     private DateOnly GetTodayInIst() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
@@ -289,29 +320,25 @@ public sealed class ProjectTotService
             MetDetails = trimmedMetDetails
         };
 
+        if (normalizedRequest.StartedOn.HasValue !=
+            (normalizedRequest.StartDatePrecision != PartialDatePrecision.None) ||
+            normalizedRequest.CompletedOn.HasValue !=
+            (normalizedRequest.CompletionDatePrecision != PartialDatePrecision.None))
+        {
+            return ProjectTotUpdateResult.ValidationFailed(
+                "The supplied Transfer of Technology date precision is inconsistent with its date value.");
+        }
+
         switch (normalizedRequest.Status)
         {
             case ProjectTotStatus.NotRequired:
             {
-                if (normalizedRequest.StartedOn.HasValue || normalizedRequest.CompletedOn.HasValue)
-                {
-                    return ProjectTotUpdateResult.ValidationFailed(
-                        "Start and completion dates must be empty when ToT is not required.");
-                }
-
-                if (!string.IsNullOrEmpty(normalizedRequest.MetDetails) ||
-                    normalizedRequest.MetCompletedOn.HasValue ||
-                    normalizedRequest.FirstProductionModelManufactured.HasValue ||
-                    normalizedRequest.FirstProductionModelManufacturedOn.HasValue)
-                {
-                    return ProjectTotUpdateResult.ValidationFailed(
-                        "MET and first production model details must be empty when ToT is not required.");
-                }
-
                 normalizedRequest = normalizedRequest with
                 {
                     StartedOn = null,
+                    StartDatePrecision = PartialDatePrecision.None,
                     CompletedOn = null,
+                    CompletionDatePrecision = PartialDatePrecision.None,
                     MetDetails = null,
                     MetCompletedOn = null,
                     FirstProductionModelManufactured = null,
@@ -322,11 +349,17 @@ public sealed class ProjectTotService
             }
             case ProjectTotStatus.NotStarted:
             {
-                if (normalizedRequest.StartedOn.HasValue || normalizedRequest.CompletedOn.HasValue)
+                normalizedRequest = normalizedRequest with
                 {
-                    return ProjectTotUpdateResult.ValidationFailed(
-                        "Start and completion dates must be empty until ToT is in progress.");
-                }
+                    StartedOn = null,
+                    StartDatePrecision = PartialDatePrecision.None,
+                    CompletedOn = null,
+                    CompletionDatePrecision = PartialDatePrecision.None,
+                    MetDetails = null,
+                    MetCompletedOn = null,
+                    FirstProductionModelManufactured = null,
+                    FirstProductionModelManufacturedOn = null
+                };
 
                 break;
             }
@@ -347,6 +380,11 @@ public sealed class ProjectTotService
                     return ProjectTotUpdateResult.ValidationFailed(
                         "Completion date must be empty until ToT is completed.");
                 }
+
+                normalizedRequest = normalizedRequest with
+                {
+                    CompletionDatePrecision = PartialDatePrecision.None
+                };
 
                 break;
             }
@@ -377,6 +415,13 @@ public sealed class ProjectTotService
                     {
                         return ProjectTotUpdateResult.ValidationFailed("Start date cannot be in the future.");
                     }
+                }
+                else
+                {
+                    normalizedRequest = normalizedRequest with
+                    {
+                        StartDatePrecision = PartialDatePrecision.None
+                    };
                 }
 
                 break;
@@ -456,22 +501,27 @@ public sealed class ProjectTotService
             case ProjectTotStatus.NotRequired:
             case ProjectTotStatus.NotStarted:
                 tot.StartedOn = null;
+                tot.StartDatePrecision = PartialDatePrecision.None;
                 tot.CompletedOn = null;
-                if (request.Status == ProjectTotStatus.NotRequired)
-                {
-                    tot.MetDetails = null;
-                    tot.MetCompletedOn = null;
-                    tot.FirstProductionModelManufactured = null;
-                    tot.FirstProductionModelManufacturedOn = null;
-                }
+                tot.CompletionDatePrecision = PartialDatePrecision.None;
+                tot.MetDetails = null;
+                tot.MetCompletedOn = null;
+                tot.FirstProductionModelManufactured = null;
+                tot.FirstProductionModelManufacturedOn = null;
                 break;
             case ProjectTotStatus.InProgress:
                 tot.StartedOn = request.StartedOn;
+                tot.StartDatePrecision = request.StartDatePrecision;
                 tot.CompletedOn = null;
+                tot.CompletionDatePrecision = PartialDatePrecision.None;
                 break;
             case ProjectTotStatus.Completed:
                 tot.StartedOn = request.StartedOn;
+                tot.StartDatePrecision = request.StartedOn.HasValue
+                    ? request.StartDatePrecision
+                    : PartialDatePrecision.None;
                 tot.CompletedOn = request.CompletedOn;
+                tot.CompletionDatePrecision = request.CompletionDatePrecision;
                 break;
         }
 

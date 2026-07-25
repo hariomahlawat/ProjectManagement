@@ -5672,6 +5672,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly?>("CompletedOn")
                         .HasColumnType("date");
 
+                    b.Property<int>("CompletionDatePrecision")
+                        .HasColumnType("integer");
+
                     b.Property<bool?>("FirstProductionModelManufactured")
                         .HasColumnType("boolean");
 
@@ -5697,6 +5700,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateOnly?>("StartedOn")
                         .HasColumnType("date");
+
+                    b.Property<int>("StartDatePrecision")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -5739,6 +5745,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly?>("ProposedCompletedOn")
                         .HasColumnType("date");
 
+                    b.Property<int>("ProposedCompletionDatePrecision")
+                        .HasColumnType("integer");
+
                     b.Property<bool?>("ProposedFirstProductionModelManufactured")
                         .HasColumnType("boolean");
 
@@ -5754,6 +5763,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateOnly?>("ProposedStartedOn")
                         .HasColumnType("date");
+
+                    b.Property<int>("ProposedStartDatePrecision")
+                        .HasColumnType("integer");
 
                     b.Property<string>("ProposedStatus")
                         .IsRequired()

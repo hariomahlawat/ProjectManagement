@@ -1,5 +1,4 @@
 @using ProjectManagement.Models
-@using System.Linq
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
     var project = Model.Project;
@@ -12,24 +11,6 @@
     var lifecycleStatus = Model.LifecycleSummary.Status;
     var isCompleted = lifecycleStatus == ProjectLifecycleStatus.Completed;
     var isActive = lifecycleStatus == ProjectLifecycleStatus.Active;
-    var tot = Model.TotSummary;
-    var pendingTot = tot.PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
-    var totTitle = pendingTot ? "Approval pending" : tot.StatusLabel;
-    var totSummary = pendingTot
-        ? $"Proposed: {tot.PendingRequest!.ProposedStatusLabel}"
-        : tot.Status switch
-        {
-            ProjectTotStatus.InProgress => tot.Facts.FirstOrDefault(f => f.Label == "Started on") is { } started
-                ? $"Started {started.Value}"
-                : "ToT is in progress",
-            ProjectTotStatus.Completed => tot.Facts.FirstOrDefault(f => f.Label == "Completed on") is { } completed
-                ? $"Completed {completed.Value}"
-                : "ToT marked completed",
-            ProjectTotStatus.NotRequired => "No ToT action required",
-            ProjectTotStatus.NotStarted when tot.HasTotRecord => "ToT action pending",
-            _ => Model.CanManageTot ? "Record ToT position" : "No ToT position recorded"
-        };
-
     static string DisplayUser(ApplicationUser? user)
     {
         if (user is null) return "—";
@@ -108,23 +89,11 @@
         }
         else if (isCompleted)
         {
-            <button id="project-tot-card"
-                    class="project-intelligence-card project-intelligence-card--tot"
-                    type="button"
-                    data-bs-toggle="offcanvas"
-                    data-bs-target="#offcanvasTot"
-                    aria-controls="offcanvasTot"
-                    aria-label="@(Model.CanManageTot ? "View or update Transfer of Technology" : "View Transfer of Technology")">
-                <span class="project-intelligence-card__label">
-                    Transfer of Technology
-                    @if (Model.CanManageTot && !pendingTot)
-                    {
-                        <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
-                    }
-                </span>
-                <strong data-tot-card-title title="@totTitle">@totTitle</strong>
-                <span data-tot-card-summary title="@totSummary">@totSummary</span>
-            </button>
+            @await Component.InvokeAsync("ProjectTotCommandCard", new
+            {
+                projectId = project!.Id,
+                canManage = Model.CanManageTot
+            })
         }
         else
         {

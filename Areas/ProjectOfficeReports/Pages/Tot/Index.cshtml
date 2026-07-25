@@ -2,6 +2,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
 
 @using System.Globalization
+@using ProjectManagement.Utilities.PartialDates
 @using ProjectManagement.Models
 
 @section Styles
@@ -233,10 +234,10 @@
                                 </span>
                             </div>
                             <div class="small">
-                                @(row.TotStartedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                                @(PartialDateDisplay.Format(row.TotStartedOn, row.TotStartDatePrecision) ?? "—")
                             </div>
                             <div class="small">
-                                @(row.TotCompletedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                                @(PartialDateDisplay.Format(row.TotCompletedOn, row.TotCompletionDatePrecision) ?? "—")
                             </div>
                             <div class="small">
                                 @(row.TotMetCompletedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
@@ -299,13 +300,13 @@
                     <div class="tot-detail-block">
                         <div class="tot-detail-label">Started on</div>
                         <div class="tot-detail-value">
-                            @(selected.TotStartedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                            @(PartialDateDisplay.Format(selected.TotStartedOn, selected.TotStartDatePrecision) ?? "—")
                         </div>
                     </div>
                     <div class="tot-detail-block">
                         <div class="tot-detail-label">Completed on</div>
                         <div class="tot-detail-value">
-                            @(selected.TotCompletedOn?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? "—")
+                            @(PartialDateDisplay.Format(selected.TotCompletedOn, selected.TotCompletionDatePrecision) ?? "—")
                         </div>
                     </div>
                     <div class="tot-detail-block">
@@ -461,4 +462,5 @@
 @section Scripts
 {
     <script type="module" src="~/js/pages/project-office-reports/tot.js" asp-append-version="true"></script>
+    <script src="~/js/projects/tot-form-fields.js" asp-append-version="true"></script>
 }

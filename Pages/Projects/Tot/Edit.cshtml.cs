@@ -147,6 +147,12 @@ public class EditModel : PageModel
             return DenyProjectAccess(project.Id);
         }
 
+        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived || project.IsDeleted)
+        {
+            TempData["Error"] = "Transfer of Technology can be updated only after the project is completed and while it is operationally editable.";
+            return RedirectToPage("/Projects/Overview", new { id = project.Id });
+        }
+
         PopulateInputFromProject(project);
         RemarkInput.ProjectId = project.Id;
         RemarkInput.Body = string.Empty;
@@ -175,6 +181,12 @@ public class EditModel : PageModel
         if (!CanManageTot)
         {
             return DenyProjectAccess(project.Id);
+        }
+
+        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived || project.IsDeleted)
+        {
+            TempData["Error"] = "Transfer of Technology can be updated only after the project is completed and while it is operationally editable.";
+            return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
 
         ValidatePartialDates(Input);
@@ -238,6 +250,12 @@ public class EditModel : PageModel
         if (!CanManageTot)
         {
             return DenyProjectAccess(project.Id);
+        }
+
+        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed || project.IsArchived || project.IsDeleted)
+        {
+            TempData["Error"] = "Transfer of Technology can be updated only after the project is completed and while it is operationally editable.";
+            return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
 
         PopulateInputFromProject(project);
@@ -355,13 +373,9 @@ public class EditModel : PageModel
         Input.ProjectId = project.Id;
         Input.Status = project.Tot?.Status ?? ProjectTotStatus.NotStarted;
         Input.StartedOn = project.Tot?.StartedOn;
-        Input.StartDatePrecision = Input.StartedOn.HasValue
-            ? PartialDatePrecision.Day
-            : PartialDatePrecision.None;
+        Input.StartDatePrecision = project.Tot?.StartDatePrecision ?? PartialDatePrecision.None;
         Input.CompletedOn = project.Tot?.CompletedOn;
-        Input.CompletionDatePrecision = Input.CompletedOn.HasValue
-            ? PartialDatePrecision.Day
-            : PartialDatePrecision.None;
+        Input.CompletionDatePrecision = project.Tot?.CompletionDatePrecision ?? PartialDatePrecision.None;
         Input.MetDetails = project.Tot?.MetDetails;
         Input.MetCompletedOn = project.Tot?.MetCompletedOn;
         Input.FirstProductionModelManufactured = project.Tot?.FirstProductionModelManufactured;
@@ -370,15 +384,15 @@ public class EditModel : PageModel
         if (Input.StartedOn is { } start)
         {
             Input.StartYear = start.Year;
-            Input.StartMonth = start.Month;
-            Input.StartDay = start.Day;
+            Input.StartMonth = Input.StartDatePrecision >= PartialDatePrecision.Month ? start.Month : null;
+            Input.StartDay = Input.StartDatePrecision == PartialDatePrecision.Day ? start.Day : null;
         }
 
         if (Input.CompletedOn is { } completion)
         {
             Input.CompletionYear = completion.Year;
-            Input.CompletionMonth = completion.Month;
-            Input.CompletionDay = completion.Day;
+            Input.CompletionMonth = Input.CompletionDatePrecision >= PartialDatePrecision.Month ? completion.Month : null;
+            Input.CompletionDay = Input.CompletionDatePrecision == PartialDatePrecision.Day ? completion.Day : null;
         }
     }
 
