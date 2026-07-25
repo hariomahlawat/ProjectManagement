@@ -159,7 +159,7 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
-    public async Task AddAsync_AcceptsCropWithinAspectTolerance()
+    public async Task AddAsync_AcceptsFreeformLandscapeCropWithinBounds()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 13);
@@ -173,11 +173,11 @@ public sealed class ProjectPhotoServiceTests
             var options = CreateOptions();
             var service = CreateService(db, options);
 
-            var crop = new ProjectPhotoCrop(0, 0, 867, 650);
+            var crop = new ProjectPhotoCrop(0, 0, 900, 600);
             var photo = await service.AddAsync(13, stream, "tolerant.png", "image/png", "user", false, null, crop, CancellationToken.None);
 
-            Assert.Equal(867, photo.Width);
-            Assert.Equal(650, photo.Height);
+            Assert.Equal(900, photo.Width);
+            Assert.Equal(600, photo.Height);
         }
         finally
         {
@@ -187,7 +187,7 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
-    public async Task AddAsync_AcceptsCropWithRoundingVariance()
+    public async Task AddAsync_AcceptsFreeformPortraitCropWithinBounds()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 14);
@@ -201,10 +201,10 @@ public sealed class ProjectPhotoServiceTests
             var options = CreateOptions();
             var service = CreateService(db, options);
 
-            var crop = new ProjectPhotoCrop(10, 15, 1066, 800);
+            var crop = new ProjectPhotoCrop(10, 15, 600, 800);
             var photo = await service.AddAsync(14, stream, "variance.png", "image/png", "user", false, null, crop, CancellationToken.None);
 
-            Assert.Equal(1066, photo.Width);
+            Assert.Equal(600, photo.Width);
             Assert.Equal(800, photo.Height);
         }
         finally
@@ -215,7 +215,7 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
-    public async Task AddAsync_RejectsCropOutsideAspectTolerance()
+    public async Task AddAsync_RejectsCropOutsideImageBounds()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 15);
@@ -229,10 +229,12 @@ public sealed class ProjectPhotoServiceTests
             var options = CreateOptions();
             var service = CreateService(db, options);
 
-            var crop = new ProjectPhotoCrop(0, 0, 1065, 800);
+            var crop = new ProjectPhotoCrop(1000, 600, 700, 700);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.AddAsync(15, stream, "bad-variance.png", "image/png", "user", false, null, crop, CancellationToken.None));
+
+            Assert.Contains("within the image bounds", error.Message, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -347,6 +349,105 @@ public sealed class ProjectPhotoServiceTests
             Assert.NotNull(derivative);
             Assert.True(File.Exists(service.GetDerivativePath(photo, "xl", preferWebp: true)));
             derivative!.Value.Stream.Dispose();
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+            ResetUploadRoot();
+        }
+    }
+
+    [Fact]
+    public async Task OpenDerivativeAsync_UsesNearestAvailableDerivativeWhenRequestedSizeIsMissing()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 32);
+
+        ResetUploadRoot();
+        var options = CreateOptions();
+        var root = CreateTempRoot();
+        options.StorageRoot = root;
+
+        try
+        {
+            await using var source = await CreateImageStreamAsync(1600, 1200);
+            var service = CreateService(db, options);
+            var photo = await service.AddAsync(32, source, "cover.png", "image/png", "user", true, null, CancellationToken.None);
+
+            File.Delete(service.GetDerivativePath(photo, "xs", preferWebp: true));
+            File.Delete(service.GetDerivativePath(photo, "xs", preferWebp: false));
+
+            var derivative = await service.OpenDerivativeAsync(32, photo.Id, "xs", preferWebp: true, CancellationToken.None);
+
+            Assert.NotNull(derivative);
+            Assert.Equal("image/webp", derivative!.Value.ContentType);
+            Assert.True(derivative.Value.Stream.Length > 0);
+            derivative.Value.Stream.Dispose();
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+            ResetUploadRoot();
+        }
+    }
+
+    [Fact]
+    public async Task OpenDerivativeAsync_UsesPreservedMasterWhenAllDerivativesAreMissing()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 33);
+
+        ResetUploadRoot();
+        var options = CreateOptions();
+        var root = CreateTempRoot();
+        options.StorageRoot = root;
+
+        try
+        {
+            await using var source = await CreateImageStreamAsync(1600, 1200);
+            var service = CreateService(db, options);
+            var photo = await service.AddAsync(33, source, "cover.png", "image/png", "user", true, null, CancellationToken.None);
+
+            foreach (var sizeKey in options.Derivatives.Keys)
+            {
+                File.Delete(service.GetDerivativePath(photo, sizeKey, preferWebp: true));
+                File.Delete(service.GetDerivativePath(photo, sizeKey, preferWebp: false));
+            }
+
+            var derivative = await service.OpenDerivativeAsync(33, photo.Id, "xs", preferWebp: true, CancellationToken.None);
+
+            Assert.NotNull(derivative);
+            Assert.Equal("image/jpeg", derivative!.Value.ContentType);
+            Assert.True(derivative.Value.Stream.Length > 0);
+            derivative.Value.Stream.Dispose();
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+            ResetUploadRoot();
+        }
+    }
+
+    [Fact]
+    public async Task OpenDerivativeAsync_ReturnsNullForUnconfiguredSize()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 34);
+
+        ResetUploadRoot();
+        var options = CreateOptions();
+        var root = CreateTempRoot();
+        options.StorageRoot = root;
+
+        try
+        {
+            await using var source = await CreateImageStreamAsync(1600, 1200);
+            var service = CreateService(db, options);
+            var photo = await service.AddAsync(34, source, "cover.png", "image/png", "user", true, null, CancellationToken.None);
+
+            var derivative = await service.OpenDerivativeAsync(34, photo.Id, "unconfigured", preferWebp: true, CancellationToken.None);
+
+            Assert.Null(derivative);
         }
         finally
         {

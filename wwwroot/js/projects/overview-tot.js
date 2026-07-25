@@ -41,6 +41,9 @@
     let loaded = false;
     let editing = false;
     let remarking = false;
+    let initialFormFingerprint = '';
+    const cardTones = ['positive', 'info', 'neutral', 'warning'];
+    const cardToneClasses = cardTones.map((tone) => `project-intelligence-card--tone-${tone}`);
 
     function toggle(el, hidden) { el?.classList.toggle('d-none', hidden); }
     function message(el, value) {
@@ -79,6 +82,15 @@
         toggle(group, !enabled);
         group?.querySelectorAll('input, select, textarea').forEach((control) => { control.disabled = !enabled; });
     }
+    function formFingerprint() {
+        if (!(form instanceof HTMLFormElement)) return '';
+        return Array.from(new FormData(form).entries())
+            .map(([name, value]) => `${name}\u0000${typeof value === 'string' ? value : value.name}`)
+            .join('\u0001');
+    }
+    function hasUnsavedDetails() {
+        return editing && formFingerprint() !== initialFormFingerprint;
+    }
     function updateConditionalFields() {
         if (!(statusInput instanceof HTMLSelectElement)) return;
         const status = statusInput.value;
@@ -113,6 +125,7 @@
             .forEach((name) => setValue(name, input[name.charAt(0).toLowerCase() + name.slice(1)]));
         setValue('FirstProductionModelManufactured', input.firstProductionModelManufactured == null ? '' : input.firstProductionModelManufactured);
         updateConditionalFields();
+        initialFormFingerprint = formFingerprint();
     }
     function renderFacts(facts) {
         const host = root?.querySelector('[data-tot-facts]');
@@ -157,8 +170,14 @@
         if (!payload) return;
         const title = card.querySelector('[data-tot-card-title]');
         const summary = card.querySelector('[data-tot-card-summary]');
+        const tone = cardTones.includes(payload.tone)
+            ? payload.tone
+            : 'neutral';
         if (title) { title.textContent = payload.title || 'Not recorded'; title.title = title.textContent; }
         if (summary) { summary.textContent = payload.summary || 'Record ToT position'; summary.title = summary.textContent; }
+        card.classList.remove(...cardToneClasses);
+        card.classList.add(`project-intelligence-card--tone-${tone}`);
+        card.dataset.totCardTone = tone;
     }
     async function loadDetails(force = false) {
         if (loaded && !force) return;
@@ -213,7 +232,7 @@
     offcanvas.addEventListener('show.bs.offcanvas', () => { setRemarkMode(false); setEditMode(false); loadDetails(); });
     offcanvas.addEventListener('hide.bs.offcanvas', (event) => {
         const hasRemarkDraft = remarking && (remarkBody?.value?.trim()?.length || 0) > 0;
-        if ((editing || hasRemarkDraft) &&
+        if ((hasUnsavedDetails() || hasRemarkDraft) &&
             !window.confirm('Discard the unsaved Transfer of Technology changes?')) {
             event.preventDefault();
         }

@@ -36,7 +36,7 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectOverviewLifecycleTests
 {
     [Fact]
-    public async Task Overview_WhenProjectActive_DoesNotShowPostCompletionView()
+    public async Task Overview_WhenProjectActive_BuildsLifecycleSummary()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, projectId: 1);
@@ -48,7 +48,6 @@ public sealed class ProjectOverviewLifecycleTests
         var result = await overview.OnGetAsync(1, CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
-        Assert.False(overview.LifecycleSummary.ShowPostCompletionView);
         Assert.Equal(ProjectLifecycleStatus.Active, overview.LifecycleSummary.Status);
         Assert.Equal(0, overview.MediaSummary.PhotoCount);
         Assert.Equal(0, overview.DocumentSummary.PublishedCount);
@@ -58,7 +57,7 @@ public sealed class ProjectOverviewLifecycleTests
     }
 
     [Fact]
-    public async Task Overview_WhenProjectCompleted_BuildsPostCompletionSummaries()
+    public async Task Overview_WhenProjectCompleted_BuildsLifecycleSummaries()
     {
         await using var db = CreateContext();
         await SeedCompletedProjectAsync(db, projectId: 2);
@@ -70,12 +69,12 @@ public sealed class ProjectOverviewLifecycleTests
         var result = await overview.OnGetAsync(2, CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
-        Assert.True(overview.LifecycleSummary.ShowPostCompletionView);
         Assert.Equal(ProjectLifecycleStatus.Completed, overview.LifecycleSummary.Status);
         Assert.Contains("completed on", overview.LifecycleSummary.PrimaryDetail!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(overview.LifecycleSummary.Facts, fact => fact.Label == "Completed on");
         Assert.Equal("05 Apr 2024", overview.LifecycleSummary.CompletionDisplay);
         Assert.Equal(ProjectLifecycleStatus.Completed, overview.TimelinePanel.LifecycleStatus);
+        Assert.True(overview.TimelinePanel.ShowTimeline);
         Assert.Equal(2, overview.MediaSummary.PhotoCount);
         Assert.True(overview.MediaSummary.HasAdditionalPhotos);
         Assert.Equal(1, overview.DocumentSummary.PublishedCount);
@@ -129,6 +128,7 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal("15 Mar 2024", overview.LifecycleSummary.CancellationDisplay);
         Assert.Equal("Funding withdrawn", overview.LifecycleSummary.CancellationReason);
         Assert.Equal(ProjectLifecycleStatus.Cancelled, overview.TimelinePanel.LifecycleStatus);
+        Assert.True(overview.TimelinePanel.ShowTimeline);
     }
 
     [Fact]

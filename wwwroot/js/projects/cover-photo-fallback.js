@@ -8,6 +8,8 @@
         if (!host || !fallback) return;
         picture?.remove();
         if (!picture) image.remove();
+        host.classList.remove('project-photo-cover-frame--media');
+        host.classList.add('project-photo-cover-frame--empty', 'is-unavailable');
         fallback?.classList.remove('d-none');
     }
     function wire(image) {

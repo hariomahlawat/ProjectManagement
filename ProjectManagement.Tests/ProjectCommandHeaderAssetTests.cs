@@ -20,6 +20,7 @@ public sealed class ProjectCommandHeaderAssetTests
         Assert.True(headerIndex > portfolioIndex,
             $"{headerAsset} must be loaded after {portfolioAsset} so the critical surface remains authoritative.");
         Assert.Contains("asp-append-version=\"true\"", overview, StringComparison.Ordinal);
+        Assert.Contains("data-project-command-header-stylesheet", overview, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -30,9 +31,36 @@ public sealed class ProjectCommandHeaderAssetTests
         Assert.Contains(".project-portfolio-shell > .project-command-header {", css, StringComparison.Ordinal);
         Assert.Contains("padding: .9rem 1rem;", css, StringComparison.Ordinal);
         Assert.Contains("border: 1px solid", css, StringComparison.Ordinal);
+        Assert.Contains("border-left-width: 4px;", css, StringComparison.Ordinal);
         Assert.Contains("background-color: var(--pm-card, #fff);", css, StringComparison.Ordinal);
+        Assert.Contains("overflow: visible;", css, StringComparison.Ordinal);
         Assert.Contains(".project-command-header--completed", css, StringComparison.Ordinal);
         Assert.Contains(".project-command-header--cancelled", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PortfolioStyles_DoNotRedefineTheOuterHeaderSurface()
+    {
+        var css = ReadRepoFile("wwwroot", "css", "pages", "project-portfolio.css");
+        var normalizedCss = css.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.DoesNotContain(".project-portfolio-shell > .project-command-header", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n.project-command-header {\n", normalizedCss, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Pages/Projects/Overview.cshtml")]
+    [InlineData("Pages/Projects/_ProjectCommandHeader.cshtml")]
+    [InlineData("wwwroot/css/pages/project-command-header.css")]
+    [InlineData("ProjectManagement.Tests/ProjectCommandHeaderAssetTests.cs")]
+    public void ReplacementManifest_IncludesHeaderDeliveryContract(string requiredPath)
+    {
+        var manifest = ReadRepoFile("REPLACEMENT-MANIFEST.txt");
+        var entries = manifest.Split(
+            new[] { '\r', '\n' },
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        Assert.Contains(requiredPath, entries);
     }
 
     [Fact]

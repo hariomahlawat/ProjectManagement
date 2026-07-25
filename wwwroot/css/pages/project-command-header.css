@@ -8,11 +8,17 @@
  */
 
 .project-portfolio-shell > .project-command-header {
+    position: relative;
+    display: block;
+    min-width: 0;
     margin-bottom: 1rem;
     padding: .9rem 1rem;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid #d5dde8;
     border-color: color-mix(in srgb, var(--pm-border, #d9e1ec) 72%, #94a3b8 28%);
+    border-left-width: 4px;
+    border-left-color: #7d9cf1;
+    border-left-color: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 62%, #fff);
     border-radius: 1rem;
     background-color: var(--pm-card, #fff);
     background:
@@ -22,17 +28,15 @@
             transparent 33%
         ),
         var(--pm-card, #fff);
-    box-shadow:
-        inset 4px 0 0 #7d9cf1,
-        0 8px 22px rgba(15, 23, 42, .075);
-    box-shadow:
-        inset 4px 0 0 color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 62%, #fff),
-        0 8px 22px rgba(15, 23, 42, .075);
+    background-clip: padding-box;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .075);
 }
 
 .project-portfolio-shell > .project-command-header--completed {
     border-color: #a9d1ba;
     border-color: color-mix(in srgb, var(--bs-success, #198754) 38%, var(--portfolio-border));
+    border-left-color: #4ea674;
+    border-left-color: color-mix(in srgb, var(--bs-success, #198754) 82%, #fff);
     background-color: var(--pm-card, #fff);
     background:
         radial-gradient(
@@ -41,17 +45,14 @@
             transparent 34%
         ),
         var(--pm-card, #fff);
-    box-shadow:
-        inset 4px 0 0 #4ea674,
-        0 8px 22px rgba(15, 23, 42, .075);
-    box-shadow:
-        inset 4px 0 0 color-mix(in srgb, var(--bs-success, #198754) 82%, #fff),
-        0 8px 22px rgba(15, 23, 42, .075);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .075);
 }
 
 .project-portfolio-shell > .project-command-header--cancelled {
     border-color: #e6adb4;
     border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 34%, var(--portfolio-border));
+    border-left-color: #d45b68;
+    border-left-color: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #fff);
     background-color: var(--pm-card, #fff);
     background:
         radial-gradient(
@@ -60,12 +61,7 @@
             transparent 34%
         ),
         var(--pm-card, #fff);
-    box-shadow:
-        inset 4px 0 0 #d45b68,
-        0 8px 22px rgba(15, 23, 42, .075);
-    box-shadow:
-        inset 4px 0 0 color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #fff),
-        0 8px 22px rgba(15, 23, 42, .075);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .075);
 }
 
 @media (max-width: 575.98px) {
@@ -77,16 +73,17 @@
 
 @media print {
     .project-portfolio-shell > .project-command-header {
-        box-shadow: inset 4px 0 0 #6b8de7;
+        border-left-color: #6b8de7;
+        box-shadow: none;
     }
 
     .project-portfolio-shell > .project-command-header--completed {
         border-color: #198754;
-        box-shadow: inset 4px 0 0 #198754;
+        border-left-color: #198754;
     }
 
     .project-portfolio-shell > .project-command-header--cancelled {
         border-color: #b02a37;
-        box-shadow: inset 4px 0 0 #b02a37;
+        border-left-color: #b02a37;
     }
 }

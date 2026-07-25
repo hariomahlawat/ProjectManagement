@@ -1527,7 +1527,6 @@ namespace ProjectManagement.Pages.Projects
 
             return new ProjectLifecycleSummaryViewModel
             {
-                ShowPostCompletionView = project.LifecycleStatus != ProjectLifecycleStatus.Active || project.IsLegacy,
                 Status = project.LifecycleStatus,
                 StatusLabel = statusLabel,
                 IsLegacy = project.IsLegacy,

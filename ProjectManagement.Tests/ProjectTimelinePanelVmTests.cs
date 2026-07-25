@@ -8,7 +8,7 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectTimelinePanelVmTests
 {
     [Fact]
-    public void ShowTimeline_HidesEmptyHistoryForCompletedLegacyProject()
+    public void ShowTimeline_PreservesWorkspaceForCompletedLegacyProjectWithoutHistory()
     {
         var panel = new ProjectTimelinePanelVm
         {
@@ -24,7 +24,7 @@ public sealed class ProjectTimelinePanelVmTests
         };
 
         Assert.False(panel.HasRecordedStageHistory);
-        Assert.False(panel.ShowTimeline);
+        Assert.True(panel.ShowTimeline);
     }
 
     [Fact]
@@ -48,6 +48,26 @@ public sealed class ProjectTimelinePanelVmTests
         };
 
         Assert.True(panel.HasRecordedStageHistory);
+        Assert.True(panel.ShowTimeline);
+    }
+
+    [Fact]
+    public void ShowTimeline_PreservesWorkspaceForCancelledLegacyProjectWithoutHistory()
+    {
+        var panel = new ProjectTimelinePanelVm
+        {
+            LifecycleStatus = ProjectLifecycleStatus.Cancelled,
+            IsLegacy = true,
+            Timeline = new TimelineVm
+            {
+                Items =
+                [
+                    new TimelineItemVm { Status = StageStatus.NotStarted }
+                ]
+            }
+        };
+
+        Assert.False(panel.HasRecordedStageHistory);
         Assert.True(panel.ShowTimeline);
     }
 

@@ -301,7 +301,7 @@ public sealed class ProjectTimelinePanelVm
             item.HasActualDates);
 
     public bool ShowTimeline =>
-        !IsLegacy ||
-        LifecycleStatus == ProjectLifecycleStatus.Active ||
-        HasRecordedStageHistory;
+        LifecycleStatus is ProjectLifecycleStatus.Active
+            or ProjectLifecycleStatus.Completed
+            or ProjectLifecycleStatus.Cancelled;
 }

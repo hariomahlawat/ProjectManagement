@@ -360,6 +360,11 @@ namespace ProjectManagement.Services.Projects
                                                                                     bool preferWebp,
                                                                                     CancellationToken cancellationToken)
         {
+            if (!_options.Derivatives.TryGetValue(sizeKey, out var requestedSize))
+            {
+                return null;
+            }
+
             var photo = await _db.ProjectPhotos
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == photoId && p.ProjectId == projectId, cancellationToken);
@@ -376,6 +381,56 @@ namespace ProjectManagement.Services.Projects
                     var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     return (stream, contentType);
                 }
+            }
+
+            var requestedArea = (long)requestedSize.Width * requestedSize.Height;
+
+            var alternativeSizeKeys = _options.Derivatives
+                .Where(entry => !string.Equals(entry.Key, sizeKey, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(entry =>
+                {
+                    var candidateArea = (long)entry.Value.Width * entry.Value.Height;
+                    return Math.Abs(candidateArea - requestedArea);
+                })
+                .ThenByDescending(entry => (long)entry.Value.Width * entry.Value.Height)
+                .Select(entry => entry.Key);
+
+            foreach (var alternativeSizeKey in alternativeSizeKeys)
+            {
+                foreach (var (path, contentType) in EnumerateDerivativeCandidates(photo, alternativeSizeKey, preferWebp))
+                {
+                    if (!File.Exists(path))
+                    {
+                        continue;
+                    }
+
+                    _logger.LogWarning(
+                        "Photo derivative {RequestedSize} is missing for project {ProjectId}, photo {PhotoId}; serving {FallbackFile}.",
+                        sizeKey,
+                        projectId,
+                        photoId,
+                        Path.GetFileName(path));
+
+                    var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return (stream, contentType);
+                }
+            }
+
+            foreach (var (path, contentType) in EnumerateMasterCandidates(photo, preferWebp))
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                _logger.LogWarning(
+                    "Photo derivatives are missing for project {ProjectId}, photo {PhotoId}; serving preserved master {FallbackFile}.",
+                    projectId,
+                    photoId,
+                    Path.GetFileName(path));
+
+                var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                return (stream, contentType);
             }
 
             return null;
@@ -517,6 +572,41 @@ namespace ProjectManagement.Services.Projects
                     yield break;
                 default:
                     yield break;
+            }
+        }
+
+        private IEnumerable<(string Path, string ContentType)> EnumerateMasterCandidates(
+            ProjectPhoto photo,
+            bool preferWebp)
+        {
+            var directory = BuildProjectDirectory(photo.ProjectId);
+            var basePath = Path.Combine(directory, $"{photo.StorageKey}-master");
+            var fallbackExtension = GetFallbackExtension(photo);
+            var fallbackContentType = GetFallbackContentType(photo);
+            var candidates = new List<(string Path, string ContentType)>();
+
+            if (preferWebp)
+            {
+                candidates.Add(($"{basePath}.webp", "image/webp"));
+            }
+
+            candidates.Add(($"{basePath}{fallbackExtension}", fallbackContentType));
+            candidates.Add(($"{basePath}.png", "image/png"));
+            candidates.Add(($"{basePath}.jpg", "image/jpeg"));
+            candidates.Add(($"{basePath}.jpeg", "image/jpeg"));
+
+            if (!preferWebp)
+            {
+                candidates.Add(($"{basePath}.webp", "image/webp"));
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (path, contentType) in candidates)
+            {
+                if (seen.Add(path))
+                {
+                    yield return (path, contentType);
+                }
             }
         }
 

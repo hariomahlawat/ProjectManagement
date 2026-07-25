@@ -1,10 +1,11 @@
 @model ProjectManagement.ViewComponents.ProjectTotCommandCardViewModel
 <button id="project-tot-card"
-        class="project-intelligence-card project-intelligence-card--tot"
+        class="project-intelligence-card project-intelligence-card--tot project-intelligence-card--tone-@Model.Tone"
         type="button"
         data-bs-toggle="offcanvas"
         data-bs-target="#offcanvasTot"
         aria-controls="offcanvasTot"
+        data-tot-card-tone="@Model.Tone"
         aria-label="@(Model.CanManage ? "View or update Transfer of Technology" : "View Transfer of Technology")">
     <span class="project-intelligence-card__label">
         Transfer of Technology

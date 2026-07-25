@@ -8,7 +8,6 @@ public sealed class ProjectLifecycleSummaryViewModel
 {
     public static readonly ProjectLifecycleSummaryViewModel Empty = new();
 
-    public bool ShowPostCompletionView { get; init; }
     public ProjectLifecycleStatus Status { get; init; } = ProjectLifecycleStatus.Active;
     public string StatusLabel { get; init; } = "Active";
     public bool IsLegacy { get; init; }

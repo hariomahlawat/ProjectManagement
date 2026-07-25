@@ -26,7 +26,9 @@
     static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
         stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
-<section class="project-command-header@lifecycleHeaderClass" aria-labelledby="project-title">
+<section class="project-command-header@lifecycleHeaderClass"
+         aria-labelledby="project-title"
+         data-project-command-header="true">
     <div class="project-command-header__main">
         <div class="project-command-header__identity">
             <div class="project-command-header__eyebrow">Project portfolio</div>

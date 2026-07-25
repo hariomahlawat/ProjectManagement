@@ -91,7 +91,8 @@
     <div class="card-body pm-card-body">
         <div class="project-profile-flow">
             <figure class="project-cover-float mb-0">
-                <div class="project-photo-cover-frame w-100" data-project-cover-host>
+                <div class="project-photo-cover-frame project-photo-cover-frame--@(coverPhoto is null ? "empty" : "media") w-100"
+                     data-project-cover-host>
                     @if (coverPhoto != null)
                     {
                         <picture>
@@ -103,6 +104,7 @@
                                  srcset="@coverSrcSet"
                                  sizes="(min-width: 1400px) 250px, (min-width: 768px) 220px, 100vw"
                                  alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)"
+                                 decoding="async"
                                  data-project-cover-image />
                         </picture>
                         <div class="project-photo-cover-empty text-center d-none" data-project-cover-fallback>
