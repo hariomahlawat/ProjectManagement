@@ -1,5 +1,6 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
+    var profile = Model.MultiJdpProfile;
     var projectId = Model.Project.Id;
     var profileUrl = Url.Page("/Projects/Overview", "MultiJdpProfile", new { id = projectId });
     var optionsUrl = Url.Page("/Projects/Overview", "JdpOptions", new { id = projectId });
@@ -7,7 +8,7 @@
     var removeUrl = Url.Page("/Projects/Overview", "RemoveProjectJdp", new { id = projectId });
 }
 
-<div class="project-jdp-editor"
+<div class="project-jdp-editor project-jdp-editor--multi"
      data-multi-jdp-root
      data-project-id="@projectId"
      data-can-manage="@Model.CanManageJdp.ToString().ToLowerInvariant()"
@@ -17,17 +18,19 @@
      data-remove-url="@removeUrl">
     @Html.AntiForgeryToken()
 
-    <section class="project-jdp-editor__linked-section" data-multi-jdp-linked-section>
-        <div class="project-jdp-editor__section-heading">
+    <section class="project-jdp-editor__linked-section" aria-labelledby="project-linked-jdps-title">
+        <div class="project-jdp-editor__section-heading project-jdp-editor__section-heading--linked">
             <div>
-                <h6>JDPs linked to this project</h6>
-                <p>Each organisation remains independently linked and can support this project alongside other JDPs.</p>
+                <h6 id="project-linked-jdps-title">JDPs linked to this project</h6>
+                <p>Each organisation is independently linked to this project.</p>
             </div>
-            <span class="badge rounded-pill text-bg-light" data-multi-jdp-count>@Model.JdpPartners.Count</span>
+            <span class="badge rounded-pill project-jdp-editor__count-badge" data-multi-jdp-count>
+                @profile.Count linked
+            </span>
         </div>
 
         <div class="project-jdp-editor__partner-list" data-multi-jdp-partner-list>
-            @foreach (var partner in Model.JdpPartners)
+            @foreach (var partner in profile.Partners)
             {
                 <article class="project-jdp-editor__partner-card" data-partner-id="@partner.Id">
                     <div class="project-jdp-editor__partner-card-main">
@@ -42,25 +45,53 @@
                             {
                                 <span class="project-jdp-editor__location">@partner.Location</span>
                             }
-                            <span class="project-jdp-editor__usage">Loading linked-project position…</span>
+                            <span class="project-jdp-editor__usage">@partner.UsageSummary</span>
                         </div>
                         @if (Model.CanManageJdp)
                         {
                             <button type="button"
-                                    class="btn btn-sm btn-outline-danger project-jdp-editor__remove-partner"
+                                    class="btn btn-link text-danger project-jdp-editor__remove-link"
                                     data-multi-jdp-remove="@partner.Id"
                                     data-partner-name="@partner.Name">
-                                Remove
+                                Remove link
                             </button>
                         }
                     </div>
-                    <div class="project-jdp-editor__project-list d-none" data-multi-jdp-project-list></div>
+
+                    @if (partner.OtherProjects.Count > 0)
+                    {
+                        <details class="project-jdp-editor__related-projects">
+                            <summary>
+                                <span>View @partner.OtherProjects.Count linked @(partner.OtherProjects.Count == 1 ? "project" : "projects")</span>
+                                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="project-jdp-editor__project-list">
+                                @foreach (var linkedProject in partner.OtherProjects)
+                                {
+                                    <a class="project-jdp-editor__project"
+                                       asp-page="/Projects/Overview"
+                                       asp-route-id="@linkedProject.ProjectId">
+                                        <span class="min-w-0">
+                                            <strong>@linkedProject.ProjectName</strong>
+                                            @if (!string.IsNullOrWhiteSpace(linkedProject.CaseFileNumber))
+                                            {
+                                                <small>@linkedProject.CaseFileNumber</small>
+                                            }
+                                        </span>
+                                        <span class="d-flex align-items-center gap-2 flex-shrink-0">
+                                            <span class="badge rounded-pill project-jdp-editor__status project-jdp-editor__status--@linkedProject.StatusLabel.ToLowerInvariant()">@linkedProject.StatusLabel</span>
+                                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                        </span>
+                                    </a>
+                                }
+                            </div>
+                        </details>
+                    }
                 </article>
             }
         </div>
 
-        <div class="project-jdp-editor__empty @(Model.JdpPartners.Count == 0 ? null : "d-none")"
-             data-multi-jdp-empty>
+        <div class="project-jdp-editor__empty @(profile.HasJdp ? "d-none" : null)" data-multi-jdp-empty>
             <span class="project-jdp-editor__empty-icon" aria-hidden="true"><i class="bi bi-building-add"></i></span>
             <div>
                 <strong>No JDP linked</strong>
@@ -72,9 +103,7 @@
     @if (Model.CanManageJdp)
     {
         <section class="project-jdp-editor__add-section">
-            <button type="button"
-                    class="btn btn-outline-primary"
-                    data-multi-jdp-show-add>
+            <button type="button" class="btn btn-outline-primary" data-multi-jdp-show-add>
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
                 Add JDP
             </button>
@@ -133,7 +162,7 @@
                     </a>
                 </div>
 
-                <div class="project-jdp-editor__actions">
+                <div class="project-jdp-editor__sticky-actions">
                     <button type="button" class="btn btn-outline-secondary" data-multi-jdp-cancel-add>Cancel</button>
                     <button type="submit" class="btn btn-primary" disabled data-multi-jdp-save>
                         <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-multi-jdp-spinner></span>

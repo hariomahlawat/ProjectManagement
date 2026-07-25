@@ -326,6 +326,79 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             links.Count > 1);
     }
 
+    public async Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        var projectExists = await _db.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == projectId && !project.IsDeleted, cancellationToken);
+
+        if (!projectExists)
+        {
+            return ProjectMultiJdpProfileDto.Empty(projectId);
+        }
+
+        var linkedPartners = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .Where(link => link.ProjectId == projectId)
+            .OrderBy(link => link.IndustryPartner.Name)
+            .ThenBy(link => link.IndustryPartnerId)
+            .Select(link => new
+            {
+                Id = link.IndustryPartnerId,
+                link.IndustryPartner.Name,
+                link.IndustryPartner.Location
+            })
+            .ToListAsync(cancellationToken);
+
+        if (linkedPartners.Count == 0)
+        {
+            return ProjectMultiJdpProfileDto.Empty(projectId);
+        }
+
+        var partnerIds = linkedPartners.Select(partner => partner.Id).ToArray();
+        var otherProjectRows = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .Where(link =>
+                partnerIds.Contains(link.IndustryPartnerId) &&
+                link.ProjectId != projectId &&
+                !link.Project.IsDeleted)
+            .Select(link => new
+            {
+                link.IndustryPartnerId,
+                Project = new ProjectJdpLinkedProjectDto(
+                    link.ProjectId,
+                    link.Project.Name,
+                    link.Project.CaseFileNumber,
+                    link.Project.LifecycleStatus,
+                    link.Project.IsArchived,
+                    link.Project.IsDeleted)
+            })
+            .ToListAsync(cancellationToken);
+
+        var projectsByPartner = otherProjectRows
+            .GroupBy(row => row.IndustryPartnerId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ProjectJdpLinkedProjectDto>)group
+                    .Select(row => row.Project)
+                    .OrderBy(project => project.StatusOrder)
+                    .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(project => project.ProjectId)
+                    .ToList());
+
+        var partners = linkedPartners
+            .Select(partner => new ProjectJdpPartnerProfileDto(
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                projectsByPartner.GetValueOrDefault(partner.Id) ?? Array.Empty<ProjectJdpLinkedProjectDto>()))
+            .ToList();
+
+        return new ProjectMultiJdpProfileDto(projectId, partners);
+    }
+
     public async Task<IReadOnlyList<ProjectJdpOptionDto>> SearchProjectJdpOptionsAsync(
         int projectId,
         string? query,
@@ -355,9 +428,10 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             ;
         }
 
+        partners = partners.Where(partner => !partner.PartnerProjects.Any(link => link.ProjectId == projectId));
+
         return await partners
-            .OrderByDescending(partner => partner.PartnerProjects.Any(link => link.ProjectId == projectId))
-            .ThenBy(partner => partner.Name)
+            .OrderBy(partner => partner.Name)
             .ThenBy(partner => partner.Id)
             .Take(take)
             .Select(partner => new ProjectJdpOptionDto(
@@ -395,7 +469,6 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         if (request.ProjectId.HasValue)
         {
             await EnsureProjectCanBeLinkedAsync(request.ProjectId.Value, cancellationToken);
-            await EnsureProjectHasNoJdpAsync(request.ProjectId.Value, cancellationToken);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -556,24 +629,11 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
         var existingLink = await _db.IndustryPartnerProjects
             .AsNoTracking()
-            .Where(link => link.ProjectId == projectId)
-            .Select(link => new
-            {
-                link.IndustryPartnerId,
-                PartnerName = link.IndustryPartner.Name
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .AnyAsync(link => link.ProjectId == projectId && link.IndustryPartnerId == partnerId, cancellationToken);
 
-        if (existingLink is not null)
+        if (existingLink)
         {
-            if (existingLink.IndustryPartnerId == partnerId)
-            {
-                throw Error("project", "This organisation is already linked to the selected project as JDP.");
-            }
-
-            throw Error(
-                "project",
-                $"This project already has JDP {existingLink.PartnerName}. Change or remove the existing JDP before linking another organisation.");
+            throw Error("project", "This organisation is already linked to the selected project as JDP.");
         }
 
         _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
@@ -612,87 +672,88 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
     }
 
 
-    public async Task<ProjectJdpProfileDto> SetProjectJdpAsync(
+    public async Task<ProjectMultiJdpProfileDto> AddProjectJdpAsync(
         int projectId,
-        int? partnerId,
+        int partnerId,
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _db.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
 
-        var projectExists = await _db.Projects
-            .AnyAsync(project => project.Id == projectId && !project.IsDeleted, cancellationToken);
-        if (!projectExists)
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var alreadyLinked = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .AnyAsync(link => link.ProjectId == projectId && link.IndustryPartnerId == partnerId, cancellationToken);
+        if (alreadyLinked)
         {
-            throw new KeyNotFoundException("Project not found.");
+            throw Error("project", "This organisation is already linked to the project as a JDP.");
         }
 
-        IndustryPartner? selectedPartner = null;
-        if (partnerId.HasValue)
+        _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
         {
-            selectedPartner = await _db.IndustryPartners
-                .FirstOrDefaultAsync(partner => partner.Id == partnerId.Value, cancellationToken)
-                ?? throw new KeyNotFoundException("Industry organisation not found.");
-        }
+            IndustryPartnerId = partnerId,
+            ProjectId = projectId,
+            LinkedByUserId = GetUserId(user),
+            LinkedUtc = DateTimeOffset.UtcNow
+        });
 
-        var existingLinks = await _db.IndustryPartnerProjects
-            .Where(link => link.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-
-        var retainedLink = partnerId.HasValue
-            ? existingLinks.FirstOrDefault(link => link.IndustryPartnerId == partnerId.Value)
-            : null;
-
-        var linksToRemove = existingLinks
-            .Where(link => !ReferenceEquals(link, retainedLink))
-            .ToList();
-
-        var needsNewLink = selectedPartner is not null && retainedLink is null;
-        var hasChanges = linksToRemove.Count > 0 || needsNewLink;
-
-        if (hasChanges)
+        Touch(partner, user);
+        try
         {
-            var affectedPartnerIds = linksToRemove
-                .Select(link => link.IndustryPartnerId)
-                .ToHashSet();
-
-            if (selectedPartner is not null)
-            {
-                affectedPartnerIds.Add(selectedPartner.Id);
-            }
-
-            _db.IndustryPartnerProjects.RemoveRange(linksToRemove);
-
-            if (needsNewLink)
-            {
-                _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
-                {
-                    IndustryPartnerId = selectedPartner!.Id,
-                    ProjectId = projectId,
-                    LinkedByUserId = GetUserId(user),
-                    LinkedUtc = DateTimeOffset.UtcNow
-                });
-            }
-
-            if (affectedPartnerIds.Count > 0)
-            {
-                var affectedPartners = await _db.IndustryPartners
-                    .Where(partner => affectedPartnerIds.Contains(partner.Id))
-                    .ToListAsync(cancellationToken);
-
-                foreach (var affectedPartner in affectedPartners)
-                {
-                    Touch(affectedPartner, user);
-                }
-            }
-
             await _db.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateException exception)
+        {
+            var duplicate = await _db.IndustryPartnerProjects
+                .AsNoTracking()
+                .AnyAsync(link => link.ProjectId == projectId && link.IndustryPartnerId == partnerId, cancellationToken);
+            if (duplicate)
+            {
+                throw Error("project", "This organisation is already linked to the project as a JDP.");
+            }
 
-        await transaction.CommitAsync(cancellationToken);
-        return await GetProjectJdpProfileAsync(projectId, cancellationToken);
+            throw new IndustryPartnerValidationException(
+                new Dictionary<string, List<string>>
+                {
+                    ["project"] = new() { "Unable to add the JDP. The record may have changed; refresh and try again." }
+                },
+                exception);
+        }
+
+        return await GetProjectMultiJdpProfileAsync(projectId, cancellationToken);
+    }
+
+    public async Task<ProjectMultiJdpProfileDto> RemoveProjectJdpAsync(
+        int projectId,
+        int partnerId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
+
+        var link = await _db.IndustryPartnerProjects
+            .FirstOrDefaultAsync(item =>
+                item.ProjectId == projectId &&
+                item.IndustryPartnerId == partnerId, cancellationToken);
+        if (link is null)
+        {
+            throw new KeyNotFoundException("The selected JDP is no longer linked to this project.");
+        }
+
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken);
+
+        _db.IndustryPartnerProjects.Remove(link);
+        if (partner is not null)
+        {
+            Touch(partner, user);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return await GetProjectMultiJdpProfileAsync(projectId, cancellationToken);
     }
 
     public async Task DeletePartnerAsync(
@@ -751,24 +812,6 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         if (!exists)
         {
             throw Error("project", "Selected project was not found.");
-        }
-    }
-
-    private async Task EnsureProjectHasNoJdpAsync(
-        int projectId,
-        CancellationToken cancellationToken)
-    {
-        var existingPartnerName = await _db.IndustryPartnerProjects
-            .AsNoTracking()
-            .Where(link => link.ProjectId == projectId)
-            .Select(link => link.IndustryPartner.Name)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(existingPartnerName))
-        {
-            throw Error(
-                "project",
-                $"This project already has JDP {existingPartnerName}. Change or remove the existing JDP before linking another organisation.");
         }
     }
 

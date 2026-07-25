@@ -102,8 +102,21 @@
                                  src="@coverXs"
                                  srcset="@coverSrcSet"
                                  sizes="(min-width: 1400px) 250px, (min-width: 768px) 220px, 100vw"
-                                 alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
+                                 alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)"
+                                 data-project-cover-image />
                         </picture>
+                        <div class="project-photo-cover-empty text-center d-none" data-project-cover-fallback>
+                            <div class="project-photo-cover-empty__icon" aria-hidden="true">
+                                <i class="bi bi-image"></i>
+                            </div>
+                            <div class="project-photo-cover-empty__title">Cover photo unavailable</div>
+                            @if (canManagePhotos)
+                            {
+                                <a class="btn btn-sm btn-outline-primary mt-2"
+                                   asp-page="/Projects/Photos/Index"
+                                   asp-route-id="@Model.Project!.Id">Manage photos</a>
+                            }
+                        </div>
                     }
                     else
                     {

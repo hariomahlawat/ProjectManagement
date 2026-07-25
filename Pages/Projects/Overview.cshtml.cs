@@ -115,6 +115,7 @@ namespace ProjectManagement.Pages.Projects
         public ProjectProliferationProfileVm ProliferationProfile { get; private set; } = ProjectProliferationProfileVm.Empty(0);
         public bool CanManageProliferation { get; private set; }
         public ProjectJdpProfileDto JdpProfile { get; private set; } = ProjectJdpProfileDto.Empty(0);
+        public ProjectMultiJdpProfileDto MultiJdpProfile { get; private set; } = ProjectMultiJdpProfileDto.Empty(0);
         public bool CanManageJdp { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
@@ -381,23 +382,22 @@ namespace ProjectManagement.Pages.Projects
                     .ToList();
             }
 
-            // SECTION: Project Overview - Joint Development Partner position
-            // A project has either one JDP or none. The profile also reports the other
-            // ongoing and completed projects linked to the same organisation.
+            // SECTION: Project Overview - Joint Development Partners.
+            // The project-to-organisation relationship is many-to-many: a project may
+            // have several JDPs and each JDP may support several projects.
+            MultiJdpProfile = await _industryPartners.GetProjectMultiJdpProfileAsync(project.Id, ct);
+            JdpPartners = MultiJdpProfile.Partners
+                .Select(partner => new JdpPartnerLinkVm(partner.Id, partner.Name, partner.Location))
+                .ToList();
+
+            // Retain the legacy single profile only for older partials and handlers that
+            // may still be referenced elsewhere. The command header and drawer use the
+            // authoritative multi-JDP profile.
             JdpProfile = await _industryPartners.GetProjectJdpProfileAsync(project.Id, ct);
-            JdpPartners = JdpProfile.HasJdp
-                ? new[]
-                {
-                    new JdpPartnerLinkVm(
-                        JdpProfile.PartnerId!.Value,
-                        JdpProfile.PartnerName ?? "JDP",
-                        JdpProfile.PartnerLocation)
-                }
-                : Array.Empty<JdpPartnerLinkVm>();
             JdpInput = new ProjectJdpUpdateInput
             {
                 ProjectId = project.Id,
-                PartnerId = JdpProfile.PartnerId
+                PartnerId = MultiJdpProfile.Partners.FirstOrDefault()?.Id
             };
 
             var stageLookup = projectStages
@@ -608,92 +608,6 @@ namespace ProjectManagement.Pages.Projects
             });
         }
 
-        public async Task<IActionResult> OnPostJdpAsync(int id, CancellationToken ct)
-        {
-            if (id <= 0 || JdpInput.ProjectId != id || !JdpInput.PartnerId.HasValue || JdpInput.PartnerId.Value <= 0)
-            {
-                return new JsonResult(new { error = "Select a JDP from the search results." })
-                {
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
-
-            if (!await CanManageProjectJdpAsync(id, ct))
-            {
-                return new JsonResult(new { error = "You are not authorised to update the JDP for this project." })
-                {
-                    StatusCode = StatusCodes.Status403Forbidden
-                };
-            }
-
-            try
-            {
-                var profile = await _industryPartners.SetProjectJdpAsync(
-                    id,
-                    JdpInput.PartnerId.Value,
-                    User,
-                    ct);
-
-                return JdpSuccessResponse(profile, "JDP updated.");
-            }
-            catch (KeyNotFoundException exception)
-            {
-                return new JsonResult(new { error = exception.Message })
-                {
-                    StatusCode = StatusCodes.Status404NotFound
-                };
-            }
-            catch (IndustryPartnerValidationException exception)
-            {
-                var message = exception.Errors
-                    .SelectMany(entry => entry.Value)
-                    .FirstOrDefault()
-                    ?? "Unable to update the JDP.";
-
-                return new JsonResult(new { error = message })
-                {
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
-        }
-
-        public async Task<IActionResult> OnPostRemoveJdpAsync(int id, CancellationToken ct)
-        {
-            if (id <= 0 || JdpInput.ProjectId != id)
-            {
-                return new JsonResult(new { error = "The JDP form is not valid for this project." })
-                {
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
-
-            if (!await CanManageProjectJdpAsync(id, ct))
-            {
-                return new JsonResult(new { error = "You are not authorised to update the JDP for this project." })
-                {
-                    StatusCode = StatusCodes.Status403Forbidden
-                };
-            }
-
-            try
-            {
-                var profile = await _industryPartners.SetProjectJdpAsync(
-                    id,
-                    null,
-                    User,
-                    ct);
-
-                return JdpSuccessResponse(profile, "JDP removed from the project.");
-            }
-            catch (KeyNotFoundException exception)
-            {
-                return new JsonResult(new { error = exception.Message })
-                {
-                    StatusCode = StatusCodes.Status404NotFound
-                };
-            }
-        }
-
         private async Task<bool> CanManageProjectJdpAsync(
             int projectId,
             CancellationToken ct)
@@ -725,38 +639,6 @@ namespace ProjectManagement.Pages.Projects
                     !project.IsDeleted &&
                     project.LeadPoUserId == currentUserId,
                     ct);
-        }
-
-        private static JsonResult JdpSuccessResponse(
-            ProjectJdpProfileDto profile,
-            string message)
-        {
-            return new JsonResult(new
-            {
-                success = true,
-                message,
-                profile = new
-                {
-                    projectId = profile.ProjectId,
-                    partnerId = profile.PartnerId,
-                    partnerName = profile.PartnerName,
-                    partnerLocation = profile.PartnerLocation,
-                    hasJdp = profile.HasJdp,
-                    hasMultipleProjectLinks = profile.HasMultipleProjectLinks,
-                    cardTitle = profile.CardTitle,
-                    cardSummary = profile.CardSummary,
-                    otherProjectCount = profile.OtherProjectCount,
-                    otherOngoingProjectCount = profile.OtherOngoingProjectCount,
-                    otherCompletedProjectCount = profile.OtherCompletedProjectCount,
-                    otherProjects = profile.OtherProjects.Select(project => new
-                    {
-                        projectId = project.ProjectId,
-                        projectName = project.ProjectName,
-                        caseFileNumber = project.CaseFileNumber,
-                        statusLabel = project.StatusLabel
-                    })
-                }
-            });
         }
 
         public async Task<IActionResult> OnPostProliferationAsync(int id, CancellationToken ct)

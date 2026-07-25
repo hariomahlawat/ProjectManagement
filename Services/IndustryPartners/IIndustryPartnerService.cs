@@ -20,6 +20,7 @@ public interface IIndustryPartnerService
     Task<IndustryPartnerDto?> GetAsync(int id, CancellationToken cancellationToken = default);
     Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default);
     Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(int projectId, CancellationToken cancellationToken = default);
+    Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(int projectId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProjectJdpOptionDto>> SearchProjectJdpOptionsAsync(
         int projectId,
         string? query,
@@ -35,12 +36,16 @@ public interface IIndustryPartnerService
 
     Task LinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
     Task UnlinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
-    Task<ProjectJdpProfileDto> SetProjectJdpAsync(
+    Task<ProjectMultiJdpProfileDto> AddProjectJdpAsync(
         int projectId,
-        int? partnerId,
+        int partnerId,
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
-
+    Task<ProjectMultiJdpProfileDto> RemoveProjectJdpAsync(
+        int projectId,
+        int partnerId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default);
     Task DeletePartnerAsync(int partnerId, ClaimsPrincipal user, CancellationToken cancellationToken = default);
 }
 

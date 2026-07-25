@@ -28,17 +28,61 @@ public sealed class ProjectJdpServiceTests
     }
 
     [Fact]
-    public async Task SetProjectJdp_ReplacesOnlyThisProjectsLink()
+    public async Task LinkProject_AllowsASecondDifferentJdpForSameProject()
     {
         await using var fixture = await JdpFixture.CreateAsync();
         await fixture.SeedAsync();
 
-        var profile = await fixture.Service.SetProjectJdpAsync(1, 20, User("editor-1"));
+        await fixture.Service.LinkProjectAsync(20, 1, User("editor-1"));
 
-        Assert.Equal(20, profile.PartnerId);
-        Assert.Equal("Bravo Dynamics", profile.PartnerName);
+        Assert.Equal(2, await fixture.Context.IndustryPartnerProjects.CountAsync(link => link.ProjectId == 1));
+        Assert.True(await fixture.Context.IndustryPartnerProjects.AnyAsync(link =>
+            link.ProjectId == 1 && link.IndustryPartnerId == 10));
         Assert.True(await fixture.Context.IndustryPartnerProjects.AnyAsync(link =>
             link.ProjectId == 1 && link.IndustryPartnerId == 20));
+    }
+
+    [Fact]
+    public async Task LinkProject_RejectsDuplicateProjectOrganisationLink()
+    {
+        await using var fixture = await JdpFixture.CreateAsync();
+        await fixture.SeedAsync();
+
+        var exception = await Assert.ThrowsAsync<IndustryPartnerValidationException>(() =>
+            fixture.Service.LinkProjectAsync(10, 1, User("editor-1")));
+
+        Assert.Contains(
+            exception.Errors.SelectMany(entry => entry.Value),
+            message => message.Contains("already linked", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task MultiJdpProfile_ReturnsEachPartnerWithItsOwnOtherProjects()
+    {
+        await using var fixture = await JdpFixture.CreateAsync();
+        await fixture.SeedAsync();
+        await fixture.Service.AddProjectJdpAsync(1, 20, User("editor-1"));
+
+        var profile = await fixture.Service.GetProjectMultiJdpProfileAsync(1);
+
+        Assert.Equal(2, profile.Count);
+        Assert.Equal("2 JDPs linked", profile.CardTitle);
+        Assert.Equal(new[] { "Alpha Systems", "Bravo Dynamics" }, profile.Partners.Select(partner => partner.Name));
+        Assert.Equal(2, profile.Partners[0].OtherProjectCount);
+        Assert.Empty(profile.Partners[1].OtherProjects);
+    }
+
+    [Fact]
+    public async Task RemoveProjectJdp_RemovesOnlyTheSelectedLink()
+    {
+        await using var fixture = await JdpFixture.CreateAsync();
+        await fixture.SeedAsync();
+        await fixture.Service.AddProjectJdpAsync(1, 20, User("editor-1"));
+
+        var profile = await fixture.Service.RemoveProjectJdpAsync(1, 10, User("editor-1"));
+
+        Assert.Single(profile.Partners);
+        Assert.Equal(20, profile.Partners[0].Id);
         Assert.False(await fixture.Context.IndustryPartnerProjects.AnyAsync(link =>
             link.ProjectId == 1 && link.IndustryPartnerId == 10));
         Assert.True(await fixture.Context.IndustryPartnerProjects.AnyAsync(link =>
@@ -46,54 +90,18 @@ public sealed class ProjectJdpServiceTests
     }
 
     [Fact]
-    public async Task LinkProject_RejectsSecondJdpForSameProject()
+    public async Task SearchProjectJdpOptions_ExcludesOrganisationsAlreadyLinkedToTheProject()
     {
         await using var fixture = await JdpFixture.CreateAsync();
         await fixture.SeedAsync();
 
-        var exception = await Assert.ThrowsAsync<IndustryPartnerValidationException>(() =>
-            fixture.Service.LinkProjectAsync(20, 1, User("editor-1")));
+        var alpha = await fixture.Service.SearchProjectJdpOptionsAsync(1, "Alpha", 10);
+        var bravo = await fixture.Service.SearchProjectJdpOptionsAsync(1, "Bravo", 10);
 
-        Assert.Contains(
-            exception.Errors.SelectMany(entry => entry.Value),
-            message => message.Contains("already has JDP Alpha Systems", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task SetProjectJdp_CorrectsLegacyMultipleLinksWithoutAffectingOtherProjects()
-    {
-        await using var fixture = await JdpFixture.CreateAsync();
-        await fixture.SeedAsync();
-        fixture.Context.IndustryPartnerProjects.Add(Link(20, 1));
-        await fixture.Context.SaveChangesAsync();
-
-        var before = await fixture.Service.GetProjectJdpProfileAsync(1);
-        Assert.True(before.HasMultipleProjectLinks);
-
-        var profile = await fixture.Service.SetProjectJdpAsync(1, 20, User("editor-1"));
-
-        Assert.False(profile.HasMultipleProjectLinks);
-        Assert.Equal(20, profile.PartnerId);
-        Assert.Single(await fixture.Context.IndustryPartnerProjects
-            .Where(link => link.ProjectId == 1)
-            .ToListAsync());
-        Assert.True(await fixture.Context.IndustryPartnerProjects.AnyAsync(link =>
-            link.ProjectId == 2 && link.IndustryPartnerId == 10));
-    }
-
-    [Fact]
-    public async Task SearchProjectJdpOptions_ExcludesTheContextProjectFromUsageCounts()
-    {
-        await using var fixture = await JdpFixture.CreateAsync();
-        await fixture.SeedAsync();
-
-        var options = await fixture.Service.SearchProjectJdpOptionsAsync(1, "Alpha", 10);
-
-        var option = Assert.Single(options);
-        Assert.True(option.IsLinkedToProject);
-        Assert.Equal(2, option.OtherProjectCount);
-        Assert.Equal(1, option.OtherOngoingProjectCount);
-        Assert.Equal(1, option.OtherCompletedProjectCount);
+        Assert.Empty(alpha);
+        var option = Assert.Single(bravo);
+        Assert.False(option.IsLinkedToProject);
+        Assert.Equal(0, option.OtherProjectCount);
     }
 
     private static ClaimsPrincipal User(string userId) => new(
