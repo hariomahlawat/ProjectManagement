@@ -5,6 +5,8 @@ public sealed class ProcurementEditVm
     public ProcurementEditInput Input { get; init; } = new();
 
     public bool CanEditIpaCost { get; init; }
+    public bool IsIpaManagedByArpp { get; init; }
+    public string? IpaManagementMessage { get; init; }
     public bool CanEditAonCost { get; init; }
     public bool CanEditBenchmarkCost { get; init; }
     public bool CanEditL1Cost { get; init; }

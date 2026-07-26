@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -18,10 +19,19 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
 {
     private const decimal RupeesPerLakh = 100_000m;
     private readonly ApplicationDbContext _db;
+    private readonly IAuthoritativeIpaPositionResolver _ipaResolver;
 
     public ProjectBriefingCostResolver(ApplicationDbContext db)
+        : this(db, new AuthoritativeIpaPositionResolver(db))
+    {
+    }
+
+    public ProjectBriefingCostResolver(
+        ApplicationDbContext db,
+        IAuthoritativeIpaPositionResolver ipaResolver)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
     }
 
     public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
@@ -46,15 +56,13 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
             .Select(row => new CostFactRow(row.ProjectId, row.AonCost, row.CreatedOnUtc, row.Id))
             .ToListAsync(cancellationToken);
 
-        var ipaRows = await _db.ProjectIpaFacts
-            .AsNoTracking()
-            .Where(row => ids.Contains(row.ProjectId) && row.IpaCost > 0m)
-            .Select(row => new CostFactRow(row.ProjectId, row.IpaCost, row.CreatedOnUtc, row.Id))
-            .ToListAsync(cancellationToken);
+        var ipaPositions = await _ipaResolver.ResolveManyAsync(ids, cancellationToken);
 
         var l1 = Latest(l1Rows);
         var aon = Latest(aonRows);
-        var ipa = Latest(ipaRows);
+        var ipa = ipaPositions
+            .Where(pair => pair.Value.AmountInRupees > 0m)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.AmountInRupees);
         var result = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
 
         foreach (var projectId in ids)

@@ -6,7 +6,9 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services;
 using Xunit;
 
@@ -52,6 +54,52 @@ public class ProjectFactsServiceTests
         Assert.Equal(2200m, fact.IpaCost);
         Assert.Equal("seed", fact.CreatedByUserId);
         Assert.Equal(new DateTime(2024, 5, 1, 0, 0, 0, DateTimeKind.Utc), fact.CreatedOnUtc);
+    }
+
+    [Fact]
+    public async Task UpsertIpaCostAsync_WhenProjectIsLinkedToArpp_RejectsLegacyUpdate()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedProjectAsync(db);
+
+        var issue = new ArppIssue
+        {
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP 2026-27",
+            IssueDate = new DateOnly(2026, 4, 1),
+            CreatedAtUtc = clock.UtcNow,
+            UpdatedAtUtc = clock.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+        issue.Entries.Add(new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "1",
+            ProjectReference = "Project",
+            ProjectId = 1,
+            Category = ArppCategory.Delisted,
+            IpaCost = 1250m,
+            Cfa = "Comdt SDD",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = clock.UtcNow,
+            UpdatedAtUtc = clock.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
+
+        await Assert.ThrowsAsync<ArppManagedIpaException>(
+            () => service.UpsertIpaCostAsync(1, 2200m, "user-b"));
+
+        Assert.Empty(db.ProjectIpaFacts);
     }
 
     [Fact]

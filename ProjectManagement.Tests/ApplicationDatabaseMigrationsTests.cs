@@ -29,6 +29,8 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261201190000_AdminPhaseB3MasterDataHardening", migrations);
         Assert.Contains("20261201260000_HardenFfcFoundation", migrations);
         Assert.Contains("20261201270000_AddFfcProjectConcurrency", migrations);
+        Assert.Contains("20261206100000_AddProjectTotDatePrecision", migrations);
+        Assert.Contains("20261207090000_AddArppFoundation", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -108,32 +110,37 @@ public sealed class ApplicationDatabaseMigrationsTests
     {
         using var context = CreateMetadataContext();
         var discovered = context.Database.GetMigrations().ToArray();
+        var manifest = ReadApplicationManifest();
+
+        Assert.Equal(manifest, discovered);
+    }
+
+    [Fact]
+    public void MigrationIdentifiers_AreOrderedAndMatchTheImmutableManifestTail()
+    {
+        using var context = CreateMetadataContext();
+        var migrations = context.Database.GetMigrations().ToArray();
+        var manifest = ReadApplicationManifest();
+
+        Assert.Equal(
+            migrations.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+            migrations);
+        Assert.NotEmpty(manifest);
+        Assert.Equal(manifest[^1], migrations[^1]);
+    }
+
+    private static string[] ReadApplicationManifest()
+    {
         var manifestPath = Path.Combine(
             AppContext.BaseDirectory,
             "TestData",
             "application-migration-ids.txt");
         Assert.True(File.Exists(manifestPath), $"Migration manifest is missing: {manifestPath}");
 
-        var manifest = File.ReadAllLines(manifestPath)
+        return File.ReadAllLines(manifestPath)
             .Select(line => line.Trim())
             .Where(line => line.Length > 0 && !line.StartsWith('#'))
             .ToArray();
-
-        Assert.Equal(manifest, discovered);
-    }
-
-    [Fact]
-    public void MigrationIdentifiers_AreOrderedAndFinalRepairRemainsTheTail()
-    {
-        using var context = CreateMetadataContext();
-        var migrations = context.Database.GetMigrations().ToArray();
-
-        Assert.Equal(
-            migrations.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
-            migrations);
-        Assert.Equal(
-            "20261201270000_AddFfcProjectConcurrency",
-            migrations[^1]);
     }
 
     private static ApplicationDbContext CreateMetadataContext()

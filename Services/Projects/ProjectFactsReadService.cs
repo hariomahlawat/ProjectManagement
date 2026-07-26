@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Stages;
@@ -12,13 +10,16 @@ public sealed class ProjectFactsReadService
 
     public ProjectFactsReadService(ApplicationDbContext db)
     {
-        _db = db;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
-    public Task<bool> HasRequiredFactsAsync(int projectId, string stageCode, CancellationToken ct = default)
+    public Task<bool> HasRequiredFactsAsync(
+        int projectId,
+        string stageCode,
+        CancellationToken ct = default)
         => stageCode switch
         {
-            StageCodes.IPA => _db.ProjectIpaFacts.AnyAsync(x => x.ProjectId == projectId, ct),
+            StageCodes.IPA => HasIpaPositionAsync(projectId, ct),
             StageCodes.SOW => _db.ProjectSowFacts.AnyAsync(x => x.ProjectId == projectId, ct),
             StageCodes.AON => _db.ProjectAonFacts.AnyAsync(x => x.ProjectId == projectId, ct),
             StageCodes.BM => _db.ProjectBenchmarkFacts.AnyAsync(x => x.ProjectId == projectId, ct),
@@ -27,4 +28,18 @@ public sealed class ProjectFactsReadService
             StageCodes.SO => _db.ProjectSupplyOrderFacts.AnyAsync(x => x.ProjectId == projectId, ct),
             _ => Task.FromResult(true)
         };
+
+    private async Task<bool> HasIpaPositionAsync(int projectId, CancellationToken ct)
+    {
+        if (await _db.ArppEntries
+                .AsNoTracking()
+                .AnyAsync(entry => entry.ProjectId == projectId, ct))
+        {
+            return true;
+        }
+
+        return await _db.ProjectIpaFacts
+            .AsNoTracking()
+            .AnyAsync(fact => fact.ProjectId == projectId, ct);
+    }
 }

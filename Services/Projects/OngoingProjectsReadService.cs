@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
@@ -8,6 +8,7 @@ using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -26,15 +27,26 @@ namespace ProjectManagement.Services.Projects
         private readonly ApplicationDbContext _db;
         private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
         private readonly IClock _clock;
+        private readonly IAuthoritativeIpaPositionResolver _ipaResolver;
 
         public OngoingProjectsReadService(
             ApplicationDbContext db,
             IWorkflowStageMetadataProvider workflowStageMetadataProvider,
             IClock clock)
+            : this(db, workflowStageMetadataProvider, clock, new AuthoritativeIpaPositionResolver(db))
+        {
+        }
+
+        public OngoingProjectsReadService(
+            ApplicationDbContext db,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            IClock clock,
+            IAuthoritativeIpaPositionResolver ipaResolver)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+            _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
         }
 
         public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
@@ -123,11 +135,7 @@ namespace ProjectManagement.Services.Projects
                 .Select(x => new { x.ProjectId, x.AonCost, x.CreatedOnUtc })
                 .ToListAsync(cancellationToken);
 
-            var ipaFacts = await _db.ProjectIpaFacts
-                .AsNoTracking()
-                .Where(x => projectIds.Contains(x.ProjectId))
-                .Select(x => new { x.ProjectId, x.IpaCost, x.CreatedOnUtc })
-                .ToListAsync(cancellationToken);
+            var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, cancellationToken);
 
             var pncByProject = pncFacts
                 .GroupBy(x => x.ProjectId)
@@ -147,11 +155,9 @@ namespace ProjectManagement.Services.Projects
                     g => g.Key,
                     g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().AonCost);
 
-            var ipaByProject = ipaFacts
-                .GroupBy(x => x.ProjectId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().IpaCost);
+            var ipaByProject = ipaPositions.ToDictionary(
+                pair => pair.Key,
+                pair => (decimal?)pair.Value.AmountInRupees);
 
             // 1) stages for the selected projects
             var allStages = await _db.ProjectStages

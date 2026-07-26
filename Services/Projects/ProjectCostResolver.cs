@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Projects;
 
@@ -35,10 +36,19 @@ public sealed class ProjectCostResolver : IProjectCostResolver
     private const decimal RupeesToCroresDivisor = 10000000m;
 
     private readonly ApplicationDbContext _db;
+    private readonly IAuthoritativeIpaPositionResolver _ipaResolver;
 
     public ProjectCostResolver(ApplicationDbContext db)
+        : this(db, new AuthoritativeIpaPositionResolver(db))
+    {
+    }
+
+    public ProjectCostResolver(
+        ApplicationDbContext db,
+        IAuthoritativeIpaPositionResolver ipaResolver)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
     }
 
     public async Task<Dictionary<int, ProjectCostResolution>> ResolveCostInCrAsync(
@@ -79,16 +89,14 @@ public sealed class ProjectCostResolver : IProjectCostResolver
             .Select(fact => new { fact.ProjectId, fact.AonCost, fact.CreatedOnUtc, fact.Id })
             .ToListAsync(ct);
 
-        var ipaFacts = await _db.ProjectIpaFacts
-            .AsNoTracking()
-            .Where(fact => projectIds.Contains(fact.ProjectId))
-            .Select(fact => new { fact.ProjectId, fact.IpaCost, fact.CreatedOnUtc, fact.Id })
-            .ToListAsync(ct);
+        var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, ct);
 
         var pncByProject = BuildLatestFactMap(pncFacts, fact => fact.ProjectId, fact => fact.CreatedOnUtc, fact => fact.Id, fact => fact.PncCost);
         var l1ByProject = BuildLatestFactMap(l1Facts, fact => fact.ProjectId, fact => fact.CreatedOnUtc, fact => fact.Id, fact => fact.L1Cost);
         var aonByProject = BuildLatestFactMap(aonFacts, fact => fact.ProjectId, fact => fact.CreatedOnUtc, fact => fact.Id, fact => fact.AonCost);
-        var ipaByProject = BuildLatestFactMap(ipaFacts, fact => fact.ProjectId, fact => fact.CreatedOnUtc, fact => fact.Id, fact => fact.IpaCost);
+        var ipaByProject = ipaPositions.ToDictionary(
+            pair => pair.Key,
+            pair => (decimal?)pair.Value.AmountInRupees);
 
         // SECTION: Cost selection policy (CostLakhs -> PNC -> L1 -> AON -> IPA)
         var result = new Dictionary<int, ProjectCostResolution>(projectIds.Count);

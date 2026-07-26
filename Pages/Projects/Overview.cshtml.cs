@@ -25,6 +25,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Services;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
@@ -569,7 +570,11 @@ namespace ProjectManagement.Pages.Projects
                     PncCost = Procurement.PncCost,
                     SupplyOrderDate = Procurement.SupplyOrderDate
                 },
-                CanEditIpaCost = Completed(ProcurementStageRules.StageForIpaCost),
+                CanEditIpaCost =
+                    Completed(ProcurementStageRules.StageForIpaCost) &&
+                    !Procurement.IsIpaManagedByArpp,
+                IsIpaManagedByArpp = Procurement.IsIpaManagedByArpp,
+                IpaManagementMessage = BuildIpaManagementMessage(Procurement),
                 CanEditAonCost = Completed(ProcurementStageRules.StageForAonCost),
                 CanEditBenchmarkCost = Completed(ProcurementStageRules.StageForBenchmarkCost),
                 CanEditL1Cost = Completed(ProcurementStageRules.StageForL1Cost),
@@ -2783,6 +2788,39 @@ namespace ProjectManagement.Pages.Projects
                 HodOptions = hodOptions,
                 PoOptions = poOptions
             };
+        }
+
+        private static string? BuildIpaManagementMessage(ProcurementAtAGlanceVm procurement)
+        {
+            var position = procurement.IpaPosition;
+            if (position?.IsManagedByArpp != true)
+            {
+                return null;
+            }
+
+            var parts = new List<string> { "Managed through ARPP" };
+
+            if (position.FinancialYearStart.HasValue)
+            {
+                parts.Add(FinancialYearHelper.Format(position.FinancialYearStart.Value));
+            }
+
+            if (!string.IsNullOrWhiteSpace(position.IssueName))
+            {
+                parts.Add(position.IssueName.Trim());
+            }
+
+            if (position.Category.HasValue)
+            {
+                parts.Add(ArppDisplayNames.For(position.Category.Value));
+            }
+
+            if (!string.IsNullOrWhiteSpace(position.SerialNumber))
+            {
+                parts.Add($"Ser No {position.SerialNumber.Trim()}");
+            }
+
+            return string.Join(" · ", parts) + ". Update this value from the ARPP register.";
         }
 
         private async Task<IReadOnlyList<ProjectCategory>> BuildCategoryPathAsync(int categoryId, CancellationToken ct)

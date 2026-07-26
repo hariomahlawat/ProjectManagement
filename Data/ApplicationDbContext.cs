@@ -30,6 +30,7 @@ using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Usage;
+using ProjectManagement.Models.Arpp;
 
 namespace ProjectManagement.Data
 {
@@ -40,6 +41,8 @@ namespace ProjectManagement.Data
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
+        public DbSet<ArppIssue> ArppIssues => Set<ArppIssue>();
+        public DbSet<ArppEntry> ArppEntries => Set<ArppEntry>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
         public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
@@ -1888,6 +1891,109 @@ namespace ProjectManagement.Data
                 {
                     e.HasIndex(x => x.ProjectId);
                 }
+            });
+
+            // SECTION: ARPP / PPP document register
+            builder.Entity<ArppIssue>(entity =>
+            {
+                entity.ToTable("ArppIssues", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_ArppIssues_FinancialYearStart",
+                        "\"FinancialYearStart\" BETWEEN 2000 AND 9998");
+                    table.HasCheckConstraint(
+                        "CK_ArppIssues_IssueSequence",
+                        "\"IssueSequence\" >= 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppIssues_KindSequence",
+                        "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                });
+
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.FinancialYearStart).IsRequired();
+                entity.Property(x => x.Kind).HasConversion<int>().IsRequired();
+                entity.Property(x => x.IssueSequence).IsRequired();
+                entity.Property(x => x.Name).HasMaxLength(300).IsRequired();
+                entity.Property(x => x.IssueDate).HasColumnType("date").IsRequired();
+                entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
+
+                entity.HasIndex(x => new { x.FinancialYearStart, x.IssueSequence })
+                    .HasDatabaseName("UX_ArppIssues_FinancialYear_Sequence")
+                    .IsUnique();
+                entity.HasIndex(x => new { x.FinancialYearStart, x.IssueDate });
+            });
+
+            builder.Entity<ArppEntry>(entity =>
+            {
+                entity.ToTable("ArppEntries", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_ArppEntries_SortOrder",
+                        "\"SortOrder\" >= 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppEntries_IpaCost",
+                        "\"IpaCost\" >= 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppEntries_Category",
+                        "\"Category\" IN (1, 2, 3, 4)");
+                    table.HasCheckConstraint(
+                        "CK_ArppEntries_RequiredText",
+                        "length(btrim(\"SerialNumber\")) > 0 AND " +
+                        "length(btrim(\"ProjectReference\")) > 0 AND " +
+                        "length(btrim(\"Cfa\")) > 0 AND " +
+                        "length(btrim(\"Fund\")) > 0 AND " +
+                        "length(btrim(\"DfpdsSchedule\")) > 0");
+                });
+
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SortOrder).IsRequired();
+                entity.Property(x => x.SerialNumber).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
+                entity.Property(x => x.Category).HasConversion<int>().IsRequired();
+                entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(x => x.Cfa).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Fund).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.DfpdsSchedule).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
+
+                entity.HasIndex(x => new { x.ArppIssueId, x.SortOrder });
+                entity.HasIndex(x => x.ProjectId);
+
+                var linkedProjectPerIssue = entity
+                    .HasIndex(x => new { x.ArppIssueId, x.ProjectId })
+                    .HasDatabaseName("UX_ArppEntries_Issue_Project")
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    linkedProjectPerIssue.HasFilter("\"ProjectId\" IS NOT NULL");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    linkedProjectPerIssue.HasFilter("[ProjectId] IS NOT NULL");
+                }
+                else
+                {
+                    linkedProjectPerIssue.HasFilter("ProjectId IS NOT NULL");
+                }
+
+                entity.HasOne(x => x.Issue)
+                    .WithMany(x => x.Entries)
+                    .HasForeignKey(x => x.ArppIssueId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn, string checkName)

@@ -10,6 +10,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Projects
 {
@@ -28,6 +29,15 @@ namespace ProjectManagement.Services.Projects
 
         public async Task UpsertIpaCostAsync(int projectId, decimal ipaCost, string userId, CancellationToken ct = default)
         {
+            var isManagedByArpp = await _db.ArppEntries
+                .AsNoTracking()
+                .AnyAsync(entry => entry.ProjectId == projectId, ct);
+
+            if (isManagedByArpp)
+            {
+                throw new ArppManagedIpaException(projectId);
+            }
+
             var created = await UpsertMoneyFactAsync(
                 _db.ProjectIpaFacts,
                 projectId,

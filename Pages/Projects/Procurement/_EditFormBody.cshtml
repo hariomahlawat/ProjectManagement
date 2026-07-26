@@ -10,7 +10,13 @@
             <input class="form-control" id="Input_IpaCost" name="Input.IpaCost"
                    value="@(Model.Input.IpaCost?.ToString("0.##"))"
                    @(Model.CanEditIpaCost ? null : "disabled") />
-            @if (!Model.CanEditIpaCost)
+            @if (Model.IsIpaManagedByArpp)
+            {
+                <div class="form-text">
+                    @(Model.IpaManagementMessage ?? "Managed through ARPP. Update this value from the ARPP register.")
+                </div>
+            }
+            else if (!Model.CanEditIpaCost)
             {
                 <div class="form-text">Enabled after IPA stage is completed.</div>
             }

@@ -12,6 +12,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Analytics;
@@ -31,17 +32,34 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     private readonly IClock _clock;
     private readonly ProjectCategoryHierarchyService _categoryHierarchy;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+    private readonly IAuthoritativeIpaPositionResolver _ipaResolver;
 
     public ProjectAnalyticsService(
         ApplicationDbContext db,
         IClock clock,
         ProjectCategoryHierarchyService categoryHierarchy,
         IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+        : this(
+            db,
+            clock,
+            categoryHierarchy,
+            workflowStageMetadataProvider,
+            new AuthoritativeIpaPositionResolver(db))
     {
-        _db = db;
-        _clock = clock;
-        _categoryHierarchy = categoryHierarchy;
+    }
+
+    public ProjectAnalyticsService(
+        ApplicationDbContext db,
+        IClock clock,
+        ProjectCategoryHierarchyService categoryHierarchy,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IAuthoritativeIpaPositionResolver ipaResolver)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _categoryHierarchy = categoryHierarchy ?? throw new ArgumentNullException(nameof(categoryHierarchy));
         _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+        _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
     }
 
     public async Task<CategoryShareResult> GetCategoryShareAsync(
@@ -722,10 +740,14 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             _db.ProjectCommercialFacts.AsNoTracking(),
             fact => (decimal?)fact.L1Cost,
             cancellationToken);
-        var ipaCosts = await LoadLatestMoneyFactsAsync(
-            _db.ProjectIpaFacts.AsNoTracking(),
-            fact => (decimal?)fact.IpaCost,
-            cancellationToken);
+        var projectIds = await _db.Projects
+            .AsNoTracking()
+            .Select(project => project.Id)
+            .ToArrayAsync(cancellationToken);
+        var ipaPositions = await _ipaResolver.ResolveManyAsync(projectIds, cancellationToken);
+        var ipaCosts = ipaPositions.ToDictionary(
+            pair => pair.Key,
+            pair => (decimal?)pair.Value.AmountInRupees);
 
         var lookup = new Dictionary<int, decimal?>();
         foreach (var source in new[] { aonCosts, benchmarkCosts, pncCosts, commercialCosts, ipaCosts })

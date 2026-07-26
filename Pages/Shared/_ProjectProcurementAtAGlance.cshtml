@@ -1,5 +1,7 @@
 @model ProjectManagement.Services.Projects.ProcurementAtAGlanceVm
 @using System.Globalization
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
 @{
     string ShortInr(decimal value)
     {
@@ -30,6 +32,34 @@
                      Model.L1Cost.HasValue ||
                      Model.PncCost.HasValue ||
                      Model.SupplyOrderDate.HasValue;
+
+    var ipaPosition = Model.IpaPosition;
+    var ipaCategory = ipaPosition?.Category is { } category
+        ? ArppDisplayNames.For(category)
+        : null;
+    var ipaFinancialYear = ipaPosition?.FinancialYearStart is { } startYear
+        ? FinancialYearHelper.Format(startYear)
+        : null;
+    var ipaSourceParts = new List<string>();
+    if (ipaPosition?.IsManagedByArpp == true)
+    {
+        if (!string.IsNullOrWhiteSpace(ipaFinancialYear))
+        {
+            ipaSourceParts.Add(ipaFinancialYear);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ipaPosition.IssueName))
+        {
+            ipaSourceParts.Add(ipaPosition.IssueName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ipaPosition.SerialNumber))
+        {
+            ipaSourceParts.Add($"Ser No {ipaPosition.SerialNumber}");
+        }
+    }
+
+    var ipaSourceText = string.Join(" · ", ipaSourceParts);
 }
 
 <div class="card pm-card procurement-summary-card">
@@ -96,6 +126,10 @@
         <div>
           <span class="procurement-label text-muted">IPA Cost</span>
           <span class="procurement-value fw-semibold" title="@FullInr(Model.IpaCost)">@Money(Model.IpaCost)</span>
+          @if (ipaPosition?.IsManagedByArpp == true && ipaCategory is not null)
+          {
+            <span class="badge rounded-pill text-bg-light border mt-1">@ipaCategory</span>
+          }
         </div>
         <div>
           <span class="procurement-label text-muted">AON Cost</span>
@@ -119,9 +153,24 @@
         </div>
       </div>
 
-      <div class="mt-2 small text-muted">
-        Values reflect the latest recorded procurement facts.
-      </div>
+      @if (ipaPosition?.IsManagedByArpp == true)
+      {
+        <div class="mt-2 small text-muted">
+          IPA source: @ipaSourceText.
+        </div>
+      }
+      else if (ipaPosition?.IsLegacyFallback == true)
+      {
+        <div class="mt-2 small text-muted">
+          IPA source: legacy project record. ARPP will become authoritative after this project is linked to an ARPP entry.
+        </div>
+      }
+      else
+      {
+        <div class="mt-2 small text-muted">
+          Values reflect the latest recorded procurement facts.
+        </div>
+      }
     }
   </div>
 </div>

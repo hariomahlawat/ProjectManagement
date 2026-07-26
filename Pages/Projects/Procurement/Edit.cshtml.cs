@@ -13,6 +13,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Procurement
@@ -79,7 +80,15 @@ namespace ProjectManagement.Pages.Projects.Procurement
 
             var errors = new List<string>();
 
-            if (Input.IpaCost.HasValue && !Completed(ProcurementStageRules.StageForIpaCost))
+            var isIpaManagedByArpp = Input.IpaCost.HasValue && await _db.ArppEntries
+                .AsNoTracking()
+                .AnyAsync(entry => entry.ProjectId == id, ct);
+
+            if (isIpaManagedByArpp)
+            {
+                errors.Add("IPA Cost is managed through ARPP for this project and cannot be edited here.");
+            }
+            else if (Input.IpaCost.HasValue && !Completed(ProcurementStageRules.StageForIpaCost))
             {
                 errors.Add("IPA Cost cannot be set before IPA stage is completed.");
             }
@@ -160,6 +169,12 @@ namespace ProjectManagement.Pages.Projects.Procurement
             {
                 await RollbackSafelyAsync(tx, id, CancellationToken.None);
                 throw;
+            }
+            catch (ArppManagedIpaException)
+            {
+                await RollbackSafelyAsync(tx, id, CancellationToken.None);
+                TempData["Error"] = "IPA Cost is managed through ARPP for this project and cannot be edited here.";
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
             catch (DbUpdateException ex)
             {
