@@ -20,25 +20,28 @@ public sealed class ProjectCommandHeaderAssetTests
     [Fact]
     public void PortfolioStyles_OwnRobustActiveCompletedAndCancelledHeaderSurfaces()
     {
+        var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");
         var css = ReadRepoFile("wwwroot", "css", "pages", "project-portfolio.css");
 
-        Assert.Contains(
-            ".project-portfolio .project-command-header[data-project-command-header] {",
-            css,
-            StringComparison.Ordinal);
+        Assert.Contains("class=\"card pm-card project-command-header@lifecycleHeaderClass\"", header, StringComparison.Ordinal);
+        Assert.Contains("data-project-command-header=\"true\"", header, StringComparison.Ordinal);
+        Assert.Contains(".project-command-header {", css, StringComparison.Ordinal);
         Assert.Contains("padding: .9rem 1rem;", css, StringComparison.Ordinal);
-        Assert.Contains("border: 1px solid", css, StringComparison.Ordinal);
+        Assert.Contains("border: 1px solid #c7d0dd;", css, StringComparison.Ordinal);
         Assert.Contains("border-left: 3px solid var(--project-command-accent);", css, StringComparison.Ordinal);
+        Assert.Contains("background-color: #fff;", css, StringComparison.Ordinal);
         Assert.Contains("var(--pm-card, #fff);", css, StringComparison.Ordinal);
         Assert.Contains("overflow: visible;", css, StringComparison.Ordinal);
-        Assert.Contains(".project-command-header--completed[data-project-command-header]", css, StringComparison.Ordinal);
-        Assert.Contains(".project-command-header--cancelled[data-project-command-header]", css, StringComparison.Ordinal);
+        Assert.Contains(".project-command-header--completed {", css, StringComparison.Ordinal);
+        Assert.Contains(".project-command-header--cancelled {", css, StringComparison.Ordinal);
+        Assert.DoesNotContain(".project-command-header[data-project-command-header]", css, StringComparison.Ordinal);
         Assert.DoesNotContain(".project-portfolio-shell > .project-command-header", css, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("Pages/Projects/Overview.cshtml")]
     [InlineData("Pages/Projects/_ProjectCommandHeader.cshtml")]
+    [InlineData("wwwroot/css/pages/project-portfolio.css")]
     [InlineData("ProjectManagement.Tests/ProjectCommandHeaderAssetTests.cs")]
     public void ReplacementManifest_IncludesHeaderDeliveryContract(string requiredPath)
     {

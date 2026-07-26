@@ -66,6 +66,82 @@ public sealed class ProjectLifecyclePositionResolverTests
     }
 
     [Fact]
+    public void Resolver_TreatsFirstUnresolvedNotStartedStageAsCurrent()
+    {
+        var position = ProjectLifecyclePositionResolver.Resolve(
+            new[]
+            {
+                new ProjectLifecycleStageSnapshot(
+                    StageCodes.FS,
+                    "Feasibility Study",
+                    StageStatus.Completed,
+                    0,
+                    new DateOnly(2026, 1, 1),
+                    true),
+                new ProjectLifecycleStageSnapshot(
+                    StageCodes.SOW,
+                    "SOW Vetting",
+                    StageStatus.NotStarted,
+                    1,
+                    null,
+                    false)
+            });
+
+        Assert.NotNull(position.CurrentStage);
+        Assert.Equal(StageCodes.SOW, position.CurrentStage!.Code);
+        Assert.Equal(StageStatus.NotStarted, position.CurrentStage.Status);
+    }
+
+    [Fact]
+    public void RepositoryPosition_LabelsCancelledInProgressStageAsCeased()
+    {
+        var project = new Project
+        {
+            Id = 182,
+            Name = "Cancelled project",
+            CreatedByUserId = "seed",
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Cancelled
+        };
+
+        project.ProjectStages = new List<ProjectStage>
+        {
+            Stage(StageCodes.FS, 0, StageStatus.Completed, new DateOnly(2025, 11, 1)),
+            Stage(StageCodes.SOW, 1, StageStatus.InProgress)
+        };
+
+        var display = ProjectRepositoryStagePositionVm.Create(project, _workflowMetadata);
+
+        Assert.Equal("SOW Vetting · Ceased", display.Primary);
+        Assert.Equal("Stage at cancellation · Previous: Feasibility Study · 1 Nov 2025", display.Secondary);
+        Assert.DoesNotContain("In progress", display.Primary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RepositoryPosition_DoesNotSuggestNextStageForCompletedProject()
+    {
+        var project = new Project
+        {
+            Id = 205,
+            Name = "Completed project",
+            CreatedByUserId = "seed",
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        project.ProjectStages = new List<ProjectStage>
+        {
+            Stage(StageCodes.FS, 0, StageStatus.Completed, new DateOnly(1999, 1, 1))
+        };
+
+        var display = ProjectRepositoryStagePositionVm.Create(project, _workflowMetadata);
+
+        Assert.Equal("Feasibility Study completed", display.Primary);
+        Assert.Equal("Completed 1 Jan 1999", display.Secondary);
+        Assert.DoesNotContain("Next", display.Primary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void RepositoryPosition_DoesNotInventHistoryForTerminalLegacyRecord()
     {
         var project = new Project

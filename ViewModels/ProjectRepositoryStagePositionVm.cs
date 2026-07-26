@@ -39,6 +39,11 @@ public sealed record ProjectRepositoryStagePositionVm(
             return Missing;
         }
 
+        if (project.LifecycleStatus is ProjectLifecycleStatus.Completed or ProjectLifecycleStatus.Cancelled)
+        {
+            return CreateTerminalPosition(project.LifecycleStatus, position);
+        }
+
         if (position.CurrentStage is { } current)
         {
             if (current.Status is StageStatus.InProgress or StageStatus.Blocked)
@@ -77,6 +82,50 @@ public sealed record ProjectRepositoryStagePositionVm(
                 lastCompleted.CompletedOn.HasValue
                     ? $"Completed {FormatDate(lastCompleted.CompletedOn.Value)}"
                     : "Latest recorded stage completed");
+        }
+
+        return Missing;
+    }
+
+    private static ProjectRepositoryStagePositionVm CreateTerminalPosition(
+        ProjectLifecycleStatus lifecycleStatus,
+        ProjectLifecyclePositionSnapshot position)
+    {
+        if (lifecycleStatus == ProjectLifecycleStatus.Cancelled &&
+            position.CurrentStage is
+            {
+                Status: StageStatus.InProgress or StageStatus.Blocked
+            } current)
+        {
+            var previous = position.PreviousCompletedStage;
+            var secondary = previous is null
+                ? "Stage at cancellation"
+                : $"Stage at cancellation · Previous: {previous.Name}{FormatCompletedOn(previous.CompletedOn)}";
+
+            return new ProjectRepositoryStagePositionVm(
+                $"{current.Name} · Ceased",
+                secondary);
+        }
+
+        if (position.LastCompletedStage is { } lastCompleted)
+        {
+            string secondary;
+            if (lifecycleStatus == ProjectLifecycleStatus.Cancelled)
+            {
+                secondary = lastCompleted.CompletedOn.HasValue
+                    ? $"Last completed before cancellation · {FormatDate(lastCompleted.CompletedOn.Value)}"
+                    : "Last completed before cancellation";
+            }
+            else
+            {
+                secondary = lastCompleted.CompletedOn.HasValue
+                    ? $"Completed {FormatDate(lastCompleted.CompletedOn.Value)}"
+                    : "Latest recorded stage completed";
+            }
+
+            return new ProjectRepositoryStagePositionVm(
+                $"{lastCompleted.Name} completed",
+                secondary);
         }
 
         return Missing;

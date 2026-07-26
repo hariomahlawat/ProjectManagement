@@ -39,6 +39,30 @@ public sealed class ProjectRepositoryPresentationContractTests
         Assert.Contains("aria-label=\"Project lifecycle filters\"", view, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Repository_UsesFixedResponsiveTracksAndDoesNotStretchSingleResult()
+    {
+        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+
+        Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr));", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: 1fr;", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("repeat(auto-fit", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_UsesSharedCountGrammarAndSemanticCancelledBadge()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+
+        Assert.Contains("var projectCountLabel = Model.FilteredTotal == 1 ? \"project\" : \"projects\";", view, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(view, "@projectCountLabel"));
+        Assert.Contains("ProjectLifecycleStatus.Cancelled => \"project-lifecycle-badge project-lifecycle-badge--cancelled\"", view, StringComparison.Ordinal);
+        Assert.Contains(".project-lifecycle-badge--cancelled", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProjectLifecycleStatus.Cancelled => \"text-bg-secondary\"", view, StringComparison.Ordinal);
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -54,5 +78,19 @@ public sealed class ProjectRepositoryPresentationContractTests
         }
 
         throw new FileNotFoundException($"Could not locate repository file: {Path.Combine(relativePath)}");
+    }
+
+    private static int CountOccurrences(string value, string search)
+    {
+        var count = 0;
+        var index = 0;
+
+        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += search.Length;
+        }
+
+        return count;
     }
 }

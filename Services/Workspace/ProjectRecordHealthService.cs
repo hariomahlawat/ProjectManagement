@@ -196,7 +196,7 @@ public sealed class ProjectRecordHealthService
 
             gaps.Add(Gap(
                 code: "PROJECT_DESCRIPTION",
-                component: "Core project profile",
+                component: "Project description",
                 fieldLabel: "Project description",
                 reason: "Required for every project and must contain a meaningful description.",
                 earned: 0m,
@@ -209,7 +209,7 @@ public sealed class ProjectRecordHealthService
 
         return Component(
             "CORE_PROFILE",
-            "Core project profile",
+            "Project description",
             descriptionComplete ? CoreProfileWeight : 0m,
             CoreProfileWeight,
             gaps);

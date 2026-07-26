@@ -10,7 +10,7 @@
                 <div class="d-flex align-items-center gap-3">
                     <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-clipboard2-pulse"></i></span>
                     <div>
-                        <h2 class="modal-title h5 mb-1" id="recordCompletenessModalLabel">Record completeness</h2>
+                        <h2 class="modal-title h5 mb-1" id="recordCompletenessModalLabel">Overall record health</h2>
                         <p class="mb-0 text-muted">The same readiness score used in My Workspace.</p>
                     </div>
                 </div>
@@ -27,7 +27,7 @@
                 <div class="project-record-health__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@health.HealthPercent">
                     <span style="width:@health.HealthPercent%"></span>
                 </div>
-                <div class="project-record-health__components" aria-label="Completeness score breakdown">
+                <div class="project-record-health__components" aria-label="Record health score breakdown">
                     @foreach (var component in health.Components)
                     {
                         var componentPercent = component.MaximumPoints <= 0 ? 100 : (int)Math.Round(component.EarnedPoints * 100m / component.MaximumPoints);

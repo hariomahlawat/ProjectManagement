@@ -22,12 +22,35 @@ public sealed class ProjectOverviewPresentationContractTests
     {
         var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
 
+        Assert.Contains("if (!hasRecordedStageHistory && !isActiveLifecycle)", workspace, StringComparison.Ordinal);
+        Assert.Contains("No reliable stage-level history is available.", workspace, StringComparison.Ordinal);
+        Assert.Contains("<p class=\"pm-card-subtitle mb-0\">@timelineSubtitle</p>", workspace, StringComparison.Ordinal);
         Assert.Contains("project-timeline-empty-history", workspace, StringComparison.Ordinal);
         Assert.Contains("No recorded stage history", workspace, StringComparison.Ordinal);
         Assert.Contains("Project remarks remain available", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("No stage history recorded", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("No stage history was recorded", workspace, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(workspace, "No recorded stage history"));
+    }
+
+    [Fact]
+    public void RecordScores_UseDistinctAndAccurateLabels()
+    {
+        var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");
+        var overview = ReadRepoFile("Pages", "Projects", "_ProjectOverviewCard.cshtml");
+        var healthModal = ReadRepoFile("Pages", "Projects", "_ProjectRecordCompleteness.cshtml");
+        var workspaceTable = ReadRepoFile("Pages", "Workspace", "_ProjectOfficerProjectTable.cshtml");
+        var workspaceModals = ReadRepoFile("Pages", "Workspace", "_ProjectOfficerRecordModals.cshtml");
+        var healthService = ReadRepoFile("Services", "Workspace", "ProjectRecordHealthService.cs");
+
+        Assert.Contains("Overall record health", header, StringComparison.Ordinal);
+        Assert.Contains("Overall record health", healthModal, StringComparison.Ordinal);
+        Assert.Contains("Overall record health", workspaceTable, StringComparison.Ordinal);
+        Assert.Contains("Overall record health", workspaceModals, StringComparison.Ordinal);
+        Assert.Contains("Core profile fields:", overview, StringComparison.Ordinal);
+        Assert.Contains("\"Project description\"", healthService, StringComparison.Ordinal);
+        Assert.DoesNotContain("Project profile:", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Core project profile", healthService, StringComparison.Ordinal);
     }
 
     [Fact]

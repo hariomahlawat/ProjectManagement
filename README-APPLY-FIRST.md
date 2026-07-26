@@ -1,36 +1,48 @@
-# ProjectManagement ToT compile fix v2
+# PRISM project portfolio — replacement instructions
 
-This is a cumulative replacement package. It includes both corrections needed
-for the reported build failures.
+This package contains path-preserved replacement files for the remaining
+Project Overview and Project Repository presentation defects.
 
-## Replace
+## Apply
 
-Copy these files into the project root while preserving their paths:
+1. Back up the current solution and database.
+2. Stop the running application.
+3. Extract the archive into the solution root that contains
+   `ProjectManagement.csproj`.
+4. Allow the files to overwrite the matching relative paths.
+5. Confirm that `Pages/Projects/Overview.cshtml`,
+   `Pages/Projects/_ProjectCommandHeader.cshtml`, and
+   `wwwroot/css/pages/project-portfolio.css` were all replaced together.
+6. Clean, restore, build, test, and publish from the updated source.
 
-- `ProjectManagement.csproj`
-- `ViewComponents/ProjectTotCommandCardViewComponent.cs`
-
-## Corrections
-
-1. `ProjectManagement.csproj` excludes retained `ReadyToReplace/**` source from
-   the Web SDK's recursive C#, Razor, content, and resource discovery. This
-   resolves the earlier duplicate-type and duplicate-member errors.
-2. `ProjectTotCommandCardViewComponent.cs` uses the record constructor's exact
-   named parameter, `CanManage`. C# named arguments are case-sensitive.
-
-`CS0006` in `ProjectManagement.Tests` is consequential: the test project cannot
-find `ProjectManagement.dll` because the main project did not compile. It
-requires no separate test-project change.
-
-## Verify
-
-From the project directory:
+Recommended commands:
 
 ```powershell
-dotnet clean .\ProjectManagement.csproj
-dotnet build .\ProjectManagement.csproj
-dotnet build .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+dotnet clean
+dotnet restore
+dotnet build -c Release
+dotnet test -c Release --no-build
+dotnet publish -c Release -o .\publish
 ```
 
-If Visual Studio still displays stale diagnostics after a successful command
-line build, close and reopen the solution to refresh its design-time build.
+Deploy the new publish output as one unit. Do not mix it with an older publish
+directory because compiled Razor views and fingerprinted static assets must
+come from the same build.
+
+## Database impact
+
+No database schema or data migration is required.
+
+## Preserved business rule
+
+The first unresolved applicable workflow stage remains the project's
+**current stage**, including when its status is `NotStarted`. The change only
+makes the accompanying action and schedule wording status-aware.
+
+## Integrity and scope
+
+- `REPLACEMENT-MANIFEST.txt` lists every source and regression-test file to
+  replace.
+- `SHA256SUMS.txt` provides package integrity hashes.
+- `STATIC-VALIDATION.txt` records the checks completed in the supplied
+  environment.

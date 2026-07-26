@@ -560,6 +560,21 @@
     font-weight: 700;
 }
 
+.project-lifecycle-badge {
+    border: 1px solid transparent;
+}
+
+.project-lifecycle-badge--cancelled {
+    border-color: #efb6bf;
+    background: #fff1f3;
+    color: #a51d32;
+}
+
+.project-lifecycle-badge--unknown {
+    background: #667085;
+    color: #fff;
+}
+
 .project-card__open-icon {
     margin-top: 0.12rem;
     color: #98a2b3;
@@ -831,10 +846,6 @@
 }
 
 /* Repository refinement: clearer hierarchy, archival treatment and accessible interaction */
-.projects-grid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
-}
-
 .project-card--legacy {
     border-color: #d9dee8;
     background: linear-gradient(180deg, #fbfcfe 0%, #f8fafc 100%);

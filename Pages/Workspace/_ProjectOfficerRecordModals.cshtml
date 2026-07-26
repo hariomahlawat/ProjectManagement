@@ -44,11 +44,11 @@
                                 <header>
                                     <div>
                                         <h3 id="recordOverviewProject-@health.ProjectId">@health.ProjectName</h3>
-                                        <span>@health.HealthPercent% complete · @health.RecordGapCount gap@(health.RecordGapCount == 1 ? "" : "s")</span>
+                                        <span>@health.HealthPercent% health · @health.RecordGapCount gap@(health.RecordGapCount == 1 ? "" : "s")</span>
                                     </div>
                                     <a href="@health.OpenUrl">Open project<i class="bi bi-arrow-right"></i></a>
                                 </header>
-                                <progress class="po-record-overview-project__bar" value="@health.HealthPercent" max="100" aria-label="@health.ProjectName record completeness: @health.HealthPercent percent">@health.HealthPercent%</progress>
+                                <progress class="po-record-overview-project__bar" value="@health.HealthPercent" max="100" aria-label="@health.ProjectName overall record health: @health.HealthPercent percent">@health.HealthPercent%</progress>
                                 <div class="po-record-overview-project__gaps">
                                     @foreach (var gap in health.GapDetails.OrderBy(gap => gap.Priority).ThenBy(gap => gap.FieldLabel))
                                     {
@@ -83,7 +83,7 @@
             <div class="modal-content">
                 <div class="modal-header po-record-modal__header">
                     <div>
-                        <span class="po-record-modal__eyebrow">Project record completeness</span>
+                        <span class="po-record-modal__eyebrow">Overall record health</span>
                         <h2 class="modal-title" id="recordHealthLabel-@health.ProjectId">@health.ProjectName</h2>
                         <p>The score covers required project records, supporting media, and fields applicable to the current stage.</p>
                     </div>
@@ -95,7 +95,7 @@
                             <strong>@health.HealthPercent%</strong>
                             <span>@health.HealthLabel</span>
                         </div>
-                        <progress class="po-record-summary__progress" value="@health.HealthPercent" max="100" aria-label="@health.HealthPercent percent complete">@health.HealthPercent%</progress>
+                        <progress class="po-record-summary__progress" value="@health.HealthPercent" max="100" aria-label="Overall record health: @health.HealthPercent percent">@health.HealthPercent%</progress>
                         <div class="po-record-summary__meta">
                             <strong>@health.RecordGapCount record gap@(health.RecordGapCount == 1 ? "" : "s")</strong>
                             <span>Every deduction below maps to a specific record gap and correction action.</span>
@@ -192,7 +192,7 @@
             <div class="modal-header">
                 <div>
                     <span class="po-record-modal__eyebrow">How the score works</span>
-                    <h2 class="modal-title" id="recordCompletenessHelpLabel">Record completeness</h2>
+                    <h2 class="modal-title" id="recordCompletenessHelpLabel">Overall record health</h2>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -202,10 +202,10 @@
                     <div><i class="bi bi-diagram-3"></i><strong>Stage-aware</strong><span>Procurement and timeline fields are stage-aware; documents and supporting media are assessed for every active project.</span></div>
                     <div><i class="bi bi-percent"></i><strong>Proportional</strong><span>Partially completed categories receive proportionate marks.</span></div>
                     <div><i class="bi bi-clock-history"></i><strong>Historical dates</strong><span>Completed historical stages assess Actual Completion. Actual Start may be inferred and does not reduce the score.</span></div>
-                    <div><i class="bi bi-calendar2-week"></i><strong>Current-stage PDC</strong><span>The active stage assesses its start date and PDC. An overdue date affects schedule health, not completeness.</span></div>
+                    <div><i class="bi bi-calendar2-week"></i><strong>Current-stage PDC</strong><span>The active stage assesses its start date and PDC. An overdue date affects schedule health but does not reduce the record-health score.</span></div>
                 </div>
                 <div class="po-record-help__weights">
-                    <div><span>Core project profile</span><strong>15</strong></div>
+                    <div><span>Project description</span><strong>15</strong></div>
                     <div><span>Procurement at a glance</span><strong>25</strong></div>
                     <div><span>Historical stage actual dates</span><strong>20</strong></div>
                     <div><span>Current-stage timeline (PDC)</span><strong>15</strong></div>

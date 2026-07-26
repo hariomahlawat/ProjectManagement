@@ -65,15 +65,15 @@
                target="_blank"
                rel="noopener"
                title="Open project record for @item.Title"
-               aria-label="@item.Title: @recordHealth.HealthPercent percent record complete with @recordGapLabel">
+               aria-label="@item.Title: @recordHealth.HealthPercent percent overall record health with @recordGapLabel">
                 <span class="oc-record-health__top">
                     <strong>Records</strong>
-                    <span>@recordHealth.HealthPercent% complete · @recordGapLabel</span>
+                    <span>@recordHealth.HealthPercent% health · @recordGapLabel</span>
                 </span>
                 <progress class="oc-record-health__track"
                           value="@recordHealth.HealthPercent"
                           max="100"
-                          aria-label="Record completeness: @recordHealth.HealthPercent percent">@recordHealth.HealthPercent%</progress>
+                          aria-label="Overall record health: @recordHealth.HealthPercent percent">@recordHealth.HealthPercent%</progress>
             </a>
         }
         @if (!string.IsNullOrWhiteSpace(item.AttentionText))

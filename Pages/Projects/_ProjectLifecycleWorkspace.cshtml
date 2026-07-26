@@ -25,6 +25,22 @@
     var pendingStageUpdateCount = Model.Timeline.PendingRequests.Count;
     var showTimeline = Model.TimelinePanel.ShowTimeline;
     var hasRecordedStageHistory = Model.TimelinePanel.HasRecordedStageHistory;
+    var timelineSubtitle = "Project lifecycle and stage outcomes.";
+    if (!hasRecordedStageHistory && !isActiveLifecycle)
+    {
+        timelineSubtitle = Model.TimelinePanel.IsLegacy
+            ? "No reliable stage-level history is available."
+            : "No stage-level history is available.";
+    }
+    else if (isCancelledLifecycle)
+    {
+        timelineSubtitle = "Project lifecycle at cancellation.";
+    }
+    else if (isCompletedLifecycle)
+    {
+        timelineSubtitle = "Recorded lifecycle and outcomes.";
+    }
+
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
             <div class="card pm-card project-lifecycle-panel" data-panel-project-id="@Model.Project!.Id">
@@ -43,13 +59,7 @@
                                                 </span>
                                                 <div>
                                                     <h5 class="pm-card-title mb-0">@(isActiveLifecycle ? "Timeline" : "Historical timeline")</h5>
-                                                    <p class="pm-card-subtitle mb-0">
-                                                        @(isCancelledLifecycle
-                                                            ? "Project lifecycle at cancellation."
-                                                            : isCompletedLifecycle
-                                                                ? "Recorded lifecycle and outcomes."
-                                                                : "Project lifecycle and stage outcomes.")
-                                                    </p>
+                                                    <p class="pm-card-subtitle mb-0">@timelineSubtitle</p>
                                                 </div>
                                             </div>
                                             <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">

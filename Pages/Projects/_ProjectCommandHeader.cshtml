@@ -28,7 +28,7 @@
     static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
         stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
-<section class="project-command-header@lifecycleHeaderClass"
+<section class="card pm-card project-command-header@lifecycleHeaderClass"
          aria-labelledby="project-title"
          data-project-command-header="true">
     <div class="project-command-header__main">
@@ -217,7 +217,7 @@
             </button>
         }
         <button class="project-intelligence-card" type="button" data-bs-toggle="modal" data-bs-target="#recordCompletenessModal" aria-controls="recordCompletenessModal">
-            <span class="project-intelligence-card__label">Record completeness</span>
+            <span class="project-intelligence-card__label">Overall record health</span>
             <strong>@Model.RecordHealth.HealthPercent%</strong>
             <span>@(Model.RecordHealth.GapDetails.Count == 0
                 ? "Project record complete"

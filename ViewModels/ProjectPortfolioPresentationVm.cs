@@ -11,9 +11,12 @@ namespace ProjectManagement.ViewModels;
 public sealed class ProjectPortfolioPresentationVm
 {
     public string PageTitle { get; init; } = "Project";
+    public ProjectLifecycleStatus LifecycleStatus { get; init; } = ProjectLifecycleStatus.Active;
     public TimelineItemVm? CurrentStage { get; init; }
     public TimelineItemVm? NextStage { get; init; }
     public bool IsWorkflowConcluded { get; init; }
+    public bool IsTerminalLifecycle =>
+        LifecycleStatus is ProjectLifecycleStatus.Completed or ProjectLifecycleStatus.Cancelled;
     public int CompletedStages { get; init; }
     public int FullyRecordedCompletedStages { get; init; }
     public int CompletedStagesRequiringBackfill { get; init; }
@@ -34,11 +37,34 @@ public sealed class ProjectPortfolioPresentationVm
     public string PlanHealth { get; init; } = "Current-stage plan not approved";
     public string ScheduleStatus { get; init; } = "Not assessed";
     public string ScheduleDetail { get; init; } = "Set the current-stage planned completion date";
-    public string CurrentStageDisplay => IsWorkflowConcluded ? "Lifecycle concluded" : CurrentStage?.Name ?? "Not started";
+    public string LifecycleSummarySubtitle => IsTerminalLifecycle
+        ? "Historical plan, schedule and record status at lifecycle closure."
+        : "Timeline plan health, schedule status and the next operational action.";
+    public string TimelinePlanLabel => IsTerminalLifecycle ? "Historical plan" : "Timeline plan";
+    public string ScheduleStatusLabel => IsTerminalLifecycle ? "Historical schedule" : "Schedule status";
+    public string NextActionLabel => IsTerminalLifecycle
+        ? (BackfillStageCount > 0 ? "Record action" : "Lifecycle action")
+        : "Next action";
+    public string CurrentStageDisplay => LifecycleStatus switch
+    {
+        ProjectLifecycleStatus.Completed => "Project completed",
+        ProjectLifecycleStatus.Cancelled => "Project cancelled",
+        _ => IsWorkflowConcluded ? "Lifecycle concluded" : CurrentStage?.Name ?? "Not started"
+    };
     public string CurrentStageDetail
     {
         get
         {
+            if (LifecycleStatus == ProjectLifecycleStatus.Completed)
+            {
+                return "Project lifecycle completed";
+            }
+
+            if (LifecycleStatus == ProjectLifecycleStatus.Cancelled)
+            {
+                return "Stage progression ceased at cancellation";
+            }
+
             if (IsWorkflowConcluded)
             {
                 return BackfillStageCount > 0
@@ -90,6 +116,8 @@ public sealed class ProjectPortfolioPresentationVm
         var isWorkflowConcluded = lifecyclePosition.IsConcluded;
         var current = FindTimelineItem(ordered, lifecyclePosition.CurrentStage);
         var next = FindTimelineItem(ordered, lifecyclePosition.NextStage);
+        var lifecycleStatus = project?.LifecycleStatus ?? ProjectLifecycleStatus.Active;
+        var isTerminalLifecycle = IsTerminalLifecycleStatus(lifecycleStatus);
 
         var completedCount = ordered.Count(item => item.Status == StageStatus.Completed);
         var completedBackfillCount = ordered.Count(item => item.Status == StageStatus.Completed && item.RequiresBackfill);
@@ -123,12 +151,35 @@ public sealed class ProjectPortfolioPresentationVm
             .Select(item => item.Label)
             .ToArray();
 
-        var nextAction = BuildNextAction(current, isWorkflowConcluded, backfillCount);
-        var schedule = BuildScheduleStatus(current, completedLateCount);
+        var nextAction = BuildNextAction(
+            current,
+            isWorkflowConcluded,
+            backfillCount,
+            lifecycleStatus);
+        var schedule = BuildScheduleStatus(
+            current,
+            completedLateCount,
+            lifecycleStatus);
+        var planStatus = BuildPlanStatus(project, timeline, isTerminalLifecycle);
+        var planHealth = lifecycleStatus switch
+        {
+            ProjectLifecycleStatus.Completed => "Project lifecycle completed; planning is read-only",
+            ProjectLifecycleStatus.Cancelled => "Project lifecycle cancelled; planning is read-only",
+            _ => project?.PlanApprovedAt.HasValue == true
+                ? "Current-stage deadline monitored"
+                : timeline.PlanPendingApproval
+                    ? "Timeline approval pending"
+                    : current?.HasPendingCompletion == true
+                        ? "Completion update awaiting HoD approval"
+                        : current?.NeedsPlannedCompletion == true
+                            ? "Current-stage planned completion not set"
+                            : "Current-stage plan not approved"
+        };
 
         return new ProjectPortfolioPresentationVm
         {
             PageTitle = project?.Name ?? "Project",
+            LifecycleStatus = lifecycleStatus,
             CurrentStage = current,
             NextStage = next,
             IsWorkflowConcluded = isWorkflowConcluded,
@@ -139,24 +190,16 @@ public sealed class ProjectPortfolioPresentationVm
             ResolvedStages = resolvedCount,
             TotalStages = timeline.TotalStages,
             ProgressPercent = timeline.TotalStages == 0 ? 0 : (int)Math.Round(resolvedCount * 100d / timeline.TotalStages),
-            DelayedStageCount = delayed,
+            DelayedStageCount = isTerminalLifecycle ? completedLateCount : delayed,
             CompletedLateStageCount = completedLateCount,
-            CurrentStageOverdueDays = currentOverdueDays,
+            CurrentStageOverdueDays = isTerminalLifecycle ? null : currentOverdueDays,
             BackfillStageCount = backfillCount,
             CompletenessPercent = (int)Math.Round(profileChecks.Count(item => item.IsPresent) * 100d / profileChecks.Length),
             ProfileCompletedCount = profileChecks.Count(item => item.IsPresent),
             ProfileTotalCount = profileChecks.Length,
             MissingProfileFacts = missingProfileFacts,
-            PlanStatus = project?.PlanApprovedAt.HasValue == true ? "Approved" : timeline.PlanPendingApproval ? "Pending" : "Not approved",
-            PlanHealth = project?.PlanApprovedAt.HasValue == true
-                ? "Current-stage deadline monitored"
-                : timeline.PlanPendingApproval
-                    ? "Timeline approval pending"
-                    : current?.HasPendingCompletion == true
-                        ? "Completion update awaiting HoD approval"
-                        : current?.NeedsPlannedCompletion == true
-                            ? "Current-stage planned completion not set"
-                            : "Current-stage plan not approved",
+            PlanStatus = planStatus,
+            PlanHealth = planHealth,
             ScheduleStatus = schedule.Status,
             ScheduleDetail = schedule.Detail,
             NextAction = nextAction.Action,
@@ -183,8 +226,23 @@ public sealed class ProjectPortfolioPresentationVm
     private static (string Action, string Detail) BuildNextAction(
         TimelineItemVm? current,
         bool isWorkflowConcluded,
-        int backfillCount)
+        int backfillCount,
+        ProjectLifecycleStatus lifecycleStatus)
     {
+        if (IsTerminalLifecycleStatus(lifecycleStatus))
+        {
+            if (backfillCount > 0)
+            {
+                return (
+                    "Complete historical record backfill",
+                    "Add missing completion details without reopening the lifecycle");
+            }
+
+            return lifecycleStatus == ProjectLifecycleStatus.Cancelled
+                ? ("No further lifecycle action", "Stage progression ceased at cancellation")
+                : ("No further lifecycle action", "Project lifecycle is complete");
+        }
+
         if (backfillCount > 0)
         {
             return (
@@ -209,6 +267,11 @@ public sealed class ProjectPortfolioPresentationVm
         if (current.Status == StageStatus.Blocked)
         {
             return ($"Resolve {current.Name}", "The current stage is blocked");
+        }
+
+        if (current.Status == StageStatus.NotStarted)
+        {
+            return ($"Start {current.Name}", "The current stage has not been started");
         }
 
         if (current.Status == StageStatus.InProgress && current.NeedsPlannedCompletion)
@@ -236,8 +299,23 @@ public sealed class ProjectPortfolioPresentationVm
 
     private static (string Status, string Detail) BuildScheduleStatus(
         TimelineItemVm? current,
-        int completedLateCount)
+        int completedLateCount,
+        ProjectLifecycleStatus lifecycleStatus)
     {
+        if (IsTerminalLifecycleStatus(lifecycleStatus))
+        {
+            if (completedLateCount > 0)
+            {
+                return (
+                    $"{completedLateCount} stage{(completedLateCount == 1 ? string.Empty : "s")} completed late",
+                    "Historical variance retained at lifecycle closure");
+            }
+
+            return lifecycleStatus == ProjectLifecycleStatus.Cancelled
+                ? ("Lifecycle cancelled", "No active schedule remains after cancellation")
+                : ("Lifecycle completed", "No active schedule remains");
+        }
+
         if (current?.HasPendingRequest == true)
         {
             return (
@@ -268,6 +346,13 @@ public sealed class ProjectPortfolioPresentationVm
             };
         }
 
+        if (current is { Status: StageStatus.NotStarted })
+        {
+            return (
+                "Current stage not started",
+                "Schedule tracking begins when the current stage starts");
+        }
+
         if (completedLateCount > 0)
         {
             return (
@@ -276,6 +361,27 @@ public sealed class ProjectPortfolioPresentationVm
         }
 
         return ("No variance", "No current overdue stage or recorded late completion");
+    }
+
+    private static bool IsTerminalLifecycleStatus(ProjectLifecycleStatus lifecycleStatus) =>
+        lifecycleStatus is ProjectLifecycleStatus.Completed or ProjectLifecycleStatus.Cancelled;
+
+    private static string BuildPlanStatus(
+        Project? project,
+        TimelineVm timeline,
+        bool isTerminalLifecycle)
+    {
+        if (project?.PlanApprovedAt.HasValue == true)
+        {
+            return "Approved";
+        }
+
+        if (isTerminalLifecycle)
+        {
+            return "Not recorded";
+        }
+
+        return timeline.PlanPendingApproval ? "Pending" : "Not approved";
     }
 
     public static string PendingActionLabel(string? pendingStatus) => pendingStatus?.Trim().ToLowerInvariant() switch

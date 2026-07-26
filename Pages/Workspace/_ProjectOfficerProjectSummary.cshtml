@@ -24,7 +24,7 @@ else
                 ? WorkspaceDisplayHelpers.TimelineStatusDetail(row)
                 : row.UpdateStatus is "ActionRequired" or "Attention"
                     ? WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)
-                    : $"{row.RecordHealthPercent}% record completeness";
+                    : $"{row.RecordHealthPercent}% overall record health";
             var fullActionLabel = WorkspaceDisplayHelpers.ProjectNextActionLabel(row);
             var compactActionLabel = fullActionLabel.Equals("Set current-stage PDC", StringComparison.OrdinalIgnoreCase)
                 ? "Set PDC"

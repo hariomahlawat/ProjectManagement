@@ -13,6 +13,7 @@
     var activeLifecycleLabel = Model.LegacyArchive.IsActive
         ? Model.LegacyArchive.Label
         : (string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label);
+    var projectCountLabel = Model.FilteredTotal == 1 ? "project" : "projects";
     var projectTypeChips = Model.ProjectTypeChips
         .OrderByDescending(chip => chip.Count)
         .ThenBy(chip => chip.Name, StringComparer.OrdinalIgnoreCase)
@@ -83,7 +84,7 @@
                 <div>
                     <h1 class="projects-header__title">Projects</h1>
                     <p class="projects-header__summary">
-                        <strong>@Model.FilteredTotal</strong> projects
+                        <strong>@Model.FilteredTotal</strong> @projectCountLabel
                         <span aria-hidden="true">·</span>
                         <span>@activeLifecycleLabel</span>
                     </p>
@@ -290,7 +291,7 @@
 
         <div class="projects-results-header">
             <div>
-                <strong>@Model.FilteredTotal @((Model.FilteredTotal == 1) ? "project" : "projects")</strong>
+                <strong>@Model.FilteredTotal @projectCountLabel</strong>
                 @if (Model.TotalPages > 1)
                 {
                     <span>Showing @Model.ResultsStart–@Model.ResultsEnd</span>
@@ -481,8 +482,8 @@
     {
         ProjectLifecycleStatus.Active => "text-bg-primary",
         ProjectLifecycleStatus.Completed => "text-bg-success",
-        ProjectLifecycleStatus.Cancelled => "text-bg-secondary",
-        _ => "text-bg-secondary"
+        ProjectLifecycleStatus.Cancelled => "project-lifecycle-badge project-lifecycle-badge--cancelled",
+        _ => "project-lifecycle-badge project-lifecycle-badge--unknown"
     };
 
     private static string FormatTotStatus(ProjectTotStatus status)
