@@ -1,0 +1,31 @@
+VALIDATION SUMMARY
+==================
+
+Passed
+------
+- npm test
+  239 tests passed; 0 failed.
+
+- JavaScript syntax checks
+  overview.js
+  overview-multi-jdp.js
+  cover-photo-fallback.js
+  historical-stage-editor.js
+
+- Replacement-manifest existence check
+  Every path in REPLACEMENT-MANIFEST.txt exists.
+
+Environment limitation
+----------------------
+The delivery workspace does not contain the .NET SDK, so dotnet build and
+dotnet test could not be executed here. Run both commands in the target
+development/build environment before deployment. The package includes focused
+.NET tests for lifecycle preservation, evidence-backed standard-stage writes,
+date precision, deleted-project rejection and transaction rollback.
+
+Existing repository lint debt
+-----------------------------
+npm run lint:views still reports pre-existing inline-style violations across
+unrelated views. None of the new historical-stage files introduced an inline
+style attribute. The repository-wide lint command therefore remains red for
+baseline reasons and should be remediated separately.

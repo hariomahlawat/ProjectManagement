@@ -25,6 +25,7 @@ public sealed class ProjectTimelinePanelVmTests
 
         Assert.False(panel.HasRecordedStageHistory);
         Assert.True(panel.ShowTimeline);
+        Assert.Equal(ProjectTimelinePanelVm.RemarksPanelName, panel.DefaultPanel);
     }
 
     [Fact]
@@ -49,6 +50,7 @@ public sealed class ProjectTimelinePanelVmTests
 
         Assert.True(panel.HasRecordedStageHistory);
         Assert.True(panel.ShowTimeline);
+        Assert.Equal(ProjectTimelinePanelVm.RemarksPanelName, panel.DefaultPanel);
     }
 
     [Fact]
@@ -69,6 +71,7 @@ public sealed class ProjectTimelinePanelVmTests
 
         Assert.False(panel.HasRecordedStageHistory);
         Assert.True(panel.ShowTimeline);
+        Assert.Equal(ProjectTimelinePanelVm.RemarksPanelName, panel.DefaultPanel);
     }
 
     [Fact]
@@ -82,5 +85,6 @@ public sealed class ProjectTimelinePanelVmTests
         };
 
         Assert.True(panel.ShowTimeline);
+        Assert.Equal(ProjectTimelinePanelVm.TimelinePanelName, panel.DefaultPanel);
     }
 }

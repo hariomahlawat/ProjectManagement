@@ -430,11 +430,17 @@ public sealed class ProjectPhotoPageTests
         var userManager = CreateUserManager(db);
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var audit = new NoOpAuditService();
+        var historicalStages = new HistoricalStageRecordService(
+            db,
+            workflowMetadata,
+            clock,
+            audit,
+            NullLogger<HistoricalStageRecordService>.Instance);
         var lifecycle = new ProjectLifecycleService(db, audit, clock);
         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
         var industryPartners = new IndustryPartnerService(db);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
+        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)

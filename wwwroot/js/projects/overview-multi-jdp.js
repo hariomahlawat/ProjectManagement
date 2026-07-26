@@ -304,12 +304,4 @@
         }
     });
 
-    document.querySelectorAll('[data-project-cover-image]').forEach(image => {
-        image.addEventListener('error', () => {
-            image.closest('picture')?.remove();
-            image.closest('.project-photo-cover-frame')
-                ?.querySelector('[data-project-cover-fallback]')
-                ?.classList.remove('d-none');
-        }, { once: true });
-    });
 })();

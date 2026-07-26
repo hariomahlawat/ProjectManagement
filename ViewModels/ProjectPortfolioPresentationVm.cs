@@ -419,6 +419,9 @@ public sealed class ProjectOverviewAccessVm
 
 public sealed class ProjectTimelinePanelVm
 {
+    public const string TimelinePanelName = "timeline";
+    public const string RemarksPanelName = "remarks";
+
     public TimelineVm Timeline { get; init; } = new();
     public ProjectOverviewAccessVm Access { get; init; } = new();
     public ProjectLifecycleStatus LifecycleStatus { get; init; } = ProjectLifecycleStatus.Active;
@@ -434,4 +437,14 @@ public sealed class ProjectTimelinePanelVm
         LifecycleStatus is ProjectLifecycleStatus.Active
             or ProjectLifecycleStatus.Completed
             or ProjectLifecycleStatus.Cancelled;
+
+    /// <summary>
+    /// Active projects open on their operational timeline. Terminal projects
+    /// open on remarks because contextual review is the normal read-only task;
+    /// their historical timeline remains available through the panel switch.
+    /// </summary>
+    public string DefaultPanel =>
+        LifecycleStatus == ProjectLifecycleStatus.Active
+            ? TimelinePanelName
+            : RemarksPanelName;
 }

@@ -1,0 +1,147 @@
+@using ProjectManagement.ViewModels
+@model HistoricalStageEditorVm
+@{
+    var maximumDate = Model.IsAvailable
+        ? Model.LatestPermittedDate.ToString("yyyy-MM-dd")
+        : string.Empty;
+}
+
+@if (!Model.IsAvailable)
+{
+    <div class="alert alert-secondary" role="status">
+        Historical stage entry is not available for this project.
+    </div>
+}
+else
+{
+    <form method="post"
+          asp-page="/Projects/Timeline/Historical"
+          asp-route-id="@Model.ProjectId"
+          class="historical-stage-editor d-flex flex-column h-100"
+          data-historical-stage-form>
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Input.ProjectId" value="@Model.ProjectId" />
+
+        <div class="historical-stage-editor__intro">
+            <div class="alert alert-info mb-0" role="note">
+                Record only outcomes supported by documentary evidence. This updates the
+                standard project timeline without reopening the project lifecycle.
+            </div>
+        </div>
+
+        <div class="historical-stage-editor__list" data-historical-stage-list>
+            @for (var index = 0; index < Model.Rows.Count; index++)
+            {
+                var row = Model.Rows[index];
+                var allowsStart = row.Outcome is HistoricalStageOutcome.Completed or HistoricalStageOutcome.Ceased;
+                var allowsCompletion = row.Outcome == HistoricalStageOutcome.Completed;
+                var outcomeId = $"historical-stage-outcome-{index}";
+                var startId = $"historical-stage-start-{index}";
+                var completedId = $"historical-stage-completed-{index}";
+
+                <section class="historical-stage-editor__row"
+                         data-historical-stage-row
+                         data-existing-record="@row.HasRecordedData.ToString().ToLowerInvariant()">
+                    <input type="hidden"
+                           name="Input.Rows[@index].StageCode"
+                           value="@row.StageCode" />
+
+                    <div class="historical-stage-editor__row-heading">
+                        <div>
+                            <span class="historical-stage-editor__sequence">@(index + 1)</span>
+                            <strong>@row.StageName</strong>
+                            <span class="text-muted small ms-1">@row.StageCode</span>
+                        </div>
+                        @if (row.HasRecordedData)
+                        {
+                            <span class="badge text-bg-light border">Recorded</span>
+                        }
+                    </div>
+
+                    <div class="historical-stage-editor__fields">
+                        <div>
+                            <label class="form-label" for="@outcomeId">Historical outcome</label>
+                            <select class="form-select form-select-sm"
+                                    id="@outcomeId"
+                                    name="Input.Rows[@index].Outcome"
+                                    data-historical-stage-outcome>
+                                <option value="@((int)HistoricalStageOutcome.NotRecorded)"
+                                        selected="@(row.Outcome == HistoricalStageOutcome.NotRecorded ? "selected" : null)">
+                                    Not recorded
+                                </option>
+                                <option value="@((int)HistoricalStageOutcome.Completed)"
+                                        selected="@(row.Outcome == HistoricalStageOutcome.Completed ? "selected" : null)">
+                                    Completed
+                                </option>
+                                <option value="@((int)HistoricalStageOutcome.Skipped)"
+                                        selected="@(row.Outcome == HistoricalStageOutcome.Skipped ? "selected" : null)">
+                                    Skipped
+                                </option>
+                                @if (Model.IsCancelled)
+                                {
+                                    <option value="@((int)HistoricalStageOutcome.Ceased)"
+                                            selected="@(row.Outcome == HistoricalStageOutcome.Ceased ? "selected" : null)">
+                                        Ceased at cancellation
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="@startId">Actual start <span class="text-muted">(if known)</span></label>
+                            <input class="form-control form-control-sm"
+                                   type="date"
+                                   id="@startId"
+                                   name="Input.Rows[@index].ActualStart"
+                                   value="@row.ActualStart?.ToString("yyyy-MM-dd")"
+                                   max="@maximumDate"
+                                   disabled="@(!allowsStart)"
+                                   data-historical-stage-start />
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="@completedId">Completed on <span class="text-muted">(if known)</span></label>
+                            <input class="form-control form-control-sm"
+                                   type="date"
+                                   id="@completedId"
+                                   name="Input.Rows[@index].CompletedOn"
+                                   value="@row.CompletedOn?.ToString("yyyy-MM-dd")"
+                                   max="@maximumDate"
+                                   disabled="@(!allowsCompletion)"
+                                   data-historical-stage-completed />
+                        </div>
+                    </div>
+                </section>
+            }
+        </div>
+
+        <div class="historical-stage-editor__footer">
+            <div>
+                <label class="form-label fw-semibold" for="historical-stage-evidence">
+                    Evidence/source note
+                </label>
+                <textarea class="form-control"
+                          id="historical-stage-evidence"
+                          name="Input.EvidenceNote"
+                          rows="3"
+                          minlength="5"
+                          maxlength="@HistoricalStageRecordInput.EvidenceNoteMaxLength"
+                          required
+                          aria-describedby="historical-stage-evidence-help"></textarea>
+                <div id="historical-stage-evidence-help" class="form-text">
+                    Identify the file, register, minute, correspondence or other source used.
+                    Existing history is never erased by selecting “Not recorded.”
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary" data-historical-stage-submit>
+                    Save historical data
+                </button>
+            </div>
+        </div>
+    </form>
+}

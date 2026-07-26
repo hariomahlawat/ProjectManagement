@@ -44,6 +44,7 @@ namespace ProjectManagement.Pages.Projects
         private readonly ApplicationDbContext _db;
         private readonly ProjectProcurementReadService _procureRead;
         private readonly ProjectTimelineReadService _timelineRead;
+        private readonly HistoricalStageRecordService _historicalStageRecords;
         private readonly UserManager<ApplicationUser> _users;
         private readonly PlanReadService _planRead;
         private readonly ILogger<OverviewModel> _logger;
@@ -57,11 +58,27 @@ namespace ProjectManagement.Pages.Projects
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, IMarkdownRenderer markdownRenderer, ProjectRecordHealthService recordHealthService, ProjectProliferationProfileService proliferationProfiles, IIndustryPartnerService industryPartners)
+        public OverviewModel(
+            ApplicationDbContext db,
+            ProjectProcurementReadService procureRead,
+            ProjectTimelineReadService timelineRead,
+            HistoricalStageRecordService historicalStageRecords,
+            UserManager<ApplicationUser> users,
+            PlanReadService planRead,
+            PlanCompareService planCompare,
+            ILogger<OverviewModel> logger,
+            IClock clock,
+            ProjectRemarksPanelService remarksPanelService,
+            ProjectLifecycleService lifecycleService,
+            IMarkdownRenderer markdownRenderer,
+            ProjectRecordHealthService recordHealthService,
+            ProjectProliferationProfileService proliferationProfiles,
+            IIndustryPartnerService industryPartners)
         {
             _db = db;
             _procureRead = procureRead;
             _timelineRead = timelineRead;
+            _historicalStageRecords = historicalStageRecords;
             _users = users;
             _planRead = planRead;
             PlanCompare = planCompare;
@@ -84,6 +101,7 @@ namespace ProjectManagement.Pages.Projects
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
         public ActualsEditorVm ActualsEditor { get; private set; } = ActualsEditorVm.Empty;
+        public HistoricalStageEditorVm HistoricalStageEditor { get; private set; } = HistoricalStageEditorVm.Empty;
         public PlanEditorVm PlanEdit { get; private set; } = default!;
         public BackfillViewModel Backfill { get; private set; } = BackfillViewModel.Empty;
         public ProjectRemarksPanelViewModel RemarksPanel { get; private set; } = ProjectRemarksPanelViewModel.Empty;
@@ -527,6 +545,13 @@ namespace ProjectManagement.Pages.Projects
                 connectionHash);
             Timeline = await _timelineRead.GetAsync(id, ct);
             ActualsEditor = await _timelineRead.GetActualsEditorAsync(id, ct);
+            if (!project.IsDeleted &&
+                project.IsLegacy &&
+                (project.LifecycleStatus is ProjectLifecycleStatus.Completed or ProjectLifecycleStatus.Cancelled) &&
+                (isAdmin || isHoD))
+            {
+                HistoricalStageEditor = await _historicalStageRecords.GetEditorAsync(id, ct);
+            }
             PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
             HasBackfill = Timeline.HasBackfill;
             Backfill = BuildBackfillViewModel(id);

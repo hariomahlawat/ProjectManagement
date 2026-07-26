@@ -27,6 +27,7 @@ public sealed class ProjectCommandHeaderAssetTests
         Assert.Contains("data-project-command-header=\"true\"", header, StringComparison.Ordinal);
         Assert.Contains(".project-portfolio .project-command-header {", css, StringComparison.Ordinal);
         Assert.Contains(".project-command-header__main {", css, StringComparison.Ordinal);
+        Assert.Contains("text-wrap: balance;", css, StringComparison.Ordinal);
         Assert.Contains("padding: .9rem 1rem .8rem;", css, StringComparison.Ordinal);
         Assert.Contains("padding: .85rem 1rem 1rem;", css, StringComparison.Ordinal);
         Assert.Contains("border: 1px solid #c7d0dd;", css, StringComparison.Ordinal);

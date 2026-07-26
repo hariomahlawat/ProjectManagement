@@ -1,99 +1,81 @@
-PRISM ERP — PROJECT HEADER AND SPACING CORRECTION
-=================================================
+PRISM PROJECT PORTFOLIO — TERMINAL REMARKS AND LEGACY HISTORY
+=============================================================
 
-Source baseline
+PACKAGE PURPOSE
 ---------------
-ProjectManagement-master (12)(4).zip supplied on 26 Jul 2026.
+This replacement set completes the project-portfolio refinement:
 
-Purpose
--------
-This package corrects the remaining Project Overview header spacing and
-surface-rendering defects without changing project data, lifecycle rules,
-database schema, application configuration, or repository-card behaviour.
+1. Active projects open the right-hand workspace on Timeline.
+2. Completed and cancelled projects open it on Remarks.
+3. An explicit URL panel/stage deep link overrides the default.
+4. A user's in-session panel choice is retained per project and lifecycle.
+5. Admin and HoD users can add or correct evidence-backed stage history for
+   legacy completed/cancelled projects.
+6. Historical entries use the existing ProjectStages and StageChangeLogs
+   tables; the project lifecycle is never reopened.
+7. Cover-photo failure handling has one owner and reliably reveals the fallback.
+8. Long command-header titles wrap on balanced word boundaries.
 
-The implementation fixes the verified causes:
+REPLACEMENT
+-----------
+Copy the package contents into the ProjectManagement application root.
+Allow folder merge and replace matching files while preserving the relative
+paths. REPLACEMENT-MANIFEST.txt is the authoritative file list.
 
-1. The generic .project-portfolio .pm-card rule occurred after the command
-   header rules and had equal specificity. It could therefore overwrite the
-   lifecycle-specific border colours. The shared rule now precedes the
-   command-header contract, and all header variants use page-scoped selectors.
+No database migration is required by this package.
 
-2. The header section and its children shared spacing responsibility. The
-   outer section now owns only the surface, border and external spacing.
-   The identity/commands row and intelligence strip own their own internal
-   padding. This produces one continuous header card with a full-width divider.
+HISTORICAL STAGE ENTRY
+----------------------
+For an eligible project:
 
-3. The breadcrumb had two independent bottom-margin owners (Bootstrap mb-3
-   and the descendant CSS rule). It now has one explicit page-level spacing
-   owner, while the Bootstrap breadcrumb margin is reset with mb-0.
+  Overview > Timeline > Timeline actions > Manage historical stage data
 
-4. Lifecycle modifier class values previously included their own leading
-   spaces and were concatenated directly into the class attribute. Class
-   composition is now explicit and test-covered.
+When no stage history exists, the Timeline empty state also shows
+"Add historical stage data".
 
-Files to replace
+Access is restricted to Admin and HoD. The project must be:
+
+  - marked as a legacy record; and
+  - completed or cancelled; and
+  - not in the recycle bin.
+
+Supported outcomes:
+
+  - Completed (actual start and completion dates may be recorded if known)
+  - Skipped
+  - Ceased at cancellation (cancelled projects only)
+  - Not recorded (non-destructive; it never erases existing history)
+
+Every accepted change requires an evidence/source note, writes the standard
+ProjectStage row, adds an evidence-bearing StageChangeLog entry, and writes the
+Projects.HistoricalStageHistoryUpdated audit event. Those writes share one
+transaction, so stage history is not committed if the formal audit cannot be
+stored.
+
+Historical dates cannot be in the future or later than the recorded lifecycle
+boundary. Exact completion dates are honoured exactly; month-only and year-only
+legacy completion values are honoured through the end of that recorded period.
+
+BUILD AND VERIFY
 ----------------
-Pages/Projects/Overview.cshtml
-Pages/Projects/_ProjectCommandHeader.cshtml
-wwwroot/css/pages/project-portfolio.css
-ProjectManagement.Tests/ProjectCommandHeaderAssetTests.cs
-ProjectManagement.Tests/ProjectOverviewPresentationContractTests.cs
-REPLACEMENT-MANIFEST.txt
+From the application root:
 
-Apply
------
-1. Back up the current application source.
-2. Stop the application.
-3. Copy the contents of this folder into the project root, preserving the
-   relative paths shown above. Allow those six files to be replaced.
-4. Verify file integrity from this folder:
+  npm ci
+  npm test
+  dotnet restore
+  dotnet build -c Release
+  dotnet test -c Release
 
-       sha256sum -c SHA256SUMS.txt
+Publish and deploy through the application's normal production process. Use a
+new publish output and preserve production configuration and connection strings.
 
-5. From the project root, run the normal validation pipeline:
-
-       dotnet restore ProjectManagement.sln
-       dotnet build ProjectManagement.sln --no-restore
-       dotnet test ProjectManagement.sln --no-build
-       npm ci
-       npm test
-
-6. Publish into a clean output directory. Deploy the complete new publish
-   output atomically; do not mix individual source files into an older
-   published application directory.
-7. Restart the application and hard-refresh the browser.
-
-Deployment verification
------------------------
-The rendered header section must contain:
-
-    card pm-card project-command-header
-
-Completed and cancelled projects must additionally contain the matching
-project-command-header--completed or project-command-header--cancelled class.
-
-The deployed stylesheet must expose these declarations:
-
-    .project-portfolio .project-command-header
-        margin-bottom: .75rem
-        padding: 0
-
-    .project-command-header__main
-        padding: .9rem 1rem .8rem
-
-    .project-intelligence-strip
-        margin-top: 0
-        padding: .85rem 1rem 1rem
-        border-top: 1px solid var(--portfolio-border)
-
-With ASP.NET Core asp-append-version enabled, the stylesheet URL generated
-from this exact file should end with:
-
-    ?v=U79mjtOaZJao1M88_wBZ-s1Du6korhu3VJlo-_xjQb0
-
-If a different version token is served after replacement, the running
-application is not serving this package's project-portfolio.css.
-
-Migration impact
-----------------
-No database migration or data backfill is required.
+POST-DEPLOYMENT CHECKS
+----------------------
+1. Active overview: Timeline is initially selected.
+2. Completed overview: Remarks is initially selected; Timeline remains usable.
+3. Cancelled overview: Remarks is initially selected; #timeline opens Timeline.
+4. Admin/HoD legacy terminal project: historical editor is available.
+5. Non-Admin/HoD or active/non-legacy project: historical editor is unavailable.
+6. Save one verified historical stage and confirm it appears on Timeline while
+   the project's lifecycle status remains unchanged.
+7. Force a missing cover image and confirm the landscape fallback appears.

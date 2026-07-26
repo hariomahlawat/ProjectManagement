@@ -952,6 +952,22 @@
         }
     }
 
+    const historicalStages = document.getElementById('offcanvasHistoricalStages');
+    if (historicalStages) {
+        historicalStages.addEventListener('shown.bs.offcanvas', function () {
+            const firstOutcome = historicalStages.querySelector('[data-historical-stage-outcome]');
+            if (firstOutcome) {
+                firstOutcome.focus();
+            }
+        });
+
+        const historicalMarker = document.getElementById('open-historical-stages');
+        if (historicalMarker && historicalMarker.dataset.open === '1') {
+            const instance = bootstrap.Offcanvas.getOrCreateInstance(historicalStages);
+            instance.show();
+        }
+    }
+
     // SECTION: Backfill modal handling
     const backfillModal = document.getElementById('backfillModal');
     if (backfillModal) {
@@ -1194,7 +1210,13 @@
         const sections = Array.from(card.querySelectorAll('[data-panel-section]'));
         const bodies = Array.from(card.querySelectorAll('[data-panel]'));
         const projectId = card.getAttribute('data-panel-project-id') || '';
-        const storageKey = projectId ? `pm:project:right-panel:${projectId}` : 'pm:project:right-panel';
+        const lifecycleStatus = card.getAttribute('data-lifecycle-status') || 'active';
+        const defaultPanel = card.getAttribute('data-default-panel') === 'remarks'
+            ? 'remarks'
+            : 'timeline';
+        const storageKey = projectId
+            ? `pm:project:right-panel:v2:${projectId}:${lifecycleStatus}`
+            : `pm:project:right-panel:v2:${lifecycleStatus}`;
 
         function getStored() {
             try {
@@ -1206,10 +1228,10 @@
                 // ignore storage errors
             }
 
-            return 'timeline';
+            return defaultPanel;
         }
 
-        function getTimelineOverride() {
+        function getPanelOverride() {
             if (typeof window === 'undefined') {
                 return null;
             }
@@ -1241,8 +1263,11 @@
                 }
 
                 const panel = params.get('panel');
-                if (typeof panel === 'string' && panel.toLowerCase() === 'timeline') {
-                    return 'timeline';
+                if (typeof panel === 'string') {
+                    const normalizedPanel = panel.toLowerCase();
+                    if (normalizedPanel === 'timeline' || normalizedPanel === 'remarks') {
+                        return normalizedPanel;
+                    }
                 }
 
                 if (params.has('timeline')) {
@@ -1263,7 +1288,7 @@
             return null;
         }
 
-        function setActive(name, syncUrl = false) {
+        function setActive(name, syncUrl = false, persist = true) {
             const target = name === 'remarks' ? 'remarks' : 'timeline';
             buttons.forEach((button) => {
                 const value = button.getAttribute('data-panel-target');
@@ -1294,10 +1319,12 @@
                 body.setAttribute('aria-hidden', isActive ? 'false' : 'true');
             });
 
-            try {
-                sessionStorage.setItem(storageKey, target);
-            } catch (error) {
-                // ignore storage failures
+            if (persist) {
+                try {
+                    sessionStorage.setItem(storageKey, target);
+                } catch (error) {
+                    // ignore storage failures
+                }
             }
 
             if (syncUrl && typeof window.history?.replaceState === 'function') {
@@ -1322,14 +1349,14 @@
             });
         });
 
-        const override = getTimelineOverride();
+        const override = getPanelOverride();
         const initial = override || getStored();
-        setActive(initial, false);
+        setActive(initial, false, false);
 
         window.addEventListener('hashchange', () => {
-            const hashTarget = getTimelineOverride();
+            const hashTarget = getPanelOverride();
             if (hashTarget) {
-                setActive(hashTarget, false);
+                setActive(hashTarget, false, false);
             }
         });
     }

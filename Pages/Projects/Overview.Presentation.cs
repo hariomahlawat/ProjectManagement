@@ -29,4 +29,10 @@ public partial class OverviewModel
         LifecycleStatus = Project?.LifecycleStatus ?? ProjectManagement.Models.ProjectLifecycleStatus.Active,
         IsLegacy = Project?.IsLegacy == true
     };
+
+    public bool CanManageHistoricalStageHistory =>
+        Project is { IsLegacy: true, IsDeleted: false } project &&
+        (project.LifecycleStatus is ProjectManagement.Models.ProjectLifecycleStatus.Completed
+            or ProjectManagement.Models.ProjectLifecycleStatus.Cancelled) &&
+        (Roles.IsAdmin || Roles.IsHoD);
 }

@@ -26,6 +26,12 @@
 {
     <div id="open-actuals-edit" data-open="1"></div>
 }
+@if (Model.CanManageHistoricalStageHistory &&
+     (TempData["OpenOffcanvas"] as string == "historical-stages" ||
+      string.Equals(Context.Request.Query["oc"], "historical-stages", StringComparison.Ordinal)))
+{
+    <div id="open-historical-stages" data-open="1"></div>
+}
 @if (TempData["Error"] is string error)
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
