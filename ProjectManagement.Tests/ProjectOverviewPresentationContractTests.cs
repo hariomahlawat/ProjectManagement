@@ -7,6 +7,19 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectOverviewPresentationContractTests
 {
     [Fact]
+    public void Breadcrumb_UsesOneExplicitSpacingOwner()
+    {
+        var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
+        var css = ReadRepoFile("wwwroot", "css", "pages", "project-portfolio.css");
+
+        Assert.Contains("class=\"project-portfolio-breadcrumb\"", overview, StringComparison.Ordinal);
+        Assert.Contains("class=\"breadcrumb mb-0\"", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-label=\"breadcrumb\" class=\"mb-3\"", overview, StringComparison.Ordinal);
+        Assert.Contains(".project-portfolio-breadcrumb {", css, StringComparison.Ordinal);
+        Assert.Contains(".project-portfolio-breadcrumb .breadcrumb {", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CoverPhoto_UsesLandscapeFourByThreeSurface()
     {
         var css = ReadRepoFile("wwwroot", "css", "pages", "project-portfolio.css");

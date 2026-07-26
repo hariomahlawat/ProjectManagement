@@ -15,8 +15,8 @@
     var completionDisplay = Model.LifecycleSummary.CompletionDisplay ?? "Date not recorded";
     var cancellationDisplay = Model.LifecycleSummary.CancellationDisplay ?? "Date not recorded";
     var lifecycleHeaderClass = isCompleted
-        ? " project-command-header--completed"
-        : isCancelled ? " project-command-header--cancelled" : string.Empty;
+        ? "project-command-header--completed"
+        : isCancelled ? "project-command-header--cancelled" : string.Empty;
     var workflowLabel = project?.IsLegacy == true ? "Mapped workflow" : "Workflow";
     var recordDateLabel = project?.IsLegacy == true ? "Record added" : "Created";
     static string DisplayUser(ApplicationUser? user)
@@ -28,7 +28,7 @@
     static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
         stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
-<section class="card pm-card project-command-header@lifecycleHeaderClass"
+<section class="card pm-card project-command-header @lifecycleHeaderClass"
          aria-labelledby="project-title"
          data-project-command-header="true">
     <div class="project-command-header__main">

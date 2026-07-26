@@ -6,6 +6,13 @@
     padding-bottom: 2rem;
 }
 
+.project-portfolio .pm-card {
+    border-color: var(--portfolio-border);
+    border-radius: .95rem;
+    overflow: visible;
+    box-shadow: 0 7px 20px rgba(15, 23, 42, .045);
+}
+
 /*
  * Command header surface
  *
@@ -14,14 +21,14 @@
  * The data attribute is retained as a diagnostic hook, not as a styling
  * dependency.
  */
-.project-command-header {
+.project-portfolio .project-command-header {
     --project-command-accent: #6b8de7;
     --project-command-glow: rgba(63, 111, 240, .08);
     position: relative;
     display: block;
     min-width: 0;
-    margin-bottom: 1rem;
-    padding: .9rem 1rem;
+    margin-bottom: .75rem;
+    padding: 0;
     overflow: visible;
     border: 1px solid #c7d0dd;
     border-left: 3px solid var(--project-command-accent);
@@ -34,14 +41,14 @@
     box-shadow: 0 7px 20px rgba(15, 23, 42, .055);
 }
 
-.project-command-header--completed {
+.project-portfolio .project-command-header--completed {
     --project-command-accent: #4c9f6a;
     --project-command-glow: rgba(25, 135, 84, .08);
     border-color: #a9ceb8;
     border-left-color: var(--project-command-accent);
 }
 
-.project-command-header--cancelled {
+.project-portfolio .project-command-header--cancelled {
     --project-command-accent: #d25b67;
     --project-command-glow: rgba(220, 53, 69, .07);
     border-color: #e6b6bb;
@@ -49,27 +56,34 @@
 }
 
 @supports (color: color-mix(in srgb, #000 50%, #fff)) {
-    .project-command-header {
+    .project-portfolio .project-command-header {
         --project-command-accent: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 62%, #fff);
         --project-command-glow: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 8%, transparent);
         border-color: color-mix(in srgb, var(--pm-border, #d9e1ec) 72%, #94a3b8 28%);
+        border-left-color: var(--project-command-accent);
     }
 
-    .project-command-header--completed {
+    .project-portfolio .project-command-header--completed {
         --project-command-accent: color-mix(in srgb, var(--bs-success, #198754) 78%, #fff);
         --project-command-glow: color-mix(in srgb, var(--bs-success, #198754) 8%, transparent);
         border-color: color-mix(in srgb, var(--bs-success, #198754) 34%, var(--portfolio-border));
+        border-left-color: var(--project-command-accent);
     }
 
-    .project-command-header--cancelled {
+    .project-portfolio .project-command-header--cancelled {
         --project-command-accent: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #fff);
         --project-command-glow: color-mix(in srgb, var(--bs-danger, #dc3545) 7%, transparent);
         border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 30%, var(--portfolio-border));
+        border-left-color: var(--project-command-accent);
     }
 }
 
-.project-portfolio .breadcrumb {
+.project-portfolio-breadcrumb {
     margin-bottom: .75rem;
+}
+
+.project-portfolio-breadcrumb .breadcrumb {
+    margin: 0;
     font-size: .875rem;
 }
 
@@ -78,6 +92,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
+    padding: .9rem 1rem .8rem;
 }
 
 .project-command-header__identity { min-width: 0; }
@@ -233,8 +248,8 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: .65rem;
-    margin-top: .9rem;
-    padding-top: .9rem;
+    margin-top: 0;
+    padding: .85rem 1rem 1rem;
     border-top: 1px solid var(--portfolio-border);
 }
 
@@ -301,13 +316,6 @@ button.project-intelligence-card:hover {
 .project-portfolio-layout { align-items: flex-start; }
 .project-portfolio-main,
 .project-portfolio-rail { min-width: 0; }
-
-.project-portfolio .pm-card {
-    border-color: var(--portfolio-border);
-    border-radius: .95rem;
-    overflow: visible;
-    box-shadow: 0 7px 20px rgba(15, 23, 42, .045);
-}
 
 .project-portfolio .pm-card-header {
     min-height: 3.65rem;
@@ -611,29 +619,32 @@ button.project-intelligence-card:hover {
 }
 
 @media (max-width: 575.98px) {
-    .project-command-header {
-        padding: .82rem;
+    .project-portfolio .project-command-header {
         border-radius: .8rem;
     }
 
+    .project-command-header__main { padding: .82rem; }
     .project-command-header__meta { flex-direction: column; gap: .3rem; }
     .project-command-header__actions .btn-primary { flex: 1 1 auto; }
-    .project-intelligence-strip { grid-template-columns: 1fr; }
+    .project-intelligence-strip {
+        grid-template-columns: 1fr;
+        padding: .75rem .82rem .82rem;
+    }
     .project-lifecycle-summary__grid { grid-template-columns: 1fr; }
     .project-facts { grid-template-columns: 1fr; gap: .12rem; }
     .project-facts__value { margin-bottom: .45rem; }
 }
 
 @media print {
-    .project-command-header {
+    .project-portfolio .project-command-header {
         border-left-color: #6b8de7;
         box-shadow: none;
     }
-    .project-command-header--completed {
+    .project-portfolio .project-command-header--completed {
         border-color: #198754;
         border-left-color: #198754;
     }
-    .project-command-header--cancelled {
+    .project-portfolio .project-command-header--cancelled {
         border-color: #b02a37;
         border-left-color: #b02a37;
     }
