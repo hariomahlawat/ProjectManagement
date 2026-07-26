@@ -1,0 +1,169 @@
+@page
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.IndexModel
+@{
+    ViewData["Title"] = "ARPP / PPP";
+    ViewData["UseFullWidth"] = true;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
+    <header class="arpp-header">
+        <div>
+            <div class="arpp-eyebrow">Project Office Reports</div>
+            <h1>ARPP / PPP Register</h1>
+            <p>Maintain HQ-issued annual procurement plans and addenda as the authoritative IPA source.</p>
+        </div>
+        @if (Model.CanManage)
+        {
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/Create"
+               class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2">
+                <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                New issue
+            </a>
+        }
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+    @if (TempData["ArppWarningMessage"] is string warningMessage)
+    {
+        <div class="alert alert-warning arpp-alert" role="alert">
+            <span class="bi bi-exclamation-triangle" aria-hidden="true"></span>
+            <span>@warningMessage</span>
+        </div>
+    }
+
+    <section class="arpp-kpis" aria-label="ARPP register summary">
+        <article class="arpp-kpi">
+            <span>Issued documents</span>
+            <strong>@Model.Register.TotalIssues</strong>
+        </article>
+        <article class="arpp-kpi">
+            <span>Document rows</span>
+            <strong>@Model.Register.TotalEntries</strong>
+        </article>
+        <article class="arpp-kpi">
+            <span>Total IPA value</span>
+            <strong>₹@Model.Register.TotalIpaCost.ToString("N0")</strong>
+        </article>
+        <article class="arpp-kpi">
+            <span>Project linkage</span>
+            <strong>@Model.Register.LinkedEntries linked</strong>
+            <small>@Model.Register.UnlinkedEntries pending</small>
+        </article>
+    </section>
+
+    <form method="get" class="arpp-filterbar" role="search">
+        <div class="arpp-search">
+            <span class="bi bi-search" aria-hidden="true"></span>
+            <label class="visually-hidden" asp-for="Query">Search ARPP register</label>
+            <input asp-for="Query"
+                   type="search"
+                   class="form-control"
+                   placeholder="Search issue, project, case file or serial number" />
+        </div>
+        <div>
+            <label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label>
+            <select asp-for="FinancialYearStart" class="form-select">
+                <option value="">All financial years</option>
+                @foreach (var year in Model.Register.AvailableFinancialYears)
+                {
+                    <option value="@year">@FinancialYearHelper.Format(year)</option>
+                }
+            </select>
+        </div>
+        <button type="submit" class="btn btn-outline-primary">Apply</button>
+        @if (Model.FinancialYearStart.HasValue || !string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-link">Clear</a>
+        }
+    </form>
+
+    @if (Model.Register.FinancialYears.Count == 0)
+    {
+        <section class="arpp-empty">
+            <span class="bi bi-journal-text" aria-hidden="true"></span>
+            <h2>No ARPP issues found</h2>
+            <p>Create the original ARPP or change the current search and financial-year filter.</p>
+        </section>
+    }
+    else
+    {
+        <div class="arpp-year-groups">
+            @foreach (var group in Model.Register.FinancialYears)
+            {
+                <section class="arpp-year-group" aria-labelledby="arpp-year-@group.FinancialYearStart">
+                    <header class="arpp-year-group__header">
+                        <div>
+                            <div class="arpp-eyebrow">Financial year</div>
+                            <h2 id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</h2>
+                        </div>
+                        <div class="arpp-year-group__summary">
+                            <span>@group.EntryCount row(s)</span>
+                            <strong>₹@group.TotalIpaCost.ToString("N0")</strong>
+                        </div>
+                    </header>
+
+                    <div class="arpp-issue-list">
+                        @foreach (var issue in group.Issues)
+                        {
+                            <article class="arpp-issue-card">
+                                <div class="arpp-issue-card__main">
+                                    <div class="arpp-issue-card__titleline">
+                                        <span class="arpp-badge arpp-badge--issue">@ArppDisplayNames.For(issue.Kind)</span>
+                                        @if (issue.Kind == ArppIssueKind.Addendum)
+                                        {
+                                            <span class="arpp-sequence">Sequence @issue.IssueSequence</span>
+                                        }
+                                    </div>
+                                    <h3>
+                                        <a asp-area="ProjectOfficeReports"
+                                           asp-page="/ARPP/Details"
+                                           asp-route-id="@issue.Id">@issue.Name</a>
+                                    </h3>
+                                    <div class="arpp-issue-card__meta">
+                                        <span><i class="bi bi-calendar3" aria-hidden="true"></i> @issue.IssueDate.ToString("dd MMM yyyy")</span>
+                                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount row(s)</span>
+                                        <span><i class="bi bi-link-45deg" aria-hidden="true"></i> @issue.LinkedCount linked</span>
+                                        @if (issue.UnlinkedCount > 0)
+                                        {
+                                            <span class="text-warning-emphasis"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> @issue.UnlinkedCount unlinked</span>
+                                        }
+                                    </div>
+                                    <div class="arpp-category-chips" aria-label="Category counts">
+                                        <span>New @issue.NewCount</span>
+                                        <span>CL @issue.CommittedLiabilityCount</span>
+                                        <span>CF @issue.CarryForwardCount</span>
+                                        <span class="arpp-category-chip--delisted">Delisted @issue.DelistedCount</span>
+                                    </div>
+                                </div>
+                                <div class="arpp-issue-card__value">
+                                    <span>IPA value</span>
+                                    <strong>₹@issue.TotalIpaCost.ToString("N0")</strong>
+                                    <div class="arpp-card-actions">
+                                        <a asp-area="ProjectOfficeReports"
+                                           asp-page="/ARPP/Details"
+                                           asp-route-id="@issue.Id"
+                                           class="btn btn-outline-secondary btn-sm">View</a>
+                                        @if (Model.CanManage)
+                                        {
+                                            <a asp-area="ProjectOfficeReports"
+                                               asp-page="/ARPP/Manage"
+                                               asp-route-id="@issue.Id"
+                                               class="btn btn-outline-primary btn-sm">Manage</a>
+                                        }
+                                    </div>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+    }
+</div>

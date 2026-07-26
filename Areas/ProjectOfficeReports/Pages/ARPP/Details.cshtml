@@ -1,0 +1,145 @@
+@page
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.DetailsModel
+@{
+    ViewData["Title"] = Model.Issue.Name;
+    ViewData["UseFullWidth"] = true;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
+    <header class="arpp-header">
+        <div>
+            <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
+            <h1>@Model.Issue.Name</h1>
+            <p>@ArppDisplayNames.For(Model.Issue.Kind) · Sequence @Model.Issue.IssueSequence · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            @if (Model.CanManage)
+            {
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary btn-sm">
+                    <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                    Manage
+                </a>
+            }
+            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
+                <span class="bi bi-arrow-left" aria-hidden="true"></span>
+                Register
+            </a>
+        </div>
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <section class="arpp-kpis arpp-kpis--details" aria-label="Issue summary">
+        <article class="arpp-kpi">
+            <span>Rows</span>
+            <strong>@Model.Issue.Entries.Count</strong>
+        </article>
+        <article class="arpp-kpi">
+            <span>Total IPA value</span>
+            <strong>₹@Model.Issue.TotalIpaCost.ToString("N0")</strong>
+        </article>
+        <article class="arpp-kpi">
+            <span>Linked</span>
+            <strong>@Model.Issue.LinkedCount</strong>
+            <small>@Model.Issue.UnlinkedCount unlinked</small>
+        </article>
+        <article class="arpp-kpi arpp-kpi--categories">
+            @foreach (var category in Enum.GetValues<ArppCategory>())
+            {
+                var summary = Model.Issue.CategorySummary[category];
+                <span><b>@ArppDisplayNames.For(category)</b> @summary.Count · ₹@summary.TotalIpaCost.ToString("N0")</span>
+            }
+        </article>
+    </section>
+
+    @if (Model.Issue.Entries.Count == 0)
+    {
+        <section class="arpp-empty">
+            <span class="bi bi-list-check" aria-hidden="true"></span>
+            <h2>No issued rows entered</h2>
+            <p>The document identity exists, but its structured ARPP rows have not yet been entered.</p>
+            @if (Model.CanManage)
+            {
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary">Enter rows</a>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="arpp-panel arpp-panel--entries">
+            <div class="arpp-panel__heading">
+                <div>
+                    <h2>Issued rows</h2>
+                    <p>Rows are displayed in the order recorded from the HQ document.</p>
+                </div>
+            </div>
+            <div class="arpp-table-wrap">
+                <table class="table arpp-details-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Serial</th>
+                            <th>Project reference</th>
+                            <th>Category</th>
+                            <th class="text-end">IPA cost (₹)</th>
+                            <th>CFA</th>
+                            <th>Fund</th>
+                            <th>DFPDS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in Model.Issue.Entries)
+                        {
+                            <tr class="@(entry.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
+                                <td class="text-body-secondary">@entry.SortOrder</td>
+                                <td><span class="arpp-serial">@entry.SerialNumber</span></td>
+                                <td>
+                                    <div class="arpp-project-reference">@entry.ProjectReference</div>
+                                    @if (entry.ProjectId.HasValue)
+                                    {
+                                        <div class="arpp-linked-project">
+                                            <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId">@entry.ProjectName</a>
+                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
+                                            {
+                                                <span>@entry.ProjectCaseFileNumber</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
+                                            {
+                                                <span>@entry.ProjectStatus</span>
+                                            }
+                                            <a asp-area="ProjectOfficeReports"
+                                               asp-page="/ARPP/ProjectHistory"
+                                               asp-route-projectId="@entry.ProjectId"
+                                               class="arpp-history-link">History</a>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="arpp-unlinked"><span class="bi bi-exclamation-circle" aria-hidden="true"></span> PRISM linkage pending</div>
+                                    }
+                                </td>
+                                <td><span class="arpp-badge arpp-badge--@(entry.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(entry.Category)</span></td>
+                                <td class="text-end text-nowrap fw-semibold">₹@entry.IpaCost.ToString("N2")</td>
+                                <td>@entry.Cfa</td>
+                                <td>@entry.Fund</td>
+                                <td>@entry.DfpdsSchedule</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+    <footer class="arpp-record-footer">
+        <span>Created @Model.Issue.CreatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span>
+        <span>Last updated @Model.Issue.UpdatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span>
+    </footer>
+</div>

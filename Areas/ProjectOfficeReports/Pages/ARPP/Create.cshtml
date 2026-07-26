@@ -1,0 +1,92 @@
+@page
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.CreateModel
+@{
+    ViewData["Title"] = "New ARPP issue";
+    ViewData["UseFullWidth"] = true;
+    var suggestedAddendumSequence = ViewData["SuggestedAddendumSequence"] as int? ?? 1;
+    var suggestionUrl = Url.Page("/ARPP/Create", "Suggestion", new { area = "ProjectOfficeReports" });
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
+    <header class="arpp-header">
+        <div>
+            <div class="arpp-eyebrow">ARPP / PPP</div>
+            <h1>Create issued document</h1>
+            <p>Create the original ARPP or an addendum, then enter its rows in the document workspace.</p>
+        </div>
+        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
+            <span class="bi bi-arrow-left" aria-hidden="true"></span>
+            Back to register
+        </a>
+    </header>
+
+    <form method="post"
+          class="arpp-editor"
+          data-arpp-issue-form
+          data-suggested-addendum-sequence="@suggestedAddendumSequence"
+          data-arpp-suggestion-url="@suggestionUrl">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <section class="arpp-panel">
+            <div class="arpp-panel__heading">
+                <div>
+                    <h2>Document identity</h2>
+                    <p>Financial year is stored by its start year; for example, 2026 is displayed as 2026-27.</p>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label asp-for="Input.FinancialYearStart" class="form-label">Financial-year start</label>
+                    <input asp-for="Input.FinancialYearStart" class="form-control" type="number" min="2000" max="9998" data-arpp-financial-year />
+                    <div class="form-text" data-arpp-financial-year-display>
+                        @(Model.Input.FinancialYearStart is >= 2000 and <= 9998 ? FinancialYearHelper.Format(Model.Input.FinancialYearStart) : "Enter a valid start year")
+                    </div>
+                    <span asp-validation-for="Input.FinancialYearStart" class="text-danger"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.Kind" class="form-label">Issue type</label>
+                    <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
+                        <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
+                        <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
+                    </select>
+                    <span asp-validation-for="Input.Kind" class="text-danger"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.IssueSequence" class="form-label">Issue sequence</label>
+                    <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
+                    <div class="form-text">Original = 0; addenda use 1, 2, 3…</div>
+                    <span asp-validation-for="Input.IssueSequence" class="text-danger"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Input.IssueDate" class="form-label">Issue date</label>
+                    <input asp-for="Input.IssueDate" class="form-control" type="date" />
+                    <span asp-validation-for="Input.IssueDate" class="text-danger"></span>
+                </div>
+                <div class="col-12">
+                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
+                    <input asp-for="Input.Name" class="form-control" maxlength="300" placeholder="e.g. ARPP 2026-27 dated 25 Feb 2026" />
+                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                </div>
+            </div>
+        </section>
+
+        <div class="arpp-editor__actions">
+            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                Create and enter rows
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/project-office-reports/arpp/arpp-create.js" asp-append-version="true" defer></script>
+}

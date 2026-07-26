@@ -245,6 +245,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireProliferationApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
         policy.RequireProliferationPreferenceManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewArpp, policy =>
+        policy.RequireArppViewer());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageArpp, policy =>
+        policy.RequireArppManager());
     options.AddPolicy(Policies.Ipr.View, policy =>
         policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
     options.AddPolicy(Policies.Ipr.Edit, policy =>
@@ -656,6 +660,8 @@ builder.Services.AddScoped<IApprovalQueueService, ApprovalQueueService>();
 builder.Services.AddScoped<RepositoryDocumentDeleteApprovalService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<IAuthoritativeIpaPositionResolver, AuthoritativeIpaPositionResolver>();
+builder.Services.AddScoped<IArppReadService, ArppReadService>();
+builder.Services.AddScoped<IArppCommandService, ArppCommandService>();
 builder.Services.AddScoped<ProjectFactsService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();

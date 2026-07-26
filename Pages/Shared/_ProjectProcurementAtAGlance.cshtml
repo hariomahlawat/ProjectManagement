@@ -2,6 +2,8 @@
 @using System.Globalization
 @using ProjectManagement.Models.Arpp
 @using ProjectManagement.Utilities
+@using ProjectManagement.Areas.ProjectOfficeReports.Application
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 @{
     string ShortInr(decimal value)
     {
@@ -60,6 +62,10 @@
     }
 
     var ipaSourceText = string.Join(" · ", ipaSourceParts);
+    var canViewArpp = (await AuthorizationService.AuthorizeAsync(
+        User,
+        resource: null,
+        ProjectOfficeReportsPolicies.ViewArpp)).Succeeded;
 }
 
 <div class="card pm-card procurement-summary-card">
@@ -155,8 +161,22 @@
 
       @if (ipaPosition?.IsManagedByArpp == true)
       {
-        <div class="mt-2 small text-muted">
-          IPA source: @ipaSourceText.
+        <div class="mt-2 small text-muted d-flex flex-wrap align-items-center gap-2">
+          <span>IPA source: @ipaSourceText.</span>
+          @if (canViewArpp && ipaPosition.IssueId.HasValue)
+          {
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/Details"
+               asp-route-id="@ipaPosition.IssueId.Value"
+               class="fw-semibold">View ARPP issue</a>
+          }
+          @if (canViewArpp)
+          {
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/ProjectHistory"
+               asp-route-projectId="@ipaPosition.ProjectId"
+               class="fw-semibold">ARPP history</a>
+          }
         </div>
       }
       else if (ipaPosition?.IsLegacyFallback == true)

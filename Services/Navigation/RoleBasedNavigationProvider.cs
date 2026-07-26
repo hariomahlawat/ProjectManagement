@@ -274,6 +274,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Area = "ProjectOfficeReports",
                 Page = "/FFC/Index",
                 Icon = "bi-cpu"
+            },
+            new()
+            {
+                Text = "ARPP / PPP",
+                Area = "ProjectOfficeReports",
+                Page = "/ARPP/Index",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewArpp,
+                Icon = "bi-journal-check"
             }
         };
 

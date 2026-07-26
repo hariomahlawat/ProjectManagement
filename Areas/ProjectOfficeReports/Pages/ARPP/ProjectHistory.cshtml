@@ -1,0 +1,102 @@
+@page
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.ProjectHistoryModel
+@{
+    ViewData["Title"] = $"ARPP history – {Model.History.ProjectName}";
+    ViewData["UseFullWidth"] = true;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
+    <header class="arpp-header">
+        <div>
+            <div class="arpp-eyebrow">Project ARPP history</div>
+            <h1>@Model.History.ProjectName</h1>
+            <p>
+                @if (!string.IsNullOrWhiteSpace(Model.History.CaseFileNumber))
+                {
+                    <span>@Model.History.CaseFileNumber · </span>
+                }
+                @Model.History.ProjectStatus · Latest row is the authoritative ARPP position.
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@Model.History.ProjectId" class="btn btn-outline-primary btn-sm">Project overview</a>
+            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
+                <span class="bi bi-arrow-left" aria-hidden="true"></span>
+                ARPP register
+            </a>
+        </div>
+    </header>
+
+    @if (Model.History.Items.Count == 0)
+    {
+        <section class="arpp-empty">
+            <span class="bi bi-clock-history" aria-hidden="true"></span>
+            <h2>No linked ARPP history</h2>
+            <p>This project has not yet been linked to an ARPP row.</p>
+        </section>
+    }
+    else
+    {
+        <section class="arpp-panel arpp-panel--entries">
+            <div class="arpp-panel__heading">
+                <div>
+                    <h2>Document history</h2>
+                    <p>No previous-serial relationship is stored; history is derived from the linked project and issue order.</p>
+                </div>
+            </div>
+            <div class="arpp-table-wrap">
+                <table class="table arpp-details-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Position</th>
+                            <th>FY</th>
+                            <th>Document</th>
+                            <th>Issue date</th>
+                            <th>Serial</th>
+                            <th>Category</th>
+                            <th class="text-end">IPA cost (₹)</th>
+                            <th>CFA</th>
+                            <th>Fund</th>
+                            <th>DFPDS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.History.Items)
+                        {
+                            <tr class="@(item.IsAuthoritative ? "arpp-row--authoritative" : string.Empty) @(item.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
+                                <td>
+                                    @if (item.IsAuthoritative)
+                                    {
+                                        <span class="arpp-badge arpp-badge--authoritative">Authoritative</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-body-secondary">Historical</span>
+                                    }
+                                </td>
+                                <td class="text-nowrap">@FinancialYearHelper.Format(item.FinancialYearStart)</td>
+                                <td>
+                                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@item.IssueId">@item.IssueName</a>
+                                    <div class="small text-body-secondary">@ArppDisplayNames.For(item.Kind) · Sequence @item.IssueSequence</div>
+                                </td>
+                                <td class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
+                                <td><span class="arpp-serial">@item.SerialNumber</span></td>
+                                <td><span class="arpp-badge arpp-badge--@(item.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(item.Category)</span></td>
+                                <td class="text-end text-nowrap fw-semibold">₹@item.IpaCost.ToString("N2")</td>
+                                <td>@item.Cfa</td>
+                                <td>@item.Fund</td>
+                                <td>@item.DfpdsSchedule</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>
