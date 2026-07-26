@@ -1,4 +1,5 @@
 @page
+@using ProjectManagement.Helpers
 @using ProjectManagement.Models.Arpp
 @using ProjectManagement.Utilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.DetailsModel
@@ -9,21 +10,50 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
 }
 
-<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page" data-arpp-details>
     <header class="arpp-header">
         <div>
             <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
             <h1>@Model.Issue.Name</h1>
             <p>@ArppDisplayNames.For(Model.Issue.Kind) · Sequence @Model.Issue.IssueSequence · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")</p>
         </div>
-        <div class="d-flex flex-wrap gap-2">
+        <div class="d-flex flex-wrap justify-content-end gap-2">
+            @if (Model.Issue.Attachment is not null)
+            {
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/ARPP/Details"
+                   asp-page-handler="Attachment"
+                   asp-route-id="@Model.Issue.Id"
+                   class="btn btn-outline-secondary btn-sm">
+                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span>
+                    Issued PDF
+                </a>
+            }
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/Details"
+               asp-page-handler="Excel"
+               asp-route-id="@Model.Issue.Id"
+               class="btn btn-outline-success btn-sm">
+                <span class="bi bi-file-earmark-excel" aria-hidden="true"></span>
+                Excel
+            </a>
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/Print"
+               asp-route-id="@Model.Issue.Id"
+               target="_blank"
+               rel="noopener"
+               class="btn btn-outline-secondary btn-sm">
+                <span class="bi bi-printer" aria-hidden="true"></span>
+                Print / PDF
+            </a>
             @if (Model.CanManage)
             {
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary btn-sm">
                     <span class="bi bi-pencil-square" aria-hidden="true"></span>
-                    Manage
+                    Manage rows
                 </a>
             }
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
@@ -34,6 +64,20 @@
     </header>
 
     <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger arpp-alert" role="alert">
+            <span class="bi bi-exclamation-octagon" aria-hidden="true"></span>
+            <span>@errorMessage</span>
+        </div>
+    }
+    @if (TempData["ArppWarningMessage"] is string warningMessage)
+    {
+        <div class="alert alert-warning arpp-alert" role="alert">
+            <span class="bi bi-exclamation-triangle" aria-hidden="true"></span>
+            <span>@warningMessage</span>
+        </div>
+    }
 
     <section class="arpp-kpis arpp-kpis--details" aria-label="Issue summary">
         <article class="arpp-kpi">
@@ -56,6 +100,112 @@
                 <span><b>@ArppDisplayNames.For(category)</b> @summary.Count · ₹@summary.TotalIpaCost.ToString("N0")</span>
             }
         </article>
+    </section>
+
+    <section class="arpp-panel arpp-document-panel" aria-labelledby="arpp-issued-document-heading">
+        <div class="arpp-panel__heading">
+            <div>
+                <h2 id="arpp-issued-document-heading">Issued HQ document</h2>
+                <p>The attached PDF is the evidentiary source for this structured ARPP record.</p>
+            </div>
+            @if (Model.Issue.Attachment is not null)
+            {
+                <span class="arpp-document-status">
+                    <span class="bi bi-shield-check" aria-hidden="true"></span>
+                    Attached
+                </span>
+            }
+            else
+            {
+                <span class="arpp-document-status arpp-document-status--pending">
+                    <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                    Pending
+                </span>
+            }
+        </div>
+
+        <div class="arpp-document-panel__body">
+            @if (Model.Issue.Attachment is not null)
+            {
+                var attachment = Model.Issue.Attachment;
+                <div class="arpp-document-file">
+                    <div class="arpp-document-file__icon" aria-hidden="true">
+                        <span class="bi bi-file-earmark-pdf"></span>
+                    </div>
+                    <div class="arpp-document-file__identity">
+                        <strong>@attachment.OriginalFileName</strong>
+                        <span>
+                            @FileSizeFormatter.FormatFileSize(attachment.SizeBytes)
+                            · Uploaded @attachment.UploadedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")
+                        </span>
+                        <small>SHA-256 @(attachment.Sha256[..12])…</small>
+                    </div>
+                    <div class="arpp-document-file__actions">
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/ARPP/Details"
+                           asp-page-handler="Attachment"
+                           asp-route-id="@Model.Issue.Id"
+                           class="btn btn-outline-primary btn-sm">
+                            <span class="bi bi-download" aria-hidden="true"></span>
+                            Download
+                        </a>
+                        @if (Model.CanManage)
+                        {
+                            <form method="post"
+                                  asp-area="ProjectOfficeReports"
+                                  asp-page="/ARPP/Details"
+                                  asp-page-handler="DeletePdf"
+                                  asp-route-id="@Model.Issue.Id"
+                                  asp-route-attachmentId="@attachment.Id"
+                                  data-arpp-delete-pdf-form>
+                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                    <span class="bi bi-trash3" aria-hidden="true"></span>
+                                    Remove
+                                </button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="arpp-document-empty">
+                    <span class="bi bi-file-earmark-arrow-up" aria-hidden="true"></span>
+                    <div>
+                        <strong>No HQ PDF attached</strong>
+                        <p>Structured rows remain usable, but the issued source document should be attached for verification and audit.</p>
+                    </div>
+                </div>
+            }
+
+            @if (Model.CanManage)
+            {
+                <form method="post"
+                      enctype="multipart/form-data"
+                      asp-area="ProjectOfficeReports"
+                      asp-page="/ARPP/Details"
+                      asp-page-handler="UploadPdf"
+                      asp-route-id="@Model.Issue.Id"
+                      class="arpp-document-upload">
+                    <div class="arpp-document-upload__field">
+                        <label asp-for="UploadFile" class="form-label">
+                            @(Model.Issue.Attachment is null ? "Attach issued PDF" : "Replace issued PDF")
+                        </label>
+                        <input asp-for="UploadFile"
+                               type="file"
+                               class="form-control form-control-sm"
+                               accept="application/pdf,.pdf"
+                               data-arpp-pdf-input />
+                        <span asp-validation-for="UploadFile" class="text-danger small"></span>
+                        <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel. Replacement does not alter structured rows.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button>
+                        <span class="bi bi-cloud-arrow-up" aria-hidden="true"></span>
+                        @(Model.Issue.Attachment is null ? "Attach PDF" : "Replace PDF")
+                    </button>
+                </form>
+            }
+        </div>
     </section>
 
     @if (Model.Issue.Entries.Count == 0)
@@ -143,3 +293,11 @@
         <span>Last updated @Model.Issue.UpdatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span>
     </footer>
 </div>
+
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true" defer></script>
+    <script src="~/js/pages/project-office-reports/arpp/arpp-details.js" asp-append-version="true" defer></script>
+}

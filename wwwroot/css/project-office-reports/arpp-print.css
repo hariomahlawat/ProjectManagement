@@ -1,0 +1,179 @@
+:root {
+    color-scheme: light;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #17202a;
+    background: #eef1f4;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: #eef1f4; }
+
+.arpp-print-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding: .65rem 1rem;
+    background: #172b4d;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+
+.arpp-print-toolbar button {
+    padding: .5rem .85rem;
+    border: 1px solid rgba(255, 255, 255, .55);
+    border-radius: .35rem;
+    background: #fff;
+    color: #172b4d;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.arpp-print-document {
+    width: min(100%, 297mm);
+    min-height: 210mm;
+    margin: 1rem auto;
+    padding: 12mm;
+    background: #fff;
+    box-shadow: 0 3px 16px rgba(17, 24, 39, .16);
+}
+
+.arpp-print-header {
+    padding-bottom: 4mm;
+    border-bottom: 1.5px solid #17365d;
+}
+
+.arpp-print-marking {
+    color: #526174;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.arpp-print-header h1 {
+    margin: 2mm 0 1mm;
+    color: #17365d;
+    font-size: 18pt;
+    line-height: 1.15;
+}
+
+.arpp-print-header p {
+    margin: 0;
+    color: #526174;
+    font-size: 9pt;
+}
+
+.arpp-print-summary {
+    display: grid;
+    grid-template-columns: 22mm 40mm 40mm 1fr;
+    gap: 2mm;
+    margin: 4mm 0;
+}
+
+.arpp-print-summary > div {
+    min-height: 17mm;
+    padding: 2.5mm;
+    border: 1px solid #c9d2dc;
+    background: #f7f9fb;
+}
+
+.arpp-print-summary span,
+.arpp-print-summary small {
+    display: block;
+    color: #526174;
+    font-size: 7.5pt;
+}
+
+.arpp-print-summary strong {
+    display: block;
+    margin-top: 1mm;
+    color: #17202a;
+    font-size: 11pt;
+}
+
+.arpp-print-summary__categories {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1mm 3mm;
+}
+
+.arpp-print-summary__categories span { color: #17202a; }
+
+.arpp-print-source {
+    margin-bottom: 3mm;
+    padding: 2mm 2.5mm;
+    border-left: 3px solid #17365d;
+    background: #f7f9fb;
+    font-size: 8pt;
+}
+
+.arpp-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 7.4pt;
+}
+
+.arpp-print-table th,
+.arpp-print-table td {
+    padding: 1.5mm;
+    border: 1px solid #aeb9c5;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.arpp-print-table th {
+    background: #dce6f1;
+    color: #17365d;
+    font-weight: 700;
+    text-align: left;
+}
+
+.arpp-print-table th:nth-child(1) { width: 8mm; }
+.arpp-print-table th:nth-child(2) { width: 14mm; }
+.arpp-print-table th:nth-child(3) { width: 48mm; }
+.arpp-print-table th:nth-child(4) { width: 34mm; }
+.arpp-print-table th:nth-child(5) { width: 19mm; }
+.arpp-print-table th:nth-child(6) { width: 24mm; }
+.arpp-print-table th:nth-child(7) { width: 28mm; }
+.arpp-print-table th:nth-child(8) { width: 20mm; }
+.arpp-print-table th:nth-child(9) { width: 20mm; }
+
+.arpp-print-table tr.delisted td { background: #fff4d6; }
+.arpp-print-table .number { text-align: center; }
+.arpp-print-table .money { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.arpp-print-table small { display: block; color: #526174; }
+.muted { color: #6b7280; }
+
+.arpp-print-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 4mm;
+    padding-top: 2mm;
+    border-top: 1px solid #c9d2dc;
+    color: #526174;
+    font-size: 7.5pt;
+}
+
+@page {
+    size: A4 landscape;
+    margin: 9mm;
+}
+
+@media print {
+    body { background: #fff; }
+    .arpp-print-toolbar { display: none !important; }
+    .arpp-print-document {
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+    }
+    .arpp-print-table thead { display: table-header-group; }
+    .arpp-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .arpp-print-footer { break-inside: avoid; }
+}

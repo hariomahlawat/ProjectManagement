@@ -31,6 +31,7 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261201270000_AddFfcProjectConcurrency", migrations);
         Assert.Contains("20261206100000_AddProjectTotDatePrecision", migrations);
         Assert.Contains("20261207090000_AddArppFoundation", migrations);
+        Assert.Contains("20261207100000_AddArppIssueAttachment", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 

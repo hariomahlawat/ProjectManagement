@@ -33,6 +33,34 @@ public sealed class ArppReadServiceTests
         Assert.False(history.Items[1].IsAuthoritative);
     }
 
+
+    [Fact]
+    public async Task GetIssueAndRegisterAsync_ExposeIssuedPdfMetadata()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue(2026, 0, ArppIssueKind.Original, "ARPP 2026-27");
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/1/document.pdf",
+            OriginalFileName = "ARPP-2026-27.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 1234,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var service = new ArppReadService(db);
+        var details = await service.GetIssueAsync(issue.Id);
+        var register = await service.GetRegisterAsync(null, null);
+
+        Assert.NotNull(details?.Attachment);
+        Assert.Equal("ARPP-2026-27.pdf", details!.Attachment!.OriginalFileName);
+        Assert.True(register.FinancialYears.Single().Issues.Single().HasAttachment);
+    }
+
     private static ArppIssue CreateIssue(int year, int sequence, ArppIssueKind kind, string name)
         => new()
         {

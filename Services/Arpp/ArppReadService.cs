@@ -58,7 +58,8 @@ public sealed class ArppReadService : IArppReadService
                 issue.Entries.Count(entry => entry.Category == ArppCategory.Delisted),
                 issue.Entries.Count(entry => entry.ProjectId != null),
                 issue.Entries.Count(entry => entry.ProjectId == null),
-                issue.UpdatedAtUtc))
+                issue.UpdatedAtUtc,
+                issue.Attachment != null))
             .ToListAsync(cancellationToken);
 
         var availableFinancialYears = await _db.ArppIssues
@@ -101,6 +102,7 @@ public sealed class ArppReadService : IArppReadService
             .AsNoTracking()
             .Include(candidate => candidate.Entries)
                 .ThenInclude(entry => entry.Project)
+            .Include(candidate => candidate.Attachment)
             .SingleOrDefaultAsync(candidate => candidate.Id == issueId, cancellationToken);
 
         if (issue is null)
@@ -153,7 +155,18 @@ public sealed class ArppReadService : IArppReadService
             entries.Count(entry => entry.ProjectId.HasValue),
             entries.Count(entry => !entry.ProjectId.HasValue),
             issue.CreatedAtUtc,
-            issue.UpdatedAtUtc);
+            issue.UpdatedAtUtc,
+            issue.Attachment is null
+                ? null
+                : new ArppAttachmentDetails(
+                    issue.Attachment.Id,
+                    issue.Attachment.OriginalFileName,
+                    issue.Attachment.ContentType,
+                    issue.Attachment.SizeBytes,
+                    issue.Attachment.Sha256,
+                    issue.Attachment.UploadedByUserId,
+                    issue.Attachment.UploadedAtUtc,
+                    Convert.ToBase64String(issue.Attachment.RowVersion)));
     }
 
     public async Task<ArppProjectHistory?> GetProjectHistoryAsync(

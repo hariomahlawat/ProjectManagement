@@ -43,6 +43,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
         public DbSet<ArppIssue> ArppIssues => Set<ArppIssue>();
         public DbSet<ArppEntry> ArppEntries => Set<ArppEntry>();
+        public DbSet<ArppAttachment> ArppAttachments => Set<ArppAttachment>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
         public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
@@ -1994,6 +1995,42 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ArppAttachment>(entity =>
+            {
+                entity.ToTable("ArppAttachments", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_ArppAttachments_SizeBytes",
+                        "\"SizeBytes\" > 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppAttachments_PdfContentType",
+                        "\"ContentType\" = 'application/pdf'");
+                    table.HasCheckConstraint(
+                        "CK_ArppAttachments_Sha256",
+                        "length(\"Sha256\") = 64");
+                });
+
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.StorageKey).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.SizeBytes).IsRequired();
+                entity.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UploadedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+
+                entity.HasIndex(x => x.ArppIssueId)
+                    .HasDatabaseName("UX_ArppAttachments_Issue")
+                    .IsUnique();
+                entity.HasIndex(x => x.Sha256);
+
+                entity.HasOne(x => x.Issue)
+                    .WithOne(x => x.Attachment)
+                    .HasForeignKey<ArppAttachment>(x => x.ArppIssueId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn, string checkName)

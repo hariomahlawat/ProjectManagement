@@ -94,7 +94,8 @@ public sealed record ArppIssueListItem(
     int DelistedCount,
     int LinkedCount,
     int UnlinkedCount,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    bool HasAttachment);
 
 public sealed record ArppIssueDetails(
     long Id,
@@ -110,7 +111,8 @@ public sealed record ArppIssueDetails(
     int LinkedCount,
     int UnlinkedCount,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    ArppAttachmentDetails? Attachment);
 
 public sealed record ArppEntryDetails(
     long Id,

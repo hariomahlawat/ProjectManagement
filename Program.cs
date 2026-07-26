@@ -497,6 +497,8 @@ builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
     builder.Configuration.GetSection("FfcAttachments"));
+builder.Services.Configure<ArppAttachmentOptions>(
+    builder.Configuration.GetSection(ArppAttachmentOptions.SectionName));
 builder.Services.Configure<FileDownloadOptions>(
     builder.Configuration.GetSection("FileDownload"));
 builder.Services.Configure<CompendiumPdfOptions>(
@@ -662,6 +664,10 @@ builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<IAuthoritativeIpaPositionResolver, AuthoritativeIpaPositionResolver>();
 builder.Services.AddScoped<IArppReadService, ArppReadService>();
 builder.Services.AddScoped<IArppCommandService, ArppCommandService>();
+builder.Services.AddScoped<IArppAttachmentStorage, FileSystemArppAttachmentStorage>();
+builder.Services.AddScoped<IArppAttachmentService, ArppAttachmentService>();
+builder.Services.AddScoped<ArppExcelWorkbookBuilder>();
+builder.Services.AddScoped<IArppExportService, ArppExportService>();
 builder.Services.AddScoped<ProjectFactsService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();

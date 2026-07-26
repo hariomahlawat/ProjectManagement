@@ -34,4 +34,6 @@ public sealed class ArppIssue
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public ICollection<ArppEntry> Entries { get; set; } = new List<ArppEntry>();
+
+    public ArppAttachment? Attachment { get; set; }
 }

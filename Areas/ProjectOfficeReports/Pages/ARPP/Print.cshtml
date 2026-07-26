@@ -1,0 +1,117 @@
+@page
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.PrintModel
+@{
+    Layout = null;
+    var financialYear = FinancialYearHelper.Format(Model.Issue.FinancialYearStart);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@Model.Issue.Name · @financialYear</title>
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-print.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="arpp-print-toolbar" role="toolbar" aria-label="Print controls">
+        <button type="button" onclick="window.print()">Print / Save PDF</button>
+        <button type="button" onclick="window.close()">Close</button>
+    </div>
+
+    <main class="arpp-print-document">
+        <header class="arpp-print-header">
+            <div class="arpp-print-marking">PRISM ERP · Simulator Development Division</div>
+            <h1>@Model.Issue.Name</h1>
+            <p>
+                ARPP / PPP · Financial Year @financialYear · @ArppDisplayNames.For(Model.Issue.Kind)
+                @if (Model.Issue.Kind == ArppIssueKind.Addendum)
+                {
+                    <text> · Sequence @Model.Issue.IssueSequence</text>
+                }
+                · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")
+            </p>
+        </header>
+
+        <section class="arpp-print-summary" aria-label="Issue summary">
+            <div><span>Rows</span><strong>@Model.Issue.Entries.Count</strong></div>
+            <div><span>Total IPA value</span><strong>₹@Model.Issue.TotalIpaCost.ToString("N2")</strong></div>
+            <div><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></div>
+            <div class="arpp-print-summary__categories">
+                @foreach (var category in Enum.GetValues<ArppCategory>())
+                {
+                    var summary = Model.Issue.CategorySummary[category];
+                    <span><b>@ArppDisplayNames.For(category)</b> @summary.Count · ₹@summary.TotalIpaCost.ToString("N2")</span>
+                }
+            </div>
+        </section>
+
+        <section class="arpp-print-source">
+            <strong>Issued source PDF:</strong>
+            @if (Model.Issue.Attachment is null)
+            {
+                <span>Not attached in PRISM</span>
+            }
+            else
+            {
+                <span>
+                    @Model.Issue.Attachment.OriginalFileName · @FileSizeFormatter.FormatFileSize(Model.Issue.Attachment.SizeBytes)
+                    · SHA-256 @(Model.Issue.Attachment.Sha256[..12])…
+                </span>
+            }
+        </section>
+
+        <table class="arpp-print-table">
+            <thead>
+                <tr>
+                    <th class="number">#</th>
+                    <th>Serial</th>
+                    <th>Project reference as issued</th>
+                    <th>PRISM project</th>
+                    <th>Category</th>
+                    <th class="money">IPA cost (₹)</th>
+                    <th>CFA</th>
+                    <th>Fund</th>
+                    <th>DFPDS</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in Model.Issue.Entries.OrderBy(entry => entry.SortOrder).ThenBy(entry => entry.Id))
+                {
+                    <tr class="@(entry.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
+                        <td class="number">@entry.SortOrder</td>
+                        <td>@entry.SerialNumber</td>
+                        <td>@entry.ProjectReference</td>
+                        <td>
+                            @if (entry.ProjectId.HasValue)
+                            {
+                                <span>@entry.ProjectName</span>
+                                @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
+                                {
+                                    <small>@entry.ProjectCaseFileNumber</small>
+                                }
+                            }
+                            else
+                            {
+                                <span class="muted">Linkage pending</span>
+                            }
+                        </td>
+                        <td>@ArppDisplayNames.For(entry.Category)</td>
+                        <td class="money">@entry.IpaCost.ToString("N2")</td>
+                        <td>@entry.Cfa</td>
+                        <td>@entry.Fund</td>
+                        <td>@entry.DfpdsSchedule</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <footer class="arpp-print-footer">
+            <span>Generated from PRISM on @Model.GeneratedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>
+            <span>Structured representation of the issued HQ document</span>
+        </footer>
+    </main>
+</body>
+</html>

@@ -130,6 +130,14 @@
                                         <span><i class="bi bi-calendar3" aria-hidden="true"></i> @issue.IssueDate.ToString("dd MMM yyyy")</span>
                                         <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount row(s)</span>
                                         <span><i class="bi bi-link-45deg" aria-hidden="true"></i> @issue.LinkedCount linked</span>
+                                        @if (issue.HasAttachment)
+                                        {
+                                            <span class="text-success-emphasis"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> HQ PDF attached</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-warning-emphasis"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> HQ PDF pending</span>
+                                        }
                                         @if (issue.UnlinkedCount > 0)
                                         {
                                             <span class="text-warning-emphasis"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> @issue.UnlinkedCount unlinked</span>

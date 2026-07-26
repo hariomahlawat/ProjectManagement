@@ -4346,6 +4346,71 @@ namespace ProjectManagement.Migrations
                     b.ToTable("StagePlans");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppAttachment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("ArppIssueId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("UploadedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UploadedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sha256");
+
+                    b.HasIndex("ArppIssueId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ArppAttachments_Issue");
+
+                    b.ToTable("ArppAttachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_ArppAttachments_PdfContentType", "\"ContentType\" = 'application/pdf'");
+
+                            t.HasCheckConstraint("CK_ArppAttachments_Sha256", "length(\"Sha256\") = 64");
+
+                            t.HasCheckConstraint("CK_ArppAttachments_SizeBytes", "\"SizeBytes\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -7946,6 +8011,17 @@ namespace ProjectManagement.Migrations
                     b.Navigation("PlanVersion");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppAttachment", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Arpp.ArppIssue", "Issue")
+                        .WithOne("Attachment")
+                        .HasForeignKey("ProjectManagement.Models.Arpp.ArppAttachment", "ArppIssueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Issue");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppEntry", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Arpp.ArppIssue", "Issue")
@@ -8804,6 +8880,8 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppIssue", b =>
                 {
+                    b.Navigation("Attachment");
+
                     b.Navigation("Entries");
                 });
 
