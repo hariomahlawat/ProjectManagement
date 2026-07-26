@@ -31,11 +31,14 @@ public sealed class CreateModel : PageModel
     [BindProperty]
     public ArppIssueInputModel Input { get; set; } = new();
 
+    public IReadOnlyList<int> FinancialYearOptions { get; private set; } = [];
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         var todayIst = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
         Input.FinancialYearStart = FinancialYearHelper.GetStartYear(todayIst);
         Input.IssueDate = todayIst;
+        BuildFinancialYearOptions(Input.FinancialYearStart);
 
         var suggestedSequence = await _readService.GetSuggestedIssueSequenceAsync(
             Input.FinancialYearStart,
@@ -55,7 +58,7 @@ public sealed class CreateModel : PageModel
     {
         if (financialYearStart is < FinancialYearHelper.MinimumSupportedStartYear or > FinancialYearHelper.MaximumSupportedStartYear)
         {
-            return BadRequest(new { message = "Enter a valid four-digit financial-year start." });
+            return BadRequest(new { message = "Select a valid financial year." });
         }
 
         var originalExists = await _readService.HasOriginalIssueAsync(
@@ -75,6 +78,8 @@ public sealed class CreateModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        BuildFinancialYearOptions(Input.FinancialYearStart);
+
         if (!ModelState.IsValid)
         {
             ViewData["SuggestedAddendumSequence"] = await _readService.GetSuggestedIssueSequenceAsync(
@@ -110,6 +115,26 @@ public sealed class CreateModel : PageModel
         }
 
         return RedirectToPage("/ARPP/Manage", new { area = "ProjectOfficeReports", id = result.EntityId });
+    }
+
+    private void BuildFinancialYearOptions(int selectedYear)
+    {
+        var todayIst = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
+        var current = FinancialYearHelper.GetStartYear(todayIst);
+        var safeSelected = Math.Clamp(
+            selectedYear,
+            FinancialYearHelper.MinimumSupportedStartYear,
+            FinancialYearHelper.MaximumSupportedStartYear);
+        var start = Math.Max(
+            FinancialYearHelper.MinimumSupportedStartYear,
+            Math.Min(current - 5, safeSelected - 2));
+        var end = Math.Min(
+            FinancialYearHelper.MaximumSupportedStartYear,
+            Math.Max(current + 3, safeSelected + 2));
+
+        FinancialYearOptions = Enumerable.Range(start, end - start + 1)
+            .OrderByDescending(year => year)
+            .ToArray();
     }
 
     private void ApplyErrors(ArppCommandResult result)

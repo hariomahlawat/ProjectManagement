@@ -249,6 +249,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireArppViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageArpp, policy =>
         policy.RequireArppManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.VerifyArpp, policy =>
+        policy.RequireArppVerifier());
+    options.AddPolicy(ProjectOfficeReportsPolicies.UnlockArpp, policy =>
+        policy.RequireArppUnlocker());
     options.AddPolicy(Policies.Ipr.View, policy =>
         policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
     options.AddPolicy(Policies.Ipr.Edit, policy =>
@@ -664,6 +668,7 @@ builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<IAuthoritativeIpaPositionResolver, AuthoritativeIpaPositionResolver>();
 builder.Services.AddScoped<IArppReadService, ArppReadService>();
 builder.Services.AddScoped<IArppCommandService, ArppCommandService>();
+builder.Services.AddScoped<IArppReconciliationService, ArppReconciliationService>();
 builder.Services.AddScoped<IArppAttachmentStorage, FileSystemArppAttachmentStorage>();
 builder.Services.AddScoped<IArppAttachmentService, ArppAttachmentService>();
 builder.Services.AddScoped<ArppExcelWorkbookBuilder>();

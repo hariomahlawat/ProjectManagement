@@ -74,6 +74,12 @@ public sealed class ArppAttachmentService : IArppAttachmentService
             return ArppAttachmentCommandResult.Failed("The ARPP issue was not found.");
         }
 
+        if (issue.IsVerified)
+        {
+            return ArppAttachmentCommandResult.Failed(
+                "This ARPP issue is verified and locked. Unlock it with a recorded reason before replacing the issued PDF.");
+        }
+
         ArppStoredAttachment stored;
         try
         {
@@ -139,6 +145,8 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         existing.Sha256 = stored.Sha256;
         existing.UploadedByUserId = userId;
         existing.UploadedAtUtc = now;
+        issue.UpdatedAtUtc = now;
+        issue.UpdatedByUserId = userId;
 
         try
         {
@@ -246,8 +254,17 @@ public sealed class ArppAttachmentService : IArppAttachmentService
             return ArppAttachmentCommandResult.Failed("The issued PDF was not found.");
         }
 
+        if (attachment.Issue.IsVerified)
+        {
+            return ArppAttachmentCommandResult.Failed(
+                "This ARPP issue is verified and locked. Unlock it with a recorded reason before removing the issued PDF.");
+        }
+
         var storageKey = attachment.StorageKey;
         var issue = attachment.Issue;
+        var now = _clock.UtcNow.ToUniversalTime();
+        issue.UpdatedAtUtc = now;
+        issue.UpdatedByUserId = userId;
         var auditData = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["IssueId"] = issue.Id.ToString(CultureInfo.InvariantCulture),

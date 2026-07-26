@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models.Arpp;
 using ProjectManagement.Services.Arpp;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP;
 
@@ -32,6 +33,8 @@ public sealed class ManageModel : PageModel
 
     public IReadOnlyList<ArppCategory> Categories { get; } = Enum.GetValues<ArppCategory>();
 
+    public IReadOnlyList<int> FinancialYearOptions { get; private set; } = [];
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         var issue = await _readService.GetIssueAsync(Id, cancellationToken);
@@ -40,9 +43,14 @@ public sealed class ManageModel : PageModel
             return NotFound();
         }
 
-        Issue = issue;
+        if (issue.IsVerified)
+        {
+            TempData["ArppWarningMessage"] = "This ARPP issue is verified and locked. Unlock it from the issue page before making corrections.";
+            return RedirectToPage("/ARPP/Details", new { area = "ProjectOfficeReports", id = Id });
+        }
+
+        SetIssue(issue, issue.FinancialYearStart);
         Input = Map(issue);
-        EnsureAtLeastOneEntry();
         return Page();
     }
 
@@ -54,11 +62,16 @@ public sealed class ManageModel : PageModel
             return NotFound();
         }
 
-        Issue = currentIssue;
+        if (currentIssue.IsVerified)
+        {
+            TempData["ErrorMessage"] = "This ARPP issue is verified and locked. Unlock it before making corrections.";
+            return RedirectToPage("/ARPP/Details", new { area = "ProjectOfficeReports", id = Id });
+        }
+
+        SetIssue(currentIssue, Input.FinancialYearStart);
 
         if (!ModelState.IsValid)
         {
-            EnsureAtLeastOneEntry();
             return Page();
         }
 
@@ -89,7 +102,6 @@ public sealed class ManageModel : PageModel
         if (!result.Success)
         {
             ApplyErrors(result);
-            EnsureAtLeastOneEntry();
             return Page();
         }
 
@@ -100,6 +112,19 @@ public sealed class ManageModel : PageModel
         }
 
         return RedirectToPage("/ARPP/Manage", new { area = "ProjectOfficeReports", id = Id });
+    }
+
+    private void SetIssue(ArppIssueDetails issue, int selectedFinancialYearStart)
+    {
+        Issue = issue;
+        var selected = selectedFinancialYearStart is >= FinancialYearHelper.MinimumSupportedStartYear and <= FinancialYearHelper.MaximumSupportedStartYear
+            ? selectedFinancialYearStart
+            : issue.FinancialYearStart;
+        var first = Math.Max(FinancialYearHelper.MinimumSupportedStartYear, Math.Min(issue.FinancialYearStart, selected) - 5);
+        var last = Math.Min(FinancialYearHelper.MaximumSupportedStartYear, Math.Max(issue.FinancialYearStart, selected) + 4);
+        FinancialYearOptions = Enumerable.Range(first, last - first + 1)
+            .OrderByDescending(year => year)
+            .ToArray();
     }
 
     private static ArppWorkspaceInputModel Map(ArppIssueDetails issue)
@@ -137,17 +162,6 @@ public sealed class ManageModel : PageModel
 
         return string.Join(" · ", new[] { entry.ProjectCaseFileNumber, entry.ProjectStatus }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
-    }
-
-    private void EnsureAtLeastOneEntry()
-    {
-        if (Input.Entries.Count == 0)
-        {
-            Input.Entries.Add(new ArppEntryInputModel
-            {
-                Category = ArppCategory.New
-            });
-        }
     }
 
     private void ApplyErrors(ArppCommandResult result)

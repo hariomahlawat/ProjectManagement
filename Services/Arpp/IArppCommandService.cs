@@ -9,4 +9,12 @@ public interface IArppCommandService
     Task<ArppCommandResult> SaveWorkspaceAsync(
         ArppWorkspaceSaveCommand command,
         CancellationToken cancellationToken = default);
+
+    Task<ArppCommandResult> VerifyAsync(
+        ArppVerifyCommand command,
+        CancellationToken cancellationToken = default);
+
+    Task<ArppCommandResult> UnlockAsync(
+        ArppUnlockCommand command,
+        CancellationToken cancellationToken = default);
 }

@@ -1,0 +1,200 @@
+@page
+@using ProjectManagement.Utilities
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.ReconcileModel
+@{
+    ViewData["Title"] = "ARPP reconciliation";
+    ViewData["UseFullWidth"] = true;
+    var lookupUrl = Url.Content("~/api/arpp/projects");
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
+     data-arpp-project-lookup-url="@lookupUrl"
+     data-arpp-reconcile>
+    <header class="arpp-header">
+        <div>
+            <div class="arpp-eyebrow">ARPP / PPP</div>
+            <h1>Project reconciliation</h1>
+            <p>Link issued ARPP rows to existing PRISM projects without changing the project reference recorded in the HQ document.</p>
+        </div>
+        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
+            <span class="bi bi-arrow-left" aria-hidden="true"></span>
+            Register
+        </a>
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <section class="arpp-kpis arpp-kpis--reconcile" aria-label="Reconciliation summary">
+        <article class="arpp-kpi">
+            <span>Unlinked rows</span>
+            <strong>@Model.Queue.TotalUnlinkedEntries</strong>
+        </article>
+        <article class="arpp-kpi">
+            <span>Shown</span>
+            <strong>@Model.Queue.Items.Count</strong>
+            <small>Maximum 100 per view</small>
+        </article>
+        <article class="arpp-kpi arpp-kpi--wide">
+            <span>Linking rule</span>
+            <strong class="fs-6">Confirmed by user</strong>
+            <small>Suggestions never link automatically.</small>
+        </article>
+    </section>
+
+    <form method="get" class="arpp-filterbar arpp-filterbar--reconcile" role="search">
+        <div class="arpp-search">
+            <span class="bi bi-search" aria-hidden="true"></span>
+            <label class="visually-hidden" asp-for="Query">Search unlinked rows</label>
+            <input asp-for="Query" type="search" class="form-control" placeholder="Search project reference, serial number or issue" />
+        </div>
+        <div>
+            <label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label>
+            <select asp-for="FinancialYearStart" class="form-select">
+                <option value="">All financial years</option>
+                @foreach (var year in Model.Queue.AvailableFinancialYears)
+                {
+                    <option value="@year">@FinancialYearHelper.Format(year)</option>
+                }
+            </select>
+        </div>
+        <button type="submit" class="btn btn-outline-primary">Apply</button>
+        @if (Model.FinancialYearStart.HasValue || !string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" class="btn btn-link">Clear</a>
+        }
+    </form>
+
+    @if (Model.Queue.Items.Count == 0)
+    {
+        <section class="arpp-empty">
+            <span class="bi bi-link-45deg" aria-hidden="true"></span>
+            <h2>No unlinked ARPP rows</h2>
+            <p>All rows in the selected scope are linked to PRISM projects.</p>
+        </section>
+    }
+    else
+    {
+        <form method="post" class="arpp-reconciliation-form" data-arpp-reconciliation-form>
+            <input type="hidden" asp-for="FinancialYearStart" />
+            <input type="hidden" asp-for="Query" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <div class="arpp-reconciliation-list">
+                @for (var index = 0; index < Model.Queue.Items.Count; index++)
+                {
+                    var item = Model.Queue.Items[index];
+                    <article class="arpp-reconciliation-card" data-arpp-reconciliation-row>
+                        <input type="hidden" asp-for="Input.Links[index].EntryId" />
+                        <input type="hidden" asp-for="Input.Links[index].EntryRowVersion" />
+
+                        <div class="arpp-reconciliation-card__issued">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span class="arpp-badge arpp-badge--issue">@FinancialYearHelper.Format(item.FinancialYearStart)</span>
+                                <span class="arpp-sequence">@(item.IssueSequence == 0 ? "Original" : $"Addendum {item.IssueSequence}")</span>
+                                @if (item.IssueIsVerified)
+                                {
+                                    <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>
+                                }
+                            </div>
+                            <h2>@item.ProjectReference</h2>
+                            <div class="arpp-reconciliation-meta">
+                                <span>Serial @item.SerialNumber</span>
+                                <span>@item.CategoryLabel</span>
+                                <span>@IndianCurrencyFormatter.FormatWithCompact(item.IpaCost)</span>
+                            </div>
+                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@item.IssueId" class="small">@item.IssueName</a>
+                        </div>
+
+                        <div class="arpp-reconciliation-card__suggestions">
+                            <div class="arpp-reconciliation-label">Suggested matches</div>
+                            @if (item.Suggestions.Count == 0)
+                            {
+                                <p class="small text-body-secondary mb-0">No confident suggestion. Search PRISM projects manually.</p>
+                            }
+                            else
+                            {
+                                <div class="arpp-suggestion-list">
+                                    @foreach (var suggestion in item.Suggestions)
+                                    {
+                                        <button type="button"
+                                                class="arpp-suggestion"
+                                                data-arpp-suggestion
+                                                data-project-id="@suggestion.ProjectId"
+                                                data-project-name="@suggestion.ProjectName"
+                                                data-project-case-file="@suggestion.CaseFileNumber"
+                                                data-project-status="@suggestion.StatusLabel">
+                                            <span>
+                                                <strong>@suggestion.ProjectName</strong>
+                                                <small>@string.Join(" · ", new[] { suggestion.CaseFileNumber, suggestion.StatusLabel }.Where(value => !string.IsNullOrWhiteSpace(value)))</small>
+                                                @if (suggestion.LegacyIpaCost.HasValue)
+                                                {
+                                                    var legacyAmount = suggestion.LegacyIpaCost.Value;
+                                                    var difference = legacyAmount - item.IpaCost;
+                                                    <small>Legacy IPA @IndianCurrencyFormatter.FormatCompact(legacyAmount)</small>
+                                                    @if (difference == 0)
+                                                    {
+                                                        <small class="text-success">Matches the ARPP IPA cost</small>
+                                                    }
+                                                    else if (difference > 0)
+                                                    {
+                                                        <small class="text-warning-emphasis">Legacy is higher by @IndianCurrencyFormatter.FormatCompact(difference)</small>
+                                                    }
+                                                    else
+                                                    {
+                                                        <small class="text-warning-emphasis">ARPP is higher by @IndianCurrencyFormatter.FormatCompact(Math.Abs(difference))</small>
+                                                    }
+                                                }
+                                            </span>
+                                            <span class="arpp-suggestion__confidence">@suggestion.ConfidencePercent%</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="arpp-reconciliation-card__selection">
+                            <div class="arpp-reconciliation-label">Confirmed PRISM project</div>
+                            <div class="arpp-project-picker" data-arpp-project-picker>
+                                <input type="hidden" asp-for="Input.Links[index].ProjectId" data-arpp-project-id />
+                                <div class="arpp-project-picker__control">
+                                    <span class="bi bi-search" aria-hidden="true"></span>
+                                    <input asp-for="Input.Links[index].ProjectName"
+                                           class="form-control form-control-sm"
+                                           autocomplete="off"
+                                           placeholder="Search PRISM projects"
+                                           data-arpp-project-search />
+                                    <button type="button" class="btn btn-sm arpp-project-picker__clear d-none" data-arpp-project-clear aria-label="Clear linked project">
+                                        <span class="bi bi-x-lg" aria-hidden="true"></span>
+                                    </button>
+                                </div>
+                                <input type="hidden" asp-for="Input.Links[index].ProjectMeta" data-arpp-project-meta-input />
+                                <div class="arpp-project-picker__meta" data-arpp-project-meta></div>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            <div class="arpp-editor__actions arpp-editor__actions--sticky arpp-editor__actions--dirty" data-arpp-reconcile-actions>
+                <div class="arpp-save-state" data-arpp-reconcile-state>Select one or more confirmed matches.</div>
+                <div class="d-flex gap-2">
+                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary" data-arpp-link-button disabled>
+                        <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                        Save confirmed links
+                    </button>
+                </div>
+            </div>
+        </form>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/project-office-reports/arpp/arpp-project-picker.js" asp-append-version="true" defer></script>
+    <script src="~/js/pages/project-office-reports/arpp/arpp-reconcile.js" asp-append-version="true" defer></script>
+}

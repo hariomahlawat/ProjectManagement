@@ -10,6 +10,8 @@ namespace ProjectManagement.Services.Arpp;
 public sealed class ArppCommandService : IArppCommandService
 {
     private const decimal SignificantCostChangeRatio = 0.25m;
+    private const int EarlyIssueToleranceDays = 180;
+    private const int LateIssueToleranceDays = 90;
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -59,6 +61,14 @@ public sealed class ArppCommandService : IArppCommandService
             return ArppCommandResult.Failed("Review the highlighted ARPP issue fields.", errors);
         }
 
+        var warnings = await BuildIssueWarningsAsync(
+            command.FinancialYearStart,
+            command.Kind,
+            command.IssueSequence,
+            command.IssueDate,
+            excludedIssueId: null,
+            cancellationToken);
+
         var now = _clock.UtcNow.ToUniversalTime();
         var issue = new ArppIssue
         {
@@ -91,7 +101,7 @@ public sealed class ArppCommandService : IArppCommandService
                 new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
                 {
                     [nameof(command.IssueSequence)] =
-                    ["Choose a different issue sequence for this financial year."]
+                    ["Choose a different addendum number for this financial year."]
                 });
         }
 
@@ -113,7 +123,7 @@ public sealed class ArppCommandService : IArppCommandService
         return ArppCommandResult.Succeeded(
             issue.Id,
             "ARPP issue created. Add the issued rows in the workspace.",
-            BuildIssueWarnings(issue.FinancialYearStart, issue.IssueDate));
+            warnings);
     }
 
     public async Task<ArppCommandResult> SaveWorkspaceAsync(
@@ -141,20 +151,10 @@ public sealed class ArppCommandService : IArppCommandService
             AddError(errors, nameof(command.UserId), "The current user could not be identified.");
         }
 
-        byte[] issueRowVersion;
-        try
-        {
-            issueRowVersion = Convert.FromBase64String(command.IssueRowVersion ?? string.Empty);
-            if (issueRowVersion.Length == 0)
-            {
-                AddError(errors, nameof(command.IssueRowVersion), "The ARPP record version is missing. Reload the page.");
-            }
-        }
-        catch (FormatException)
-        {
-            AddError(errors, nameof(command.IssueRowVersion), "The ARPP record version is invalid. Reload the page.");
-            issueRowVersion = Array.Empty<byte>();
-        }
+        var issueRowVersion = ParseRowVersion(
+            command.IssueRowVersion,
+            nameof(command.IssueRowVersion),
+            errors);
 
         var duplicateSequence = await _db.ArppIssues
             .AsNoTracking()
@@ -169,7 +169,7 @@ public sealed class ArppCommandService : IArppCommandService
             AddError(
                 errors,
                 nameof(command.IssueSequence),
-                "Another ARPP issue already uses this sequence in the selected financial year.");
+                "Another ARPP issue already uses this addendum number in the selected financial year.");
         }
 
         var linkedProjectIds = command.Entries
@@ -216,6 +216,12 @@ public sealed class ArppCommandService : IArppCommandService
             return ArppCommandResult.Failed("The ARPP issue no longer exists.");
         }
 
+        if (issue.IsVerified)
+        {
+            return ArppCommandResult.Failed(
+                "This ARPP issue is verified and locked. It must be unlocked with a recorded reason before its issued data can be changed.");
+        }
+
         _db.Entry(issue).Property(candidate => candidate.RowVersion).OriginalValue = issueRowVersion;
 
         var submittedIds = command.Entries
@@ -257,19 +263,19 @@ public sealed class ArppCommandService : IArppCommandService
                 entity = existingById[input.Id.Value];
                 retainedIds.Add(entity.Id);
 
-                if (!string.IsNullOrWhiteSpace(input.RowVersion))
+                var rowErrors = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+                var rowVersion = ParseRowVersion(
+                    input.RowVersion,
+                    $"Entries[{index}].RowVersion",
+                    rowErrors);
+                if (rowErrors.Count > 0)
                 {
-                    try
-                    {
-                        _db.Entry(entity).Property(entry => entry.RowVersion).OriginalValue =
-                            Convert.FromBase64String(input.RowVersion);
-                    }
-                    catch (FormatException)
-                    {
-                        return ArppCommandResult.Failed(
-                            "An ARPP row version is invalid. Reload the page before saving.");
-                    }
+                    return ArppCommandResult.Failed(
+                        "An ARPP row version is invalid. Reload the page before saving.",
+                        rowErrors);
                 }
+
+                _db.Entry(entity).Property(entry => entry.RowVersion).OriginalValue = rowVersion;
             }
             else
             {
@@ -309,12 +315,12 @@ public sealed class ArppCommandService : IArppCommandService
         {
             await transaction.RollbackAsync(cancellationToken);
             return ArppCommandResult.Failed(
-                "The ARPP issue could not be saved because an issue sequence or linked project is duplicated.");
+                "The ARPP issue could not be saved because an addendum number or linked project is duplicated.");
         }
 
         transaction.RegisterAfterCommit(ct => _audit.LogAsync(
             action: "Arpp.WorkspaceSaved",
-            message: $"Saved {issue.Name} with {command.Entries.Count} row(s).",
+            message: $"Saved {issue.Name} with {command.Entries.Count} {Pluralize(command.Entries.Count, "row", "rows")}.",
             userId: command.UserId,
             userName: command.UserName,
             data: new Dictionary<string, string?>
@@ -330,8 +336,184 @@ public sealed class ArppCommandService : IArppCommandService
 
         return ArppCommandResult.Succeeded(
             issue.Id,
-            "ARPP issue and rows saved.",
+            command.Entries.Count == 0
+                ? "ARPP issue saved with no rows. Rows may be added later."
+                : "ARPP issue and rows saved.",
             warnings);
+    }
+
+    public async Task<ArppCommandResult> VerifyAsync(
+        ArppVerifyCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        if (string.IsNullOrWhiteSpace(command.UserId))
+        {
+            return ArppCommandResult.Failed("The current user could not be identified.");
+        }
+
+        var errors = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        var rowVersion = ParseRowVersion(command.IssueRowVersion, nameof(command.IssueRowVersion), errors);
+        if ((command.Note?.Trim().Length ?? 0) > 500)
+        {
+            AddError(errors, nameof(command.Note), "The verification note cannot exceed 500 characters.");
+        }
+
+        if (errors.Count > 0)
+        {
+            return ArppCommandResult.Failed("The issue could not be verified.", errors);
+        }
+
+        var issue = await _db.ArppIssues
+            .Include(candidate => candidate.Entries)
+            .Include(candidate => candidate.Attachment)
+            .SingleOrDefaultAsync(candidate => candidate.Id == command.IssueId, cancellationToken);
+
+        if (issue is null)
+        {
+            return ArppCommandResult.Failed("The ARPP issue was not found.");
+        }
+
+        if (issue.IsVerified)
+        {
+            return ArppCommandResult.Succeeded(issue.Id, "The ARPP issue is already verified and locked.");
+        }
+
+        if (issue.Entries.Count == 0)
+        {
+            AddError(errors, "Entries", "Enter at least one issued row before verification.");
+        }
+
+        if (issue.Attachment is null)
+        {
+            AddError(errors, "Attachment", "Attach the issued HQ PDF before verification.");
+        }
+
+        if (errors.Count > 0)
+        {
+            return ArppCommandResult.Failed("Complete the issued record before verification.", errors);
+        }
+
+        _db.Entry(issue).Property(candidate => candidate.RowVersion).OriginalValue = rowVersion;
+        var now = _clock.UtcNow.ToUniversalTime();
+        issue.IsVerified = true;
+        issue.VerifiedAtUtc = now;
+        issue.VerifiedByUserId = command.UserId;
+        issue.VerificationNote = string.IsNullOrWhiteSpace(command.Note) ? null : command.Note.Trim();
+        issue.UpdatedAtUtc = now;
+        issue.UpdatedByUserId = command.UserId;
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ArppCommandResult.Failed(
+                "The ARPP issue changed before verification. Reload it and verify the latest version.");
+        }
+
+        transaction.RegisterAfterCommit(ct => _audit.LogAsync(
+            action: "Arpp.IssueVerified",
+            message: $"Verified and locked {issue.Name}.",
+            userId: command.UserId,
+            userName: command.UserName,
+            data: new Dictionary<string, string?>
+            {
+                ["IssueId"] = issue.Id.ToString(),
+                ["FinancialYear"] = FinancialYearHelper.Format(issue.FinancialYearStart),
+                ["IssueSequence"] = issue.IssueSequence.ToString(),
+                ["VerificationNote"] = issue.VerificationNote
+            }));
+
+        await transaction.CommitAsync(cancellationToken);
+        return ArppCommandResult.Succeeded(issue.Id, "ARPP issue verified and locked.");
+    }
+
+    public async Task<ArppCommandResult> UnlockAsync(
+        ArppUnlockCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var errors = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(command.UserId))
+        {
+            AddError(errors, nameof(command.UserId), "The current user could not be identified.");
+        }
+
+        var reason = command.Reason?.Trim() ?? string.Empty;
+        if (reason.Length < 10)
+        {
+            AddError(errors, nameof(command.Reason), "Enter a clear unlock reason of at least 10 characters.");
+        }
+        else if (reason.Length > 500)
+        {
+            AddError(errors, nameof(command.Reason), "The unlock reason cannot exceed 500 characters.");
+        }
+
+        var rowVersion = ParseRowVersion(command.IssueRowVersion, nameof(command.IssueRowVersion), errors);
+        if (errors.Count > 0)
+        {
+            return ArppCommandResult.Failed("The issue could not be unlocked.", errors);
+        }
+
+        var issue = await _db.ArppIssues
+            .SingleOrDefaultAsync(candidate => candidate.Id == command.IssueId, cancellationToken);
+
+        if (issue is null)
+        {
+            return ArppCommandResult.Failed("The ARPP issue was not found.");
+        }
+
+        if (!issue.IsVerified)
+        {
+            return ArppCommandResult.Succeeded(issue.Id, "The ARPP issue is already unlocked.");
+        }
+
+        _db.Entry(issue).Property(candidate => candidate.RowVersion).OriginalValue = rowVersion;
+        var now = _clock.UtcNow.ToUniversalTime();
+        var previousVerifiedAt = issue.VerifiedAtUtc;
+        var previousVerifiedBy = issue.VerifiedByUserId;
+        issue.IsVerified = false;
+        issue.VerifiedAtUtc = null;
+        issue.VerifiedByUserId = null;
+        issue.VerificationNote = null;
+        issue.UpdatedAtUtc = now;
+        issue.UpdatedByUserId = command.UserId;
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ArppCommandResult.Failed(
+                "The ARPP issue changed before it could be unlocked. Reload it and try again.");
+        }
+
+        transaction.RegisterAfterCommit(ct => _audit.LogAsync(
+            action: "Arpp.IssueUnlocked",
+            message: $"Unlocked {issue.Name} for correction.",
+            userId: command.UserId,
+            userName: command.UserName,
+            data: new Dictionary<string, string?>
+            {
+                ["IssueId"] = issue.Id.ToString(),
+                ["FinancialYear"] = FinancialYearHelper.Format(issue.FinancialYearStart),
+                ["IssueSequence"] = issue.IssueSequence.ToString(),
+                ["Reason"] = reason,
+                ["PreviouslyVerifiedAtUtc"] = previousVerifiedAt?.ToString("O"),
+                ["PreviouslyVerifiedByUserId"] = previousVerifiedBy
+            }));
+
+        await transaction.CommitAsync(cancellationToken);
+        return ArppCommandResult.Succeeded(issue.Id, "ARPP issue unlocked. Corrections are now permitted and will be audited.");
     }
 
     private static Dictionary<string, IReadOnlyList<string>> ValidateIssue(
@@ -345,7 +527,7 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (financialYearStart is < FinancialYearHelper.MinimumSupportedStartYear or > FinancialYearHelper.MaximumSupportedStartYear)
         {
-            AddError(errors, nameof(financialYearStart), "Enter a valid four-digit financial-year start.");
+            AddError(errors, nameof(financialYearStart), "Select a valid financial year.");
         }
 
         if (!Enum.IsDefined(kind))
@@ -355,12 +537,12 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (kind == ArppIssueKind.Original && issueSequence != 0)
         {
-            AddError(errors, nameof(issueSequence), "The original ARPP must use issue sequence 0.");
+            AddError(errors, nameof(issueSequence), "The original ARPP must use internal sequence 0.");
         }
 
         if (kind == ArppIssueKind.Addendum && issueSequence <= 0)
         {
-            AddError(errors, nameof(issueSequence), "An addendum must use an issue sequence greater than 0.");
+            AddError(errors, nameof(issueSequence), "Enter a valid addendum number.");
         }
 
         var normalizedName = name?.Trim() ?? string.Empty;
@@ -391,12 +573,10 @@ public sealed class ArppCommandService : IArppCommandService
             .Select((entry, index) => new { Entry = entry, Index = index })
             .ToArray();
 
-        var duplicateEntryIds = indexedEntries
-            .Where(item => item.Entry.Id.HasValue)
-            .GroupBy(item => item.Entry.Id!.Value)
-            .Where(group => group.Count() > 1);
-
-        foreach (var group in duplicateEntryIds)
+        foreach (var group in indexedEntries
+                     .Where(item => item.Entry.Id.HasValue)
+                     .GroupBy(item => item.Entry.Id!.Value)
+                     .Where(group => group.Count() > 1))
         {
             foreach (var item in group)
             {
@@ -407,12 +587,10 @@ public sealed class ArppCommandService : IArppCommandService
             }
         }
 
-        var linkedProjectGroups = indexedEntries
-            .Where(item => item.Entry.ProjectId.HasValue)
-            .GroupBy(item => item.Entry.ProjectId!.Value)
-            .Where(group => group.Count() > 1);
-
-        foreach (var group in linkedProjectGroups)
+        foreach (var group in indexedEntries
+                     .Where(item => item.Entry.ProjectId.HasValue)
+                     .GroupBy(item => item.Entry.ProjectId!.Value)
+                     .Where(group => group.Count() > 1))
         {
             foreach (var item in group)
             {
@@ -477,18 +655,24 @@ public sealed class ArppCommandService : IArppCommandService
         CancellationToken cancellationToken)
     {
         var warnings = new List<string>();
-        warnings.AddRange(BuildIssueWarnings(command.FinancialYearStart, command.IssueDate));
+        warnings.AddRange(await BuildIssueWarningsAsync(
+            command.FinancialYearStart,
+            command.Kind,
+            command.IssueSequence,
+            command.IssueDate,
+            command.IssueId,
+            cancellationToken));
 
         var unlinkedRows = command.Entries.Count(entry => !entry.ProjectId.HasValue);
         if (unlinkedRows > 0)
         {
-            warnings.Add($"{unlinkedRows} row(s) remain unlinked to a PRISM project. The issued data was saved and can be linked later.");
+            warnings.Add($"{unlinkedRows} {Pluralize(unlinkedRows, "row remains", "rows remain")} unlinked to a PRISM project. The issued data was saved and can be reconciled later.");
         }
 
         var zeroCostRows = command.Entries.Count(entry => entry.IpaCost == 0m);
         if (zeroCostRows > 0)
         {
-            warnings.Add($"{zeroCostRows} row(s) have an IPA cost of zero. The values were retained as entered.");
+            warnings.Add($"{zeroCostRows} {Pluralize(zeroCostRows, "row has", "rows have")} an IPA cost of zero. The value was retained as entered.");
         }
 
         var duplicateSerials = command.Entries
@@ -518,7 +702,7 @@ public sealed class ArppCommandService : IArppCommandService
 
         if (linkedInputs.Length == 0)
         {
-            return warnings;
+            return warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
 
         var projectIds = linkedInputs.Select(entry => entry.ProjectId!.Value).Distinct().ToArray();
@@ -536,7 +720,6 @@ public sealed class ArppCommandService : IArppCommandService
                 ProjectId = entry.ProjectId!.Value,
                 entry.IpaCost,
                 entry.Category,
-                entry.ProjectReference,
                 entry.Issue.FinancialYearStart,
                 entry.Issue.IssueSequence,
                 entry.Issue.IssueDate,
@@ -585,7 +768,13 @@ public sealed class ArppCommandService : IArppCommandService
         return warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    private static IReadOnlyList<string> BuildIssueWarnings(int financialYearStart, DateOnly issueDate)
+    private async Task<IReadOnlyList<string>> BuildIssueWarningsAsync(
+        int financialYearStart,
+        ArppIssueKind kind,
+        int issueSequence,
+        DateOnly issueDate,
+        long? excludedIssueId,
+        CancellationToken cancellationToken)
     {
         if (issueDate == default ||
             financialYearStart is < FinancialYearHelper.MinimumSupportedStartYear or > FinancialYearHelper.MaximumSupportedStartYear)
@@ -593,11 +782,81 @@ public sealed class ArppCommandService : IArppCommandService
             return Array.Empty<string>();
         }
 
-        return FinancialYearHelper.Contains(financialYearStart, issueDate)
-            ? Array.Empty<string>()
-            : [
-                $"The issue date {issueDate:dd MMM yyyy} falls outside FY {FinancialYearHelper.Format(financialYearStart)}. The record was retained as entered."
-            ];
+        var warnings = new List<string>();
+        var normalWindowStart = FinancialYearHelper.GetStartDate(financialYearStart).AddDays(-EarlyIssueToleranceDays);
+        var normalWindowEnd = FinancialYearHelper.GetEndDate(financialYearStart).AddDays(LateIssueToleranceDays);
+
+        if (issueDate < normalWindowStart || issueDate > normalWindowEnd)
+        {
+            warnings.Add(
+                $"The issue date {issueDate:dd MMM yyyy} is unusually distant from FY {FinancialYearHelper.Format(financialYearStart)}. Verify the financial year and document date.");
+        }
+
+        var sameYearIssues = await _db.ArppIssues
+            .AsNoTracking()
+            .Where(issue =>
+                issue.FinancialYearStart == financialYearStart &&
+                (!excludedIssueId.HasValue || issue.Id != excludedIssueId.Value))
+            .Select(issue => new { issue.IssueSequence, issue.IssueDate, issue.Name })
+            .ToListAsync(cancellationToken);
+
+        if (kind == ArppIssueKind.Addendum)
+        {
+            var original = sameYearIssues.FirstOrDefault(issue => issue.IssueSequence == 0);
+            if (original is null)
+            {
+                warnings.Add($"No original ARPP is recorded for FY {FinancialYearHelper.Format(financialYearStart)}.");
+            }
+            else if (issueDate < original.IssueDate)
+            {
+                warnings.Add(
+                    $"The addendum date {issueDate:dd MMM yyyy} precedes the original ARPP dated {original.IssueDate:dd MMM yyyy}.");
+            }
+        }
+
+        var previous = sameYearIssues
+            .Where(issue => issue.IssueSequence < issueSequence)
+            .OrderByDescending(issue => issue.IssueSequence)
+            .FirstOrDefault();
+        if (previous is not null && issueDate < previous.IssueDate)
+        {
+            warnings.Add(
+                $"The issue date precedes {previous.Name} dated {previous.IssueDate:dd MMM yyyy}. Verify the addendum chronology.");
+        }
+
+        var next = sameYearIssues
+            .Where(issue => issue.IssueSequence > issueSequence)
+            .OrderBy(issue => issue.IssueSequence)
+            .FirstOrDefault();
+        if (next is not null && issueDate > next.IssueDate)
+        {
+            warnings.Add(
+                $"The issue date follows {next.Name} dated {next.IssueDate:dd MMM yyyy}. Verify the addendum chronology.");
+        }
+
+        return warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static byte[] ParseRowVersion(
+        string? value,
+        string field,
+        IDictionary<string, IReadOnlyList<string>> errors)
+    {
+        try
+        {
+            var rowVersion = Convert.FromBase64String(value ?? string.Empty);
+            if (rowVersion.Length == 0)
+            {
+                AddError(errors, field, "The record version is missing. Reload the page.");
+            }
+
+            return rowVersion;
+        }
+        catch (FormatException)
+        {
+            AddError(errors, field, "The record version is invalid. Reload the page.");
+            return Array.Empty<byte>();
+        }
     }
 
     private static void ApplyEntry(
@@ -624,6 +883,9 @@ public sealed class ArppCommandService : IArppCommandService
         => string.Join(' ', (value ?? string.Empty)
             .Trim()
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static string Pluralize(int count, string singular, string plural)
+        => count == 1 ? singular : plural;
 
     private static void AddError(
         IDictionary<string, IReadOnlyList<string>> errors,

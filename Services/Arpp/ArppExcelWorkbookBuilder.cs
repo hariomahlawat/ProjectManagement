@@ -38,9 +38,11 @@ public sealed class ArppExcelWorkbookBuilder
         title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
 
         var identity = worksheet.Range(2, 1, 2, ColumnCount).Merge();
+        var issueLabel = issue.Kind == ArppIssueKind.Original
+            ? "Original ARPP"
+            : $"Addendum {issue.IssueSequence}";
         identity.Value = $"ARPP / PPP · FY {FinancialYearHelper.Format(issue.FinancialYearStart)} · " +
-                         $"{ArppDisplayNames.For(issue.Kind)} · Sequence {issue.IssueSequence} · " +
-                         $"Issued {issue.IssueDate:dd MMM yyyy}";
+                         $"{issueLabel} · Issued {issue.IssueDate:dd MMM yyyy}";
         identity.Style.Font.FontColor = XLColor.FromHtml("#526174");
 
         var generated = worksheet.Range(3, 1, 3, ColumnCount).Merge();
@@ -48,10 +50,14 @@ public sealed class ArppExcelWorkbookBuilder
         generated.Style.Font.FontColor = XLColor.FromHtml("#526174");
 
         var source = worksheet.Range(4, 1, 4, ColumnCount).Merge();
-        source.Value = issue.Attachment is null
+        var sourceLabel = issue.Attachment is null
             ? "Issued HQ PDF: not attached in PRISM"
-            : $"Issued HQ PDF: {issue.Attachment.OriginalFileName} · SHA-256 {issue.Attachment.Sha256[..12]}…";
-        source.Style.Font.FontColor = issue.Attachment is null
+            : $"Issued HQ PDF: {issue.Attachment.OriginalFileName} · SHA-256 {issue.Attachment.Sha256[..Math.Min(12, issue.Attachment.Sha256.Length)]}…";
+        var verificationLabel = issue.IsVerified
+            ? $"Record status: Verified and locked · {issue.VerifiedAtUtc:dd MMM yyyy HH:mm} UTC"
+            : "Record status: Unverified";
+        source.Value = $"{sourceLabel} · {verificationLabel}";
+        source.Style.Font.FontColor = issue.Attachment is null || !issue.IsVerified
             ? XLColor.FromHtml("#9A6700")
             : XLColor.FromHtml("#146C43");
     }
@@ -61,7 +67,7 @@ public sealed class ArppExcelWorkbookBuilder
         SetSummary(worksheet, 5, 1, "Rows", issue.Entries.Count);
         SetSummary(worksheet, 5, 3, "Linked", issue.LinkedCount);
         SetSummary(worksheet, 5, 5, "Unlinked", issue.UnlinkedCount);
-        SetSummary(worksheet, 5, 7, "Total IPA cost (₹)", issue.TotalIpaCost, "₹ #,##0.00");
+        SetSummary(worksheet, 5, 7, "Total IPA cost (₹)", issue.TotalIpaCost, "[$₹-en-IN] #,##,##0.00");
 
         var column = 1;
         foreach (var category in Enum.GetValues<ArppCategory>())
@@ -72,7 +78,7 @@ public sealed class ArppExcelWorkbookBuilder
                 6,
                 column,
                 ArppDisplayNames.For(category),
-                $"{summary.Count} · ₹{summary.TotalIpaCost:N2}");
+                $"{summary.Count} · {IndianCurrencyFormatter.FormatRupees(summary.TotalIpaCost)}");
             column += 2;
         }
 
@@ -158,7 +164,7 @@ public sealed class ArppExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 5).Value = entry.ProjectCaseFileNumber ?? string.Empty;
             worksheet.Cell(rowNumber, 6).Value = ArppDisplayNames.For(entry.Category);
             worksheet.Cell(rowNumber, 7).Value = entry.IpaCost;
-            worksheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "₹ #,##0.00";
+            worksheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
             worksheet.Cell(rowNumber, 8).Value = entry.Cfa;
             worksheet.Cell(rowNumber, 9).Value = entry.Fund;
             worksheet.Cell(rowNumber, 10).Value = entry.DfpdsSchedule;

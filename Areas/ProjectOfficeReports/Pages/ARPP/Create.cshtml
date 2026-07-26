@@ -37,17 +37,20 @@
             <div class="arpp-panel__heading">
                 <div>
                     <h2>Document identity</h2>
-                    <p>Financial year is stored by its start year; for example, 2026 is displayed as 2026-27.</p>
+                    <p>Enter the identity exactly as shown on the issued HQ document.</p>
                 </div>
             </div>
 
-            <div class="row g-3">
+            <div class="row g-3 p-3 pt-2">
                 <div class="col-md-3">
-                    <label asp-for="Input.FinancialYearStart" class="form-label">Financial-year start</label>
-                    <input asp-for="Input.FinancialYearStart" class="form-control" type="number" min="2000" max="9998" data-arpp-financial-year />
-                    <div class="form-text" data-arpp-financial-year-display>
-                        @(Model.Input.FinancialYearStart is >= 2000 and <= 9998 ? FinancialYearHelper.Format(Model.Input.FinancialYearStart) : "Enter a valid start year")
-                    </div>
+                    <label asp-for="Input.FinancialYearStart" class="form-label">Financial year</label>
+                    <select asp-for="Input.FinancialYearStart" class="form-select" data-arpp-financial-year>
+                        @foreach (var year in Model.FinancialYearOptions)
+                        {
+                            <option value="@year">@FinancialYearHelper.Format(year)</option>
+                        }
+                    </select>
+                    <div class="form-text">PRISM stores the start year internally.</div>
                     <span asp-validation-for="Input.FinancialYearStart" class="text-danger"></span>
                 </div>
                 <div class="col-md-3">
@@ -58,10 +61,10 @@
                     </select>
                     <span asp-validation-for="Input.Kind" class="text-danger"></span>
                 </div>
-                <div class="col-md-3">
-                    <label asp-for="Input.IssueSequence" class="form-label">Issue sequence</label>
+                <div class="col-md-3 @(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
+                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
                     <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
-                    <div class="form-text">Original = 0; addenda use 1, 2, 3…</div>
+                    <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
                     <span asp-validation-for="Input.IssueSequence" class="text-danger"></span>
                 </div>
                 <div class="col-md-3">
@@ -71,7 +74,7 @@
                 </div>
                 <div class="col-12">
                     <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
-                    <input asp-for="Input.Name" class="form-control" maxlength="300" placeholder="e.g. ARPP 2026-27 dated 25 Feb 2026" />
+                    <input asp-for="Input.Name" class="form-control" maxlength="300" placeholder="e.g. ARPP/IR&amp;D/ARTRAC dated 25 Feb 2026" />
                     <span asp-validation-for="Input.Name" class="text-danger"></span>
                 </div>
             </div>
@@ -79,9 +82,7 @@
 
         <div class="arpp-editor__actions">
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">
-                Create and enter rows
-            </button>
+            <button type="submit" class="btn btn-primary">Create and enter rows</button>
         </div>
     </form>
 </div>

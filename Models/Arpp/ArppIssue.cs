@@ -18,6 +18,16 @@ public sealed class ArppIssue
 
     public DateOnly IssueDate { get; set; }
 
+    public bool IsVerified { get; set; }
+
+    public DateTimeOffset? VerifiedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? VerifiedByUserId { get; set; }
+
+    [MaxLength(500)]
+    public string? VerificationNote { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }

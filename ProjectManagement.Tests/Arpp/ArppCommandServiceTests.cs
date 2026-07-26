@@ -154,6 +154,169 @@ public sealed class ArppCommandServiceTests
         Assert.Empty(await db.ArppEntries.ToListAsync());
     }
 
+
+    [Fact]
+    public async Task CreateIssue_OriginalIssuedBeforeFinancialYear_DoesNotRaiseMisleadingWarning()
+    {
+        await using var db = CreateContext();
+        var service = CreateService(db);
+
+        var result = await service.CreateIssueAsync(new ArppIssueCreateCommand(
+            2026,
+            ArppIssueKind.Original,
+            0,
+            "ARPP 2026-27",
+            new DateOnly(2026, 2, 26),
+            "user-1",
+            "User One"));
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Warnings, warning =>
+            warning.Contains("outside", StringComparison.OrdinalIgnoreCase) ||
+            warning.Contains("unusually distant", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SaveWorkspace_CanRemoveTheFinalIssuedRow()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.Entries.Add(new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "1",
+            ProjectReference = "Project 1",
+            Category = ArppCategory.New,
+            IpaCost = 1_000_000m,
+            Cfa = "Comdt SDD",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            issue.FinancialYearStart,
+            issue.Kind,
+            issue.IssueSequence,
+            issue.Name,
+            issue.IssueDate,
+            [],
+            "user-1",
+            "User One"));
+
+        Assert.True(result.Success);
+        Assert.Empty(await db.ArppEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task VerifyAndUnlock_ProtectsIssuedDataAndAuditsBothActions()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.Entries.Add(new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "1",
+            ProjectReference = "Project 1",
+            Category = ArppCategory.New,
+            IpaCost = 1_000_000m,
+            Cfa = "Comdt SDD",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/test.pdf",
+            OriginalFileName = "ARPP.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 123,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var audit = new FakeAuditService();
+        var service = new ArppCommandService(
+            db,
+            new FixedClock(new DateTimeOffset(2026, 7, 26, 8, 0, 0, TimeSpan.Zero)),
+            audit);
+
+        var verify = await service.VerifyAsync(new ArppVerifyCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            "Checked against the issued HQ PDF.",
+            "verifier-1",
+            "Verifier One"));
+
+        Assert.True(verify.Success);
+        var verified = await db.ArppIssues.SingleAsync();
+        Assert.True(verified.IsVerified);
+        Assert.NotNull(verified.VerifiedAtUtc);
+        Assert.Equal("verifier-1", verified.VerifiedByUserId);
+
+        var blockedSave = await service.SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
+            verified.Id,
+            Convert.ToBase64String(verified.RowVersion),
+            verified.FinancialYearStart,
+            verified.Kind,
+            verified.IssueSequence,
+            "Changed name",
+            verified.IssueDate,
+            [],
+            "user-1",
+            "User One"));
+        Assert.False(blockedSave.Success);
+        Assert.Contains("verified and locked", blockedSave.Message, StringComparison.OrdinalIgnoreCase);
+
+        var unlock = await service.UnlockAsync(new ArppUnlockCommand(
+            verified.Id,
+            Convert.ToBase64String(verified.RowVersion),
+            "Correction required after comparison with the signed document.",
+            "hod-1",
+            "HoD One"));
+
+        Assert.True(unlock.Success);
+        var unlocked = await db.ArppIssues.SingleAsync();
+        Assert.False(unlocked.IsVerified);
+        Assert.Null(unlocked.VerifiedAtUtc);
+        Assert.Null(unlocked.VerifiedByUserId);
+        Assert.Contains("Arpp.IssueVerified", audit.Actions);
+        Assert.Contains("Arpp.IssueUnlocked", audit.Actions);
+    }
+
+    [Fact]
+    public async Task Verify_RequiresRowsAndIssuedPdf()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).VerifyAsync(new ArppVerifyCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            null,
+            "verifier-1",
+            "Verifier One"));
+
+        Assert.False(result.Success);
+        Assert.Contains("Entries", result.FieldErrors.Keys);
+        Assert.Contains("Attachment", result.FieldErrors.Keys);
+    }
+
     private static ArppCommandService CreateService(ApplicationDbContext db)
         => new(
             db,

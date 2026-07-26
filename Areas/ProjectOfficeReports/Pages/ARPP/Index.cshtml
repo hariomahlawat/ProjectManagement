@@ -20,12 +20,20 @@
         </div>
         @if (Model.CanManage)
         {
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/ARPP/Create"
-               class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2">
-                <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                New issue
-            </a>
+            <div class="d-flex flex-wrap gap-2">
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
+                    <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                    <span>Reconcile</span>
+                    @if (Model.Register.UnlinkedEntries > 0)
+                    {
+                        <span>(@Model.Register.UnlinkedEntries)</span>
+                    }
+                </a>
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Create" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2">
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                    New issue
+                </a>
+            </div>
         }
     </header>
 
@@ -42,19 +50,22 @@
         <article class="arpp-kpi">
             <span>Issued documents</span>
             <strong>@Model.Register.TotalIssues</strong>
+            <small>@Model.Register.VerifiedIssues verified</small>
         </article>
         <article class="arpp-kpi">
             <span>Document rows</span>
             <strong>@Model.Register.TotalEntries</strong>
+            <small>Across originals and addenda</small>
         </article>
         <article class="arpp-kpi">
-            <span>Total IPA value</span>
-            <strong>₹@Model.Register.TotalIpaCost.ToString("N0")</strong>
+            <span>Current linked IPA value</span>
+            <strong>@IndianCurrencyFormatter.FormatCompact(Model.Register.AuthoritativeLinkedIpaCost)</strong>
+            <small>@Model.Register.LinkedEntries authoritative linked projects</small>
         </article>
         <article class="arpp-kpi">
-            <span>Project linkage</span>
-            <strong>@Model.Register.LinkedEntries linked</strong>
-            <small>@Model.Register.UnlinkedEntries pending</small>
+            <span>Reconciliation pending</span>
+            <strong>@Model.Register.UnlinkedEntries</strong>
+            <small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small>
         </article>
     </section>
 
@@ -62,10 +73,7 @@
         <div class="arpp-search">
             <span class="bi bi-search" aria-hidden="true"></span>
             <label class="visually-hidden" asp-for="Query">Search ARPP register</label>
-            <input asp-for="Query"
-                   type="search"
-                   class="form-control"
-                   placeholder="Search issue, project, case file or serial number" />
+            <input asp-for="Query" type="search" class="form-control" placeholder="Search issue, project, case file or serial number" />
         </div>
         <div>
             <label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label>
@@ -104,8 +112,13 @@
                             <h2 id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</h2>
                         </div>
                         <div class="arpp-year-group__summary">
-                            <span>@group.EntryCount row(s)</span>
-                            <strong>₹@group.TotalIpaCost.ToString("N0")</strong>
+                            <span>@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
+                            <span>@group.LinkedProjectCount linked projects</span>
+                            @if (group.UnlinkedEntryCount > 0)
+                            {
+                                <span class="text-warning-emphasis">@group.UnlinkedEntryCount unlinked</span>
+                            }
+                            <strong title="Latest linked entry for each project in this financial year">@IndianCurrencyFormatter.FormatCompact(group.AuthoritativeLinkedIpaCost)</strong>
                         </div>
                     </header>
 
@@ -118,17 +131,21 @@
                                         <span class="arpp-badge arpp-badge--issue">@ArppDisplayNames.For(issue.Kind)</span>
                                         @if (issue.Kind == ArppIssueKind.Addendum)
                                         {
-                                            <span class="arpp-sequence">Sequence @issue.IssueSequence</span>
+                                            <span class="arpp-sequence">Addendum @issue.IssueSequence</span>
+                                        }
+                                        @if (issue.IsVerified)
+                                        {
+                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="arpp-badge arpp-badge--unverified">Unverified</span>
                                         }
                                     </div>
-                                    <h3>
-                                        <a asp-area="ProjectOfficeReports"
-                                           asp-page="/ARPP/Details"
-                                           asp-route-id="@issue.Id">@issue.Name</a>
-                                    </h3>
+                                    <h3><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id">@issue.Name</a></h3>
                                     <div class="arpp-issue-card__meta">
                                         <span><i class="bi bi-calendar3" aria-hidden="true"></i> @issue.IssueDate.ToString("dd MMM yyyy")</span>
-                                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount row(s)</span>
+                                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount @(issue.EntryCount == 1 ? "row" : "rows")</span>
                                         <span><i class="bi bi-link-45deg" aria-hidden="true"></i> @issue.LinkedCount linked</span>
                                         @if (issue.HasAttachment)
                                         {
@@ -151,19 +168,13 @@
                                     </div>
                                 </div>
                                 <div class="arpp-issue-card__value">
-                                    <span>IPA value</span>
-                                    <strong>₹@issue.TotalIpaCost.ToString("N0")</strong>
+                                    <span>Document row value</span>
+                                    <strong>@IndianCurrencyFormatter.FormatCompact(issue.TotalIpaCost)</strong>
                                     <div class="arpp-card-actions">
-                                        <a asp-area="ProjectOfficeReports"
-                                           asp-page="/ARPP/Details"
-                                           asp-route-id="@issue.Id"
-                                           class="btn btn-outline-secondary btn-sm">View</a>
-                                        @if (Model.CanManage)
+                                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View</a>
+                                        @if (Model.CanManage && !issue.IsVerified)
                                         {
-                                            <a asp-area="ProjectOfficeReports"
-                                               asp-page="/ARPP/Manage"
-                                               asp-route-id="@issue.Id"
-                                               class="btn btn-outline-primary btn-sm">Manage</a>
+                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-outline-primary btn-sm">Manage</a>
                                         }
                                     </div>
                                 </div>

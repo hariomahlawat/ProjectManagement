@@ -59,7 +59,23 @@ public sealed class ArppReadService : IArppReadService
                 issue.Entries.Count(entry => entry.ProjectId != null),
                 issue.Entries.Count(entry => entry.ProjectId == null),
                 issue.UpdatedAtUtc,
-                issue.Attachment != null))
+                issue.Attachment != null,
+                issue.IsVerified,
+                issue.VerifiedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        var issueIds = rows.Select(row => row.Id).ToArray();
+        var scopedEntries = await _db.ArppEntries
+            .AsNoTracking()
+            .Where(entry => issueIds.Contains(entry.ArppIssueId))
+            .Select(entry => new ScopedEntry(
+                entry.Id,
+                entry.ArppIssueId,
+                entry.ProjectId,
+                entry.IpaCost,
+                entry.Issue.FinancialYearStart,
+                entry.Issue.IssueSequence,
+                entry.Issue.IssueDate))
             .ToListAsync(cancellationToken);
 
         var availableFinancialYears = await _db.ArppIssues
@@ -72,21 +88,37 @@ public sealed class ArppReadService : IArppReadService
         var groups = rows
             .GroupBy(row => row.FinancialYearStart)
             .OrderByDescending(group => group.Key)
-            .Select(group => new ArppFinancialYearGroup(
-                group.Key,
-                group.OrderBy(row => row.IssueSequence).ToArray(),
-                group.Sum(row => row.EntryCount),
-                group.Sum(row => row.TotalIpaCost)))
+            .Select(group =>
+            {
+                var groupIssueIds = group.Select(item => item.Id).ToHashSet();
+                var groupEntries = scopedEntries.Where(entry => groupIssueIds.Contains(entry.IssueId)).ToArray();
+                var groupAuthoritative = GetAuthoritativeLinkedEntries(groupEntries);
+                var groupUnlinked = groupEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
+
+                return new ArppFinancialYearGroup(
+                    group.Key,
+                    group.OrderBy(row => row.IssueSequence).ToArray(),
+                    group.Sum(row => row.EntryCount),
+                    groupAuthoritative.Sum(entry => entry.IpaCost),
+                    groupUnlinked.Sum(entry => entry.IpaCost),
+                    groupAuthoritative.Count,
+                    groupUnlinked.Length);
+            })
             .ToArray();
+
+        var authoritativeLinked = GetAuthoritativeLinkedEntries(scopedEntries);
+        var unlinkedEntries = scopedEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
 
         return new ArppRegisterResult(
             groups,
             availableFinancialYears,
             rows.Count,
             rows.Sum(row => row.EntryCount),
-            rows.Sum(row => row.TotalIpaCost),
-            rows.Sum(row => row.LinkedCount),
-            rows.Sum(row => row.UnlinkedCount));
+            authoritativeLinked.Sum(entry => entry.IpaCost),
+            unlinkedEntries.Sum(entry => entry.IpaCost),
+            authoritativeLinked.Count,
+            unlinkedEntries.Length,
+            rows.Count(row => row.IsVerified));
     }
 
     public async Task<ArppIssueDetails?> GetIssueAsync(
@@ -166,7 +198,11 @@ public sealed class ArppReadService : IArppReadService
                     issue.Attachment.Sha256,
                     issue.Attachment.UploadedByUserId,
                     issue.Attachment.UploadedAtUtc,
-                    Convert.ToBase64String(issue.Attachment.RowVersion)));
+                    Convert.ToBase64String(issue.Attachment.RowVersion)),
+            issue.IsVerified,
+            issue.VerifiedAtUtc,
+            issue.VerifiedByUserId,
+            issue.VerificationNote);
     }
 
     public async Task<ArppProjectHistory?> GetProjectHistoryAsync(
@@ -274,6 +310,20 @@ public sealed class ArppReadService : IArppReadService
                          issue.Kind == ArppIssueKind.Original,
                 cancellationToken);
 
+    private static IReadOnlyList<ScopedEntry> GetAuthoritativeLinkedEntries(
+        IEnumerable<ScopedEntry> entries)
+        => entries
+            .Where(entry => entry.ProjectId.HasValue)
+            .GroupBy(entry => entry.ProjectId!.Value)
+            .Select(group => group
+                .OrderByDescending(entry => entry.FinancialYearStart)
+                .ThenByDescending(entry => entry.IssueSequence)
+                .ThenByDescending(entry => entry.IssueDate)
+                .ThenByDescending(entry => entry.IssueId)
+                .ThenByDescending(entry => entry.EntryId)
+                .First())
+            .ToArray();
+
     private static string GetProjectStatus(Project project)
         => project.IsArchived
             ? "Archived"
@@ -282,4 +332,13 @@ public sealed class ArppReadService : IArppReadService
                 : project.LifecycleStatus == ProjectLifecycleStatus.Cancelled
                     ? "Cancelled"
                     : "Ongoing";
+
+    private sealed record ScopedEntry(
+        long EntryId,
+        long IssueId,
+        int? ProjectId,
+        decimal IpaCost,
+        int FinancialYearStart,
+        int IssueSequence,
+        DateOnly IssueDate);
 }

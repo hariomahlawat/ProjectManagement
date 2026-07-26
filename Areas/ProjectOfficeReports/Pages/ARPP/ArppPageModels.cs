@@ -70,3 +70,21 @@ public sealed class ArppEntryInputModel
     [StringLength(120)]
     public string DfpdsSchedule { get; set; } = string.Empty;
 }
+
+public sealed class ArppReconciliationInputModel
+{
+    public List<ArppReconciliationLinkInputModel> Links { get; set; } = [];
+}
+
+public sealed class ArppReconciliationLinkInputModel
+{
+    public long EntryId { get; set; }
+
+    public string EntryRowVersion { get; set; } = string.Empty;
+
+    public int? ProjectId { get; set; }
+
+    public string? ProjectName { get; set; }
+
+    public string? ProjectMeta { get; set; }
+}

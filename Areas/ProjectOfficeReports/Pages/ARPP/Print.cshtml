@@ -29,7 +29,7 @@
                 ARPP / PPP · Financial Year @financialYear · @ArppDisplayNames.For(Model.Issue.Kind)
                 @if (Model.Issue.Kind == ArppIssueKind.Addendum)
                 {
-                    <text> · Sequence @Model.Issue.IssueSequence</text>
+                    <text> · Addendum @Model.Issue.IssueSequence</text>
                 }
                 · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")
             </p>
@@ -37,18 +37,25 @@
 
         <section class="arpp-print-summary" aria-label="Issue summary">
             <div><span>Rows</span><strong>@Model.Issue.Entries.Count</strong></div>
-            <div><span>Total IPA value</span><strong>₹@Model.Issue.TotalIpaCost.ToString("N2")</strong></div>
+            <div><span>Total IPA value</span><strong>@IndianCurrencyFormatter.FormatRupees(Model.Issue.TotalIpaCost)</strong></div>
             <div><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></div>
             <div class="arpp-print-summary__categories">
                 @foreach (var category in Enum.GetValues<ArppCategory>())
                 {
                     var summary = Model.Issue.CategorySummary[category];
-                    <span><b>@ArppDisplayNames.For(category)</b> @summary.Count · ₹@summary.TotalIpaCost.ToString("N2")</span>
+                    <span><b>@ArppDisplayNames.For(category)</b> @summary.Count · @IndianCurrencyFormatter.FormatRupees(summary.TotalIpaCost)</span>
                 }
             </div>
         </section>
 
         <section class="arpp-print-source">
+            <strong>Record status:</strong>
+            <span>@(Model.Issue.IsVerified ? "Verified and locked" : "Unverified")</span>
+            @if (Model.Issue.IsVerified && Model.Issue.VerifiedAtUtc.HasValue)
+            {
+                <span> · Verified @Model.Issue.VerifiedAtUtc.Value.ToString("dd MMM yyyy HH:mm 'UTC'")</span>
+            }
+            <br />
             <strong>Issued source PDF:</strong>
             @if (Model.Issue.Attachment is null)
             {
@@ -99,7 +106,7 @@
                             }
                         </td>
                         <td>@ArppDisplayNames.For(entry.Category)</td>
-                        <td class="money">@entry.IpaCost.ToString("N2")</td>
+                        <td class="money">@IndianCurrencyFormatter.FormatRupees(entry.IpaCost).TrimStart('₹')</td>
                         <td>@entry.Cfa</td>
                         <td>@entry.Fund</td>
                         <td>@entry.DfpdsSchedule</td>

@@ -8,47 +8,94 @@
     if (!root || !form || !body || !template) return;
 
     let dirty = false;
-    let searchController = null;
-    let searchTimer = null;
+    let pasteRows = [];
+
+    const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
+    const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
 
     const markDirty = () => {
         dirty = true;
         const state = root.querySelector("[data-arpp-save-state]");
+        const actions = root.querySelector("[data-arpp-sticky-actions]");
         if (state) state.textContent = "Unsaved changes";
+        actions?.classList.add("arpp-editor__actions--dirty");
     };
 
-    const formatFinancialYear = (value) => {
-        const year = Number(value);
-        if (!Number.isInteger(year) || year < 2000 || year > 9998) return "Enter a valid start year";
-        return `${year}-${String((year + 1) % 100).padStart(2, "0")}`;
-    };
-
-    const updateFinancialYearDisplay = () => {
-        const input = root.querySelector("[data-arpp-financial-year]");
-        const display = root.querySelector("[data-arpp-financial-year-display]");
-        if (input && display) display.textContent = formatFinancialYear(input.value);
+    const markClean = () => {
+        dirty = false;
+        const state = root.querySelector("[data-arpp-save-state]");
+        const actions = root.querySelector("[data-arpp-sticky-actions]");
+        if (state) state.textContent = "All changes saved.";
+        actions?.classList.remove("arpp-editor__actions--dirty");
     };
 
     const updateIssueSequence = () => {
         const kind = root.querySelector("[data-arpp-issue-kind]");
         const sequence = root.querySelector("[data-arpp-issue-sequence]");
+        const help = root.querySelector("[data-arpp-sequence-help]");
+        const sequenceField = root.querySelector("[data-arpp-addendum-number-field]");
         if (!kind || !sequence) return;
         if (kind.value === "1") {
             sequence.value = "0";
             sequence.min = "0";
             sequence.readOnly = true;
+            sequenceField?.classList.add("d-none");
+            if (help) help.textContent = "Original ARPP; internal sequence 0 is stored automatically.";
         } else {
             sequence.readOnly = false;
             sequence.min = "1";
+            sequenceField?.classList.remove("d-none");
             if (Number(sequence.value) <= 0) sequence.value = "1";
+            if (help) help.textContent = "Enter the addendum number shown in the issued document.";
         }
     };
-
-    const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
 
     const replaceIndex = (value, index) => value
         .replace(/Input\.Entries\[\d+\]/g, `Input.Entries[${index}]`)
         .replace(/Input_Entries_\d+__/g, `Input_Entries_${index}__`);
+
+    const refreshUnobtrusiveValidation = () => {
+        if (!window.jQuery?.validator?.unobtrusive) return;
+        const jqueryForm = window.jQuery(form);
+        jqueryForm.removeData("validator");
+        jqueryForm.removeData("unobtrusiveValidation");
+        window.jQuery.validator.unobtrusive.parse(form);
+    };
+
+    const updateEmptyState = () => {
+        const count = rows().length;
+        root.querySelector("[data-arpp-empty-rows]")?.classList.toggle("d-none", count > 0);
+        root.querySelector("[data-arpp-table-wrap]")?.classList.toggle("d-none", count === 0);
+        const countElement = root.querySelector("[data-arpp-row-count]");
+        const labelElement = root.querySelector("[data-arpp-row-count-label]");
+        if (countElement) countElement.textContent = String(count);
+        if (labelElement) labelElement.textContent = count === 1 ? "row" : "rows";
+    };
+
+    const refreshRowWarnings = () => {
+        const serialCounts = new Map();
+        rows().forEach(row => {
+            const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
+            if (serial) serialCounts.set(serial, (serialCounts.get(serial) || 0) + 1);
+        });
+
+        rows().forEach(row => {
+            const messages = [];
+            const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
+            const projectId = Number(getField(row, "ProjectId")?.value || 0);
+            const costValue = getField(row, "IpaCost")?.value || "";
+            const cost = parseMoney(costValue);
+
+            if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued document.");
+            if (!projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
+            if (cost === 0) messages.push("IPA cost is zero; confirm the issued value.");
+
+            const warning = row.querySelector("[data-arpp-row-warning]");
+            if (!warning) return;
+            warning.textContent = messages.join(" ");
+            warning.classList.toggle("d-none", messages.length === 0);
+        });
+    };
 
     const reindexRows = () => {
         rows().forEach((row, index) => {
@@ -67,36 +114,50 @@
             const number = row.querySelector("[data-arpp-row-number]");
             if (number) number.textContent = String(index + 1);
         });
-
-        const count = root.querySelector("[data-arpp-row-count]");
-        if (count) count.textContent = String(rows().length);
+        updateEmptyState();
+        refreshRowWarnings();
         refreshUnobtrusiveValidation();
     };
 
-    const refreshUnobtrusiveValidation = () => {
-        if (!window.jQuery?.validator?.unobtrusive) return;
-        const jqueryForm = window.jQuery(form);
-        jqueryForm.removeData("validator");
-        jqueryForm.removeData("unobtrusiveValidation");
-        window.jQuery.validator.unobtrusive.parse(form);
+    const parseMoney = value => {
+        const normalized = String(value ?? "")
+            .replace(/[₹,$\s]/g, "")
+            .replace(/,/g, "")
+            .trim();
+        if (!normalized.length) return null;
+        const amount = Number(normalized);
+        return Number.isFinite(amount) && amount >= 0 ? amount : null;
     };
 
-    const addRow = (values = {}) => {
-        const index = rows().length;
-        const wrapper = document.createElement("tbody");
-        wrapper.innerHTML = template.innerHTML
-            .replaceAll("__INDEX__", String(index))
-            .replaceAll("__ROW__", String(index + 1));
-        const row = wrapper.firstElementChild;
-        body.appendChild(row);
-        initialiseRow(row);
-        setRowValues(row, values);
-        reindexRows();
-        markDirty();
-        return row;
+    const compactMoney = amount => {
+        if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Cr`;
+        if (amount >= 100_000) return `₹${(amount / 100_000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Lakh`;
+        return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
     };
 
-    const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
+    const updateMoneyHelper = input => {
+        const helper = input.closest("td")?.querySelector("[data-arpp-money-helper]");
+        if (!helper) return;
+        const amount = parseMoney(input.value);
+        if (amount === null) {
+            helper.textContent = "";
+            helper.classList.remove("text-danger");
+            return;
+        }
+        helper.classList.remove("text-danger");
+        helper.textContent = `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · ${compactMoney(amount)}`;
+    };
+
+    const normaliseMoneyInput = input => {
+        const amount = parseMoney(input.value);
+        if (amount !== null) input.value = amount.toFixed(2);
+        updateMoneyHelper(input);
+    };
+
+    const autosizeReference = textarea => {
+        textarea.style.height = "auto";
+        textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 31), 92)}px`;
+    };
 
     const setRowValues = (row, values) => {
         const mapping = {
@@ -112,147 +173,16 @@
             const input = getField(row, suffix);
             if (input && value !== undefined && value !== null) input.value = value;
         });
+        const reference = getField(row, "ProjectReference");
+        if (reference) autosizeReference(reference);
+        const money = getField(row, "IpaCost");
+        if (money) updateMoneyHelper(money);
     };
 
-    const clearProject = (picker, clearSearch = false) => {
-        const id = picker.querySelector("[data-arpp-project-id]");
-        const search = picker.querySelector("[data-arpp-project-search]");
-        const metaInput = picker.querySelector("[data-arpp-project-meta-input]");
-        const meta = picker.querySelector("[data-arpp-project-meta]");
-        const clear = picker.querySelector("[data-arpp-project-clear]");
-        if (id) id.value = "";
-        if (clearSearch && search) search.value = "";
-        if (search) delete search.dataset.selectedName;
-        if (metaInput) metaInput.value = "";
-        if (meta) meta.textContent = "";
-        clear?.classList.add("d-none");
-    };
-
-    const closeResults = (picker) => {
-        const results = picker.querySelector("[data-arpp-project-results]");
-        if (results) {
-            results.classList.add("d-none");
-            results.replaceChildren();
-        }
-    };
-
-    const selectProject = (picker, project) => {
-        const id = picker.querySelector("[data-arpp-project-id]");
-        const search = picker.querySelector("[data-arpp-project-search]");
-        const metaInput = picker.querySelector("[data-arpp-project-meta-input]");
-        const meta = picker.querySelector("[data-arpp-project-meta]");
-        const clear = picker.querySelector("[data-arpp-project-clear]");
-        const projectMeta = [project.caseFileNumber, project.statusLabel].filter(Boolean).join(" · ");
-
-        if (id) id.value = String(project.id);
-        if (search) {
-            search.value = project.name;
-            search.dataset.selectedName = project.name;
-        }
-        if (metaInput) metaInput.value = projectMeta;
-        if (meta) meta.textContent = projectMeta;
-        clear?.classList.remove("d-none");
-        closeResults(picker);
-        markDirty();
-    };
-
-    const renderProjectResults = (picker, projects) => {
-        const results = picker.querySelector("[data-arpp-project-results]");
-        if (!results) return;
-        results.replaceChildren();
-
-        if (!projects.length) {
-            const empty = document.createElement("div");
-            empty.className = "arpp-project-picker__empty";
-            empty.textContent = "No matching PRISM projects";
-            results.appendChild(empty);
-            results.classList.remove("d-none");
-            return;
-        }
-
-        projects.forEach(project => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "arpp-project-picker__result";
-            button.setAttribute("role", "option");
-
-            const title = document.createElement("strong");
-            title.textContent = project.name;
-            const meta = document.createElement("span");
-            meta.textContent = [project.caseFileNumber, project.statusLabel].filter(Boolean).join(" · ");
-            button.append(title, meta);
-            button.addEventListener("click", () => selectProject(picker, project));
-            results.appendChild(button);
-        });
-        results.classList.remove("d-none");
-    };
-
-    const searchProjects = async (picker, query) => {
-        searchController?.abort();
-        searchController = new AbortController();
-        try {
-            const response = await fetch(`/api/arpp/projects?q=${encodeURIComponent(query)}&take=25`, {
-                headers: { Accept: "application/json" },
-                signal: searchController.signal
-            });
-            if (!response.ok) throw new Error(`Project lookup failed (${response.status}).`);
-            const payload = await response.json();
-            renderProjectResults(picker, Array.isArray(payload.items) ? payload.items : []);
-        } catch (error) {
-            if (error.name === "AbortError") return;
-            renderProjectResults(picker, []);
-        }
-    };
-
-    const initialiseProjectPicker = (picker) => {
-        const search = picker.querySelector("[data-arpp-project-search]");
-        const id = picker.querySelector("[data-arpp-project-id]");
-        const clear = picker.querySelector("[data-arpp-project-clear]");
-        if (!search || !id) return;
-
-        if (id.value && search.value) search.dataset.selectedName = search.value;
-
-        search.addEventListener("input", () => {
-            if (id.value && search.value !== search.dataset.selectedName) clearProject(picker, false);
-            window.clearTimeout(searchTimer);
-            const query = search.value.trim();
-            if (query.length < 2) {
-                closeResults(picker);
-                return;
-            }
-            searchTimer = window.setTimeout(() => searchProjects(picker, query), 180);
-            markDirty();
-        });
-
-        search.addEventListener("focus", () => {
-            const query = search.value.trim();
-            if (!id.value && query.length >= 2) searchProjects(picker, query);
-        });
-
-        clear?.addEventListener("click", () => {
-            clearProject(picker, true);
-            closeResults(picker);
-            search.focus();
-            markDirty();
-        });
-    };
-
-    const initialiseRow = (row) => {
+    const initialiseRow = row => {
         row.querySelector("[data-arpp-remove-row]")?.addEventListener("click", () => {
-            const currentRows = rows();
-            if (currentRows.length === 1) {
-                row.querySelectorAll("input, textarea, select").forEach(element => {
-                    if (element.type === "hidden" || element.tagName !== "SELECT") element.value = "";
-                    else element.selectedIndex = 0;
-                });
-                const category = getField(row, "Category");
-                if (category) category.value = "1";
-                const picker = row.querySelector("[data-arpp-project-picker]");
-                if (picker) clearProject(picker, true);
-            } else {
-                row.remove();
-                reindexRows();
-            }
+            row.remove();
+            reindexRows();
             markDirty();
         });
 
@@ -269,46 +199,63 @@
             markDirty();
         });
 
+        const reference = row.querySelector("[data-arpp-project-reference]");
+        if (reference) {
+            reference.addEventListener("input", () => autosizeReference(reference));
+            autosizeReference(reference);
+        }
+
+        const money = row.querySelector("[data-arpp-money]");
+        if (money) {
+            money.addEventListener("input", () => {
+                updateMoneyHelper(money);
+                refreshRowWarnings();
+            });
+            money.addEventListener("blur", () => normaliseMoneyInput(money));
+            updateMoneyHelper(money);
+        }
+
         const picker = row.querySelector("[data-arpp-project-picker]");
-        if (picker) initialiseProjectPicker(picker);
+        if (picker) {
+            window.PrismArppProjectPicker?.initialise(picker);
+            picker.addEventListener("arpp:project-selected", event => {
+                const projectReference = row.querySelector("[data-arpp-project-reference]");
+                const hint = row.querySelector("[data-arpp-reference-prefill-hint]");
+                if (projectReference && !projectReference.value.trim()) {
+                    projectReference.value = event.detail.project.name;
+                    hint?.classList.remove("d-none");
+                    autosizeReference(projectReference);
+                }
+                refreshRowWarnings();
+                markDirty();
+            });
+            picker.addEventListener("arpp:project-cleared", () => {
+                refreshRowWarnings();
+                markDirty();
+            });
+        }
     };
 
-    const isBlankRow = (row) => ["SerialNumber", "ProjectReference", "IpaCost", "Cfa", "Fund", "DfpdsSchedule"]
-        .every(suffix => !(getField(row, suffix)?.value || "").trim());
-
-    const categoryValue = (value) => {
-        const normalized = String(value || "").trim().toLowerCase().replace(/[^a-z]/g, "");
-        if (normalized === "new") return "1";
-        if (normalized === "cl" || normalized === "committedliability") return "2";
-        if (normalized === "cf" || normalized === "carryforward") return "3";
-        if (normalized === "delisted") return "4";
-        return null;
+    const addRow = (values = {}) => {
+        const index = rows().length;
+        const wrapper = document.createElement("tbody");
+        wrapper.innerHTML = template.innerHTML
+            .replaceAll("__INDEX__", String(index))
+            .replaceAll("__ROW__", String(index + 1));
+        const row = wrapper.firstElementChild;
+        body.appendChild(row);
+        initialiseRow(row);
+        setRowValues(row, values);
+        reindexRows();
+        if (values.project && window.PrismArppProjectPicker) {
+            const picker = row.querySelector("[data-arpp-project-picker]");
+            if (picker) window.PrismArppProjectPicker.selectProject(picker, values.project);
+        }
+        markDirty();
+        return row;
     };
 
-    const parsePastedRows = (text) => {
-        const lines = text.split(/\r?\n/).map(line => line.trimEnd()).filter(line => line.trim().length > 0);
-        return lines.map((line, index) => {
-            const columns = line.split("\t");
-            if (columns.length < 7) throw new Error(`Row ${index + 1} has ${columns.length} columns; seven are required.`);
-            const category = categoryValue(columns[2]);
-            if (!category) throw new Error(`Row ${index + 1} has an unrecognised category: ${columns[2] || "(blank)"}.`);
-            const cost = columns[3].replace(/[₹,$\s]/g, "");
-            if (cost === "" || Number.isNaN(Number(cost)) || Number(cost) < 0) {
-                throw new Error(`Row ${index + 1} has an invalid IPA cost.`);
-            }
-            return {
-                serialNumber: columns[0].trim(),
-                projectReference: columns[1].trim(),
-                category,
-                ipaCost: cost,
-                cfa: columns[4].trim(),
-                fund: columns[5].trim(),
-                dfpdsSchedule: columns[6].trim()
-            };
-        });
-    };
-
-    root.querySelector("[data-arpp-add-row]")?.addEventListener("click", () => {
+    const addManualRow = () => {
         const previous = rows().at(-1);
         const row = addRow(previous ? {
             cfa: getField(previous, "Cfa")?.value || "",
@@ -317,42 +264,234 @@
             category: "1"
         } : { category: "1" });
         getField(row, "SerialNumber")?.focus();
-    });
+    };
 
+    const categoryValue = value => {
+        const normalized = String(value || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+        if (normalized === "new") return "1";
+        if (normalized === "cl" || normalized === "committedliability") return "2";
+        if (normalized === "cf" || normalized === "carryforward") return "3";
+        if (normalized === "delisted") return "4";
+        return null;
+    };
+
+    const categoryLabel = value => ({ "1": "New", "2": "CL", "3": "CF", "4": "Delisted" })[value] || "";
+
+    const looksLikeHeader = columns => {
+        const joined = columns.slice(0, 4).join(" ").toLowerCase();
+        return joined.includes("serial") && joined.includes("project") && joined.includes("category");
+    };
+
+    const parsePastedRows = text => {
+        const rawLines = text.split(/\r?\n/).map(line => line.trimEnd()).filter(line => line.trim().length > 0);
+        const lines = rawLines.length && looksLikeHeader(rawLines[0].split("\t")) ? rawLines.slice(1) : rawLines;
+        const parsed = lines.map((line, index) => {
+            const columns = line.split("\t");
+            const errors = [];
+            const warnings = [];
+            if (columns.length < 7) errors.push(`Only ${columns.length} columns found; seven are required.`);
+            const values = [...columns, "", "", "", "", "", "", ""].slice(0, 7).map(value => value.trim());
+            const category = categoryValue(values[2]);
+            const cost = parseMoney(values[3]);
+            if (!values[0]) errors.push("Serial number is blank.");
+            if (!values[1]) errors.push("Project reference is blank.");
+            if (!category) errors.push(`Category “${values[2] || "blank"}” is not recognised.`);
+            if (cost === null) errors.push("IPA cost is invalid.");
+            if (!values[4]) errors.push("CFA is blank.");
+            if (!values[5]) errors.push("Fund is blank.");
+            if (!values[6]) errors.push("DFPDS is blank.");
+            return {
+                sourceRow: index + 1,
+                serialNumber: values[0],
+                projectReference: values[1],
+                category,
+                ipaCost: cost === null ? values[3] : cost.toFixed(2),
+                cfa: values[4],
+                fund: values[5],
+                dfpdsSchedule: values[6],
+                errors,
+                warnings,
+                project: null,
+                suggestions: []
+            };
+        });
+
+        const serialCounts = new Map();
+        parsed.forEach(row => {
+            const key = row.serialNumber.toLowerCase();
+            if (key) serialCounts.set(key, (serialCounts.get(key) || 0) + 1);
+        });
+        parsed.forEach(row => {
+            if (serialCounts.get(row.serialNumber.toLowerCase()) > 1) row.warnings.push("Duplicate serial number in pasted rows.");
+        });
+        return parsed;
+    };
+
+    const lookupSuggestions = async row => {
+        if (row.errors.length || row.projectReference.length < 2) return;
+        const endpoint = root.dataset.arppProjectLookupUrl;
+        try {
+            const response = await fetch(`${endpoint}?q=${encodeURIComponent(row.projectReference)}&take=3`, { headers: { Accept: "application/json" } });
+            if (!response.ok) return;
+            const payload = await response.json();
+            row.suggestions = Array.isArray(payload.items) ? payload.items : [];
+        } catch {
+            row.suggestions = [];
+        }
+    };
+
+    const lookupPasteSuggestions = async candidateRows => {
+        let nextIndex = 0;
+        const worker = async () => {
+            while (nextIndex < candidateRows.length) {
+                const currentIndex = nextIndex++;
+                await lookupSuggestions(candidateRows[currentIndex]);
+            }
+        };
+        const workerCount = Math.min(5, candidateRows.length);
+        await Promise.all(Array.from({ length: workerCount }, worker));
+    };
+
+    const renderPastePreview = () => {
+        const previewBody = document.querySelector("[data-arpp-paste-preview-body]");
+        const applyButton = document.querySelector("[data-arpp-apply-paste]");
+        if (!previewBody) return;
+        previewBody.replaceChildren();
+
+        pasteRows.forEach((row, index) => {
+            const tr = document.createElement("tr");
+            if (row.errors.length) tr.classList.add("table-danger");
+            else if (row.warnings.length) tr.classList.add("table-warning");
+
+            const cell = value => {
+                const td = document.createElement("td");
+                td.textContent = value;
+                return td;
+            };
+            tr.append(cell(String(row.sourceRow)), cell(row.serialNumber), cell(row.projectReference), cell(categoryLabel(row.category)), cell(row.ipaCost));
+
+            const suggestionCell = document.createElement("td");
+            if (row.project) {
+                const selected = document.createElement("div");
+                selected.className = "arpp-paste-project-selected";
+                selected.innerHTML = `<strong></strong><small></small>`;
+                selected.querySelector("strong").textContent = row.project.name;
+                selected.querySelector("small").textContent = [row.project.caseFileNumber, row.project.statusLabel].filter(Boolean).join(" · ");
+                const clear = document.createElement("button");
+                clear.type = "button";
+                clear.className = "btn btn-link btn-sm p-0";
+                clear.textContent = "Clear";
+                clear.addEventListener("click", () => { row.project = null; renderPastePreview(); });
+                suggestionCell.append(selected, clear);
+            } else if (row.suggestions.length) {
+                const select = document.createElement("select");
+                select.className = "form-select form-select-sm";
+                select.innerHTML = '<option value="">Do not link now</option>';
+                row.suggestions.forEach((project, suggestionIndex) => {
+                    const option = document.createElement("option");
+                    option.value = String(suggestionIndex);
+                    option.textContent = `${project.name}${project.caseFileNumber ? ` · ${project.caseFileNumber}` : ""}`;
+                    select.appendChild(option);
+                });
+                select.addEventListener("change", () => {
+                    row.project = select.value === "" ? null : row.suggestions[Number(select.value)];
+                    renderPastePreview();
+                });
+                suggestionCell.appendChild(select);
+            } else {
+                suggestionCell.textContent = "Link later";
+                suggestionCell.className = "text-body-secondary";
+            }
+            tr.appendChild(suggestionCell);
+
+            const reviewCell = document.createElement("td");
+            const messages = [...row.errors, ...row.warnings];
+            if (!messages.length) {
+                reviewCell.innerHTML = '<span class="text-success"><span class="bi bi-check-circle" aria-hidden="true"></span> Ready</span>';
+            } else {
+                const list = document.createElement("ul");
+                list.className = "mb-0 ps-3 small";
+                messages.forEach(message => {
+                    const li = document.createElement("li");
+                    li.textContent = message;
+                    list.appendChild(li);
+                });
+                reviewCell.appendChild(list);
+            }
+            tr.appendChild(reviewCell);
+            previewBody.appendChild(tr);
+        });
+
+        if (applyButton) applyButton.disabled = pasteRows.some(row => row.errors.length > 0);
+    };
+
+    const pasteEntry = document.querySelector("[data-arpp-paste-entry]");
+    const pastePreview = document.querySelector("[data-arpp-paste-preview]");
     const pasteText = document.querySelector("[data-arpp-paste-text]");
     const pasteError = document.querySelector("[data-arpp-paste-error]");
-    document.querySelector("[data-arpp-apply-paste]")?.addEventListener("click", () => {
-        try {
-            const parsed = parsePastedRows(pasteText?.value || "");
-            if (!parsed.length) throw new Error("Paste at least one Excel row.");
-            pasteError?.classList.add("d-none");
-            if (rows().length === 1 && isBlankRow(rows()[0])) rows()[0].remove();
-            parsed.forEach(values => addRow(values));
-            reindexRows();
-            pasteText.value = "";
-            const modal = bootstrap.Modal.getInstance(document.getElementById("arppPasteModal"));
-            modal?.hide();
-        } catch (error) {
+    const previewButton = document.querySelector("[data-arpp-preview-paste]");
+    const applyButton = document.querySelector("[data-arpp-apply-paste]");
+
+    previewButton?.addEventListener("click", async () => {
+        pasteRows = parsePastedRows(pasteText?.value || "");
+        if (!pasteRows.length) {
             if (pasteError) {
-                pasteError.textContent = error.message || "The pasted rows could not be read.";
+                pasteError.textContent = "Paste at least one Excel row.";
                 pasteError.classList.remove("d-none");
             }
+            return;
         }
+        pasteError?.classList.add("d-none");
+        previewButton.disabled = true;
+        previewButton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Checking…';
+        await lookupPasteSuggestions(pasteRows);
+        renderPastePreview();
+        pasteEntry?.classList.add("d-none");
+        pastePreview?.classList.remove("d-none");
+        previewButton.classList.add("d-none");
+        applyButton?.classList.remove("d-none");
+        previewButton.disabled = false;
+        previewButton.textContent = "Preview rows";
     });
 
-    root.querySelectorAll("[data-arpp-entry-row]").forEach(initialiseRow);
-    root.querySelector("[data-arpp-financial-year]")?.addEventListener("input", () => {
-        updateFinancialYearDisplay();
-        markDirty();
+    document.querySelector("[data-arpp-paste-back]")?.addEventListener("click", () => {
+        pastePreview?.classList.add("d-none");
+        pasteEntry?.classList.remove("d-none");
+        applyButton?.classList.add("d-none");
+        previewButton?.classList.remove("d-none");
     });
+
+    applyButton?.addEventListener("click", () => {
+        if (!pasteRows.length || pasteRows.some(row => row.errors.length)) return;
+        pasteRows.forEach(values => addRow(values));
+        pasteRows = [];
+        if (pasteText) pasteText.value = "";
+        pastePreview?.classList.add("d-none");
+        pasteEntry?.classList.remove("d-none");
+        applyButton.classList.add("d-none");
+        previewButton?.classList.remove("d-none");
+        bootstrap.Modal.getInstance(document.getElementById("arppPasteModal"))?.hide();
+    });
+
+    root.querySelector("[data-arpp-add-row]")?.addEventListener("click", addManualRow);
+    root.querySelector("[data-arpp-add-first-row]")?.addEventListener("click", addManualRow);
+    root.querySelectorAll("[data-arpp-entry-row]").forEach(initialiseRow);
+
     root.querySelector("[data-arpp-issue-kind]")?.addEventListener("change", () => {
         updateIssueSequence();
         markDirty();
     });
 
-    form.addEventListener("input", markDirty);
-    form.addEventListener("change", markDirty);
+    form.addEventListener("input", () => {
+        refreshRowWarnings();
+        markDirty();
+    });
+    form.addEventListener("change", () => {
+        refreshRowWarnings();
+        markDirty();
+    });
     form.addEventListener("submit", () => {
+        root.querySelectorAll("[data-arpp-money]").forEach(normaliseMoneyInput);
         dirty = false;
         const button = root.querySelector("[data-arpp-save-button]");
         if (button) {
@@ -361,19 +500,13 @@
         }
     });
 
-    document.addEventListener("click", event => {
-        root.querySelectorAll("[data-arpp-project-picker]").forEach(picker => {
-            if (!picker.contains(event.target)) closeResults(picker);
-        });
-    });
-
     window.addEventListener("beforeunload", event => {
         if (!dirty) return;
         event.preventDefault();
         event.returnValue = "";
     });
 
-    updateFinancialYearDisplay();
     updateIssueSequence();
     reindexRows();
+    markClean();
 })();

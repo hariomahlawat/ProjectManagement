@@ -1,22 +1,26 @@
 @page
+@using System.Globalization
 @using ProjectManagement.Models.Arpp
 @using ProjectManagement.Utilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.ManageModel
 @{
     ViewData["Title"] = $"Manage {Model.Issue.Name}";
     ViewData["UseFullWidth"] = true;
+    var lookupUrl = Url.Content("~/api/arpp/projects");
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
 }
 
-<div class="container-fluid px-3 px-lg-4 py-2 arpp-page" data-arpp-workspace>
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
+     data-arpp-workspace
+     data-arpp-project-lookup-url="@lookupUrl">
     <header class="arpp-header arpp-header--workspace">
         <div>
             <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
             <h1>Document workspace</h1>
-            <p>Enter the rows exactly as issued. Linking a PRISM project is optional and never changes the printed project reference.</p>
+            <p>Enter the rows exactly as issued. PRISM project linking is optional and never changes the recorded project reference.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">
@@ -45,51 +49,56 @@
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-        <section class="arpp-panel arpp-panel--compact">
+        <section class="arpp-panel arpp-panel--identity">
             <div class="arpp-panel__heading">
                 <div>
                     <h2>Document identity</h2>
-                    <p>Changing identity fields is audited and uses the same concurrency protection as the rows.</p>
+                    <p>Corrections are audited and protected by optimistic concurrency.</p>
                 </div>
             </div>
-            <div class="row g-3">
-                <div class="col-lg-2 col-md-4">
-                    <label asp-for="Input.FinancialYearStart" class="form-label">FY start</label>
-                    <input asp-for="Input.FinancialYearStart" type="number" min="2000" max="9998" class="form-control" data-arpp-financial-year />
-                    <div class="form-text" data-arpp-financial-year-display>@(Model.Input.FinancialYearStart is >= 2000 and <= 9998 ? FinancialYearHelper.Format(Model.Input.FinancialYearStart) : "Enter a valid start year")</div>
-                    <span asp-validation-for="Input.FinancialYearStart" class="text-danger"></span>
+            <div class="row g-3 p-3 pt-2">
+                <div class="col-md-3 col-xl-2">
+                    <label asp-for="Input.FinancialYearStart" class="form-label">Financial year</label>
+                    <select asp-for="Input.FinancialYearStart" class="form-select" data-arpp-financial-year>
+                        @foreach (var year in Model.FinancialYearOptions)
+                        {
+                            <option value="@year">@FinancialYearHelper.Format(year)</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Input.FinancialYearStart" class="text-danger small"></span>
                 </div>
-                <div class="col-lg-2 col-md-4">
+                <div class="col-md-3 col-xl-2">
                     <label asp-for="Input.Kind" class="form-label">Issue type</label>
                     <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
                         <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
                         <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
                     </select>
-                    <span asp-validation-for="Input.Kind" class="text-danger"></span>
+                    <span asp-validation-for="Input.Kind" class="text-danger small"></span>
                 </div>
-                <div class="col-lg-2 col-md-4">
-                    <label asp-for="Input.IssueSequence" class="form-label">Sequence</label>
-                    <input asp-for="Input.IssueSequence" type="number" min="0" class="form-control" data-arpp-issue-sequence />
-                    <span asp-validation-for="Input.IssueSequence" class="text-danger"></span>
+                <div class="col-md-3 col-xl-2 @(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
+                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
+                    <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
+                    <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
+                    <span asp-validation-for="Input.IssueSequence" class="text-danger small"></span>
                 </div>
-                <div class="col-lg-2 col-md-4">
+                <div class="col-md-3 col-xl-2">
                     <label asp-for="Input.IssueDate" class="form-label">Issue date</label>
-                    <input asp-for="Input.IssueDate" type="date" class="form-control" />
-                    <span asp-validation-for="Input.IssueDate" class="text-danger"></span>
+                    <input asp-for="Input.IssueDate" class="form-control" type="date" />
+                    <span asp-validation-for="Input.IssueDate" class="text-danger small"></span>
                 </div>
-                <div class="col-lg-4 col-md-8">
-                    <label asp-for="Input.Name" class="form-label">Document name</label>
+                <div class="col-xl-4">
+                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
                     <input asp-for="Input.Name" class="form-control" maxlength="300" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
                 </div>
             </div>
         </section>
 
         <section class="arpp-panel arpp-panel--entries">
-            <div class="arpp-panel__heading arpp-panel__heading--toolbar">
+            <div class="arpp-panel__heading arpp-panel__heading--workspace">
                 <div>
                     <h2>Issued rows</h2>
-                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> row(s). All fields remain required for Delisted entries.</p>
+                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. All fields remain required for Delisted entries.</p>
                 </div>
                 <div class="arpp-entry-toolbar">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
@@ -103,35 +112,47 @@
                 </div>
             </div>
 
-            <div class="arpp-table-wrap">
+            <div class="arpp-empty arpp-empty--rows @(Model.Input.Entries.Count == 0 ? string.Empty : "d-none")" data-arpp-empty-rows>
+                <span class="bi bi-list-check" aria-hidden="true"></span>
+                <h3>No issued rows entered</h3>
+                <p>Add the first row or paste rows copied from Excel.</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-primary btn-sm" data-arpp-add-first-row>Add first row</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">Paste rows</button>
+                </div>
+            </div>
+
+            <div class="arpp-table-wrap @(Model.Input.Entries.Count == 0 ? "d-none" : string.Empty)" data-arpp-table-wrap>
                 <table class="table arpp-entry-table align-middle" data-arpp-entry-table>
                     <thead>
                         <tr>
-                            <th class="arpp-col-order"><span class="visually-hidden">Order</span></th>
-                            <th class="arpp-col-serial">Serial no.</th>
-                            <th class="arpp-col-reference">Project reference as issued</th>
+                            <th class="arpp-col-order arpp-sticky-left arpp-sticky-left--order">#</th>
+                            <th class="arpp-col-serial arpp-sticky-left arpp-sticky-left--serial">Serial no.</th>
+                            <th class="arpp-col-reference arpp-sticky-left arpp-sticky-left--reference">Project reference as issued</th>
                             <th class="arpp-col-project">PRISM project <span class="arpp-optional">optional</span></th>
                             <th class="arpp-col-category">Category</th>
-                            <th class="arpp-col-cost">IPA cost (₹)</th>
+                            <th class="arpp-col-cost text-end">IPA cost (₹)</th>
                             <th class="arpp-col-cfa">CFA</th>
                             <th class="arpp-col-fund">Fund</th>
                             <th class="arpp-col-dfpds">DFPDS</th>
-                            <th class="arpp-col-actions"><span class="visually-hidden">Actions</span></th>
+                            <th class="arpp-col-actions arpp-sticky-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody data-arpp-entry-body>
                         @for (var index = 0; index < Model.Input.Entries.Count; index++)
                         {
                             <tr data-arpp-entry-row>
-                                <td class="arpp-row-order" data-arpp-row-number>@(index + 1)</td>
-                                <td>
+                                <td class="arpp-row-order arpp-sticky-left arpp-sticky-left--order" data-arpp-row-number>@(index + 1)</td>
+                                <td class="arpp-sticky-left arpp-sticky-left--serial">
                                     <input type="hidden" asp-for="Input.Entries[index].Id" />
                                     <input type="hidden" asp-for="Input.Entries[index].RowVersion" />
                                     <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" />
                                     <span asp-validation-for="Input.Entries[index].SerialNumber" class="text-danger small"></span>
                                 </td>
-                                <td>
-                                    <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm" rows="2" maxlength="300"></textarea>
+                                <td class="arpp-sticky-left arpp-sticky-left--reference">
+                                    <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" data-arpp-project-reference></textarea>
+                                    <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+                                    <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
                                     <span asp-validation-for="Input.Entries[index].ProjectReference" class="text-danger small"></span>
                                 </td>
                                 <td>
@@ -144,13 +165,10 @@
                                                    autocomplete="off"
                                                    placeholder="Search PRISM projects"
                                                    data-arpp-project-search />
-                                            <button type="button" class="btn btn-sm arpp-project-picker__clear @(Model.Input.Entries[index].ProjectId.HasValue ? string.Empty : "d-none")" data-arpp-project-clear aria-label="Clear linked project">
-                                                <span class="bi bi-x-lg" aria-hidden="true"></span>
-                                            </button>
+                                            <button type="button" class="btn btn-sm arpp-project-picker__clear @(Model.Input.Entries[index].ProjectId.HasValue ? string.Empty : "d-none")" data-arpp-project-clear aria-label="Clear linked project"><span class="bi bi-x-lg" aria-hidden="true"></span></button>
                                         </div>
                                         <input type="hidden" asp-for="Input.Entries[index].LinkedProjectMeta" data-arpp-project-meta-input />
                                         <div class="arpp-project-picker__meta" data-arpp-project-meta>@Model.Input.Entries[index].LinkedProjectMeta</div>
-                                        <div class="arpp-project-picker__results d-none" role="listbox" data-arpp-project-results></div>
                                     </div>
                                     <span asp-validation-for="Input.Entries[index].ProjectId" class="text-danger small"></span>
                                 </td>
@@ -165,7 +183,13 @@
                                     <span asp-validation-for="Input.Entries[index].Category" class="text-danger small"></span>
                                 </td>
                                 <td>
-                                    <input asp-for="Input.Entries[index].IpaCost" type="number" min="0" step="0.01" class="form-control form-control-sm text-end" inputmode="decimal" />
+                                    <input asp-for="Input.Entries[index].IpaCost"
+                                           type="text"
+                                           class="form-control form-control-sm text-end arpp-money-input"
+                                           inputmode="decimal"
+                                           autocomplete="off"
+                                           data-arpp-money />
+                                    <div class="arpp-money-helper" data-arpp-money-helper></div>
                                     <span asp-validation-for="Input.Entries[index].IpaCost" class="text-danger small"></span>
                                 </td>
                                 <td>
@@ -180,14 +204,10 @@
                                     <input asp-for="Input.Entries[index].DfpdsSchedule" class="form-control form-control-sm" maxlength="120" />
                                     <span asp-validation-for="Input.Entries[index].DfpdsSchedule" class="text-danger small"></span>
                                 </td>
-                                <td>
+                                <td class="arpp-sticky-right">
                                     <div class="arpp-row-actions">
-                                        <button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row">
-                                            <span class="bi bi-copy" aria-hidden="true"></span>
-                                        </button>
-                                        <button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row">
-                                            <span class="bi bi-trash" aria-hidden="true"></span>
-                                        </button>
+                                        <button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button>
+                                        <button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button>
                                     </div>
                                 </td>
                             </tr>
@@ -198,15 +218,17 @@
 
             <template data-arpp-row-template>
                 <tr data-arpp-entry-row>
-                    <td class="arpp-row-order" data-arpp-row-number>__ROW__</td>
-                    <td>
+                    <td class="arpp-row-order arpp-sticky-left arpp-sticky-left--order" data-arpp-row-number>__ROW__</td>
+                    <td class="arpp-sticky-left arpp-sticky-left--serial">
                         <input type="hidden" name="Input.Entries[__INDEX__].Id" id="Input_Entries___INDEX____Id" />
                         <input type="hidden" name="Input.Entries[__INDEX__].RowVersion" id="Input_Entries___INDEX____RowVersion" />
                         <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" required data-val="true" data-val-required="Enter the serial number." data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" />
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].SerialNumber" data-valmsg-replace="true"></span>
                     </td>
-                    <td>
-                        <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm" rows="2" maxlength="300" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300"></textarea>
+                    <td class="arpp-sticky-left arpp-sticky-left--reference">
+                        <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300" data-arpp-project-reference></textarea>
+                        <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+                        <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectReference" data-valmsg-replace="true"></span>
                     </td>
                     <td>
@@ -219,48 +241,30 @@
                             </div>
                             <input type="hidden" name="Input.Entries[__INDEX__].LinkedProjectMeta" id="Input_Entries___INDEX____LinkedProjectMeta" data-arpp-project-meta-input />
                             <div class="arpp-project-picker__meta" data-arpp-project-meta></div>
-                            <div class="arpp-project-picker__results d-none" role="listbox" data-arpp-project-results></div>
                         </div>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectId" data-valmsg-replace="true"></span>
                     </td>
                     <td>
                         <select name="Input.Entries[__INDEX__].Category" id="Input_Entries___INDEX____Category" class="form-select form-select-sm" required data-val="true" data-val-required="Select an ARPP category.">
-                            <option value="">Select</option>
-                            <option value="1">New</option>
-                            <option value="2">CL</option>
-                            <option value="3">CF</option>
-                            <option value="4">Delisted</option>
+                            <option value="">Select</option><option value="1">New</option><option value="2">CL</option><option value="3">CF</option><option value="4">Delisted</option>
                         </select>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Category" data-valmsg-replace="true"></span>
                     </td>
                     <td>
-                        <input name="Input.Entries[__INDEX__].IpaCost" id="Input_Entries___INDEX____IpaCost" type="number" min="0" step="0.01" class="form-control form-control-sm text-end" inputmode="decimal" required data-val="true" data-val-required="Enter the IPA cost." data-val-range="IPA cost cannot be negative." data-val-range-min="0" data-val-range-max="9999999999999999" />
+                        <input name="Input.Entries[__INDEX__].IpaCost" id="Input_Entries___INDEX____IpaCost" type="text" class="form-control form-control-sm text-end arpp-money-input" inputmode="decimal" autocomplete="off" required data-val="true" data-val-required="Enter the IPA cost." data-val-range="IPA cost cannot be negative." data-val-range-min="0" data-val-range-max="9999999999999999" data-arpp-money />
+                        <div class="arpp-money-helper" data-arpp-money-helper></div>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].IpaCost" data-valmsg-replace="true"></span>
                     </td>
-                    <td>
-                        <input name="Input.Entries[__INDEX__].Cfa" id="Input_Entries___INDEX____Cfa" class="form-control form-control-sm" maxlength="200" required data-val="true" data-val-required="Enter the CFA." data-val-length="The CFA cannot exceed 200 characters." data-val-length-max="200" />
-                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Cfa" data-valmsg-replace="true"></span>
-                    </td>
-                    <td>
-                        <input name="Input.Entries[__INDEX__].Fund" id="Input_Entries___INDEX____Fund" class="form-control form-control-sm" maxlength="120" required data-val="true" data-val-required="Enter the fund." data-val-length="The fund cannot exceed 120 characters." data-val-length-max="120" />
-                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Fund" data-valmsg-replace="true"></span>
-                    </td>
-                    <td>
-                        <input name="Input.Entries[__INDEX__].DfpdsSchedule" id="Input_Entries___INDEX____DfpdsSchedule" class="form-control form-control-sm" maxlength="120" required data-val="true" data-val-required="Enter the DFPDS schedule." data-val-length="The DFPDS schedule cannot exceed 120 characters." data-val-length-max="120" />
-                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsSchedule" data-valmsg-replace="true"></span>
-                    </td>
-                    <td>
-                        <div class="arpp-row-actions">
-                            <button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button>
-                            <button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button>
-                        </div>
-                    </td>
+                    <td><input name="Input.Entries[__INDEX__].Cfa" id="Input_Entries___INDEX____Cfa" class="form-control form-control-sm" maxlength="200" required data-val="true" data-val-required="Enter the CFA." data-val-length="The CFA cannot exceed 200 characters." data-val-length-max="200" /><span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Cfa" data-valmsg-replace="true"></span></td>
+                    <td><input name="Input.Entries[__INDEX__].Fund" id="Input_Entries___INDEX____Fund" class="form-control form-control-sm" maxlength="120" required data-val="true" data-val-required="Enter the fund." data-val-length="The fund cannot exceed 120 characters." data-val-length-max="120" /><span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Fund" data-valmsg-replace="true"></span></td>
+                    <td><input name="Input.Entries[__INDEX__].DfpdsSchedule" id="Input_Entries___INDEX____DfpdsSchedule" class="form-control form-control-sm" maxlength="120" required data-val="true" data-val-required="Enter the DFPDS schedule." data-val-length="The DFPDS schedule cannot exceed 120 characters." data-val-length-max="120" /><span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsSchedule" data-valmsg-replace="true"></span></td>
+                    <td class="arpp-sticky-right"><div class="arpp-row-actions"><button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button><button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button></div></td>
                 </tr>
             </template>
         </section>
 
-        <div class="arpp-editor__actions arpp-editor__actions--sticky">
-            <div class="arpp-save-state" data-arpp-save-state>Unsaved changes are protected before leaving this page.</div>
+        <div class="arpp-editor__actions arpp-editor__actions--sticky" data-arpp-sticky-actions>
+            <div class="arpp-save-state" data-arpp-save-state>All changes saved.</div>
             <div class="d-flex gap-2">
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary" data-arpp-save-button>
@@ -273,24 +277,42 @@
 </div>
 
 <div class="modal fade" id="arppPasteModal" tabindex="-1" aria-labelledby="arppPasteModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <div>
                     <h2 class="modal-title fs-5" id="arppPasteModalLabel">Paste rows from Excel</h2>
-                    <p class="mb-0 small text-body-secondary">Paste seven tab-separated columns in this order: Serial, Project reference, Category, IPA cost, CFA, Fund, DFPDS.</p>
+                    <p class="mb-0 small text-body-secondary">Paste seven tab-separated columns: Serial, Project reference, Category, IPA cost, CFA, Fund and DFPDS.</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <label for="arpp-paste-text" class="form-label">Excel rows</label>
-                <textarea id="arpp-paste-text" class="form-control font-monospace" rows="12" data-arpp-paste-text placeholder="1&#9;Project name&#9;New&#9;12500000&#9;Comdt SDD&#9;IR&amp;D&#9;9.3"></textarea>
-                <div class="form-text">Recognised categories: New, CL, Committed Liability, CF, Carry Forward and Delisted.</div>
+                <div data-arpp-paste-entry>
+                    <label for="arpp-paste-text" class="form-label">Excel rows</label>
+                    <textarea id="arpp-paste-text" class="form-control font-monospace" rows="10" data-arpp-paste-text placeholder="1&#9;Project name&#9;New&#9;12500000&#9;Comdt SDD&#9;IR&amp;D&#9;9.3"></textarea>
+                    <div class="form-text">A header row is accepted. Comma-formatted and ₹-prefixed costs are recognised.</div>
+                </div>
                 <div class="alert alert-danger d-none mt-3 mb-0" role="alert" data-arpp-paste-error></div>
+                <div class="d-none" data-arpp-paste-preview>
+                    <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                        <div>
+                            <h3 class="fs-6 mb-1">Review before insertion</h3>
+                            <p class="small text-body-secondary mb-0">Resolve highlighted rows. Project suggestions require explicit confirmation.</p>
+                        </div>
+                        <button type="button" class="btn btn-link btn-sm" data-arpp-paste-back>Back to paste</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm arpp-paste-preview-table">
+                            <thead><tr><th>Row</th><th>Serial</th><th>Project reference</th><th>Category</th><th>IPA cost</th><th>Suggested project</th><th>Review</th></tr></thead>
+                            <tbody data-arpp-paste-preview-body></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" data-arpp-apply-paste>Add rows</button>
+                <button type="button" class="btn btn-primary" data-arpp-preview-paste>Preview rows</button>
+                <button type="button" class="btn btn-primary d-none" data-arpp-apply-paste>Insert reviewed rows</button>
             </div>
         </div>
     </div>
@@ -298,5 +320,6 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/project-office-reports/arpp/arpp-project-picker.js" asp-append-version="true" defer></script>
     <script src="~/js/pages/project-office-reports/arpp/arpp-manage.js" asp-append-version="true" defer></script>
 }

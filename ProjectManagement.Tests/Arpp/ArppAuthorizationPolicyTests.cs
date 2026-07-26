@@ -52,6 +52,45 @@ public sealed class ArppAuthorizationPolicyTests
         Assert.False(result.Succeeded);
     }
 
+
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("HoD")]
+    [InlineData("Comdt")]
+    public async Task VerifierPolicy_AllowsDesignatedVerifiers(string role)
+    {
+        var result = await AuthorizeAsync(
+            new AuthorizationPolicyBuilder().RequireArppVerifier().Build(),
+            role);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("HoD")]
+    public async Task UnlockerPolicy_AllowsRestrictedRoles(string role)
+    {
+        var result = await AuthorizeAsync(
+            new AuthorizationPolicyBuilder().RequireArppUnlocker().Build(),
+            role);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("Comdt")]
+    [InlineData("ProjectOffice")]
+    [InlineData("Project Officer")]
+    public async Task UnlockerPolicy_DeniesOtherArppRoles(string role)
+    {
+        var result = await AuthorizeAsync(
+            new AuthorizationPolicyBuilder().RequireArppUnlocker().Build(),
+            role);
+
+        Assert.False(result.Succeeded);
+    }
+
     [Fact]
     public async Task ViewerPolicy_DeniesUnauthorisedAuthenticatedUser()
     {

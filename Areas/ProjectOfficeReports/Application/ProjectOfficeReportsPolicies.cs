@@ -25,6 +25,19 @@ public static class ProjectOfficeReportsPolicies
         "Project Officer"
     };
 
+
+    private static readonly string[] ArppVerifierRoles =
+    {
+        "Admin",
+        "HoD",
+        "Comdt"
+    };
+
+    private static readonly string[] ArppUnlockRoles =
+    {
+        "Admin",
+        "HoD"
+    };
     private static readonly string[] TrainingTrackerViewerRoles =
     {
         "Admin",
@@ -82,6 +95,8 @@ public static class ProjectOfficeReportsPolicies
     public const string ViewProgressReview = "ProjectOfficeReports.ViewProgressReview";
     public const string ViewArpp = "ProjectOfficeReports.ViewArpp";
     public const string ManageArpp = "ProjectOfficeReports.ManageArpp";
+    public const string VerifyArpp = "ProjectOfficeReports.VerifyArpp";
+    public const string UnlockArpp = "ProjectOfficeReports.UnlockArpp";
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
     {
@@ -221,5 +236,25 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(ProjectOfficeRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireArppVerifier(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(ArppVerifierRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireArppUnlocker(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(ArppUnlockRoles);
     }
 }

@@ -4525,6 +4525,11 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly>("IssueDate")
                         .HasColumnType("date");
 
+                    b.Property<bool>("IsVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("IssueSequence")
                         .HasColumnType("integer");
 
@@ -4544,6 +4549,17 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("VerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VerifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("VerificationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("UpdatedByUserId")
                         .IsRequired()
                         .HasMaxLength(450)
@@ -4557,6 +4573,8 @@ namespace ProjectManagement.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_ArppIssues_FinancialYear_Sequence");
 
+                    b.HasIndex("IsVerified");
+
                     b.ToTable("ArppIssues", t =>
                         {
                             t.HasCheckConstraint("CK_ArppIssues_FinancialYearStart", "\"FinancialYearStart\" BETWEEN 2000 AND 9998");
@@ -4564,6 +4582,8 @@ namespace ProjectManagement.Migrations
                             t.HasCheckConstraint("CK_ArppIssues_IssueSequence", "\"IssueSequence\" >= 0");
 
                             t.HasCheckConstraint("CK_ArppIssues_KindSequence", "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+
+                            t.HasCheckConstraint("CK_ArppIssues_VerificationState", "(NOT \"IsVerified\" AND \"VerifiedAtUtc\" IS NULL AND \"VerifiedByUserId\" IS NULL AND \"VerificationNote\" IS NULL) OR (\"IsVerified\" AND \"VerifiedAtUtc\" IS NOT NULL AND length(btrim(\"VerifiedByUserId\")) > 0)");
                         });
                 });
 

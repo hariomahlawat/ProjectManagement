@@ -1908,6 +1908,10 @@ namespace ProjectManagement.Data
                     table.HasCheckConstraint(
                         "CK_ArppIssues_KindSequence",
                         "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                    table.HasCheckConstraint(
+                        "CK_ArppIssues_VerificationState",
+                        "(NOT \"IsVerified\" AND \"VerifiedAtUtc\" IS NULL AND \"VerifiedByUserId\" IS NULL AND \"VerificationNote\" IS NULL) OR " +
+                        "(\"IsVerified\" AND \"VerifiedAtUtc\" IS NOT NULL AND length(btrim(\"VerifiedByUserId\")) > 0)");
                 });
 
                 ConfigureRowVersion(entity);
@@ -1917,6 +1921,10 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.IssueSequence).IsRequired();
                 entity.Property(x => x.Name).HasMaxLength(300).IsRequired();
                 entity.Property(x => x.IssueDate).HasColumnType("date").IsRequired();
+                entity.Property(x => x.IsVerified).HasDefaultValue(false).IsRequired();
+                entity.Property(x => x.VerifiedAtUtc).HasColumnType("timestamp with time zone");
+                entity.Property(x => x.VerifiedByUserId).HasMaxLength(450);
+                entity.Property(x => x.VerificationNote).HasMaxLength(500);
                 entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
                 entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
                 entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
@@ -1926,6 +1934,7 @@ namespace ProjectManagement.Data
                     .HasDatabaseName("UX_ArppIssues_FinancialYear_Sequence")
                     .IsUnique();
                 entity.HasIndex(x => new { x.FinancialYearStart, x.IssueDate });
+                entity.HasIndex(x => x.IsVerified);
             });
 
             builder.Entity<ArppEntry>(entity =>

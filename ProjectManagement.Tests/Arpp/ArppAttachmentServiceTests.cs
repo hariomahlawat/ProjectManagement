@@ -41,6 +41,9 @@ public sealed class ArppAttachmentServiceTests
         Assert.Equal("application/pdf", attachment.ContentType);
         Assert.Equal(64, attachment.Sha256.Length);
         Assert.Single(await db.ArppEntries.ToListAsync());
+        var updatedIssue = await db.ArppIssues.SingleAsync();
+        Assert.Equal("user-1", updatedIssue.UpdatedByUserId);
+        Assert.Equal(new DateTimeOffset(2026, 7, 26, 10, 0, 0, TimeSpan.Zero), updatedIssue.UpdatedAtUtc);
         Assert.Contains("Arpp.AttachmentUploaded", audit.Actions);
     }
 
@@ -107,7 +110,54 @@ public sealed class ArppAttachmentServiceTests
 
         Assert.True(result.Success);
         Assert.Empty(await db.ArppAttachments.ToListAsync());
+        var updatedIssue = await db.ArppIssues.SingleAsync();
+        Assert.Equal("user-1", updatedIssue.UpdatedByUserId);
+        Assert.Equal(new DateTimeOffset(2026, 7, 26, 10, 0, 0, TimeSpan.Zero), updatedIssue.UpdatedAtUtc);
         Assert.Contains("arpp/1/document.pdf", storage.DeletedKeys);
+    }
+
+
+    [Fact]
+    public async Task UploadAndDelete_AreBlockedWhenIssueIsVerified()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.IsVerified = true;
+        issue.VerifiedAtUtc = DateTimeOffset.UtcNow;
+        issue.VerifiedByUserId = "verifier";
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/1/document.pdf",
+            OriginalFileName = "document.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 100,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var storage = new FakeStorage();
+        var service = CreateService(db, storage, new FakeAuditService());
+
+        var upload = await service.UploadOrReplaceAsync(
+            issue.Id,
+            CreatePdfFormFile("replacement.pdf"),
+            "user-1",
+            "User One");
+        var delete = await service.DeleteAsync(
+            issue.Id,
+            issue.Attachment.Id,
+            "user-1",
+            "User One");
+
+        Assert.False(upload.Success);
+        Assert.False(delete.Success);
+        Assert.Contains("verified and locked", upload.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("verified and locked", delete.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(storage.DeletedKeys);
+        Assert.Single(await db.ArppAttachments.ToListAsync());
     }
 
     private static ArppAttachmentService CreateService(

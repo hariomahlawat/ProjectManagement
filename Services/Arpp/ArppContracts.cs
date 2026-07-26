@@ -35,6 +35,20 @@ public sealed record ArppWorkspaceSaveCommand(
     string UserId,
     string? UserName);
 
+public sealed record ArppVerifyCommand(
+    long IssueId,
+    string IssueRowVersion,
+    string? Note,
+    string UserId,
+    string? UserName);
+
+public sealed record ArppUnlockCommand(
+    long IssueId,
+    string IssueRowVersion,
+    string Reason,
+    string UserId,
+    string? UserName);
+
 public sealed record ArppCommandResult(
     bool Success,
     long? EntityId,
@@ -69,15 +83,28 @@ public sealed record ArppRegisterResult(
     IReadOnlyList<int> AvailableFinancialYears,
     int TotalIssues,
     int TotalEntries,
-    decimal TotalIpaCost,
+    decimal AuthoritativeLinkedIpaCost,
+    decimal UnlinkedDocumentRowValue,
     int LinkedEntries,
-    int UnlinkedEntries);
+    int UnlinkedEntries,
+    int VerifiedIssues)
+{
+    // Compatibility alias for older callers. This now means the authoritative linked value,
+    // not the arithmetic sum of every original/addendum row.
+    public decimal TotalIpaCost => AuthoritativeLinkedIpaCost;
+}
 
 public sealed record ArppFinancialYearGroup(
     int FinancialYearStart,
     IReadOnlyList<ArppIssueListItem> Issues,
     int EntryCount,
-    decimal TotalIpaCost);
+    decimal AuthoritativeLinkedIpaCost,
+    decimal UnlinkedDocumentRowValue,
+    int LinkedProjectCount,
+    int UnlinkedEntryCount)
+{
+    public decimal TotalIpaCost => AuthoritativeLinkedIpaCost;
+}
 
 public sealed record ArppIssueListItem(
     long Id,
@@ -95,7 +122,9 @@ public sealed record ArppIssueListItem(
     int LinkedCount,
     int UnlinkedCount,
     DateTimeOffset UpdatedAtUtc,
-    bool HasAttachment);
+    bool HasAttachment,
+    bool IsVerified,
+    DateTimeOffset? VerifiedAtUtc);
 
 public sealed record ArppIssueDetails(
     long Id,
@@ -112,7 +141,11 @@ public sealed record ArppIssueDetails(
     int UnlinkedCount,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    ArppAttachmentDetails? Attachment);
+    ArppAttachmentDetails? Attachment,
+    bool IsVerified,
+    DateTimeOffset? VerifiedAtUtc,
+    string? VerifiedByUserId,
+    string? VerificationNote);
 
 public sealed record ArppEntryDetails(
     long Id,

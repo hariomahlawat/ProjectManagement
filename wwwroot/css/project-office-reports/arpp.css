@@ -847,3 +847,361 @@
 [data-bs-theme="dark"] .arpp-document-file__icon {
     color: #ff9aa6;
 }
+
+/* SECTION: Phase 4 operational hardening */
+.arpp-badge--verified {
+    gap: .28rem;
+    background: rgba(25, 135, 84, .12);
+    color: #146c43;
+}
+
+.arpp-badge--unverified {
+    background: rgba(108, 117, 125, .12);
+    color: #5c636a;
+}
+
+.arpp-verification-banner {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .85rem 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(25, 135, 84, .24);
+    border-radius: .75rem;
+    background: rgba(25, 135, 84, .075);
+}
+
+.arpp-verification-banner--locked {
+    color: #0f5132;
+}
+
+.arpp-verification-banner__identity {
+    display: flex;
+    gap: .7rem;
+    align-items: flex-start;
+}
+
+.arpp-verification-banner__identity > .bi {
+    margin-top: .08rem;
+    font-size: 1.15rem;
+}
+
+.arpp-verification-banner strong,
+.arpp-verification-banner small {
+    display: block;
+}
+
+.arpp-verification-banner small {
+    margin-top: .12rem;
+    color: inherit;
+    opacity: .78;
+}
+
+.arpp-reconcile-callout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .8rem 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(13, 110, 253, .2);
+    border-radius: .75rem;
+    background: rgba(13, 110, 253, .055);
+}
+
+.arpp-reconcile-callout p {
+    margin: .12rem 0 0;
+    color: var(--arpp-muted);
+    font-size: .78rem;
+}
+
+.arpp-kpis--reconcile {
+    grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(18rem, 2fr);
+}
+
+.arpp-kpi--wide {
+    min-width: 0;
+}
+
+.arpp-filterbar--reconcile {
+    grid-template-columns: minmax(16rem, 1fr) minmax(12rem, 16rem) auto auto;
+}
+
+/* Keep horizontal overflow limited to the table itself. Project results are
+   rendered as a fixed overlay under document.body by arpp-project-picker.js. */
+.arpp-table-wrap {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-gutter: stable;
+}
+
+.arpp-entry-table {
+    min-width: 1260px;
+    table-layout: fixed;
+}
+
+.arpp-col-order { width: 2.5rem; min-width: 2.5rem; }
+.arpp-col-serial { width: 6.25rem; min-width: 6.25rem; }
+.arpp-col-reference { width: 17rem; min-width: 17rem; }
+.arpp-col-project { width: 15.5rem; min-width: 15.5rem; }
+.arpp-col-category { width: 7rem; min-width: 7rem; }
+.arpp-col-cost { width: 10rem; min-width: 10rem; }
+.arpp-col-cfa { width: 9rem; min-width: 9rem; }
+.arpp-col-fund { width: 8rem; min-width: 8rem; }
+.arpp-col-dfpds { width: 7rem; min-width: 7rem; }
+.arpp-col-actions { width: 5rem; min-width: 5rem; }
+
+.arpp-entry-table .arpp-sticky-left,
+.arpp-entry-table .arpp-sticky-right {
+    position: sticky;
+    z-index: 4;
+    background: var(--bs-body-bg);
+}
+
+.arpp-entry-table thead .arpp-sticky-left,
+.arpp-entry-table thead .arpp-sticky-right {
+    z-index: 7;
+    background: var(--arpp-soft);
+}
+
+.arpp-sticky-left--order { left: 0; }
+.arpp-sticky-left--serial { left: 2.5rem; }
+.arpp-sticky-left--reference {
+    left: 8.75rem;
+    box-shadow: .45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
+}
+
+.arpp-sticky-right {
+    right: 0;
+    box-shadow: -.45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
+}
+
+.arpp-reference-input {
+    min-height: 2rem;
+    max-height: 6rem;
+    resize: vertical;
+    line-height: 1.35;
+}
+
+.arpp-field-hint,
+.arpp-money-helper {
+    min-height: .95rem;
+    margin-top: .16rem;
+    color: var(--arpp-muted);
+    font-size: .66rem;
+    line-height: 1.2;
+}
+
+.arpp-money-input {
+    font-variant-numeric: tabular-nums;
+}
+
+.arpp-project-picker-overlay {
+    position: fixed;
+    z-index: 1095;
+    max-height: min(21rem, calc(100vh - 2rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--arpp-border, rgba(33, 37, 41, .15));
+    border-radius: .5rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 .75rem 1.5rem rgba(0, 0, 0, .18);
+}
+
+.arpp-project-picker-overlay[hidden] {
+    display: none !important;
+}
+
+.arpp-project-picker-overlay .arpp-project-picker__result:last-child {
+    border-bottom: 0;
+}
+
+.arpp-project-picker__result[aria-selected="true"],
+.arpp-project-picker__result.is-active {
+    background: color-mix(in srgb, var(--bs-primary) 10%, var(--bs-body-bg));
+    outline: none;
+}
+
+.arpp-empty--rows {
+    margin: 1rem;
+    padding: 2rem 1.25rem;
+}
+
+.arpp-empty--rows h3 {
+    margin: .55rem 0 .2rem;
+    font-size: 1rem;
+}
+
+.arpp-editor__actions--sticky:not(.arpp-editor__actions--dirty) {
+    padding-block: .5rem;
+    opacity: .94;
+}
+
+.arpp-editor__actions--sticky.arpp-editor__actions--dirty {
+    border-color: rgba(13, 110, 253, .26);
+    box-shadow: 0 -.4rem 1.1rem rgba(13, 110, 253, .10);
+}
+
+.arpp-paste-preview-table {
+    min-width: 950px;
+    font-size: .78rem;
+}
+
+.arpp-paste-preview-table td,
+.arpp-paste-preview-table th {
+    vertical-align: top;
+}
+
+.arpp-paste-preview-table .is-invalid-row > td {
+    background: rgba(220, 53, 69, .055);
+}
+
+.arpp-reconciliation-list {
+    display: grid;
+    gap: .8rem;
+    margin-bottom: 1rem;
+}
+
+.arpp-reconciliation-card {
+    display: grid;
+    grid-template-columns: minmax(15rem, 1.1fr) minmax(17rem, 1.25fr) minmax(16rem, 1fr);
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: .8rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, .04);
+}
+
+.arpp-reconciliation-card__issued h2 {
+    margin: 0 0 .35rem;
+    font-size: .95rem;
+    line-height: 1.35;
+}
+
+.arpp-reconciliation-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem .65rem;
+    margin-bottom: .35rem;
+    color: var(--arpp-muted);
+    font-size: .72rem;
+}
+
+.arpp-reconciliation-label {
+    margin-bottom: .4rem;
+    color: var(--arpp-muted);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+
+.arpp-suggestion-list {
+    display: grid;
+    gap: .35rem;
+}
+
+.arpp-suggestion {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .5rem .6rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: .5rem;
+    background: var(--arpp-soft);
+    color: inherit;
+    text-align: left;
+}
+
+.arpp-suggestion:hover,
+.arpp-suggestion:focus-visible,
+.arpp-suggestion.is-selected {
+    border-color: rgba(13, 110, 253, .55);
+    background: color-mix(in srgb, var(--bs-primary) 8%, var(--bs-body-bg));
+}
+
+.arpp-suggestion strong,
+.arpp-suggestion small {
+    display: block;
+}
+
+.arpp-suggestion strong { font-size: .75rem; }
+.arpp-suggestion small { color: var(--arpp-muted); font-size: .65rem; }
+
+.arpp-suggestion__confidence {
+    flex: 0 0 auto;
+    padding: .15rem .4rem;
+    border-radius: 999px;
+    background: rgba(13, 110, 253, .10);
+    color: var(--bs-primary);
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-reconciliation-card {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .arpp-reconciliation-card__selection {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-verification-banner,
+    .arpp-reconcile-callout {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .arpp-kpis--reconcile,
+    .arpp-filterbar--reconcile,
+    .arpp-reconciliation-card {
+        grid-template-columns: 1fr;
+    }
+
+    .arpp-reconciliation-card__selection {
+        grid-column: auto;
+    }
+
+    .arpp-entry-table .arpp-sticky-left,
+    .arpp-entry-table .arpp-sticky-right {
+        position: static;
+        box-shadow: none;
+    }
+}
+
+[data-bs-theme="dark"] .arpp-badge--verified,
+[data-bs-theme="dark"] .arpp-verification-banner--locked {
+    color: #75d6a4;
+}
+
+[data-bs-theme="dark"] .arpp-badge--unverified {
+    color: #c4cbd3;
+}
+
+[data-bs-theme="dark"] .arpp-project-picker-overlay {
+    box-shadow: 0 .75rem 1.75rem rgba(0, 0, 0, .45);
+}
+
+@media print {
+    .arpp-verification-banner .btn,
+    .arpp-reconcile-callout,
+    .arpp-project-picker-overlay,
+    .arpp-reconciliation-form {
+        display: none !important;
+    }
+}
+
+.arpp-row-warning {
+    margin-top: .18rem;
+    color: var(--arpp-amber);
+    font-size: .64rem;
+    line-height: 1.25;
+}

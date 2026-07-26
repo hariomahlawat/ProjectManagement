@@ -61,6 +61,45 @@ public sealed class ArppReadServiceTests
         Assert.True(register.FinancialYears.Single().Issues.Single().HasAttachment);
     }
 
+
+    [Fact]
+    public async Task GetRegisterAsync_UsesLatestLinkedPositionInsteadOfAddingRepeatedAddendumRows()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project { Id = 1, Name = "Repeated project", CreatedByUserId = "seed" });
+
+        var original = CreateIssue(2026, 0, ArppIssueKind.Original, "ARPP 2026-27");
+        original.Entries.Add(CreateEntry(1, "1", ArppCategory.New, 10_000_000m));
+        original.Entries.Add(new ArppEntry
+        {
+            SortOrder = 2,
+            SerialNumber = "2",
+            ProjectReference = "Unlinked project",
+            Category = ArppCategory.New,
+            IpaCost = 2_000_000m,
+            Cfa = "Comdt SDD",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+
+        var addendum = CreateIssue(2026, 1, ArppIssueKind.Addendum, "Addendum No. 1");
+        addendum.Entries.Add(CreateEntry(1, "7", ArppCategory.CarryForward, 12_000_000m));
+        db.ArppIssues.AddRange(original, addendum);
+        await db.SaveChangesAsync();
+
+        var register = await new ArppReadService(db).GetRegisterAsync(null, null);
+
+        Assert.Equal(12_000_000m, register.AuthoritativeLinkedIpaCost);
+        Assert.Equal(1, register.LinkedEntries);
+        Assert.Equal(2_000_000m, register.UnlinkedDocumentRowValue);
+        Assert.Equal(24_000_000m, register.FinancialYears.Single().Issues.Sum(item => item.TotalIpaCost));
+        Assert.Equal(12_000_000m, register.FinancialYears.Single().AuthoritativeLinkedIpaCost);
+    }
+
     private static ArppIssue CreateIssue(int year, int sequence, ArppIssueKind kind, string name)
         => new()
         {

@@ -83,12 +83,12 @@
                                 <td class="text-nowrap">@FinancialYearHelper.Format(item.FinancialYearStart)</td>
                                 <td>
                                     <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@item.IssueId">@item.IssueName</a>
-                                    <div class="small text-body-secondary">@ArppDisplayNames.For(item.Kind) · Sequence @item.IssueSequence</div>
+                                    <div class="small text-body-secondary">@(item.Kind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum {item.IssueSequence}")</div>
                                 </td>
                                 <td class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
                                 <td><span class="arpp-serial">@item.SerialNumber</span></td>
                                 <td><span class="arpp-badge arpp-badge--@(item.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(item.Category)</span></td>
-                                <td class="text-end text-nowrap fw-semibold">₹@item.IpaCost.ToString("N2")</td>
+                                <td class="text-end text-nowrap fw-semibold">@IndianCurrencyFormatter.FormatRupees(item.IpaCost)</td>
                                 <td>@item.Cfa</td>
                                 <td>@item.Fund</td>
                                 <td>@item.DfpdsSchedule</td>
