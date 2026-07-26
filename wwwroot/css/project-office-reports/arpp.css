@@ -80,6 +80,25 @@
     color: var(--arpp-muted);
 }
 
+
+.arpp-kpi--approved {
+    border-color: rgba(25, 135, 84, .24);
+    background: linear-gradient(135deg, rgba(25, 135, 84, .055), var(--bs-body-bg) 62%);
+}
+
+.arpp-kpi--approved strong {
+    color: #146c43;
+}
+
+.arpp-kpi--delisted {
+    border-color: rgba(154, 103, 0, .24);
+    background: linear-gradient(135deg, rgba(255, 193, 7, .075), var(--bs-body-bg) 62%);
+}
+
+.arpp-kpi--delisted strong {
+    color: var(--arpp-amber);
+}
+
 .arpp-kpi--categories {
     justify-content: center;
     gap: .2rem;
@@ -153,6 +172,47 @@
     gap: 1rem;
     color: var(--arpp-muted);
     font-size: .82rem;
+}
+
+
+.arpp-year-group__rows {
+    white-space: nowrap;
+}
+
+.arpp-year-position {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    gap: .05rem .45rem;
+    padding-left: .8rem;
+    border-left: 1px solid var(--arpp-border);
+}
+
+.arpp-year-position > span {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+
+.arpp-year-position > strong {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+}
+
+.arpp-year-position > small {
+    color: var(--arpp-muted);
+    font-size: .68rem;
+}
+
+.arpp-year-position--approved > span,
+.arpp-year-position--approved > strong {
+    color: #146c43;
+}
+
+.arpp-year-position--delisted > span,
+.arpp-year-position--delisted > strong {
+    color: var(--arpp-amber);
 }
 
 .arpp-year-group__summary strong {
@@ -241,16 +301,32 @@
     justify-content: center;
 }
 
-.arpp-issue-card__value > span {
+.arpp-issue-card__value-line {
+    display: grid;
+    grid-template-columns: auto;
+    justify-items: end;
+    margin-bottom: .45rem;
+}
+
+.arpp-issue-card__value-line > span {
     color: var(--arpp-muted);
-    font-size: .75rem;
+    font-size: .7rem;
+    letter-spacing: .015em;
     text-transform: uppercase;
 }
 
-.arpp-issue-card__value > strong {
-    margin: .15rem 0 .55rem;
-    font-size: 1.1rem;
+.arpp-issue-card__value-line > strong {
+    margin-top: .05rem;
+    font-size: 1rem;
     font-variant-numeric: tabular-nums;
+}
+
+.arpp-issue-card__value-line--approved > strong {
+    color: #146c43;
+}
+
+.arpp-issue-card__value-line--delisted > strong {
+    color: var(--arpp-amber);
 }
 
 .arpp-badge {
@@ -612,6 +688,10 @@
         min-width: 0;
         align-items: flex-start;
     }
+
+    .arpp-issue-card__value-line {
+        justify-items: start;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -629,7 +709,16 @@
     }
 
     .arpp-year-group__summary {
-        justify-content: space-between;
+        align-items: stretch;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .arpp-year-position {
+        padding-left: 0;
+        padding-right: .8rem;
+        border-left: 0;
+        border-right: 1px solid var(--arpp-border);
     }
 
     .arpp-record-footer {
@@ -1204,4 +1293,19 @@
     color: var(--arpp-amber);
     font-size: .64rem;
     line-height: 1.25;
+}
+
+
+[data-bs-theme="dark"] .arpp-kpi--approved strong,
+[data-bs-theme="dark"] .arpp-year-position--approved > span,
+[data-bs-theme="dark"] .arpp-year-position--approved > strong,
+[data-bs-theme="dark"] .arpp-issue-card__value-line--approved > strong {
+    color: #75d6a4;
+}
+
+[data-bs-theme="dark"] .arpp-kpi--delisted strong,
+[data-bs-theme="dark"] .arpp-year-position--delisted > span,
+[data-bs-theme="dark"] .arpp-year-position--delisted > strong,
+[data-bs-theme="dark"] .arpp-issue-card__value-line--delisted > strong {
+    color: #ffd166;
 }

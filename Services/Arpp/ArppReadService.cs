@@ -52,6 +52,16 @@ public sealed class ArppReadService : IArppReadService
                 issue.IssueDate,
                 issue.Entries.Count,
                 issue.Entries.Sum(entry => (decimal?)entry.IpaCost) ?? 0m,
+                issue.Entries.Sum(entry => (decimal?)(
+                    entry.Category == ArppCategory.New ||
+                    entry.Category == ArppCategory.CommittedLiability ||
+                    entry.Category == ArppCategory.CarryForward
+                        ? entry.IpaCost
+                        : 0m)) ?? 0m,
+                issue.Entries.Sum(entry => (decimal?)(
+                    entry.Category == ArppCategory.Delisted
+                        ? entry.IpaCost
+                        : 0m)) ?? 0m,
                 issue.Entries.Count(entry => entry.Category == ArppCategory.New),
                 issue.Entries.Count(entry => entry.Category == ArppCategory.CommittedLiability),
                 issue.Entries.Count(entry => entry.Category == ArppCategory.CarryForward),
@@ -72,6 +82,7 @@ public sealed class ArppReadService : IArppReadService
                 entry.Id,
                 entry.ArppIssueId,
                 entry.ProjectId,
+                entry.Category,
                 entry.IpaCost,
                 entry.Issue.FinancialYearStart,
                 entry.Issue.IssueSequence,
@@ -93,20 +104,34 @@ public sealed class ArppReadService : IArppReadService
                 var groupIssueIds = group.Select(item => item.Id).ToHashSet();
                 var groupEntries = scopedEntries.Where(entry => groupIssueIds.Contains(entry.IssueId)).ToArray();
                 var groupAuthoritative = GetAuthoritativeLinkedEntries(groupEntries);
+                var groupApproved = groupAuthoritative
+                    .Where(entry => IsApprovedCategory(entry.Category))
+                    .ToArray();
+                var groupDelisted = groupAuthoritative
+                    .Where(entry => entry.Category == ArppCategory.Delisted)
+                    .ToArray();
                 var groupUnlinked = groupEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
 
                 return new ArppFinancialYearGroup(
                     group.Key,
                     group.OrderBy(row => row.IssueSequence).ToArray(),
                     group.Sum(row => row.EntryCount),
-                    groupAuthoritative.Sum(entry => entry.IpaCost),
+                    groupApproved.Sum(entry => entry.IpaCost),
+                    groupDelisted.Sum(entry => entry.IpaCost),
                     groupUnlinked.Sum(entry => entry.IpaCost),
-                    groupAuthoritative.Count,
+                    groupApproved.Length,
+                    groupDelisted.Length,
                     groupUnlinked.Length);
             })
             .ToArray();
 
         var authoritativeLinked = GetAuthoritativeLinkedEntries(scopedEntries);
+        var approvedLinked = authoritativeLinked
+            .Where(entry => IsApprovedCategory(entry.Category))
+            .ToArray();
+        var delistedLinked = authoritativeLinked
+            .Where(entry => entry.Category == ArppCategory.Delisted)
+            .ToArray();
         var unlinkedEntries = scopedEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
 
         return new ArppRegisterResult(
@@ -114,9 +139,11 @@ public sealed class ArppReadService : IArppReadService
             availableFinancialYears,
             rows.Count,
             rows.Sum(row => row.EntryCount),
-            authoritativeLinked.Sum(entry => entry.IpaCost),
+            approvedLinked.Sum(entry => entry.IpaCost),
+            delistedLinked.Sum(entry => entry.IpaCost),
             unlinkedEntries.Sum(entry => entry.IpaCost),
-            authoritativeLinked.Count,
+            approvedLinked.Length,
+            delistedLinked.Length,
             unlinkedEntries.Length,
             rows.Count(row => row.IsVerified));
     }
@@ -324,6 +351,11 @@ public sealed class ArppReadService : IArppReadService
                 .First())
             .ToArray();
 
+    private static bool IsApprovedCategory(ArppCategory category)
+        => category is ArppCategory.New
+            or ArppCategory.CommittedLiability
+            or ArppCategory.CarryForward;
+
     private static string GetProjectStatus(Project project)
         => project.IsArchived
             ? "Archived"
@@ -337,6 +369,7 @@ public sealed class ArppReadService : IArppReadService
         long EntryId,
         long IssueId,
         int? ProjectId,
+        ArppCategory Category,
         decimal IpaCost,
         int FinancialYearStart,
         int IssueSequence,

@@ -27,7 +27,7 @@ public sealed class IndexModel : PageModel
     public string? Query { get; set; }
 
     public ArppRegisterResult Register { get; private set; } = new(
-        [], [], 0, 0, 0m, 0m, 0, 0, 0);
+        [], [], 0, 0, 0m, 0m, 0m, 0, 0, 0, 0);
 
     public bool CanManage { get; private set; }
 

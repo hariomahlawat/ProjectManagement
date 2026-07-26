@@ -83,27 +83,36 @@ public sealed record ArppRegisterResult(
     IReadOnlyList<int> AvailableFinancialYears,
     int TotalIssues,
     int TotalEntries,
-    decimal AuthoritativeLinkedIpaCost,
+    decimal ApprovedLinkedIpaCost,
+    decimal DelistedLinkedIpaCost,
     decimal UnlinkedDocumentRowValue,
-    int LinkedEntries,
+    int ApprovedLinkedProjects,
+    int DelistedLinkedProjects,
     int UnlinkedEntries,
     int VerifiedIssues)
 {
-    // Compatibility alias for older callers. This now means the authoritative linked value,
-    // not the arithmetic sum of every original/addendum row.
+    // Compatibility aliases retained for downstream callers that need the complete latest
+    // linked position. User-facing summaries should normally display the approved and
+    // Delisted components separately.
+    public decimal AuthoritativeLinkedIpaCost => ApprovedLinkedIpaCost + DelistedLinkedIpaCost;
     public decimal TotalIpaCost => AuthoritativeLinkedIpaCost;
+    public int LinkedEntries => ApprovedLinkedProjects + DelistedLinkedProjects;
 }
 
 public sealed record ArppFinancialYearGroup(
     int FinancialYearStart,
     IReadOnlyList<ArppIssueListItem> Issues,
     int EntryCount,
-    decimal AuthoritativeLinkedIpaCost,
+    decimal ApprovedLinkedIpaCost,
+    decimal DelistedLinkedIpaCost,
     decimal UnlinkedDocumentRowValue,
-    int LinkedProjectCount,
+    int ApprovedLinkedProjectCount,
+    int DelistedLinkedProjectCount,
     int UnlinkedEntryCount)
 {
+    public decimal AuthoritativeLinkedIpaCost => ApprovedLinkedIpaCost + DelistedLinkedIpaCost;
     public decimal TotalIpaCost => AuthoritativeLinkedIpaCost;
+    public int LinkedProjectCount => ApprovedLinkedProjectCount + DelistedLinkedProjectCount;
 }
 
 public sealed record ArppIssueListItem(
@@ -115,6 +124,8 @@ public sealed record ArppIssueListItem(
     DateOnly IssueDate,
     int EntryCount,
     decimal TotalIpaCost,
+    decimal ApprovedRowValue,
+    decimal DelistedRowValue,
     int NewCount,
     int CommittedLiabilityCount,
     int CarryForwardCount,

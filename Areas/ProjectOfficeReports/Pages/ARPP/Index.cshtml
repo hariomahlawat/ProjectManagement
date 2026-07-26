@@ -50,17 +50,17 @@
         <article class="arpp-kpi">
             <span>Issued documents</span>
             <strong>@Model.Register.TotalIssues</strong>
-            <small>@Model.Register.VerifiedIssues verified</small>
+            <small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "document row" : "document rows") · @Model.Register.VerifiedIssues verified</small>
         </article>
-        <article class="arpp-kpi">
-            <span>Document rows</span>
-            <strong>@Model.Register.TotalEntries</strong>
-            <small>Across originals and addenda</small>
+        <article class="arpp-kpi arpp-kpi--approved">
+            <span>Approved projects IPA</span>
+            <strong>@IndianCurrencyFormatter.FormatCompact(Model.Register.ApprovedLinkedIpaCost)</strong>
+            <small>@Model.Register.ApprovedLinkedProjects @(Model.Register.ApprovedLinkedProjects == 1 ? "project" : "projects") · New, CL and CF</small>
         </article>
-        <article class="arpp-kpi">
-            <span>Current linked IPA value</span>
-            <strong>@IndianCurrencyFormatter.FormatCompact(Model.Register.AuthoritativeLinkedIpaCost)</strong>
-            <small>@Model.Register.LinkedEntries authoritative linked projects</small>
+        <article class="arpp-kpi arpp-kpi--delisted">
+            <span>Delisted projects IPA</span>
+            <strong>@IndianCurrencyFormatter.FormatCompact(Model.Register.DelistedLinkedIpaCost)</strong>
+            <small>@Model.Register.DelistedLinkedProjects @(Model.Register.DelistedLinkedProjects == 1 ? "project" : "projects") in latest Delisted position</small>
         </article>
         <article class="arpp-kpi">
             <span>Reconciliation pending</span>
@@ -112,13 +112,21 @@
                             <h2 id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</h2>
                         </div>
                         <div class="arpp-year-group__summary">
-                            <span>@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
-                            <span>@group.LinkedProjectCount linked projects</span>
+                            <span class="arpp-year-group__rows">@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
+                            <span class="arpp-year-position arpp-year-position--approved" title="Latest New, CL or CF entry for each linked project in this financial year">
+                                <span>Approved</span>
+                                <strong>@IndianCurrencyFormatter.FormatCompact(group.ApprovedLinkedIpaCost)</strong>
+                                <small>@group.ApprovedLinkedProjectCount @(group.ApprovedLinkedProjectCount == 1 ? "project" : "projects")</small>
+                            </span>
+                            <span class="arpp-year-position arpp-year-position--delisted" title="Latest Delisted entry for each linked project in this financial year">
+                                <span>Delisted</span>
+                                <strong>@IndianCurrencyFormatter.FormatCompact(group.DelistedLinkedIpaCost)</strong>
+                                <small>@group.DelistedLinkedProjectCount @(group.DelistedLinkedProjectCount == 1 ? "project" : "projects")</small>
+                            </span>
                             @if (group.UnlinkedEntryCount > 0)
                             {
                                 <span class="text-warning-emphasis">@group.UnlinkedEntryCount unlinked</span>
                             }
-                            <strong title="Latest linked entry for each project in this financial year">@IndianCurrencyFormatter.FormatCompact(group.AuthoritativeLinkedIpaCost)</strong>
                         </div>
                     </header>
 
@@ -168,8 +176,14 @@
                                     </div>
                                 </div>
                                 <div class="arpp-issue-card__value">
-                                    <span>Document row value</span>
-                                    <strong>@IndianCurrencyFormatter.FormatCompact(issue.TotalIpaCost)</strong>
+                                    <div class="arpp-issue-card__value-line arpp-issue-card__value-line--approved">
+                                        <span>Approved row value</span>
+                                        <strong>@IndianCurrencyFormatter.FormatCompact(issue.ApprovedRowValue)</strong>
+                                    </div>
+                                    <div class="arpp-issue-card__value-line arpp-issue-card__value-line--delisted">
+                                        <span>Delisted row value</span>
+                                        <strong>@IndianCurrencyFormatter.FormatCompact(issue.DelistedRowValue)</strong>
+                                    </div>
                                     <div class="arpp-card-actions">
                                         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View</a>
                                         @if (Model.CanManage && !issue.IsVerified)

@@ -93,11 +93,57 @@ public sealed class ArppReadServiceTests
 
         var register = await new ArppReadService(db).GetRegisterAsync(null, null);
 
+        Assert.Equal(12_000_000m, register.ApprovedLinkedIpaCost);
+        Assert.Equal(0m, register.DelistedLinkedIpaCost);
+        Assert.Equal(1, register.ApprovedLinkedProjects);
+        Assert.Equal(0, register.DelistedLinkedProjects);
         Assert.Equal(12_000_000m, register.AuthoritativeLinkedIpaCost);
         Assert.Equal(1, register.LinkedEntries);
         Assert.Equal(2_000_000m, register.UnlinkedDocumentRowValue);
         Assert.Equal(24_000_000m, register.FinancialYears.Single().Issues.Sum(item => item.TotalIpaCost));
-        Assert.Equal(12_000_000m, register.FinancialYears.Single().AuthoritativeLinkedIpaCost);
+        Assert.Equal(12_000_000m, register.FinancialYears.Single().ApprovedLinkedIpaCost);
+        Assert.Equal(0m, register.FinancialYears.Single().DelistedLinkedIpaCost);
+    }
+
+
+    [Fact]
+    public async Task GetRegisterAsync_SeparatesApprovedAndDelistedLatestPositions()
+    {
+        await using var db = CreateContext();
+        db.Projects.AddRange(
+            new Project { Id = 1, Name = "Project moved to Delisted", CreatedByUserId = "seed" },
+            new Project { Id = 2, Name = "Approved carry-forward project", CreatedByUserId = "seed" });
+
+        var original = CreateIssue(2026, 0, ArppIssueKind.Original, "ARPP 2026-27");
+        original.Entries.Add(CreateEntry(1, "1", ArppCategory.New, 10_000_000m));
+        original.Entries.Add(CreateEntry(2, "2", ArppCategory.CarryForward, 5_000_000m));
+
+        var addendum = CreateIssue(2026, 1, ArppIssueKind.Addendum, "Addendum No. 1");
+        addendum.Entries.Add(CreateEntry(1, "7", ArppCategory.Delisted, 12_000_000m));
+
+        db.ArppIssues.AddRange(original, addendum);
+        await db.SaveChangesAsync();
+
+        var register = await new ArppReadService(db).GetRegisterAsync(null, null);
+        var financialYear = register.FinancialYears.Single();
+        var originalItem = financialYear.Issues.Single(item => item.IssueSequence == 0);
+        var addendumItem = financialYear.Issues.Single(item => item.IssueSequence == 1);
+
+        Assert.Equal(5_000_000m, register.ApprovedLinkedIpaCost);
+        Assert.Equal(12_000_000m, register.DelistedLinkedIpaCost);
+        Assert.Equal(1, register.ApprovedLinkedProjects);
+        Assert.Equal(1, register.DelistedLinkedProjects);
+        Assert.Equal(17_000_000m, register.AuthoritativeLinkedIpaCost);
+
+        Assert.Equal(5_000_000m, financialYear.ApprovedLinkedIpaCost);
+        Assert.Equal(12_000_000m, financialYear.DelistedLinkedIpaCost);
+        Assert.Equal(1, financialYear.ApprovedLinkedProjectCount);
+        Assert.Equal(1, financialYear.DelistedLinkedProjectCount);
+
+        Assert.Equal(15_000_000m, originalItem.ApprovedRowValue);
+        Assert.Equal(0m, originalItem.DelistedRowValue);
+        Assert.Equal(0m, addendumItem.ApprovedRowValue);
+        Assert.Equal(12_000_000m, addendumItem.DelistedRowValue);
     }
 
     private static ArppIssue CreateIssue(int year, int sequence, ArppIssueKind kind, string name)
