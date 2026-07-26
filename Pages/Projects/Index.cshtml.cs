@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
@@ -27,18 +28,24 @@ namespace ProjectManagement.Pages.Projects
         private readonly ApplicationDbContext _db;
         private readonly IProjectAnalyticsService _analytics;
         private readonly ProjectCategoryHierarchyService _categoryHierarchy;
+        private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
         public IndexModel(
             ApplicationDbContext db,
             IProjectAnalyticsService analytics,
-            ProjectCategoryHierarchyService categoryHierarchy)
+            ProjectCategoryHierarchyService categoryHierarchy,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider)
         {
             _db = db;
             _analytics = analytics;
             _categoryHierarchy = categoryHierarchy;
+            _workflowStageMetadataProvider = workflowStageMetadataProvider;
         }
 
         public IReadOnlyList<Project> Projects { get; private set; } = new List<Project>();
+
+        public IReadOnlyDictionary<int, ProjectRepositoryStagePositionVm> StagePositions { get; private set; }
+            = new Dictionary<int, ProjectRepositoryStagePositionVm>();
 
         [BindProperty(SupportsGet = true)]
         public string? Query { get; set; }
@@ -99,8 +106,6 @@ namespace ProjectManagement.Pages.Projects
         // Section: KPI counters (filtered dataset)
         public int FilteredTotal { get; private set; }
 
-        public int OldCount { get; private set; }
-
         public int RepeatBuildCount { get; private set; }
 
         public int NewBuildCount { get; private set; }
@@ -147,6 +152,9 @@ namespace ProjectManagement.Pages.Projects
 
         public IReadOnlyList<LifecycleFilterTab> LifecycleTabs { get; private set; } = Array.Empty<LifecycleFilterTab>();
 
+        public LifecycleFilterTab LegacyArchive { get; private set; } =
+            new(ProjectLifecycleFilter.Legacy, "Legacy archive", ProjectLifecycleFilter.Legacy.ToString(), false, 0);
+
         public async Task OnGetAsync()
         {
             // Section: Normalize query parameters
@@ -183,6 +191,7 @@ namespace ProjectManagement.Pages.Projects
 
             var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters, buildFilter);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
+            LegacyArchive = CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy archive", lifecycleCounts);
 
             var filters = baseFilters with { Lifecycle = Lifecycle };
 
@@ -198,7 +207,6 @@ namespace ProjectManagement.Pages.Projects
 
             var filteredQuery = ApplyProjectTypeFilter(baseQuery);
             FilteredTotal = await filteredQuery.CountAsync();
-            OldCount = await filteredQuery.Where(p => p.IsLegacy).CountAsync();
             TotalCount = FilteredTotal;
 
             // Section: Results query setup
@@ -263,6 +271,12 @@ namespace ProjectManagement.Pages.Projects
             Projects = isAll
                 ? await query.ToListAsync()
                 : await query.Skip(skip).Take(PageSize).ToListAsync();
+
+            StagePositions = Projects.ToDictionary(
+                project => project.Id,
+                project => ProjectRepositoryStagePositionVm.Create(
+                    project,
+                    _workflowStageMetadataProvider));
 
             ResultsStart = TotalCount == 0 ? 0 : isAll ? 1 : skip + 1;
             ResultsEnd = TotalCount == 0 ? 0 : isAll ? TotalCount : Math.Min(skip + Projects.Count, TotalCount);
@@ -608,8 +622,7 @@ namespace ProjectManagement.Pages.Projects
                 CreateLifecycleTab(ProjectLifecycleFilter.All, "All", counts),
                 CreateLifecycleTab(ProjectLifecycleFilter.Active, "Active", counts),
                 CreateLifecycleTab(ProjectLifecycleFilter.Completed, "Completed", counts),
-                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled", counts),
-                CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Old projects", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled", counts)
             };
         }
 

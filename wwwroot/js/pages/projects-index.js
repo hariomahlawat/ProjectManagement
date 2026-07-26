@@ -81,6 +81,25 @@
             if (clearUnclassified.checked && unclassified) unclassified.checked = false;
         });
     }
+
+    root.querySelectorAll('[data-project-card-cover-image]').forEach(image => {
+        const host = image.closest('[data-project-card-cover]');
+        if (!host) return;
+
+        const showFallback = () => {
+            image.hidden = true;
+            image.removeAttribute('srcset');
+            host.classList.add('project-card__visual--icon');
+        };
+
+        image.addEventListener('error', showFallback, { once: true });
+
+        // The image can fail before this deferred page script attaches its
+        // listener. naturalWidth is the reliable post-load failure check.
+        if (image.complete && image.naturalWidth === 0) {
+            showFallback();
+        }
+    });
 })();
 
 // Enhancement block: current-page sorting and full-row keyboard/mouse navigation.

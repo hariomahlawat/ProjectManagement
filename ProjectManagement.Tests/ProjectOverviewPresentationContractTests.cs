@@ -25,6 +25,19 @@ public sealed class ProjectOverviewPresentationContractTests
         Assert.Contains("project-timeline-empty-history", workspace, StringComparison.Ordinal);
         Assert.Contains("No recorded stage history", workspace, StringComparison.Ordinal);
         Assert.Contains("Project remarks remain available", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("No stage history recorded", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("No stage history was recorded", workspace, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(workspace, "No recorded stage history"));
+    }
+
+    [Fact]
+    public void LegacyHeader_DistinguishesRecordMetadataFromHistoricalProjectDates()
+    {
+        var header = ReadRepoFile("Pages", "Projects", "_ProjectCommandHeader.cshtml");
+
+        Assert.Contains("Mapped workflow", header, StringComparison.Ordinal);
+        Assert.Contains("Record added", header, StringComparison.Ordinal);
+        Assert.Contains("project?.IsLegacy == true", header, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,5 +90,19 @@ public sealed class ProjectOverviewPresentationContractTests
         }
 
         throw new FileNotFoundException($"Could not locate repository file: {Path.Combine(relativePath)}");
+    }
+
+    private static int CountOccurrences(string value, string search)
+    {
+        var count = 0;
+        var index = 0;
+
+        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += search.Length;
+        }
+
+        return count;
     }
 }

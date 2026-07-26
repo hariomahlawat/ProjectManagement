@@ -4,14 +4,15 @@
 @using System.Linq
 @using System.Globalization
 @using ProjectManagement.Models
-@using ProjectManagement.Models.Execution
-@using ProjectManagement.Models.Stages
 @using ProjectManagement.Services.Projects
+@using ProjectManagement.ViewModels
 @{
     ViewData["Title"] = "Projects";
 
     var activeLifecycle = Model.LifecycleTabs.FirstOrDefault(t => t.IsActive);
-    var activeLifecycleLabel = string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label;
+    var activeLifecycleLabel = Model.LegacyArchive.IsActive
+        ? Model.LegacyArchive.Label
+        : (string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label);
     var projectTypeChips = Model.ProjectTypeChips
         .OrderByDescending(chip => chip.Count)
         .ThenBy(chip => chip.Name, StringComparer.OrdinalIgnoreCase)
@@ -69,8 +70,6 @@
     }
     if (!string.IsNullOrWhiteSpace(Model.Build)) activeFilters.Add(Model.Build == "Repeat" ? "Repeat build" : "New development");
     if (Model.IncludeArchived) activeFilters.Add("Archived included");
-
-    var isAdminOrHod = User.IsInRole("Admin") || User.IsInRole("HoD");
 }
 
 @section Styles {
@@ -99,31 +98,40 @@
                         <i class="bi bi-list-ul" aria-hidden="true"></i><span class="visually-hidden">Table view</span>
                     </button>
                 </div>
-                @if (isAdminOrHod)
-                {
-                    <a asp-page="/Projects/Create" class="btn btn-primary projects-header__create">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                        <span>Create project</span>
-                    </a>
-                }
             </div>
         </header>
 
-        <nav class="projects-lifecycle" aria-label="Project lifecycle filters">
-            @foreach (var lifecycle in Model.LifecycleTabs)
-            {
-                var routeValues = BaseRouteValues();
-                routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
-                routeValues["p"] = "1";
-                <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
-                   asp-page="./Index"
-                   asp-all-route-data="routeValues"
-                   aria-current="@(lifecycle.IsActive ? "page" : null)">
-                    <span title="@(lifecycle.Filter == ProjectLifecycleFilter.Legacy ? "Older completed projects retained as institutional record" : null)">@(lifecycle.Filter == ProjectLifecycleFilter.Legacy ? "Legacy archive" : lifecycle.Label)</span>
-                    <span class="projects-lifecycle__count">@lifecycle.Count</span>
-                </a>
+        <div class="projects-classification-bar">
+            <nav class="projects-lifecycle" aria-label="Project lifecycle filters">
+                @foreach (var lifecycle in Model.LifecycleTabs)
+                {
+                    var routeValues = BaseRouteValues();
+                    routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
+                    routeValues["p"] = "1";
+                    <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
+                       asp-page="./Index"
+                       asp-all-route-data="routeValues"
+                       aria-current="@(lifecycle.IsActive ? "page" : null)">
+                        <span>@lifecycle.Label</span>
+                        <span class="projects-lifecycle__count">@lifecycle.Count</span>
+                    </a>
+                }
+            </nav>
+            @{
+                var legacyRouteValues = BaseRouteValues();
+                legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
+                legacyRouteValues["p"] = "1";
             }
-        </nav>
+            <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
+               asp-page="./Index"
+               asp-all-route-data="legacyRouteValues"
+               aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
+               title="Projects retained as institutional records">
+                <i class="bi bi-archive" aria-hidden="true"></i>
+                <span>@Model.LegacyArchive.Label</span>
+                <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
+            </a>
+        </div>
 
         <form method="get" class="projects-toolbar" data-project-filter-form>
             <input type="hidden" name="p" value="1" />
@@ -305,7 +313,9 @@
                 <div class="projects-grid">
                     @foreach (var project in Model.Projects)
                     {
-                        var stageDisplay = FormatStageDisplay(project);
+                        var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
+                            ? resolvedStageDisplay
+                            : ProjectRepositoryStagePositionVm.Missing;
                         var totStatus = FormatTotStatusShort(project);
                         string? coverPhotoUrl = null;
                         if (project.CoverPhotoId.HasValue)
@@ -318,14 +328,18 @@
                         <article class="project-card @(project.IsLegacy ? "project-card--legacy" : null) @(project.IsArchived ? "project-card--archived" : null)">
                             <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="project-card__link" aria-label="Open @project.Name"></a>
                             <div class="project-card__topline">
-                                <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)">
+                                <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)"
+                                     data-project-card-cover>
+                                    <i class="bi bi-kanban project-card__visual-fallback"
+                                       aria-hidden="true"
+                                       data-project-card-cover-fallback></i>
                                     @if (!string.IsNullOrEmpty(coverPhotoUrl))
                                     {
-                                        <img src="@coverPhotoUrl" alt="" loading="lazy" />
-                                    }
-                                    else
-                                    {
-                                        <i class="bi bi-kanban" aria-hidden="true"></i>
+                                        <img src="@coverPhotoUrl"
+                                             alt=""
+                                             loading="lazy"
+                                             decoding="async"
+                                             data-project-card-cover-image />
                                     }
                                 </div>
                                 <div class="project-card__heading">
@@ -379,7 +393,9 @@
                         <tbody>
                             @foreach (var project in Model.Projects)
                             {
-                                var stageDisplay = FormatStageDisplay(project);
+                                var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
+                                    ? resolvedStageDisplay
+                                    : ProjectRepositoryStagePositionVm.Missing;
                                 var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
                                 <tr class="projects-table__row @(project.IsLegacy ? "is-legacy" : null)" data-project-row data-href="@rowHref" tabindex="0">
                                     <td data-sort-value="@project.Name"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
@@ -433,66 +449,6 @@
 
 @functions
 {
-    private readonly record struct StageDisplay(string Primary, string? Secondary, bool IsMissing = false);
-
-    private static StageDisplay FormatStageDisplay(Project project)
-    {
-        static string FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : string.Empty;
-
-        if (project.ProjectStages is not { Count: > 0 })
-            return new StageDisplay("Lifecycle not recorded", "No stage activity is available for this project.", true);
-
-        var stages = project.ProjectStages
-            .Where(s => !IsTotStage(s.StageCode))
-            .OrderBy(s => s.SortOrder)
-            .ToList();
-
-        if (stages.Count == 0)
-            return new StageDisplay("Lifecycle not recorded", "No stage activity is available for this project.", true);
-
-        var paymentStage = stages.FirstOrDefault(s => IsPaymentStage(s.StageCode));
-        if (paymentStage is not null)
-            stages = stages.Where(s => s.SortOrder <= paymentStage.SortOrder).ToList();
-
-        var topCompleted = stages
-            .Where(s => s.Status == StageStatus.Completed)
-            .OrderByDescending(s => s.SortOrder)
-            .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
-            .FirstOrDefault();
-
-        var started = stages.FirstOrDefault(s => s.Status is StageStatus.InProgress or StageStatus.Blocked);
-
-        if (started is not null)
-        {
-            var currentLabel = StageCodes.DisplayNameOf(started.StageCode);
-            var currentState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
-            var previous = stages.LastOrDefault(s => s.SortOrder < started.SortOrder && s.Status == StageStatus.Completed);
-            var secondary = previous is null
-                ? "Current project stage"
-                : $"Previous: {StageCodes.DisplayNameOf(previous.StageCode)}{(previous.CompletedOn.HasValue ? $" · {FmtDate(previous.CompletedOn)}" : string.Empty)}";
-            return new StageDisplay($"{currentLabel} · {currentState}", secondary);
-        }
-
-        if (topCompleted is not null)
-        {
-            var completedLabel = StageCodes.DisplayNameOf(topCompleted.StageCode);
-            var next = stages.FirstOrDefault(s => s.SortOrder > topCompleted.SortOrder);
-            var primary = next is null ? $"{completedLabel} completed" : $"{completedLabel} → {StageCodes.DisplayNameOf(next.StageCode)}";
-            var secondary = topCompleted.CompletedOn.HasValue
-                ? $"Completed {FmtDate(topCompleted.CompletedOn)}{(next is null ? string.Empty : " · Next stage not started")}"
-                : next is null ? "Latest recorded stage completed" : "Next stage not started";
-            return new StageDisplay(primary, secondary);
-        }
-
-        var first = stages.FirstOrDefault();
-        return first is null
-            ? new StageDisplay("Lifecycle not recorded", "No stage activity is available for this project.", true)
-            : new StageDisplay($"Next: {StageCodes.DisplayNameOf(first.StageCode)}", "Project lifecycle has not started.");
-    }
-
-    private static bool IsTotStage(string code) => StageCodes.IsTot(code);
-    private static bool IsPaymentStage(string code) => StageCodes.IsPayment(code);
-
     private static string? FormatTotStatusShort(Project project)
     {
         if (project.Tot is not { } tot)

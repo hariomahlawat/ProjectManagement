@@ -7,51 +7,38 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectCommandHeaderAssetTests
 {
     [Fact]
-    public void Overview_LoadsDedicatedHeaderSurfaceAfterPortfolioStyles()
+    public void Overview_LoadsHeaderSurfaceThroughPrimaryPortfolioAsset()
     {
         var overview = ReadRepoFile("Pages", "Projects", "Overview.cshtml");
         const string portfolioAsset = "project-portfolio.css";
-        const string headerAsset = "project-command-header.css";
 
-        var portfolioIndex = overview.IndexOf(portfolioAsset, StringComparison.Ordinal);
-        var headerIndex = overview.IndexOf(headerAsset, StringComparison.Ordinal);
-
-        Assert.True(portfolioIndex >= 0, $"{portfolioAsset} is not referenced by the project overview.");
-        Assert.True(headerIndex > portfolioIndex,
-            $"{headerAsset} must be loaded after {portfolioAsset} so the critical surface remains authoritative.");
+        Assert.Contains(portfolioAsset, overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-command-header.css", overview, StringComparison.Ordinal);
         Assert.Contains("asp-append-version=\"true\"", overview, StringComparison.Ordinal);
-        Assert.Contains("data-project-command-header-stylesheet", overview, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void DedicatedHeaderStyles_PreserveActiveCompletedAndCancelledSurfaces()
-    {
-        var css = ReadRepoFile("wwwroot", "css", "pages", "project-command-header.css");
-
-        Assert.Contains(".project-portfolio-shell > .project-command-header {", css, StringComparison.Ordinal);
-        Assert.Contains("padding: .9rem 1rem;", css, StringComparison.Ordinal);
-        Assert.Contains("border: 1px solid", css, StringComparison.Ordinal);
-        Assert.Contains("border-left-width: 4px;", css, StringComparison.Ordinal);
-        Assert.Contains("background-color: var(--pm-card, #fff);", css, StringComparison.Ordinal);
-        Assert.Contains("overflow: visible;", css, StringComparison.Ordinal);
-        Assert.Contains(".project-command-header--completed", css, StringComparison.Ordinal);
-        Assert.Contains(".project-command-header--cancelled", css, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void PortfolioStyles_DoNotRedefineTheOuterHeaderSurface()
+    public void PortfolioStyles_OwnRobustActiveCompletedAndCancelledHeaderSurfaces()
     {
         var css = ReadRepoFile("wwwroot", "css", "pages", "project-portfolio.css");
-        var normalizedCss = css.Replace("\r\n", "\n", StringComparison.Ordinal);
 
+        Assert.Contains(
+            ".project-portfolio .project-command-header[data-project-command-header] {",
+            css,
+            StringComparison.Ordinal);
+        Assert.Contains("padding: .9rem 1rem;", css, StringComparison.Ordinal);
+        Assert.Contains("border: 1px solid", css, StringComparison.Ordinal);
+        Assert.Contains("border-left: 3px solid var(--project-command-accent);", css, StringComparison.Ordinal);
+        Assert.Contains("var(--pm-card, #fff);", css, StringComparison.Ordinal);
+        Assert.Contains("overflow: visible;", css, StringComparison.Ordinal);
+        Assert.Contains(".project-command-header--completed[data-project-command-header]", css, StringComparison.Ordinal);
+        Assert.Contains(".project-command-header--cancelled[data-project-command-header]", css, StringComparison.Ordinal);
         Assert.DoesNotContain(".project-portfolio-shell > .project-command-header", css, StringComparison.Ordinal);
-        Assert.DoesNotContain("\n.project-command-header {\n", normalizedCss, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("Pages/Projects/Overview.cshtml")]
     [InlineData("Pages/Projects/_ProjectCommandHeader.cshtml")]
-    [InlineData("wwwroot/css/pages/project-command-header.css")]
     [InlineData("ProjectManagement.Tests/ProjectCommandHeaderAssetTests.cs")]
     public void ReplacementManifest_IncludesHeaderDeliveryContract(string requiredPath)
     {

@@ -160,6 +160,31 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
+        public async Task LegacyArchive_IsPresentedSeparatelyFromLifecycleTabs()
+        {
+            await using var context = CreateContext();
+
+            context.Projects.Add(new Project
+            {
+                Name = "Legacy",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsLegacy = true,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+
+            var model = CreateModel(context);
+            model.Lifecycle = ProjectLifecycleFilter.Legacy;
+
+            await model.OnGetAsync();
+
+            Assert.True(model.LegacyArchive.IsActive);
+            Assert.DoesNotContain(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.Legacy);
+            Assert.Single(model.Projects);
+        }
+
+        [Fact]
         public async Task LifecycleTabs_DisplayCounts()
         {
             await using var context = CreateContext();
@@ -205,9 +230,11 @@ namespace ProjectManagement.Tests
 
             Assert.Equal(4, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All).Count);
             Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Active).Count);
-            Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Completed).Count);
+            Assert.Equal(2, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Completed).Count);
             Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Cancelled).Count);
-            Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Legacy).Count);
+            Assert.DoesNotContain(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.Legacy);
+            Assert.Equal(ProjectLifecycleFilter.Legacy, model.LegacyArchive.Filter);
+            Assert.Equal(1, model.LegacyArchive.Count);
         }
 
         [Fact]
@@ -364,7 +391,7 @@ namespace ProjectManagement.Tests
         {
             var categories = new ProjectCategoryHierarchyService(context);
             var analytics = new ProjectAnalyticsService(context, new TestClock(), categories, new WorkflowStageMetadataProvider());
-            return new IndexModel(context, analytics, categories);
+            return new IndexModel(context, analytics, categories, new WorkflowStageMetadataProvider());
         }
 
         private static ApplicationDbContext CreateContext()

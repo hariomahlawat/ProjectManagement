@@ -45,13 +45,9 @@
                                                     <h5 class="pm-card-title mb-0">@(isActiveLifecycle ? "Timeline" : "Historical timeline")</h5>
                                                     <p class="pm-card-subtitle mb-0">
                                                         @(isCancelledLifecycle
-                                                            ? hasRecordedStageHistory
-                                                                ? "Stage position when the project was cancelled."
-                                                                : "No stage history was recorded before cancellation."
+                                                            ? "Project lifecycle at cancellation."
                                                             : isCompletedLifecycle
-                                                                ? hasRecordedStageHistory
-                                                                    ? "Recorded stage history and outcomes."
-                                                                    : "No stage history was recorded for this project."
+                                                                ? "Recorded lifecycle and outcomes."
                                                                 : "Project lifecycle and stage outcomes.")
                                                     </p>
                                                 </div>
@@ -209,38 +205,28 @@
                                 }
                             </div>
                         </div>
-                        @if (showTimeline)
+                        @if (showTimeline && (isActiveLifecycle || hasRecordedStageHistory))
                         {
                             <div class="pm-card-meta w-100" data-panel-section="timeline" id="project-panel-meta-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
-                                @if (!isActiveLifecycle && !hasRecordedStageHistory)
-                                {
-                                    <span class="project-timeline-history-status text-muted small">
-                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                        No stage history recorded
-                                    </span>
-                                }
-                                else
-                                {
-                                    <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
-                                              value="@resolvedStages"
-                                              max="@progressMax"
-                                              aria-label="Timeline stages resolved">
-                                    </progress>
-                                    <span class="text-muted small">
-                                        @if (completedStagesRequiringBackfill > 0)
-                                        {
-                                            <text>@completedStages completed · @fullyRecordedCompletedStages fully recorded · @completedStagesRequiringBackfill backfill pending@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
-                                        }
-                                        else if (skippedStages == 0)
-                                        {
-                                            <text>@completedStages of @totalStages stages complete@(isCancelledLifecycle ? " before cancellation" : string.Empty)</text>
-                                        }
-                                        else
-                                        {
-                                            <text>@resolvedStages of @totalStages progressed · @completedStages completed · @skippedStages skipped@(isCancelledLifecycle ? " before cancellation" : string.Empty)</text>
-                                        }
-                                    </span>
-                                }
+                                <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
+                                          value="@resolvedStages"
+                                          max="@progressMax"
+                                          aria-label="Timeline stages resolved">
+                                </progress>
+                                <span class="text-muted small">
+                                    @if (completedStagesRequiringBackfill > 0)
+                                    {
+                                        <text>@completedStages completed · @fullyRecordedCompletedStages fully recorded · @completedStagesRequiringBackfill backfill pending@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
+                                    }
+                                    else if (skippedStages == 0)
+                                    {
+                                        <text>@completedStages of @totalStages stages complete@(isCancelledLifecycle ? " before cancellation" : string.Empty)</text>
+                                    }
+                                    else
+                                    {
+                                        <text>@resolvedStages of @totalStages progressed · @completedStages completed · @skippedStages skipped@(isCancelledLifecycle ? " before cancellation" : string.Empty)</text>
+                                    }
+                                </span>
                             </div>
                         }
                     </div>

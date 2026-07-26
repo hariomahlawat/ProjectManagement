@@ -6,12 +6,51 @@
     padding-bottom: 2rem;
 }
 
+/*
+ * Command header surface
+ *
+ * Keep this critical surface in the primary portfolio asset. The
+ * data-attribute selector is deliberately independent of direct-child DOM
+ * topology, so layout wrappers cannot silently remove the card treatment.
+ */
+.project-portfolio .project-command-header[data-project-command-header] {
+    --project-command-accent: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 62%, #fff);
+    --project-command-glow: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 8%, transparent);
+    position: relative;
+    display: block;
+    min-width: 0;
+    margin-bottom: 1rem;
+    padding: .9rem 1rem;
+    overflow: visible;
+    border: 1px solid color-mix(in srgb, var(--pm-border, #d9e1ec) 72%, #94a3b8 28%);
+    border-left: 3px solid var(--project-command-accent);
+    border-radius: .95rem;
+    background:
+        radial-gradient(circle at 94% 0%, var(--project-command-glow), transparent 34%),
+        var(--pm-card, #fff);
+    background-clip: padding-box;
+    box-shadow: 0 7px 20px rgba(15, 23, 42, .055);
+}
+
+.project-portfolio .project-command-header--completed[data-project-command-header] {
+    --project-command-accent: color-mix(in srgb, var(--bs-success, #198754) 78%, #fff);
+    --project-command-glow: color-mix(in srgb, var(--bs-success, #198754) 8%, transparent);
+    border-color: color-mix(in srgb, var(--bs-success, #198754) 34%, var(--portfolio-border));
+    border-left-color: var(--project-command-accent);
+}
+
+.project-portfolio .project-command-header--cancelled[data-project-command-header] {
+    --project-command-accent: color-mix(in srgb, var(--bs-danger, #dc3545) 72%, #fff);
+    --project-command-glow: color-mix(in srgb, var(--bs-danger, #dc3545) 7%, transparent);
+    border-color: color-mix(in srgb, var(--bs-danger, #dc3545) 30%, var(--portfolio-border));
+    border-left-color: var(--project-command-accent);
+}
+
 .project-portfolio .breadcrumb {
     margin-bottom: .75rem;
     font-size: .875rem;
 }
 
-/* The outer command-header surface is owned by project-command-header.css. */
 .project-command-header__main {
     display: flex;
     align-items: flex-start;
@@ -550,6 +589,11 @@ button.project-intelligence-card:hover {
 }
 
 @media (max-width: 575.98px) {
+    .project-portfolio .project-command-header[data-project-command-header] {
+        padding: .82rem;
+        border-radius: .8rem;
+    }
+
     .project-command-header__meta { flex-direction: column; gap: .3rem; }
     .project-command-header__actions .btn-primary { flex: 1 1 auto; }
     .project-intelligence-strip { grid-template-columns: 1fr; }
@@ -559,6 +603,19 @@ button.project-intelligence-card:hover {
 }
 
 @media print {
+    .project-portfolio .project-command-header[data-project-command-header] {
+        border-left-color: #6b8de7;
+        box-shadow: none;
+    }
+    .project-portfolio .project-command-header--completed[data-project-command-header] {
+        border-color: #198754;
+        border-left-color: #198754;
+    }
+    .project-portfolio .project-command-header--cancelled[data-project-command-header] {
+        border-color: #b02a37;
+        border-left-color: #b02a37;
+    }
+
     .project-command-header__actions,
     .project-lifecycle-panel .dropdown,
     .project-lifecycle-panel [data-panel-switch] { display: none !important; }

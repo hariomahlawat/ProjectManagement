@@ -17,6 +17,8 @@
     var lifecycleHeaderClass = isCompleted
         ? " project-command-header--completed"
         : isCancelled ? " project-command-header--cancelled" : string.Empty;
+    var workflowLabel = project?.IsLegacy == true ? "Mapped workflow" : "Workflow";
+    var recordDateLabel = project?.IsLegacy == true ? "Record added" : "Created";
     static string DisplayUser(ApplicationUser? user)
     {
         if (user is null) return "—";
@@ -44,8 +46,8 @@
                 }
             </div>
             <div class="project-command-header__meta">
-                <span><i class="bi bi-diagram-3" aria-hidden="true"></i> Workflow @project?.WorkflowVersion</span>
-                <span><i class="bi bi-calendar3" aria-hidden="true"></i> Created @(project is { } value ? value.CreatedAt.ToString("dd MMM yyyy") : "—")</span>
+                <span><i class="bi bi-diagram-3" aria-hidden="true"></i> @workflowLabel @project?.WorkflowVersion</span>
+                <span><i class="bi bi-calendar3" aria-hidden="true"></i> @recordDateLabel @(project is { } value ? value.CreatedAt.ToString("dd MMM yyyy") : "—")</span>
                 <span><i class="bi bi-person-badge" aria-hidden="true"></i> PO @DisplayUser(project?.LeadPoUser)</span>
                 <span><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
                 @if (Model.LifecycleSummary.IsLegacy)

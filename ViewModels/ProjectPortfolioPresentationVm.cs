@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.ViewModels;
 
@@ -72,16 +74,22 @@ public sealed class ProjectPortfolioPresentationVm
         ArgumentNullException.ThrowIfNull(timeline);
 
         var ordered = timeline.Items.OrderBy(item => item.SortOrder).ToArray();
-        var isWorkflowConcluded = ordered.Length > 0 && ordered.All(item => item.Status is StageStatus.Completed or StageStatus.Skipped);
-        var current = isWorkflowConcluded
-            ? null
-            : ordered.FirstOrDefault(item => item.Status == StageStatus.InProgress)
-                ?? ordered.FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped);
-        var next = current is null
-            ? null
-            : ordered.FirstOrDefault(item =>
-                item.SortOrder > current.SortOrder &&
-                item.Status is StageStatus.NotStarted or StageStatus.Blocked);
+        var lifecyclePosition = ProjectLifecyclePositionResolver.Resolve(
+            ordered
+                .Where(item => !StageCodes.IsTot(item.Code))
+                .Select(item => new ProjectLifecycleStageSnapshot(
+                    item.Code,
+                    item.Name,
+                    item.Status,
+                    item.SortOrder,
+                    item.CompletedOn,
+                    item.Status != StageStatus.NotStarted ||
+                    item.HasPlanDates ||
+                    item.HasActualDates)));
+
+        var isWorkflowConcluded = lifecyclePosition.IsConcluded;
+        var current = FindTimelineItem(ordered, lifecyclePosition.CurrentStage);
+        var next = FindTimelineItem(ordered, lifecyclePosition.NextStage);
 
         var completedCount = ordered.Count(item => item.Status == StageStatus.Completed);
         var completedBackfillCount = ordered.Count(item => item.Status == StageStatus.Completed && item.RequiresBackfill);
@@ -154,6 +162,22 @@ public sealed class ProjectPortfolioPresentationVm
             NextAction = nextAction.Action,
             NextActionDetail = nextAction.Detail
         };
+    }
+
+    private static TimelineItemVm? FindTimelineItem(
+        IReadOnlyList<TimelineItemVm> timeline,
+        ProjectLifecycleStageSnapshot? stage)
+    {
+        if (stage is null)
+        {
+            return null;
+        }
+
+        return timeline.FirstOrDefault(item =>
+            item.SortOrder == stage.SortOrder &&
+            string.Equals(item.Code, stage.Code, StringComparison.OrdinalIgnoreCase))
+            ?? timeline.FirstOrDefault(item =>
+                string.Equals(item.Code, stage.Code, StringComparison.OrdinalIgnoreCase));
     }
 
     private static (string Action, string Detail) BuildNextAction(
