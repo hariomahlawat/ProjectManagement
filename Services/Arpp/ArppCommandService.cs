@@ -16,15 +16,26 @@ public sealed class ArppCommandService : IArppCommandService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IAuditService _audit;
+    private readonly IArppIpaStageSynchronizer _ipaStageSynchronizer;
 
     public ArppCommandService(
         ApplicationDbContext db,
         IClock clock,
         IAuditService audit)
+        : this(db, clock, audit, new ArppIpaStageSynchronizer(db))
+    {
+    }
+
+    public ArppCommandService(
+        ApplicationDbContext db,
+        IClock clock,
+        IAuditService audit,
+        IArppIpaStageSynchronizer ipaStageSynchronizer)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _ipaStageSynchronizer = ipaStageSynchronizer ?? throw new ArgumentNullException(nameof(ipaStageSynchronizer));
     }
 
     public async Task<ArppCommandResult> CreateIssueAsync(
@@ -423,6 +434,11 @@ public sealed class ArppCommandService : IArppCommandService
         // Publish a separate, organisation-visible snapshot. Unlocking the management
         // workspace never changes this snapshot; re-verification replaces it atomically.
         var published = issue.PublishedSnapshot;
+        var previouslyPublishedProjectIds = published?.Entries
+            .Where(entry => entry.ProjectId.HasValue)
+            .Select(entry => entry.ProjectId!.Value)
+            .Distinct()
+            .ToArray() ?? [];
         var replacingPublishedEntries = published is not null && published.Entries.Count > 0;
         if (published is null)
         {
@@ -487,12 +503,38 @@ public sealed class ArppCommandService : IArppCommandService
             }
 
             await _db.SaveChangesAsync(cancellationToken);
+
+            var affectedProjectIds = previouslyPublishedProjectIds
+                .Concat(issue.Entries
+                    .Where(entry => entry.ProjectId.HasValue)
+                    .Select(entry => entry.ProjectId!.Value))
+                .Distinct()
+                .ToArray();
+
+            var stageSynchronization = await _ipaStageSynchronizer.SynchronizeProjectsAsync(
+                affectedProjectIds,
+                cancellationToken);
+
+            ArppIpaStageSynchronizationAudit.Register(
+                transaction,
+                _audit,
+                stageSynchronization,
+                command.UserId,
+                command.UserName,
+                sourceAction: "Arpp.IssueVerified",
+                sourceIssueIds: [issue.Id]);
         }
         catch (DbUpdateConcurrencyException)
         {
             await transaction.RollbackAsync(cancellationToken);
             return ArppCommandResult.Failed(
                 "The ARPP issue changed before verification. Reload it and verify the latest version.");
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ArppCommandResult.Failed(
+                "The ARPP issue could not be published because the linked project lifecycle could not be synchronized. Reload and try again.");
         }
 
         transaction.RegisterAfterCommit(ct => _audit.LogAsync(

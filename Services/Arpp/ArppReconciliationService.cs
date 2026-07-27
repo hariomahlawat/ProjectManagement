@@ -14,15 +14,26 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IAuditService _audit;
+    private readonly IArppIpaStageSynchronizer _ipaStageSynchronizer;
 
     public ArppReconciliationService(
         ApplicationDbContext db,
         IClock clock,
         IAuditService audit)
+        : this(db, clock, audit, new ArppIpaStageSynchronizer(db))
+    {
+    }
+
+    public ArppReconciliationService(
+        ApplicationDbContext db,
+        IClock clock,
+        IAuditService audit,
+        IArppIpaStageSynchronizer ipaStageSynchronizer)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _ipaStageSynchronizer = ipaStageSynchronizer ?? throw new ArgumentNullException(nameof(ipaStageSynchronizer));
     }
 
     public async Task<ArppReconciliationResult> GetQueueAsync(
@@ -314,9 +325,20 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
         }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        ArppIpaStageSynchronizationResult stageSynchronization;
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
+
+            var publishedProjectIds = entries
+                .Where(entry => entry.Issue.IsVerified && entry.ProjectId.HasValue)
+                .Select(entry => entry.ProjectId!.Value)
+                .Distinct()
+                .ToArray();
+
+            stageSynchronization = await _ipaStageSynchronizer.SynchronizeProjectsAsync(
+                publishedProjectIds,
+                cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -332,6 +354,21 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
             return ArppCommandResult.Failed(
                 "A selected project is already linked in the same ARPP issue. Reload and review the affected row.");
         }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ArppCommandResult.Failed(
+                "The ARPP links could not be completed because the linked project lifecycle could not be synchronized. Reload and try again.");
+        }
+
+        ArppIpaStageSynchronizationAudit.Register(
+            transaction,
+            _audit,
+            stageSynchronization,
+            command.UserId,
+            command.UserName,
+            sourceAction: "Arpp.EntriesReconciled",
+            sourceIssueIds: entries.Select(entry => entry.ArppIssueId).Distinct().ToArray());
 
         transaction.RegisterAfterCommit(ct => _audit.LogAsync(
             action: "Arpp.EntriesReconciled",

@@ -666,6 +666,7 @@ builder.Services.AddScoped<IApprovalQueueService, ApprovalQueueService>();
 builder.Services.AddScoped<RepositoryDocumentDeleteApprovalService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<IAuthoritativeIpaPositionResolver, AuthoritativeIpaPositionResolver>();
+builder.Services.AddScoped<IArppIpaStageSynchronizer, ArppIpaStageSynchronizer>();
 builder.Services.AddScoped<IArppReadService, ArppReadService>();
 builder.Services.AddScoped<IArppLibraryService, ArppLibraryService>();
 builder.Services.AddScoped<IArppReferenceDataService, ArppReferenceDataService>();
@@ -2769,6 +2770,43 @@ using (var scope = app.Services.CreateScope())
     else
     {
         app.Logger.LogInformation("Initial StageFlow and Identity seeders were skipped.");
+    }
+
+    // SECTION: ARPP-derived IPA stage reconciliation
+    // This idempotent startup pass repairs projects linked before the lifecycle
+    // synchronization rule was introduced. Normal verification and reconciliation
+    // flows keep the stage current transactionally after this initial repair.
+    var ipaStageSynchronization = await services
+        .GetRequiredService<IArppIpaStageSynchronizer>()
+        .SynchronizeAllAsync();
+
+    if (ipaStageSynchronization.ChangedProjectCount > 0)
+    {
+        app.Logger.LogInformation(
+            "Synchronized IPA lifecycle stages for {ProjectCount} projects from published ARPP records.",
+            ipaStageSynchronization.ChangedProjectCount);
+
+        var earliestCompletionDate = ipaStageSynchronization.Changes
+            .Min(change => change.CompletionDate);
+        var latestCompletionDate = ipaStageSynchronization.Changes
+            .Max(change => change.CompletionDate);
+
+        await services.GetRequiredService<IAuditService>().LogAsync(
+            action: "Arpp.IpaStageStartupReconciled",
+            message: $"Reconciled {ipaStageSynchronization.ChangedProjectCount} IPA lifecycle stages from published ARPP records.",
+            userName: "PRISM system",
+            data: new Dictionary<string, string?>
+            {
+                ["ChangedProjectCount"] = ipaStageSynchronization.ChangedProjectCount.ToString(),
+                ["EvaluatedProjectCount"] = ipaStageSynchronization.EvaluatedProjectCount.ToString(),
+                ["EarliestCompletionDate"] = earliestCompletionDate.ToString("yyyy-MM-dd"),
+                ["LatestCompletionDate"] = latestCompletionDate.ToString("yyyy-MM-dd")
+            });
+    }
+    else
+    {
+        app.Logger.LogDebug(
+            "Published ARPP records required no IPA lifecycle stage reconciliation.");
     }
 }
 

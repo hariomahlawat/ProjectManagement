@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Arpp;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
 using Xunit;
@@ -371,6 +373,83 @@ public sealed class ArppCommandServiceTests
 
         Assert.Contains("Arpp.IssueVerified", audit.Actions);
         Assert.Contains("Arpp.IssueUnlocked", audit.Actions);
+    }
+
+    [Fact]
+    public async Task Verify_LinkedPublishedRow_CompletesIpaStageOnIssuedDocumentDate()
+    {
+        await using var db = CreateContext();
+        db.ArppCfaOptions.Add(CreateCfaOption());
+        db.ArppFundOptions.Add(CreateFundOption());
+        db.ArppDfpdsSchedules.Add(CreateDfpdsSchedule());
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project One",
+            CreatedByUserId = "seed"
+        });
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            SortOrder = ProcurementWorkflow.OrderOf(null, StageCodes.IPA),
+            Status = StageStatus.Completed,
+            ActualStart = new DateOnly(2026, 1, 1),
+            CompletedOn = new DateOnly(2026, 4, 8)
+        });
+
+        var issue = CreateIssue();
+        issue.Entries.Add(new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "1",
+            ProjectReference = "Project One as issued",
+            ProjectId = 1,
+            Category = ArppCategory.New,
+            IpaCost = 1_000_000m,
+            CfaOptionId = 1,
+            Cfa = "Comdt SDD",
+            FundOptionId = 1,
+            Fund = "IR&D",
+            DfpdsScheduleId = 1,
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/test.pdf",
+            OriginalFileName = "ARPP.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 123,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var audit = new FakeAuditService();
+        var service = new ArppCommandService(
+            db,
+            new FixedClock(new DateTimeOffset(2026, 7, 26, 8, 0, 0, TimeSpan.Zero)),
+            audit);
+
+        var result = await service.VerifyAsync(new ArppVerifyCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            null,
+            "verifier-1",
+            "Verifier One"));
+
+        Assert.True(result.Success);
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Equal(issue.IssueDate, stage.CompletedOn);
+        Assert.Equal(new DateOnly(2026, 1, 1), stage.ActualStart);
+        Assert.Contains("Arpp.IpaStageSynchronized", audit.Actions);
     }
 
     [Fact]

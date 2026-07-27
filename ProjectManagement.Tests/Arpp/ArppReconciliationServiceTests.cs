@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Arpp;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
 using Xunit;
@@ -170,10 +172,11 @@ public sealed class ArppReconciliationServiceTests
         };
         await db.SaveChangesAsync();
 
+        var audit = new FakeAuditService();
         var service = new ArppReconciliationService(
             db,
             new FixedClock(new DateTimeOffset(2026, 7, 26, 8, 0, 0, TimeSpan.Zero)),
-            new FakeAuditService());
+            audit);
 
         var queue = await service.GetQueueAsync(2026, null);
         var item = Assert.Single(queue.Items);
@@ -187,6 +190,12 @@ public sealed class ArppReconciliationServiceTests
         var published = await db.ArppPublishedEntries.SingleAsync();
         Assert.Equal(1, published.ProjectId);
         Assert.Equal("Published project as issued", published.ProjectReference);
+
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.Equal(StageCodes.IPA, stage.StageCode);
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Equal(issue.IssueDate, stage.CompletedOn);
+        Assert.Contains("Arpp.IpaStageSynchronized", audit.Actions);
     }
 
     private static ApplicationDbContext CreateContext()
