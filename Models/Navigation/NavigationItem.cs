@@ -11,6 +11,12 @@ public record class NavigationItem
 
     public string? Page { get; init; }
 
+    /// <summary>
+    /// Optional Razor Page route-family prefix used only for active-tab resolution.
+    /// The destination still comes from <see cref="Page"/>.
+    /// </summary>
+    public string? ActivePagePrefix { get; init; }
+
     public string? Controller { get; init; }
 
     public string? Action { get; init; }

@@ -604,3 +604,167 @@
     }
 }
 
+/* Phase 10: scalable navigation, unified search and context-safe reading */
+.project-arpp-search__control {
+    position: relative;
+}
+
+.project-arpp-search__control > i {
+    position: absolute;
+    z-index: 1;
+    left: .78rem;
+    top: 50%;
+    color: #77869b;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.project-arpp-search__control input {
+    padding-right: 4.65rem;
+    padding-left: 2.15rem;
+}
+
+.project-arpp-search__clear,
+.project-arpp-search__submit {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    padding: 0;
+    border-radius: 7px;
+    transform: translateY(-50%);
+}
+
+.project-arpp-search__clear {
+    right: 2.55rem;
+    color: #64748b;
+    text-decoration: none;
+}
+
+.project-arpp-search__clear:hover {
+    background: #e9eef7;
+    color: #243a5d;
+}
+
+.project-arpp-search__submit {
+    right: .34rem;
+    border: 0;
+    background: #e8efff;
+    color: #2859be;
+}
+
+.project-arpp-search__submit:hover {
+    background: #dbe6ff;
+    color: #1746ad;
+}
+
+.project-arpp-search > small {
+    display: block;
+    margin: .38rem .12rem 0;
+    color: #7a8798;
+    font-size: .66rem;
+    line-height: 1.35;
+}
+
+.project-arpp-nav__year {
+    margin: 0;
+}
+
+.project-arpp-nav__year + .project-arpp-nav__year {
+    margin-top: .45rem;
+    padding-top: .35rem;
+    border-top: 1px solid #edf1f7;
+}
+
+.project-arpp-nav__year > summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: .4rem;
+    margin: .35rem .5rem .2rem;
+    padding: .48rem .55rem;
+    border-radius: 8px;
+    color: #536278;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.project-arpp-nav__year > summary::-webkit-details-marker {
+    display: none;
+}
+
+.project-arpp-nav__year > summary:hover {
+    background: #f4f7fc;
+    color: #243a5d;
+}
+
+.project-arpp-nav__year > summary:focus-visible {
+    outline: 2px solid #5d83e8;
+    outline-offset: 2px;
+}
+
+.project-arpp-nav__year > summary span {
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.project-arpp-nav__year > summary small {
+    color: #8793a5;
+    font-size: .66rem;
+    white-space: nowrap;
+}
+
+.project-arpp-nav__year > summary i {
+    font-size: .72rem;
+    transition: transform .16s ease;
+}
+
+.project-arpp-nav__year[open] > summary i {
+    transform: rotate(180deg);
+}
+
+.project-arpp-nav__year-items {
+    padding-bottom: .18rem;
+}
+
+.project-arpp-reader,
+.project-arpp-project-row,
+.project-arpp-table-card--unlinked {
+    scroll-margin-top: calc(var(--pm-topbar-height, 64px) + var(--pm-module-subnav-height, 54px) + 1rem);
+}
+
+.project-arpp-reader:focus {
+    outline: none;
+}
+
+.project-arpp-table__project-link {
+    display: inline;
+    color: #101d33;
+    text-decoration: none;
+}
+
+.project-arpp-table__project-link:hover {
+    color: #1746ad;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.project-arpp-table__issued-reference {
+    margin-top: .16rem;
+    color: #718096;
+    font-size: .75rem;
+    line-height: 1.35;
+}
+
+@media (max-width: 991.98px) {
+    .project-arpp-search > small {
+        font-size: .7rem;
+    }
+}

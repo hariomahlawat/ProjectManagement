@@ -13,6 +13,8 @@
         => document.Kind == ArppIssueKind.Original
             ? "Original ARPP"
             : $"Addendum No. {document.IssueSequence}";
+
+    var hasQuery = !string.IsNullOrWhiteSpace(Model.Query);
 }
 
 @section Styles {
@@ -82,65 +84,91 @@
                     </button>
                 </div>
 
-                <form method="get" class="project-arpp-search" role="search">
-                    <label class="visually-hidden" for="arppLibrarySearch">Search ARPP documents and rows</label>
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <input id="arppLibrarySearch"
-                           name="Query"
-                           value="@Model.Query"
-                           type="search"
-                           placeholder="Search ARPP"
-                           title="Search document names, project references and serial numbers" />
-                    @if (Model.Document is not null)
-                    {
-                        <input type="hidden" name="IssueId" value="@Model.Document.IssueId" />
-                    }
-                    else if (Model.SelectedFinancialYearStart.HasValue)
-                    {
-                        <input type="hidden" name="FinancialYearStart" value="@Model.SelectedFinancialYearStart.Value" />
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.Query))
-                    {
-                        <a asp-page="./Index"
-                           asp-route-issueId="@Model.Document?.IssueId"
-                           asp-route-financialYearStart="@Model.SelectedFinancialYearStart"
-                           class="project-arpp-search__clear"
-                           aria-label="Clear search">
-                            <i class="bi bi-x-lg" aria-hidden="true"></i>
-                        </a>
-                    }
+                <form method="get"
+                      class="project-arpp-search"
+                      role="search"
+                      data-arpp-library-search-form>
+                    <label class="visually-hidden" for="arppLibrarySearch">Search projects, documents or serial numbers</label>
+                    <div class="project-arpp-search__control">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input id="arppLibrarySearch"
+                               name="Query"
+                               value="@Model.Query"
+                               type="search"
+                               autocomplete="off"
+                               placeholder="Projects, documents or serials"
+                               title="Search document names, project references, serial numbers, categories, CFA, Fund and DFPDS" />
+                        @if (Model.Document is not null)
+                        {
+                            <input type="hidden" name="IssueId" value="@Model.Document.IssueId" />
+                        }
+                        else if (Model.SelectedFinancialYearStart.HasValue)
+                        {
+                            <input type="hidden" name="FinancialYearStart" value="@Model.SelectedFinancialYearStart.Value" />
+                        }
+                        @if (hasQuery)
+                        {
+                            <a asp-page="./Index"
+                               asp-route-issueId="@Model.Document?.IssueId"
+                               asp-route-financialYearStart="@Model.SelectedFinancialYearStart"
+                               class="project-arpp-search__clear"
+                               data-arpp-library-reader-link
+                               aria-label="Clear search">
+                                <i class="bi bi-x-lg" aria-hidden="true"></i>
+                            </a>
+                        }
+                        <button type="submit"
+                                class="project-arpp-search__submit"
+                                aria-label="Search ARPP library"
+                                title="Search">
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <small>Projects, issued wording, serial, category, CFA, Fund or DFPDS</small>
                 </form>
 
                 <nav class="project-arpp-nav" aria-label="Published ARPP documents">
                     @foreach (var year in Model.Navigation.FinancialYears)
                     {
                         var yearSelected = Model.SelectedFinancialYearStart == year.FinancialYearStart;
-                        <section class="project-arpp-nav__year">
-                            <h2>@FinancialYearHelper.Format(year.FinancialYearStart)</h2>
-                            <a asp-page="./Index"
-                               asp-route-financialYearStart="@year.FinancialYearStart"
-                               asp-route-query="@Model.Query"
-                               class="project-arpp-nav__item project-arpp-nav__item--current @(yearSelected && Model.Document is null ? "is-active" : string.Empty)">
-                                <span class="project-arpp-nav__icon"><i class="bi bi-layers" aria-hidden="true"></i></span>
-                                <span>
-                                    <strong>Current position</strong>
-                                    <small>Latest published project position</small>
-                                </span>
-                            </a>
-                            @foreach (var navDocument in year.Documents)
-                            {
+                        var yearOpen = hasQuery || yearSelected;
+                        <details class="project-arpp-nav__year"
+                                 data-arpp-library-year="@year.FinancialYearStart"
+                                 data-arpp-library-year-active="@yearSelected.ToString().ToLowerInvariant()"
+                                 open="@(yearOpen ? "open" : null)">
+                            <summary>
+                                <span>FY @FinancialYearHelper.Format(year.FinancialYearStart)</span>
+                                <small>@year.Documents.Count document@(year.Documents.Count == 1 ? "" : "s")</small>
+                                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                            </summary>
+                            <div class="project-arpp-nav__year-items">
                                 <a asp-page="./Index"
-                                   asp-route-issueId="@navDocument.IssueId"
+                                   asp-route-financialYearStart="@year.FinancialYearStart"
                                    asp-route-query="@Model.Query"
-                                   class="project-arpp-nav__item @(Model.Document?.IssueId == navDocument.IssueId ? "is-active" : string.Empty)">
-                                    <span class="project-arpp-nav__icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>
+                                   data-arpp-library-reader-link
+                                   class="project-arpp-nav__item project-arpp-nav__item--current @(yearSelected && Model.Document is null ? "is-active" : string.Empty)">
+                                    <span class="project-arpp-nav__icon"><i class="bi bi-layers" aria-hidden="true"></i></span>
                                     <span>
-                                        <strong>@IssueLabel(navDocument)</strong>
-                                        <small>@navDocument.IssueDate.ToString("dd MMM yyyy") · @navDocument.RowCount row@(navDocument.RowCount == 1 ? "" : "s")</small>
+                                        <strong>Current position</strong>
+                                        <small>Latest published project position</small>
                                     </span>
                                 </a>
-                            }
-                        </section>
+                                @foreach (var navDocument in year.Documents)
+                                {
+                                    <a asp-page="./Index"
+                                       asp-route-issueId="@navDocument.IssueId"
+                                       asp-route-query="@Model.Query"
+                                       data-arpp-library-reader-link
+                                       class="project-arpp-nav__item @(Model.Document?.IssueId == navDocument.IssueId ? "is-active" : string.Empty)">
+                                        <span class="project-arpp-nav__icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>
+                                        <span>
+                                            <strong>@IssueLabel(navDocument)</strong>
+                                            <small>@navDocument.IssueDate.ToString("dd MMM yyyy") · @navDocument.RowCount row@(navDocument.RowCount == 1 ? "" : "s")</small>
+                                        </span>
+                                    </a>
+                                }
+                            </div>
+                        </details>
                     }
                 </nav>
             </aside>
@@ -150,7 +178,7 @@
                     aria-label="Close document list"
                     tabindex="-1"></button>
 
-            <main class="project-arpp-reader">
+            <main class="project-arpp-reader" id="arppLibraryReaderStart" data-arpp-library-reader-start tabindex="-1">
                 @if (Model.Document is { } document)
                 {
                     var issueLabel = document.Kind == ArppIssueKind.Original

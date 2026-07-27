@@ -22,17 +22,23 @@ public sealed class ArppLibraryService : IArppLibraryService
         string? query,
         CancellationToken cancellationToken = default)
     {
-        var normalizedQuery = NormalizeQuery(query);
+        var normalizedQuery = ArppLibrarySearch.Normalize(query);
         var snapshots = _db.ArppPublishedIssues.AsNoTracking();
 
         if (normalizedQuery is not null)
         {
             var search = normalizedQuery.ToLowerInvariant();
+            var matchingCategories = ArppLibrarySearch.ResolveCategories(normalizedQuery).ToArray();
+
             snapshots = snapshots.Where(snapshot =>
                 snapshot.Name.ToLower().Contains(search) ||
                 snapshot.Entries.Any(entry =>
                     entry.SerialNumber.ToLower().Contains(search) ||
                     entry.ProjectReference.ToLower().Contains(search) ||
+                    entry.Cfa.ToLower().Contains(search) ||
+                    entry.Fund.ToLower().Contains(search) ||
+                    entry.DfpdsSchedule.ToLower().Contains(search) ||
+                    matchingCategories.Contains(entry.Category) ||
                     (entry.Project != null && entry.Project.Name.ToLower().Contains(search))));
         }
 
@@ -202,25 +208,18 @@ public sealed class ArppLibraryService : IArppLibraryService
                 entry.PublishedIssue.IssueDate))
             .ToArray();
 
-        var normalizedQuery = NormalizeQuery(query);
+        var normalizedQuery = ArppLibrarySearch.Normalize(query);
         if (normalizedQuery is not null)
         {
             current = current
-                .Where(row =>
-                    Contains(row.ProjectReference, normalizedQuery) ||
-                    Contains(row.ProjectName, normalizedQuery) ||
-                    Contains(row.SerialNumber, normalizedQuery) ||
-                    Contains(row.SourceIssueName, normalizedQuery))
+                .Where(row => ArppLibrarySearch.Matches(row, normalizedQuery))
                 .ToArray();
         }
 
         var visibleUnlinked = normalizedQuery is null
             ? allUnlinked
             : allUnlinked
-                .Where(row =>
-                    Contains(row.ProjectReference, normalizedQuery) ||
-                    Contains(row.SerialNumber, normalizedQuery) ||
-                    Contains(row.SourceIssueName, normalizedQuery))
+                .Where(row => ArppLibrarySearch.Matches(row, normalizedQuery))
                 .ToArray();
 
         var approved = current
@@ -321,16 +320,6 @@ public sealed class ArppLibraryService : IArppLibraryService
                 attachment.AttachmentContentType,
                 attachment.AttachmentOriginalFileName);
     }
-
-    private static string? NormalizeQuery(string? query)
-    {
-        var normalized = query?.Trim();
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-    }
-
-    private static bool Contains(string? value, string query)
-        => !string.IsNullOrWhiteSpace(value) &&
-           value.Contains(query, StringComparison.OrdinalIgnoreCase);
 
     private static string GetProjectStatus(Project project)
         => project.IsArchived

@@ -39,6 +39,7 @@ public static class ProjectModuleNavDefinition
         {
             Text = "ARPP / PPP",
             Page = "/Projects/Arpp/Index",
+            ActivePagePrefix = "/Projects/Arpp/",
             Icon = "bi-journal-check"
         },
         new()

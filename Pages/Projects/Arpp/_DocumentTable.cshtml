@@ -3,6 +3,14 @@
 @using ProjectManagement.Services.Arpp
 @using ProjectManagement.Utilities
 @model IReadOnlyList<ArppLibraryRow>
+@{
+    static bool IsSameReference(string issuedReference, string? projectName)
+        => !string.IsNullOrWhiteSpace(projectName)
+           && string.Equals(
+               issuedReference.Trim(),
+               projectName.Trim(),
+               StringComparison.OrdinalIgnoreCase);
+}
 
 <div class="project-arpp-table-wrap">
     <table class="project-arpp-table">
@@ -25,15 +33,34 @@
                     <td class="project-arpp-table__order">@row.SortOrder</td>
                     <td class="project-arpp-table__serial">@row.SerialNumber</td>
                     <td>
-                        <div class="project-arpp-table__project">@row.ProjectReference</div>
                         @if (row.ProjectId.HasValue)
                         {
+                            <a class="project-arpp-table__project project-arpp-table__project-link"
+                               asp-page="/Projects/Overview"
+                               asp-route-id="@row.ProjectId">
+                                @row.ProjectReference
+                            </a>
+
                             <div class="project-arpp-table__linked">
-                                <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">@row.ProjectName</a>
-                                @if (!string.IsNullOrWhiteSpace(row.ProjectStatus))
+                                @if (!IsSameReference(row.ProjectReference, row.ProjectName))
                                 {
-                                    <span>· PRISM status: @row.ProjectStatus</span>
+                                    <span>PRISM project: @row.ProjectName</span>
+                                    @if (!string.IsNullOrWhiteSpace(row.ProjectStatus))
+                                    {
+                                        <span> · Status: @row.ProjectStatus</span>
+                                    }
                                 }
+                                else if (!string.IsNullOrWhiteSpace(row.ProjectStatus))
+                                {
+                                    <span>PRISM status: @row.ProjectStatus</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="project-arpp-table__project">@row.ProjectReference</div>
+                            <div class="project-arpp-table__linked project-arpp-table__linked--pending">
+                                Not yet linked to a PRISM project
                             </div>
                         }
                     </td>

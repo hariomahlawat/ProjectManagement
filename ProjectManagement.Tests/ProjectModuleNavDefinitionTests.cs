@@ -26,7 +26,11 @@ public sealed class ProjectModuleNavDefinitionTests
         Assert.Contains(tabs, item => item.Text == "Projects repository");
         Assert.Contains(tabs, item => item.Text == "Ongoing projects");
         Assert.Contains(tabs, item => item.Text == "Completed projects summary");
-        Assert.Contains(tabs, item => item.Text == "ARPP / PPP" && item.Page == "/Projects/Arpp/Index");
+        Assert.Contains(
+            tabs,
+            item => item.Text == "ARPP / PPP"
+                    && item.Page == "/Projects/Arpp/Index"
+                    && item.ActivePagePrefix == "/Projects/Arpp/");
         Assert.Contains(tabs, item => item.Text == "Pending approvals");
         Assert.DoesNotContain(tabs, item => item.Page == "/Projects/Create");
     }

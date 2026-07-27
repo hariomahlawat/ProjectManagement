@@ -21,6 +21,9 @@ public sealed class HistoryModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? FinancialYearStart { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string? Query { get; set; }
+
     public ArppLibraryProjectHistory History { get; private set; } = default!;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -33,6 +36,7 @@ public sealed class HistoryModel : PageModel
 
         History = history;
         FinancialYearStart ??= history.Rows[0].FinancialYearStart;
+        Query = ArppLibrarySearch.Normalize(Query);
         return Page();
     }
 }

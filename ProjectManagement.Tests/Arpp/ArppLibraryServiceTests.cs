@@ -193,6 +193,141 @@ public sealed class ArppLibraryServiceTests
         Assert.Null(await service.GetDocumentAsync(2));
     }
 
+
+    [Theory]
+    [InlineData("GOC-In-ARTRAC")]
+    [InlineData("Capability Development Fund")]
+    [InlineData("9.2")]
+    [InlineData("CF")]
+    [InlineData("carry forward")]
+    public async Task LibrarySearch_UsesSameControlledFieldsAcrossNavigationAndCurrentPosition(string query)
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 7,
+            Name = "Project Trident",
+            CreatedByUserId = "seed"
+        });
+
+        var issue = BuildIssue(
+            7,
+            2026,
+            ArppIssueKind.Original,
+            0,
+            "ARPP 2026-27",
+            new DateOnly(2026, 2, 25));
+
+        issue.PublishedSnapshot = BuildPublished(
+            issue,
+            revision: 1,
+            new ArppPublishedEntry
+            {
+                SourceEntryId = 701,
+                SortOrder = 1,
+                SerialNumber = "27",
+                ProjectReference = "Project Trident as issued",
+                ProjectId = 7,
+                Category = ArppCategory.CarryForward,
+                IpaCost = 25_000_000m,
+                Cfa = "GOC-In-ARTRAC",
+                Fund = "Capability Development Fund",
+                DfpdsSchedule = "9.2"
+            });
+
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var service = new ArppLibraryService(db, new FakeStorage());
+
+        var navigation = await service.GetNavigationAsync(query);
+        var current = await service.GetCurrentPositionAsync(2026, query);
+
+        Assert.Equal(1, navigation.PublishedDocumentCount);
+        Assert.NotNull(current);
+        var row = Assert.Single(current!.ApprovedRows);
+        Assert.Equal(7, row.ProjectId);
+        Assert.Equal(ArppCategory.CarryForward, row.Category);
+    }
+
+    [Fact]
+    public async Task ProjectHistory_OrdersLatestFinancialYearAndLatestAddendumFirst()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 9,
+            Name = "Project Orion",
+            CreatedByUserId = "seed"
+        });
+
+        var older = BuildIssue(11, 2025, ArppIssueKind.Addendum, 4, "Older FY addendum", new DateOnly(2026, 1, 20));
+        older.PublishedSnapshot = BuildPublished(
+            older,
+            revision: 1,
+            new ArppPublishedEntry
+            {
+                SourceEntryId = 1101,
+                SortOrder = 1,
+                SerialNumber = "91",
+                ProjectReference = "Project Orion older",
+                ProjectId = 9,
+                Category = ArppCategory.CarryForward,
+                IpaCost = 11_000_000m,
+                Cfa = "Comdt SDD",
+                Fund = "IR&D",
+                DfpdsSchedule = "9.3"
+            });
+
+        var original = BuildIssue(12, 2026, ArppIssueKind.Original, 0, "Current FY original", new DateOnly(2026, 2, 25));
+        original.PublishedSnapshot = BuildPublished(
+            original,
+            revision: 1,
+            new ArppPublishedEntry
+            {
+                SourceEntryId = 1201,
+                SortOrder = 1,
+                SerialNumber = "12",
+                ProjectReference = "Project Orion current",
+                ProjectId = 9,
+                Category = ArppCategory.New,
+                IpaCost = 12_000_000m,
+                Cfa = "Comdt SDD",
+                Fund = "IR&D",
+                DfpdsSchedule = "9.3"
+            });
+
+        var latest = BuildIssue(13, 2026, ArppIssueKind.Addendum, 1, "Current FY addendum", new DateOnly(2026, 5, 10));
+        latest.PublishedSnapshot = BuildPublished(
+            latest,
+            revision: 1,
+            new ArppPublishedEntry
+            {
+                SourceEntryId = 1301,
+                SortOrder = 1,
+                SerialNumber = "3",
+                ProjectReference = "Project Orion latest",
+                ProjectId = 9,
+                Category = ArppCategory.CommittedLiability,
+                IpaCost = 13_000_000m,
+                Cfa = "Comdt SDD",
+                Fund = "IR&D",
+                DfpdsSchedule = "9.3"
+            });
+
+        db.ArppIssues.AddRange(older, original, latest);
+        await db.SaveChangesAsync();
+
+        var service = new ArppLibraryService(db, new FakeStorage());
+        var history = await service.GetProjectHistoryAsync(9);
+
+        Assert.NotNull(history);
+        Assert.Equal(3, history!.Rows.Count);
+        Assert.Equal(13, history.Rows[0].SourceIssueId);
+        Assert.Equal(12, history.Rows[1].SourceIssueId);
+        Assert.Equal(11, history.Rows[2].SourceIssueId);
+    }
+
     private static ArppIssue BuildIssue(
         long id,
         int financialYearStart,

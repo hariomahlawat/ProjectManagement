@@ -52,7 +52,7 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim();
+        Query = ArppLibrarySearch.Normalize(Query);
         Navigation = await _libraryService.GetNavigationAsync(Query, cancellationToken);
         CanManageArpp = (await _authorizationService.AuthorizeAsync(
             User,
@@ -150,11 +150,7 @@ public sealed class IndexModel : PageModel
         }
 
         var filteredRows = document.Rows
-            .Where(row =>
-                row.ProjectReference.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                row.SerialNumber.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(row.ProjectName) &&
-                 row.ProjectName.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            .Where(row => ArppLibrarySearch.Matches(row, query))
             .ToArray();
 
         return document with { Rows = filteredRows };

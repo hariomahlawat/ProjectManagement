@@ -3,6 +3,15 @@
 @using ProjectManagement.Services.Arpp
 @using ProjectManagement.Utilities
 @model IReadOnlyList<ArppLibraryCurrentRow>
+@{
+    var libraryQuery = Context.Request.Query["Query"].ToString();
+
+    static bool IsSameReference(string issuedReference, string projectName)
+        => string.Equals(
+            issuedReference.Trim(),
+            projectName.Trim(),
+            StringComparison.OrdinalIgnoreCase);
+}
 
 @if (Model.Count == 0)
 {
@@ -27,22 +36,38 @@ else
             <tbody>
                 @foreach (var row in Model)
                 {
-                    <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
+                    <tr id="arpp-project-@row.ProjectId"
+                        class="project-arpp-project-row @(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
                         <td>
-                            <div class="project-arpp-table__project">@row.ProjectReference</div>
+                            <a class="project-arpp-table__project project-arpp-table__project-link"
+                               asp-page="/Projects/Overview"
+                               asp-route-id="@row.ProjectId">
+                                @row.ProjectName
+                            </a>
+                            @if (!IsSameReference(row.ProjectReference, row.ProjectName))
+                            {
+                                <div class="project-arpp-table__issued-reference">
+                                    Issued as: @row.ProjectReference
+                                </div>
+                            }
                             <div class="project-arpp-table__linked">
-                                <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">@row.ProjectName</a>
-                                <span>· PRISM status: @row.ProjectStatus</span>
+                                <span>PRISM status: @row.ProjectStatus</span>
                                 <a class="project-arpp-history-link"
                                    asp-page="./History"
                                    asp-route-projectId="@row.ProjectId"
-                                   asp-route-financialYearStart="@row.SourceFinancialYearStart">
+                                   asp-route-financialYearStart="@row.SourceFinancialYearStart"
+                                   asp-route-query="@libraryQuery">
                                     History
                                 </a>
                             </div>
                         </td>
                         <td>
-                            <a asp-page="./Index" asp-route-issueId="@row.SourceIssueId">@row.SourceIssueName</a>
+                            <a asp-page="./Index"
+                               asp-route-issueId="@row.SourceIssueId"
+                               asp-route-query="@libraryQuery"
+                               data-arpp-library-reader-link>
+                                @row.SourceIssueName
+                            </a>
                             <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
                         </td>
                         <td class="project-arpp-table__serial">@row.SerialNumber</td>

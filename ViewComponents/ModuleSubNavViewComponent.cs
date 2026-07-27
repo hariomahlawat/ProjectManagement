@@ -28,6 +28,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         "HodUserId",
         "Lifecycle",
         "CompletedYear",
+        "FinancialYearStart",
         "TotStatus",
         "TotCompleted",
         "TechStatus",
@@ -252,7 +253,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         {
             Text = MapTabText(item.Text),
             Url = url,
-            IsActive = IsActive(item, currentArea, currentPage, currentController, currentAction),
+            IsActive = ModuleSubNavActiveMatcher.IsActive(item, currentArea, currentPage, currentController, currentAction),
             Icon = item.Icon,
             BadgeViewComponentName = item.BadgeViewComponentName,
             BadgeViewComponentParameters = item.BadgeViewComponentParameters,
@@ -300,41 +301,6 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         }
 
         return values;
-    }
-
-    private static bool IsActive(
-        NavigationItem item,
-        string? currentArea,
-        string? currentPage,
-        string? currentController,
-        string? currentAction)
-    {
-        if (!string.IsNullOrEmpty(item.Page))
-        {
-            if (!string.Equals(currentPage, item.Page, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return string.Equals(item.Area ?? string.Empty, currentArea ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (!string.IsNullOrEmpty(item.Controller) && !string.IsNullOrEmpty(item.Action))
-        {
-            if (!string.Equals(currentController, item.Controller, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            if (!string.Equals(currentAction, item.Action, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return string.Equals(item.Area ?? string.Empty, currentArea ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-        }
-
-        return false;
     }
 
     private static string MapTabText(string text) => text switch
