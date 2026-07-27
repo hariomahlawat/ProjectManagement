@@ -26,7 +26,24 @@ public sealed class ProjectModuleNavDefinitionTests
         Assert.Contains(tabs, item => item.Text == "Projects repository");
         Assert.Contains(tabs, item => item.Text == "Ongoing projects");
         Assert.Contains(tabs, item => item.Text == "Completed projects summary");
+        Assert.Contains(tabs, item => item.Text == "ARPP / PPP" && item.Page == "/Projects/Arpp/Index");
         Assert.Contains(tabs, item => item.Text == "Pending approvals");
         Assert.DoesNotContain(tabs, item => item.Page == "/Projects/Create");
+    }
+
+    [Fact]
+    public void Build_PlacesArppReaderAfterProcessAndBeforeAnalytics()
+    {
+        var tabs = ProjectModuleNavDefinition.Build()
+            .Where(item => !item.IsAction)
+            .ToList();
+
+        var processIndex = tabs.FindIndex(item => item.Page == "/Process/Index");
+        var arppIndex = tabs.FindIndex(item => item.Page == "/Projects/Arpp/Index");
+        var analyticsIndex = tabs.FindIndex(item => item.Page == "/Analytics/Index");
+
+        Assert.True(processIndex >= 0);
+        Assert.Equal(processIndex + 1, arppIndex);
+        Assert.Equal(arppIndex + 1, analyticsIndex);
     }
 }

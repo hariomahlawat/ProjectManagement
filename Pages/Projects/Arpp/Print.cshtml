@@ -1,0 +1,76 @@
+@page
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Pages.Projects.Arpp.PrintModel
+@{
+    Layout = null;
+    var financialYear = FinancialYearHelper.Format(Model.Document.FinancialYearStart);
+    var issueLabel = Model.Document.Kind == ArppIssueKind.Original
+        ? "Original ARPP"
+        : $"Addendum No. {Model.Document.IssueSequence}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@Model.Document.Name · @financialYear</title>
+    <link rel="stylesheet" href="~/css/projects/arpp-library-print.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="arpp-library-print-toolbar" role="toolbar" aria-label="Print controls">
+        <button type="button" onclick="window.print()">Print / Save PDF</button>
+        <button type="button" onclick="window.close()">Close</button>
+    </div>
+
+    <main class="arpp-library-print-document">
+        <header>
+            <div class="marking">PRISM ERP · Simulator Development Division</div>
+            <h1>@Model.Document.Name</h1>
+            <p>ARPP / PPP · Financial Year @financialYear · @issueLabel · Issued @Model.Document.IssueDate.ToString("dd MMM yyyy")</p>
+        </header>
+
+        <section class="summary" aria-label="Document summary">
+            <div><span>Approved row value</span><strong>@IndianCurrencyFormatter.FormatRupees(Model.Document.ApprovedRowValue)</strong></div>
+            <div><span>Delisted row value</span><strong>@IndianCurrencyFormatter.FormatRupees(Model.Document.DelistedRowValue)</strong></div>
+            <div><span>Rows</span><strong>@Model.Document.Rows.Count</strong></div>
+        </section>
+
+        <table>
+            <thead>
+                <tr>
+                    <th class="number">#</th>
+                    <th>Serial</th>
+                    <th>Project reference as issued</th>
+                    <th>Category</th>
+                    <th class="money">IPA cost (₹)</th>
+                    <th>CFA</th>
+                    <th>Fund</th>
+                    <th>DFPDS</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Document.Rows.OrderBy(row => row.SortOrder).ThenBy(row => row.EntryId))
+                {
+                    <tr class="@(row.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
+                        <td class="number">@row.SortOrder</td>
+                        <td>@row.SerialNumber</td>
+                        <td>@row.ProjectReference</td>
+                        <td>@ArppDisplayNames.For(row.Category)</td>
+                        <td class="money">@IndianCurrencyFormatter.FormatRupees(row.IpaCost).TrimStart('₹')</td>
+                        <td>@row.Cfa</td>
+                        <td>@row.Fund</td>
+                        <td>@row.DfpdsSchedule</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <footer>
+            <span>Generated from PRISM on @Model.GeneratedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>
+            <span>Published structured representation of the issued HQ document</span>
+        </footer>
+    </main>
+</body>
+</html>

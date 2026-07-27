@@ -82,6 +82,39 @@ public sealed class ArppAttachmentServiceTests
     }
 
     [Fact]
+    public async Task UploadOrReplaceAsync_KeepsPreviousPdf_WhenPublishedSnapshotStillReferencesIt()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/1/published.pdf",
+            OriginalFileName = "published.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 100,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        AddPublishedSnapshot(issue, "arpp/1/published.pdf");
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var storage = new FakeStorage { NextSha256 = new string('b', 64) };
+        var service = CreateService(db, storage, new FakeAuditService());
+
+        var result = await service.UploadOrReplaceAsync(
+            issue.Id,
+            CreatePdfFormFile("working-replacement.pdf"),
+            "user-2",
+            "User Two");
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain("arpp/1/published.pdf", storage.DeletedKeys);
+        Assert.Equal("arpp/1/published.pdf", (await db.ArppPublishedIssues.SingleAsync()).AttachmentStorageKey);
+    }
+
+    [Fact]
     public async Task DeleteAsync_RemovesMetadata_AndStoredFile()
     {
         await using var db = CreateContext();
@@ -114,6 +147,40 @@ public sealed class ArppAttachmentServiceTests
         Assert.Equal("user-1", updatedIssue.UpdatedByUserId);
         Assert.Equal(new DateTimeOffset(2026, 7, 26, 10, 0, 0, TimeSpan.Zero), updatedIssue.UpdatedAtUtc);
         Assert.Contains("arpp/1/document.pdf", storage.DeletedKeys);
+    }
+
+
+    [Fact]
+    public async Task DeleteAsync_KeepsPdf_WhenPublishedSnapshotStillReferencesIt()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/1/published.pdf",
+            OriginalFileName = "published.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 100,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        AddPublishedSnapshot(issue, "arpp/1/published.pdf");
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var storage = new FakeStorage();
+        var service = CreateService(db, storage, new FakeAuditService());
+        var result = await service.DeleteAsync(
+            issue.Id,
+            issue.Attachment.Id,
+            "user-1",
+            "User One");
+
+        Assert.True(result.Success);
+        Assert.Empty(await db.ArppAttachments.ToListAsync());
+        Assert.DoesNotContain("arpp/1/published.pdf", storage.DeletedKeys);
+        Assert.Equal("arpp/1/published.pdf", (await db.ArppPublishedIssues.SingleAsync()).AttachmentStorageKey);
     }
 
 
@@ -196,6 +263,26 @@ public sealed class ArppAttachmentServiceTests
             CreatedByUserId = "seed",
             UpdatedByUserId = "seed"
         };
+
+    private static void AddPublishedSnapshot(ArppIssue issue, string storageKey)
+    {
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = issue.IssueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = storageKey,
+            AttachmentOriginalFileName = "published.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64)
+        };
+    }
 
     private static ArppEntry CreateEntry()
         => new()

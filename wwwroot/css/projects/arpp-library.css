@@ -1,0 +1,606 @@
+.project-arpp-page {
+    --arpp-reader-border: #d9e1ec;
+    --arpp-reader-muted: #66758b;
+    --arpp-reader-navy: #102b55;
+    --arpp-reader-green: #176b43;
+    --arpp-reader-amber: #9a6300;
+    min-width: 0;
+}
+
+.project-arpp-page__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding: 1.25rem 0 1.15rem;
+    border-bottom: 1px solid var(--arpp-reader-border);
+}
+
+.project-arpp-page__eyebrow,
+.project-arpp-reader__label {
+    display: block;
+    margin-bottom: .28rem;
+    color: var(--arpp-reader-navy);
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.project-arpp-page__header h1 {
+    margin: 0;
+    color: #0c1e3d;
+    font-size: clamp(1.75rem, 2.2vw, 2.3rem);
+    font-weight: 800;
+}
+
+.project-arpp-page__header p,
+.project-arpp-reader__header p,
+.project-arpp-table-card__head p {
+    margin: .25rem 0 0;
+    color: var(--arpp-reader-muted);
+}
+
+.project-arpp-page__actions,
+.project-arpp-reader__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .5rem;
+}
+
+.project-arpp-layout {
+    display: grid;
+    grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
+    gap: 1rem;
+    padding-top: 1rem;
+    min-height: 620px;
+}
+
+.project-arpp-rail {
+    position: sticky;
+    top: calc(var(--pm-topbar-height, 64px) + var(--pm-module-subnav-height, 54px) + 1rem);
+    align-self: start;
+    max-height: calc(100vh - 150px);
+    overflow: auto;
+    border: 1px solid var(--arpp-reader-border);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(20, 40, 72, .06);
+}
+
+.project-arpp-search {
+    position: relative;
+    padding: .75rem;
+    border-bottom: 1px solid var(--arpp-reader-border);
+}
+
+.project-arpp-search > i {
+    position: absolute;
+    left: 1.45rem;
+    top: 50%;
+    color: #77869b;
+    transform: translateY(-50%);
+}
+
+.project-arpp-search input {
+    width: 100%;
+    min-height: 42px;
+    padding: .55rem 2.25rem .55rem 2.35rem;
+    border: 1px solid #cfd8e6;
+    border-radius: 10px;
+    background: #f8faff;
+    color: #14233f;
+    outline: none;
+}
+
+.project-arpp-search input:focus {
+    border-color: #5d83e8;
+    box-shadow: 0 0 0 .2rem rgba(67, 111, 230, .12);
+}
+
+.project-arpp-search__clear {
+    position: absolute;
+    right: 1.35rem;
+    top: 50%;
+    color: #64748b;
+    transform: translateY(-50%);
+}
+
+.project-arpp-nav {
+    padding: .4rem 0 .65rem;
+}
+
+.project-arpp-nav__year h2 {
+    margin: .8rem .9rem .35rem;
+    color: #5e6d82;
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.project-arpp-nav__year + .project-arpp-nav__year {
+    margin-top: .5rem;
+    padding-top: .35rem;
+    border-top: 1px solid #edf1f7;
+}
+
+.project-arpp-nav__item {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: .55rem;
+    align-items: center;
+    margin: .15rem .5rem;
+    padding: .55rem .6rem;
+    border-radius: 9px;
+    color: #23344f;
+    text-decoration: none;
+}
+
+.project-arpp-nav__item:hover {
+    background: #f2f6ff;
+    color: #1746ad;
+}
+
+.project-arpp-nav__item.is-active {
+    background: #e9f0ff;
+    color: #1746ad;
+    box-shadow: inset 3px 0 0 #3e6fe6;
+}
+
+.project-arpp-nav__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #eef3fb;
+    color: #53709d;
+}
+
+.project-arpp-nav__item strong,
+.project-arpp-nav__item small {
+    display: block;
+}
+
+.project-arpp-nav__item strong {
+    overflow: hidden;
+    font-size: .88rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-arpp-nav__item small {
+    margin-top: .1rem;
+    color: #718096;
+    font-size: .72rem;
+}
+
+.project-arpp-reader {
+    min-width: 0;
+}
+
+.project-arpp-reader__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.15rem 1.2rem;
+    border: 1px solid var(--arpp-reader-border);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fff 0%, #f7f9fd 100%);
+}
+
+.project-arpp-reader__header h2 {
+    margin: 0;
+    color: #0c1e3d;
+    font-size: clamp(1.45rem, 2vw, 2rem);
+    font-weight: 800;
+}
+
+.project-arpp-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: .75rem;
+    margin: .85rem 0;
+}
+
+.project-arpp-summary > div {
+    display: flex;
+    min-height: 94px;
+    flex-direction: column;
+    justify-content: center;
+    padding: .85rem 1rem;
+    border: 1px solid var(--arpp-reader-border);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.project-arpp-summary span {
+    color: #66758b;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.project-arpp-summary strong {
+    margin-top: .18rem;
+    color: #0f1f3b;
+    font-size: 1.42rem;
+    line-height: 1.15;
+}
+
+.project-arpp-summary small {
+    margin-top: .2rem;
+    color: #718096;
+}
+
+.project-arpp-money--delisted {
+    color: var(--arpp-reader-amber) !important;
+}
+
+.project-arpp-table-card {
+    margin-top: .85rem;
+    overflow: hidden;
+    border: 1px solid var(--arpp-reader-border);
+    border-radius: 14px;
+    background: #fff;
+}
+
+.project-arpp-table-card__head {
+    padding: .8rem 1rem;
+    border-bottom: 1px solid var(--arpp-reader-border);
+}
+
+.project-arpp-table-card__head h3 {
+    margin: 0;
+    color: #14233f;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.project-arpp-table-card__head p {
+    font-size: .82rem;
+}
+
+.project-arpp-table-wrap {
+    overflow-x: auto;
+}
+
+.project-arpp-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    font-size: .86rem;
+}
+
+.project-arpp-table th {
+    padding: .65rem .7rem;
+    border-bottom: 1px solid #dce3ed;
+    background: #f5f7fb;
+    color: #4e5e74;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.project-arpp-table td {
+    padding: .72rem .7rem;
+    border-bottom: 1px solid #e8edf4;
+    color: #1d2a40;
+    vertical-align: top;
+}
+
+.project-arpp-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.project-arpp-table tbody tr.is-delisted td {
+    background: #fffbef;
+}
+
+.project-arpp-table__order {
+    width: 44px;
+    color: #6b788b !important;
+}
+
+.project-arpp-table__serial {
+    width: 76px;
+    font-weight: 700;
+}
+
+.project-arpp-table__project {
+    color: #101d33;
+    font-weight: 700;
+}
+
+.project-arpp-table__linked {
+    margin-top: .2rem;
+    color: #718096;
+    font-size: .75rem;
+}
+
+.project-arpp-table__linked a {
+    color: #3264d8;
+}
+
+.project-arpp-table td small {
+    display: block;
+    margin-top: .18rem;
+    color: #718096;
+}
+
+.project-arpp-table-empty {
+    padding: 1.35rem;
+    color: #718096;
+    text-align: center;
+}
+
+.project-arpp-empty {
+    display: flex;
+    min-height: 420px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #718096;
+    text-align: center;
+}
+
+.project-arpp-empty i {
+    margin-bottom: .65rem;
+    font-size: 2rem;
+}
+
+.project-arpp-empty h2 {
+    color: #14233f;
+    font-size: 1.15rem;
+}
+
+.project-arpp-empty__action {
+    margin-top: .75rem;
+}
+
+.project-arpp-rail-backdrop {
+    display: none;
+}
+
+.project-arpp-empty--inside {
+    min-height: 320px;
+    border: 1px dashed #cfd8e6;
+    border-radius: 14px;
+}
+
+@media (max-width: 991.98px) {
+    .project-arpp-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .project-arpp-rail {
+        position: fixed;
+        z-index: 1060;
+        top: 0;
+        left: 0;
+        width: min(88vw, 320px);
+        max-height: 100vh;
+        height: 100vh;
+        border-radius: 0 14px 14px 0;
+        transform: translateX(-105%);
+        transition: transform .2s ease;
+    }
+
+    .project-arpp-rail.is-open {
+        transform: translateX(0);
+    }
+
+    .project-arpp-rail-backdrop {
+        position: fixed;
+        z-index: 1055;
+        inset: 0;
+        display: block;
+        padding: 0;
+        border: 0;
+        background: rgba(12, 30, 61, .36);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s ease;
+    }
+
+    .project-arpp-rail-backdrop.is-open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    body.arpp-library-rail-open {
+        overflow: hidden;
+    }
+
+    .project-arpp-page__header,
+    .project-arpp-reader__header {
+        flex-direction: column;
+    }
+
+    .project-arpp-page__actions,
+    .project-arpp-reader__actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 680px) {
+    .project-arpp-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .project-arpp-reader__actions .btn {
+        flex: 1 1 auto;
+    }
+}
+
+.project-arpp-page .arpp-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: .15rem .48rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.project-arpp-page .arpp-badge--new { background: #e5f4eb; color: #17683f; }
+.project-arpp-page .arpp-badge--committedliability { background: #e8efff; color: #2859be; }
+.project-arpp-page .arpp-badge--carryforward { background: #e8efff; color: #2859be; }
+.project-arpp-page .arpp-badge--delisted { background: #fff1c8; color: #976100; }
+
+/* Phase 9: current-position completeness, history and responsive navigation */
+.project-arpp-rail__mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .7rem .75rem;
+    border-bottom: 1px solid var(--arpp-reader-border);
+    color: #14233f;
+}
+
+.project-arpp-rail__mobile-header strong {
+    font-size: .88rem;
+}
+
+.project-arpp-completeness {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .65rem;
+    margin: .85rem 0;
+    padding: .75rem .85rem;
+    border: 1px solid #e8ca7a;
+    border-radius: 12px;
+    background: #fffbef;
+    color: #6c4a00;
+}
+
+.project-arpp-completeness > i {
+    margin-top: .1rem;
+    color: var(--arpp-reader-amber);
+}
+
+.project-arpp-completeness strong {
+    display: block;
+    color: #5f4100;
+    font-size: .84rem;
+}
+
+.project-arpp-completeness p {
+    margin: .15rem 0 0;
+    color: #755514;
+    font-size: .78rem;
+    line-height: 1.4;
+}
+
+.project-arpp-completeness .btn {
+    white-space: nowrap;
+}
+
+.project-arpp-money--warning {
+    color: var(--arpp-reader-amber) !important;
+}
+
+.project-arpp-history-link {
+    margin-left: .35rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.project-arpp-history-link::before {
+    content: "·";
+    margin-right: .35rem;
+    color: #9aa6b8;
+    font-weight: 400;
+}
+
+.project-arpp-table__linked--pending {
+    color: var(--arpp-reader-amber);
+    font-weight: 600;
+}
+
+.project-arpp-table-card--unlinked {
+    scroll-margin-top: calc(var(--pm-topbar-height, 64px) + var(--pm-module-subnav-height, 54px) + 1rem);
+}
+
+.project-arpp-table-card__head h2,
+.project-arpp-table-card__head h3 {
+    margin: 0;
+    color: #14233f;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.project-arpp-summary--history {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-arpp-table--history {
+    min-width: 1180px;
+}
+
+.project-arpp-history-card {
+    margin-bottom: 1rem;
+}
+
+.project-arpp-current-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .12rem .42rem;
+    border-radius: 999px;
+    background: #e5f4eb;
+    color: var(--arpp-reader-green);
+    font-size: .7rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.project-arpp-table--history tr.is-current td {
+    box-shadow: inset 0 2px 0 rgba(32, 117, 79, .22);
+}
+
+@media (max-width: 991.98px) {
+    .project-arpp-rail__mobile-header {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        background: #fff;
+    }
+
+    .project-arpp-completeness {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .project-arpp-completeness .btn {
+        grid-column: 2;
+        justify-self: start;
+    }
+}
+
+@media (max-width: 680px) {
+    .project-arpp-summary--history {
+        grid-template-columns: 1fr;
+    }
+
+    .project-arpp-completeness {
+        grid-template-columns: 1fr;
+    }
+
+    .project-arpp-completeness > i {
+        display: none;
+    }
+
+    .project-arpp-completeness .btn {
+        grid-column: auto;
+    }
+}
+

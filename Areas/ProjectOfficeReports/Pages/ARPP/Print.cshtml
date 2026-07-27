@@ -10,6 +10,11 @@
     var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
         ? "Original ARPP"
         : $"Addendum No. {Model.Issue.IssueSequence}";
+    var approvedRowValue =
+        Model.Issue.CategorySummary[ArppCategory.New].TotalIpaCost +
+        Model.Issue.CategorySummary[ArppCategory.CommittedLiability].TotalIpaCost +
+        Model.Issue.CategorySummary[ArppCategory.CarryForward].TotalIpaCost;
+    var delistedRowValue = Model.Issue.CategorySummary[ArppCategory.Delisted].TotalIpaCost;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -37,7 +42,8 @@
 
         <section class="arpp-print-summary" aria-label="Issue summary">
             <div><span>Rows</span><strong>@Model.Issue.Entries.Count</strong></div>
-            <div><span>Document row value</span><strong>@IndianCurrencyFormatter.FormatRupees(Model.Issue.TotalIpaCost)</strong></div>
+            <div><span>Approved row value</span><strong>@IndianCurrencyFormatter.FormatRupees(approvedRowValue)</strong><small>New, CL and CF</small></div>
+            <div><span>Delisted row value</span><strong>@IndianCurrencyFormatter.FormatRupees(delistedRowValue)</strong><small>Recorded separately</small></div>
             <div><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></div>
             <div class="arpp-print-summary__categories">
                 @foreach (var category in Enum.GetValues<ArppCategory>())

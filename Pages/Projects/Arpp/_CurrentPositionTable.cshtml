@@ -1,0 +1,59 @@
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Services.Arpp
+@using ProjectManagement.Utilities
+@model IReadOnlyList<ArppLibraryCurrentRow>
+
+@if (Model.Count == 0)
+{
+    <div class="project-arpp-table-empty">No projects in this section.</div>
+}
+else
+{
+    <div class="project-arpp-table-wrap">
+        <table class="project-arpp-table project-arpp-table--current">
+            <thead>
+                <tr>
+                    <th>Project</th>
+                    <th>Latest source</th>
+                    <th>Serial</th>
+                    <th>Category</th>
+                    <th class="text-end">IPA cost (₹)</th>
+                    <th>CFA</th>
+                    <th>Fund</th>
+                    <th>DFPDS</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model)
+                {
+                    <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
+                        <td>
+                            <div class="project-arpp-table__project">@row.ProjectReference</div>
+                            <div class="project-arpp-table__linked">
+                                <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">@row.ProjectName</a>
+                                <span>· PRISM status: @row.ProjectStatus</span>
+                                <a class="project-arpp-history-link"
+                                   asp-page="./History"
+                                   asp-route-projectId="@row.ProjectId"
+                                   asp-route-financialYearStart="@row.SourceFinancialYearStart">
+                                    History
+                                </a>
+                            </div>
+                        </td>
+                        <td>
+                            <a asp-page="./Index" asp-route-issueId="@row.SourceIssueId">@row.SourceIssueName</a>
+                            <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                        </td>
+                        <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                        <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                        <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+                        <td>@row.Cfa</td>
+                        <td>@row.Fund</td>
+                        <td>@row.DfpdsSchedule</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

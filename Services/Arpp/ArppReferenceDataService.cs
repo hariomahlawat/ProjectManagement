@@ -256,9 +256,15 @@ public sealed class ArppReferenceDataService : IArppReferenceDataService
         }
         else
         {
-            item = await _db.ArppCfaOptions.SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken);
-            if (item is null) return ArppReferenceDataCommandResult.Failed("The CFA value no longer exists.");
-            if (!TrySetOriginalRowVersion(item, command.RowVersion)) return ArppReferenceDataCommandResult.Failed("The CFA value is stale. Reload the page.");
+            var existingItem = await _db.ArppCfaOptions
+                .SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken);
+
+            if (existingItem is null)
+                return ArppReferenceDataCommandResult.Failed("The CFA value no longer exists.");
+
+            item = existingItem;
+            if (!TrySetOriginalRowVersion(item, command.RowVersion))
+                return ArppReferenceDataCommandResult.Failed("The CFA value is stale. Reload the page.");
         }
 
         item.Name = value;
@@ -285,9 +291,15 @@ public sealed class ArppReferenceDataService : IArppReferenceDataService
         }
         else
         {
-            item = await _db.ArppFundOptions.SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken);
-            if (item is null) return ArppReferenceDataCommandResult.Failed("The Fund value no longer exists.");
-            if (!TrySetOriginalRowVersion(item, command.RowVersion)) return ArppReferenceDataCommandResult.Failed("The Fund value is stale. Reload the page.");
+            var existingItem = await _db.ArppFundOptions
+                .SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken);
+
+            if (existingItem is null)
+                return ArppReferenceDataCommandResult.Failed("The Fund value no longer exists.");
+
+            item = existingItem;
+            if (!TrySetOriginalRowVersion(item, command.RowVersion))
+                return ArppReferenceDataCommandResult.Failed("The Fund value is stale. Reload the page.");
         }
 
         item.Name = value;
@@ -314,9 +326,15 @@ public sealed class ArppReferenceDataService : IArppReferenceDataService
         }
         else
         {
-            item = await _db.ArppDfpdsSchedules.SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken);
-            if (item is null) return ArppReferenceDataCommandResult.Failed("The DFPDS schedule no longer exists.");
-            if (!TrySetOriginalRowVersion(item, command.RowVersion)) return ArppReferenceDataCommandResult.Failed("The DFPDS schedule is stale. Reload the page.");
+            var existingItem = await _db.ArppDfpdsSchedules
+                .SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken);
+
+            if (existingItem is null)
+                return ArppReferenceDataCommandResult.Failed("The DFPDS schedule no longer exists.");
+
+            item = existingItem;
+            if (!TrySetOriginalRowVersion(item, command.RowVersion))
+                return ArppReferenceDataCommandResult.Failed("The DFPDS schedule is stale. Reload the page.");
         }
 
         item.Code = value;

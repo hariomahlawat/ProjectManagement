@@ -91,6 +91,104 @@ public sealed class ArppReconciliationServiceTests
         Assert.Contains("Arpp.EntriesReconciled", audit.Actions);
     }
 
+    [Fact]
+    public async Task LinkAsync_UpdatesPublishedLinkForVerifiedIssue_WithoutChangingIssuedText()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Published Project",
+            CreatedByUserId = "seed"
+        });
+
+        var issue = new ArppIssue
+        {
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP 2026-27",
+            IssueDate = new DateOnly(2026, 2, 26),
+            IsVerified = true,
+            VerifiedAtUtc = DateTimeOffset.UtcNow,
+            VerifiedByUserId = "verifier",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+        var workingEntry = new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "12",
+            ProjectReference = "Published project as issued",
+            Category = ArppCategory.New,
+            IpaCost = 10_000_000m,
+            Cfa = "Comdt SDD",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+        issue.Entries.Add(workingEntry);
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = issue.IssueDate,
+            PublishedAtUtc = issue.VerifiedAtUtc!.Value,
+            PublishedByUserId = issue.VerifiedByUserId!,
+            AttachmentStorageKey = "published/arpp.pdf",
+            AttachmentOriginalFileName = "ARPP.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    SourceEntryId = workingEntry.Id,
+                    SortOrder = workingEntry.SortOrder,
+                    SerialNumber = workingEntry.SerialNumber,
+                    ProjectReference = workingEntry.ProjectReference,
+                    Category = workingEntry.Category,
+                    IpaCost = workingEntry.IpaCost,
+                    Cfa = workingEntry.Cfa,
+                    Fund = workingEntry.Fund,
+                    DfpdsSchedule = workingEntry.DfpdsSchedule
+                }
+            }
+        };
+        await db.SaveChangesAsync();
+
+        var service = new ArppReconciliationService(
+            db,
+            new FixedClock(new DateTimeOffset(2026, 7, 26, 8, 0, 0, TimeSpan.Zero)),
+            new FakeAuditService());
+
+        var queue = await service.GetQueueAsync(2026, null);
+        var item = Assert.Single(queue.Items);
+        var result = await service.LinkAsync(new ArppReconciliationCommand(
+            [new ArppReconciliationLinkInput(item.EntryId, item.EntryRowVersion, 1)],
+            "user-1",
+            "User One"));
+
+        Assert.True(result.Success);
+        Assert.Equal(1, (await db.ArppEntries.SingleAsync()).ProjectId);
+        var published = await db.ArppPublishedEntries.SingleAsync();
+        Assert.Equal(1, published.ProjectId);
+        Assert.Equal("Published project as issued", published.ProjectReference);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

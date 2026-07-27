@@ -37,6 +37,12 @@ public static class ProjectModuleNavDefinition
         },
         new()
         {
+            Text = "ARPP / PPP",
+            Page = "/Projects/Arpp/Index",
+            Icon = "bi-journal-check"
+        },
+        new()
+        {
             Text = "Analytics",
             Page = "/Analytics/Index",
             Icon = "bi-graph-up"

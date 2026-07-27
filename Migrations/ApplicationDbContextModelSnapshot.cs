@@ -4792,6 +4792,167 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppPublishedEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("ArppIssueId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Cfa")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DfpdsSchedule")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Fund")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal>("IpaCost")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProjectReference")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("SerialNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SourceEntryId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("SourceEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("ArppIssueId", "ProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ArppPublishedEntries_Issue_Project")
+                        .HasFilter("\"ProjectId\" IS NOT NULL");
+
+                    b.HasIndex("ArppIssueId", "SortOrder");
+
+                    b.ToTable("ArppPublishedEntries", t =>
+                        {
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_Category", "\"Category\" IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_IpaCost", "\"IpaCost\" >= 0");
+
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_RequiredText", "length(btrim(\"SerialNumber\")) > 0 AND length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
+
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_SortOrder", "\"SortOrder\" >= 0");
+
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_SourceEntryId", "\"SourceEntryId\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppPublishedIssue", b =>
+                {
+                    b.Property<long>("ArppIssueId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AttachmentContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AttachmentOriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("AttachmentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("AttachmentSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AttachmentStorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("FinancialYearStart")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("IssueSequence")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("PublishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublishedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ArppIssueId");
+
+                    b.HasIndex("AttachmentStorageKey");
+
+                    b.HasIndex("PublishedAtUtc");
+
+                    b.HasIndex("FinancialYearStart", "IssueSequence");
+
+                    b.ToTable("ArppPublishedIssues", t =>
+                        {
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_AttachmentSha256", "length(\"AttachmentSha256\") = 64");
+
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_AttachmentSize", "\"AttachmentSizeBytes\" > 0");
+
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_FinancialYearStart", "\"FinancialYearStart\" BETWEEN 2000 AND 9998");
+
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_IssueSequence", "\"IssueSequence\" >= 0");
+
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_KindSequence", "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_PdfContentType", "\"AttachmentContentType\" = 'application/pdf'");
+
+                            t.HasCheckConstraint("CK_ArppPublishedIssues_RevisionNumber", "\"RevisionNumber\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.Property<long>("Id")
@@ -8286,6 +8447,35 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppPublishedEntry", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Arpp.ArppPublishedIssue", "PublishedIssue")
+                        .WithMany("Entries")
+                        .HasForeignKey("ArppIssueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Project");
+
+                    b.Navigation("PublishedIssue");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppPublishedIssue", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Arpp.ArppIssue", "Issue")
+                        .WithOne("PublishedSnapshot")
+                        .HasForeignKey("ProjectManagement.Models.Arpp.ArppPublishedIssue", "ArppIssueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Issue");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
@@ -9143,6 +9333,13 @@ namespace ProjectManagement.Migrations
                 {
                     b.Navigation("Attachment");
 
+                    b.Navigation("Entries");
+
+                    b.Navigation("PublishedSnapshot");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppPublishedIssue", b =>
+                {
                     b.Navigation("Entries");
                 });
 

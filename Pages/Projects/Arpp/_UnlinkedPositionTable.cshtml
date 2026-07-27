@@ -1,0 +1,53 @@
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Services.Arpp
+@using ProjectManagement.Utilities
+@model IReadOnlyList<ArppLibraryUnlinkedRow>
+
+@if (Model.Count == 0)
+{
+    <div class="project-arpp-table-empty">No unlinked published rows match the current search.</div>
+}
+else
+{
+    <div class="project-arpp-table-wrap">
+        <table class="project-arpp-table project-arpp-table--unlinked">
+            <thead>
+                <tr>
+                    <th>Project reference</th>
+                    <th>Source document</th>
+                    <th>Serial</th>
+                    <th>Category</th>
+                    <th class="text-end">IPA cost (₹)</th>
+                    <th>CFA</th>
+                    <th>Fund</th>
+                    <th>DFPDS</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model)
+                {
+                    <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
+                        <td>
+                            <div class="project-arpp-table__project">@row.ProjectReference</div>
+                            <div class="project-arpp-table__linked project-arpp-table__linked--pending">
+                                <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                                <span>PRISM linkage pending</span>
+                            </div>
+                        </td>
+                        <td>
+                            <a asp-page="./Index" asp-route-issueId="@row.SourceIssueId">@row.SourceIssueName</a>
+                            <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                        </td>
+                        <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                        <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                        <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+                        <td>@row.Cfa</td>
+                        <td>@row.Fund</td>
+                        <td>@row.DfpdsSchedule</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

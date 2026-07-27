@@ -10,7 +10,7 @@ namespace ProjectManagement.Tests.Arpp;
 public sealed class AuthoritativeIpaPositionResolverTests
 {
     [Fact]
-    public async Task ResolveAsync_UsesLatestLinkedArppEntry_AndRetainsDelistedCost()
+    public async Task ResolveAsync_UsesLatestPublishedEntry_AndRetainsDelistedCost()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1);
@@ -24,10 +24,10 @@ public sealed class AuthoritativeIpaPositionResolverTests
         });
 
         var original = CreateIssue(2025, ArppIssueKind.Original, 0, "ARPP 2025-26", new DateOnly(2025, 4, 10));
-        original.Entries.Add(CreateEntry(1, 12_000_000m, ArppCategory.New, "11"));
+        Publish(original, CreatePublishedEntry(1, 12_000_000m, ArppCategory.New, "11"));
 
         var addendum = CreateIssue(2026, ArppIssueKind.Addendum, 2, "Addendum No. 2", new DateOnly(2026, 7, 15));
-        addendum.Entries.Add(CreateEntry(1, 15_500_000m, ArppCategory.Delisted, "17"));
+        Publish(addendum, CreatePublishedEntry(1, 15_500_000m, ArppCategory.Delisted, "17"));
 
         db.ArppIssues.AddRange(original, addendum);
         await db.SaveChangesAsync();
@@ -46,17 +46,17 @@ public sealed class AuthoritativeIpaPositionResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_LaterIssueWithoutProject_DoesNotEraseEarlierPosition()
+    public async Task ResolveAsync_LaterPublishedIssueWithoutProject_DoesNotEraseEarlierPosition()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1);
         await SeedProjectAsync(db, 2);
 
         var original = CreateIssue(2026, ArppIssueKind.Original, 0, "ARPP 2026-27", new DateOnly(2026, 4, 1));
-        original.Entries.Add(CreateEntry(1, 8_000_000m, ArppCategory.CarryForward, "4"));
+        Publish(original, CreatePublishedEntry(1, 8_000_000m, ArppCategory.CarryForward, "4"));
 
         var addendum = CreateIssue(2026, ArppIssueKind.Addendum, 1, "Addendum No. 1", new DateOnly(2026, 6, 1));
-        addendum.Entries.Add(CreateEntry(2, 9_000_000m, ArppCategory.New, "1"));
+        Publish(addendum, CreatePublishedEntry(2, 9_000_000m, ArppCategory.New, "1"));
 
         db.ArppIssues.AddRange(original, addendum);
         await db.SaveChangesAsync();
@@ -71,7 +71,7 @@ public sealed class AuthoritativeIpaPositionResolverTests
     }
 
     [Fact]
-    public async Task ResolveManyAsync_UsesLegacyFallbackOnlyForUnlinkedProjects()
+    public async Task ResolveManyAsync_UsesLegacyFallbackOnlyForProjectsWithoutPublishedRows()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1);
@@ -94,7 +94,7 @@ public sealed class AuthoritativeIpaPositionResolverTests
             });
 
         var issue = CreateIssue(2026, ArppIssueKind.Original, 0, "ARPP 2026-27", new DateOnly(2026, 4, 1));
-        issue.Entries.Add(CreateEntry(1, 7_000_000m, ArppCategory.New, "3"));
+        Publish(issue, CreatePublishedEntry(1, 7_000_000m, ArppCategory.New, "3"));
         db.ArppIssues.Add(issue);
         await db.SaveChangesAsync();
 
@@ -105,6 +105,27 @@ public sealed class AuthoritativeIpaPositionResolverTests
         Assert.Equal(7_000_000m, result[1].AmountInRupees);
         Assert.Equal(IpaPositionSource.LegacyProjectFact, result[2].Source);
         Assert.Equal(6_000_000m, result[2].AmountInRupees);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_IgnoresUnverifiedWorkingChanges_AndKeepsPublishedAmount()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1);
+
+        var issue = CreateIssue(2026, ArppIssueKind.Original, 0, "ARPP 2026-27", new DateOnly(2026, 4, 1));
+        issue.Entries.Add(CreateWorkingEntry(1, 99_000_000m, ArppCategory.Delisted, "99"));
+        Publish(issue, CreatePublishedEntry(1, 7_000_000m, ArppCategory.New, "3"));
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var resolver = new AuthoritativeIpaPositionResolver(db);
+        var result = await resolver.ResolveAsync(1);
+
+        Assert.NotNull(result);
+        Assert.Equal(7_000_000m, result!.AmountInRupees);
+        Assert.Equal(ArppCategory.New, result.Category);
+        Assert.Equal("3", result.SerialNumber);
     }
 
     private static ApplicationDbContext CreateContext()
@@ -146,7 +167,54 @@ public sealed class AuthoritativeIpaPositionResolverTests
             UpdatedByUserId = "seed"
         };
 
-    private static ArppEntry CreateEntry(
+    private static void Publish(ArppIssue issue, params ArppPublishedEntry[] entries)
+    {
+        var snapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = issue.IssueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = $"arpp/{issue.Name}.pdf",
+            AttachmentOriginalFileName = $"{issue.Name}.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64)
+        };
+
+        foreach (var entry in entries)
+        {
+            snapshot.Entries.Add(entry);
+        }
+
+        issue.PublishedSnapshot = snapshot;
+    }
+
+    private static ArppPublishedEntry CreatePublishedEntry(
+        int projectId,
+        decimal ipaCost,
+        ArppCategory category,
+        string serialNumber)
+        => new()
+        {
+            SourceEntryId = projectId * 1_000L + long.Parse(serialNumber),
+            SortOrder = 1,
+            SerialNumber = serialNumber,
+            ProjectReference = $"Project {projectId}",
+            ProjectId = projectId,
+            Category = category,
+            IpaCost = ipaCost,
+            Cfa = "Comdt SDD",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3"
+        };
+
+    private static ArppEntry CreateWorkingEntry(
         int projectId,
         decimal ipaCost,
         ArppCategory category,

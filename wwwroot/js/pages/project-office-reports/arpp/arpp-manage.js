@@ -617,6 +617,26 @@
         event.returnValue = "";
     });
 
+    const entryGuidance = root.querySelector("[data-arpp-entry-guidance]");
+    if (entryGuidance) {
+        const storageKey = "prism.arpp.entryGuidance.open";
+        try {
+            if (window.localStorage.getItem(storageKey) === "false") {
+                entryGuidance.removeAttribute("open");
+            }
+        } catch {
+            // Storage can be unavailable in hardened or private browser contexts.
+        }
+
+        entryGuidance.addEventListener("toggle", () => {
+            try {
+                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "false");
+            } catch {
+                // Guidance remains fully functional without persistence.
+            }
+        });
+    }
+
     updateIssueSequence();
     reindexRows();
     markClean();

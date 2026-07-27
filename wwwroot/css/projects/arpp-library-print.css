@@ -1,0 +1,64 @@
+:root {
+    color-scheme: light;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: #eef1f5; color: #18243a; }
+.arpp-library-print-toolbar {
+    position: sticky;
+    z-index: 10;
+    top: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: .6rem;
+    padding: .75rem 1rem;
+    background: #142b51;
+}
+.arpp-library-print-toolbar button {
+    padding: .55rem 1rem;
+    border: 0;
+    border-radius: 6px;
+    background: #fff;
+    color: #142b51;
+    font-weight: 700;
+    cursor: pointer;
+}
+.arpp-library-print-document {
+    width: min(1120px, calc(100% - 2rem));
+    margin: 1rem auto 3rem;
+    padding: 2.7rem 3rem;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(15, 35, 65, .12);
+}
+.marking { color: #294977; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+header h1 { margin: .6rem 0 .25rem; color: #16345f; font-size: 1.75rem; }
+header p { margin: 0; color: #53647c; }
+header { padding-bottom: 1rem; border-bottom: 1px solid #41618d; }
+.summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .55rem;
+    margin: 1rem 0;
+}
+.summary > div { padding: .65rem .75rem; border: 1px solid #c6d1e0; background: #f8fafc; }
+.summary span, .summary strong { display: block; }
+.summary span { color: #5e6e83; font-size: .72rem; }
+.summary strong { margin-top: .25rem; font-size: 1rem; }
+table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+th, td { padding: .45rem .5rem; border: 1px solid #aebdce; vertical-align: top; }
+th { background: #dfe8f3; color: #17345c; text-align: left; }
+tr.delisted td { background: #fff5cf; }
+.number { width: 32px; text-align: center; }
+.money { text-align: right; white-space: nowrap; }
+td small { display: block; margin-top: .12rem; color: #63748a; }
+.muted { color: #7b8798; }
+footer { display: flex; justify-content: space-between; margin-top: 1rem; padding-top: .65rem; border-top: 1px solid #c7d2df; color: #596a80; font-size: .68rem; }
+@page { size: A4 landscape; margin: 12mm; }
+@media print {
+    body { background: #fff; }
+    .arpp-library-print-toolbar { display: none; }
+    .arpp-library-print-document { width: auto; margin: 0; padding: 0; box-shadow: none; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+}

@@ -220,6 +220,7 @@ public sealed class ArppReadService : IArppReadService
             .Include(candidate => candidate.Entries)
                 .ThenInclude(entry => entry.Project)
             .Include(candidate => candidate.Attachment)
+            .Include(candidate => candidate.PublishedSnapshot)
             .SingleOrDefaultAsync(candidate => candidate.Id == issueId, cancellationToken);
 
         if (issue is null)
@@ -316,7 +317,12 @@ public sealed class ArppReadService : IArppReadService
             issue.VerifiedAtUtc,
             issue.VerifiedByUserId,
             verifiedByDisplayName,
-            issue.VerificationNote);
+            issue.VerificationNote)
+        {
+            HasPublishedSnapshot = issue.PublishedSnapshot is not null,
+            PublishedRevisionNumber = issue.PublishedSnapshot?.RevisionNumber,
+            PublishedAtUtc = issue.PublishedSnapshot?.PublishedAtUtc
+        };
     }
 
     public async Task<ArppProjectHistory?> GetProjectHistoryAsync(

@@ -116,18 +116,26 @@
                 </div>
             </div>
 
-            <div class="arpp-reference-guidance">
-                <span class="bi bi-lightning-charge" aria-hidden="true"></span>
-                <div>
-                    <strong>Faster, consistent entry</strong>
-                    <span>Choose CFA, Fund and DFPDS from the approved lists. New rows copy these values from the preceding row, and “Fill common fields” completes blanks in one action.</span>
-                    <span>When a value is missing, select <em>Not listed — enter as issued</em>. The row can be saved, but Admin mapping is required before verification.</span>
+            <details class="arpp-reference-guidance" open data-arpp-entry-guidance>
+                <summary>
+                    <span class="bi bi-lightning-charge" aria-hidden="true"></span>
+                    <span class="arpp-reference-guidance__summary-text">
+                        <strong>Faster, consistent entry</strong>
+                        <small>Controlled CFA, Fund and DFPDS lists</small>
+                    </span>
+                    <span class="bi bi-chevron-down arpp-reference-guidance__chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="arpp-reference-guidance__body">
+                    <div>
+                        <p>Choose CFA, Fund and DFPDS from the approved lists. New rows copy these values from the preceding row, and “Fill common fields” completes blanks in one action.</p>
+                        <p>When a value is missing, select <em>Not listed — enter as issued</em>. The row can be saved, but Admin mapping is required before verification.</p>
+                    </div>
+                    @if (Model.CanManageReferenceData)
+                    {
+                        <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="btn btn-outline-secondary btn-sm">Manage lists</a>
+                    }
                 </div>
-                @if (Model.CanManageReferenceData)
-                {
-                    <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="btn btn-outline-secondary btn-sm">Manage lists</a>
-                }
-            </div>
+            </details>
 
             <div class="arpp-empty arpp-empty--rows @(Model.Input.Entries.Count == 0 ? string.Empty : "d-none")" data-arpp-empty-rows>
                 <span class="bi bi-list-check" aria-hidden="true"></span>

@@ -29,7 +29,7 @@ namespace ProjectManagement.Services.Projects
 
         public async Task UpsertIpaCostAsync(int projectId, decimal ipaCost, string userId, CancellationToken ct = default)
         {
-            var isManagedByArpp = await _db.ArppEntries
+            var isManagedByArpp = await _db.ArppPublishedEntries
                 .AsNoTracking()
                 .AnyAsync(entry => entry.ProjectId == projectId, ct);
 

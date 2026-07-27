@@ -327,6 +327,14 @@ public sealed class ArppCommandServiceTests
         Assert.NotNull(verified.VerifiedAtUtc);
         Assert.Equal("verifier-1", verified.VerifiedByUserId);
 
+        var published = await db.ArppPublishedIssues
+            .Include(snapshot => snapshot.Entries)
+            .SingleAsync();
+        Assert.Equal(1, published.RevisionNumber);
+        Assert.Equal("ARPP.pdf", published.AttachmentOriginalFileName);
+        Assert.Single(published.Entries);
+        Assert.Equal("Project 1", published.Entries.Single().ProjectReference);
+
         var blockedSave = await service.SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
             verified.Id,
             Convert.ToBase64String(verified.RowVersion),
@@ -353,6 +361,14 @@ public sealed class ArppCommandServiceTests
         Assert.False(unlocked.IsVerified);
         Assert.Null(unlocked.VerifiedAtUtc);
         Assert.Null(unlocked.VerifiedByUserId);
+
+        var stillPublished = await db.ArppPublishedIssues
+            .Include(snapshot => snapshot.Entries)
+            .SingleAsync();
+        Assert.Equal(1, stillPublished.RevisionNumber);
+        Assert.Single(stillPublished.Entries);
+        Assert.Equal("Project 1", stillPublished.Entries.Single().ProjectReference);
+
         Assert.Contains("Arpp.IssueVerified", audit.Actions);
         Assert.Contains("Arpp.IssueUnlocked", audit.Actions);
     }

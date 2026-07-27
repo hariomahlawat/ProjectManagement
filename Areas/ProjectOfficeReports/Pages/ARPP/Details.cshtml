@@ -70,6 +70,25 @@
         <div class="alert alert-warning arpp-alert" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span><span>@warningMessage</span></div>
     }
 
+    @if (!Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot)
+    {
+        <section class="arpp-publication-continuity" role="status" aria-label="Published revision status">
+            <span class="bi bi-broadcast-pin" aria-hidden="true"></span>
+            <div>
+                <strong>Last verified revision remains published</strong>
+                <p>
+                    Corrections are being made in the management workspace. PRISM users continue to see
+                    revision @Model.Issue.PublishedRevisionNumber
+                    @if (Model.Issue.PublishedAtUtc.HasValue)
+                    {
+                        <text>published @Model.FormatIst(Model.Issue.PublishedAtUtc.Value)</text>
+                    }
+                    until this record is verified again.
+                </p>
+            </div>
+        </section>
+    }
+
     @if (Model.Issue.IsVerified)
     {
         <section class="arpp-verification-banner arpp-verification-banner--locked" aria-label="Verification status">
@@ -153,9 +172,25 @@
     }
 
     <section class="arpp-kpis arpp-kpis--details" aria-label="Issue summary">
-        <article class="arpp-kpi"><span>Rows</span><strong>@Model.Issue.Entries.Count</strong></article>
-        <article class="arpp-kpi"><span>Document row value</span><strong>@IndianCurrencyFormatter.FormatCompact(Model.Issue.TotalIpaCost)</strong></article>
-        <article class="arpp-kpi"><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></article>
+        <article class="arpp-kpi">
+            <span>Rows</span>
+            <strong>@Model.Issue.Entries.Count</strong>
+        </article>
+        <article class="arpp-kpi arpp-kpi--approved">
+            <span>Approved row value</span>
+            <strong>@IndianCurrencyFormatter.FormatCompact(Model.ApprovedRowValue)</strong>
+            <small>New, CL and CF</small>
+        </article>
+        <article class="arpp-kpi arpp-kpi--delisted">
+            <span>Delisted row value</span>
+            <strong>@IndianCurrencyFormatter.FormatCompact(Model.DelistedRowValue)</strong>
+            <small>Recorded separately</small>
+        </article>
+        <article class="arpp-kpi">
+            <span>Project linkage</span>
+            <strong>@Model.Issue.LinkedCount linked</strong>
+            <small>@Model.Issue.UnlinkedCount pending</small>
+        </article>
         <article class="arpp-kpi arpp-kpi--categories">
             <span class="arpp-kpi__label">Category breakdown</span>
             <div class="arpp-category-breakdown">

@@ -93,6 +93,8 @@ public class ProjectFactsServiceTests
         });
         db.ArppIssues.Add(issue);
         await db.SaveChangesAsync();
+        AddPublishedSnapshot(issue, issue.Entries.Single());
+        await db.SaveChangesAsync();
 
         var service = new ProjectFactsService(db, clock, new FakeAudit());
 
@@ -100,6 +102,53 @@ public class ProjectFactsServiceTests
             () => service.UpsertIpaCostAsync(1, 2200m, "user-b"));
 
         Assert.Empty(db.ProjectIpaFacts);
+    }
+
+    [Fact]
+    public async Task UpsertIpaCostAsync_UnverifiedArppWorkingRow_DoesNotBlockLegacyUpdate()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedProjectAsync(db);
+
+        var issue = new ArppIssue
+        {
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP under preparation",
+            IssueDate = new DateOnly(2026, 4, 1),
+            CreatedAtUtc = clock.UtcNow,
+            UpdatedAtUtc = clock.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed",
+            Entries =
+            {
+                new ArppEntry
+                {
+                    SortOrder = 1,
+                    SerialNumber = "1",
+                    ProjectReference = "Project",
+                    ProjectId = 1,
+                    Category = ArppCategory.New,
+                    IpaCost = 1_250m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3",
+                    CreatedAtUtc = clock.UtcNow,
+                    UpdatedAtUtc = clock.UtcNow,
+                    CreatedByUserId = "seed",
+                    UpdatedByUserId = "seed"
+                }
+            }
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
+        await service.UpsertIpaCostAsync(1, 2_200m, "user-b");
+
+        Assert.Equal(2_200m, (await db.ProjectIpaFacts.SingleAsync()).IpaCost);
     }
 
     [Fact]
@@ -172,6 +221,43 @@ public class ProjectFactsServiceTests
         Assert.True(stage.RequiresBackfill);
         Assert.Null(stage.ActualStart);
         Assert.Null(stage.CompletedOn);
+    }
+
+    private static void AddPublishedSnapshot(ArppIssue issue, ArppEntry sourceEntry)
+    {
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = issue.IssueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = "published/arpp.pdf",
+            AttachmentOriginalFileName = "ARPP.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    SourceEntryId = sourceEntry.Id,
+                    SortOrder = sourceEntry.SortOrder,
+                    SerialNumber = sourceEntry.SerialNumber,
+                    ProjectReference = sourceEntry.ProjectReference,
+                    ProjectId = sourceEntry.ProjectId,
+                    Category = sourceEntry.Category,
+                    IpaCost = sourceEntry.IpaCost,
+                    Cfa = sourceEntry.Cfa,
+                    Fund = sourceEntry.Fund,
+                    DfpdsSchedule = sourceEntry.DfpdsSchedule
+                }
+            }
+        };
     }
 
     private static ApplicationDbContext CreateContext()

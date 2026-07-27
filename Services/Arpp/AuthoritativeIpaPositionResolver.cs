@@ -41,10 +41,10 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
             return new Dictionary<int, AuthoritativeIpaPosition>();
         }
 
-        // ARPP is authoritative as soon as a row is linked to a PRISM project.
-        // Select the latest financial year and then the latest issue/addendum sequence
-        // containing that project. A Delisted row remains a complete authoritative row.
-        var arppRows = await _db.ArppEntries
+        // Only the latest verified/published snapshots are authoritative across PRISM.
+        // A manager may unlock and correct the working issue without exposing those
+        // unverified changes to project pages, dashboards or financial reporting.
+        var arppRows = await _db.ArppPublishedEntries
             .AsNoTracking()
             .Where(entry => entry.ProjectId.HasValue && ids.Contains(entry.ProjectId.Value))
             .Select(entry => new
@@ -55,10 +55,10 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
                 entry.SerialNumber,
                 EntryId = entry.Id,
                 IssueId = entry.ArppIssueId,
-                entry.Issue.FinancialYearStart,
-                entry.Issue.IssueSequence,
-                entry.Issue.IssueDate,
-                IssueName = entry.Issue.Name
+                entry.PublishedIssue.FinancialYearStart,
+                entry.PublishedIssue.IssueSequence,
+                entry.PublishedIssue.IssueDate,
+                IssueName = entry.PublishedIssue.Name
             })
             .ToListAsync(cancellationToken);
 

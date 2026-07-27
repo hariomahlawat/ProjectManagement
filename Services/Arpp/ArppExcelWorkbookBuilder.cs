@@ -7,20 +7,38 @@ namespace ProjectManagement.Services.Arpp;
 
 public sealed class ArppExcelWorkbookBuilder
 {
-    private const int ColumnCount = 11;
+    private const int FullColumnCount = 11;
+    private const int PublishedColumnCount = 8;
     private const int HeaderRow = 8;
 
-    public byte[] Build(ArppIssueDetails issue, DateTimeOffset generatedAtUtc)
+    public byte[] Build(
+        ArppIssueDetails issue,
+        DateTimeOffset generatedAtUtc,
+        bool includeRecordControlMetadata = true,
+        bool includePrismLinkageColumns = true)
     {
         ArgumentNullException.ThrowIfNull(issue);
+
+        var columnCount = includePrismLinkageColumns
+            ? FullColumnCount
+            : PublishedColumnCount;
 
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("ARPP");
 
-        BuildDocumentHeader(worksheet, issue, generatedAtUtc);
-        BuildSummary(worksheet, issue);
-        BuildTable(worksheet, issue);
-        ConfigureLayout(worksheet, Math.Max(HeaderRow, HeaderRow + issue.Entries.Count));
+        BuildDocumentHeader(
+            worksheet,
+            issue,
+            generatedAtUtc,
+            includeRecordControlMetadata,
+            columnCount);
+        BuildSummary(worksheet, issue, includePrismLinkageColumns, columnCount);
+        BuildTable(worksheet, issue, includePrismLinkageColumns, columnCount);
+        ConfigureLayout(
+            worksheet,
+            Math.Max(HeaderRow, HeaderRow + issue.Entries.Count),
+            includePrismLinkageColumns,
+            columnCount);
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -30,15 +48,17 @@ public sealed class ArppExcelWorkbookBuilder
     private static void BuildDocumentHeader(
         IXLWorksheet worksheet,
         ArppIssueDetails issue,
-        DateTimeOffset generatedAtUtc)
+        DateTimeOffset generatedAtUtc,
+        bool includeRecordControlMetadata,
+        int columnCount)
     {
-        var title = worksheet.Range(1, 1, 1, ColumnCount).Merge();
+        var title = worksheet.Range(1, 1, 1, columnCount).Merge();
         title.Value = issue.Name;
         title.Style.Font.Bold = true;
         title.Style.Font.FontSize = 16;
         title.Style.Font.FontColor = XLColor.FromHtml("#17365D");
 
-        var identity = worksheet.Range(2, 1, 2, ColumnCount).Merge();
+        var identity = worksheet.Range(2, 1, 2, columnCount).Merge();
         var issueLabel = issue.Kind == ArppIssueKind.Original
             ? "Original ARPP"
             : $"Addendum No. {issue.IssueSequence}";
@@ -47,11 +67,20 @@ public sealed class ArppExcelWorkbookBuilder
         identity.Style.Font.FontColor = XLColor.FromHtml("#526174");
 
         var generatedAtIst = IstClock.ToIst(generatedAtUtc);
-        var generated = worksheet.Range(3, 1, 3, ColumnCount).Merge();
+        var generated = worksheet.Range(3, 1, 3, columnCount).Merge();
         generated.Value = $"Generated from PRISM ERP on {generatedAtIst:dd MMM yyyy, hh:mm tt} IST";
         generated.Style.Font.FontColor = XLColor.FromHtml("#526174");
 
-        var source = worksheet.Range(4, 1, 4, ColumnCount).Merge();
+        var source = worksheet.Range(4, 1, 4, columnCount).Merge();
+        if (!includeRecordControlMetadata)
+        {
+            source.Value = issue.Attachment is null
+                ? "Published structured representation"
+                : $"Published structured representation · Issued PDF: {issue.Attachment.OriginalFileName}";
+            source.Style.Font.FontColor = XLColor.FromHtml("#526174");
+            return;
+        }
+
         var sourceLabel = issue.Attachment is null
             ? "Issued HQ PDF: not attached in PRISM"
             : $"Issued HQ PDF: {issue.Attachment.OriginalFileName} · SHA-256 {issue.Attachment.Sha256[..Math.Min(12, issue.Attachment.Sha256.Length)]}…";
@@ -67,12 +96,32 @@ public sealed class ArppExcelWorkbookBuilder
             : XLColor.FromHtml("#146C43");
     }
 
-    private static void BuildSummary(IXLWorksheet worksheet, ArppIssueDetails issue)
+    private static void BuildSummary(
+        IXLWorksheet worksheet,
+        ArppIssueDetails issue,
+        bool includePrismLinkageColumns,
+        int columnCount)
     {
+        var approvedRowValue =
+            issue.CategorySummary[ArppCategory.New].TotalIpaCost +
+            issue.CategorySummary[ArppCategory.CommittedLiability].TotalIpaCost +
+            issue.CategorySummary[ArppCategory.CarryForward].TotalIpaCost;
+        var delistedRowValue = issue.CategorySummary[ArppCategory.Delisted].TotalIpaCost;
+
         SetSummary(worksheet, 5, 1, "Rows", issue.Entries.Count);
-        SetSummary(worksheet, 5, 3, "Linked", issue.LinkedCount);
-        SetSummary(worksheet, 5, 5, "Unlinked", issue.UnlinkedCount);
-        SetSummary(worksheet, 5, 7, "Document row value (₹)", issue.TotalIpaCost, "[$₹-en-IN] #,##,##0.00");
+
+        if (includePrismLinkageColumns)
+        {
+            SetSummary(worksheet, 5, 3, "Linked", issue.LinkedCount);
+            SetSummary(worksheet, 5, 5, "Unlinked", issue.UnlinkedCount);
+            SetSummary(worksheet, 5, 7, "Approved row value (₹)", approvedRowValue, "[$₹-en-IN] #,##,##0.00");
+            SetSummary(worksheet, 5, 9, "Delisted row value (₹)", delistedRowValue, "[$₹-en-IN] #,##,##0.00");
+        }
+        else
+        {
+            SetSummary(worksheet, 5, 3, "Approved row value (₹)", approvedRowValue, "[$₹-en-IN] #,##,##0.00");
+            SetSummary(worksheet, 5, 5, "Delisted row value (₹)", delistedRowValue, "[$₹-en-IN] #,##,##0.00");
+        }
 
         var column = 1;
         foreach (var category in Enum.GetValues<ArppCategory>())
@@ -87,7 +136,7 @@ public sealed class ArppExcelWorkbookBuilder
             column += 2;
         }
 
-        var summaryRange = worksheet.Range(5, 1, 6, ColumnCount);
+        var summaryRange = worksheet.Range(5, 1, 6, columnCount);
         summaryRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         summaryRange.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
         summaryRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#AAB7C6");
@@ -126,29 +175,45 @@ public sealed class ArppExcelWorkbookBuilder
         }
     }
 
-    private static void BuildTable(IXLWorksheet worksheet, ArppIssueDetails issue)
+    private static void BuildTable(
+        IXLWorksheet worksheet,
+        ArppIssueDetails issue,
+        bool includePrismLinkageColumns,
+        int columnCount)
     {
-        var headings = new[]
-        {
-            "Order",
-            "Serial No.",
-            "Project reference as issued",
-            "Linked PRISM project",
-            "Case file",
-            "Category",
-            "IPA cost (₹)",
-            "CFA",
-            "Fund",
-            "DFPDS schedule",
-            "Link status"
-        };
+        var headings = includePrismLinkageColumns
+            ? new[]
+            {
+                "Order",
+                "Serial No.",
+                "Project reference as issued",
+                "Linked PRISM project",
+                "Case file",
+                "Category",
+                "IPA cost (₹)",
+                "CFA",
+                "Fund",
+                "DFPDS schedule",
+                "Link status"
+            }
+            : new[]
+            {
+                "Order",
+                "Serial No.",
+                "Project reference as issued",
+                "Category",
+                "IPA cost (₹)",
+                "CFA",
+                "Fund",
+                "DFPDS schedule"
+            };
 
         for (var column = 1; column <= headings.Length; column++)
         {
             worksheet.Cell(HeaderRow, column).Value = headings[column - 1];
         }
 
-        var header = worksheet.Range(HeaderRow, 1, HeaderRow, ColumnCount);
+        var header = worksheet.Range(HeaderRow, 1, HeaderRow, columnCount);
         header.Style.Font.Bold = true;
         header.Style.Font.FontColor = XLColor.FromHtml("#17365D");
         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#DCE6F1");
@@ -165,19 +230,32 @@ public sealed class ArppExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 1).Value = entry.SortOrder;
             worksheet.Cell(rowNumber, 2).Value = entry.SerialNumber;
             worksheet.Cell(rowNumber, 3).Value = entry.ProjectReference;
-            worksheet.Cell(rowNumber, 4).Value = entry.ProjectName ?? string.Empty;
-            worksheet.Cell(rowNumber, 5).Value = entry.ProjectCaseFileNumber ?? string.Empty;
-            worksheet.Cell(rowNumber, 6).Value = ArppDisplayNames.For(entry.Category);
-            worksheet.Cell(rowNumber, 7).Value = entry.IpaCost;
-            worksheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
-            worksheet.Cell(rowNumber, 8).Value = entry.Cfa;
-            worksheet.Cell(rowNumber, 9).Value = entry.Fund;
-            worksheet.Cell(rowNumber, 10).Value = entry.DfpdsSchedule;
-            worksheet.Cell(rowNumber, 11).Value = entry.ProjectId.HasValue ? "Linked" : "Linkage pending";
+
+            if (includePrismLinkageColumns)
+            {
+                worksheet.Cell(rowNumber, 4).Value = entry.ProjectName ?? string.Empty;
+                worksheet.Cell(rowNumber, 5).Value = entry.ProjectCaseFileNumber ?? string.Empty;
+                worksheet.Cell(rowNumber, 6).Value = ArppDisplayNames.For(entry.Category);
+                worksheet.Cell(rowNumber, 7).Value = entry.IpaCost;
+                worksheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
+                worksheet.Cell(rowNumber, 8).Value = entry.Cfa;
+                worksheet.Cell(rowNumber, 9).Value = entry.Fund;
+                worksheet.Cell(rowNumber, 10).Value = entry.DfpdsSchedule;
+                worksheet.Cell(rowNumber, 11).Value = entry.ProjectId.HasValue ? "Linked" : "Linkage pending";
+            }
+            else
+            {
+                worksheet.Cell(rowNumber, 4).Value = ArppDisplayNames.For(entry.Category);
+                worksheet.Cell(rowNumber, 5).Value = entry.IpaCost;
+                worksheet.Cell(rowNumber, 5).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
+                worksheet.Cell(rowNumber, 6).Value = entry.Cfa;
+                worksheet.Cell(rowNumber, 7).Value = entry.Fund;
+                worksheet.Cell(rowNumber, 8).Value = entry.DfpdsSchedule;
+            }
 
             if (entry.Category == ArppCategory.Delisted)
             {
-                worksheet.Range(rowNumber, 1, rowNumber, ColumnCount)
+                worksheet.Range(rowNumber, 1, rowNumber, columnCount)
                     .Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF4D6");
             }
 
@@ -187,35 +265,56 @@ public sealed class ArppExcelWorkbookBuilder
         var lastRow = Math.Max(HeaderRow, rowNumber - 1);
         if (lastRow > HeaderRow)
         {
-            var data = worksheet.Range(HeaderRow + 1, 1, lastRow, ColumnCount);
+            var data = worksheet.Range(HeaderRow + 1, 1, lastRow, columnCount);
             data.Style.Border.BottomBorder = XLBorderStyleValues.Hair;
             data.Style.Border.BottomBorderColor = XLColor.FromHtml("#D8E0E8");
             data.Style.Alignment.WrapText = true;
             data.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
             worksheet.Range(HeaderRow + 1, 1, lastRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            worksheet.Range(HeaderRow + 1, 6, lastRow, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            worksheet.Range(HeaderRow + 1, 7, lastRow, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+            var categoryColumn = includePrismLinkageColumns ? 6 : 4;
+            var moneyColumn = includePrismLinkageColumns ? 7 : 5;
+            worksheet.Range(HeaderRow + 1, categoryColumn, lastRow, categoryColumn)
+                .Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            worksheet.Range(HeaderRow + 1, moneyColumn, lastRow, moneyColumn)
+                .Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
         }
 
-        worksheet.Range(HeaderRow, 1, lastRow, ColumnCount).SetAutoFilter();
+        worksheet.Range(HeaderRow, 1, lastRow, columnCount).SetAutoFilter();
     }
 
-    private static void ConfigureLayout(IXLWorksheet worksheet, int lastRow)
+    private static void ConfigureLayout(
+        IXLWorksheet worksheet,
+        int lastRow,
+        bool includePrismLinkageColumns,
+        int columnCount)
     {
         worksheet.SheetView.FreezeRows(HeaderRow);
         worksheet.SheetView.FreezeColumns(2);
 
         worksheet.Column(1).Width = 8;
         worksheet.Column(2).Width = 13;
-        worksheet.Column(3).Width = 42;
-        worksheet.Column(4).Width = 28;
-        worksheet.Column(5).Width = 18;
-        worksheet.Column(6).Width = 15;
-        worksheet.Column(7).Width = 18;
-        worksheet.Column(8).Width = 24;
-        worksheet.Column(9).Width = 16;
-        worksheet.Column(10).Width = 18;
-        worksheet.Column(11).Width = 16;
+        worksheet.Column(3).Width = includePrismLinkageColumns ? 42 : 54;
+
+        if (includePrismLinkageColumns)
+        {
+            worksheet.Column(4).Width = 28;
+            worksheet.Column(5).Width = 18;
+            worksheet.Column(6).Width = 15;
+            worksheet.Column(7).Width = 18;
+            worksheet.Column(8).Width = 24;
+            worksheet.Column(9).Width = 16;
+            worksheet.Column(10).Width = 18;
+            worksheet.Column(11).Width = 16;
+        }
+        else
+        {
+            worksheet.Column(4).Width = 16;
+            worksheet.Column(5).Width = 18;
+            worksheet.Column(6).Width = 24;
+            worksheet.Column(7).Width = 16;
+            worksheet.Column(8).Width = 18;
+        }
 
         worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
         worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
@@ -227,5 +326,9 @@ public sealed class ArppExcelWorkbookBuilder
         worksheet.PageSetup.SetRowsToRepeatAtTop(HeaderRow, HeaderRow);
         worksheet.PageSetup.Footer.Left.AddText("PRISM ERP · Simulator Development Division");
         worksheet.PageSetup.Footer.Right.AddText("Page &P of &N");
+
+        // Prevent an accidental future column-count change from leaving unformatted columns.
+        worksheet.Range(1, 1, Math.Max(lastRow, HeaderRow), columnCount)
+            .Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
     }
 }

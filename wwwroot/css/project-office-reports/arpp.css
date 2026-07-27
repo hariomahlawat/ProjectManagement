@@ -1496,3 +1496,183 @@
         justify-self: start;
     }
 }
+
+/* Phase 9: publication continuity, semantic summaries and high-volume entry refinements */
+.arpp-workspace-form {
+    --arpp-action-bar-height: 4.75rem;
+    padding-bottom: calc(var(--arpp-action-bar-height) + 1rem);
+}
+
+.arpp-kpis--details {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.arpp-publication-continuity {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .7rem;
+    align-items: start;
+    margin-bottom: 1rem;
+    padding: .75rem .9rem;
+    border: 1px solid color-mix(in srgb, var(--bs-primary) 24%, var(--arpp-border));
+    border-radius: .75rem;
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 46%, var(--bs-body-bg));
+    color: var(--bs-secondary-color);
+}
+
+.arpp-publication-continuity > .bi {
+    margin-top: .12rem;
+    color: var(--bs-primary);
+    font-size: 1rem;
+}
+
+.arpp-publication-continuity strong {
+    display: block;
+    color: var(--bs-body-color);
+    font-size: .84rem;
+}
+
+.arpp-publication-continuity p {
+    margin: .12rem 0 0;
+    font-size: .76rem;
+    line-height: 1.45;
+}
+
+details.arpp-reference-guidance {
+    display: block;
+    margin: 0 1rem .85rem;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--bs-primary) 18%, var(--bs-border-color));
+    border-radius: .65rem;
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 45%, transparent);
+    color: var(--bs-secondary-color);
+    font-size: .74rem;
+    line-height: 1.4;
+}
+
+details.arpp-reference-guidance > summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .6rem;
+    padding: .58rem .72rem;
+    color: var(--bs-body-color);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+details.arpp-reference-guidance > summary::-webkit-details-marker {
+    display: none;
+}
+
+details.arpp-reference-guidance > summary:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--bs-primary) 28%, transparent);
+    outline-offset: -3px;
+}
+
+details.arpp-reference-guidance > summary > .bi:first-child {
+    color: var(--bs-primary);
+}
+
+.arpp-reference-guidance__summary-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .35rem .65rem;
+}
+
+.arpp-reference-guidance__summary-text strong {
+    font-size: .76rem;
+}
+
+.arpp-reference-guidance__summary-text small {
+    color: var(--bs-secondary-color);
+    font-size: .7rem;
+}
+
+.arpp-reference-guidance__chevron {
+    color: var(--bs-secondary-color);
+    transition: transform .18s ease;
+}
+
+details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
+    transform: rotate(180deg);
+}
+
+.arpp-reference-guidance__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .75rem;
+    align-items: start;
+    padding: 0 .72rem .68rem 2.05rem;
+    border-top: 1px solid color-mix(in srgb, var(--bs-primary) 12%, transparent);
+}
+
+.arpp-reference-guidance__body > div {
+    padding-top: .55rem;
+}
+
+.arpp-reference-guidance__body p {
+    margin: 0;
+}
+
+.arpp-reference-guidance__body p + p {
+    margin-top: .15rem;
+}
+
+.arpp-reference-guidance__body > .btn {
+    margin-top: .55rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-kpis--details {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .arpp-kpis--details .arpp-kpi--categories {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-workspace-form {
+        --arpp-action-bar-height: 7.25rem;
+        padding-bottom: calc(var(--arpp-action-bar-height) + 1rem);
+    }
+
+    .arpp-kpis--details {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .arpp-kpis--details .arpp-kpi--categories {
+        grid-column: 1 / -1;
+    }
+
+    .arpp-reference-guidance__body {
+        grid-template-columns: 1fr;
+        padding-left: .72rem;
+    }
+
+    .arpp-reference-guidance__body > .btn {
+        justify-self: start;
+        margin-top: 0;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .arpp-kpis--details {
+        grid-template-columns: 1fr;
+    }
+
+    .arpp-kpis--details .arpp-kpi--categories {
+        grid-column: auto;
+    }
+
+    .arpp-reference-guidance__summary-text small {
+        display: none;
+    }
+}
+

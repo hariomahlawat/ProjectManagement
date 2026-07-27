@@ -170,7 +170,8 @@ public sealed class ArppAttachmentService : IArppAttachmentService
         }
 
         if (!string.IsNullOrWhiteSpace(oldStorageKey) &&
-            !string.Equals(oldStorageKey, stored.StorageKey, StringComparison.Ordinal))
+            !string.Equals(oldStorageKey, stored.StorageKey, StringComparison.Ordinal) &&
+            !await IsPublishedStorageKeyAsync(oldStorageKey, cancellationToken))
         {
             await _storage.DeleteAsync(oldStorageKey, cancellationToken);
         }
@@ -296,7 +297,12 @@ public sealed class ArppAttachmentService : IArppAttachmentService
                 "The issued PDF could not be removed. The existing attachment was retained.");
         }
 
-        await _storage.DeleteAsync(storageKey, cancellationToken);
+        // A published snapshot may still expose the previously verified PDF while the
+        // management workspace is being corrected. Keep that immutable source available.
+        if (!await IsPublishedStorageKeyAsync(storageKey, cancellationToken))
+        {
+            await _storage.DeleteAsync(storageKey, cancellationToken);
+        }
 
         try
         {
@@ -360,6 +366,14 @@ public sealed class ArppAttachmentService : IArppAttachmentService
             attachment.OriginalFileName,
             attachment.SizeBytes);
     }
+
+
+    private Task<bool> IsPublishedStorageKeyAsync(
+        string storageKey,
+        CancellationToken cancellationToken)
+        => _db.ArppPublishedIssues
+            .AsNoTracking()
+            .AnyAsync(snapshot => snapshot.AttachmentStorageKey == storageKey, cancellationToken);
 
     private async Task TryAuditAsync(
         string action,

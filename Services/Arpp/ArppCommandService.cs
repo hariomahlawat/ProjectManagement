@@ -370,6 +370,8 @@ public sealed class ArppCommandService : IArppCommandService
         var issue = await _db.ArppIssues
             .Include(candidate => candidate.Entries)
             .Include(candidate => candidate.Attachment)
+            .Include(candidate => candidate.PublishedSnapshot)
+                .ThenInclude(snapshot => snapshot!.Entries)
             .SingleOrDefaultAsync(candidate => candidate.Id == command.IssueId, cancellationToken);
 
         if (issue is null)
@@ -418,9 +420,72 @@ public sealed class ArppCommandService : IArppCommandService
         issue.UpdatedAtUtc = now;
         issue.UpdatedByUserId = command.UserId;
 
+        // Publish a separate, organisation-visible snapshot. Unlocking the management
+        // workspace never changes this snapshot; re-verification replaces it atomically.
+        var published = issue.PublishedSnapshot;
+        var replacingPublishedEntries = published is not null && published.Entries.Count > 0;
+        if (published is null)
+        {
+            published = new ArppPublishedIssue
+            {
+                ArppIssueId = issue.Id,
+                RevisionNumber = 1
+            };
+            issue.PublishedSnapshot = published;
+            _db.ArppPublishedIssues.Add(published);
+        }
+        else
+        {
+            published.RevisionNumber++;
+            if (published.Entries.Count > 0)
+            {
+                _db.ArppPublishedEntries.RemoveRange(published.Entries);
+                published.Entries.Clear();
+            }
+        }
+
+        published.FinancialYearStart = issue.FinancialYearStart;
+        published.Kind = issue.Kind;
+        published.IssueSequence = issue.IssueSequence;
+        published.Name = issue.Name;
+        published.IssueDate = issue.IssueDate;
+        published.PublishedAtUtc = now;
+        published.PublishedByUserId = command.UserId;
+        published.AttachmentStorageKey = issue.Attachment!.StorageKey;
+        published.AttachmentOriginalFileName = issue.Attachment.OriginalFileName;
+        published.AttachmentContentType = issue.Attachment.ContentType;
+        published.AttachmentSizeBytes = issue.Attachment.SizeBytes;
+        published.AttachmentSha256 = issue.Attachment.Sha256;
+
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
         try
         {
+            // PostgreSQL enforces the unique published issue/project key immediately.
+            // Delete the previous immutable rows first, inside the same transaction,
+            // before inserting the replacement snapshot rows.
+            if (replacingPublishedEntries)
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            foreach (var entry in issue.Entries.OrderBy(entry => entry.SortOrder).ThenBy(entry => entry.Id))
+            {
+                published.Entries.Add(new ArppPublishedEntry
+                {
+                    ArppIssueId = issue.Id,
+                    SourceEntryId = entry.Id,
+                    SortOrder = entry.SortOrder,
+                    SerialNumber = entry.SerialNumber,
+                    ProjectReference = entry.ProjectReference,
+                    ProjectId = entry.ProjectId,
+                    Category = entry.Category,
+                    IpaCost = entry.IpaCost,
+                    Cfa = entry.Cfa,
+                    Fund = entry.Fund,
+                    DfpdsSchedule = entry.DfpdsSchedule
+                });
+            }
+
             await _db.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
@@ -440,7 +505,8 @@ public sealed class ArppCommandService : IArppCommandService
                 ["IssueId"] = issue.Id.ToString(),
                 ["FinancialYear"] = FinancialYearHelper.Format(issue.FinancialYearStart),
                 ["IssueSequence"] = issue.IssueSequence.ToString(),
-                ["VerificationNote"] = issue.VerificationNote
+                ["VerificationNote"] = issue.VerificationNote,
+                ["PublishedRevision"] = published.RevisionNumber.ToString()
             }));
 
         await transaction.CommitAsync(cancellationToken);

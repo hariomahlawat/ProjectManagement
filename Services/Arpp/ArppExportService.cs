@@ -15,7 +15,9 @@ public sealed class ArppExportService : IArppExportService
 
     public ArppExportFile BuildExcel(
         ArppIssueDetails issue,
-        DateTimeOffset generatedAtUtc)
+        DateTimeOffset generatedAtUtc,
+        bool includeRecordControlMetadata = true,
+        bool includePrismLinkageColumns = true)
     {
         ArgumentNullException.ThrowIfNull(issue);
 
@@ -26,7 +28,11 @@ public sealed class ArppExportService : IArppExportService
         var fileName = $"ARPP_{financialYear}_{issueLabel}_{generatedAtUtc:yyyyMMdd_HHmm}.xlsx";
 
         return new ArppExportFile(
-            _workbookBuilder.Build(issue, generatedAtUtc),
+            _workbookBuilder.Build(
+                issue,
+                generatedAtUtc,
+                includeRecordControlMetadata,
+                includePrismLinkageColumns),
             ExcelContentType,
             fileName);
     }

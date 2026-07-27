@@ -47,6 +47,8 @@ namespace ProjectManagement.Data
         public DbSet<ArppCfaOption> ArppCfaOptions => Set<ArppCfaOption>();
         public DbSet<ArppFundOption> ArppFundOptions => Set<ArppFundOption>();
         public DbSet<ArppDfpdsSchedule> ArppDfpdsSchedules => Set<ArppDfpdsSchedule>();
+        public DbSet<ArppPublishedIssue> ArppPublishedIssues => Set<ArppPublishedIssue>();
+        public DbSet<ArppPublishedEntry> ArppPublishedEntries => Set<ArppPublishedEntry>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
         public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
@@ -2092,6 +2094,107 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
                 entity.HasIndex(x => x.NormalizedCode).IsUnique();
                 entity.HasIndex(x => new { x.IsActive, x.SortOrder, x.Code });
+            });
+
+            builder.Entity<ArppPublishedIssue>(entity =>
+            {
+                entity.ToTable("ArppPublishedIssues", table =>
+                {
+                    table.HasCheckConstraint("CK_ArppPublishedIssues_RevisionNumber", "\"RevisionNumber\" > 0");
+                    table.HasCheckConstraint("CK_ArppPublishedIssues_FinancialYearStart", "\"FinancialYearStart\" BETWEEN 2000 AND 9998");
+                    table.HasCheckConstraint("CK_ArppPublishedIssues_IssueSequence", "\"IssueSequence\" >= 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppPublishedIssues_KindSequence",
+                        "(\"Kind\" = 1 AND \"IssueSequence\" = 0) OR (\"Kind\" = 2 AND \"IssueSequence\" > 0)");
+                    table.HasCheckConstraint("CK_ArppPublishedIssues_PdfContentType", "\"AttachmentContentType\" = 'application/pdf'");
+                    table.HasCheckConstraint("CK_ArppPublishedIssues_AttachmentSize", "\"AttachmentSizeBytes\" > 0");
+                    table.HasCheckConstraint("CK_ArppPublishedIssues_AttachmentSha256", "length(\"AttachmentSha256\") = 64");
+                });
+
+                entity.HasKey(x => x.ArppIssueId);
+                entity.Property(x => x.RevisionNumber).IsRequired();
+                entity.Property(x => x.FinancialYearStart).IsRequired();
+                entity.Property(x => x.Kind).HasConversion<int>().IsRequired();
+                entity.Property(x => x.IssueSequence).IsRequired();
+                entity.Property(x => x.Name).HasMaxLength(300).IsRequired();
+                entity.Property(x => x.IssueDate).HasColumnType("date").IsRequired();
+                entity.Property(x => x.PublishedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.PublishedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.AttachmentStorageKey).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.AttachmentOriginalFileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.AttachmentContentType).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.AttachmentSizeBytes).IsRequired();
+                entity.Property(x => x.AttachmentSha256).HasMaxLength(64).IsRequired();
+
+                entity.HasIndex(x => new { x.FinancialYearStart, x.IssueSequence });
+                entity.HasIndex(x => x.PublishedAtUtc);
+                entity.HasIndex(x => x.AttachmentStorageKey);
+
+                entity.HasOne(x => x.Issue)
+                    .WithOne(x => x.PublishedSnapshot)
+                    .HasForeignKey<ArppPublishedIssue>(x => x.ArppIssueId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ArppPublishedEntry>(entity =>
+            {
+                entity.ToTable("ArppPublishedEntries", table =>
+                {
+                    table.HasCheckConstraint("CK_ArppPublishedEntries_SortOrder", "\"SortOrder\" >= 0");
+                    table.HasCheckConstraint("CK_ArppPublishedEntries_SourceEntryId", "\"SourceEntryId\" > 0");
+                    table.HasCheckConstraint("CK_ArppPublishedEntries_IpaCost", "\"IpaCost\" >= 0");
+                    table.HasCheckConstraint("CK_ArppPublishedEntries_Category", "\"Category\" IN (1, 2, 3, 4)");
+                    table.HasCheckConstraint(
+                        "CK_ArppPublishedEntries_RequiredText",
+                        "length(btrim(\"SerialNumber\")) > 0 AND " +
+                        "length(btrim(\"ProjectReference\")) > 0 AND " +
+                        "length(btrim(\"Cfa\")) > 0 AND " +
+                        "length(btrim(\"Fund\")) > 0 AND " +
+                        "length(btrim(\"DfpdsSchedule\")) > 0");
+                });
+
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.SourceEntryId).IsRequired();
+                entity.Property(x => x.SortOrder).IsRequired();
+                entity.Property(x => x.SerialNumber).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
+                entity.Property(x => x.Category).HasConversion<int>().IsRequired();
+                entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(x => x.Cfa).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Fund).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.DfpdsSchedule).HasMaxLength(120).IsRequired();
+
+                entity.HasIndex(x => new { x.ArppIssueId, x.SortOrder });
+                entity.HasIndex(x => x.SourceEntryId).IsUnique();
+                entity.HasIndex(x => x.ProjectId);
+
+                var linkedProjectPerPublishedIssue = entity
+                    .HasIndex(x => new { x.ArppIssueId, x.ProjectId })
+                    .HasDatabaseName("UX_ArppPublishedEntries_Issue_Project")
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    linkedProjectPerPublishedIssue.HasFilter("\"ProjectId\" IS NOT NULL");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    linkedProjectPerPublishedIssue.HasFilter("[ProjectId] IS NOT NULL");
+                }
+                else
+                {
+                    linkedProjectPerPublishedIssue.HasFilter("ProjectId IS NOT NULL");
+                }
+
+                entity.HasOne(x => x.PublishedIssue)
+                    .WithMany(x => x.Entries)
+                    .HasForeignKey(x => x.ArppIssueId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<ArppAttachment>(entity =>

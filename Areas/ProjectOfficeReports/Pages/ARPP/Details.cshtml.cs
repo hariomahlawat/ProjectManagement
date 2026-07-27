@@ -58,6 +58,14 @@ public sealed class DetailsModel : PageModel
         Issue.Attachment is not null &&
         ReferenceDataReady;
 
+    public decimal ApprovedRowValue =>
+        Issue.CategorySummary[ProjectManagement.Models.Arpp.ArppCategory.New].TotalIpaCost +
+        Issue.CategorySummary[ProjectManagement.Models.Arpp.ArppCategory.CommittedLiability].TotalIpaCost +
+        Issue.CategorySummary[ProjectManagement.Models.Arpp.ArppCategory.CarryForward].TotalIpaCost;
+
+    public decimal DelistedRowValue =>
+        Issue.CategorySummary[ProjectManagement.Models.Arpp.ArppCategory.Delisted].TotalIpaCost;
+
     public string MaxAttachmentSizeLabel => FileSizeFormatter.FormatFileSize(
         _attachmentOptions.MaxFileSizeBytes > 0
             ? _attachmentOptions.MaxFileSizeBytes

@@ -31,7 +31,7 @@ public sealed class ProjectFactsReadService
 
     private async Task<bool> HasIpaPositionAsync(int projectId, CancellationToken ct)
     {
-        if (await _db.ArppEntries
+        if (await _db.ArppPublishedEntries
                 .AsNoTracking()
                 .AnyAsync(entry => entry.ProjectId == projectId, ct))
         {

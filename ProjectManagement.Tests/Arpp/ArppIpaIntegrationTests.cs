@@ -61,6 +61,42 @@ public sealed class ArppIpaIntegrationTests
         db.ArppIssues.Add(issue);
         await db.SaveChangesAsync();
 
+        var sourceEntry = issue.Entries.Single();
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = issue.IssueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = "published/arpp.pdf",
+            AttachmentOriginalFileName = "ARPP.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    SourceEntryId = sourceEntry.Id,
+                    SortOrder = sourceEntry.SortOrder,
+                    SerialNumber = sourceEntry.SerialNumber,
+                    ProjectReference = sourceEntry.ProjectReference,
+                    ProjectId = sourceEntry.ProjectId,
+                    Category = sourceEntry.Category,
+                    IpaCost = sourceEntry.IpaCost,
+                    Cfa = sourceEntry.Cfa,
+                    Fund = sourceEntry.Fund,
+                    DfpdsSchedule = sourceEntry.DfpdsSchedule
+                }
+            }
+        };
+        await db.SaveChangesAsync();
+
         var procurement = await new ProjectProcurementReadService(db).GetAsync(1);
         var projectCost = await new ProjectCostResolver(db).ResolveCostInCrAsync(new[] { 1 });
         var briefingCost = await new ProjectBriefingCostResolver(db).ResolveCostRdAsync(new[] { 1 });

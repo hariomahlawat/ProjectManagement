@@ -1,0 +1,116 @@
+@page
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Pages.Projects.Arpp.HistoryModel
+@{
+    ViewData["Title"] = $"ARPP history · {Model.History.ProjectName}";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "wide";
+    var current = Model.History.Rows[0];
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/projects/arpp-library.css" asp-append-version="true" />
+}
+
+<div class="project-arpp-page project-arpp-history-page">
+    <header class="project-arpp-page__header">
+        <div>
+            <span class="project-arpp-page__eyebrow">Projects · ARPP / PPP · Published history</span>
+            <h1>@Model.History.ProjectName</h1>
+            <p>
+                @if (!string.IsNullOrWhiteSpace(Model.History.CaseFileNumber))
+                {
+                    <span>@Model.History.CaseFileNumber · </span>
+                }
+                PRISM status: @Model.History.ProjectStatus
+            </p>
+        </div>
+        <div class="project-arpp-page__actions">
+            <a class="btn btn-outline-secondary"
+               asp-page="./Index"
+               asp-route-financialYearStart="@Model.FinancialYearStart">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                Current position
+            </a>
+            <a class="btn btn-outline-primary"
+               asp-page="/Projects/Overview"
+               asp-route-id="@Model.History.ProjectId">
+                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                Open project
+            </a>
+        </div>
+    </header>
+
+    <section class="project-arpp-summary project-arpp-summary--history" aria-label="Current published ARPP position">
+        <div>
+            <span>Current published category</span>
+            <strong>
+                <span class="arpp-badge arpp-badge--@(current.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(current.Category)</span>
+            </strong>
+            <small>FY @FinancialYearHelper.Format(current.FinancialYearStart)</small>
+        </div>
+        <div>
+            <span>Current IPA cost</span>
+            <strong class="@(current.Category == ArppCategory.Delisted ? "project-arpp-money--delisted" : "text-success")">@IndianCurrencyFormatter.FormatCompact(current.IpaCost)</strong>
+            <small>Serial @current.SerialNumber</small>
+        </div>
+        <div>
+            <span>Published entries</span>
+            <strong>@Model.History.Rows.Count</strong>
+            <small>Across originals and addenda</small>
+        </div>
+    </section>
+
+    <section class="project-arpp-table-card project-arpp-history-card">
+        <div class="project-arpp-table-card__head">
+            <h2>Published ARPP history</h2>
+            <p>Latest published entry is shown first. Serial numbers and wording are preserved from each issued document.</p>
+        </div>
+        <div class="project-arpp-table-wrap">
+            <table class="project-arpp-table project-arpp-table--history">
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Financial year</th>
+                        <th>Source document</th>
+                        <th>Serial</th>
+                        <th>Project reference as issued</th>
+                        <th>Category</th>
+                        <th class="text-end">IPA cost (₹)</th>
+                        <th>CFA</th>
+                        <th>Fund</th>
+                        <th>DFPDS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var index = 0; index < Model.History.Rows.Count; index++)
+                    {
+                        var row = Model.History.Rows[index];
+                        <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty) @(index == 0 ? "is-current" : string.Empty)">
+                            <td>
+                                @if (index == 0)
+                                {
+                                    <span class="project-arpp-current-marker"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Current</span>
+                                }
+                            </td>
+                            <td class="text-nowrap">@FinancialYearHelper.Format(row.FinancialYearStart)</td>
+                            <td>
+                                <a asp-page="./Index" asp-route-issueId="@row.SourceIssueId">@row.SourceIssueName</a>
+                                <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                            </td>
+                            <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                            <td><div class="project-arpp-table__project">@row.ProjectReference</div></td>
+                            <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                            <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+                            <td>@row.Cfa</td>
+                            <td>@row.Fund</td>
+                            <td>@row.DfpdsSchedule</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

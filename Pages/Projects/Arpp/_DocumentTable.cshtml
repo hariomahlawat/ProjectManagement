@@ -1,0 +1,49 @@
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Services.Arpp
+@using ProjectManagement.Utilities
+@model IReadOnlyList<ArppLibraryRow>
+
+<div class="project-arpp-table-wrap">
+    <table class="project-arpp-table">
+        <thead>
+            <tr>
+                <th class="project-arpp-table__order">#</th>
+                <th class="project-arpp-table__serial">Serial</th>
+                <th>Project reference</th>
+                <th>Category</th>
+                <th class="text-end">IPA cost (₹)</th>
+                <th>CFA</th>
+                <th>Fund</th>
+                <th>DFPDS</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.OrderBy(row => row.SortOrder).ThenBy(row => row.EntryId))
+            {
+                <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
+                    <td class="project-arpp-table__order">@row.SortOrder</td>
+                    <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                    <td>
+                        <div class="project-arpp-table__project">@row.ProjectReference</div>
+                        @if (row.ProjectId.HasValue)
+                        {
+                            <div class="project-arpp-table__linked">
+                                <a asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">@row.ProjectName</a>
+                                @if (!string.IsNullOrWhiteSpace(row.ProjectStatus))
+                                {
+                                    <span>· PRISM status: @row.ProjectStatus</span>
+                                }
+                            </div>
+                        }
+                    </td>
+                    <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                    <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+                    <td>@row.Cfa</td>
+                    <td>@row.Fund</td>
+                    <td>@row.DfpdsSchedule</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Services;
 using ProjectManagement.Utilities;
 
@@ -266,6 +267,28 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
             }
         }
 
+        var verifiedSourceEntryIds = entries
+            .Where(entry => entry.Issue.IsVerified)
+            .Select(entry => entry.Id)
+            .ToArray();
+
+        var publishedBySourceEntryId = verifiedSourceEntryIds.Length == 0
+            ? new Dictionary<long, ArppPublishedEntry>()
+            : await _db.ArppPublishedEntries
+                .Where(entry => verifiedSourceEntryIds.Contains(entry.SourceEntryId))
+                .ToDictionaryAsync(entry => entry.SourceEntryId, cancellationToken);
+
+        foreach (var entry in entries.Where(entry => entry.Issue.IsVerified))
+        {
+            if (!publishedBySourceEntryId.ContainsKey(entry.Id))
+            {
+                AddError(
+                    errors,
+                    $"Entries[{entry.Id}]",
+                    "The verified row has no published snapshot. Re-verify the issue before reconciliation.");
+            }
+        }
+
         if (errors.Count > 0)
         {
             return ArppCommandResult.Failed("Review the selected project links.", errors);
@@ -279,6 +302,15 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
             entry.UpdatedByUserId = command.UserId;
             entry.Issue.UpdatedAtUtc = now;
             entry.Issue.UpdatedByUserId = command.UserId;
+
+            if (entry.Issue.IsVerified &&
+                publishedBySourceEntryId.TryGetValue(entry.Id, out var publishedEntry))
+            {
+                // Project linkage is PRISM metadata, not wording from the issued document.
+                // A verified row may therefore be reconciled without unlocking while the
+                // published snapshot remains otherwise immutable.
+                publishedEntry.ProjectId = entry.ProjectId;
+            }
         }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
@@ -310,7 +342,8 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
             {
                 ["EntryIds"] = string.Join(",", entries.Select(entry => entry.Id)),
                 ["ProjectIds"] = string.Join(",", entries.Select(entry => entry.ProjectId)),
-                ["IssueIds"] = string.Join(",", entries.Select(entry => entry.ArppIssueId).Distinct())
+                ["IssueIds"] = string.Join(",", entries.Select(entry => entry.ArppIssueId).Distinct()),
+                ["PublishedLinksUpdated"] = entries.Count(entry => entry.Issue.IsVerified).ToString()
             }));
 
         await transaction.CommitAsync(cancellationToken);

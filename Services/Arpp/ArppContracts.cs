@@ -160,7 +160,19 @@ public sealed record ArppIssueDetails(
     DateTimeOffset? VerifiedAtUtc,
     string? VerifiedByUserId,
     string? VerifiedByDisplayName,
-    string? VerificationNote);
+    string? VerificationNote)
+{
+    /// <summary>
+    /// True when a last verified revision remains available in the organisation-wide
+    /// published ARPP library. This can remain true while the management record is
+    /// unlocked for correction.
+    /// </summary>
+    public bool HasPublishedSnapshot { get; init; }
+
+    public int? PublishedRevisionNumber { get; init; }
+
+    public DateTimeOffset? PublishedAtUtc { get; init; }
+}
 
 public sealed record ArppEntryDetails(
     long Id,

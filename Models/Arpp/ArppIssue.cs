@@ -46,4 +46,6 @@ public sealed class ArppIssue
     public ICollection<ArppEntry> Entries { get; set; } = new List<ArppEntry>();
 
     public ArppAttachment? Attachment { get; set; }
+
+    public ArppPublishedIssue? PublishedSnapshot { get; set; }
 }

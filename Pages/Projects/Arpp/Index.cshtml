@@ -1,0 +1,289 @@
+@page
+@using ProjectManagement.Helpers
+@using ProjectManagement.Models.Arpp
+@using ProjectManagement.Services.Arpp
+@using ProjectManagement.Utilities
+@model ProjectManagement.Pages.Projects.Arpp.IndexModel
+@{
+    ViewData["Title"] = "ARPP / PPP library";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "wide";
+
+    static string IssueLabel(ArppLibraryDocumentLink document)
+        => document.Kind == ArppIssueKind.Original
+            ? "Original ARPP"
+            : $"Addendum No. {document.IssueSequence}";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/projects/arpp-library.css" asp-append-version="true" />
+}
+
+<div class="project-arpp-page" data-arpp-library>
+    <header class="project-arpp-page__header">
+        <div>
+            <span class="project-arpp-page__eyebrow">Projects · Published reference</span>
+            <h1>ARPP / PPP</h1>
+            <p>Read the verified annual procurement plans and addenda available across PRISM.</p>
+        </div>
+        <div class="project-arpp-page__actions">
+            @if (Model.CanManageArpp)
+            {
+                <a class="btn btn-outline-primary"
+                   asp-area="ProjectOfficeReports"
+                   asp-page="/ARPP/Index">
+                    <i class="bi bi-sliders" aria-hidden="true"></i>
+                    Manage ARPP
+                </a>
+            }
+            <button class="btn btn-outline-secondary d-lg-none"
+                    type="button"
+                    data-arpp-library-rail-toggle
+                    aria-controls="arppLibraryRail"
+                    aria-expanded="false">
+                <i class="bi bi-list" aria-hidden="true"></i>
+                Documents
+            </button>
+        </div>
+    </header>
+
+    @if (!Model.HasPublishedDocuments)
+    {
+        <section class="project-arpp-empty">
+            @if (!string.IsNullOrWhiteSpace(Model.Query))
+            {
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <h2>No matching published ARPP documents</h2>
+                <p>Change the search text or clear it to return to the complete library.</p>
+                <a asp-page="./Index" class="btn btn-outline-primary project-arpp-empty__action">Clear search</a>
+            }
+            else
+            {
+                <i class="bi bi-journal-check" aria-hidden="true"></i>
+                <h2>No published ARPP documents</h2>
+                <p>Verified ARPPs and addenda will appear here after publication.</p>
+            }
+        </section>
+    }
+    else
+    {
+        <div class="project-arpp-layout">
+            <aside class="project-arpp-rail"
+                   id="arppLibraryRail"
+                   data-arpp-library-rail
+                   aria-label="Published ARPP documents">
+                <div class="project-arpp-rail__mobile-header d-lg-none">
+                    <strong>ARPP documents</strong>
+                    <button type="button"
+                            class="btn btn-sm btn-light"
+                            data-arpp-library-rail-close
+                            aria-label="Close document list">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <form method="get" class="project-arpp-search" role="search">
+                    <label class="visually-hidden" for="arppLibrarySearch">Search ARPP documents and rows</label>
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input id="arppLibrarySearch"
+                           name="Query"
+                           value="@Model.Query"
+                           type="search"
+                           placeholder="Search ARPP"
+                           title="Search document names, project references and serial numbers" />
+                    @if (Model.Document is not null)
+                    {
+                        <input type="hidden" name="IssueId" value="@Model.Document.IssueId" />
+                    }
+                    else if (Model.SelectedFinancialYearStart.HasValue)
+                    {
+                        <input type="hidden" name="FinancialYearStart" value="@Model.SelectedFinancialYearStart.Value" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Query))
+                    {
+                        <a asp-page="./Index"
+                           asp-route-issueId="@Model.Document?.IssueId"
+                           asp-route-financialYearStart="@Model.SelectedFinancialYearStart"
+                           class="project-arpp-search__clear"
+                           aria-label="Clear search">
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </a>
+                    }
+                </form>
+
+                <nav class="project-arpp-nav" aria-label="Published ARPP documents">
+                    @foreach (var year in Model.Navigation.FinancialYears)
+                    {
+                        var yearSelected = Model.SelectedFinancialYearStart == year.FinancialYearStart;
+                        <section class="project-arpp-nav__year">
+                            <h2>@FinancialYearHelper.Format(year.FinancialYearStart)</h2>
+                            <a asp-page="./Index"
+                               asp-route-financialYearStart="@year.FinancialYearStart"
+                               asp-route-query="@Model.Query"
+                               class="project-arpp-nav__item project-arpp-nav__item--current @(yearSelected && Model.Document is null ? "is-active" : string.Empty)">
+                                <span class="project-arpp-nav__icon"><i class="bi bi-layers" aria-hidden="true"></i></span>
+                                <span>
+                                    <strong>Current position</strong>
+                                    <small>Latest published project position</small>
+                                </span>
+                            </a>
+                            @foreach (var navDocument in year.Documents)
+                            {
+                                <a asp-page="./Index"
+                                   asp-route-issueId="@navDocument.IssueId"
+                                   asp-route-query="@Model.Query"
+                                   class="project-arpp-nav__item @(Model.Document?.IssueId == navDocument.IssueId ? "is-active" : string.Empty)">
+                                    <span class="project-arpp-nav__icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></span>
+                                    <span>
+                                        <strong>@IssueLabel(navDocument)</strong>
+                                        <small>@navDocument.IssueDate.ToString("dd MMM yyyy") · @navDocument.RowCount row@(navDocument.RowCount == 1 ? "" : "s")</small>
+                                    </span>
+                                </a>
+                            }
+                        </section>
+                    }
+                </nav>
+            </aside>
+            <button class="project-arpp-rail-backdrop"
+                    type="button"
+                    data-arpp-library-rail-backdrop
+                    aria-label="Close document list"
+                    tabindex="-1"></button>
+
+            <main class="project-arpp-reader">
+                @if (Model.Document is { } document)
+                {
+                    var issueLabel = document.Kind == ArppIssueKind.Original
+                        ? "Original ARPP"
+                        : $"Addendum No. {document.IssueSequence}";
+                    <header class="project-arpp-reader__header">
+                        <div>
+                            <span class="project-arpp-reader__label">@issueLabel · FY @FinancialYearHelper.Format(document.FinancialYearStart)</span>
+                            <h2>@document.Name</h2>
+                            <p>Issued @document.IssueDate.ToString("dd MMM yyyy")</p>
+                        </div>
+                        <div class="project-arpp-reader__actions">
+                            <a class="btn btn-outline-secondary"
+                               asp-page="./Index"
+                               asp-page-handler="Attachment"
+                               asp-route-id="@document.IssueId"
+                               target="_blank"
+                               rel="noopener">
+                                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+                                Open issued PDF
+                            </a>
+                            <a class="btn btn-outline-success"
+                               asp-page="./Index"
+                               asp-page-handler="Excel"
+                               asp-route-id="@document.IssueId">
+                                <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+                                Excel
+                            </a>
+                            <a class="btn btn-outline-secondary"
+                               asp-page="./Print"
+                               asp-route-id="@document.IssueId"
+                               target="_blank"
+                               rel="noopener">
+                                <i class="bi bi-printer" aria-hidden="true"></i>
+                                Print / PDF
+                            </a>
+                        </div>
+                    </header>
+
+                    <section class="project-arpp-summary" aria-label="Document summary">
+                        <div><span>Approved row value</span><strong class="text-success">@IndianCurrencyFormatter.FormatCompact(document.ApprovedRowValue)</strong></div>
+                        <div><span>Delisted row value</span><strong class="project-arpp-money--delisted">@IndianCurrencyFormatter.FormatCompact(document.DelistedRowValue)</strong></div>
+                        <div><span>Rows</span><strong>@document.Rows.Count</strong></div>
+                    </section>
+
+                    <section class="project-arpp-table-card">
+                        <div class="project-arpp-table-card__head">
+                            <h3>Issued rows</h3>
+                            <p>Wording and order are preserved from the published ARPP document.</p>
+                        </div>
+                        <partial name="_DocumentTable" model="document.Rows" />
+                    </section>
+                }
+                else if (Model.CurrentPosition is { } position)
+                {
+                    <header class="project-arpp-reader__header">
+                        <div>
+                            <span class="project-arpp-reader__label">FY @FinancialYearHelper.Format(position.FinancialYearStart)</span>
+                            <h2>Current position</h2>
+                            <p>Latest published ARPP entry for each linked PRISM project. Unlinked published rows are shown separately.</p>
+                        </div>
+                    </header>
+
+                    @if (position.TotalUnlinkedDocumentRows > 0)
+                    {
+                        <section class="project-arpp-completeness" role="status" aria-label="Current-position completeness">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            <div>
+                                <strong>@position.TotalUnlinkedDocumentRows published ARPP row@(position.TotalUnlinkedDocumentRows == 1 ? " is" : "s are") not linked to a PRISM project.</strong>
+                                <p>These rows are excluded from approved and delisted project totals until reconciliation is completed.</p>
+                            </div>
+                            @if (position.UnlinkedRows.Count > 0)
+                            {
+                                <a href="#unlinkedPublishedRows" class="btn btn-outline-warning btn-sm">Review rows</a>
+                            }
+                            else
+                            {
+                                <a asp-page="./Index"
+                                   asp-route-financialYearStart="@position.FinancialYearStart"
+                                   asp-fragment="unlinkedPublishedRows"
+                                   class="btn btn-outline-warning btn-sm">
+                                    Clear search and review
+                                </a>
+                            }
+                        </section>
+                    }
+
+                    <section class="project-arpp-summary" aria-label="Current ARPP position summary">
+                        <div><span>Approved projects IPA</span><strong class="text-success">@IndianCurrencyFormatter.FormatCompact(position.ApprovedIpaValue)</strong><small>@position.ApprovedRows.Count project@(position.ApprovedRows.Count == 1 ? "" : "s")</small></div>
+                        <div><span>Delisted projects IPA</span><strong class="project-arpp-money--delisted">@IndianCurrencyFormatter.FormatCompact(position.DelistedIpaValue)</strong><small>@position.DelistedRows.Count project@(position.DelistedRows.Count == 1 ? "" : "s")</small></div>
+                        <div><span>Unlinked published rows</span><strong class="project-arpp-money--warning">@position.TotalUnlinkedDocumentRows</strong><small>Excluded from project totals</small></div>
+                    </section>
+
+                    <section class="project-arpp-table-card">
+                        <div class="project-arpp-table-card__head">
+                            <h3>Approved projects</h3>
+                            <p>New, committed liability and carry-forward positions.</p>
+                        </div>
+                        <partial name="_CurrentPositionTable" model="position.ApprovedRows" />
+                    </section>
+
+                    <section class="project-arpp-table-card project-arpp-table-card--delisted">
+                        <div class="project-arpp-table-card__head">
+                            <h3>Delisted projects</h3>
+                            <p>Projects whose latest published ARPP category is Delisted.</p>
+                        </div>
+                        <partial name="_CurrentPositionTable" model="position.DelistedRows" />
+                    </section>
+
+                    @if (position.TotalUnlinkedDocumentRows > 0)
+                    {
+                        <section class="project-arpp-table-card project-arpp-table-card--unlinked" id="unlinkedPublishedRows">
+                            <div class="project-arpp-table-card__head">
+                                <h3>Unlinked published rows</h3>
+                                <p>These issued rows remain readable but are excluded from project-level current position until linked in the ARPP management workspace.</p>
+                            </div>
+                            <partial name="_UnlinkedPositionTable" model="position.UnlinkedRows" />
+                        </section>
+                    }
+                }
+                else
+                {
+                    <section class="project-arpp-empty project-arpp-empty--inside">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <h2>No matching published position</h2>
+                        <p>Change the search or select another document.</p>
+                    </section>
+                }
+            </main>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/projects/arpp-library.js" asp-append-version="true" defer></script>
+}

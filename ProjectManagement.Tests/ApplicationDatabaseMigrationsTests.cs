@@ -34,6 +34,7 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261207100000_AddArppIssueAttachment", migrations);
         Assert.Contains("20261207110000_AddArppVerificationState", migrations);
         Assert.Contains("20261207120000_AddArppControlledReferenceData", migrations);
+        Assert.Contains("20261207130000_AddArppPublishedSnapshots", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 
