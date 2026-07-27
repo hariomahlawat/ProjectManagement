@@ -23,22 +23,24 @@
 
 <div class="project-arpp-page" data-arpp-library>
     <header class="project-arpp-page__header">
-        <div>
+        <div class="project-arpp-page__identity">
             <span class="project-arpp-page__eyebrow">Projects · Published reference</span>
-            <h1>ARPP / PPP</h1>
-            <p>Read the verified annual procurement plans and addenda available across PRISM.</p>
+            <div class="project-arpp-page__title-row">
+                <h1>ARPP / PPP</h1>
+                <p>Verified annual procurement plans and addenda.</p>
+            </div>
         </div>
         <div class="project-arpp-page__actions">
             @if (Model.CanManageArpp)
             {
-                <a class="btn btn-outline-primary"
+                <a class="btn btn-outline-primary btn-sm"
                    asp-area="ProjectOfficeReports"
                    asp-page="/ARPP/Index">
                     <i class="bi bi-sliders" aria-hidden="true"></i>
                     Manage ARPP
                 </a>
             }
-            <button class="btn btn-outline-secondary d-lg-none"
+            <button class="btn btn-outline-secondary btn-sm d-lg-none"
                     type="button"
                     data-arpp-library-rail-toggle
                     aria-controls="arppLibraryRail"
@@ -184,34 +186,33 @@
                     var issueLabel = document.Kind == ArppIssueKind.Original
                         ? "Original ARPP"
                         : $"Addendum No. {document.IssueSequence}";
-                    <header class="project-arpp-reader__header">
+                    <header class="project-arpp-reader__header project-arpp-reader__header--document">
                         <div>
-                            <span class="project-arpp-reader__label">@issueLabel · FY @FinancialYearHelper.Format(document.FinancialYearStart)</span>
+                            <span class="project-arpp-reader__label">@issueLabel · FY @FinancialYearHelper.Format(document.FinancialYearStart) · Issued @document.IssueDate.ToString("dd MMM yyyy")</span>
                             <h2>@document.Name</h2>
-                            <p>Issued @document.IssueDate.ToString("dd MMM yyyy")</p>
                         </div>
                         <div class="project-arpp-reader__actions">
-                            <a class="btn btn-outline-secondary"
+                            <a class="btn btn-outline-secondary btn-sm"
                                asp-page="./Index"
                                asp-page-handler="Attachment"
                                asp-route-id="@document.IssueId"
                                target="_blank"
-                               rel="noopener">
+                               rel="noopener noreferrer">
                                 <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
                                 Open issued PDF
                             </a>
-                            <a class="btn btn-outline-success"
+                            <a class="btn btn-outline-success btn-sm"
                                asp-page="./Index"
                                asp-page-handler="Excel"
                                asp-route-id="@document.IssueId">
                                 <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
                                 Excel
                             </a>
-                            <a class="btn btn-outline-secondary"
+                            <a class="btn btn-outline-secondary btn-sm"
                                asp-page="./Print"
                                asp-route-id="@document.IssueId"
                                target="_blank"
-                               rel="noopener">
+                               rel="noopener noreferrer">
                                 <i class="bi bi-printer" aria-hidden="true"></i>
                                 Print / PDF
                             </a>
@@ -234,9 +235,9 @@
                 }
                 else if (Model.CurrentPosition is { } position)
                 {
-                    <header class="project-arpp-reader__header">
+                    <header class="project-arpp-reader__header project-arpp-reader__header--current">
                         <div>
-                            <span class="project-arpp-reader__label">FY @FinancialYearHelper.Format(position.FinancialYearStart)</span>
+                            <span class="project-arpp-reader__label">FY @FinancialYearHelper.Format(position.FinancialYearStart) · Latest published position</span>
                             <h2>Current position</h2>
                             <p>Latest published ARPP entry for each linked PRISM project. Unlinked published rows are shown separately.</p>
                         </div>

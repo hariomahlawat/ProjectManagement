@@ -41,8 +41,13 @@ else
                         <td>
                             <a class="project-arpp-table__project project-arpp-table__project-link"
                                asp-page="/Projects/Overview"
-                               asp-route-id="@row.ProjectId">
-                                @row.ProjectName
+                               asp-route-id="@row.ProjectId"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               title="Open project in a new tab">
+                                <span>@row.ProjectName</span>
+                                <i class="bi bi-box-arrow-up-right project-arpp-table__external-icon" aria-hidden="true"></i>
+                                <span class="visually-hidden">(opens in a new tab)</span>
                             </a>
                             @if (!IsSameReference(row.ProjectReference, row.ProjectName))
                             {

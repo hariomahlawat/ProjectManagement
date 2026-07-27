@@ -9,29 +9,59 @@
 
 .project-arpp-page__header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 1.25rem;
-    padding: 1.25rem 0 1.15rem;
+    gap: .85rem;
+    padding: .72rem 0 .65rem;
     border-bottom: 1px solid var(--arpp-reader-border);
 }
 
 .project-arpp-page__eyebrow,
 .project-arpp-reader__label {
     display: block;
-    margin-bottom: .28rem;
+    margin-bottom: .18rem;
     color: var(--arpp-reader-navy);
-    font-size: .74rem;
+    font-size: .7rem;
     font-weight: 800;
-    letter-spacing: .09em;
+    letter-spacing: .08em;
+    line-height: 1.25;
     text-transform: uppercase;
 }
 
 .project-arpp-page__header h1 {
     margin: 0;
     color: #0c1e3d;
-    font-size: clamp(1.75rem, 2.2vw, 2.3rem);
+    font-size: clamp(1.48rem, 1.8vw, 1.8rem);
     font-weight: 800;
+    line-height: 1.05;
+}
+
+.project-arpp-page__identity {
+    min-width: 0;
+}
+
+.project-arpp-page__title-row {
+    display: flex;
+    align-items: baseline;
+    gap: .7rem;
+    min-width: 0;
+}
+
+.project-arpp-page__title-row p {
+    margin: 0;
+    color: var(--arpp-reader-muted);
+    font-size: .8rem;
+    line-height: 1.35;
+}
+
+.project-arpp-page__actions .btn,
+.project-arpp-reader__actions .btn {
+    min-height: 32px;
+    align-items: center;
+    gap: .32rem;
+    padding: .3rem .58rem;
+    font-size: .76rem;
+    white-space: nowrap;
 }
 
 .project-arpp-page__header p,
@@ -52,16 +82,16 @@
 .project-arpp-layout {
     display: grid;
     grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
-    gap: 1rem;
-    padding-top: 1rem;
+    gap: .85rem;
+    padding-top: .72rem;
     min-height: 620px;
 }
 
 .project-arpp-rail {
     position: sticky;
-    top: calc(var(--pm-topbar-height, 64px) + var(--pm-module-subnav-height, 54px) + 1rem);
+    top: var(--arpp-library-sticky-offset, 118px);
     align-self: start;
-    max-height: calc(100vh - 150px);
+    max-height: calc(100vh - var(--arpp-library-sticky-offset, 118px) - .75rem);
     overflow: auto;
     border: 1px solid var(--arpp-reader-border);
     border-radius: 14px;
@@ -184,37 +214,38 @@
 
 .project-arpp-reader__header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1.15rem 1.2rem;
+    gap: .85rem;
+    padding: .72rem .9rem;
     border: 1px solid var(--arpp-reader-border);
-    border-radius: 14px;
+    border-radius: 12px;
     background: linear-gradient(135deg, #fff 0%, #f7f9fd 100%);
 }
 
 .project-arpp-reader__header h2 {
     margin: 0;
     color: #0c1e3d;
-    font-size: clamp(1.45rem, 2vw, 2rem);
+    font-size: clamp(1.3rem, 1.65vw, 1.62rem);
     font-weight: 800;
+    line-height: 1.12;
 }
 
 .project-arpp-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: .75rem;
-    margin: .85rem 0;
+    gap: .58rem;
+    margin: .58rem 0;
 }
 
 .project-arpp-summary > div {
     display: flex;
-    min-height: 94px;
+    min-height: 76px;
     flex-direction: column;
     justify-content: center;
-    padding: .85rem 1rem;
+    padding: .58rem .78rem;
     border: 1px solid var(--arpp-reader-border);
-    border-radius: 12px;
+    border-radius: 11px;
     background: #fff;
 }
 
@@ -227,10 +258,10 @@
 }
 
 .project-arpp-summary strong {
-    margin-top: .18rem;
+    margin-top: .12rem;
     color: #0f1f3b;
-    font-size: 1.42rem;
-    line-height: 1.15;
+    font-size: 1.24rem;
+    line-height: 1.12;
 }
 
 .project-arpp-summary small {
@@ -243,7 +274,7 @@
 }
 
 .project-arpp-table-card {
-    margin-top: .85rem;
+    margin-top: .58rem;
     overflow: hidden;
     border: 1px solid var(--arpp-reader-border);
     border-radius: 14px;
@@ -251,7 +282,7 @@
 }
 
 .project-arpp-table-card__head {
-    padding: .8rem 1rem;
+    padding: .64rem .85rem;
     border-bottom: 1px solid var(--arpp-reader-border);
 }
 
@@ -421,7 +452,14 @@
 
     .project-arpp-page__header,
     .project-arpp-reader__header {
+        align-items: stretch;
         flex-direction: column;
+    }
+
+    .project-arpp-page__title-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: .18rem;
     }
 
     .project-arpp-page__actions,
@@ -475,7 +513,7 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
     gap: .65rem;
-    margin: .85rem 0;
+    margin: .58rem 0;
     padding: .75rem .85rem;
     border: 1px solid #e8ca7a;
     border-radius: 12px;
@@ -528,7 +566,7 @@
 }
 
 .project-arpp-table-card--unlinked {
-    scroll-margin-top: calc(var(--pm-topbar-height, 64px) + var(--pm-module-subnav-height, 54px) + 1rem);
+    scroll-margin-top: var(--arpp-library-sticky-offset, 118px);
 }
 
 .project-arpp-table-card__head h2,
@@ -737,7 +775,7 @@
 .project-arpp-reader,
 .project-arpp-project-row,
 .project-arpp-table-card--unlinked {
-    scroll-margin-top: calc(var(--pm-topbar-height, 64px) + var(--pm-module-subnav-height, 54px) + 1rem);
+    scroll-margin-top: var(--arpp-library-sticky-offset, 118px);
 }
 
 .project-arpp-reader:focus {
@@ -745,15 +783,43 @@
 }
 
 .project-arpp-table__project-link {
-    display: inline;
-    color: #101d33;
-    text-decoration: none;
+    display: inline-flex;
+    max-width: 100%;
+    align-items: baseline;
+    gap: .28rem;
+    color: #245fce;
+    font-weight: 750;
+    text-decoration: underline;
+    text-decoration-color: rgba(36, 95, 206, .34);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
 }
 
 .project-arpp-table__project-link:hover {
     color: #1746ad;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
+}
+
+.project-arpp-table__project-link:focus-visible {
+    border-radius: 3px;
+    outline: 2px solid #5d83e8;
+    outline-offset: 2px;
+}
+
+.project-arpp-table__project-link > span:first-child {
+    min-width: 0;
+}
+
+.project-arpp-table__external-icon {
+    flex: 0 0 auto;
+    color: currentColor;
+    font-size: .68rem;
+    opacity: .72;
+}
+
+.project-arpp-table__project-link:hover .project-arpp-table__external-icon,
+.project-arpp-table__project-link:focus-visible .project-arpp-table__external-icon {
+    opacity: 1;
 }
 
 .project-arpp-table__issued-reference {

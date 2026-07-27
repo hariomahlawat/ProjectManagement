@@ -15,10 +15,60 @@
         return Number.isFinite(parsed) ? parsed : fallback;
     };
 
-    const stickyOffset = () =>
-        cssPixels("--pm-topbar-height", 64) +
-        cssPixels("--pm-module-subnav-height", 54) +
-        16;
+    const stickyChrome = Array.from(
+        document.querySelectorAll(".pm-topbar, .pm-module-subnav-wrap")
+    );
+
+    const measureStickyOffset = () => {
+        const measuredBottom = stickyChrome.reduce((bottom, element) => {
+            if (!(element instanceof HTMLElement)) return bottom;
+
+            const rect = element.getBoundingClientRect();
+            if (rect.height <= 0 || rect.bottom <= 0) return bottom;
+
+            return Math.max(bottom, rect.bottom);
+        }, 0);
+
+        if (measuredBottom > 0) {
+            return Math.ceil(measuredBottom) + 12;
+        }
+
+        return cssPixels("--pm-topbar-height", 52) +
+            cssPixels("--pm-module-subnav-height", 46) +
+            12;
+    };
+
+    const updateStickyOffset = () => {
+        const offset = measureStickyOffset();
+        document.documentElement.style.setProperty(
+            "--arpp-library-sticky-offset",
+            `${offset}px`
+        );
+        return offset;
+    };
+
+    const stickyOffset = () => updateStickyOffset();
+
+    let stickyUpdateFrame = 0;
+    const scheduleStickyOffsetUpdate = () => {
+        if (stickyUpdateFrame) {
+            window.cancelAnimationFrame(stickyUpdateFrame);
+        }
+
+        stickyUpdateFrame = window.requestAnimationFrame(() => {
+            stickyUpdateFrame = 0;
+            updateStickyOffset();
+        });
+    };
+
+    updateStickyOffset();
+    window.addEventListener("resize", scheduleStickyOffsetUpdate, { passive: true });
+
+    let stickyObserver = null;
+    if ("ResizeObserver" in window) {
+        stickyObserver = new ResizeObserver(scheduleStickyOffsetUpdate);
+        stickyChrome.forEach(element => stickyObserver.observe(element));
+    }
 
     const scrollWithOffset = (element, { focus = false } = {}) => {
         if (!(element instanceof HTMLElement)) return;
@@ -33,6 +83,12 @@
         if (focus) {
             window.requestAnimationFrame(() => element.focus({ preventScroll: true }));
         }
+    };
+
+    const afterLayout = callback => {
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(callback);
+        });
     };
 
     const markReaderNavigation = () => {
@@ -66,12 +122,12 @@
             : null;
 
         if (hashTarget instanceof HTMLElement) {
-            window.requestAnimationFrame(() => scrollWithOffset(hashTarget));
+            afterLayout(() => scrollWithOffset(hashTarget));
             return;
         }
 
         if (shouldFocusReader && readerStart instanceof HTMLElement) {
-            window.requestAnimationFrame(() => scrollWithOffset(readerStart, { focus: true }));
+            afterLayout(() => scrollWithOffset(readerStart, { focus: true }));
         }
     };
 
@@ -118,7 +174,7 @@
         const active = rail.querySelector(".project-arpp-nav__item.is-active");
         if (!(active instanceof HTMLElement)) return;
 
-        window.requestAnimationFrame(() => {
+        afterLayout(() => {
             const railRect = rail.getBoundingClientRect();
             const activeRect = active.getBoundingClientRect();
 
