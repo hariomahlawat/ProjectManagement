@@ -676,6 +676,11 @@ builder.Services.AddScoped<IArppAttachmentService, ArppAttachmentService>();
 builder.Services.AddScoped<ArppExcelWorkbookBuilder>();
 builder.Services.AddScoped<IArppExportService, ArppExportService>();
 builder.Services.AddScoped<ProjectFactsService>();
+builder.Services.AddSingleton<ProjectContentAuditQueue>();
+builder.Services.AddSingleton<IProjectContentAuditQueue>(serviceProvider =>
+    serviceProvider.GetRequiredService<ProjectContentAuditQueue>());
+builder.Services.AddHostedService<ProjectContentAuditQueue>(serviceProvider =>
+    serviceProvider.GetRequiredService<ProjectContentAuditQueue>());
 builder.Services.AddScoped<IProjectContentService, ProjectContentService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();

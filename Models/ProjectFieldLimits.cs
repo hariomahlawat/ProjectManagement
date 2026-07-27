@@ -4,13 +4,19 @@ namespace ProjectManagement.Models
     {
         // SECTION: Project description
         public const int DescriptionMaxLength = 5000;
+        public const int DescriptionPreviewCollapseWords = 260;
 
         // SECTION: Project brief
-        // The character limit protects the database and accommodates normal
-        // editorial variation; the application separately enforces 250 words.
-        public const int ProjectBriefMaxLength = 2500;
+        // The database character limit accommodates normal editorial variation.
+        // The UI recommends 200–250 words and the service applies a hard 300-word ceiling.
+        public const int ProjectBriefMaxLength = 3000;
+        public const int ProjectBriefIncompleteThresholdWords = 150;
         public const int ProjectBriefRecommendedMinimumWords = 200;
-        public const int ProjectBriefMaximumWords = 250;
+        public const int ProjectBriefRecommendedMaximumWords = 250;
+        public const int ProjectBriefHardMaximumWords = 300;
+
+        // Retained for compatibility with code added in Phase 11.
+        public const int ProjectBriefMaximumWords = ProjectBriefHardMaximumWords;
 
         // SECTION: Capability overview
         public const int CapabilityStatementMaxLength = 500;

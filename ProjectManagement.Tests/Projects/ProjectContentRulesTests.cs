@@ -31,6 +31,37 @@ public sealed class ProjectContentRulesTests
 
         Assert.Equal("First\nSecond", result);
     }
+
+    [Theory]
+    [InlineData(0, ProjectBriefReadiness.NotRecorded)]
+    [InlineData(149, ProjectBriefReadiness.Incomplete)]
+    [InlineData(150, ProjectBriefReadiness.BelowRecommended)]
+    [InlineData(199, ProjectBriefReadiness.BelowRecommended)]
+    [InlineData(200, ProjectBriefReadiness.Recommended)]
+    [InlineData(250, ProjectBriefReadiness.Recommended)]
+    [InlineData(251, ProjectBriefReadiness.AboveRecommended)]
+    [InlineData(300, ProjectBriefReadiness.AboveRecommended)]
+    [InlineData(301, ProjectBriefReadiness.ExceedsMaximum)]
+    public void GetBriefReadiness_UsesConfiguredReportingBands(
+        int wordCount,
+        ProjectBriefReadiness expected)
+    {
+        Assert.Equal(expected, ProjectContentRules.GetBriefReadiness(wordCount));
+    }
+
+    [Theory]
+    [InlineData(0, ProjectCapabilityReadiness.NotRecorded)]
+    [InlineData(1, ProjectCapabilityReadiness.Draft)]
+    [InlineData(4, ProjectCapabilityReadiness.Draft)]
+    [InlineData(5, ProjectCapabilityReadiness.PresentationReady)]
+    [InlineData(8, ProjectCapabilityReadiness.PresentationReady)]
+    public void GetCapabilityReadiness_UsesPresentationThreshold(
+        int statementCount,
+        ProjectCapabilityReadiness expected)
+    {
+        Assert.Equal(expected, ProjectContentRules.GetCapabilityReadiness(statementCount));
+    }
+
     [Fact]
     public void NormalizeProjectBrief_RemovesMarkdownDecorationWithoutTruncatingNarrative()
     {
@@ -39,5 +70,4 @@ public sealed class ProjectContentRulesTests
 
         Assert.Equal("Heading\n\nThis is important project content.", result);
     }
-
 }

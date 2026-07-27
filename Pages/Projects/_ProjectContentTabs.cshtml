@@ -1,5 +1,6 @@
 @using System
 @using ProjectManagement.Models
+@using ProjectManagement.Services.Projects
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
@@ -8,12 +9,33 @@
     var briefIsActive = string.Equals(activeTab, "brief", StringComparison.OrdinalIgnoreCase);
     var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
     var descriptionIsActive = string.Equals(activeTab, "description", StringComparison.OrdinalIgnoreCase);
-    var capabilityEditorCount = Math.Max(
-        Model.CapabilityInput.Statements.Count,
-        Math.Min(ProjectFieldLimits.CapabilityRecommendedMinimumCount, ProjectFieldLimits.CapabilityMaximumCount));
+    var capabilityEditorCount = Math.Max(1, Model.CapabilityInput.Statements.Count);
+
+    var (briefStatusText, briefStatusClass) = Model.BriefReadiness switch
+    {
+        ProjectBriefReadiness.NotRecorded => ("Not recorded", "is-neutral"),
+        ProjectBriefReadiness.Incomplete => ("Brief incomplete", "is-warning"),
+        ProjectBriefReadiness.BelowRecommended => ("Below recommended length", "is-warning"),
+        ProjectBriefReadiness.Recommended => ("Recommended length", "is-ready"),
+        ProjectBriefReadiness.AboveRecommended => ("Consider shortening", "is-warning"),
+        ProjectBriefReadiness.ExceedsMaximum => ("Maximum exceeded", "is-danger"),
+        _ => ("Not recorded", "is-neutral")
+    };
+
+    var (capabilityStatusText, capabilityStatusClass) = Model.CapabilityReadiness switch
+    {
+        ProjectCapabilityReadiness.NotRecorded => ("Not recorded", "is-neutral"),
+        ProjectCapabilityReadiness.Draft => ("Draft for briefing", "is-warning"),
+        ProjectCapabilityReadiness.PresentationReady => ("Presentation ready", "is-ready"),
+        _ => ("Not recorded", "is-neutral")
+    };
 }
 
-<section class="project-content" id="project-content" data-project-content>
+<section class="project-content"
+         id="project-content"
+         data-project-content
+         data-project-id="@Model.Project.Id"
+         data-save-timeout-ms="20000">
     <div class="project-content__header">
         <div>
             <h3 class="h6 mb-1">Project content</h3>
@@ -80,15 +102,19 @@
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
                     <div class="project-content__guidance">
-                        Recommended length: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefMaximumWords words.
+                        Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.
+                        Maximum: @ProjectFieldLimits.ProjectBriefHardMaximumWords words.
                     </div>
-                    @if (canEdit)
-                    {
-                        <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
-                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                            Edit brief
-                        </button>
-                    }
+                    <div class="project-content__toolbar-actions">
+                        <span class="project-content__status @briefStatusClass">@briefStatusText</span>
+                        @if (canEdit)
+                        {
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                                Edit brief
+                            </button>
+                        }
+                    </div>
                 </div>
                 @if (!string.IsNullOrWhiteSpace(Model.ProjectBriefHtml))
                 {
@@ -120,18 +146,28 @@
                               class="form-control project-content__textarea"
                               rows="10"
                               maxlength="@ProjectFieldLimits.ProjectBriefMaxLength"
-                              data-word-limit="@ProjectFieldLimits.ProjectBriefMaximumWords"
-                              data-word-counter></textarea>
-                    <div class="project-content__editor-meta">
-                        <span>Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefMaximumWords words</span>
-                        <span data-word-count>@Model.ProjectBriefWordCount words</span>
+                              data-word-incomplete="@ProjectFieldLimits.ProjectBriefIncompleteThresholdWords"
+                              data-word-min="@ProjectFieldLimits.ProjectBriefRecommendedMinimumWords"
+                              data-word-recommended-max="@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords"
+                              data-word-hard-max="@ProjectFieldLimits.ProjectBriefHardMaximumWords"
+                              data-word-counter
+                              aria-describedby="project-brief-editor-meta"></textarea>
+                    <div class="project-content__editor-meta" id="project-brief-editor-meta">
+                        <span>
+                            Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.
+                            Maximum: @ProjectFieldLimits.ProjectBriefHardMaximumWords.
+                        </span>
+                        <span class="project-content__editor-readiness">
+                            <span data-word-count>@Model.ProjectBriefWordCount words</span>
+                            <span class="project-content__status @briefStatusClass" data-word-status>@briefStatusText</span>
+                        </span>
                     </div>
-                    <div class="invalid-feedback d-block d-none" data-content-error></div>
+                    <div class="invalid-feedback d-block d-none" role="alert" aria-live="polite" data-content-error></div>
                     <div class="project-content__actions">
                         <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
                         <button class="btn btn-sm btn-primary" type="submit" data-content-save>
                             <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
-                            Save brief
+                            <span data-content-save-label>Save brief</span>
                         </button>
                     </div>
                 </form>
@@ -148,13 +184,16 @@
                     <div class="project-content__guidance">
                         Use @ProjectFieldLimits.CapabilityRecommendedMinimumCount–@ProjectFieldLimits.CapabilityMaximumCount distinct capability statements.
                     </div>
-                    @if (canEdit)
-                    {
-                        <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
-                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                            Edit capabilities
-                        </button>
-                    }
+                    <div class="project-content__toolbar-actions">
+                        <span class="project-content__status @capabilityStatusClass">@capabilityStatusText</span>
+                        @if (canEdit)
+                        {
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                                Edit capabilities
+                            </button>
+                        }
+                    </div>
                 </div>
                 @if (Model.CapabilityStatements.Count > 0)
                 {
@@ -164,10 +203,10 @@
                             <li>@capability.Statement</li>
                         }
                     </ol>
-                    @if (Model.CapabilityStatements.Count < ProjectFieldLimits.CapabilityRecommendedMinimumCount)
+                    @if (Model.CapabilityReadiness == ProjectCapabilityReadiness.Draft)
                     {
                         <div class="project-content__advisory">
-                            Add @(ProjectFieldLimits.CapabilityRecommendedMinimumCount - Model.CapabilityStatements.Count) more statement(s) for a complete presentation-ready overview.
+                            Draft for briefing — add @(ProjectFieldLimits.CapabilityRecommendedMinimumCount - Model.CapabilityStatements.Count) more statement(s) for a presentation-ready overview.
                         </div>
                     }
                 }
@@ -191,6 +230,7 @@
                       data-content-form
                       data-content-kind="capabilities"
                       data-capability-editor
+                      data-capability-min="@ProjectFieldLimits.CapabilityRecommendedMinimumCount"
                       data-capability-max="@ProjectFieldLimits.CapabilityMaximumCount">
                     <input asp-for="CapabilityInput.ProjectId" type="hidden" />
                     <input asp-for="CapabilityInput.RowVersion" type="hidden" />
@@ -207,14 +247,16 @@
                                        value="@value"
                                        maxlength="@ProjectFieldLimits.CapabilityStatementMaxLength"
                                        aria-label="Capability statement @(index + 1)" />
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Reorder capability statement @(index + 1)">
-                                    <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move up">
+                                <div class="btn-group btn-group-sm project-content__row-actions"
+                                     role="group"
+                                     aria-label="Reorder capability statement @(index + 1)">
+                                    <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move capability @(index + 1) up">
                                         <i class="bi bi-arrow-up" aria-hidden="true"></i>
                                     </button>
-                                    <button class="btn btn-outline-secondary" type="button" data-capability-down title="Move down" aria-label="Move down">
+                                    <button class="btn btn-outline-secondary" type="button" data-capability-down title="Move down" aria-label="Move capability @(index + 1) down">
                                         <i class="bi bi-arrow-down" aria-hidden="true"></i>
                                     </button>
-                                    <button class="btn btn-outline-danger" type="button" data-capability-remove title="Remove" aria-label="Remove capability">
+                                    <button class="btn btn-outline-danger" type="button" data-capability-remove title="Remove" aria-label="Remove capability @(index + 1)">
                                         <i class="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                 </div>
@@ -226,7 +268,10 @@
                             <i class="bi bi-plus-lg" aria-hidden="true"></i>
                             Add capability
                         </button>
-                        <span data-capability-count>@Model.CapabilityInput.Statements.Count of @ProjectFieldLimits.CapabilityMaximumCount</span>
+                        <span class="project-content__editor-readiness">
+                            <span data-capability-count>@Model.CapabilityInput.Statements.Count of @ProjectFieldLimits.CapabilityMaximumCount</span>
+                            <span class="project-content__status @capabilityStatusClass" data-capability-status>@capabilityStatusText</span>
+                        </span>
                     </div>
                     <template data-capability-template>
                         <div class="project-content__capability-row" data-capability-row>
@@ -235,19 +280,27 @@
                                    name="CapabilityInput.Statements"
                                    maxlength="@ProjectFieldLimits.CapabilityStatementMaxLength"
                                    aria-label="Capability statement" />
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder capability statement">
-                                <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
-                                <button class="btn btn-outline-secondary" type="button" data-capability-down title="Move down" aria-label="Move down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
-                                <button class="btn btn-outline-danger" type="button" data-capability-remove title="Remove" aria-label="Remove capability"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                            <div class="btn-group btn-group-sm project-content__row-actions"
+                                 role="group"
+                                 aria-label="Reorder capability statement">
+                                <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move capability up">
+                                    <i class="bi bi-arrow-up" aria-hidden="true"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" data-capability-down title="Move down" aria-label="Move capability down">
+                                    <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" type="button" data-capability-remove title="Remove" aria-label="Remove capability">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                </button>
                             </div>
                         </div>
                     </template>
-                    <div class="invalid-feedback d-block d-none" data-content-error></div>
+                    <div class="invalid-feedback d-block d-none" role="alert" aria-live="polite" data-content-error></div>
                     <div class="project-content__actions">
                         <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
                         <button class="btn btn-sm btn-primary" type="submit" data-content-save>
                             <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
-                            Save capabilities
+                            <span data-content-save-label>Save capabilities</span>
                         </button>
                     </div>
                 </form>
@@ -261,7 +314,13 @@
              tabindex="0">
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
-                    <div class="project-content__guidance">Full authoritative narrative. Markdown formatting is supported.</div>
+                    <div class="project-content__guidance">
+                        Full authoritative narrative. Markdown formatting is supported.
+                        @if (Model.DescriptionWordCount > 0)
+                        {
+                            <span> @Model.DescriptionWordCount words.</span>
+                        }
+                    </div>
                     @if (canEdit)
                     {
                         <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
@@ -272,7 +331,20 @@
                 </div>
                 @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
                 {
-                    <div class="project-content__narrative pm-markdown">@Html.Raw(Model.DescriptionHtml)</div>
+                    <div class="project-content__description @(Model.DescriptionShouldCollapse ? "is-collapsed" : null)"
+                         data-description-container>
+                        <div class="project-content__narrative pm-markdown">@Html.Raw(Model.DescriptionHtml)</div>
+                        @if (Model.DescriptionShouldCollapse)
+                        {
+                            <div class="project-content__description-fade" aria-hidden="true"></div>
+                            <button class="btn btn-sm btn-link project-content__description-toggle"
+                                    type="button"
+                                    aria-expanded="false"
+                                    data-description-toggle>
+                                Show full description
+                            </button>
+                        }
+                    </div>
                 }
                 else
                 {
@@ -303,12 +375,12 @@
                     <div class="project-content__editor-meta">
                         <span>Maximum @ProjectFieldLimits.DescriptionMaxLength.ToString("N0") characters</span>
                     </div>
-                    <div class="invalid-feedback d-block d-none" data-content-error></div>
+                    <div class="invalid-feedback d-block d-none" role="alert" aria-live="polite" data-content-error></div>
                     <div class="project-content__actions">
                         <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
                         <button class="btn btn-sm btn-primary" type="submit" data-content-save>
                             <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
-                            Save description
+                            <span data-content-save-label>Save description</span>
                         </button>
                     </div>
                 </form>

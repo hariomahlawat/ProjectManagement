@@ -18,6 +18,10 @@ public partial class OverviewModel
 
     public string? ProjectBriefHtml { get; private set; }
     public int ProjectBriefWordCount { get; private set; }
+    public int DescriptionWordCount { get; private set; }
+    public bool DescriptionShouldCollapse { get; private set; }
+    public ProjectBriefReadiness BriefReadiness { get; private set; }
+    public ProjectCapabilityReadiness CapabilityReadiness { get; private set; }
     public string ProjectContentRowVersion { get; private set; } = string.Empty;
     public bool CanEditProjectContent => Roles.IsAdmin || Roles.IsHoD;
 
@@ -139,6 +143,10 @@ public partial class OverviewModel
     private void InitializeProjectContentEditor(Project project)
     {
         ProjectBriefWordCount = ProjectContentRules.CountWords(project.ProjectBrief);
+        DescriptionWordCount = ProjectContentRules.CountWords(project.Description);
+        DescriptionShouldCollapse = DescriptionWordCount > ProjectFieldLimits.DescriptionPreviewCollapseWords;
+        BriefReadiness = ProjectContentRules.GetBriefReadiness(ProjectBriefWordCount);
+        CapabilityReadiness = ProjectContentRules.GetCapabilityReadiness(CapabilityStatements.Count);
         ProjectContentRowVersion = Convert.ToBase64String(project.RowVersion ?? Array.Empty<byte>());
 
         if (string.IsNullOrWhiteSpace(ContentTab) || !ValidContentTabs.Contains(ContentTab))
@@ -230,6 +238,7 @@ public partial class OverviewModel
 
         if (isAjax)
         {
+            Response.Headers.CacheControl = "no-store, max-age=0";
             return new JsonResult(new { ok = true, message = successMessage, redirectUrl });
         }
 

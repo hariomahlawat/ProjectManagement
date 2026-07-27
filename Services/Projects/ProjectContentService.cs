@@ -46,6 +46,23 @@ public sealed record ProjectContentSaveResult(
     public static ProjectContentSaveResult Invalid(string error) => new(false, Error: error);
 }
 
+public enum ProjectBriefReadiness
+{
+    NotRecorded = 0,
+    Incomplete = 1,
+    BelowRecommended = 2,
+    Recommended = 3,
+    AboveRecommended = 4,
+    ExceedsMaximum = 5
+}
+
+public enum ProjectCapabilityReadiness
+{
+    NotRecorded = 0,
+    Draft = 1,
+    PresentationReady = 2
+}
+
 public static partial class ProjectContentRules
 {
     [GeneratedRegex(@"\S+", RegexOptions.CultureInvariant)]
@@ -73,24 +90,66 @@ public static partial class ProjectContentRules
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value!)
             .ToList();
+
+    public static ProjectBriefReadiness GetBriefReadiness(int wordCount)
+    {
+        if (wordCount <= 0)
+        {
+            return ProjectBriefReadiness.NotRecorded;
+        }
+
+        if (wordCount < ProjectFieldLimits.ProjectBriefIncompleteThresholdWords)
+        {
+            return ProjectBriefReadiness.Incomplete;
+        }
+
+        if (wordCount < ProjectFieldLimits.ProjectBriefRecommendedMinimumWords)
+        {
+            return ProjectBriefReadiness.BelowRecommended;
+        }
+
+        if (wordCount <= ProjectFieldLimits.ProjectBriefRecommendedMaximumWords)
+        {
+            return ProjectBriefReadiness.Recommended;
+        }
+
+        if (wordCount <= ProjectFieldLimits.ProjectBriefHardMaximumWords)
+        {
+            return ProjectBriefReadiness.AboveRecommended;
+        }
+
+        return ProjectBriefReadiness.ExceedsMaximum;
+    }
+
+    public static ProjectCapabilityReadiness GetCapabilityReadiness(int statementCount)
+    {
+        if (statementCount <= 0)
+        {
+            return ProjectCapabilityReadiness.NotRecorded;
+        }
+
+        return statementCount >= ProjectFieldLimits.CapabilityRecommendedMinimumCount
+            ? ProjectCapabilityReadiness.PresentationReady
+            : ProjectCapabilityReadiness.Draft;
+    }
 }
 
 public sealed class ProjectContentService : IProjectContentService
 {
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
-    private readonly IAuditService _audit;
+    private readonly IProjectContentAuditQueue _auditQueue;
     private readonly ILogger<ProjectContentService> _logger;
 
     public ProjectContentService(
         ApplicationDbContext db,
         IClock clock,
-        IAuditService audit,
+        IProjectContentAuditQueue auditQueue,
         ILogger<ProjectContentService> logger)
     {
         _db = db;
         _clock = clock;
-        _audit = audit;
+        _auditQueue = auditQueue;
         _logger = logger;
     }
 
@@ -110,10 +169,10 @@ public sealed class ProjectContentService : IProjectContentService
         }
 
         var wordCount = ProjectContentRules.CountWords(normalized);
-        if (wordCount > ProjectFieldLimits.ProjectBriefMaximumWords)
+        if (wordCount > ProjectFieldLimits.ProjectBriefHardMaximumWords)
         {
             return ProjectContentSaveResult.Invalid(
-                $"Project brief is {wordCount} words. Reduce it to {ProjectFieldLimits.ProjectBriefMaximumWords} words or fewer.");
+                $"Project brief is {wordCount} words. Reduce it to {ProjectFieldLimits.ProjectBriefHardMaximumWords} words or fewer.");
         }
 
         if (!TryDecodeRowVersion(rowVersion, out var originalRowVersion))
@@ -136,8 +195,17 @@ public sealed class ProjectContentService : IProjectContentService
             return saveResult;
         }
 
-        await AuditAsync("Project.Content.BriefUpdated", project, userId, userDisplay,
-            new Dictionary<string, string?> { ["WordCount"] = wordCount.ToString() });
+        QueueAudit(
+            "Project.Content.BriefUpdated",
+            project,
+            userId,
+            userDisplay,
+            new Dictionary<string, string?>
+            {
+                ["WordCount"] = wordCount.ToString(),
+                ["Readiness"] = ProjectContentRules.GetBriefReadiness(wordCount).ToString()
+            });
+
         return ProjectContentSaveResult.Success();
     }
 
@@ -219,8 +287,17 @@ public sealed class ProjectContentService : IProjectContentService
             return saveResult;
         }
 
-        await AuditAsync("Project.Content.CapabilitiesUpdated", project, userId, userDisplay,
-            new Dictionary<string, string?> { ["StatementCount"] = normalized.Count.ToString() });
+        QueueAudit(
+            "Project.Content.CapabilitiesUpdated",
+            project,
+            userId,
+            userDisplay,
+            new Dictionary<string, string?>
+            {
+                ["StatementCount"] = normalized.Count.ToString(),
+                ["Readiness"] = ProjectContentRules.GetCapabilityReadiness(normalized.Count).ToString()
+            });
+
         return ProjectContentSaveResult.Success();
     }
 
@@ -259,8 +336,17 @@ public sealed class ProjectContentService : IProjectContentService
             return saveResult;
         }
 
-        await AuditAsync("Project.Content.DescriptionUpdated", project, userId, userDisplay,
-            new Dictionary<string, string?> { ["CharacterCount"] = (normalized?.Length ?? 0).ToString() });
+        QueueAudit(
+            "Project.Content.DescriptionUpdated",
+            project,
+            userId,
+            userDisplay,
+            new Dictionary<string, string?>
+            {
+                ["CharacterCount"] = (normalized?.Length ?? 0).ToString(),
+                ["WordCount"] = ProjectContentRules.CountWords(normalized).ToString()
+            });
+
         return ProjectContentSaveResult.Success();
     }
 
@@ -325,7 +411,7 @@ public sealed class ProjectContentService : IProjectContentService
         }
     }
 
-    private async Task AuditAsync(
+    private void QueueAudit(
         string action,
         Project project,
         string userId,
@@ -334,20 +420,18 @@ public sealed class ProjectContentService : IProjectContentService
     {
         data["ProjectId"] = project.Id.ToString();
         data["ProjectName"] = project.Name;
-        try
+
+        var entry = new ProjectContentAuditEntry(
+            action,
+            $"Updated project content for '{project.Name}'.",
+            userId,
+            userDisplay,
+            new Dictionary<string, string?>(data, StringComparer.Ordinal));
+
+        if (!_auditQueue.TryEnqueue(entry))
         {
-            await _audit.LogAsync(
-                action,
-                $"Updated project content for '{project.Name}'.",
-                userId: userId,
-                userName: userDisplay,
-                data: data);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogWarning(
-                exception,
-                "Project content audit write failed. Action={Action}, ProjectId={ProjectId}, UserId={UserId}",
+            _logger.LogError(
+                "Project content was saved, but its audit entry could not be queued. Action={Action}, ProjectId={ProjectId}, UserId={UserId}",
                 action,
                 project.Id,
                 userId);

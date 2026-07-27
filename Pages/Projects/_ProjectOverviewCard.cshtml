@@ -181,11 +181,9 @@
                 }
             </dl>
 
-            <partial name="_ProjectContentTabs" model="Model" />
-
             @if (missingDetails.Count > 0)
             {
-                <div class="project-profile-missing project-profile-missing--clear" role="status">
+                <div class="project-profile-missing project-profile-missing--clear project-profile-missing--content" role="status">
                     <div>
                         <strong>Core profile fields: @Model.Portfolio.ProfileCompletedCount of @Model.Portfolio.ProfileTotalCount complete</strong>
                         <span>Missing: @string.Join(", ", missingDetails)</span>
@@ -200,6 +198,8 @@
                     }
                 </div>
             }
+
+            <partial name="_ProjectContentTabs" model="Model" />
         </div>
     </div>
 </div>
