@@ -101,6 +101,10 @@
                     <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. All fields remain required for Delisted entries.</p>
                 </div>
                 <div class="arpp-entry-toolbar">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
+                        <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
+                        Fill common fields
+                    </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
                         <span class="bi bi-clipboard" aria-hidden="true"></span>
                         Paste rows
@@ -110,6 +114,19 @@
                         Add row
                     </button>
                 </div>
+            </div>
+
+            <div class="arpp-reference-guidance">
+                <span class="bi bi-lightning-charge" aria-hidden="true"></span>
+                <div>
+                    <strong>Faster, consistent entry</strong>
+                    <span>Choose CFA, Fund and DFPDS from the approved lists. New rows copy these values from the preceding row, and “Fill common fields” completes blanks in one action.</span>
+                    <span>When a value is missing, select <em>Not listed — enter as issued</em>. The row can be saved, but Admin mapping is required before verification.</span>
+                </div>
+                @if (Model.CanManageReferenceData)
+                {
+                    <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="btn btn-outline-secondary btn-sm">Manage lists</a>
+                }
             </div>
 
             <div class="arpp-empty arpp-empty--rows @(Model.Input.Entries.Count == 0 ? string.Empty : "d-none")" data-arpp-empty-rows>
@@ -193,15 +210,78 @@
                                     <span asp-validation-for="Input.Entries[index].IpaCost" class="text-danger small"></span>
                                 </td>
                                 <td>
-                                    <input asp-for="Input.Entries[index].Cfa" class="form-control form-control-sm" maxlength="200" />
+                                    @{
+                                        var cfaCustom = !Model.Input.Entries[index].CfaOptionId.HasValue && !string.IsNullOrWhiteSpace(Model.Input.Entries[index].Cfa);
+                                        var cfaMaster = Model.ReferenceData.CfaOptions.FirstOrDefault(option => option.Id == Model.Input.Entries[index].CfaOptionId);
+                                        var cfaSnapshotDiffers = cfaMaster is not null && !string.Equals(cfaMaster.Value, Model.Input.Entries[index].Cfa, StringComparison.Ordinal);
+                                    }
+                                    <select name="Input.Entries[@index].CfaOptionId" id="Input_Entries_@(index)__CfaOptionId" class="form-select form-select-sm" data-arpp-reference-select data-reference-kind="cfa">
+                                        <option value="">Select CFA</option>
+                                        @foreach (var option in Model.ReferenceData.CfaOptions)
+                                        {
+                                            var isSelected = Model.Input.Entries[index].CfaOptionId == option.Id;
+                                            var snapshot = isSelected ? Model.Input.Entries[index].Cfa : option.Value;
+                                            <option value="@option.Id" data-snapshot="@snapshot" data-active="@(option.IsActive ? "true" : "false")" selected="@(isSelected ? "selected" : null)" disabled="@(!option.IsActive && !isSelected ? "disabled" : null)">@option.Value@(option.IsActive ? string.Empty : " (inactive)")</option>
+                                        }
+                                        <option value="-1" selected="@(cfaCustom ? "selected" : null)">Not listed — enter as issued</option>
+                                    </select>
+                                    @if (cfaSnapshotDiffers)
+                                    {
+                                        <small class="arpp-historical-snapshot">Recorded wording: @Model.Input.Entries[index].Cfa</small>
+                                    }
+                                    <input asp-for="Input.Entries[index].Cfa" type="@(cfaCustom ? "text" : "hidden")" class="form-control form-control-sm mt-1" maxlength="200" data-arpp-reference-snapshot data-reference-kind="cfa" placeholder="Enter CFA exactly as issued" />
+                                    <div class="arpp-reference-pending @(cfaCustom ? string.Empty : "d-none")" data-arpp-reference-pending>Admin mapping required before verification.</div>
+                                    <span asp-validation-for="Input.Entries[index].CfaOptionId" class="text-danger small"></span>
                                     <span asp-validation-for="Input.Entries[index].Cfa" class="text-danger small"></span>
                                 </td>
                                 <td>
-                                    <input asp-for="Input.Entries[index].Fund" class="form-control form-control-sm" maxlength="120" />
+                                    @{
+                                        var fundCustom = !Model.Input.Entries[index].FundOptionId.HasValue && !string.IsNullOrWhiteSpace(Model.Input.Entries[index].Fund);
+                                        var fundMaster = Model.ReferenceData.FundOptions.FirstOrDefault(option => option.Id == Model.Input.Entries[index].FundOptionId);
+                                        var fundSnapshotDiffers = fundMaster is not null && !string.Equals(fundMaster.Value, Model.Input.Entries[index].Fund, StringComparison.Ordinal);
+                                    }
+                                    <select name="Input.Entries[@index].FundOptionId" id="Input_Entries_@(index)__FundOptionId" class="form-select form-select-sm" data-arpp-reference-select data-reference-kind="fund">
+                                        <option value="">Select Fund</option>
+                                        @foreach (var option in Model.ReferenceData.FundOptions)
+                                        {
+                                            var isSelected = Model.Input.Entries[index].FundOptionId == option.Id;
+                                            var snapshot = isSelected ? Model.Input.Entries[index].Fund : option.Value;
+                                            <option value="@option.Id" data-snapshot="@snapshot" data-active="@(option.IsActive ? "true" : "false")" selected="@(isSelected ? "selected" : null)" disabled="@(!option.IsActive && !isSelected ? "disabled" : null)">@option.Value@(option.IsActive ? string.Empty : " (inactive)")</option>
+                                        }
+                                        <option value="-1" selected="@(fundCustom ? "selected" : null)">Not listed — enter as issued</option>
+                                    </select>
+                                    @if (fundSnapshotDiffers)
+                                    {
+                                        <small class="arpp-historical-snapshot">Recorded wording: @Model.Input.Entries[index].Fund</small>
+                                    }
+                                    <input asp-for="Input.Entries[index].Fund" type="@(fundCustom ? "text" : "hidden")" class="form-control form-control-sm mt-1" maxlength="120" data-arpp-reference-snapshot data-reference-kind="fund" placeholder="Enter Fund exactly as issued" />
+                                    <div class="arpp-reference-pending @(fundCustom ? string.Empty : "d-none")" data-arpp-reference-pending>Admin mapping required before verification.</div>
+                                    <span asp-validation-for="Input.Entries[index].FundOptionId" class="text-danger small"></span>
                                     <span asp-validation-for="Input.Entries[index].Fund" class="text-danger small"></span>
                                 </td>
                                 <td>
-                                    <input asp-for="Input.Entries[index].DfpdsSchedule" class="form-control form-control-sm" maxlength="120" />
+                                    @{
+                                        var dfpdsCustom = !Model.Input.Entries[index].DfpdsScheduleId.HasValue && !string.IsNullOrWhiteSpace(Model.Input.Entries[index].DfpdsSchedule);
+                                        var dfpdsMaster = Model.ReferenceData.DfpdsSchedules.FirstOrDefault(option => option.Id == Model.Input.Entries[index].DfpdsScheduleId);
+                                        var dfpdsSnapshotDiffers = dfpdsMaster is not null && !string.Equals(dfpdsMaster.Value, Model.Input.Entries[index].DfpdsSchedule, StringComparison.Ordinal);
+                                    }
+                                    <select name="Input.Entries[@index].DfpdsScheduleId" id="Input_Entries_@(index)__DfpdsScheduleId" class="form-select form-select-sm" data-arpp-reference-select data-reference-kind="dfpds">
+                                        <option value="">Select schedule</option>
+                                        @foreach (var option in Model.ReferenceData.DfpdsSchedules)
+                                        {
+                                            var isSelected = Model.Input.Entries[index].DfpdsScheduleId == option.Id;
+                                            var snapshot = isSelected ? Model.Input.Entries[index].DfpdsSchedule : option.Value;
+                                            <option value="@option.Id" data-snapshot="@snapshot" data-active="@(option.IsActive ? "true" : "false")" selected="@(isSelected ? "selected" : null)" disabled="@(!option.IsActive && !isSelected ? "disabled" : null)">@option.DisplayText@(option.IsActive ? string.Empty : " (inactive)")</option>
+                                        }
+                                        <option value="-1" selected="@(dfpdsCustom ? "selected" : null)">Not listed — enter as issued</option>
+                                    </select>
+                                    @if (dfpdsSnapshotDiffers)
+                                    {
+                                        <small class="arpp-historical-snapshot">Recorded wording: @Model.Input.Entries[index].DfpdsSchedule</small>
+                                    }
+                                    <input asp-for="Input.Entries[index].DfpdsSchedule" type="@(dfpdsCustom ? "text" : "hidden")" class="form-control form-control-sm mt-1" maxlength="120" data-arpp-reference-snapshot data-reference-kind="dfpds" placeholder="Enter schedule exactly as issued" />
+                                    <div class="arpp-reference-pending @(dfpdsCustom ? string.Empty : "d-none")" data-arpp-reference-pending>Admin mapping required before verification.</div>
+                                    <span asp-validation-for="Input.Entries[index].DfpdsScheduleId" class="text-danger small"></span>
                                     <span asp-validation-for="Input.Entries[index].DfpdsSchedule" class="text-danger small"></span>
                                 </td>
                                 <td class="arpp-sticky-right">
@@ -255,9 +335,48 @@
                         <div class="arpp-money-helper" data-arpp-money-helper></div>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].IpaCost" data-valmsg-replace="true"></span>
                     </td>
-                    <td><input name="Input.Entries[__INDEX__].Cfa" id="Input_Entries___INDEX____Cfa" class="form-control form-control-sm" maxlength="200" required data-val="true" data-val-required="Enter the CFA." data-val-length="The CFA cannot exceed 200 characters." data-val-length-max="200" /><span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Cfa" data-valmsg-replace="true"></span></td>
-                    <td><input name="Input.Entries[__INDEX__].Fund" id="Input_Entries___INDEX____Fund" class="form-control form-control-sm" maxlength="120" required data-val="true" data-val-required="Enter the fund." data-val-length="The fund cannot exceed 120 characters." data-val-length-max="120" /><span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Fund" data-valmsg-replace="true"></span></td>
-                    <td><input name="Input.Entries[__INDEX__].DfpdsSchedule" id="Input_Entries___INDEX____DfpdsSchedule" class="form-control form-control-sm" maxlength="120" required data-val="true" data-val-required="Enter the DFPDS schedule." data-val-length="The DFPDS schedule cannot exceed 120 characters." data-val-length-max="120" /><span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsSchedule" data-valmsg-replace="true"></span></td>
+                    <td>
+                        <select name="Input.Entries[__INDEX__].CfaOptionId" id="Input_Entries___INDEX____CfaOptionId" class="form-select form-select-sm" data-arpp-reference-select data-reference-kind="cfa">
+                            <option value="">Select CFA</option>
+                            @foreach (var option in Model.ReferenceData.CfaOptions)
+                            {
+                                <option value="@option.Id" data-snapshot="@option.Value" data-active="@(option.IsActive ? "true" : "false")" disabled="@(!option.IsActive ? "disabled" : null)">@option.Value@(option.IsActive ? string.Empty : " (inactive)")</option>
+                            }
+                            <option value="-1">Not listed — enter as issued</option>
+                        </select>
+                        <input type="hidden" name="Input.Entries[__INDEX__].Cfa" id="Input_Entries___INDEX____Cfa" class="form-control form-control-sm mt-1" maxlength="200" required data-val="true" data-val-required="Enter the CFA." data-arpp-reference-snapshot data-reference-kind="cfa" placeholder="Enter CFA exactly as issued" />
+                        <div class="arpp-reference-pending d-none" data-arpp-reference-pending>Admin mapping required before verification.</div>
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].CfaOptionId" data-valmsg-replace="true"></span>
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Cfa" data-valmsg-replace="true"></span>
+                    </td>
+                    <td>
+                        <select name="Input.Entries[__INDEX__].FundOptionId" id="Input_Entries___INDEX____FundOptionId" class="form-select form-select-sm" data-arpp-reference-select data-reference-kind="fund">
+                            <option value="">Select Fund</option>
+                            @foreach (var option in Model.ReferenceData.FundOptions)
+                            {
+                                <option value="@option.Id" data-snapshot="@option.Value" data-active="@(option.IsActive ? "true" : "false")" disabled="@(!option.IsActive ? "disabled" : null)">@option.Value@(option.IsActive ? string.Empty : " (inactive)")</option>
+                            }
+                            <option value="-1">Not listed — enter as issued</option>
+                        </select>
+                        <input type="hidden" name="Input.Entries[__INDEX__].Fund" id="Input_Entries___INDEX____Fund" class="form-control form-control-sm mt-1" maxlength="120" required data-val="true" data-val-required="Enter the Fund." data-arpp-reference-snapshot data-reference-kind="fund" placeholder="Enter Fund exactly as issued" />
+                        <div class="arpp-reference-pending d-none" data-arpp-reference-pending>Admin mapping required before verification.</div>
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].FundOptionId" data-valmsg-replace="true"></span>
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Fund" data-valmsg-replace="true"></span>
+                    </td>
+                    <td>
+                        <select name="Input.Entries[__INDEX__].DfpdsScheduleId" id="Input_Entries___INDEX____DfpdsScheduleId" class="form-select form-select-sm" data-arpp-reference-select data-reference-kind="dfpds">
+                            <option value="">Select DFPDS schedule</option>
+                            @foreach (var option in Model.ReferenceData.DfpdsSchedules)
+                            {
+                                <option value="@option.Id" data-snapshot="@option.Value" data-active="@(option.IsActive ? "true" : "false")" disabled="@(!option.IsActive ? "disabled" : null)">@option.DisplayText@(option.IsActive ? string.Empty : " (inactive)")</option>
+                            }
+                            <option value="-1">Not listed — enter as issued</option>
+                        </select>
+                        <input type="hidden" name="Input.Entries[__INDEX__].DfpdsSchedule" id="Input_Entries___INDEX____DfpdsSchedule" class="form-control form-control-sm mt-1" maxlength="120" required data-val="true" data-val-required="Enter the DFPDS schedule." data-arpp-reference-snapshot data-reference-kind="dfpds" placeholder="Enter DFPDS schedule exactly as issued" />
+                        <div class="arpp-reference-pending d-none" data-arpp-reference-pending>Admin mapping required before verification.</div>
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsScheduleId" data-valmsg-replace="true"></span>
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsSchedule" data-valmsg-replace="true"></span>
+                    </td>
                     <td class="arpp-sticky-right"><div class="arpp-row-actions"><button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button><button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button></div></td>
                 </tr>
             </template>

@@ -1,0 +1,93 @@
+@page
+@using ProjectManagement.Services.Arpp
+@model ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel
+@{
+    ViewData["Title"] = "ARPP reference data";
+    var reopenModal = ViewData["ReopenReferenceModal"] as bool? == true;
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+
+<section class="admin-master-summary-grid" aria-label="ARPP reference-data summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-collection"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Total</strong><span>Total values</span><small>Across CFA, Fund and DFPDS</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-check-circle"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Active</strong><span>Active values</span><small>Available in the ARPP workspace</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-slash-circle"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Inactive</strong><span>Inactive values</span><small>Retained for historical rows</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.InUse</strong><span>Values in use</span><small>Referenced by ARPP rows</small></span>
+    </article>
+</section>
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<div class="admin-arpp-reference-grid">
+    <partial name="_ReferencePanel" model="@(new ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel(ArppReferenceDataKind.Cfa, "CFA", "Competent Financial Authority designations.", "bi-person-badge", Model.Snapshot.CfaOptions))" />
+    <partial name="_ReferencePanel" model="@(new ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel(ArppReferenceDataKind.Fund, "Funds", "Controlled fund heads used in ARPP rows.", "bi-wallet2", Model.Snapshot.FundOptions))" />
+    <partial name="_ReferencePanel" model="@(new ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel(ArppReferenceDataKind.DfpdsSchedule, "DFPDS schedules", "Schedule number with an optional explanatory description.", "bi-journal-check", Model.Snapshot.DfpdsSchedules))" />
+</div>
+
+<section class="admin-guidance-strip" aria-label="Reference-data guidance">
+    <span aria-hidden="true"><i class="bi bi-shield-check"></i></span>
+    <div>
+        <strong>Historical wording is protected</strong>
+        <p>Editing a master value does not rewrite wording already stored in issued ARPP rows. Deactivate obsolete values so old records remain readable.</p>
+    </div>
+</section>
+
+<div class="modal fade" id="arppReferenceModal" tabindex="-1" aria-labelledby="arppReferenceModalLabel" aria-hidden="true" data-reopen="@(reopenModal ? "true" : "false")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="Save" data-arpp-reference-form>
+                <div class="modal-header">
+                    <div>
+                        <div class="admin-panel__eyebrow" data-reference-kind-label>ARPP reference</div>
+                        <h2 class="modal-title fs-5" id="arppReferenceModalLabel" data-reference-modal-title>Add value</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" asp-for="Input.Kind" data-reference-kind />
+                    <input type="hidden" asp-for="Input.Id" data-reference-id />
+                    <input type="hidden" asp-for="Input.RowVersion" data-reference-row-version />
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Value" class="form-label" data-reference-value-label>Value</label>
+                        <input asp-for="Input.Value" class="form-control" autocomplete="off" data-reference-value />
+                        <span asp-validation-for="Input.Value" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-3" data-reference-description-field>
+                        <label asp-for="Input.Description" class="form-label">Description <span class="text-body-secondary">optional</span></label>
+                        <textarea asp-for="Input.Description" class="form-control" rows="3" data-reference-description></textarea>
+                        <div class="form-text">Shown in the dropdown to help users choose the correct schedule.</div>
+                        <span asp-validation-for="Input.Description" class="text-danger small"></span>
+                    </div>
+                    <div>
+                        <label asp-for="Input.SortOrder" class="form-label">Display order</label>
+                        <input asp-for="Input.SortOrder" class="form-control" type="number" min="0" data-reference-sort-order />
+                        <div class="form-text">Lower numbers appear first. Equal values are sorted alphabetically.</div>
+                        <span asp-validation-for="Input.SortOrder" class="text-danger small"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><span class="bi bi-check2" aria-hidden="true"></span> Save value</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/admin/arpp-reference-data.js" asp-append-version="true" defer></script>
+}

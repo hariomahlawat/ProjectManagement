@@ -1432,3 +1432,67 @@
 [data-bs-theme="dark"] .arpp-readiness-list .is-ready {
     color: #75d6a4;
 }
+
+/* Controlled CFA, Fund and DFPDS selectors */
+.arpp-reference-pending {
+    margin-top: .25rem;
+    color: var(--bs-warning-text-emphasis);
+    font-size: .7rem;
+    line-height: 1.25;
+}
+
+.arpp-entry-table [data-arpp-reference-select] {
+    min-width: 0;
+}
+
+.arpp-entry-table [data-arpp-reference-snapshot][type="text"] {
+    min-width: 8rem;
+}
+
+.arpp-reference-guidance {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .65rem;
+    margin: 0 1rem .85rem;
+    padding: .65rem .75rem;
+    border: 1px solid color-mix(in srgb, var(--bs-primary) 18%, var(--bs-border-color));
+    border-radius: .65rem;
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 45%, transparent);
+    color: var(--bs-secondary-color);
+    font-size: .74rem;
+    line-height: 1.4;
+}
+
+.arpp-reference-guidance > .bi {
+    margin-top: .12rem;
+    color: var(--bs-primary);
+}
+
+.arpp-reference-guidance > div {
+    display: grid;
+    gap: .15rem;
+}
+
+.arpp-reference-guidance strong {
+    color: var(--bs-body-color);
+}
+
+.arpp-historical-snapshot {
+    display: block;
+    margin-top: .2rem;
+    color: var(--bs-secondary-color);
+    font-size: .68rem;
+    line-height: 1.25;
+}
+
+@media (max-width: 767.98px) {
+    .arpp-reference-guidance {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .arpp-reference-guidance > .btn {
+        grid-column: 2;
+        justify-self: start;
+    }
+}

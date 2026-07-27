@@ -241,8 +241,11 @@ public sealed class ArppReadService : IArppReadService
                 entry.Project is null ? null : GetProjectStatus(entry.Project),
                 entry.Category,
                 entry.IpaCost,
+                entry.CfaOptionId,
                 entry.Cfa,
+                entry.FundOptionId,
                 entry.Fund,
+                entry.DfpdsScheduleId,
                 entry.DfpdsSchedule,
                 Convert.ToBase64String(entry.RowVersion)))
             .ToArray();

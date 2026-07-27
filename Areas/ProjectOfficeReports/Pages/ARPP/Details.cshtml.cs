@@ -50,9 +50,13 @@ public sealed class DetailsModel : PageModel
     public bool CanUnlock { get; private set; }
     public bool ReopenUnlockModal { get; private set; }
 
+    public bool ReferenceDataReady =>
+        Issue.Entries.All(entry => !entry.HasUnresolvedReferenceData);
+
     public bool IsVerificationReady =>
         Issue.Entries.Count > 0 &&
-        Issue.Attachment is not null;
+        Issue.Attachment is not null &&
+        ReferenceDataReady;
 
     public string MaxAttachmentSizeLabel => FileSizeFormatter.FormatFileSize(
         _attachmentOptions.MaxFileSizeBytes > 0

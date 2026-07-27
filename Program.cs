@@ -667,6 +667,7 @@ builder.Services.AddScoped<RepositoryDocumentDeleteApprovalService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<IAuthoritativeIpaPositionResolver, AuthoritativeIpaPositionResolver>();
 builder.Services.AddScoped<IArppReadService, ArppReadService>();
+builder.Services.AddScoped<IArppReferenceDataService, ArppReferenceDataService>();
 builder.Services.AddScoped<IArppCommandService, ArppCommandService>();
 builder.Services.AddScoped<IArppReconciliationService, ArppReconciliationService>();
 builder.Services.AddScoped<IArppAttachmentStorage, FileSystemArppAttachmentStorage>();

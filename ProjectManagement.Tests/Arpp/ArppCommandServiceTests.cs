@@ -66,8 +66,11 @@ public sealed class ArppCommandServiceTests
                     1,
                     ArppCategory.Delisted,
                     25_000_000m,
+                    null,
                     "Comdt SDD",
+                    null,
                     "IR&D",
+                    null,
                     "9.3")
             ],
             "user-1",
@@ -82,6 +85,54 @@ public sealed class ArppCommandServiceTests
         Assert.Equal(10_000_000m, (await db.ProjectIpaFacts.SingleAsync()).IpaCost);
         Assert.Contains("Arpp.IssueCreated", audit.Actions);
         Assert.Contains("Arpp.WorkspaceSaved", audit.Actions);
+    }
+
+    [Fact]
+    public async Task SaveWorkspace_SelectedReferenceOptions_AreResolvedServerSide()
+    {
+        await using var db = CreateContext();
+        db.ArppCfaOptions.Add(CreateCfaOption());
+        db.ArppFundOptions.Add(CreateFundOption());
+        db.ArppDfpdsSchedules.Add(CreateDfpdsSchedule());
+        var issue = CreateIssue();
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            issue.FinancialYearStart,
+            issue.Kind,
+            issue.IssueSequence,
+            issue.Name,
+            issue.IssueDate,
+            [
+                new ArppEntryInput(
+                    null,
+                    null,
+                    "1",
+                    "Project One",
+                    null,
+                    ArppCategory.New,
+                    1_000_000m,
+                    1,
+                    "spoofed CFA",
+                    1,
+                    "spoofed Fund",
+                    1,
+                    "spoofed schedule")
+            ],
+            "user-1",
+            "User One"));
+
+        Assert.True(result.Success);
+        var saved = await db.ArppEntries.SingleAsync();
+        Assert.Equal(1, saved.CfaOptionId);
+        Assert.Equal("Comdt SDD", saved.Cfa);
+        Assert.Equal(1, saved.FundOptionId);
+        Assert.Equal("IR&D", saved.Fund);
+        Assert.Equal(1, saved.DfpdsScheduleId);
+        Assert.Equal("9.3", saved.DfpdsSchedule);
     }
 
     [Fact]
@@ -140,8 +191,11 @@ public sealed class ArppCommandServiceTests
                     null,
                     ArppCategory.Delisted,
                     1_000_000m,
+                    null,
                     "",
+                    null,
                     "",
+                    null,
                     "")
             ],
             "user-1",
@@ -219,6 +273,9 @@ public sealed class ArppCommandServiceTests
     public async Task VerifyAndUnlock_ProtectsIssuedDataAndAuditsBothActions()
     {
         await using var db = CreateContext();
+        db.ArppCfaOptions.Add(CreateCfaOption());
+        db.ArppFundOptions.Add(CreateFundOption());
+        db.ArppDfpdsSchedules.Add(CreateDfpdsSchedule());
         var issue = CreateIssue();
         issue.Entries.Add(new ArppEntry
         {
@@ -227,8 +284,11 @@ public sealed class ArppCommandServiceTests
             ProjectReference = "Project 1",
             Category = ArppCategory.New,
             IpaCost = 1_000_000m,
+            CfaOptionId = 1,
             Cfa = "Comdt SDD",
+            FundOptionId = 1,
             Fund = "IR&D",
+            DfpdsScheduleId = 1,
             DfpdsSchedule = "9.3",
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
@@ -319,6 +379,51 @@ public sealed class ArppCommandServiceTests
 
 
     [Fact]
+    public async Task Verify_BlocksRowsWithUnmappedControlledReferenceValues()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.Entries.Add(new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "1",
+            ProjectReference = "Project One",
+            Category = ArppCategory.New,
+            IpaCost = 1_000_000m,
+            Cfa = "New CFA exactly as issued",
+            Fund = "New Fund",
+            DfpdsSchedule = "10.1",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/test.pdf",
+            OriginalFileName = "ARPP.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 123,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).VerifyAsync(new ArppVerifyCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            null,
+            "verifier-1",
+            "Verifier One"));
+
+        Assert.False(result.Success);
+        Assert.Contains("ReferenceData", result.FieldErrors.Keys);
+        Assert.False((await db.ArppIssues.SingleAsync()).IsVerified);
+    }
+
+    [Fact]
     public async Task Unlock_RejectsShortNonMeaningfulReason()
     {
         await using var db = CreateContext();
@@ -359,9 +464,48 @@ public sealed class ArppCommandServiceTests
             projectId,
             ArppCategory.New,
             1_000_000m,
+            null,
             "Comdt SDD",
+            null,
             "IR&D",
+            null,
             "9.3");
+
+    private static ArppCfaOption CreateCfaOption() => new()
+    {
+        Id = 1,
+        Name = "Comdt SDD",
+        NormalizedName = "COMDT SDD",
+        IsActive = true,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow,
+        CreatedByUserId = "seed",
+        UpdatedByUserId = "seed"
+    };
+
+    private static ArppFundOption CreateFundOption() => new()
+    {
+        Id = 1,
+        Name = "IR&D",
+        NormalizedName = "IR&D",
+        IsActive = true,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow,
+        CreatedByUserId = "seed",
+        UpdatedByUserId = "seed"
+    };
+
+    private static ArppDfpdsSchedule CreateDfpdsSchedule() => new()
+    {
+        Id = 1,
+        Code = "9.3",
+        NormalizedCode = "9.3",
+        IsActive = true,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow,
+        CreatedByUserId = "seed",
+        UpdatedByUserId = "seed"
+    };
 
     private static ArppIssue CreateIssue()
         => new()

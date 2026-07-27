@@ -4411,6 +4411,196 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppCfaOption", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder", "Name");
+
+                    b.ToTable("ArppCfaOptions", t =>
+                        {
+                            t.HasCheckConstraint("CK_ArppCfaOptions_Name", "length(btrim(\"Name\")) > 0");
+
+                            t.HasCheckConstraint("CK_ArppCfaOptions_SortOrder", "\"SortOrder\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppDfpdsSchedule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NormalizedCode")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedCode")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder", "Code");
+
+                    b.ToTable("ArppDfpdsSchedules", t =>
+                        {
+                            t.HasCheckConstraint("CK_ArppDfpdsSchedules_Code", "length(btrim(\"Code\")) > 0");
+
+                            t.HasCheckConstraint("CK_ArppDfpdsSchedules_SortOrder", "\"SortOrder\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppFundOption", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "SortOrder", "Name");
+
+                    b.ToTable("ArppFundOptions", t =>
+                        {
+                            t.HasCheckConstraint("CK_ArppFundOptions_Name", "length(btrim(\"Name\")) > 0");
+
+                            t.HasCheckConstraint("CK_ArppFundOptions_SortOrder", "\"SortOrder\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -4430,6 +4620,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("CfaOptionId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -4443,10 +4636,16 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<int?>("DfpdsScheduleId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Fund")
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
+
+                    b.Property<int?>("FundOptionId")
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("IpaCost")
                         .HasColumnType("numeric(18,2)");
@@ -4481,6 +4680,12 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CfaOptionId");
+
+                    b.HasIndex("DfpdsScheduleId");
+
+                    b.HasIndex("FundOptionId");
 
                     b.HasIndex("ProjectId");
 
@@ -8044,6 +8249,21 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppEntry", b =>
                 {
+                    b.HasOne("ProjectManagement.Models.Arpp.ArppCfaOption", "CfaOption")
+                        .WithMany("Entries")
+                        .HasForeignKey("CfaOptionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProjectManagement.Models.Arpp.ArppDfpdsSchedule", "DfpdsScheduleOption")
+                        .WithMany("Entries")
+                        .HasForeignKey("DfpdsScheduleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProjectManagement.Models.Arpp.ArppFundOption", "FundOption")
+                        .WithMany("Entries")
+                        .HasForeignKey("FundOptionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ProjectManagement.Models.Arpp.ArppIssue", "Issue")
                         .WithMany("Entries")
                         .HasForeignKey("ArppIssueId")
@@ -8054,6 +8274,12 @@ namespace ProjectManagement.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CfaOption");
+
+                    b.Navigation("DfpdsScheduleOption");
+
+                    b.Navigation("FundOption");
 
                     b.Navigation("Issue");
 
@@ -8896,6 +9122,21 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>
                 {
                     b.Navigation("Rows");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppCfaOption", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppDfpdsSchedule", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppFundOption", b =>
+                {
+                    b.Navigation("Entries");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppIssue", b =>

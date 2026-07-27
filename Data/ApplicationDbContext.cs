@@ -44,6 +44,9 @@ namespace ProjectManagement.Data
         public DbSet<ArppIssue> ArppIssues => Set<ArppIssue>();
         public DbSet<ArppEntry> ArppEntries => Set<ArppEntry>();
         public DbSet<ArppAttachment> ArppAttachments => Set<ArppAttachment>();
+        public DbSet<ArppCfaOption> ArppCfaOptions => Set<ArppCfaOption>();
+        public DbSet<ArppFundOption> ArppFundOptions => Set<ArppFundOption>();
+        public DbSet<ArppDfpdsSchedule> ArppDfpdsSchedules => Set<ArppDfpdsSchedule>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
         public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
@@ -1966,8 +1969,11 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
                 entity.Property(x => x.Category).HasConversion<int>().IsRequired();
                 entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(x => x.CfaOptionId);
                 entity.Property(x => x.Cfa).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.FundOptionId);
                 entity.Property(x => x.Fund).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.DfpdsScheduleId);
                 entity.Property(x => x.DfpdsSchedule).HasMaxLength(120).IsRequired();
                 entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
                 entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
@@ -1976,6 +1982,9 @@ namespace ProjectManagement.Data
 
                 entity.HasIndex(x => new { x.ArppIssueId, x.SortOrder });
                 entity.HasIndex(x => x.ProjectId);
+                entity.HasIndex(x => x.CfaOptionId);
+                entity.HasIndex(x => x.FundOptionId);
+                entity.HasIndex(x => x.DfpdsScheduleId);
 
                 var linkedProjectPerIssue = entity
                     .HasIndex(x => new { x.ArppIssueId, x.ProjectId })
@@ -2004,6 +2013,85 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(x => x.CfaOption)
+                    .WithMany(x => x.Entries)
+                    .HasForeignKey(x => x.CfaOptionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(x => x.FundOption)
+                    .WithMany(x => x.Entries)
+                    .HasForeignKey(x => x.FundOptionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(x => x.DfpdsScheduleOption)
+                    .WithMany(x => x.Entries)
+                    .HasForeignKey(x => x.DfpdsScheduleId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ArppCfaOption>(entity =>
+            {
+                entity.ToTable("ArppCfaOptions", table =>
+                {
+                    table.HasCheckConstraint("CK_ArppCfaOptions_Name", "length(btrim(\"Name\")) > 0");
+                    table.HasCheckConstraint("CK_ArppCfaOptions_SortOrder", "\"SortOrder\" >= 0");
+                });
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.IsActive).HasDefaultValue(true).IsRequired();
+                entity.Property(x => x.SortOrder).IsRequired();
+                entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
+                entity.HasIndex(x => x.NormalizedName).IsUnique();
+                entity.HasIndex(x => new { x.IsActive, x.SortOrder, x.Name });
+            });
+
+            builder.Entity<ArppFundOption>(entity =>
+            {
+                entity.ToTable("ArppFundOptions", table =>
+                {
+                    table.HasCheckConstraint("CK_ArppFundOptions_Name", "length(btrim(\"Name\")) > 0");
+                    table.HasCheckConstraint("CK_ArppFundOptions_SortOrder", "\"SortOrder\" >= 0");
+                });
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.NormalizedName).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.IsActive).HasDefaultValue(true).IsRequired();
+                entity.Property(x => x.SortOrder).IsRequired();
+                entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
+                entity.HasIndex(x => x.NormalizedName).IsUnique();
+                entity.HasIndex(x => new { x.IsActive, x.SortOrder, x.Name });
+            });
+
+            builder.Entity<ArppDfpdsSchedule>(entity =>
+            {
+                entity.ToTable("ArppDfpdsSchedules", table =>
+                {
+                    table.HasCheckConstraint("CK_ArppDfpdsSchedules_Code", "length(btrim(\"Code\")) > 0");
+                    table.HasCheckConstraint("CK_ArppDfpdsSchedules_SortOrder", "\"SortOrder\" >= 0");
+                });
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Code).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.NormalizedCode).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(300);
+                entity.Property(x => x.IsActive).HasDefaultValue(true).IsRequired();
+                entity.Property(x => x.SortOrder).IsRequired();
+                entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone").IsRequired();
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450).IsRequired();
+                entity.HasIndex(x => x.NormalizedCode).IsUnique();
+                entity.HasIndex(x => new { x.IsActive, x.SortOrder, x.Code });
             });
 
             builder.Entity<ArppAttachment>(entity =>

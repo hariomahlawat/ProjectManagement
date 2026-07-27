@@ -25,13 +25,19 @@ public sealed class ArppEntry
 
     public decimal IpaCost { get; set; }
 
+    public int? CfaOptionId { get; set; }
+
     [Required]
     [MaxLength(200)]
     public string Cfa { get; set; } = string.Empty;
 
+    public int? FundOptionId { get; set; }
+
     [Required]
     [MaxLength(120)]
     public string Fund { get; set; } = string.Empty;
+
+    public int? DfpdsScheduleId { get; set; }
 
     [Required]
     [MaxLength(120)]
@@ -55,4 +61,10 @@ public sealed class ArppEntry
     public ArppIssue Issue { get; set; } = null!;
 
     public Project? Project { get; set; }
+
+    public ArppCfaOption? CfaOption { get; set; }
+
+    public ArppFundOption? FundOption { get; set; }
+
+    public ArppDfpdsSchedule? DfpdsScheduleOption { get; set; }
 }

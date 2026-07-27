@@ -28,6 +28,7 @@ public static class AdminNavigationKeys
     public const string ProjectTypes = "project-types";
     public const string SponsoringUnits = "sponsoring-units";
     public const string LineDirectorates = "line-directorates";
+    public const string ArppReferenceData = "arpp-reference-data";
     public const string LegacyImport = "legacy-import";
     public const string ArchivedProjects = "archived-projects";
     public const string MaintenanceCentre = "maintenance-centre";
@@ -318,6 +319,14 @@ public static class AdminNavigationCatalog
             190,
             Item("Line directorates", "Admin", "/Lookups/LineDirectorates/Index", "bi-diagram-2", AdminPolicies.MasterDataManage),
             matchPagePattern: "/Lookups/LineDirectorates/",
+            showInQuickLinks: true),
+
+        Entry(
+            AdminNavigationKeys.ArppReferenceData,
+            AdminNavigationGroups.MasterData,
+            195,
+            Item("ARPP reference data", "Admin", "/MasterData/ArppReferences/Index", "bi-list-check", AdminPolicies.MasterDataManage),
+            matchPagePattern: "/MasterData/ArppReferences/",
             showInQuickLinks: true),
 
         Entry(

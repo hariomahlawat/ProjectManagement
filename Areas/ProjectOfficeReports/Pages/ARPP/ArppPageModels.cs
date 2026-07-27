@@ -58,13 +58,19 @@ public sealed class ArppEntryInputModel
     [Range(typeof(decimal), "0", "9999999999999999")]
     public decimal? IpaCost { get; set; }
 
+    public int? CfaOptionId { get; set; }
+
     [Required]
     [StringLength(200)]
     public string Cfa { get; set; } = string.Empty;
 
+    public int? FundOptionId { get; set; }
+
     [Required]
     [StringLength(120)]
     public string Fund { get; set; } = string.Empty;
+
+    public int? DfpdsScheduleId { get; set; }
 
     [Required]
     [StringLength(120)]

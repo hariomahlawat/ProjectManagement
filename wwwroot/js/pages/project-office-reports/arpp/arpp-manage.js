@@ -17,7 +17,9 @@
         dirty = true;
         const state = root.querySelector("[data-arpp-save-state]");
         const actions = root.querySelector("[data-arpp-sticky-actions]");
+        const saveButton = root.querySelector("[data-arpp-save-button]");
         if (state) state.textContent = "Unsaved changes";
+        if (saveButton) saveButton.disabled = false;
         actions?.classList.add("arpp-editor__actions--dirty");
     };
 
@@ -25,7 +27,9 @@
         dirty = false;
         const state = root.querySelector("[data-arpp-save-state]");
         const actions = root.querySelector("[data-arpp-sticky-actions]");
+        const saveButton = root.querySelector("[data-arpp-save-button]");
         if (state) state.textContent = "All changes saved.";
+        if (saveButton) saveButton.disabled = true;
         actions?.classList.remove("arpp-editor__actions--dirty");
     };
 
@@ -83,11 +87,15 @@
             const messages = [];
             const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
             const projectId = Number(getField(row, "ProjectId")?.value || 0);
+            const projectReference = (getField(row, "ProjectReference")?.value || "").trim();
             const costValue = getField(row, "IpaCost")?.value || "";
             const cost = parseMoney(costValue);
 
             if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued document.");
-            if (!projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
+            if (projectReference && !projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
+            const unresolvedReferences = Array.from(row.querySelectorAll("[data-arpp-reference-select]"))
+                .some(select => select.value === "-1");
+            if (unresolvedReferences) messages.push("CFA, Fund or DFPDS mapping is pending; Admin must add or map the value before verification.");
             if (cost === 0) messages.push("IPA cost is zero; confirm the issued value.");
 
             const warning = row.querySelector("[data-arpp-row-warning]");
@@ -159,20 +167,94 @@
         textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 31), 92)}px`;
     };
 
+    const normaliseReferenceValue = value => String(value || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleUpperCase("en-IN");
+
+    const syncReferenceSelect = (select, focusCustom = false, updateSnapshot = false) => {
+        const kind = select.dataset.referenceKind;
+        const row = select.closest("[data-arpp-entry-row]");
+        const snapshot = row?.querySelector(`[data-arpp-reference-snapshot][data-reference-kind="${kind}"]`);
+        const pending = select.closest("td")?.querySelector("[data-arpp-reference-pending]");
+        if (!snapshot) return;
+
+        if (select.value === "-1") {
+            snapshot.type = "text";
+            snapshot.required = true;
+            pending?.classList.remove("d-none");
+            if (focusCustom) snapshot.focus({ preventScroll: true });
+            return;
+        }
+
+        snapshot.type = "hidden";
+        snapshot.required = true;
+        pending?.classList.add("d-none");
+        const option = select.selectedOptions[0];
+        if (updateSnapshot || !snapshot.value.trim()) {
+            snapshot.value = option?.dataset.snapshot || "";
+        }
+    };
+
+    const selectReferenceValue = (row, kind, value, optionId) => {
+        const select = row.querySelector(`[data-arpp-reference-select][data-reference-kind="${kind}"]`);
+        const snapshot = row.querySelector(`[data-arpp-reference-snapshot][data-reference-kind="${kind}"]`);
+        if (!select || !snapshot) return;
+
+        if (Number(optionId) > 0) {
+            const requested = Array.from(select.options).find(option => option.value === String(optionId));
+            if (requested && requested.dataset.active !== "false" && !requested.disabled) {
+                select.value = String(optionId);
+                syncReferenceSelect(select, false, true);
+                return;
+            }
+        }
+
+        const normalized = normaliseReferenceValue(value);
+        const matching = Array.from(select.options).find(option =>
+            option.value && option.value !== "-1" &&
+            option.dataset.active !== "false" && !option.disabled &&
+            normaliseReferenceValue(option.dataset.snapshot) === normalized);
+        if (matching) {
+            select.value = matching.value;
+            syncReferenceSelect(select, false, true);
+            return;
+        }
+
+        if (String(value || "").trim()) {
+            select.value = "-1";
+            snapshot.value = String(value).trim();
+            syncReferenceSelect(select, false, true);
+        } else {
+            select.value = "";
+            snapshot.value = "";
+            syncReferenceSelect(select, false, true);
+        }
+    };
+
+    const copyReference = (sourceRow, targetRow, kind) => {
+        const sourceSelect = sourceRow.querySelector(`[data-arpp-reference-select][data-reference-kind="${kind}"]`);
+        const sourceSnapshot = sourceRow.querySelector(`[data-arpp-reference-snapshot][data-reference-kind="${kind}"]`);
+        const selectedOption = sourceSelect?.selectedOptions?.[0];
+        if (selectedOption?.dataset.active === "false" || selectedOption?.disabled) return;
+        selectReferenceValue(targetRow, kind, sourceSnapshot?.value || "", Number(sourceSelect?.value || 0));
+    };
+
     const setRowValues = (row, values) => {
         const mapping = {
             SerialNumber: values.serialNumber,
             ProjectReference: values.projectReference,
             Category: values.category,
-            IpaCost: values.ipaCost,
-            Cfa: values.cfa,
-            Fund: values.fund,
-            DfpdsSchedule: values.dfpdsSchedule
+            IpaCost: values.ipaCost
         };
         Object.entries(mapping).forEach(([suffix, value]) => {
             const input = getField(row, suffix);
             if (input && value !== undefined && value !== null) input.value = value;
         });
+        selectReferenceValue(row, "cfa", values.cfa, values.cfaOptionId);
+        selectReferenceValue(row, "fund", values.fund, values.fundOptionId);
+        selectReferenceValue(row, "dfpds", values.dfpdsSchedule, values.dfpdsScheduleId);
+
         const reference = getField(row, "ProjectReference");
         if (reference) autosizeReference(reference);
         const money = getField(row, "IpaCost");
@@ -191,11 +273,8 @@
             const index = currentRows.indexOf(row);
             if (index <= 0) return;
             const previous = currentRows[index - 1];
-            ["Cfa", "Fund", "DfpdsSchedule"].forEach(suffix => {
-                const source = getField(previous, suffix);
-                const target = getField(row, suffix);
-                if (source && target) target.value = source.value;
-            });
+            ["cfa", "fund", "dfpds"].forEach(kind => copyReference(previous, row, kind));
+            refreshRowWarnings();
             markDirty();
         });
 
@@ -214,6 +293,15 @@
             money.addEventListener("blur", () => normaliseMoneyInput(money));
             updateMoneyHelper(money);
         }
+
+        row.querySelectorAll("[data-arpp-reference-select]").forEach(select => {
+            select.addEventListener("change", () => {
+                syncReferenceSelect(select, true, true);
+                refreshRowWarnings();
+                markDirty();
+            });
+            syncReferenceSelect(select);
+        });
 
         const picker = row.querySelector("[data-arpp-project-picker]");
         if (picker) {
@@ -259,8 +347,11 @@
         const previous = rows().at(-1);
         const row = addRow(previous ? {
             cfa: getField(previous, "Cfa")?.value || "",
+            cfaOptionId: Number(getField(previous, "CfaOptionId")?.value || 0),
             fund: getField(previous, "Fund")?.value || "",
+            fundOptionId: Number(getField(previous, "FundOptionId")?.value || 0),
             dfpdsSchedule: getField(previous, "DfpdsSchedule")?.value || "",
+            dfpdsScheduleId: Number(getField(previous, "DfpdsScheduleId")?.value || 0),
             category: "1"
         } : { category: "1" });
         getField(row, "SerialNumber")?.focus();
@@ -471,6 +562,26 @@
         applyButton.classList.add("d-none");
         previewButton?.classList.remove("d-none");
         bootstrap.Modal.getInstance(document.getElementById("arppPasteModal"))?.hide();
+    });
+
+    root.querySelector("[data-arpp-apply-common]")?.addEventListener("click", () => {
+        const currentRows = rows();
+        const source = currentRows.find(row =>
+            ["cfa", "fund", "dfpds"].every(kind => {
+                const snapshot = row.querySelector(`[data-arpp-reference-snapshot][data-reference-kind="${kind}"]`);
+                return Boolean(snapshot?.value.trim());
+            }));
+        if (!source) return;
+
+        currentRows.forEach(row => {
+            if (row === source) return;
+            ["cfa", "fund", "dfpds"].forEach(kind => {
+                const snapshot = row.querySelector(`[data-arpp-reference-snapshot][data-reference-kind="${kind}"]`);
+                if (!snapshot?.value.trim()) copyReference(source, row, kind);
+            });
+        });
+        refreshRowWarnings();
+        markDirty();
     });
 
     root.querySelector("[data-arpp-add-row]")?.addEventListener("click", addManualRow);

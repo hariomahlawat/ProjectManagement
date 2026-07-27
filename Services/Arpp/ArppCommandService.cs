@@ -202,6 +202,8 @@ public sealed class ArppCommandService : IArppCommandService
             }
         }
 
+        var referenceData = await ResolveReferenceDataAsync(command.Entries, errors, cancellationToken);
+
         if (errors.Count > 0)
         {
             return ArppCommandResult.Failed("Review the highlighted ARPP fields.", errors);
@@ -287,7 +289,7 @@ public sealed class ArppCommandService : IArppCommandService
                 issue.Entries.Add(entity);
             }
 
-            ApplyEntry(entity, input, index + 1, now, command.UserId);
+            ApplyEntry(entity, input, index + 1, now, command.UserId, referenceData);
         }
 
         foreach (var obsolete in issue.Entries
@@ -388,6 +390,18 @@ public sealed class ArppCommandService : IArppCommandService
         if (issue.Attachment is null)
         {
             AddError(errors, "Attachment", "Attach the issued HQ PDF before verification.");
+        }
+
+        var unresolvedReferenceRows = issue.Entries.Count(entry =>
+            !entry.CfaOptionId.HasValue ||
+            !entry.FundOptionId.HasValue ||
+            !entry.DfpdsScheduleId.HasValue);
+        if (unresolvedReferenceRows > 0)
+        {
+            AddError(
+                errors,
+                "ReferenceData",
+                $"Map CFA, Fund and DFPDS values for {unresolvedReferenceRows} {Pluralize(unresolvedReferenceRows, "row", "rows")} before verification.");
         }
 
         if (errors.Count > 0)
@@ -669,6 +683,15 @@ public sealed class ArppCommandService : IArppCommandService
             warnings.Add($"{unlinkedRows} {Pluralize(unlinkedRows, "row remains", "rows remain")} unlinked to a PRISM project. The issued data was saved and can be reconciled later.");
         }
 
+        var unresolvedReferenceRows = command.Entries.Count(entry =>
+            !entry.CfaOptionId.HasValue ||
+            !entry.FundOptionId.HasValue ||
+            !entry.DfpdsScheduleId.HasValue);
+        if (unresolvedReferenceRows > 0)
+        {
+            warnings.Add($"{unresolvedReferenceRows} {Pluralize(unresolvedReferenceRows, "row has", "rows have")} reference values entered exactly as issued but not yet mapped to Admin-controlled CFA, Fund or DFPDS lists. Verification remains unavailable until mapping is complete.");
+        }
+
         var zeroCostRows = command.Entries.Count(entry => entry.IpaCost == 0m);
         if (zeroCostRows > 0)
         {
@@ -864,7 +887,8 @@ public sealed class ArppCommandService : IArppCommandService
         ArppEntryInput input,
         int sortOrder,
         DateTimeOffset now,
-        string userId)
+        string userId,
+        ResolvedReferenceData referenceData)
     {
         entity.SortOrder = sortOrder;
         entity.SerialNumber = input.SerialNumber.Trim();
@@ -872,12 +896,149 @@ public sealed class ArppCommandService : IArppCommandService
         entity.ProjectId = input.ProjectId;
         entity.Category = input.Category!.Value;
         entity.IpaCost = input.IpaCost!.Value;
-        entity.Cfa = input.Cfa.Trim();
-        entity.Fund = input.Fund.Trim();
-        entity.DfpdsSchedule = input.DfpdsSchedule.Trim();
+
+        ApplyReferenceSnapshot(
+            entity.CfaOptionId,
+            entity.Cfa,
+            input.CfaOptionId,
+            input.Cfa,
+            referenceData.Cfa,
+            out var cfaOptionId,
+            out var cfaSnapshot);
+        entity.CfaOptionId = cfaOptionId;
+        entity.Cfa = cfaSnapshot;
+
+        ApplyReferenceSnapshot(
+            entity.FundOptionId,
+            entity.Fund,
+            input.FundOptionId,
+            input.Fund,
+            referenceData.Fund,
+            out var fundOptionId,
+            out var fundSnapshot);
+        entity.FundOptionId = fundOptionId;
+        entity.Fund = fundSnapshot;
+
+        ApplyReferenceSnapshot(
+            entity.DfpdsScheduleId,
+            entity.DfpdsSchedule,
+            input.DfpdsScheduleId,
+            input.DfpdsSchedule,
+            referenceData.Dfpds,
+            out var dfpdsScheduleId,
+            out var dfpdsSnapshot);
+        entity.DfpdsScheduleId = dfpdsScheduleId;
+        entity.DfpdsSchedule = dfpdsSnapshot;
+
         entity.UpdatedAtUtc = now;
         entity.UpdatedByUserId = userId;
     }
+
+    private static void ApplyReferenceSnapshot(
+        int? existingOptionId,
+        string existingSnapshot,
+        int? submittedOptionId,
+        string submittedSnapshot,
+        IReadOnlyDictionary<int, string> options,
+        out int? optionId,
+        out string snapshot)
+    {
+        optionId = submittedOptionId is > 0 ? submittedOptionId : null;
+        if (!optionId.HasValue)
+        {
+            snapshot = submittedSnapshot.Trim();
+            return;
+        }
+
+        if (existingOptionId == optionId && !string.IsNullOrWhiteSpace(existingSnapshot))
+        {
+            snapshot = existingSnapshot;
+            return;
+        }
+
+        snapshot = options[optionId.Value];
+    }
+
+    private async Task<ResolvedReferenceData> ResolveReferenceDataAsync(
+        IReadOnlyList<ArppEntryInput> entries,
+        IDictionary<string, IReadOnlyList<string>> errors,
+        CancellationToken cancellationToken)
+    {
+        var cfaIds = entries.Where(item => item.CfaOptionId is > 0).Select(item => item.CfaOptionId!.Value).Distinct().ToArray();
+        var fundIds = entries.Where(item => item.FundOptionId is > 0).Select(item => item.FundOptionId!.Value).Distinct().ToArray();
+        var dfpdsIds = entries.Where(item => item.DfpdsScheduleId is > 0).Select(item => item.DfpdsScheduleId!.Value).Distinct().ToArray();
+        var savedEntryIds = entries.Where(item => item.Id.HasValue).Select(item => item.Id!.Value).Distinct().ToArray();
+
+        var cfaRows = await _db.ArppCfaOptions.AsNoTracking()
+            .Where(item => cfaIds.Contains(item.Id))
+            .Select(item => new { item.Id, item.Name, item.IsActive })
+            .ToListAsync(cancellationToken);
+        var fundRows = await _db.ArppFundOptions.AsNoTracking()
+            .Where(item => fundIds.Contains(item.Id))
+            .Select(item => new { item.Id, item.Name, item.IsActive })
+            .ToListAsync(cancellationToken);
+        var dfpdsRows = await _db.ArppDfpdsSchedules.AsNoTracking()
+            .Where(item => dfpdsIds.Contains(item.Id))
+            .Select(item => new { item.Id, item.Code, item.IsActive })
+            .ToListAsync(cancellationToken);
+        var existingSelections = await _db.ArppEntries.AsNoTracking()
+            .Where(item => savedEntryIds.Contains(item.Id))
+            .Select(item => new
+            {
+                item.Id,
+                item.CfaOptionId,
+                item.FundOptionId,
+                item.DfpdsScheduleId
+            })
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
+
+        var cfa = cfaRows.ToDictionary(item => item.Id, item => item.Name);
+        var fund = fundRows.ToDictionary(item => item.Id, item => item.Name);
+        var dfpds = dfpdsRows.ToDictionary(item => item.Id, item => item.Code);
+        var inactiveCfa = cfaRows.Where(item => !item.IsActive).Select(item => item.Id).ToHashSet();
+        var inactiveFund = fundRows.Where(item => !item.IsActive).Select(item => item.Id).ToHashSet();
+        var inactiveDfpds = dfpdsRows.Where(item => !item.IsActive).Select(item => item.Id).ToHashSet();
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            existingSelections.TryGetValue(entry.Id ?? 0, out var existing);
+
+            if (entry.CfaOptionId is > 0 && !cfa.ContainsKey(entry.CfaOptionId.Value))
+            {
+                AddError(errors, $"Entries[{index}].CfaOptionId", "The selected CFA value is no longer available.");
+            }
+            else if (entry.CfaOptionId is > 0 && inactiveCfa.Contains(entry.CfaOptionId.Value) && existing?.CfaOptionId != entry.CfaOptionId)
+            {
+                AddError(errors, $"Entries[{index}].CfaOptionId", "The selected CFA value is inactive. Choose an active value.");
+            }
+
+            if (entry.FundOptionId is > 0 && !fund.ContainsKey(entry.FundOptionId.Value))
+            {
+                AddError(errors, $"Entries[{index}].FundOptionId", "The selected Fund value is no longer available.");
+            }
+            else if (entry.FundOptionId is > 0 && inactiveFund.Contains(entry.FundOptionId.Value) && existing?.FundOptionId != entry.FundOptionId)
+            {
+                AddError(errors, $"Entries[{index}].FundOptionId", "The selected Fund value is inactive. Choose an active value.");
+            }
+
+            if (entry.DfpdsScheduleId is > 0 && !dfpds.ContainsKey(entry.DfpdsScheduleId.Value))
+            {
+                AddError(errors, $"Entries[{index}].DfpdsScheduleId", "The selected DFPDS schedule is no longer available.");
+            }
+            else if (entry.DfpdsScheduleId is > 0 && inactiveDfpds.Contains(entry.DfpdsScheduleId.Value) && existing?.DfpdsScheduleId != entry.DfpdsScheduleId)
+            {
+                AddError(errors, $"Entries[{index}].DfpdsScheduleId", "The selected DFPDS schedule is inactive. Choose an active value.");
+            }
+        }
+
+        return new ResolvedReferenceData(cfa, fund, dfpds);
+    }
+
+    private sealed record ResolvedReferenceData(
+        IReadOnlyDictionary<int, string> Cfa,
+        IReadOnlyDictionary<int, string> Fund,
+        IReadOnlyDictionary<int, string> Dfpds);
 
     private static string Normalize(string? value)
         => string.Join(' ', (value ?? string.Empty)

@@ -19,8 +19,11 @@ public sealed record ArppEntryInput(
     int? ProjectId,
     ArppCategory? Category,
     decimal? IpaCost,
+    int? CfaOptionId,
     string Cfa,
+    int? FundOptionId,
     string Fund,
+    int? DfpdsScheduleId,
     string DfpdsSchedule);
 
 public sealed record ArppWorkspaceSaveCommand(
@@ -170,10 +173,16 @@ public sealed record ArppEntryDetails(
     string? ProjectStatus,
     ArppCategory Category,
     decimal IpaCost,
+    int? CfaOptionId,
     string Cfa,
+    int? FundOptionId,
     string Fund,
+    int? DfpdsScheduleId,
     string DfpdsSchedule,
-    string RowVersion);
+    string RowVersion)
+{
+    public bool HasUnresolvedReferenceData => !CfaOptionId.HasValue || !FundOptionId.HasValue || !DfpdsScheduleId.HasValue;
+}
 
 public sealed record ArppCategorySummary(
     ArppCategory Category,

@@ -1,0 +1,88 @@
+@using ProjectManagement.Services.Arpp
+@model ProjectManagement.Areas.Admin.Pages.MasterData.ArppReferences.IndexModel.ReferencePanelModel
+
+@{
+    var kindLabel = Model.Kind switch
+    {
+        ArppReferenceDataKind.Cfa => "CFA",
+        ArppReferenceDataKind.Fund => "Fund",
+        ArppReferenceDataKind.DfpdsSchedule => "DFPDS schedule",
+        _ => "Reference value"
+    };
+}
+
+<section class="admin-panel admin-arpp-reference-panel" aria-labelledby="arpp-reference-@((int)Model.Kind)-title">
+    <header class="admin-panel__header">
+        <div class="d-flex align-items-start gap-3">
+            <span class="admin-master-domain-card__icon" aria-hidden="true"><i class="bi @Model.Icon"></i></span>
+            <div>
+                <h2 id="arpp-reference-@((int)Model.Kind)-title">@Model.Title</h2>
+                <p class="mb-0 text-body-secondary">@Model.Description</p>
+            </div>
+        </div>
+        <button type="button"
+                class="btn btn-primary btn-sm"
+                data-bs-toggle="modal"
+                data-bs-target="#arppReferenceModal"
+                data-reference-add
+                data-kind="@((int)Model.Kind)"
+                data-kind-label="@kindLabel">
+            <span class="bi bi-plus-lg" aria-hidden="true"></span> Add
+        </button>
+    </header>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="admin-arpp-reference-empty">
+            <span class="bi bi-inboxes" aria-hidden="true"></span>
+            <strong>No @Model.Title.ToLowerInvariant() configured</strong>
+            <span>Add the first value to make it available in the ARPP workspace.</span>
+        </div>
+    }
+    else
+    {
+        <div class="admin-arpp-reference-list">
+            @foreach (var item in Model.Items)
+            {
+                <article class="admin-arpp-reference-row @(item.IsActive ? string.Empty : "is-inactive")">
+                    <div class="admin-arpp-reference-row__main">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <strong>@item.Value</strong>
+                            <span class="badge rounded-pill @(item.IsActive ? "text-bg-success-subtle text-success-emphasis" : "text-bg-secondary-subtle text-secondary-emphasis")">@(item.IsActive ? "Active" : "Inactive")</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                        {
+                            <span>@item.Description</span>
+                        }
+                        <small>Order @item.SortOrder · Used in @item.UsageCount @(item.UsageCount == 1 ? "row" : "rows")</small>
+                    </div>
+                    <div class="admin-arpp-reference-row__actions">
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#arppReferenceModal"
+                                data-reference-edit
+                                data-kind="@((int)Model.Kind)"
+                                data-kind-label="@kindLabel"
+                                data-id="@item.Id"
+                                data-value="@item.Value"
+                                data-description="@item.Description"
+                                data-sort-order="@item.SortOrder"
+                                data-row-version="@item.RowVersion">
+                            Edit
+                        </button>
+                        <form method="post" asp-page-handler="SetActive" class="d-inline">
+                            <input type="hidden" name="kind" value="@((int)Model.Kind)" />
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <input type="hidden" name="isActive" value="@(!item.IsActive)" />
+                            <input type="hidden" name="rowVersion" value="@item.RowVersion" />
+                            <button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")">
+                                @(item.IsActive ? "Deactivate" : "Activate")
+                            </button>
+                        </form>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>

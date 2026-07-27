@@ -234,6 +234,39 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
                 group.Count(item => item.Activities.Any(activity => !activity.IsDeleted))))
             .SingleOrDefaultAsync(cancellationToken) ?? CountSnapshot.Empty;
 
+        var arppCfa = await _db.ArppCfaOptions.AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(group => new CountSnapshot(
+                group.Count(),
+                group.Count(item => item.IsActive),
+                group.Count(item => !item.IsActive),
+                group.Count(item => item.Entries.Any())))
+            .SingleOrDefaultAsync(cancellationToken) ?? CountSnapshot.Empty;
+
+        var arppFunds = await _db.ArppFundOptions.AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(group => new CountSnapshot(
+                group.Count(),
+                group.Count(item => item.IsActive),
+                group.Count(item => !item.IsActive),
+                group.Count(item => item.Entries.Any())))
+            .SingleOrDefaultAsync(cancellationToken) ?? CountSnapshot.Empty;
+
+        var arppDfpds = await _db.ArppDfpdsSchedules.AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(group => new CountSnapshot(
+                group.Count(),
+                group.Count(item => item.IsActive),
+                group.Count(item => !item.IsActive),
+                group.Count(item => item.Entries.Any())))
+            .SingleOrDefaultAsync(cancellationToken) ?? CountSnapshot.Empty;
+
+        var arppReferenceData = new CountSnapshot(
+            arppCfa.Total + arppFunds.Total + arppDfpds.Total,
+            arppCfa.Active + arppFunds.Active + arppDfpds.Active,
+            arppCfa.Inactive + arppFunds.Inactive + arppDfpds.Inactive,
+            arppCfa.InUse + arppFunds.InUse + arppDfpds.InUse);
+
         var holidayStart = new DateOnly(holidayYear, 1, 1);
         var holidayEnd = holidayStart.AddYears(1);
         var holidayTotal = await _db.Holidays.AsNoTracking()
@@ -252,6 +285,7 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             Domain("sponsoring-units", "Sponsoring units", "Units and formations sponsoring projects and requirements.", "bi-building", "Admin", "/Lookups/SponsoringUnits/Index", sponsoringUnits, AdminPolicies.MasterDataManage),
             Domain("line-directorates", "Line directorates", "Line directorates associated with project sponsorship.", "bi-diagram-2", "Admin", "/Lookups/LineDirectorates/Index", lineDirectorates, AdminPolicies.MasterDataManage),
             Domain("activity-types", "Activity types", "Controlled activity classifications used across planning and reporting.", "bi-list-task", "Admin", "/ActivityTypes/Index", activityTypes, AdminPolicies.ActivityTypesManage),
+            Domain("arpp-reference-data", "ARPP reference data", "Controlled CFA, Fund and DFPDS values used for faster and consistent ARPP entry.", "bi-list-check", "Admin", "/MasterData/ArppReferences/Index", arppReferenceData, AdminPolicies.MasterDataManage),
             Domain("holidays", $"Holidays · {holidayYear}", "Gazetted Holidays, Restricted Holidays and office-observance decisions used by the shared calendar and schedule calculations.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage),
             Domain("celebrations", "Celebrations", "Birthdays and anniversaries shown in the shared calendar.", "bi-stars", string.Empty, "/Celebrations/Index", celebrations, Policies.Calendar.ManageCelebrations)
         };
@@ -261,7 +295,8 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
                 || item.Action.StartsWith("Holiday")
                 || item.Action.StartsWith("GazettedHoliday")
                 || item.Action.StartsWith("RestrictedHoliday")
-                || item.Action.StartsWith("Celebration"))
+                || item.Action.StartsWith("Celebration")
+                || item.Action.StartsWith("MasterData.ArppReference"))
             .OrderByDescending(item => item.TimeUtc)
             .ThenByDescending(item => item.Id)
             .Take(8)

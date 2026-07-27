@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models.Arpp;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
@@ -14,13 +15,19 @@ public sealed class ManageModel : PageModel
 {
     private readonly IArppReadService _readService;
     private readonly IArppCommandService _commandService;
+    private readonly IArppReferenceDataService _referenceDataService;
+    private readonly IAuthorizationService _authorization;
 
     public ManageModel(
         IArppReadService readService,
-        IArppCommandService commandService)
+        IArppCommandService commandService,
+        IArppReferenceDataService referenceDataService,
+        IAuthorizationService authorization)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
+        _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
+        _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
     }
 
     [BindProperty(SupportsGet = true)]
@@ -34,6 +41,10 @@ public sealed class ManageModel : PageModel
     public IReadOnlyList<ArppCategory> Categories { get; } = Enum.GetValues<ArppCategory>();
 
     public IReadOnlyList<int> FinancialYearOptions { get; private set; } = [];
+
+    public ArppReferenceDataSet ReferenceData { get; private set; } = new([], [], []);
+
+    public bool CanManageReferenceData { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -51,6 +62,7 @@ public sealed class ManageModel : PageModel
 
         SetIssue(issue, issue.FinancialYearStart);
         Input = Map(issue);
+        await LoadReferenceDataAsync(Input.Entries, cancellationToken);
         return Page();
     }
 
@@ -69,7 +81,9 @@ public sealed class ManageModel : PageModel
         }
 
         SetIssue(currentIssue, Input.FinancialYearStart);
+        await LoadReferenceDataAsync(Input.Entries, cancellationToken);
 
+        NormalizeCustomReferenceSelections();
         if (!ModelState.IsValid)
         {
             return Page();
@@ -92,8 +106,11 @@ public sealed class ManageModel : PageModel
                     entry.ProjectId,
                     entry.Category,
                     entry.IpaCost,
+                    NormalizeOptionId(entry.CfaOptionId),
                     entry.Cfa,
+                    NormalizeOptionId(entry.FundOptionId),
                     entry.Fund,
+                    NormalizeOptionId(entry.DfpdsScheduleId),
                     entry.DfpdsSchedule)).ToArray(),
                 User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
                 User.Identity?.Name),
@@ -147,8 +164,11 @@ public sealed class ManageModel : PageModel
                 LinkedProjectMeta = BuildProjectMeta(entry),
                 Category = entry.Category,
                 IpaCost = entry.IpaCost,
+                CfaOptionId = entry.CfaOptionId,
                 Cfa = entry.Cfa,
+                FundOptionId = entry.FundOptionId,
                 Fund = entry.Fund,
+                DfpdsScheduleId = entry.DfpdsScheduleId,
                 DfpdsSchedule = entry.DfpdsSchedule
             }).ToList()
         };
@@ -163,6 +183,30 @@ public sealed class ManageModel : PageModel
         return string.Join(" · ", new[] { entry.ProjectCaseFileNumber, entry.ProjectStatus }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
     }
+
+    private async Task LoadReferenceDataAsync(
+        IReadOnlyCollection<ArppEntryInputModel> entries,
+        CancellationToken cancellationToken)
+    {
+        ReferenceData = await _referenceDataService.GetWorkspaceOptionsAsync(
+            entries.Where(item => item.CfaOptionId is > 0).Select(item => item.CfaOptionId!.Value).Distinct().ToArray(),
+            entries.Where(item => item.FundOptionId is > 0).Select(item => item.FundOptionId!.Value).Distinct().ToArray(),
+            entries.Where(item => item.DfpdsScheduleId is > 0).Select(item => item.DfpdsScheduleId!.Value).Distinct().ToArray(),
+            cancellationToken);
+        CanManageReferenceData = (await _authorization.AuthorizeAsync(User, AdminPolicies.MasterDataManage)).Succeeded;
+    }
+
+    private void NormalizeCustomReferenceSelections()
+    {
+        foreach (var entry in Input.Entries)
+        {
+            entry.CfaOptionId = NormalizeOptionId(entry.CfaOptionId);
+            entry.FundOptionId = NormalizeOptionId(entry.FundOptionId);
+            entry.DfpdsScheduleId = NormalizeOptionId(entry.DfpdsScheduleId);
+        }
+    }
+
+    private static int? NormalizeOptionId(int? value) => value is > 0 ? value : null;
 
     private void ApplyErrors(ArppCommandResult result)
     {

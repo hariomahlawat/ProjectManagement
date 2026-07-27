@@ -123,6 +123,10 @@
                             <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
                             Issued HQ PDF attached
                         </li>
+                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            CFA, Fund and DFPDS values mapped to controlled lists
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -140,7 +144,7 @@
                             class="btn btn-primary btn-sm"
                             disabled
                             aria-disabled="true"
-                            title="Enter at least one row and attach the issued HQ PDF before verification.">
+                            title="Enter at least one row, attach the issued HQ PDF and resolve all CFA, Fund and DFPDS values before verification.">
                         <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
                     </button>
                 }
