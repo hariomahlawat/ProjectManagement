@@ -10,12 +10,16 @@
     var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
     var descriptionIsActive = string.Equals(activeTab, "description", StringComparison.OrdinalIgnoreCase);
     var capabilityEditorCount = Math.Max(1, Model.CapabilityInput.Statements.Count);
+    var descriptionCharacterCount = Model.ContentDescriptionInput.Description?.Length ?? 0;
+    var descriptionPreviewUrl = Url.Page(
+        "/Projects/Overview",
+        "PreviewProjectDescription",
+        new { id = Model.Project.Id });
 
     var (briefStatusText, briefStatusClass) = Model.BriefReadiness switch
     {
         ProjectBriefReadiness.NotRecorded => ("Not recorded", "is-neutral"),
-        ProjectBriefReadiness.Incomplete => ("Brief incomplete", "is-warning"),
-        ProjectBriefReadiness.BelowRecommended => ("Below recommended length", "is-warning"),
+        ProjectBriefReadiness.Concise => ("Concise", "is-neutral"),
         ProjectBriefReadiness.Recommended => ("Recommended length", "is-ready"),
         ProjectBriefReadiness.AboveRecommended => ("Consider shortening", "is-warning"),
         ProjectBriefReadiness.ExceedsMaximum => ("Maximum exceeded", "is-danger"),
@@ -42,6 +46,25 @@
             <p class="text-muted small mb-0">Concise reporting content and the full authoritative narrative.</p>
         </div>
     </div>
+
+    @if (TempData["ProjectContentError"] is string contentError)
+    {
+        <div class="alert alert-danger alert-dismissible fade show project-content__message"
+             role="alert">
+            @contentError
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ProjectContentFlash"] is string contentMessage)
+    {
+        <div class="alert alert-success alert-dismissible fade show project-content__message"
+             role="status"
+             aria-live="polite"
+             data-auto-dismiss="6000">
+            @contentMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
 
     <ul class="nav nav-tabs project-content__tabs" role="tablist" aria-label="Project content">
         <li class="nav-item" role="presentation">
@@ -146,7 +169,6 @@
                               class="form-control project-content__textarea"
                               rows="10"
                               maxlength="@ProjectFieldLimits.ProjectBriefMaxLength"
-                              data-word-incomplete="@ProjectFieldLimits.ProjectBriefIncompleteThresholdWords"
                               data-word-min="@ProjectFieldLimits.ProjectBriefRecommendedMinimumWords"
                               data-word-recommended-max="@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords"
                               data-word-hard-max="@ProjectFieldLimits.ProjectBriefHardMaximumWords"
@@ -249,7 +271,7 @@
                                        aria-label="Capability statement @(index + 1)" />
                                 <div class="btn-group btn-group-sm project-content__row-actions"
                                      role="group"
-                                     aria-label="Reorder capability statement @(index + 1)">
+                                     aria-label="Actions for capability statement @(index + 1)">
                                     <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move capability @(index + 1) up">
                                         <i class="bi bi-arrow-up" aria-hidden="true"></i>
                                     </button>
@@ -282,7 +304,7 @@
                                    aria-label="Capability statement" />
                             <div class="btn-group btn-group-sm project-content__row-actions"
                                  role="group"
-                                 aria-label="Reorder capability statement">
+                                 aria-label="Actions for capability statement">
                                 <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move capability up">
                                     <i class="bi bi-arrow-up" aria-hidden="true"></i>
                                 </button>
@@ -364,24 +386,54 @@
                       asp-route-id="@Model.Project.Id"
                       class="project-content__editor d-none"
                       data-content-form
-                      data-content-kind="description">
+                      data-content-kind="description"
+                      data-description-editor
+                      data-description-preview-url="@descriptionPreviewUrl">
                     <input asp-for="ContentDescriptionInput.ProjectId" type="hidden" />
                     <input asp-for="ContentDescriptionInput.RowVersion" type="hidden" />
-                    <label asp-for="ContentDescriptionInput.Description" class="form-label fw-semibold">Full project description</label>
+                    <div class="project-content__editor-heading">
+                        <label asp-for="ContentDescriptionInput.Description" class="form-label fw-semibold mb-0">Full project description</label>
+                        <details class="project-content__markdown-help">
+                            <summary>Markdown help</summary>
+                            <div class="project-content__markdown-help-body">
+                                <span><code>## Heading</code> for a section heading</span>
+                                <span><code>- Item</code> for a bullet list</span>
+                                <span><code>**text**</code> for emphasis</span>
+                                <span>Plain text and normal paragraphs are also valid.</span>
+                            </div>
+                        </details>
+                    </div>
                     <textarea asp-for="ContentDescriptionInput.Description"
                               class="form-control project-content__textarea project-content__textarea--large"
                               rows="14"
-                              maxlength="@ProjectFieldLimits.DescriptionMaxLength"></textarea>
-                    <div class="project-content__editor-meta">
-                        <span>Maximum @ProjectFieldLimits.DescriptionMaxLength.ToString("N0") characters</span>
+                              maxlength="@ProjectFieldLimits.DescriptionMaxLength"
+                              data-character-counter
+                              aria-describedby="project-description-editor-meta"></textarea>
+                    <div class="project-content__editor-meta" id="project-description-editor-meta">
+                        <span>Full authoritative narrative. Markdown is optional.</span>
+                        <span data-character-count>@descriptionCharacterCount.ToString("N0") / @ProjectFieldLimits.DescriptionMaxLength.ToString("N0") characters</span>
+                    </div>
+                    <div class="project-content__description-preview d-none" data-description-preview-panel>
+                        <div class="project-content__description-preview-header">
+                            <strong>Preview</strong>
+                            <button class="btn btn-sm btn-link" type="button" data-description-preview-close>Hide preview</button>
+                        </div>
+                        <div class="project-content__narrative pm-markdown" data-description-preview-content></div>
+                        <div class="small text-danger d-none" role="alert" data-description-preview-error></div>
                     </div>
                     <div class="invalid-feedback d-block d-none" role="alert" aria-live="polite" data-content-error></div>
-                    <div class="project-content__actions">
-                        <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
-                        <button class="btn btn-sm btn-primary" type="submit" data-content-save>
-                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
-                            <span data-content-save-label>Save description</span>
+                    <div class="project-content__actions project-content__actions--split">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-description-preview-trigger>
+                            <i class="bi bi-eye" aria-hidden="true"></i>
+                            <span data-description-preview-label>Preview</span>
                         </button>
+                        <span class="project-content__actions-primary">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
+                            <button class="btn btn-sm btn-primary" type="submit" data-content-save>
+                                <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
+                                <span data-content-save-label>Save description</span>
+                            </button>
+                        </span>
                     </div>
                 </form>
             }

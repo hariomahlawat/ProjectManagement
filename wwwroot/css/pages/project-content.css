@@ -28,6 +28,10 @@
     margin-bottom: .65rem;
 }
 
+.project-content__message {
+    margin-bottom: .75rem;
+}
+
 .project-content__toolbar {
     margin-bottom: .8rem;
 }
@@ -312,6 +316,89 @@
     margin-top: .8rem;
 }
 
+
+.project-content__editor-heading,
+.project-content__description-preview-header,
+.project-content__actions--split,
+.project-content__actions-primary {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+}
+
+.project-content__editor-heading,
+.project-content__description-preview-header,
+.project-content__actions--split {
+    justify-content: space-between;
+}
+
+.project-content__editor-heading {
+    margin-bottom: .5rem;
+}
+
+.project-content__markdown-help {
+    position: relative;
+    color: var(--bs-secondary-color);
+    font-size: .8rem;
+}
+
+.project-content__markdown-help summary {
+    cursor: pointer;
+    font-weight: 600;
+    user-select: none;
+}
+
+.project-content__markdown-help-body {
+    position: absolute;
+    right: 0;
+    z-index: 3;
+    display: grid;
+    gap: .35rem;
+    width: min(22rem, 80vw);
+    margin-top: .35rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .55rem;
+    background: var(--bs-body-bg);
+    box-shadow: var(--bs-box-shadow-sm);
+    color: var(--bs-body-color);
+    padding: .7rem .8rem;
+}
+
+.project-content__markdown-help-body span {
+    display: block;
+}
+
+.project-content__markdown-help code {
+    color: var(--bs-primary-text-emphasis);
+}
+
+.project-content__description-preview {
+    margin-top: .85rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .6rem;
+    background: var(--bs-body-bg);
+    padding: .8rem .9rem;
+}
+
+.project-content__description-preview-header {
+    margin-bottom: .65rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    padding-bottom: .45rem;
+}
+
+.project-content__description-preview-header .btn-link {
+    padding: 0;
+    text-decoration: none;
+}
+
+.project-content__actions--split {
+    width: 100%;
+}
+
+.project-content__actions-primary {
+    justify-content: flex-end;
+}
+
 .project-profile-missing--content {
     clear: both;
     margin-top: 1rem;
@@ -321,14 +408,31 @@
 @media (max-width: 767.98px) {
     .project-content__toolbar,
     .project-content__editor-meta,
-    .project-content__capability-controls {
+    .project-content__capability-controls,
+    .project-content__editor-heading,
+    .project-content__actions--split {
         align-items: flex-start;
         flex-direction: column;
     }
 
     .project-content__toolbar-actions,
-    .project-content__editor-readiness {
+    .project-content__editor-readiness,
+    .project-content__actions-primary {
         justify-content: flex-start;
+    }
+
+    .project-content__actions--split,
+    .project-content__actions-primary {
+        width: 100%;
+    }
+
+    .project-content__actions-primary {
+        justify-content: flex-end;
+    }
+
+    .project-content__markdown-help-body {
+        right: auto;
+        left: 0;
     }
 
     .project-content__capability-row {

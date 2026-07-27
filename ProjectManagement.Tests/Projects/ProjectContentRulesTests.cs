@@ -34,14 +34,13 @@ public sealed class ProjectContentRulesTests
 
     [Theory]
     [InlineData(0, ProjectBriefReadiness.NotRecorded)]
-    [InlineData(149, ProjectBriefReadiness.Incomplete)]
-    [InlineData(150, ProjectBriefReadiness.BelowRecommended)]
-    [InlineData(199, ProjectBriefReadiness.BelowRecommended)]
-    [InlineData(200, ProjectBriefReadiness.Recommended)]
-    [InlineData(250, ProjectBriefReadiness.Recommended)]
-    [InlineData(251, ProjectBriefReadiness.AboveRecommended)]
-    [InlineData(300, ProjectBriefReadiness.AboveRecommended)]
-    [InlineData(301, ProjectBriefReadiness.ExceedsMaximum)]
+    [InlineData(1, ProjectBriefReadiness.Concise)]
+    [InlineData(99, ProjectBriefReadiness.Concise)]
+    [InlineData(100, ProjectBriefReadiness.Recommended)]
+    [InlineData(150, ProjectBriefReadiness.Recommended)]
+    [InlineData(151, ProjectBriefReadiness.AboveRecommended)]
+    [InlineData(200, ProjectBriefReadiness.AboveRecommended)]
+    [InlineData(201, ProjectBriefReadiness.ExceedsMaximum)]
     public void GetBriefReadiness_UsesConfiguredReportingBands(
         int wordCount,
         ProjectBriefReadiness expected)

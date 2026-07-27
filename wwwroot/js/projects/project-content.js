@@ -9,8 +9,21 @@
     root.dataset.projectContentInitialized = 'true';
 
     const DEFAULT_SAVE_TIMEOUT_MS = 20000;
+    const DEFAULT_RELOAD_RECOVERY_MS = 2500;
     const dynamicResetters = new WeakMap();
+    const previewControllers = new WeakMap();
+    const savedReloadRecoveries = new Map();
     let dirtyForm = null;
+    let pageIsUnloading = false;
+
+    window.addEventListener('pagehide', () => {
+        pageIsUnloading = true;
+    });
+
+    window.addEventListener('pageshow', () => {
+        pageIsUnloading = false;
+        savedReloadRecoveries.forEach((_context, form) => recoverSavedForm(form));
+    });
 
     const parsePositiveInt = (value, fallback) => {
         const parsed = Number.parseInt(value ?? '', 10);
@@ -65,21 +78,16 @@
 
     const getBriefReadiness = (textarea) => {
         const words = countWords(textarea.value);
-        const incomplete = parsePositiveInt(textarea.dataset.wordIncomplete, 150);
-        const recommendedMinimum = parsePositiveInt(textarea.dataset.wordMin, 200);
-        const recommendedMaximum = parsePositiveInt(textarea.dataset.wordRecommendedMax, 250);
-        const hardMaximum = parsePositiveInt(textarea.dataset.wordHardMax, 300);
+        const recommendedMinimum = parsePositiveInt(textarea.dataset.wordMin, 100);
+        const recommendedMaximum = parsePositiveInt(textarea.dataset.wordRecommendedMax, 150);
+        const hardMaximum = parsePositiveInt(textarea.dataset.wordHardMax, 200);
 
         if (words === 0) {
             return { words, text: 'Not recorded', statusClass: 'is-neutral' };
         }
 
-        if (words < incomplete) {
-            return { words, text: 'Brief incomplete', statusClass: 'is-warning' };
-        }
-
         if (words < recommendedMinimum) {
-            return { words, text: 'Below recommended length', statusClass: 'is-warning' };
+            return { words, text: 'Concise', statusClass: 'is-neutral' };
         }
 
         if (words <= recommendedMaximum) {
@@ -112,6 +120,65 @@
             form.querySelector('[data-word-status]'),
             readiness.text,
             readiness.statusClass);
+    };
+
+    const updateCharacterCount = (textarea) => {
+        const form = textarea.closest('form');
+        const host = form?.querySelector('[data-character-count]');
+        if (!host) {
+            return;
+        }
+
+        const maximum = parsePositiveInt(textarea.getAttribute('maxlength'), 0);
+        const current = textarea.value.length;
+        host.textContent = maximum > 0
+            ? `${current.toLocaleString()} / ${maximum.toLocaleString()} characters`
+            : `${current.toLocaleString()} characters`;
+        host.classList.toggle('text-danger', maximum > 0 && current >= maximum);
+    };
+
+    const cancelDescriptionPreviewRequest = (form) => {
+        previewControllers.get(form)?.abort();
+        previewControllers.delete(form);
+
+        const trigger = form.querySelector('[data-description-preview-trigger]');
+        const label = form.querySelector('[data-description-preview-label]');
+        const panel = form.querySelector('[data-description-preview-panel]');
+
+        if (trigger && form.dataset.submitting !== 'true') {
+            trigger.disabled = false;
+        }
+        if (label && label.textContent === 'Loading…') {
+            label.textContent = panel && !panel.classList.contains('d-none')
+                ? (form.dataset.previewStale === 'true' ? 'Update preview' : 'Refresh preview')
+                : 'Preview';
+        }
+    };
+
+    const resetDescriptionPreview = (form) => {
+        cancelDescriptionPreviewRequest(form);
+
+        const panel = form.querySelector('[data-description-preview-panel]');
+        const content = form.querySelector('[data-description-preview-content]');
+        const error = form.querySelector('[data-description-preview-error]');
+        const label = form.querySelector('[data-description-preview-label]');
+        const trigger = form.querySelector('[data-description-preview-trigger]');
+
+        panel?.classList.add('d-none');
+        if (content) {
+            content.replaceChildren();
+        }
+        if (error) {
+            error.textContent = '';
+            error.classList.add('d-none');
+        }
+        if (label) {
+            label.textContent = 'Preview';
+        }
+        if (trigger) {
+            trigger.disabled = false;
+        }
+        form.dataset.previewStale = 'false';
     };
 
     const openEditor = (pane) => {
@@ -160,6 +227,7 @@
         form.classList.add('d-none');
         view.classList.remove('d-none');
         form.querySelectorAll('[data-word-counter]').forEach(updateBriefReadiness);
+        form.querySelectorAll('[data-character-counter]').forEach(updateCharacterCount);
         return true;
     };
 
@@ -168,6 +236,23 @@
             control.disabled = originallyDisabled.has(control);
         });
     };
+
+    function recoverSavedForm(form) {
+        const context = savedReloadRecoveries.get(form);
+        if (!context) {
+            return;
+        }
+
+        if (context.timerId) {
+            window.clearTimeout(context.timerId);
+        }
+
+        savedReloadRecoveries.delete(form);
+        setSubmitting(form, false, context.originallyDisabled);
+        setError(
+            form,
+            'Your changes were saved, but the page did not refresh. Refresh the page to load the latest content.');
+    }
 
     const setSubmitting = (form, isSubmitting, originallyDisabled = new Set()) => {
         const saveButton = form.querySelector('[data-content-save]');
@@ -212,7 +297,7 @@
         }
 
         const readiness = getBriefReadiness(textarea);
-        const hardMaximum = parsePositiveInt(textarea.dataset.wordHardMax, 300);
+        const hardMaximum = parsePositiveInt(textarea.dataset.wordHardMax, 200);
         if (readiness.words <= hardMaximum) {
             return true;
         }
@@ -257,6 +342,27 @@
         }
     };
 
+    const requestPageReload = (payload) => {
+        const reloadEvent = new CustomEvent('projectcontent:reload-requested', {
+            bubbles: true,
+            cancelable: true,
+            detail: {
+                section: payload?.section || null,
+                message: payload?.message || null
+            }
+        });
+
+        if (!root.dispatchEvent(reloadEvent)) {
+            return;
+        }
+
+        try {
+            window.location.reload();
+        } catch {
+            // The recovery timer restores the editor if the browser does not unload.
+        }
+    };
+
     const submitForm = async (form) => {
         if (form.dataset.submitting === 'true') {
             return;
@@ -268,6 +374,8 @@
             return;
         }
 
+        cancelDescriptionPreviewRequest(form);
+
         const formData = new FormData(form);
         const originallyDisabled = new Set(
             [...form.querySelectorAll('button, input, textarea, select')]
@@ -276,6 +384,9 @@
         const timeoutMs = parsePositiveInt(
             root.dataset.saveTimeoutMs,
             DEFAULT_SAVE_TIMEOUT_MS);
+        const reloadRecoveryMs = parsePositiveInt(
+            root.dataset.reloadRecoveryMs,
+            DEFAULT_RELOAD_RECOVERY_MS);
         const controller = new AbortController();
         const timeoutId = window.setTimeout(
             () => controller.abort(),
@@ -283,7 +394,7 @@
 
         setSubmitting(form, true, originallyDisabled);
 
-        let navigationStarted = false;
+        let reloadRequested = false;
         try {
             const response = await fetch(form.action, {
                 method: 'POST',
@@ -306,15 +417,20 @@
             }
 
             clearDirty(form);
-            navigationStarted = true;
-            const redirectUrl = payload.redirectUrl || window.location.href;
-            window.location.replace(redirectUrl);
+            reloadRequested = true;
 
-            window.setTimeout(() => {
-                if (document.visibilityState === 'visible') {
-                    window.location.assign(redirectUrl);
+            const recoveryContext = {
+                originallyDisabled,
+                timerId: 0
+            };
+            savedReloadRecoveries.set(form, recoveryContext);
+            recoveryContext.timerId = window.setTimeout(() => {
+                if (!pageIsUnloading) {
+                    recoverSavedForm(form);
                 }
-            }, 1200);
+            }, reloadRecoveryMs);
+
+            requestPageReload(payload);
         } catch (error) {
             if (error instanceof DOMException && error.name === 'AbortError') {
                 setError(
@@ -329,7 +445,7 @@
             }
         } finally {
             window.clearTimeout(timeoutId);
-            if (!navigationStarted) {
+            if (!reloadRequested) {
                 setSubmitting(form, false, originallyDisabled);
             }
         }
@@ -387,7 +503,7 @@
                 if (actionGroup) {
                     actionGroup.setAttribute(
                         'aria-label',
-                        `Reorder capability statement ${ordinal}`);
+                        `Actions for capability statement ${ordinal}`);
                 }
                 if (up) {
                     up.disabled = index === 0;
@@ -436,20 +552,28 @@
                 return;
             }
 
+            let focusTarget = button;
+            let fallbackActionSelector = null;
             if (button.matches('[data-capability-up]')) {
                 row.previousElementSibling?.before(row);
+                fallbackActionSelector = '[data-capability-down]';
             } else if (button.matches('[data-capability-down]')) {
                 row.nextElementSibling?.after(row);
+                fallbackActionSelector = '[data-capability-up]';
             } else if (button.matches('[data-capability-remove]')) {
                 if (rows().length === 1) {
                     const input = row.querySelector('input');
                     if (input) {
                         input.value = '';
-                        input.focus();
+                        focusTarget = input;
                     }
                 } else {
+                    focusTarget =
+                        row.nextElementSibling?.querySelector('input') ||
+                        row.previousElementSibling?.querySelector('input');
                     row.remove();
                     ensureOneRow();
+                    focusTarget ||= rows().at(-1)?.querySelector('input');
                 }
             } else {
                 return;
@@ -457,6 +581,12 @@
 
             markDirty(form);
             renumber();
+            if (focusTarget instanceof HTMLButtonElement && focusTarget.disabled) {
+                focusTarget =
+                    (fallbackActionSelector && row.querySelector(fallbackActionSelector)) ||
+                    row.querySelector('input');
+            }
+            focusTarget?.focus();
         });
 
         list.addEventListener('input', () => {
@@ -488,6 +618,107 @@
 
         ensureOneRow();
         renumber();
+    };
+
+    const initializeDescriptionEditor = (form) => {
+        const textarea = form.querySelector('[data-character-counter]');
+        const trigger = form.querySelector('[data-description-preview-trigger]');
+        const closeButton = form.querySelector('[data-description-preview-close]');
+        const panel = form.querySelector('[data-description-preview-panel]');
+        const content = form.querySelector('[data-description-preview-content]');
+        const errorHost = form.querySelector('[data-description-preview-error]');
+        const label = form.querySelector('[data-description-preview-label]');
+        const previewUrl = form.dataset.descriptionPreviewUrl;
+
+        if (textarea) {
+            updateCharacterCount(textarea);
+            textarea.addEventListener('input', () => {
+                updateCharacterCount(textarea);
+                if (panel && !panel.classList.contains('d-none')) {
+                    form.dataset.previewStale = 'true';
+                    if (label) {
+                        label.textContent = 'Update preview';
+                    }
+                }
+            });
+        }
+
+        dynamicResetters.set(form, () => {
+            resetDescriptionPreview(form);
+            if (textarea) {
+                updateCharacterCount(textarea);
+            }
+        });
+
+        closeButton?.addEventListener('click', () => {
+            panel?.classList.add('d-none');
+            trigger?.focus();
+        });
+
+        if (!trigger || !panel || !content || !previewUrl) {
+            return;
+        }
+
+        trigger.addEventListener('click', async () => {
+            previewControllers.get(form)?.abort();
+            const controller = new AbortController();
+            previewControllers.set(form, controller);
+
+            trigger.disabled = true;
+            if (label) {
+                label.textContent = 'Loading…';
+            }
+            if (errorHost) {
+                errorHost.textContent = '';
+                errorHost.classList.add('d-none');
+            }
+            panel.classList.remove('d-none');
+            content.innerHTML = '<p class="text-muted mb-0">Loading preview…</p>';
+
+            try {
+                const response = await fetch(previewUrl, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const payload = await readJsonResponse(response);
+                if (!response.ok || !payload?.ok) {
+                    throw new Error(payload?.error || 'The preview could not be generated.');
+                }
+
+                content.innerHTML = payload.html || '<p class="text-muted mb-0">Nothing to preview.</p>';
+                form.dataset.previewStale = 'false';
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return;
+                }
+
+                content.innerHTML = '<p class="text-muted mb-0">Preview unavailable.</p>';
+                if (errorHost) {
+                    errorHost.textContent = error instanceof Error
+                        ? error.message
+                        : 'The preview could not be generated.';
+                    errorHost.classList.remove('d-none');
+                }
+            } finally {
+                if (previewControllers.get(form) === controller) {
+                    previewControllers.delete(form);
+                    trigger.disabled = form.dataset.submitting === 'true';
+                    if (label) {
+                        label.textContent = form.dataset.previewStale === 'true'
+                            ? 'Update preview'
+                            : 'Refresh preview';
+                    }
+                }
+            }
+        });
     };
 
     root.querySelectorAll('[data-content-edit]').forEach((button) => {
@@ -522,6 +753,7 @@
     });
 
     root.querySelectorAll('[data-capability-editor]').forEach(initializeCapabilityEditor);
+    root.querySelectorAll('[data-description-editor]').forEach(initializeDescriptionEditor);
 
     root.querySelectorAll('[data-bs-toggle="tab"]').forEach((tab) => {
         tab.addEventListener('show.bs.tab', (event) => {

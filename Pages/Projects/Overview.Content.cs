@@ -140,6 +140,36 @@ public partial class OverviewModel
         return ProjectContentResult(result, id, "description", "Full project description saved.");
     }
 
+    public IActionResult OnPostPreviewProjectDescription(int id)
+    {
+        if (!CanCurrentUserEditProjectContent())
+        {
+            return Forbid();
+        }
+
+        if (ContentDescriptionInput.ProjectId != id)
+        {
+            return BadRequest(new { ok = false, error = "The project reference is invalid." });
+        }
+
+        var description = ProjectContentRules.NormalizeNarrative(ContentDescriptionInput.Description);
+        if (description?.Length > ProjectFieldLimits.DescriptionMaxLength)
+        {
+            return BadRequest(new
+            {
+                ok = false,
+                error = $"Full project description cannot exceed {ProjectFieldLimits.DescriptionMaxLength:N0} characters."
+            });
+        }
+
+        Response.Headers.CacheControl = "no-store, max-age=0";
+        return new JsonResult(new
+        {
+            ok = true,
+            html = _markdownRenderer.ToSafeHtml(description)
+        });
+    }
+
     private void InitializeProjectContentEditor(Project project)
     {
         ProjectBriefWordCount = ProjectContentRules.CountWords(project.ProjectBrief);
@@ -228,21 +258,25 @@ public partial class OverviewModel
                 return new JsonResult(new { ok = false, error = message });
             }
 
-            TempData["Error"] = message;
+            TempData["ProjectContentError"] = message;
             return RedirectToPage("/Projects/Overview", null, new { id = projectId, content = tab }, $"content-{tab}");
         }
 
-        var pageUrl = Url.Page("/Projects/Overview", new { id = projectId, content = tab })
-            ?? $"/Projects/Overview/{projectId}?content={tab}";
-        var redirectUrl = $"{pageUrl}#content-{tab}";
+        TempData["ProjectContentFlash"] = successMessage;
 
         if (isAjax)
         {
             Response.Headers.CacheControl = "no-store, max-age=0";
-            return new JsonResult(new { ok = true, message = successMessage, redirectUrl });
+            return new JsonResult(new
+            {
+                ok = true,
+                message = successMessage,
+                section = tab
+            });
         }
 
-        TempData["Flash"] = successMessage;
-        return Redirect(redirectUrl);
+        var pageUrl = Url.Page("/Projects/Overview", new { id = projectId, content = tab })
+            ?? $"/Projects/Overview/{projectId}?content={tab}";
+        return Redirect($"{pageUrl}#content-{tab}");
     }
 }
