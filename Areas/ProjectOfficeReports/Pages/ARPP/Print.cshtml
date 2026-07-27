@@ -1,11 +1,15 @@
 @page
 @using ProjectManagement.Helpers
+@using ProjectManagement.Infrastructure
 @using ProjectManagement.Models.Arpp
 @using ProjectManagement.Utilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.PrintModel
 @{
     Layout = null;
     var financialYear = FinancialYearHelper.Format(Model.Issue.FinancialYearStart);
+    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
+        ? "Original ARPP"
+        : $"Addendum No. {Model.Issue.IssueSequence}";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -26,18 +30,14 @@
             <div class="arpp-print-marking">PRISM ERP · Simulator Development Division</div>
             <h1>@Model.Issue.Name</h1>
             <p>
-                ARPP / PPP · Financial Year @financialYear · @ArppDisplayNames.For(Model.Issue.Kind)
-                @if (Model.Issue.Kind == ArppIssueKind.Addendum)
-                {
-                    <text> · Addendum @Model.Issue.IssueSequence</text>
-                }
+                ARPP / PPP · Financial Year @financialYear · @issueTypeLabel
                 · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")
             </p>
         </header>
 
         <section class="arpp-print-summary" aria-label="Issue summary">
             <div><span>Rows</span><strong>@Model.Issue.Entries.Count</strong></div>
-            <div><span>Total IPA value</span><strong>@IndianCurrencyFormatter.FormatRupees(Model.Issue.TotalIpaCost)</strong></div>
+            <div><span>Document row value</span><strong>@IndianCurrencyFormatter.FormatRupees(Model.Issue.TotalIpaCost)</strong></div>
             <div><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></div>
             <div class="arpp-print-summary__categories">
                 @foreach (var category in Enum.GetValues<ArppCategory>())
@@ -53,7 +53,11 @@
             <span>@(Model.Issue.IsVerified ? "Verified and locked" : "Unverified")</span>
             @if (Model.Issue.IsVerified && Model.Issue.VerifiedAtUtc.HasValue)
             {
-                <span> · Verified @Model.Issue.VerifiedAtUtc.Value.ToString("dd MMM yyyy HH:mm 'UTC'")</span>
+                <span> · Verified @IstClock.ToIst(Model.Issue.VerifiedAtUtc.Value).ToString("dd MMM yyyy, hh:mm tt") IST</span>
+            }
+            @if (Model.Issue.IsVerified && !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName))
+            {
+                <span> · By @Model.Issue.VerifiedByDisplayName</span>
             }
             <br />
             <strong>Issued source PDF:</strong>
@@ -98,6 +102,10 @@
                                 @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
                                 {
                                     <small>@entry.ProjectCaseFileNumber</small>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
+                                {
+                                    <small>PRISM status: @entry.ProjectStatus</small>
                                 }
                             }
                             else

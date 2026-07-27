@@ -317,6 +317,33 @@ public sealed class ArppCommandServiceTests
         Assert.Contains("Attachment", result.FieldErrors.Keys);
     }
 
+
+    [Fact]
+    public async Task Unlock_RejectsShortNonMeaningfulReason()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        issue.IsVerified = true;
+        issue.VerifiedAtUtc = DateTimeOffset.UtcNow;
+        issue.VerifiedByUserId = "verifier-1";
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).UnlockAsync(new ArppUnlockCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            "add new",
+            "hod-1",
+            "HoD One"));
+
+        Assert.False(result.Success);
+        Assert.Contains(nameof(ArppUnlockCommand.Reason), result.FieldErrors.Keys);
+        Assert.Contains(
+            result.FieldErrors[nameof(ArppUnlockCommand.Reason)],
+            message => message.Contains("at least 10 characters", StringComparison.OrdinalIgnoreCase));
+        Assert.True((await db.ArppIssues.SingleAsync()).IsVerified);
+    }
+
     private static ArppCommandService CreateService(ApplicationDbContext db)
         => new(
             db,

@@ -156,6 +156,7 @@ public sealed record ArppIssueDetails(
     bool IsVerified,
     DateTimeOffset? VerifiedAtUtc,
     string? VerifiedByUserId,
+    string? VerifiedByDisplayName,
     string? VerificationNote);
 
 public sealed record ArppEntryDetails(

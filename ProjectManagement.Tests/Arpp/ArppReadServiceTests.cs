@@ -146,6 +146,68 @@ public sealed class ArppReadServiceTests
         Assert.Equal(12_000_000m, addendumItem.DelistedRowValue);
     }
 
+
+    [Fact]
+    public async Task GetRegisterAsync_SearchingHistoricalSerial_UsesLatestApplicablePosition()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project moved to Delisted",
+            CreatedByUserId = "seed"
+        });
+
+        var original = CreateIssue(2026, 0, ArppIssueKind.Original, "ARPP 2026-27");
+        original.Entries.Add(CreateEntry(1, "OLD-12", ArppCategory.New, 10_000_000m));
+
+        var addendum = CreateIssue(2026, 1, ArppIssueKind.Addendum, "Addendum No. 1");
+        addendum.Entries.Add(CreateEntry(1, "NEW-7", ArppCategory.Delisted, 12_000_000m));
+
+        db.ArppIssues.AddRange(original, addendum);
+        await db.SaveChangesAsync();
+
+        var register = await new ArppReadService(db).GetRegisterAsync(null, "OLD-12");
+
+        Assert.Single(register.FinancialYears);
+        Assert.Single(register.FinancialYears.Single().Issues);
+        Assert.Equal(original.Id, register.FinancialYears.Single().Issues.Single().Id);
+        Assert.Equal(0m, register.ApprovedLinkedIpaCost);
+        Assert.Equal(12_000_000m, register.DelistedLinkedIpaCost);
+        Assert.Equal(0, register.ApprovedLinkedProjects);
+        Assert.Equal(1, register.DelistedLinkedProjects);
+        Assert.Equal(0m, register.FinancialYears.Single().ApprovedLinkedIpaCost);
+        Assert.Equal(12_000_000m, register.FinancialYears.Single().DelistedLinkedIpaCost);
+    }
+
+    [Fact]
+    public async Task GetIssueAsync_ResolvesVerifierDisplayName()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "verifier-1",
+            Rank = "Col",
+            FullName = "Verifier One",
+            UserName = "verifier.one"
+        });
+
+        var issue = CreateIssue(2026, 0, ArppIssueKind.Original, "ARPP 2026-27");
+        issue.IsVerified = true;
+        issue.VerifiedAtUtc = new DateTimeOffset(2026, 7, 26, 16, 47, 0, TimeSpan.Zero);
+        issue.VerifiedByUserId = "verifier-1";
+        issue.VerificationNote = "Checked against the issued HQ PDF.";
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var details = await new ArppReadService(db).GetIssueAsync(issue.Id);
+
+        Assert.NotNull(details);
+        Assert.Equal("verifier-1", details!.VerifiedByUserId);
+        Assert.Equal("Col Verifier One", details.VerifiedByDisplayName);
+        Assert.Equal("Checked against the issued HQ PDF.", details.VerificationNote);
+    }
+
     private static ArppIssue CreateIssue(int year, int sequence, ArppIssueKind kind, string name)
         => new()
         {

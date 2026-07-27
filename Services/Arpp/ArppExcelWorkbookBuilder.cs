@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Arpp;
 using ProjectManagement.Utilities;
 
@@ -40,21 +41,25 @@ public sealed class ArppExcelWorkbookBuilder
         var identity = worksheet.Range(2, 1, 2, ColumnCount).Merge();
         var issueLabel = issue.Kind == ArppIssueKind.Original
             ? "Original ARPP"
-            : $"Addendum {issue.IssueSequence}";
+            : $"Addendum No. {issue.IssueSequence}";
         identity.Value = $"ARPP / PPP · FY {FinancialYearHelper.Format(issue.FinancialYearStart)} · " +
                          $"{issueLabel} · Issued {issue.IssueDate:dd MMM yyyy}";
         identity.Style.Font.FontColor = XLColor.FromHtml("#526174");
 
+        var generatedAtIst = IstClock.ToIst(generatedAtUtc);
         var generated = worksheet.Range(3, 1, 3, ColumnCount).Merge();
-        generated.Value = $"Generated from PRISM ERP on {generatedAtUtc:dd MMM yyyy, HH:mm} UTC";
+        generated.Value = $"Generated from PRISM ERP on {generatedAtIst:dd MMM yyyy, hh:mm tt} IST";
         generated.Style.Font.FontColor = XLColor.FromHtml("#526174");
 
         var source = worksheet.Range(4, 1, 4, ColumnCount).Merge();
         var sourceLabel = issue.Attachment is null
             ? "Issued HQ PDF: not attached in PRISM"
             : $"Issued HQ PDF: {issue.Attachment.OriginalFileName} · SHA-256 {issue.Attachment.Sha256[..Math.Min(12, issue.Attachment.Sha256.Length)]}…";
+        var verifiedAtIst = IstClock.ToIst(issue.VerifiedAtUtc);
         var verificationLabel = issue.IsVerified
-            ? $"Record status: Verified and locked · {issue.VerifiedAtUtc:dd MMM yyyy HH:mm} UTC"
+            ? $"Record status: Verified and locked" +
+              (verifiedAtIst.HasValue ? $" · {verifiedAtIst.Value:dd MMM yyyy, hh:mm tt} IST" : string.Empty) +
+              (!string.IsNullOrWhiteSpace(issue.VerifiedByDisplayName) ? $" · By {issue.VerifiedByDisplayName}" : string.Empty)
             : "Record status: Unverified";
         source.Value = $"{sourceLabel} · {verificationLabel}";
         source.Style.Font.FontColor = issue.Attachment is null || !issue.IsVerified
@@ -67,7 +72,7 @@ public sealed class ArppExcelWorkbookBuilder
         SetSummary(worksheet, 5, 1, "Rows", issue.Entries.Count);
         SetSummary(worksheet, 5, 3, "Linked", issue.LinkedCount);
         SetSummary(worksheet, 5, 5, "Unlinked", issue.UnlinkedCount);
-        SetSummary(worksheet, 5, 7, "Total IPA cost (₹)", issue.TotalIpaCost, "[$₹-en-IN] #,##,##0.00");
+        SetSummary(worksheet, 5, 7, "Document row value (₹)", issue.TotalIpaCost, "[$₹-en-IN] #,##,##0.00");
 
         var column = 1;
         foreach (var category in Enum.GetValues<ArppCategory>())

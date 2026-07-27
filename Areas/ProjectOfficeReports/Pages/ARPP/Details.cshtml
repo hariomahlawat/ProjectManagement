@@ -6,6 +6,9 @@
 @{
     ViewData["Title"] = Model.Issue.Name;
     ViewData["UseFullWidth"] = true;
+    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
+        ? "Original ARPP"
+        : $"Addendum No. {Model.Issue.IssueSequence}";
 }
 
 @section Styles {
@@ -13,7 +16,9 @@
     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
 }
 
-<div class="container-fluid px-3 px-lg-4 py-2 arpp-page" data-arpp-details>
+<div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
+     data-arpp-details
+     data-arpp-reopen-unlock-modal="@(Model.ReopenUnlockModal ? "true" : "false")">
     <header class="arpp-header">
         <div>
             <div class="d-flex flex-wrap align-items-center gap-2">
@@ -28,13 +33,13 @@
                 }
             </div>
             <h1>@Model.Issue.Name</h1>
-            <p>@ArppDisplayNames.For(Model.Issue.Kind) · @(Model.Issue.Kind == ArppIssueKind.Original ? "Original issue" : $"Addendum {Model.Issue.IssueSequence}") · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")</p>
+            <p>@issueTypeLabel · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")</p>
         </div>
         <div class="d-flex flex-wrap justify-content-end gap-2">
             @if (Model.Issue.Attachment is not null)
             {
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-secondary btn-sm">
-                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Issued PDF
+                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Open issued PDF
                 </a>
             }
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Excel" asp-route-id="@Model.Issue.Id" class="btn btn-outline-success btn-sm">
@@ -68,24 +73,34 @@
     @if (Model.Issue.IsVerified)
     {
         <section class="arpp-verification-banner arpp-verification-banner--locked" aria-label="Verification status">
-            <div>
+            <div class="arpp-verification-banner__identity">
                 <span class="bi bi-shield-lock-fill" aria-hidden="true"></span>
                 <div>
                     <strong>Verified and locked</strong>
                     <p>Issued rows, document identity and HQ PDF are protected from modification.</p>
-                    @if (Model.Issue.VerifiedAtUtc.HasValue)
-                    {
-                        <small>Verified @Model.Issue.VerifiedAtUtc.Value.ToString("dd MMM yyyy HH:mm 'UTC'")</small>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.Issue.VerificationNote))
-                    {
-                        <small> · @Model.Issue.VerificationNote</small>
-                    }
+                    <dl class="arpp-verification-meta">
+                        @if (!string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName) || !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByUserId))
+                        {
+                            <div><dt>Verified by</dt><dd>@(Model.Issue.VerifiedByDisplayName ?? Model.Issue.VerifiedByUserId)</dd></div>
+                        }
+                        @if (Model.Issue.VerifiedAtUtc.HasValue)
+                        {
+                            <div><dt>Verified on</dt><dd>@Model.FormatIst(Model.Issue.VerifiedAtUtc.Value)</dd></div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.Issue.VerificationNote))
+                        {
+                            <div><dt>Verification note</dt><dd>@Model.Issue.VerificationNote</dd></div>
+                        }
+                    </dl>
                 </div>
             </div>
             @if (Model.CanUnlock)
             {
-                <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#arppUnlockModal">
+                <button type="button"
+                        class="btn btn-outline-warning btn-sm"
+                        data-bs-toggle="modal"
+                        data-bs-target="#arppUnlockModal"
+                        data-arpp-unlock-trigger>
                     <span class="bi bi-unlock" aria-hidden="true"></span> Unlock for correction
                 </button>
             }
@@ -94,18 +109,41 @@
     else
     {
         <section class="arpp-verification-banner" aria-label="Verification status">
-            <div>
+            <div class="arpp-verification-banner__identity">
                 <span class="bi bi-shield-exclamation" aria-hidden="true"></span>
                 <div>
                     <strong>Verification pending</strong>
                     <p>Verify after checking the structured rows against the issued HQ PDF.</p>
+                    <ul class="arpp-readiness-list" aria-label="Verification readiness">
+                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            At least one complete issued row
+                        </li>
+                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            Issued HQ PDF attached
+                        </li>
+                    </ul>
                 </div>
             </div>
             @if (Model.CanVerify)
             {
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#arppVerifyModal" disabled="@(Model.Issue.Entries.Count == 0 || Model.Issue.Attachment is null ? "disabled" : null)">
-                    <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
-                </button>
+                @if (Model.IsVerificationReady)
+                {
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#arppVerifyModal">
+                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
+                    </button>
+                }
+                else
+                {
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            disabled
+                            aria-disabled="true"
+                            title="Enter at least one row and attach the issued HQ PDF before verification.">
+                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
+                    </button>
+                }
             }
         </section>
     }
@@ -115,10 +153,13 @@
         <article class="arpp-kpi"><span>Document row value</span><strong>@IndianCurrencyFormatter.FormatCompact(Model.Issue.TotalIpaCost)</strong></article>
         <article class="arpp-kpi"><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></article>
         <article class="arpp-kpi arpp-kpi--categories">
-            <span>New @Model.Issue.CategorySummary[ArppCategory.New].Count</span>
-            <span>CL @Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count</span>
-            <span>CF @Model.Issue.CategorySummary[ArppCategory.CarryForward].Count</span>
-            <span>Delisted @Model.Issue.CategorySummary[ArppCategory.Delisted].Count</span>
+            <span class="arpp-kpi__label">Category breakdown</span>
+            <div class="arpp-category-breakdown">
+                <span>New <strong>@Model.Issue.CategorySummary[ArppCategory.New].Count</strong></span>
+                <span>CL <strong>@Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count</strong></span>
+                <span>CF <strong>@Model.Issue.CategorySummary[ArppCategory.CarryForward].Count</strong></span>
+                <span>Delisted <strong>@Model.Issue.CategorySummary[ArppCategory.Delisted].Count</strong></span>
+            </div>
         </article>
     </section>
 
@@ -146,7 +187,7 @@
                     <div class="arpp-document-file__icon" aria-hidden="true"><span class="bi bi-file-earmark-pdf"></span></div>
                     <div class="arpp-document-file__identity">
                         <strong>@attachment.OriginalFileName</strong>
-                        <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes) · Uploaded @attachment.UploadedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span>
+                        <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes) · Uploaded @Model.FormatIst(attachment.UploadedAtUtc)</span>
                         <small>SHA-256 @(attachment.Sha256[..Math.Min(12, attachment.Sha256.Length)])…</small>
                     </div>
                     <div class="arpp-document-file__actions">
@@ -201,7 +242,19 @@
                                     <div class="arpp-project-reference">@entry.ProjectReference</div>
                                     @if (entry.ProjectId.HasValue)
                                     {
-                                        <div class="arpp-linked-project"><span class="bi bi-link-45deg" aria-hidden="true"></span><a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId">@entry.ProjectName</a>@if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber)) { <span>@entry.ProjectCaseFileNumber</span> }@if (!string.IsNullOrWhiteSpace(entry.ProjectStatus)) { <span>@entry.ProjectStatus</span> }<a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId" class="arpp-history-link">History</a></div>
+                                        <div class="arpp-linked-project">
+                                            <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId">@entry.ProjectName</a>
+                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
+                                            {
+                                                <span>@entry.ProjectCaseFileNumber</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
+                                            {
+                                                <span>PRISM status: @entry.ProjectStatus</span>
+                                            }
+                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId" class="arpp-history-link">History</a>
+                                        </div>
                                     }
                                     else
                                     {
@@ -219,20 +272,70 @@
         </section>
     }
 
-    <footer class="arpp-record-footer"><span>Created @Model.Issue.CreatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span><span>Last updated @Model.Issue.UpdatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span></footer>
+    <footer class="arpp-record-footer"><span>Created @Model.FormatIst(Model.Issue.CreatedAtUtc)</span><span>Last updated @Model.FormatIst(Model.Issue.UpdatedAtUtc)</span></footer>
 </div>
 
 @if (!Model.Issue.IsVerified && Model.CanVerify)
 {
-    <div class="modal fade" id="arppVerifyModal" tabindex="-1" aria-labelledby="arppVerifyModalLabel" aria-hidden="true">
-        <div class="modal-dialog"><div class="modal-content"><form method="post" asp-page-handler="Verify" asp-route-id="@Model.Issue.Id"><input type="hidden" name="issueRowVersion" value="@Model.Issue.RowVersion" /><div class="modal-header"><h2 class="modal-title fs-5" id="arppVerifyModalLabel">Verify and lock issue</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p>Confirm that the structured rows have been checked against the attached HQ PDF. Issued data and the PDF will be locked.</p><label asp-for="VerificationNote" class="form-label">Verification note <span class="text-body-secondary">optional</span></label><textarea asp-for="VerificationNote" class="form-control" rows="3" maxlength="500"></textarea></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary"><span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock</button></div></form></div></div>
+    <div class="modal fade" id="arppVerifyModal" tabindex="-1" aria-labelledby="arppVerifyModalLabel" aria-hidden="true" data-arpp-modal>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="Verify" asp-route-id="@Model.Issue.Id">
+                    <input type="hidden" name="issueRowVersion" value="@Model.Issue.RowVersion" />
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="arppVerifyModalLabel">Verify and lock issue</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Confirm that the structured rows have been checked against the attached HQ PDF. Issued data and the PDF will be locked.</p>
+                        <label asp-for="VerificationNote" class="form-label">Verification note <span class="text-body-secondary">optional</span></label>
+                        <textarea asp-for="VerificationNote" class="form-control" rows="3" maxlength="500"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary"><span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 }
 
 @if (Model.Issue.IsVerified && Model.CanUnlock)
 {
-    <div class="modal fade" id="arppUnlockModal" tabindex="-1" aria-labelledby="arppUnlockModalLabel" aria-hidden="true">
-        <div class="modal-dialog"><div class="modal-content"><form method="post" asp-page-handler="Unlock" asp-route-id="@Model.Issue.Id"><input type="hidden" name="issueRowVersion" value="@Model.Issue.RowVersion" /><div class="modal-header"><h2 class="modal-title fs-5" id="arppUnlockModalLabel">Unlock for correction</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-warning">Unlocking permits changes to an authoritative HQ record. The reason is mandatory and audited.</div><label asp-for="UnlockReason" class="form-label">Reason for unlocking</label><textarea asp-for="UnlockReason" class="form-control" rows="4" minlength="10" maxlength="500" required></textarea></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning"><span class="bi bi-unlock" aria-hidden="true"></span> Unlock issue</button></div></form></div></div>
+    <div class="modal fade" id="arppUnlockModal" tabindex="-1" aria-labelledby="arppUnlockModalLabel" aria-hidden="true" data-arpp-modal data-arpp-unlock-modal>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="Unlock" asp-route-id="@Model.Issue.Id" data-arpp-unlock-form>
+                    <input type="hidden" name="issueRowVersion" value="@Model.Issue.RowVersion" />
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="arppUnlockModalLabel">Unlock for correction</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">Unlocking permits changes to an authoritative HQ record. The reason is mandatory and audited.</div>
+                        <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+                        <label asp-for="UnlockInput.Reason" class="form-label">Reason for unlocking</label>
+                        <textarea asp-for="UnlockInput.Reason"
+                                  class="form-control"
+                                  rows="4"
+                                  minlength="10"
+                                  maxlength="500"
+                                  required
+                                  aria-describedby="unlockReasonHelp"
+                                  data-arpp-unlock-reason></textarea>
+                        <div id="unlockReasonHelp" class="form-text">Describe the correction required. Minimum 10 characters. Example: Add newly received project row under Serial No. 48.</div>
+                        <span asp-validation-for="UnlockInput.Reason" class="text-danger small" data-arpp-unlock-validation></span>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning" data-arpp-unlock-submit>
+                            <span class="bi bi-unlock" aria-hidden="true"></span> <span data-arpp-unlock-submit-label>Unlock issue</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 }
 

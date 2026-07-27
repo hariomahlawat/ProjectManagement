@@ -1,12 +1,15 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Helpers;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Arpp;
 
@@ -45,6 +48,11 @@ public sealed class DetailsModel : PageModel
     public bool CanManage { get; private set; }
     public bool CanVerify { get; private set; }
     public bool CanUnlock { get; private set; }
+    public bool ReopenUnlockModal { get; private set; }
+
+    public bool IsVerificationReady =>
+        Issue.Entries.Count > 0 &&
+        Issue.Attachment is not null;
 
     public string MaxAttachmentSizeLabel => FileSizeFormatter.FormatFileSize(
         _attachmentOptions.MaxFileSizeBytes > 0
@@ -58,7 +66,8 @@ public sealed class DetailsModel : PageModel
     public string? VerificationNote { get; set; }
 
     [BindProperty]
-    public string UnlockReason { get; set; } = string.Empty;
+    [ValidateNever]
+    public UnlockInputModel UnlockInput { get; set; } = new();
 
     public async Task<IActionResult> OnGetAsync(long id, CancellationToken cancellationToken)
         => await LoadPageAsync(id, cancellationToken) ? Page() : NotFound();
@@ -147,20 +156,37 @@ public sealed class DetailsModel : PageModel
     {
         if (!await IsAuthorisedAsync(ProjectOfficeReportsPolicies.UnlockArpp)) return Forbid();
 
+        // Validate this handler-specific model deliberately so unrelated PDF or verification
+        // posts are not affected by the mandatory unlock reason.
+        if (!TryValidateModel(UnlockInput, nameof(UnlockInput)))
+        {
+            ReopenUnlockModal = true;
+            return await LoadPageAsync(id, cancellationToken) ? Page() : NotFound();
+        }
+
         var result = await _commandService.UnlockAsync(
             new ArppUnlockCommand(
                 id,
                 issueRowVersion,
-                UnlockReason,
+                UnlockInput.Reason,
                 CurrentUserId(),
                 User.Identity?.Name),
             cancellationToken);
+
+        if (!result.Success && ApplyUnlockFieldErrors(result))
+        {
+            ReopenUnlockModal = true;
+            return await LoadPageAsync(id, cancellationToken) ? Page() : NotFound();
+        }
 
         TempData[result.Success ? "StatusMessage" : "ErrorMessage"] = result.Success
             ? result.Message
             : BuildErrorMessage(result);
         return RedirectToPage("/ARPP/Details", new { area = "ProjectOfficeReports", id });
     }
+
+    public string FormatIst(DateTimeOffset value)
+        => $"{IstClock.ToIst(value):dd MMM yyyy, hh:mm tt} IST";
 
     private async Task<bool> LoadPageAsync(long id, CancellationToken cancellationToken)
     {
@@ -179,6 +205,27 @@ public sealed class DetailsModel : PageModel
 
     private string CurrentUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+
+    private bool ApplyUnlockFieldErrors(ArppCommandResult result)
+    {
+        var applied = false;
+        foreach (var pair in result.FieldErrors)
+        {
+            if (!string.Equals(pair.Key, nameof(ArppUnlockCommand.Reason), StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var error in pair.Value)
+            {
+                ModelState.AddModelError($"{nameof(UnlockInput)}.{nameof(UnlockInputModel.Reason)}", error);
+            }
+
+            applied = true;
+        }
+
+        return applied;
+    }
 
     private static string BuildErrorMessage(ArppCommandResult result)
     {
@@ -200,5 +247,15 @@ public sealed class DetailsModel : PageModel
                 : string.Empty;
             foreach (var error in pair.Value) ModelState.AddModelError(fieldName, error);
         }
+    }
+
+    public sealed class UnlockInputModel
+    {
+        [Required(ErrorMessage = "Enter the reason for unlocking.")]
+        [StringLength(
+            500,
+            MinimumLength = 10,
+            ErrorMessage = "Enter a clear reason of at least 10 characters.")]
+        public string Reason { get; set; } = string.Empty;
     }
 }

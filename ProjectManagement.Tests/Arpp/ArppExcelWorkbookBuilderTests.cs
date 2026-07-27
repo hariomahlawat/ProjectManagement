@@ -56,6 +56,8 @@ public sealed class ArppExcelWorkbookBuilderTests
         Assert.Equal("Delisted", sheet.Cell(9, 6).GetString());
         Assert.Equal(47_500_000m, sheet.Cell(9, 7).GetDecimal());
         Assert.Contains("₹", sheet.Cell(9, 7).Style.NumberFormat.Format);
+        Assert.Contains("03:30 PM IST", sheet.Cell(3, 1).GetString());
+        Assert.False(sheet.Cell(3, 1).GetString().Contains(" UTC", StringComparison.Ordinal));
     }
 
     private static ApplicationDbContext CreateContext()

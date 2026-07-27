@@ -20,27 +20,28 @@ public sealed class ArppReadService : IArppReadService
         CancellationToken cancellationToken = default)
     {
         var normalizedQuery = query?.Trim();
-        var issues = _db.ArppIssues.AsNoTracking();
+        var hasSearchQuery = !string.IsNullOrWhiteSpace(normalizedQuery);
+        var visibleIssues = _db.ArppIssues.AsNoTracking();
 
         if (financialYearStart.HasValue)
         {
-            issues = issues.Where(issue => issue.FinancialYearStart == financialYearStart.Value);
+            visibleIssues = visibleIssues.Where(issue => issue.FinancialYearStart == financialYearStart.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(normalizedQuery))
+        if (hasSearchQuery)
         {
-            var pattern = $"%{normalizedQuery}%";
-            issues = issues.Where(issue =>
-                EF.Functions.ILike(issue.Name, pattern) ||
+            var searchText = normalizedQuery!.ToLowerInvariant();
+            visibleIssues = visibleIssues.Where(issue =>
+                issue.Name.ToLower().Contains(searchText) ||
                 issue.Entries.Any(entry =>
-                    EF.Functions.ILike(entry.ProjectReference, pattern) ||
-                    EF.Functions.ILike(entry.SerialNumber, pattern) ||
+                    entry.ProjectReference.ToLower().Contains(searchText) ||
+                    entry.SerialNumber.ToLower().Contains(searchText) ||
                     (entry.Project != null &&
-                        (EF.Functions.ILike(entry.Project.Name, pattern) ||
-                         (entry.Project.CaseFileNumber != null && EF.Functions.ILike(entry.Project.CaseFileNumber, pattern))))));
+                        (entry.Project.Name.ToLower().Contains(searchText) ||
+                         (entry.Project.CaseFileNumber != null && entry.Project.CaseFileNumber.ToLower().Contains(searchText))))));
         }
 
-        var rows = await issues
+        var rows = await visibleIssues
             .OrderByDescending(issue => issue.FinancialYearStart)
             .ThenBy(issue => issue.IssueSequence)
             .Select(issue => new ArppIssueListItem(
@@ -74,20 +75,63 @@ public sealed class ArppReadService : IArppReadService
                 issue.VerifiedAtUtc))
             .ToListAsync(cancellationToken);
 
-        var issueIds = rows.Select(row => row.Id).ToArray();
-        var scopedEntries = await _db.ArppEntries
-            .AsNoTracking()
-            .Where(entry => issueIds.Contains(entry.ArppIssueId))
-            .Select(entry => new ScopedEntry(
-                entry.Id,
-                entry.ArppIssueId,
-                entry.ProjectId,
-                entry.Category,
-                entry.IpaCost,
-                entry.Issue.FinancialYearStart,
-                entry.Issue.IssueSequence,
-                entry.Issue.IssueDate))
-            .ToListAsync(cancellationToken);
+        var visibleIssueIds = rows.Select(row => row.Id).ToArray();
+        var displayedEntries = visibleIssueIds.Length == 0
+            ? new List<ScopedEntry>()
+            : await _db.ArppEntries
+                .AsNoTracking()
+                .Where(entry => visibleIssueIds.Contains(entry.ArppIssueId))
+                .Select(entry => new ScopedEntry(
+                    entry.Id,
+                    entry.ArppIssueId,
+                    entry.ProjectId,
+                    entry.Category,
+                    entry.IpaCost,
+                    entry.Issue.FinancialYearStart,
+                    entry.Issue.IssueSequence,
+                    entry.Issue.IssueDate))
+                .ToListAsync(cancellationToken);
+
+        // A free-text search controls which documents are displayed, but it must not make
+        // an older matching row authoritative. Resolve the latest position of every linked
+        // project found in those documents from the complete applicable ARPP history.
+        IReadOnlyList<ScopedEntry> authorityCandidates = displayedEntries;
+        if (hasSearchQuery)
+        {
+            var relevantProjectIds = displayedEntries
+                .Where(entry => entry.ProjectId.HasValue)
+                .Select(entry => entry.ProjectId!.Value)
+                .Distinct()
+                .ToArray();
+
+            if (relevantProjectIds.Length == 0)
+            {
+                authorityCandidates = [];
+            }
+            else
+            {
+                var candidates = _db.ArppEntries
+                    .AsNoTracking()
+                    .Where(entry => entry.ProjectId.HasValue && relevantProjectIds.Contains(entry.ProjectId.Value));
+
+                if (financialYearStart.HasValue)
+                {
+                    candidates = candidates.Where(entry => entry.Issue.FinancialYearStart == financialYearStart.Value);
+                }
+
+                authorityCandidates = await candidates
+                    .Select(entry => new ScopedEntry(
+                        entry.Id,
+                        entry.ArppIssueId,
+                        entry.ProjectId,
+                        entry.Category,
+                        entry.IpaCost,
+                        entry.Issue.FinancialYearStart,
+                        entry.Issue.IssueSequence,
+                        entry.Issue.IssueDate))
+                    .ToListAsync(cancellationToken);
+            }
+        }
 
         var availableFinancialYears = await _db.ArppIssues
             .AsNoTracking()
@@ -102,15 +146,29 @@ public sealed class ArppReadService : IArppReadService
             .Select(group =>
             {
                 var groupIssueIds = group.Select(item => item.Id).ToHashSet();
-                var groupEntries = scopedEntries.Where(entry => groupIssueIds.Contains(entry.IssueId)).ToArray();
-                var groupAuthoritative = GetAuthoritativeLinkedEntries(groupEntries);
+                var groupDisplayedEntries = displayedEntries
+                    .Where(entry => groupIssueIds.Contains(entry.IssueId))
+                    .ToArray();
+                var groupRelevantProjectIds = groupDisplayedEntries
+                    .Where(entry => entry.ProjectId.HasValue)
+                    .Select(entry => entry.ProjectId!.Value)
+                    .ToHashSet();
+                var groupAuthoritySource = hasSearchQuery
+                    ? authorityCandidates
+                        .Where(entry =>
+                            entry.FinancialYearStart == group.Key &&
+                            entry.ProjectId.HasValue &&
+                            groupRelevantProjectIds.Contains(entry.ProjectId.Value))
+                        .ToArray()
+                    : groupDisplayedEntries;
+                var groupAuthoritative = GetAuthoritativeLinkedEntries(groupAuthoritySource);
                 var groupApproved = groupAuthoritative
                     .Where(entry => IsApprovedCategory(entry.Category))
                     .ToArray();
                 var groupDelisted = groupAuthoritative
                     .Where(entry => entry.Category == ArppCategory.Delisted)
                     .ToArray();
-                var groupUnlinked = groupEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
+                var groupUnlinked = groupDisplayedEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
 
                 return new ArppFinancialYearGroup(
                     group.Key,
@@ -125,14 +183,14 @@ public sealed class ArppReadService : IArppReadService
             })
             .ToArray();
 
-        var authoritativeLinked = GetAuthoritativeLinkedEntries(scopedEntries);
+        var authoritativeLinked = GetAuthoritativeLinkedEntries(authorityCandidates);
         var approvedLinked = authoritativeLinked
             .Where(entry => IsApprovedCategory(entry.Category))
             .ToArray();
         var delistedLinked = authoritativeLinked
             .Where(entry => entry.Category == ArppCategory.Delisted)
             .ToArray();
-        var unlinkedEntries = scopedEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
+        var unlinkedEntries = displayedEntries.Where(entry => !entry.ProjectId.HasValue).ToArray();
 
         return new ArppRegisterResult(
             groups,
@@ -200,6 +258,31 @@ public sealed class ArppReadService : IArppReadService
             categorySummary.TryAdd(category, new ArppCategorySummary(category, 0, 0m));
         }
 
+        string? verifiedByDisplayName = null;
+        if (!string.IsNullOrWhiteSpace(issue.VerifiedByUserId))
+        {
+            var verifier = await _db.Users
+                .AsNoTracking()
+                .Where(user => user.Id == issue.VerifiedByUserId)
+                .Select(user => new
+                {
+                    user.Rank,
+                    user.FullName,
+                    user.UserName,
+                    user.Email
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            verifiedByDisplayName = verifier is null
+                ? issue.VerifiedByUserId
+                : BuildUserDisplayName(
+                    verifier.Rank,
+                    verifier.FullName,
+                    verifier.UserName,
+                    verifier.Email,
+                    issue.VerifiedByUserId);
+        }
+
         return new ArppIssueDetails(
             issue.Id,
             issue.FinancialYearStart,
@@ -229,6 +312,7 @@ public sealed class ArppReadService : IArppReadService
             issue.IsVerified,
             issue.VerifiedAtUtc,
             issue.VerifiedByUserId,
+            verifiedByDisplayName,
             issue.VerificationNote);
     }
 
@@ -364,6 +448,38 @@ public sealed class ArppReadService : IArppReadService
                 : project.LifecycleStatus == ProjectLifecycleStatus.Cancelled
                     ? "Cancelled"
                     : "Ongoing";
+
+    private static string BuildUserDisplayName(
+        string? rank,
+        string? fullName,
+        string? userName,
+        string? email,
+        string fallbackUserId)
+    {
+        var normalizedRank = rank?.Trim();
+        var normalizedName = fullName?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(normalizedRank) && !string.IsNullOrWhiteSpace(normalizedName))
+        {
+            return $"{normalizedRank} {normalizedName}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedName))
+        {
+            return normalizedName;
+        }
+
+        var normalizedUserName = userName?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedUserName))
+        {
+            return normalizedUserName;
+        }
+
+        var normalizedEmail = email?.Trim();
+        return string.IsNullOrWhiteSpace(normalizedEmail)
+            ? fallbackUserId
+            : normalizedEmail;
+    }
 
     private sealed record ScopedEntry(
         long EntryId,

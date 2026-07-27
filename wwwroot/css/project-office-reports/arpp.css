@@ -1309,3 +1309,126 @@
 [data-bs-theme="dark"] .arpp-issue-card__value-line--delisted > strong {
     color: #ffd166;
 }
+
+/* SECTION: ARPP verification clarity and compact details presentation */
+.arpp-verification-meta {
+    display: grid;
+    gap: .18rem;
+    margin: .45rem 0 0;
+    font-size: .74rem;
+}
+
+.arpp-verification-meta > div {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    gap: .5rem;
+}
+
+.arpp-verification-meta dt {
+    margin: 0;
+    color: inherit;
+    font-weight: 600;
+    opacity: .72;
+}
+
+.arpp-verification-meta dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.arpp-readiness-list {
+    display: grid;
+    gap: .16rem;
+    padding: 0;
+    margin: .45rem 0 0;
+    list-style: none;
+    font-size: .72rem;
+}
+
+.arpp-readiness-list li {
+    display: flex;
+    align-items: center;
+    gap: .38rem;
+}
+
+.arpp-readiness-list .is-ready {
+    color: #146c43;
+}
+
+.arpp-readiness-list .is-pending {
+    color: var(--arpp-muted);
+}
+
+.arpp-kpi--categories {
+    align-items: stretch;
+    justify-content: flex-start;
+}
+
+.arpp-kpi--categories .arpp-kpi__label {
+    color: var(--arpp-muted);
+    font-size: .77rem;
+    font-weight: 600;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+
+.arpp-category-breakdown {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .18rem .75rem;
+    margin-top: .35rem;
+}
+
+.arpp-category-breakdown span {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+    color: var(--arpp-muted);
+    font-size: .75rem;
+}
+
+.arpp-category-breakdown strong {
+    margin: 0;
+    color: var(--bs-body-color);
+    font-size: .8rem;
+}
+
+.arpp-table-wrap--details .arpp-details-table {
+    width: 100%;
+    min-width: 1040px;
+    table-layout: auto;
+}
+
+.arpp-details-table th:nth-child(1),
+.arpp-details-table td:nth-child(1) { width: 2.75rem; }
+.arpp-details-table th:nth-child(2),
+.arpp-details-table td:nth-child(2) { width: 5.25rem; }
+.arpp-details-table th:nth-child(4),
+.arpp-details-table td:nth-child(4) { width: 7.25rem; }
+.arpp-details-table th:nth-child(5),
+.arpp-details-table td:nth-child(5) { width: 9rem; }
+.arpp-details-table th:nth-child(6),
+.arpp-details-table td:nth-child(6) { width: 8rem; }
+.arpp-details-table th:nth-child(7),
+.arpp-details-table td:nth-child(7) { width: 6.5rem; }
+.arpp-details-table th:nth-child(8),
+.arpp-details-table td:nth-child(8) { width: 5.25rem; }
+
+[data-arpp-unlock-reason].is-invalid {
+    padding-right: calc(1.5em + .75rem);
+}
+
+@media (max-width: 575.98px) {
+    .arpp-verification-meta > div {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .arpp-category-breakdown {
+        grid-template-columns: 1fr;
+    }
+}
+
+[data-bs-theme="dark"] .arpp-readiness-list .is-ready {
+    color: #75d6a4;
+}
