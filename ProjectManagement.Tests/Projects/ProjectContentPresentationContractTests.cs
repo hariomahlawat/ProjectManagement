@@ -32,16 +32,31 @@ public sealed class ProjectContentPresentationContractTests
     }
 
     [Fact]
-    public void ProjectBrief_UsesConcise100To150WordGuidanceAnd200WordMaximum()
+    public void ProjectBrief_UsesProfessionalReadinessBandsAnd200WordMaximum()
     {
         var limits = ReadRepoFile("Models", "ProjectFieldLimits.cs");
         var partial = ReadRepoFile("Pages", "Projects", "_ProjectContentTabs.cshtml");
 
+        Assert.Contains("ProjectBriefConciseMinimumWords = 50", limits, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefRecommendedMinimumWords = 100", limits, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefRecommendedMaximumWords = 150", limits, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefHardMaximumWords = 200", limits, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefReadiness.NeedsExpansion => (\"Needs expansion\", \"is-warning\")", partial, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefReadiness.Concise => (\"Concise\", \"is-neutral\")", partial, StringComparison.Ordinal);
         Assert.DoesNotContain("Brief incomplete", partial, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectContent_PresentsOnlyUsefulGuidanceWithoutDuplicatedStatusText()
+    {
+        var partial = ReadRepoFile("Pages", "Projects", "_ProjectContentTabs.cshtml");
+
+        Assert.DoesNotContain("Concise reporting content and the full authoritative narrative.", partial, StringComparison.Ordinal);
+        Assert.DoesNotContain("Full authoritative narrative.", partial, StringComparison.Ordinal);
+        Assert.DoesNotContain("Draft for briefing — add", partial, StringComparison.Ordinal);
+        Assert.Contains("Add @remainingCapabilityCount more distinct capability", partial, StringComparison.Ordinal);
+        Assert.Contains("Markdown supported", partial, StringComparison.Ordinal);
+        Assert.Contains("Markdown optional.", partial, StringComparison.Ordinal);
     }
 
     [Fact]

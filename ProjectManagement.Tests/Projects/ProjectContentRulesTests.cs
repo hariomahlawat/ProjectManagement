@@ -34,7 +34,9 @@ public sealed class ProjectContentRulesTests
 
     [Theory]
     [InlineData(0, ProjectBriefReadiness.NotRecorded)]
-    [InlineData(1, ProjectBriefReadiness.Concise)]
+    [InlineData(1, ProjectBriefReadiness.NeedsExpansion)]
+    [InlineData(49, ProjectBriefReadiness.NeedsExpansion)]
+    [InlineData(50, ProjectBriefReadiness.Concise)]
     [InlineData(99, ProjectBriefReadiness.Concise)]
     [InlineData(100, ProjectBriefReadiness.Recommended)]
     [InlineData(150, ProjectBriefReadiness.Recommended)]

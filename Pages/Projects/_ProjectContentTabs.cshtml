@@ -10,7 +10,13 @@
     var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
     var descriptionIsActive = string.Equals(activeTab, "description", StringComparison.OrdinalIgnoreCase);
     var capabilityEditorCount = Math.Max(1, Model.CapabilityInput.Statements.Count);
+    var briefWordLabel = Model.ProjectBriefWordCount == 1 ? "word" : "words";
     var descriptionCharacterCount = Model.ContentDescriptionInput.Description?.Length ?? 0;
+    var descriptionWordLabel = Model.DescriptionWordCount == 1 ? "word" : "words";
+    var remainingCapabilityCount = Math.Max(
+        0,
+        ProjectFieldLimits.CapabilityRecommendedMinimumCount - Model.CapabilityStatements.Count);
+    var remainingCapabilityLabel = remainingCapabilityCount == 1 ? "statement" : "statements";
     var descriptionPreviewUrl = Url.Page(
         "/Projects/Overview",
         "PreviewProjectDescription",
@@ -19,6 +25,7 @@
     var (briefStatusText, briefStatusClass) = Model.BriefReadiness switch
     {
         ProjectBriefReadiness.NotRecorded => ("Not recorded", "is-neutral"),
+        ProjectBriefReadiness.NeedsExpansion => ("Needs expansion", "is-warning"),
         ProjectBriefReadiness.Concise => ("Concise", "is-neutral"),
         ProjectBriefReadiness.Recommended => ("Recommended length", "is-ready"),
         ProjectBriefReadiness.AboveRecommended => ("Consider shortening", "is-warning"),
@@ -41,10 +48,7 @@
          data-project-id="@Model.Project.Id"
          data-save-timeout-ms="20000">
     <div class="project-content__header">
-        <div>
-            <h3 class="h6 mb-1">Project content</h3>
-            <p class="text-muted small mb-0">Concise reporting content and the full authoritative narrative.</p>
-        </div>
+        <h3 class="h6 mb-0">Project content</h3>
     </div>
 
     @if (TempData["ProjectContentError"] is string contentError)
@@ -80,7 +84,7 @@
                 Project brief
                 @if (Model.ProjectBriefWordCount > 0)
                 {
-                    <span class="project-content__count">@Model.ProjectBriefWordCount words</span>
+                    <span class="project-content__count">@Model.ProjectBriefWordCount @briefWordLabel</span>
                 }
             </button>
         </li>
@@ -169,6 +173,7 @@
                               class="form-control project-content__textarea"
                               rows="10"
                               maxlength="@ProjectFieldLimits.ProjectBriefMaxLength"
+                              data-word-concise-min="@ProjectFieldLimits.ProjectBriefConciseMinimumWords"
                               data-word-min="@ProjectFieldLimits.ProjectBriefRecommendedMinimumWords"
                               data-word-recommended-max="@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords"
                               data-word-hard-max="@ProjectFieldLimits.ProjectBriefHardMaximumWords"
@@ -177,10 +182,10 @@
                     <div class="project-content__editor-meta" id="project-brief-editor-meta">
                         <span>
                             Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefRecommendedMaximumWords words.
-                            Maximum: @ProjectFieldLimits.ProjectBriefHardMaximumWords.
+                            Maximum: @ProjectFieldLimits.ProjectBriefHardMaximumWords words.
                         </span>
                         <span class="project-content__editor-readiness">
-                            <span data-word-count>@Model.ProjectBriefWordCount words</span>
+                            <span data-word-count>@Model.ProjectBriefWordCount @briefWordLabel</span>
                             <span class="project-content__status @briefStatusClass" data-word-status>@briefStatusText</span>
                         </span>
                     </div>
@@ -228,7 +233,7 @@
                     @if (Model.CapabilityReadiness == ProjectCapabilityReadiness.Draft)
                     {
                         <div class="project-content__advisory">
-                            Draft for briefing — add @(ProjectFieldLimits.CapabilityRecommendedMinimumCount - Model.CapabilityStatements.Count) more statement(s) for a presentation-ready overview.
+                            Add @remainingCapabilityCount more distinct capability @remainingCapabilityLabel for a presentation-ready overview.
                         </div>
                     }
                 }
@@ -337,10 +342,11 @@
             <div class="project-content__view" data-content-view>
                 <div class="project-content__toolbar">
                     <div class="project-content__guidance">
-                        Full authoritative narrative. Markdown formatting is supported.
+                        <span>Markdown supported</span>
                         @if (Model.DescriptionWordCount > 0)
                         {
-                            <span> @Model.DescriptionWordCount words.</span>
+                            <span aria-hidden="true"> · </span>
+                            <span>@Model.DescriptionWordCount @descriptionWordLabel</span>
                         }
                     </div>
                     @if (canEdit)
@@ -410,7 +416,7 @@
                               data-character-counter
                               aria-describedby="project-description-editor-meta"></textarea>
                     <div class="project-content__editor-meta" id="project-description-editor-meta">
-                        <span>Full authoritative narrative. Markdown is optional.</span>
+                        <span>Markdown optional.</span>
                         <span data-character-count>@descriptionCharacterCount.ToString("N0") / @ProjectFieldLimits.DescriptionMaxLength.ToString("N0") characters</span>
                     </div>
                     <div class="project-content__description-preview d-none" data-description-preview-panel>

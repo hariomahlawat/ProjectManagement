@@ -8,8 +8,10 @@ namespace ProjectManagement.Models
 
         // SECTION: Project brief
         // The database character limit accommodates normal editorial variation.
-        // The UI recommends 100–150 words and the service applies a hard 200-word ceiling.
+        // 1–49 words need expansion; 50–99 are concise; 100–150 are recommended.
+        // The service applies a hard 200-word ceiling.
         public const int ProjectBriefMaxLength = 3000;
+        public const int ProjectBriefConciseMinimumWords = 50;
         public const int ProjectBriefRecommendedMinimumWords = 100;
         public const int ProjectBriefRecommendedMaximumWords = 150;
         public const int ProjectBriefHardMaximumWords = 200;

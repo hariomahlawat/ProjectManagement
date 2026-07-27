@@ -78,12 +78,17 @@
 
     const getBriefReadiness = (textarea) => {
         const words = countWords(textarea.value);
+        const conciseMinimum = parsePositiveInt(textarea.dataset.wordConciseMin, 50);
         const recommendedMinimum = parsePositiveInt(textarea.dataset.wordMin, 100);
         const recommendedMaximum = parsePositiveInt(textarea.dataset.wordRecommendedMax, 150);
         const hardMaximum = parsePositiveInt(textarea.dataset.wordHardMax, 200);
 
         if (words === 0) {
             return { words, text: 'Not recorded', statusClass: 'is-neutral' };
+        }
+
+        if (words < conciseMinimum) {
+            return { words, text: 'Needs expansion', statusClass: 'is-warning' };
         }
 
         if (words < recommendedMinimum) {

@@ -49,10 +49,11 @@ public sealed record ProjectContentSaveResult(
 public enum ProjectBriefReadiness
 {
     NotRecorded = 0,
-    Concise = 1,
-    Recommended = 2,
-    AboveRecommended = 3,
-    ExceedsMaximum = 4
+    NeedsExpansion = 1,
+    Concise = 2,
+    Recommended = 3,
+    AboveRecommended = 4,
+    ExceedsMaximum = 5
 }
 
 public enum ProjectCapabilityReadiness
@@ -95,6 +96,11 @@ public static partial class ProjectContentRules
         if (wordCount <= 0)
         {
             return ProjectBriefReadiness.NotRecorded;
+        }
+
+        if (wordCount < ProjectFieldLimits.ProjectBriefConciseMinimumWords)
+        {
+            return ProjectBriefReadiness.NeedsExpansion;
         }
 
         if (wordCount < ProjectFieldLimits.ProjectBriefRecommendedMinimumWords)

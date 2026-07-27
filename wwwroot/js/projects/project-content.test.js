@@ -24,6 +24,7 @@ function createBriefDom(fetchImpl, initialValue = 'Initial brief') {
                     <input type="hidden" name="ContentBriefInput.RowVersion" value="row-version">
                     <textarea name="ContentBriefInput.Brief"
                               data-word-counter
+                              data-word-concise-min="50"
                               data-word-min="100"
                               data-word-recommended-max="150"
                               data-word-hard-max="200">${initialValue}</textarea>
@@ -172,7 +173,7 @@ test('concurrency failure restores controls and preserves the entered content', 
     assert.match(error.textContent, /changed by another user/i);
 });
 
-test('brief readiness uses concise, 100–150 recommended and 200-word maximum bands', () => {
+test('brief readiness uses needs-expansion, concise, recommended and maximum bands', () => {
     const dom = createBriefDom(async () => jsonResponse(200, { ok: true }));
     const { window } = dom;
     const document = window.document;
@@ -184,7 +185,16 @@ test('brief readiness uses concise, 100–150 recommended and 200-word maximum b
         textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
     };
 
-    setWordCount(77);
+    setWordCount(2);
+    assert.equal(status.textContent, 'Needs expansion');
+
+    setWordCount(49);
+    assert.equal(status.textContent, 'Needs expansion');
+
+    setWordCount(50);
+    assert.equal(status.textContent, 'Concise');
+
+    setWordCount(99);
     assert.equal(status.textContent, 'Concise');
 
     setWordCount(100);
