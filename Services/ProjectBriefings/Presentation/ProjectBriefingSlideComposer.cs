@@ -134,26 +134,40 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined)
         {
+            var includeCapabilities = data.NarrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview
+                or ProjectBriefingNarrativeMode.Both;
+            var includeProjectBrief = data.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief
+                or ProjectBriefingNarrativeMode.Both;
+
             foreach (var project in orderedProjects)
             {
                 var capturedProject = project;
-                var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
-                var primaryPage = capability.Pages[0];
-                plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                    RenderProjectDetail(canvas, data, capturedProject, primaryPage)));
-
-                var continuationPages = capability.Pages.Skip(1).ToArray();
-                for (var index = 0; index < continuationPages.Length; index++)
+                if (includeCapabilities)
                 {
-                    var capturedPage = continuationPages[index];
-                    var capturedIndex = index;
+                    var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
+                    var primaryPage = capability.Pages[0];
                     plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                        RenderCapabilityContinuation(
-                            canvas,
-                            capturedProject,
-                            capturedPage,
-                            capturedIndex + 1,
-                            continuationPages.Length)));
+                        RenderProjectDetail(canvas, data, capturedProject, primaryPage)));
+
+                    var continuationPages = capability.Pages.Skip(1).ToArray();
+                    for (var index = 0; index < continuationPages.Length; index++)
+                    {
+                        var capturedPage = continuationPages[index];
+                        var capturedIndex = index;
+                        plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
+                            RenderCapabilityContinuation(
+                                canvas,
+                                capturedProject,
+                                capturedPage,
+                                capturedIndex + 1,
+                                continuationPages.Length)));
+                    }
+                }
+
+                if (includeProjectBrief)
+                {
+                    plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
+                        RenderProjectBrief(canvas, data, capturedProject)));
                 }
             }
         }
@@ -782,6 +796,191 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             contentBottom - contentTop,
             "CAPABILITY OVERVIEW",
             capabilityPage);
+    }
+
+    private static void RenderProjectBrief(
+        SlideCanvas canvas,
+        ProjectBriefingPresentationData data,
+        ProjectBriefingPresentationProject project)
+    {
+        AddSlideTitle(
+            canvas,
+            Truncate(project.ProjectName, 82),
+            $"PROJECT BRIEF · {project.LifecycleDisplay} · {CategoryLine(project)}");
+
+        const double leftX = .60;
+        const double leftWidth = 3.65;
+        const double rightX = 4.48;
+        const double rightWidth = 8.25;
+        const double top = 1.28;
+        const double bottom = 6.70;
+        const double gap = .16;
+
+        var hasPhoto = project.CoverPhoto is { Length: > 0 };
+        const double photoHeight = 2.10;
+        if (hasPhoto)
+        {
+            canvas.AddRoundedRect(
+                leftX,
+                top,
+                leftWidth,
+                photoHeight,
+                canvas.Theme.Surface,
+                canvas.Theme.Border,
+                .08,
+                "Project brief photograph frame");
+            var imageHeight = photoHeight - .20;
+            var imageWidth = Math.Min(leftWidth - .20, imageHeight * 16d / 9d);
+            canvas.AddImage(
+                project.CoverPhoto!,
+                project.CoverPhotoContentType,
+                leftX + ((leftWidth - imageWidth) / 2d),
+                top + .10,
+                imageWidth,
+                imageHeight,
+                $"{project.ProjectName} cover photograph");
+        }
+        else
+        {
+            canvas.AddTextShape(
+                leftX,
+                top,
+                leftWidth,
+                photoHeight,
+                canvas.Theme.Placeholder,
+                canvas.Theme.Border,
+                .75,
+                "roundRect",
+                new[]
+                {
+                    new RichTextParagraph(
+                        new[]
+                        {
+                            new RichTextRun(
+                                "PHOTOGRAPH NOT AVAILABLE",
+                                8.7,
+                                canvas.Theme.TextMuted,
+                                Bold: true)
+                        },
+                        Align: "ctr")
+                },
+                "Project photograph placeholder",
+                verticalAnchor: "ctr",
+                allowAutoFit: false,
+                leftInset: .12,
+                rightInset: .12,
+                topInset: .06,
+                bottomInset: .06);
+        }
+
+        var costCards = CostCards(canvas, data.CostMode, project);
+        var costHeight = costCards.Count == 0 ? 0d : .98;
+        var costY = bottom - costHeight;
+        var statusY = top + photoHeight + gap;
+        var statusBottom = costCards.Count == 0 ? bottom : costY - gap;
+        AddPresentStatusCard(canvas, leftX, statusY, leftWidth, statusBottom - statusY, project);
+
+        if (costCards.Count == 1)
+        {
+            AddInfoCard(canvas, leftX, costY, leftWidth, costHeight,
+                costCards[0].Title, costCards[0].Value, costCards[0].Accent, costCards[0].Fill, costCards[0].Note);
+        }
+        else if (costCards.Count == 2)
+        {
+            var cardWidth = (leftWidth - .12) / 2d;
+            AddInfoCard(canvas, leftX, costY, cardWidth, costHeight,
+                costCards[0].Title, costCards[0].Value, costCards[0].Accent, costCards[0].Fill, costCards[0].Note);
+            AddInfoCard(canvas, leftX + cardWidth + .12, costY, cardWidth, costHeight,
+                costCards[1].Title, costCards[1].Value, costCards[1].Accent, costCards[1].Fill, costCards[1].Note);
+        }
+
+        canvas.AddRoundedRect(
+            rightX,
+            top,
+            rightWidth,
+            bottom - top,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            .08,
+            "Project brief panel");
+        canvas.AddRect(
+            rightX,
+            top,
+            .08,
+            bottom - top,
+            canvas.Theme.SecondaryAccent,
+            name: "Project brief accent");
+
+        var paragraphs = BuildProjectBriefParagraphs(canvas, project.ProjectBrief);
+        canvas.AddRichTextBox(
+            rightX + .28,
+            top + .20,
+            rightWidth - .56,
+            bottom - top - .40,
+            paragraphs,
+            "Project brief",
+            verticalAnchor: "t",
+            allowAutoFit: true,
+            leftInset: .05,
+            rightInset: .05,
+            topInset: .02,
+            bottomInset: .02);
+    }
+
+    private static IReadOnlyList<RichTextParagraph> BuildProjectBriefParagraphs(
+        SlideCanvas canvas,
+        string? projectBrief)
+    {
+        var paragraphs = new List<RichTextParagraph>
+        {
+            new(
+                new[]
+                {
+                    new RichTextRun(
+                        "PROJECT BRIEF",
+                        10.5,
+                        canvas.Theme.SecondaryAccent,
+                        Bold: true)
+                },
+                SpaceAfterPoints: 12.0,
+                LineSpacingPoints: 12.6)
+        };
+
+        var isMissing = string.IsNullOrWhiteSpace(projectBrief)
+            || string.Equals(projectBrief.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
+        if (isMissing)
+        {
+            paragraphs.Add(new RichTextParagraph(
+                new[]
+                {
+                    new RichTextRun(
+                        "Project brief not recorded.",
+                        13.0,
+                        canvas.Theme.TextMuted,
+                        Italic: true)
+                },
+                LineSpacingPoints: 16.0));
+            return paragraphs;
+        }
+
+        foreach (var paragraph in projectBrief!
+                     .Replace("\r\n", "\n", StringComparison.Ordinal)
+                     .Replace("\r", "\n", StringComparison.Ordinal)
+                     .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            paragraphs.Add(new RichTextParagraph(
+                new[]
+                {
+                    new RichTextRun(
+                        paragraph.Replace("\n", " ", StringComparison.Ordinal),
+                        13.2,
+                        canvas.Theme.TextPrimary)
+                },
+                SpaceAfterPoints: 9.0,
+                LineSpacingPoints: 17.2));
+        }
+
+        return paragraphs;
     }
 
     private static void RenderCapabilityContinuation(

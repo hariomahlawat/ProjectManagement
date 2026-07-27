@@ -56,6 +56,7 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectRecordHealthService _recordHealthService;
         private readonly ProjectProliferationProfileService _proliferationProfiles;
         private readonly IIndustryPartnerService _industryPartners;
+        private readonly IProjectContentService _projectContentService;
 
         public PlanCompareService PlanCompare { get; }
 
@@ -74,7 +75,8 @@ namespace ProjectManagement.Pages.Projects
             IMarkdownRenderer markdownRenderer,
             ProjectRecordHealthService recordHealthService,
             ProjectProliferationProfileService proliferationProfiles,
-            IIndustryPartnerService industryPartners)
+            IIndustryPartnerService industryPartners,
+            IProjectContentService projectContentService)
         {
             _db = db;
             _procureRead = procureRead;
@@ -91,6 +93,7 @@ namespace ProjectManagement.Pages.Projects
             _recordHealthService = recordHealthService;
             _proliferationProfiles = proliferationProfiles;
             _industryPartners = industryPartners;
+            _projectContentService = projectContentService;
         }
 
         public Project Project { get; private set; } = default!;
@@ -284,6 +287,14 @@ namespace ProjectManagement.Pages.Projects
 
             Project = project;
             DescriptionHtml = _markdownRenderer.ToSafeHtml(project.Description);
+            ProjectBriefHtml = _markdownRenderer.ToSafeHtml(project.ProjectBrief);
+            CapabilityStatements = await _db.ProjectCapabilityStatements
+                .AsNoTracking()
+                .Where(statement => statement.ProjectId == project.Id)
+                .OrderBy(statement => statement.DisplayOrder)
+                .ThenBy(statement => statement.Id)
+                .ToListAsync(ct);
+            InitializeProjectContentEditor(project);
 
             // SECTION: Load only the media needed by the overview. Full libraries are
             // available from the dedicated Documents, Photos and Videos pages.

@@ -20,6 +20,18 @@ namespace ProjectManagement.Models
         [MaxLength(ProjectFieldLimits.DescriptionMaxLength)]
         public string? Description { get; set; }
 
+        /// <summary>
+        /// Searchable 200-250 word project brief used for concise reporting.
+        /// The full description remains the unrestricted authoritative narrative.
+        /// </summary>
+        [MaxLength(ProjectFieldLimits.ProjectBriefMaxLength)]
+        public string? ProjectBrief { get; set; }
+
+        public DateTimeOffset? ContentUpdatedAtUtc { get; set; }
+
+        [MaxLength(450)]
+        public string? ContentUpdatedByUserId { get; set; }
+
         [MaxLength(200)]
         public string? ArmService { get; set; }
 
@@ -124,6 +136,7 @@ namespace ProjectManagement.Models
         private ICollection<ProjectVideo> _videos = new List<ProjectVideo>();
         private ICollection<Remark> _remarks = new List<Remark>();
         private ICollection<ProjectDocument> _documents = new List<ProjectDocument>();
+        private ICollection<ProjectCapabilityStatement> _capabilityStatements = new List<ProjectCapabilityStatement>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -161,6 +174,12 @@ namespace ProjectManagement.Models
         {
             get => _videos;
             set => _videos = value ?? new List<ProjectVideo>();
+        }
+
+        public ICollection<ProjectCapabilityStatement> CapabilityStatements
+        {
+            get => _capabilityStatements;
+            set => _capabilityStatements = value ?? new List<ProjectCapabilityStatement>();
         }
 
         public int? CoverPhotoId { get; set; }

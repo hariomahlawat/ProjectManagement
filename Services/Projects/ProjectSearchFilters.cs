@@ -52,8 +52,8 @@ namespace ProjectManagement.Services.Projects
                 source = source.Where(p =>
                     EF.Functions.ILike(p.Name, like) ||
                     p.Name.ToLower().Contains(normalized) ||
-                    (p.Description != null &&
-                        (EF.Functions.ILike(p.Description!, like) || p.Description!.ToLower().Contains(normalized))) ||
+                    (p.ProjectBrief != null &&
+                        (EF.Functions.ILike(p.ProjectBrief!, like) || p.ProjectBrief!.ToLower().Contains(normalized))) ||
                     (p.CaseFileNumber != null &&
                         (EF.Functions.ILike(p.CaseFileNumber!, like) || p.CaseFileNumber!.ToLower().Contains(normalized))) ||
                     (p.Category != null &&
@@ -164,8 +164,8 @@ namespace ProjectManagement.Services.Projects
                     .ThenByDescending(p =>
                         (p.Name != null &&
                             (EF.Functions.ILike(p.Name, like) || p.Name.ToLower().Contains(normalized))) ||
-                        (p.Description != null &&
-                            (EF.Functions.ILike(p.Description!, like) || p.Description!.ToLower().Contains(normalized))))
+                        (p.ProjectBrief != null &&
+                            (EF.Functions.ILike(p.ProjectBrief!, like) || p.ProjectBrief!.ToLower().Contains(normalized))))
                     .ThenByDescending(p =>
                         p.CaseFileNumber != null &&
                         (EF.Functions.ILike(p.CaseFileNumber!, like) || p.CaseFileNumber!.ToLower().Contains(normalized)))

@@ -43,7 +43,7 @@
             </span>
             <div>
                 <h2 class="pm-card-title h5 mb-0">Project overview</h2>
-                <p class="pm-card-subtitle mb-0">Description and key project facts</p>
+                <p class="pm-card-subtitle mb-0">Key facts and project content</p>
             </div>
         </div>
         @if (canManagePhotos || isThisProjectsPo || isAdmin || isHoD)
@@ -181,13 +181,7 @@
                 }
             </dl>
 
-            @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
-            {
-                <section class="project-description-block">
-                    <h3 class="h6 mb-2">Project description</h3>
-                    <div class="project-overview__description pm-markdown">@Html.Raw(Model.DescriptionHtml)</div>
-                </section>
-            }
+            <partial name="_ProjectContentTabs" model="Model" />
 
             @if (missingDetails.Count > 0)
             {

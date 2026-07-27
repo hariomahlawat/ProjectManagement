@@ -195,6 +195,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             Description = NormalizeDescription(description),
             PresentationMode = ProjectBriefingPresentationMode.Combined,
             CostMode = ProjectBriefingCostMode.Both,
+            NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
             PresentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
             BrandingScope = ProjectBriefingBrandingScope.AllSlides,
             IncludeStageSummary = true,
@@ -229,6 +230,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             Description = source.Description,
             PresentationMode = source.PresentationMode,
             CostMode = source.CostMode,
+            NarrativeMode = source.NarrativeMode,
             PresentationTheme = source.PresentationTheme,
             BrandingScope = source.BrandingScope,
             IncludeStageSummary = source.IncludeStageSummary,
@@ -273,6 +275,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         ValidateEnums(
             command.PresentationMode,
             command.CostMode,
+            command.NarrativeMode,
             command.PresentationTheme,
             command.BrandingScope);
         var normalizedName = NormalizeName(command.Name);
@@ -283,6 +286,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.Description = NormalizeDescription(command.Description);
         deck.PresentationMode = command.PresentationMode;
         deck.CostMode = command.CostMode;
+        deck.NarrativeMode = command.NarrativeMode;
         deck.PresentationTheme = command.PresentationTheme;
         deck.BrandingScope = command.BrandingScope;
         deck.IncludeStageSummary = command.IncludeStageSummary;
@@ -615,6 +619,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["DeckName"] = deck.Name,
             ["PresentationMode"] = deck.PresentationMode.ToString(),
             ["CostMode"] = deck.CostMode.ToString(),
+            ["NarrativeMode"] = deck.NarrativeMode.ToString(),
             ["PresentationTheme"] = deck.PresentationTheme.ToString(),
             ["BrandingScope"] = deck.BrandingScope.ToString()
         };
@@ -670,15 +675,17 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     private static void ValidateEnums(
         ProjectBriefingPresentationMode presentationMode,
         ProjectBriefingCostMode costMode,
+        ProjectBriefingNarrativeMode narrativeMode,
         ProjectBriefingPresentationTheme presentationTheme,
         ProjectBriefingBrandingScope brandingScope)
     {
         if (!Enum.IsDefined(presentationMode)
             || !Enum.IsDefined(costMode)
+            || !Enum.IsDefined(narrativeMode)
             || !Enum.IsDefined(presentationTheme)
             || !Enum.IsDefined(brandingScope))
         {
-            throw new InvalidOperationException("The deck format, theme or branding setting is invalid.");
+            throw new InvalidOperationException("The deck format, project content, theme or branding setting is invalid.");
         }
     }
 

@@ -39,6 +39,7 @@ namespace ProjectManagement.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
         public DbSet<Project> Projects { get; set; } = default!;
+        public DbSet<ProjectCapabilityStatement> ProjectCapabilityStatements => Set<ProjectCapabilityStatement>();
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
         public DbSet<ArppIssue> ArppIssues => Set<ArppIssue>();
@@ -508,6 +509,7 @@ namespace ProjectManagement.Data
                 entity.Property(deck => deck.Description).HasMaxLength(600);
                 entity.Property(deck => deck.PresentationMode).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.CostMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.NarrativeMode).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.PresentationTheme).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.BrandingScope).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.HandlingMarking).HasMaxLength(80);
@@ -546,10 +548,30 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            builder.Entity<ProjectCapabilityStatement>(entity =>
+            {
+                entity.ToTable("ProjectCapabilityStatements", table =>
+                    table.HasCheckConstraint(
+                        "CK_ProjectCapabilityStatements_DisplayOrder_Positive",
+                        "\"DisplayOrder\" >= 1"));
+                entity.Property(statement => statement.Statement)
+                    .HasMaxLength(ProjectFieldLimits.CapabilityStatementMaxLength)
+                    .IsRequired();
+                entity.HasIndex(statement => new { statement.ProjectId, statement.DisplayOrder })
+                    .IsUnique();
+                entity.HasOne(statement => statement.Project)
+                    .WithMany(project => project.CapabilityStatements)
+                    .HasForeignKey(statement => statement.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             builder.Entity<Project>(e =>
             {
                 e.Property(x => x.Name).HasMaxLength(100).IsRequired();
                 e.HasIndex(x => x.Name);
+                e.Property(x => x.ProjectBrief).HasMaxLength(ProjectFieldLimits.ProjectBriefMaxLength);
+                e.Property(x => x.Description).HasMaxLength(ProjectFieldLimits.DescriptionMaxLength);
+                e.Property(x => x.ContentUpdatedByUserId).HasMaxLength(450);
                 e.Property(x => x.CaseFileNumber).HasMaxLength(64);
                 e.HasIndex(x => x.CaseFileNumber)
                     .HasDatabaseName("UX_Projects_CaseFileNumber")

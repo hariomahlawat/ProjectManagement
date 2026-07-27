@@ -26,13 +26,20 @@ public class EditModel : PageModel
     private readonly IUserContext _userContext;
     private readonly IAuditService _audit;
     private readonly IMarkdownRenderer _markdownRenderer;
+    private readonly IClock _clock;
 
-    public EditModel(ApplicationDbContext db, IUserContext userContext, IAuditService audit, IMarkdownRenderer markdownRenderer)
+    public EditModel(
+        ApplicationDbContext db,
+        IUserContext userContext,
+        IAuditService audit,
+        IMarkdownRenderer markdownRenderer,
+        IClock clock)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _markdownRenderer = markdownRenderer ?? throw new ArgumentNullException(nameof(markdownRenderer));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
     [BindProperty]
@@ -273,6 +280,12 @@ public class EditModel : PageModel
 
         project.Name = trimmedName;
         project.Description = trimmedDescription;
+        if (!string.Equals(previousDescription, project.Description, StringComparison.Ordinal))
+        {
+            project.ContentUpdatedAtUtc = _clock.UtcNow;
+            project.ContentUpdatedByUserId = userId;
+        }
+
         project.CaseFileNumber = trimmedCaseFileNumber;
         project.CategoryId = selectedCategoryId;
         project.TechnicalCategoryId = selectedTechnicalCategoryId;

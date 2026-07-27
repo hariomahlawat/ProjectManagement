@@ -59,6 +59,93 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
+    public void Compose_ProjectBriefMode_CreatesDedicatedNarrativeSlideWithoutCapabilitySlide()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            501,
+            "PROJECT BRIEF MODE",
+            StageCodes.DEVP,
+            ProjectBriefingStageOrder.Development,
+            1,
+            projectBrief: "This project brief explains the operational need, intended employment and principal outcomes in a concise narrative suitable for a briefing audience.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 501,
+            DeckName = "Project Brief Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 27, 6, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(3, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+
+        Assert.Contains("PROJECT BRIEF", text, StringComparison.Ordinal);
+        Assert.Contains("operational need", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_BothNarratives_CreatesCapabilityAndProjectBriefSlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            502,
+            "BOTH CONTENT MODES",
+            StageCodes.DEVP,
+            ProjectBriefingStageOrder.Development,
+            1,
+            projectBrief: "A concise project brief retained independently from the structured capability overview.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 502,
+            DeckName = "Combined Content Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            NarrativeMode = ProjectBriefingNarrativeMode.Both,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 27, 6, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(4, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+
+        Assert.Contains("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
+        Assert.Contains("PROJECT BRIEF", text, StringComparison.Ordinal);
+        Assert.Contains("retained independently", text, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
     public void Compose_AppliesGraphiteThemeAndEmbedsBothHeaderInsigniaOnEverySlide()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
@@ -358,7 +445,8 @@ public sealed class ProjectBriefingSlideComposerTests
         string stageCode,
         int stageOrder,
         int sortOrder,
-        ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active)
+        ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active,
+        string? projectBrief = null)
         => new()
         {
             ProjectId = id,
@@ -372,6 +460,7 @@ public sealed class ProjectBriefingSlideComposerTests
             ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
             ExternalStatus = "Status recorded.",
             BriefDescription = "Capability description for ordering regression coverage.",
+            ProjectBrief = projectBrief ?? string.Empty,
             SortOrder = sortOrder
         };
 

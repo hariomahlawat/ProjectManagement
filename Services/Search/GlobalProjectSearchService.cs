@@ -50,7 +50,7 @@ namespace ProjectManagement.Services.Search
                         !p.IsArchived &&
                         (
                             (!string.IsNullOrEmpty(p.Name) && EF.Functions.Like(p.Name!, $"%{trimmed}%")) ||
-                            (!string.IsNullOrEmpty(p.Description) && EF.Functions.Like(p.Description!, $"%{trimmed}%")) ||
+                            (!string.IsNullOrEmpty(p.ProjectBrief) && EF.Functions.Like(p.ProjectBrief!, $"%{trimmed}%")) ||
                             (!string.IsNullOrEmpty(p.CaseFileNumber) && EF.Functions.Like(p.CaseFileNumber!, $"%{trimmed}%")) ||
                             (p.SponsoringUnit != null && EF.Functions.Like(p.SponsoringUnit.Name, $"%{trimmed}%")) ||
                             (p.SponsoringLineDirectorate != null && EF.Functions.Like(p.SponsoringLineDirectorate.Name, $"%{trimmed}%"))
@@ -59,7 +59,7 @@ namespace ProjectManagement.Services.Search
                     .Select(p => new ProjectSearchRow(
                         p.Id,
                         p.Name,
-                        p.Description,
+                        p.ProjectBrief,
                         p.CreatedAt,
                         p.ArchivedAt,
                         p.DeletedAt,
@@ -81,7 +81,7 @@ namespace ProjectManagement.Services.Search
                     !p.IsArchived &&
                     EF.Functions.ToTsVector("english",
                         (p.Name ?? string.Empty) + " " +
-                        (p.Description ?? string.Empty) + " " +
+                        (p.ProjectBrief ?? string.Empty) + " " +
                         (p.CaseFileNumber ?? string.Empty) + " " +
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty))
@@ -91,7 +91,7 @@ namespace ProjectManagement.Services.Search
                 .Select(p => new ProjectSearchRow(
                     p.Id,
                     p.Name,
-                    p.Description,
+                    p.ProjectBrief,
                     p.CreatedAt,
                     p.ArchivedAt,
                     p.DeletedAt,
@@ -100,7 +100,7 @@ namespace ProjectManagement.Services.Search
                     ApplicationDbContext.TsHeadline(
                         "english",
                         (p.Name ?? string.Empty) + " " +
-                        (p.Description ?? string.Empty) + " " +
+                        (p.ProjectBrief ?? string.Empty) + " " +
                         (p.CaseFileNumber ?? string.Empty) + " " +
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty),
@@ -133,8 +133,8 @@ namespace ProjectManagement.Services.Search
                     }
                     else
                     {
-                        if (!string.IsNullOrWhiteSpace(p.Description))
-                            snippetParts.Add(p.Description);
+                        if (!string.IsNullOrWhiteSpace(p.ProjectBrief))
+                            snippetParts.Add(CompactSnippet(p.ProjectBrief));
                         if (!string.IsNullOrWhiteSpace(p.SponsoringUnit))
                             snippetParts.Add($"Sponsoring unit: {p.SponsoringUnit}");
                         if (!string.IsNullOrWhiteSpace(p.LineDirectorate))
@@ -168,11 +168,26 @@ namespace ProjectManagement.Services.Search
             return ordered;
         }
 
+        private static string CompactSnippet(string value, int maximumLength = 280)
+        {
+            var normalized = string.Join(
+                " ",
+                value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            if (normalized.Length <= maximumLength)
+            {
+                return normalized;
+            }
+
+            var boundary = normalized.LastIndexOf(' ', maximumLength - 1);
+            var length = boundary >= maximumLength / 2 ? boundary : maximumLength - 1;
+            return normalized[..length].TrimEnd() + "…";
+        }
+
         // SECTION: Project global search row mapping
         private sealed record ProjectSearchRow(
             int Id,
             string? Name,
-            string? Description,
+            string? ProjectBrief,
             DateTime CreatedAt,
             DateTimeOffset? ArchivedAt,
             DateTimeOffset? DeletedAt,

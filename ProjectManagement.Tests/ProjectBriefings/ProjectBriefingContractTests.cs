@@ -114,6 +114,24 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
+    public void Builder_OffersIndependentCapabilityAndProjectBriefNarratives()
+    {
+        var page = Read("Index.cshtml");
+        var dataSource = Read("ProjectBriefingDataService.cs");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+
+        Assert.Contains("Project content", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"CapabilityOverview\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"ProjectBrief\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);
+        Assert.Contains("ProjectCapabilityStatements", dataSource, StringComparison.Ordinal);
+        Assert.Contains("item.Project.ProjectBrief", dataSource, StringComparison.Ordinal);
+        Assert.Contains("RenderProjectBrief", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingNarrativeMode.Both", composer, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
     public void AudienceDeck_RemovesBuilderReadinessAndUsesFullCapabilityPagination()
     {
         var composer = Read("ProjectBriefingSlideComposer.cs");

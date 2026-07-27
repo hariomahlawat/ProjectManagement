@@ -18,6 +18,13 @@ public enum ProjectBriefingCostMode
     None = 4
 }
 
+public enum ProjectBriefingNarrativeMode
+{
+    CapabilityOverview = 1,
+    ProjectBrief = 2,
+    Both = 3
+}
+
 public enum ProjectBriefingPresentationTheme
 {
     EditorialLight = 1,
@@ -58,6 +65,9 @@ public sealed class ProjectBriefingDeck
 
     public ProjectBriefingCostMode CostMode { get; set; }
         = ProjectBriefingCostMode.Both;
+
+    public ProjectBriefingNarrativeMode NarrativeMode { get; set; }
+        = ProjectBriefingNarrativeMode.CapabilityOverview;
 
     public ProjectBriefingPresentationTheme PresentationTheme { get; set; }
         = ProjectBriefingPresentationTheme.EditorialLight;

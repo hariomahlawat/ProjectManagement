@@ -4953,6 +4953,36 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectCapabilityStatement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Statement")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "DisplayOrder")
+                        .IsUnique();
+
+                    b.ToTable("ProjectCapabilityStatements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProjectCapabilityStatements_DisplayOrder_Positive", "\"DisplayOrder\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.Property<long>("Id")
@@ -5012,6 +5042,11 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
+
+                    b.Property<string>("NarrativeMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("PresentationMode")
                         .IsRequired()
@@ -5175,6 +5210,13 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("character varying(5000)");
 
+                    b.Property<DateTimeOffset?>("ContentUpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentUpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<int?>("FeaturedVideoId")
                         .HasColumnType("integer");
 
@@ -5228,6 +5270,10 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("PlanApprovedByUserId")
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
+
+                    b.Property<string>("ProjectBrief")
+                        .HasMaxLength(2500)
+                        .HasColumnType("character varying(2500)");
 
                     b.Property<int?>("ProjectTypeId")
                         .HasColumnType("integer");
@@ -8476,6 +8522,17 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Issue");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectCapabilityStatement", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany("CapabilityStatements")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
@@ -9350,6 +9407,8 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
+                    b.Navigation("CapabilityStatements");
+
                     b.Navigation("Documents");
 
                     b.Navigation("Photos");

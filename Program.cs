@@ -676,6 +676,7 @@ builder.Services.AddScoped<IArppAttachmentService, ArppAttachmentService>();
 builder.Services.AddScoped<ArppExcelWorkbookBuilder>();
 builder.Services.AddScoped<IArppExportService, ArppExportService>();
 builder.Services.AddScoped<ProjectFactsService>();
+builder.Services.AddScoped<IProjectContentService, ProjectContentService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();
 builder.Services.AddScoped<ProjectProcurementReadService>();

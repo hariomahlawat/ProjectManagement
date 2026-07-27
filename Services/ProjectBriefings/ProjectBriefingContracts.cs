@@ -54,6 +54,8 @@ public sealed class ProjectBriefingDeckVm
     public string? Description { get; init; }
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
+    public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
+        = ProjectBriefingNarrativeMode.CapabilityOverview;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
@@ -91,7 +93,10 @@ public sealed class ProjectBriefingProjectVm
     public bool HasSelectedCoverPhoto { get; init; }
     public int? CoverPhotoId { get; init; }
     public string? CoverPhotoReadinessReason { get; init; }
+    /// <summary>Presentation-ready capability overview. Retained under the legacy name for deck-specific overrides.</summary>
     public string BriefDescription { get; init; } = string.Empty;
+    public string ProjectBrief { get; init; } = string.Empty;
+    public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
     public string? BriefDescriptionOverride { get; init; }
     public int SortOrder { get; init; }
     public string OpenUrl { get; init; } = string.Empty;
@@ -108,6 +113,8 @@ public sealed class ProjectBriefingReadinessVm
     public int CoverPhotoAvailableCount { get; init; }
     public int SelectedCoverPhotoCount { get; init; }
     public int DescriptionAvailableCount { get; init; }
+    public int CapabilityOverviewAvailableCount { get; init; }
+    public int ProjectBriefAvailableCount { get; init; }
 }
 
 public sealed class ProjectBriefingSlideEstimateVm
@@ -118,6 +125,7 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int ExecutiveTableSlides { get; init; }
     public int DetailedProjectSlides { get; init; }
     public int CapabilityContinuationSlides { get; init; }
+    public int ProjectBriefSlides { get; init; }
 }
 
 public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);
@@ -183,6 +191,7 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public string? Description { get; init; }
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
+    public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
     public bool IncludeStageSummary { get; init; }
@@ -205,6 +214,8 @@ public sealed class ProjectBriefingPresentationData
     public string? DeckDescription { get; init; }
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
+    public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
+        = ProjectBriefingNarrativeMode.CapabilityOverview;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
@@ -235,6 +246,8 @@ public sealed class ProjectBriefingPresentationProject
     public string ExternalStatus { get; init; } = "No external status recorded";
     public DateOnly? ExternalStatusDate { get; init; }
     public string BriefDescription { get; init; } = string.Empty;
+    public string ProjectBrief { get; init; } = string.Empty;
+    public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
     public int SortOrder { get; init; }
     public int? CoverPhotoId { get; init; }
     public bool CoverPhotoIsReady { get; init; }

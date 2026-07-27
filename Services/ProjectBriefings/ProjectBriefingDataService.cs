@@ -65,6 +65,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Description = snapshot.Description,
             PresentationMode = snapshot.PresentationMode,
             CostMode = snapshot.CostMode,
+            NarrativeMode = snapshot.NarrativeMode,
             PresentationTheme = snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
             IncludeStageSummary = snapshot.IncludeStageSummary,
@@ -79,7 +80,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Readiness = BuildReadiness(projects),
             SlideEstimate = BuildSlideEstimate(snapshot.PresentationMode, snapshot.IncludeStageSummary,
                 snapshot.IncludeProjectCategorySummary, snapshot.IncludeTechnicalCategorySummary,
-                snapshot.CostMode, projects)
+                snapshot.CostMode, snapshot.NarrativeMode, projects)
         };
     }
 
@@ -113,6 +114,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ExternalStatus = project.ExternalStatus ?? "No external status recorded",
                 ExternalStatusDate = project.ExternalStatusDate,
                 BriefDescription = project.BriefDescription,
+                ProjectBrief = project.ProjectBrief,
+                CapabilityStatements = project.CapabilityStatements,
                 SortOrder = project.SortOrder,
                 CoverPhotoId = project.CoverPhotoId,
                 CoverPhotoIsReady = project.HasCoverPhoto
@@ -126,6 +129,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             DeckDescription = snapshot.Description,
             PresentationMode = snapshot.PresentationMode,
             CostMode = snapshot.CostMode,
+            NarrativeMode = snapshot.NarrativeMode,
             PresentationTheme = snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
             IncludeStageSummary = snapshot.IncludeStageSummary,
@@ -158,6 +162,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 candidate.Description,
                 candidate.PresentationMode,
                 candidate.CostMode,
+                candidate.NarrativeMode,
                 candidate.PresentationTheme,
                 candidate.BrandingScope,
                 candidate.IncludeStageSummary,
@@ -194,6 +199,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.BriefDescriptionOverride,
                 item.Project.Name,
                 item.Project.Description,
+                item.Project.ProjectBrief,
                 item.Project.LifecycleStatus,
                 item.Project.IsDeleted,
                 item.Project.IsArchived,
@@ -211,6 +217,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.Description,
                 deck.PresentationMode,
                 deck.CostMode,
+                deck.NarrativeMode,
                 deck.PresentationTheme,
                 deck.BrandingScope,
                 deck.IncludeStageSummary,
@@ -225,6 +232,26 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         }
 
         var projectIds = itemRows.Select(item => item.ProjectId).Distinct().ToArray();
+        var capabilityRows = await _db.ProjectCapabilityStatements
+            .AsNoTracking()
+            .Where(statement => projectIds.Contains(statement.ProjectId))
+            .OrderBy(statement => statement.ProjectId)
+            .ThenBy(statement => statement.DisplayOrder)
+            .ThenBy(statement => statement.Id)
+            .Select(statement => new CapabilityDatabaseSnapshot(
+                statement.ProjectId,
+                statement.Statement,
+                statement.DisplayOrder))
+            .ToListAsync(cancellationToken);
+        var capabilitiesByProject = capabilityRows
+            .GroupBy(statement => statement.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group
+                    .OrderBy(statement => statement.DisplayOrder)
+                    .Select(statement => statement.Statement)
+                    .ToList());
+
         var stageRows = await _db.ProjectStages
             .AsNoTracking()
             .Where(stage => projectIds.Contains(stage.ProjectId))
@@ -273,6 +300,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.BriefDescriptionOverride,
                 item.ProjectName,
                 item.ProjectDescription,
+                item.ProjectBrief,
                 item.LifecycleStatus,
                 item.IsDeleted,
                 item.IsArchived,
@@ -280,6 +308,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.ProjectCategory,
                 item.TechnicalCategory,
                 item.CoverPhotoId,
+                capabilitiesByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<string>(),
                 stagesByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<StageSnapshot>(),
                 photosByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<PhotoSnapshot>()))
             .ToList();
@@ -290,6 +319,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.Description,
             deck.PresentationMode,
             deck.CostMode,
+            deck.NarrativeMode,
             deck.PresentationTheme,
             deck.BrandingScope,
             deck.IncludeStageSummary,
@@ -354,7 +384,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     CoverPhotoId = coverPhotoId,
                     CoverPhotoReadinessReason = probe?.FailureReason,
                     BriefDescription = ProjectBriefingTextNormalizer.NormalizeFull(
-                        item.BriefDescriptionOverride ?? item.ProjectDescription),
+                        item.BriefDescriptionOverride
+                        ?? (item.CapabilityStatements.Count > 0
+                            ? string.Join("\n", item.CapabilityStatements.Select(statement => $"• {statement}"))
+                            : "Capability overview not recorded.")),
+                    ProjectBrief = ProjectBriefingTextNormalizer.NormalizeProjectBrief(item.ProjectBrief),
+                    CapabilityStatements = item.CapabilityStatements,
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
                     SortOrder = item.SortOrder,
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
@@ -387,13 +422,19 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ProliferationCostAvailableCount = projects.Count(project => project.ProliferationCost.IsAvailable),
             CoverPhotoAvailableCount = projects.Count(project => project.HasCoverPhoto),
             SelectedCoverPhotoCount = projects.Count(project => project.HasSelectedCoverPhoto),
-            DescriptionAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription))
+            DescriptionAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
+            CapabilityOverviewAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
+            ProjectBriefAvailableCount = projects.Count(project => HasProjectBrief(project.ProjectBrief))
         };
 
     private static bool HasCapabilityOverview(string? value)
         => !string.IsNullOrWhiteSpace(value)
             && !string.Equals(value.Trim(), "Brief description not recorded.", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(value.Trim(), "Capability overview not recorded.", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasProjectBrief(string? value)
+        => !string.IsNullOrWhiteSpace(value)
+            && !string.Equals(value.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
 
     private static ProjectBriefingPresentationSummary BuildPresentationSummary(
         IReadOnlyList<ProjectBriefingPresentationProject> projects)
@@ -438,6 +479,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
         ProjectBriefingCostMode costMode,
+        ProjectBriefingNarrativeMode narrativeMode,
         IReadOnlyList<ProjectBriefingProjectVm> projects)
     {
         var summarySlides = includeStageSummary ? 2 : 0;
@@ -472,13 +514,18 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var includesDetailedSlides = presentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined;
-        var detailSlides = includesDetailedSlides ? projects.Count : 0;
-        var capabilityContinuationSlides = includesDetailedSlides
+        var includeCapabilities = narrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview
+            or ProjectBriefingNarrativeMode.Both;
+        var includeProjectBrief = narrativeMode is ProjectBriefingNarrativeMode.ProjectBrief
+            or ProjectBriefingNarrativeMode.Both;
+        var detailSlides = includesDetailedSlides && includeCapabilities ? projects.Count : 0;
+        var capabilityContinuationSlides = includesDetailedSlides && includeCapabilities
             ? projects.Sum(project =>
                 ProjectBriefingCapabilityPaginator
                     .Paginate(project.BriefDescription)
                     .ContinuationSlideCount)
             : 0;
+        var projectBriefSlides = includesDetailedSlides && includeProjectBrief ? projects.Count : 0;
 
         return new ProjectBriefingSlideEstimateVm
         {
@@ -487,11 +534,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ExecutiveTableSlides = executiveSlides,
             DetailedProjectSlides = detailSlides,
             CapabilityContinuationSlides = capabilityContinuationSlides,
+            ProjectBriefSlides = projectBriefSlides,
             TotalSlides = 2
                 + summarySlides
                 + executiveSlides
                 + detailSlides
                 + capabilityContinuationSlides
+                + projectBriefSlides
         };
     }
 
@@ -552,6 +601,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? Description,
         ProjectBriefingPresentationMode PresentationMode,
         ProjectBriefingCostMode CostMode,
+        ProjectBriefingNarrativeMode NarrativeMode,
         ProjectBriefingPresentationTheme PresentationTheme,
         ProjectBriefingBrandingScope BrandingScope,
         bool IncludeStageSummary,
@@ -570,6 +620,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? BriefDescriptionOverride,
         string ProjectName,
         string? ProjectDescription,
+        string? ProjectBrief,
         ProjectLifecycleStatus LifecycleStatus,
         bool IsDeleted,
         bool IsArchived,
@@ -584,6 +635,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? Description,
         ProjectBriefingPresentationMode PresentationMode,
         ProjectBriefingCostMode CostMode,
+        ProjectBriefingNarrativeMode NarrativeMode,
         ProjectBriefingPresentationTheme PresentationTheme,
         ProjectBriefingBrandingScope BrandingScope,
         bool IncludeStageSummary,
@@ -603,6 +655,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? BriefDescriptionOverride,
         string ProjectName,
         string? ProjectDescription,
+        string? ProjectBrief,
         ProjectLifecycleStatus LifecycleStatus,
         bool IsDeleted,
         bool IsArchived,
@@ -610,8 +663,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? ProjectCategory,
         string? TechnicalCategory,
         int? CoverPhotoId,
+        IReadOnlyList<string> CapabilityStatements,
         IReadOnlyList<StageSnapshot> Stages,
         IReadOnlyList<PhotoSnapshot> Photos);
+
+    private sealed record CapabilityDatabaseSnapshot(
+        int ProjectId,
+        string Statement,
+        int DisplayOrder);
 
     private sealed record StageDatabaseSnapshot(
         int ProjectId,
@@ -649,6 +708,19 @@ public static partial class ProjectBriefingTextNormalizer
 
     [GeneratedRegex(@"\n{3,}", RegexOptions.Compiled)]
     private static partial Regex ExcessiveNewlinesRegex();
+
+    public static string NormalizeProjectBrief(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Project brief not recorded.";
+        }
+
+        var normalized = Normalize(value, ProjectFieldLimits.ProjectBriefMaxLength);
+        return string.Equals(normalized, "Brief description not recorded.", StringComparison.OrdinalIgnoreCase)
+            ? "Project brief not recorded."
+            : normalized;
+    }
 
     public static string NormalizeFull(string? value)
     {

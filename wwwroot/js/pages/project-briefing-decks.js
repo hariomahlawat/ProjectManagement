@@ -120,6 +120,22 @@ if (root) {
   };
   const includesCostRd = () => ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
   const includesProliferation = () => ['ProliferationOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
+  const narrativeMode = () => root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview';
+  const includesCapabilities = () => ['CapabilityOverview', 'Both'].includes(narrativeMode());
+  const includesProjectBrief = () => ['ProjectBrief', 'Both'].includes(narrativeMode());
+  const hasCapabilityOverview = (project) => {
+    const value = normalize(project?.briefDescription);
+    return Boolean(value)
+      && value !== 'brief description not recorded.'
+      && value !== 'capability overview not recorded.';
+  };
+  const hasProjectBrief = (project) => {
+    const value = normalize(project?.projectBrief);
+    return Boolean(value) && value !== 'project brief not recorded.';
+  };
+  const hasSelectedNarrative = (project) =>
+    (!includesCapabilities() || hasCapabilityOverview(project))
+    && (!includesProjectBrief() || hasProjectBrief(project));
 
   const updateReadinessSummary = (deck) => {
     const readiness = deck?.readiness || {};
@@ -135,8 +151,18 @@ if (root) {
 
     if (slideTotal) slideTotal.textContent = `${estimate.totalSlides || 0} ${(estimate.totalSlides || 0) === 1 ? 'slide' : 'slides'}`;
     if (slideBreakdown) {
+      const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
       const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
-      slideBreakdown.textContent = `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0} · Summary ${estimate.summarySlides || 0} · Tables ${estimate.executiveTableSlides || 0} · Project slides ${estimate.detailedProjectSlides || 0}${continuationSlides > 0 ? ` · Capability continuations ${continuationSlides}` : ''}`;
+      const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
+      const parts = [
+        `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
+        `Summary ${estimate.summarySlides || 0}`,
+        `Tables ${estimate.executiveTableSlides || 0}`
+      ];
+      if (capabilitySlides > 0) parts.push(`Capability slides ${capabilitySlides}`);
+      if (projectBriefSlides > 0) parts.push(`Project brief slides ${projectBriefSlides}`);
+      if (continuationSlides > 0) parts.push(`Capability continuations ${continuationSlides}`);
+      slideBreakdown.textContent = parts.join(' · ');
     }
 
     if (activeSavedCard) {
@@ -166,12 +192,14 @@ if (root) {
     const missingCost = total - Number(readiness.costRdAvailableCount || 0);
     const missingProliferation = total - Number(readiness.proliferationCostAvailableCount || 0);
     const missingPhoto = total - Number(readiness.coverPhotoAvailableCount || 0);
-    const missingDescription = total - Number(readiness.descriptionAvailableCount || 0);
+    const missingCapabilities = total - Number(readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0);
+    const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
     if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
     if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
     if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
     if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
-    if (includesDetailedSlides() && missingDescription > 0) gaps.push(['bi-card-text', `${missingDescription} without capability overview`]);
+    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
+    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
     if (gaps.length === 0) addPill('bi-check-circle', 'Selected content is ready', 'is-ready');
     else gaps.forEach(([icon, text]) => addPill(icon, text));
   };
@@ -368,10 +396,17 @@ if (root) {
   };
 
   const buildProjectRow = (project) => {
-    const normalizedDescription = normalize(project.briefDescription);
-    const hasDescription = Boolean(normalizedDescription)
-      && normalizedDescription !== 'brief description not recorded.'
-      && normalizedDescription !== 'capability overview not recorded.';
+    const capabilityReady = hasCapabilityOverview(project);
+    const projectBriefReady = hasProjectBrief(project);
+    const narrativeReady = hasSelectedNarrative(project);
+    const narrativeTitle = includesCapabilities() && includesProjectBrief()
+      ? (narrativeReady ? 'Capability overview and project brief available' : 'Capability overview or project brief is missing')
+      : includesProjectBrief()
+        ? (projectBriefReady ? 'Project brief available' : 'Project brief not recorded')
+        : (capabilityReady ? 'Capability overview available' : 'Capability overview not recorded');
+    const narrativeIcon = includesCapabilities() && includesProjectBrief()
+      ? 'bi-layers'
+      : includesProjectBrief() ? 'bi-file-earmark-text' : 'bi-list-check';
     const row = document.createElement('tr');
     row.dataset.projectId = String(project.projectId);
     row.dataset.searchText = [project.projectName, project.lifecycleDisplay, project.presentStage, project.projectCategory, project.technicalCategory, project.externalStatus].filter(Boolean).join(' ');
@@ -382,7 +417,7 @@ if (root) {
     row.dataset.missingCostRd = String(!project.costRd?.isAvailable);
     row.dataset.missingProliferation = String(!project.proliferationCost?.isAvailable);
     row.dataset.missingPhoto = String(!project.hasCoverPhoto);
-    row.dataset.missingDescription = String(!hasDescription);
+    row.dataset.missingDescription = String(!narrativeReady);
 
     const selectCell = document.createElement('td');
     selectCell.className = 'pbd-select-column';
@@ -465,22 +500,37 @@ if (root) {
       createReadinessIcon('bi-image', project.hasCoverPhoto, project.hasCoverPhoto ? 'PowerPoint-ready cover photograph available' : (project.coverPhotoReadinessReason || 'No PowerPoint-ready cover photograph')),
       createReadinessIcon('bi-chat-left-text', Boolean(project.externalStatus), project.externalStatus ? 'External status available' : 'External status missing'),
       createReadinessIcon('bi-currency-rupee', Boolean(project.costRd?.isAvailable), project.costRd?.isAvailable ? `Cost (R&D) available from ${project.costRd.basisDisplay}` : 'Cost (R&D) not recorded'),
-      createReadinessIcon('bi-card-text', Boolean(hasDescription), hasDescription ? 'Capability overview available' : 'Capability overview not recorded')
+      createReadinessIcon(narrativeIcon, narrativeReady, narrativeTitle)
     );
     readinessCell.append(readiness);
 
     const actionCell = document.createElement('td');
     actionCell.className = 'pbd-row-actions';
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.className = 'btn btn-sm btn-link';
-    edit.dataset.pbdEditDescription = '';
-    edit.dataset.projectId = String(project.projectId);
-    edit.dataset.projectName = project.projectName;
-    edit.dataset.description = project.briefDescriptionOverride || '';
-    edit.title = 'Edit briefing description';
-    edit.setAttribute('aria-label', `Edit briefing description for ${project.projectName}`);
-    edit.innerHTML = '<i class="bi bi-pencil-square"></i>';
+    if (includesCapabilities()) {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'btn btn-sm btn-link';
+      edit.dataset.pbdEditDescription = '';
+      edit.dataset.projectId = String(project.projectId);
+      edit.dataset.projectName = project.projectName;
+      edit.dataset.description = project.briefDescriptionOverride || '';
+      edit.title = 'Edit deck-specific capability overview';
+      edit.setAttribute('aria-label', `Edit deck-specific capability overview for ${project.projectName}`);
+      edit.innerHTML = '<i class="bi bi-pencil-square"></i>';
+      actionCell.append(edit);
+    }
+
+    if (includesProjectBrief()) {
+      const briefLink = document.createElement('a');
+      briefLink.className = 'btn btn-sm btn-link';
+      briefLink.href = `${project.openUrl || '#'}?content=brief#content-brief`;
+      briefLink.target = '_blank';
+      briefLink.rel = 'noopener';
+      briefLink.title = 'Open project brief';
+      briefLink.setAttribute('aria-label', `Open project brief for ${project.projectName} in a new tab`);
+      briefLink.innerHTML = '<i class="bi bi-box-arrow-up-right"></i>';
+      actionCell.append(briefLink);
+    }
 
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -491,7 +541,7 @@ if (root) {
     remove.title = 'Remove from deck';
     remove.setAttribute('aria-label', `Remove ${project.projectName} from deck`);
     remove.innerHTML = '<i class="bi bi-x-lg"></i>';
-    actionCell.append(edit, remove);
+    actionCell.append(remove);
 
     row.append(selectCell, dragCell, projectCell, stageCell, costCell, proliferationCell, statusCell, readinessCell, actionCell);
     return row;
@@ -819,7 +869,7 @@ if (root) {
     if (!button) return;
     if (descriptionProjectId) descriptionProjectId.value = button.dataset.projectId || '';
     if (descriptionValue) descriptionValue.value = button.dataset.description || '';
-    if (descriptionTitle) descriptionTitle.textContent = button.dataset.projectName || 'Brief description';
+    if (descriptionTitle) descriptionTitle.textContent = button.dataset.projectName || 'Capability overview';
     setState(descriptionStatus, '');
     descriptionModal?.show();
     window.setTimeout(() => descriptionValue?.focus(), 180);
@@ -840,10 +890,10 @@ if (root) {
       updateRowVersion(payload?.rowVersion);
       const editorButton = root.querySelector(`[data-pbd-edit-description][data-project-id="${projectId}"]`);
       if (editorButton) editorButton.dataset.description = descriptionValue?.value || '';
-      setState(descriptionStatus, 'Briefing description saved.', 'success');
+      setState(descriptionStatus, 'Deck-specific capability overview saved.', 'success');
       window.setTimeout(() => descriptionModal?.hide(), 450);
     } catch (error) {
-      setState(descriptionStatus, error.message || 'Description could not be saved.', 'error');
+      setState(descriptionStatus, error.message || 'Capability overview could not be saved.', 'error');
     } finally {
       submit?.removeAttribute('disabled');
     }

@@ -24,6 +24,13 @@
         ProjectBriefingCostMode.None => "No cost",
         _ => "Cost setting"
     };
+    var narrativeModeLabel = deck?.NarrativeMode switch
+    {
+        ProjectBriefingNarrativeMode.CapabilityOverview => "Capability overview",
+        ProjectBriefingNarrativeMode.ProjectBrief => "Project brief",
+        ProjectBriefingNarrativeMode.Both => "Capabilities and project brief",
+        _ => "Project content"
+    };
     var themeLabel = deck?.PresentationTheme switch
     {
         ProjectBriefingPresentationTheme.EditorialLight => "Editorial Light",
@@ -37,7 +44,10 @@
     var missingCostRdCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CostRdAvailableCount;
     var missingProliferationCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProliferationCostAvailableCount;
     var missingPhotoCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CoverPhotoAvailableCount;
-    var missingDescriptionCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.DescriptionAvailableCount;
+    var missingCapabilityCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CapabilityOverviewAvailableCount;
+    var missingProjectBriefCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectBriefAvailableCount;
+    var needsCapabilities = deck?.NarrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
+    var needsProjectBrief = deck?.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
 }
 
 @section Styles {
@@ -187,8 +197,15 @@
                                 <small data-pbd-slide-breakdown>
                                     Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides ·
                                     Summary @deck.SlideEstimate.SummarySlides ·
-                                    Tables @deck.SlideEstimate.ExecutiveTableSlides ·
-                                    Project slides @deck.SlideEstimate.DetailedProjectSlides
+                                    Tables @deck.SlideEstimate.ExecutiveTableSlides
+                                    @if (deck.SlideEstimate.DetailedProjectSlides > 0)
+                                    {
+                                        <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
+                                    }
+                                    @if (deck.SlideEstimate.ProjectBriefSlides > 0)
+                                    {
+                                        <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
+                                    }
                                     @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
                                     {
                                         <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
@@ -220,14 +237,20 @@
                                         {
                                             <span><i class="bi bi-image" aria-hidden="true"></i> @missingPhotoCount without PowerPoint-ready photo</span>
                                         }
-                                        @if (includesDetailedSlides && missingDescriptionCount > 0)
+                                        @if (includesDetailedSlides && needsCapabilities && missingCapabilityCount > 0)
                                         {
-                                            <span><i class="bi bi-card-text" aria-hidden="true"></i> @missingDescriptionCount without capability overview</span>
+                                            <span><i class="bi bi-list-check" aria-hidden="true"></i> @missingCapabilityCount without capability overview</span>
+                                        }
+                                        @if (includesDetailedSlides && needsProjectBrief && missingProjectBriefCount > 0)
+                                        {
+                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @missingProjectBriefCount without project brief</span>
                                         }
                                         @if (missingStatusCount == 0
                                             && (!includesCostRd || missingCostRdCount == 0)
                                             && (!includesProliferationCost || missingProliferationCount == 0)
-                                            && (!includesDetailedSlides || (missingPhotoCount == 0 && missingDescriptionCount == 0)))
+                                            && (!includesDetailedSlides || (missingPhotoCount == 0
+                                                && (!needsCapabilities || missingCapabilityCount == 0)
+                                                && (!needsProjectBrief || missingProjectBriefCount == 0))))
                                         {
                                             <span class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Selected content is ready</span>
                                         }
@@ -239,7 +262,7 @@
                         <details class="pbd-settings" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
                             <summary>
                                 <span><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
-                                <small>@presentationModeLabel · @themeLabel · @costModeLabel</small>
+                                <small>@presentationModeLabel · @narrativeModeLabel · @themeLabel · @costModeLabel</small>
                             </summary>
                             <form method="post" asp-page-handler="SaveSettings" class="pbd-settings__form">
                                 <input type="hidden" name="DeckId" value="@deck.Id" />
@@ -270,6 +293,25 @@
                                         <label class="pbd-choice-card">
                                             <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
                                             <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
+                                        </label>
+                                    </div>
+                                </fieldset>
+
+
+                                <fieldset class="pbd-choice-group">
+                                    <legend>Project content</legend>
+                                    <div class="pbd-choice-cards pbd-choice-cards--three">
+                                        <label class="pbd-choice-card">
+                                            <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
+                                            <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>5–8 concise capability statements on the main project slide</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card">
+                                            <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
+                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>Dedicated narrative slide for each project</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card">
+                                            <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
+                                            <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>Capability slide followed by a project brief slide</small></span>
                                         </label>
                                     </div>
                                 </fieldset>
@@ -516,7 +558,11 @@
                                     <option value="missing-cost-rd">Missing Cost (R&amp;D)</option>
                                     <option value="missing-proliferation">Missing proliferation cost</option>
                                     <option value="missing-photo">Missing photograph</option>
-                                    <option value="missing-description">Missing capability overview</option>
+                                    <option value="missing-description">@(needsCapabilities && needsProjectBrief
+                                        ? "Missing selected project content"
+                                        : needsProjectBrief
+                                            ? "Missing project brief"
+                                            : "Missing capability overview")</option>
                                 </select>
                                 <span class="pbd-selected-filter-result">
                                     <span class="pbd-visible-count" data-pbd-visible-count>@deck.Projects.Count projects shown</span>
@@ -568,6 +614,17 @@
                                             var hasCapabilityOverview = !string.IsNullOrWhiteSpace(project.BriefDescription)
                                                 && !string.Equals(project.BriefDescription.Trim(), "Brief description not recorded.", StringComparison.OrdinalIgnoreCase)
                                                 && !string.Equals(project.BriefDescription.Trim(), "Capability overview not recorded.", StringComparison.OrdinalIgnoreCase);
+                                            var hasProjectBrief = !string.IsNullOrWhiteSpace(project.ProjectBrief)
+                                                && !string.Equals(project.ProjectBrief.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
+                                            var hasSelectedNarrative = (!needsCapabilities || hasCapabilityOverview)
+                                                && (!needsProjectBrief || hasProjectBrief);
+                                            var narrativeReadinessTitle = needsCapabilities && needsProjectBrief
+                                                ? hasSelectedNarrative
+                                                    ? "Capability overview and project brief available"
+                                                    : "Capability overview or project brief is missing"
+                                                : needsProjectBrief
+                                                    ? hasProjectBrief ? "Project brief available" : "Project brief not recorded"
+                                                    : hasCapabilityOverview ? "Capability overview available" : "Capability overview not recorded";
                                             var searchText = string.Join(" ", new[]
                                             {
                                                 project.ProjectName,
@@ -586,7 +643,7 @@
                                                 data-missing-cost-rd="@(!project.CostRd.IsAvailable ? "true" : "false")"
                                                 data-missing-proliferation="@(!project.ProliferationCost.IsAvailable ? "true" : "false")"
                                                 data-missing-photo="@(!project.HasCoverPhoto ? "true" : "false")"
-                                                data-missing-description="@(!hasCapabilityOverview ? "true" : "false")">
+                                                data-missing-description="@(!hasSelectedNarrative ? "true" : "false")">
                                                 <td class="pbd-select-column"><input type="checkbox" data-pbd-row-select aria-label="Select @project.ProjectName" /></td>
                                                 <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName within @project.PresentStage. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Reorder within @project.PresentStage"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
                                                 <td class="pbd-project-name">
@@ -621,11 +678,23 @@
                                                         <span class="@(project.HasCoverPhoto ? "is-ready" : "is-missing")" title="@photoReadinessTitle"><i class="bi bi-image"></i></span>
                                                         <span class="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "is-ready" : "is-missing")" title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"><i class="bi bi-chat-left-text"></i></span>
                                                         <span class="@(project.CostRd.IsAvailable ? "is-ready" : "is-missing")" title="@costReadinessTitle"><i class="bi bi-currency-rupee"></i></span>
-                                                        <span class="@(hasCapabilityOverview ? "is-ready" : "is-missing")" title="@(hasCapabilityOverview ? "Capability overview available" : "Capability overview not recorded")"><i class="bi bi-card-text"></i></span>
+                                                        <span class="@(hasSelectedNarrative ? "is-ready" : "is-missing")" title="@narrativeReadinessTitle"><i class="bi @(needsCapabilities && needsProjectBrief ? "bi-layers" : needsProjectBrief ? "bi-file-earmark-text" : "bi-list-check")"></i></span>
                                                     </div>
                                                 </td>
                                                 <td class="pbd-row-actions">
-                                                    <button type="button" class="btn btn-sm btn-link" data-pbd-edit-description data-project-id="@project.ProjectId" data-project-name="@project.ProjectName" data-description="@project.BriefDescriptionOverride" aria-label="Edit briefing description for @project.ProjectName" title="Edit briefing description"><i class="bi bi-pencil-square"></i></button>
+                                                    @if (needsCapabilities)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-link" data-pbd-edit-description data-project-id="@project.ProjectId" data-project-name="@project.ProjectName" data-description="@project.BriefDescriptionOverride" aria-label="Edit deck-specific capability overview for @project.ProjectName" title="Edit deck-specific capability overview"><i class="bi bi-pencil-square"></i></button>
+                                                    }
+                                                    @if (needsProjectBrief)
+                                                    {
+                                                        <a class="btn btn-sm btn-link"
+                                                           href="@(project.OpenUrl + "?content=brief#content-brief")"
+                                                           target="_blank"
+                                                           rel="noopener"
+                                                           aria-label="Open project brief for @project.ProjectName in a new tab"
+                                                           title="Open project brief"><i class="bi bi-box-arrow-up-right"></i></a>
+                                                    }
                                                     <form method="post" asp-page-handler="RemoveProject" data-pbd-remove-project-form>
                                                         <input type="hidden" name="deckId" value="@deck.Id" />
                                                         <input type="hidden" name="projectId" value="@project.ProjectId" />
@@ -686,14 +755,14 @@
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content pbd-modal">
                 <form data-pbd-description-form>
-                    <div class="modal-header"><div><span class="pbd-eyebrow">Detailed project slide</span><h2 class="modal-title" id="pbd-description-title" data-pbd-description-title>Brief description</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                    <div class="modal-header"><div><span class="pbd-eyebrow">Detailed project slide</span><h2 class="modal-title" id="pbd-description-title" data-pbd-description-title>Capability overview</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                     <div class="modal-body">
                         <input type="hidden" data-pbd-description-project-id />
                         <label class="form-label"><span>Briefing-specific capability overview</span><textarea class="form-control" rows="7" maxlength="1200" data-pbd-description-value></textarea></label>
-                        <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> This text applies only to this saved deck. Leave it blank to use the project description.</p>
+                        <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> This text applies only to this saved deck. Leave it blank to use the project's structured capability overview.</p>
                         <div class="pbd-modal-status" data-pbd-description-status aria-live="polite"></div>
                     </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save description</button></div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save capability overview</button></div>
                 </form>
             </div>
         </div>

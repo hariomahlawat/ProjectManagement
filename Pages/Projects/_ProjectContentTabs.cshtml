@@ -1,0 +1,318 @@
+@using System
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var activeTab = Model.ContentTab ?? "brief";
+    var canEdit = Model.CanEditProjectContent;
+    var briefIsActive = string.Equals(activeTab, "brief", StringComparison.OrdinalIgnoreCase);
+    var capabilitiesAreActive = string.Equals(activeTab, "capabilities", StringComparison.OrdinalIgnoreCase);
+    var descriptionIsActive = string.Equals(activeTab, "description", StringComparison.OrdinalIgnoreCase);
+    var capabilityEditorCount = Math.Max(
+        Model.CapabilityInput.Statements.Count,
+        Math.Min(ProjectFieldLimits.CapabilityRecommendedMinimumCount, ProjectFieldLimits.CapabilityMaximumCount));
+}
+
+<section class="project-content" id="project-content" data-project-content>
+    <div class="project-content__header">
+        <div>
+            <h3 class="h6 mb-1">Project content</h3>
+            <p class="text-muted small mb-0">Concise reporting content and the full authoritative narrative.</p>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs project-content__tabs" role="tablist" aria-label="Project content">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(briefIsActive ? "active" : null)"
+                    id="content-brief-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#content-brief"
+                    type="button"
+                    role="tab"
+                    aria-controls="content-brief"
+                    aria-selected="@(briefIsActive.ToString().ToLowerInvariant())"
+                    data-content-tab="brief">
+                Project brief
+                @if (Model.ProjectBriefWordCount > 0)
+                {
+                    <span class="project-content__count">@Model.ProjectBriefWordCount words</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(capabilitiesAreActive ? "active" : null)"
+                    id="content-capabilities-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#content-capabilities"
+                    type="button"
+                    role="tab"
+                    aria-controls="content-capabilities"
+                    aria-selected="@(capabilitiesAreActive.ToString().ToLowerInvariant())"
+                    data-content-tab="capabilities">
+                Capability overview
+                @if (Model.CapabilityStatements.Count > 0)
+                {
+                    <span class="project-content__count">@Model.CapabilityStatements.Count</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(descriptionIsActive ? "active" : null)"
+                    id="content-description-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#content-description"
+                    type="button"
+                    role="tab"
+                    aria-controls="content-description"
+                    aria-selected="@(descriptionIsActive.ToString().ToLowerInvariant())"
+                    data-content-tab="description">
+                Full description
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content project-content__body">
+        <div class="tab-pane fade @(briefIsActive ? "show active" : null)"
+             id="content-brief"
+             role="tabpanel"
+             aria-labelledby="content-brief-tab"
+             tabindex="0">
+            <div class="project-content__view" data-content-view>
+                <div class="project-content__toolbar">
+                    <div class="project-content__guidance">
+                        Recommended length: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefMaximumWords words.
+                    </div>
+                    @if (canEdit)
+                    {
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                            Edit brief
+                        </button>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.ProjectBriefHtml))
+                {
+                    <div class="project-content__narrative pm-markdown">@Html.Raw(Model.ProjectBriefHtml)</div>
+                }
+                else
+                {
+                    <div class="project-content__empty">
+                        <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                        <div>
+                            <strong>Project brief not recorded</strong>
+                            <span>Add a concise brief for search, reports and briefing decks.</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (canEdit)
+            {
+                <form method="post"
+                      asp-page-handler="SaveProjectBrief"
+                      asp-route-id="@Model.Project.Id"
+                      class="project-content__editor d-none"
+                      data-content-form
+                      data-content-kind="brief">
+                    <input asp-for="ContentBriefInput.ProjectId" type="hidden" />
+                    <input asp-for="ContentBriefInput.RowVersion" type="hidden" />
+                    <label asp-for="ContentBriefInput.Brief" class="form-label fw-semibold">Project brief</label>
+                    <textarea asp-for="ContentBriefInput.Brief"
+                              class="form-control project-content__textarea"
+                              rows="10"
+                              maxlength="@ProjectFieldLimits.ProjectBriefMaxLength"
+                              data-word-limit="@ProjectFieldLimits.ProjectBriefMaximumWords"
+                              data-word-counter></textarea>
+                    <div class="project-content__editor-meta">
+                        <span>Recommended: @ProjectFieldLimits.ProjectBriefRecommendedMinimumWords–@ProjectFieldLimits.ProjectBriefMaximumWords words</span>
+                        <span data-word-count>@Model.ProjectBriefWordCount words</span>
+                    </div>
+                    <div class="invalid-feedback d-block d-none" data-content-error></div>
+                    <div class="project-content__actions">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
+                        <button class="btn btn-sm btn-primary" type="submit" data-content-save>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
+                            Save brief
+                        </button>
+                    </div>
+                </form>
+            }
+        </div>
+
+        <div class="tab-pane fade @(capabilitiesAreActive ? "show active" : null)"
+             id="content-capabilities"
+             role="tabpanel"
+             aria-labelledby="content-capabilities-tab"
+             tabindex="0">
+            <div class="project-content__view" data-content-view>
+                <div class="project-content__toolbar">
+                    <div class="project-content__guidance">
+                        Use @ProjectFieldLimits.CapabilityRecommendedMinimumCount–@ProjectFieldLimits.CapabilityMaximumCount distinct capability statements.
+                    </div>
+                    @if (canEdit)
+                    {
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                            Edit capabilities
+                        </button>
+                    }
+                </div>
+                @if (Model.CapabilityStatements.Count > 0)
+                {
+                    <ol class="project-content__capabilities">
+                        @foreach (var capability in Model.CapabilityStatements)
+                        {
+                            <li>@capability.Statement</li>
+                        }
+                    </ol>
+                    @if (Model.CapabilityStatements.Count < ProjectFieldLimits.CapabilityRecommendedMinimumCount)
+                    {
+                        <div class="project-content__advisory">
+                            Add @(ProjectFieldLimits.CapabilityRecommendedMinimumCount - Model.CapabilityStatements.Count) more statement(s) for a complete presentation-ready overview.
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="project-content__empty">
+                        <i class="bi bi-list-check" aria-hidden="true"></i>
+                        <div>
+                            <strong>Capability overview not recorded</strong>
+                            <span>Add ordered statements for PowerPoint and concise capability reporting.</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (canEdit)
+            {
+                <form method="post"
+                      asp-page-handler="SaveProjectCapabilities"
+                      asp-route-id="@Model.Project.Id"
+                      class="project-content__editor d-none"
+                      data-content-form
+                      data-content-kind="capabilities"
+                      data-capability-editor
+                      data-capability-max="@ProjectFieldLimits.CapabilityMaximumCount">
+                    <input asp-for="CapabilityInput.ProjectId" type="hidden" />
+                    <input asp-for="CapabilityInput.RowVersion" type="hidden" />
+                    <div class="project-content__capability-list" data-capability-list>
+                        @for (var index = 0; index < capabilityEditorCount; index++)
+                        {
+                            var value = index < Model.CapabilityInput.Statements.Count
+                                ? Model.CapabilityInput.Statements[index]
+                                : string.Empty;
+                            <div class="project-content__capability-row" data-capability-row>
+                                <span class="project-content__capability-number" data-capability-number>@(index + 1)</span>
+                                <input class="form-control"
+                                       name="CapabilityInput.Statements"
+                                       value="@value"
+                                       maxlength="@ProjectFieldLimits.CapabilityStatementMaxLength"
+                                       aria-label="Capability statement @(index + 1)" />
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Reorder capability statement @(index + 1)">
+                                    <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move up">
+                                        <i class="bi bi-arrow-up" aria-hidden="true"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" type="button" data-capability-down title="Move down" aria-label="Move down">
+                                        <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" type="button" data-capability-remove title="Remove" aria-label="Remove capability">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="project-content__capability-controls">
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-capability-add>
+                            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                            Add capability
+                        </button>
+                        <span data-capability-count>@Model.CapabilityInput.Statements.Count of @ProjectFieldLimits.CapabilityMaximumCount</span>
+                    </div>
+                    <template data-capability-template>
+                        <div class="project-content__capability-row" data-capability-row>
+                            <span class="project-content__capability-number" data-capability-number></span>
+                            <input class="form-control"
+                                   name="CapabilityInput.Statements"
+                                   maxlength="@ProjectFieldLimits.CapabilityStatementMaxLength"
+                                   aria-label="Capability statement" />
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder capability statement">
+                                <button class="btn btn-outline-secondary" type="button" data-capability-up title="Move up" aria-label="Move up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                                <button class="btn btn-outline-secondary" type="button" data-capability-down title="Move down" aria-label="Move down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                                <button class="btn btn-outline-danger" type="button" data-capability-remove title="Remove" aria-label="Remove capability"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                            </div>
+                        </div>
+                    </template>
+                    <div class="invalid-feedback d-block d-none" data-content-error></div>
+                    <div class="project-content__actions">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
+                        <button class="btn btn-sm btn-primary" type="submit" data-content-save>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
+                            Save capabilities
+                        </button>
+                    </div>
+                </form>
+            }
+        </div>
+
+        <div class="tab-pane fade @(descriptionIsActive ? "show active" : null)"
+             id="content-description"
+             role="tabpanel"
+             aria-labelledby="content-description-tab"
+             tabindex="0">
+            <div class="project-content__view" data-content-view>
+                <div class="project-content__toolbar">
+                    <div class="project-content__guidance">Full authoritative narrative. Markdown formatting is supported.</div>
+                    @if (canEdit)
+                    {
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-content-edit>
+                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                            Edit description
+                        </button>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
+                {
+                    <div class="project-content__narrative pm-markdown">@Html.Raw(Model.DescriptionHtml)</div>
+                }
+                else
+                {
+                    <div class="project-content__empty">
+                        <i class="bi bi-card-text" aria-hidden="true"></i>
+                        <div>
+                            <strong>Full description not recorded</strong>
+                            <span>Add the detailed project narrative and key deliverables.</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (canEdit)
+            {
+                <form method="post"
+                      asp-page-handler="SaveProjectDescription"
+                      asp-route-id="@Model.Project.Id"
+                      class="project-content__editor d-none"
+                      data-content-form
+                      data-content-kind="description">
+                    <input asp-for="ContentDescriptionInput.ProjectId" type="hidden" />
+                    <input asp-for="ContentDescriptionInput.RowVersion" type="hidden" />
+                    <label asp-for="ContentDescriptionInput.Description" class="form-label fw-semibold">Full project description</label>
+                    <textarea asp-for="ContentDescriptionInput.Description"
+                              class="form-control project-content__textarea project-content__textarea--large"
+                              rows="14"
+                              maxlength="@ProjectFieldLimits.DescriptionMaxLength"></textarea>
+                    <div class="project-content__editor-meta">
+                        <span>Maximum @ProjectFieldLimits.DescriptionMaxLength.ToString("N0") characters</span>
+                    </div>
+                    <div class="invalid-feedback d-block d-none" data-content-error></div>
+                    <div class="project-content__actions">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-content-cancel>Cancel</button>
+                        <button class="btn btn-sm btn-primary" type="submit" data-content-save>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-content-spinner></span>
+                            Save description
+                        </button>
+                    </div>
+                </form>
+            }
+        </div>
+    </div>
+</section>
