@@ -15,28 +15,11 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("data-default-view=\"register\"", view, StringComparison.Ordinal);
         Assert.Contains("data-view-panel=\"register\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("cpw-portfolio-grid", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-card-sort", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-card-group", view, StringComparison.Ordinal);
         Assert.Contains("completedProjectsWorkspaceViewV2", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("completedProjectsView", script, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Overview_UsesActionQueuesRatherThanEnumeratingEveryProjectAsACard()
-    {
-        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
-
-        Assert.Contains("Proliferation posture", view, StringComparison.Ordinal);
-        Assert.Contains("Available but blocked", view, StringComparison.Ordinal);
-        Assert.Contains("Technology review required", view, StringComparison.Ordinal);
-        Assert.Contains("ToT action pending", view, StringComparison.Ordinal);
-        Assert.Contains("Open filtered register", view, StringComparison.Ordinal);
-        Assert.Contains("asp-route-PortfolioStatus", view, StringComparison.Ordinal);
-    }
-
-
-    [Fact]
-    public void HeadlineKpis_PrioritiseProliferationAvailabilityOverDerivedReadiness()
+    public void HeadlineKpis_UseAvailabilityAndIndependentActionMeasures()
     {
         var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
         var policy = ReadRepoFile("Services", "Projects", "CompletedProjectPortfolioPolicy.cs");
@@ -48,50 +31,84 @@ public sealed class CompletedSummaryPresentationContractTests
         var summary = view[summaryStart..summaryEnd];
         Assert.Contains("Available for proliferation", summary, StringComparison.Ordinal);
         Assert.Contains("Proliferation assessment pending", summary, StringComparison.Ordinal);
-        Assert.DoesNotContain("<small>Fully ready</small>", summary, StringComparison.Ordinal);
-        Assert.Contains("ProliferationAssessmentPending", policy, StringComparison.Ordinal);
+        Assert.Contains("Technology review required", summary, StringComparison.Ordinal);
+        Assert.Contains("ToT action pending", summary, StringComparison.Ordinal);
+        Assert.Contains("Records with critical gaps", summary, StringComparison.Ordinal);
+        Assert.Equal(5, CountOccurrences(summary, "class=\"cpw-summary-card"));
+        Assert.DoesNotContain("Available but blocked", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fully ready", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("available-blocked", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("fully-ready", policy, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Register_RetainsStickyHeaderOnLaptopWidthsAndUsesMeasuredChromeOffset()
+    public void Overview_UsesAvailabilityAndDistinctActionQueues()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+
+        Assert.Contains("Availability posture", view, StringComparison.Ordinal);
+        Assert.Contains("Recently completed projects available for proliferation", view, StringComparison.Ordinal);
+        Assert.Contains("Proliferation decision not recorded", view, StringComparison.Ordinal);
+        Assert.Contains("Technology review required", view, StringComparison.Ordinal);
+        Assert.Contains("ToT action pending", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Available but blocked", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fully ready for proliferation", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Drawer_IsReadOnlyContextWithStickyIdentityAndDedicatedEditNavigation()
     {
         var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
         var css = ReadRepoFile("wwwroot", "css", "pages", "projects-completed-summary.css");
         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-completed-summary.js");
 
-        Assert.Contains("cpw-secondary-column", view, StringComparison.Ordinal);
-        Assert.Contains("--cpw-sticky-offset", css, StringComparison.Ordinal);
-        Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
-        Assert.Contains("@media (max-width: 900px)", css, StringComparison.Ordinal);
+        Assert.Contains("Completed project details", view, StringComparison.Ordinal);
+        Assert.Contains("cpw-drawer-identity", view, StringComparison.Ordinal);
+        Assert.Contains("Actions required", view, StringComparison.Ordinal);
+        Assert.Contains("data-edit-project", view, StringComparison.Ordinal);
+        Assert.Contains("Edit details", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Readiness", view, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("position: sticky", css, StringComparison.Ordinal);
+        Assert.Contains("completedProjectsReturnStateV1", script, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Register_ExposesServerSortingAndSeparateQualitySemantics()
+    public void EditPage_UsesStructuredSectionsConditionalReasonAndCollapsedLppEntry()
     {
-        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
-        var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml");
+        var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml.cs");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-completed-summary-edit.js");
 
-        Assert.Contains("aria-sort=\"@nameSort.Aria\"", view, StringComparison.Ordinal);
-        Assert.Contains("GetRoutesForSort(\"quality\"", view, StringComparison.Ordinal);
-        Assert.Contains("critical", view, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("supplementary", view, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("or \"quality\"", model, StringComparison.Ordinal);
+        Assert.Contains("Edit technology and proliferation details", view, StringComparison.Ordinal);
+        Assert.Contains("Technology assessment", view, StringComparison.Ordinal);
+        Assert.Contains("Availability for proliferation", view, StringComparison.Ordinal);
+        Assert.Contains("Production information", view, StringComparison.Ordinal);
+        Assert.Contains("Latest purchase price records", view, StringComparison.Ordinal);
+        Assert.Contains("data-not-available-reason", view, StringComparison.Ordinal);
+        Assert.Contains("data-new-lpp-panel", view, StringComparison.Ordinal);
+        Assert.Contains("data-completed-project-edit-form", view, StringComparison.Ordinal);
+        Assert.Contains("Url.IsLocalUrl", model, StringComparison.Ordinal);
+        Assert.Contains("LocalRedirect", model, StringComparison.Ordinal);
+        Assert.Contains("beforeunload", script, StringComparison.Ordinal);
+        Assert.Contains("reasonInput.required", script, StringComparison.Ordinal);
+        Assert.Contains("data-reason-clear-note", view, StringComparison.Ordinal);
+        Assert.Contains("data-cancel-edit", view, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Register_UsesNaturalPageFlowAndProgressivelyRevealsWideScreenColumns()
+    public void Register_RetainsStickyHeaderAndWideScreenColumns()
     {
         var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
         var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
         var css = ReadRepoFile("wwwroot", "css", "pages", "projects-completed-summary.css");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-completed-summary.js");
 
-        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", view, StringComparison.Ordinal);
+        Assert.Contains("cpw-secondary-column", view, StringComparison.Ordinal);
         Assert.Contains("cpw-wide-column", view, StringComparison.Ordinal);
         Assert.Contains("cpw-ultrawide-column", view, StringComparison.Ordinal);
-        Assert.Contains("CompletedYearOptions", view, StringComparison.Ordinal);
-        Assert.Contains("GetRoutesForSort", view, StringComparison.Ordinal);
+        Assert.Contains("--cpw-sticky-offset", css, StringComparison.Ordinal);
+        Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
         Assert.Contains("or \"category\" or \"build\"", model, StringComparison.Ordinal);
-        Assert.Contains("max-height: none", css, StringComparison.Ordinal);
         Assert.Contains("@media (min-width: 1760px)", css, StringComparison.Ordinal);
         Assert.Contains("@media (min-width: 2160px)", css, StringComparison.Ordinal);
     }
@@ -108,6 +125,20 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("\"Technical category\"", export, StringComparison.Ordinal);
         Assert.Contains("\"Build type\"", export, StringComparison.Ordinal);
         Assert.Contains("private const int ColumnCount = 15", export, StringComparison.Ordinal);
+    }
+
+
+    private static int CountOccurrences(string source, string value)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+
+        return count;
     }
 
     private static string ReadRepoFile(params string[] relativePath)

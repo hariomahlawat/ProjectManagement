@@ -9,9 +9,7 @@ namespace ProjectManagement.Services.Projects;
 // SECTION: Server-side portfolio focus codes used by the page, export and service.
 public static class CompletedProjectPortfolioStatusCodes
 {
-    public const string FullyReady = "fully-ready";
     public const string ProliferationAssessmentPending = "proliferation-assessment-pending";
-    public const string AvailableBlocked = "available-blocked";
     public const string TechnologyAction = "technology-action";
     public const string TotAction = "tot-action";
     public const string CriticalIncomplete = "critical-incomplete";
@@ -19,9 +17,7 @@ public static class CompletedProjectPortfolioStatusCodes
 
     public static readonly string[] All =
     {
-        FullyReady,
         ProliferationAssessmentPending,
-        AvailableBlocked,
         TechnologyAction,
         TotAction,
         CriticalIncomplete,
@@ -41,9 +37,7 @@ public static class CompletedProjectPortfolioStatusCodes
 
     public static string GetLabel(string? value) => Normalise(value) switch
     {
-        FullyReady => "Fully ready",
         ProliferationAssessmentPending => "Proliferation assessment pending",
-        AvailableBlocked => "Available but blocked",
         TechnologyAction => "Technology review required",
         TotAction => "ToT action pending",
         CriticalIncomplete => "Records with critical gaps",
@@ -52,30 +46,15 @@ public static class CompletedProjectPortfolioStatusCodes
     };
 }
 
-// SECTION: Single source of truth for completed-project readiness and data quality.
+// SECTION: Single source of truth for completed-project action and data-quality rules.
 public static class CompletedProjectPortfolioPolicy
 {
     private static readonly string[] EmptyFields = Array.Empty<string>();
-
-    public static bool IsFullyReady(CompletedProjectSummaryDto item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-
-        return string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)
-               && item.AvailableForProliferation == true
-               && item.TotStatus is ProjectTotStatus.Completed or ProjectTotStatus.NotRequired;
-    }
 
     public static bool IsProliferationAssessmentPending(CompletedProjectSummaryDto item)
     {
         ArgumentNullException.ThrowIfNull(item);
         return !item.AvailableForProliferation.HasValue;
-    }
-
-    public static bool IsAvailableButBlocked(CompletedProjectSummaryDto item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        return item.AvailableForProliferation == true && !IsFullyReady(item);
     }
 
     public static bool RequiresTechnologyAction(CompletedProjectSummaryDto item)
@@ -96,6 +75,51 @@ public static class CompletedProjectPortfolioPolicy
     {
         ArgumentNullException.ThrowIfNull(item);
         return string.IsNullOrWhiteSpace(item.TechStatus);
+    }
+
+    public static IReadOnlyList<string> GetActionItems(CompletedProjectSummaryDto item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        List<string>? actions = null;
+
+        if (string.IsNullOrWhiteSpace(item.TechStatus))
+        {
+            Add(ref actions, "Record the technology assessment");
+        }
+        else if (string.Equals(item.TechStatus, ProjectTechStatusCodes.Outdated, StringComparison.OrdinalIgnoreCase))
+        {
+            Add(ref actions, "Review technology refresh requirements");
+        }
+        else if (string.Equals(item.TechStatus, ProjectTechStatusCodes.Obsolete, StringComparison.OrdinalIgnoreCase))
+        {
+            Add(ref actions, "Review retention or replacement of obsolete technology");
+        }
+
+        if (!item.AvailableForProliferation.HasValue)
+        {
+            Add(ref actions, "Record the proliferation decision");
+        }
+
+        switch (item.TotStatus)
+        {
+            case null:
+                Add(ref actions, "Record the ToT status");
+                break;
+            case ProjectTotStatus.NotStarted:
+                Add(ref actions, "Initiate the required ToT action");
+                break;
+            case ProjectTotStatus.InProgress:
+                Add(ref actions, "Complete the pending ToT action");
+                break;
+        }
+
+        if (actions is null)
+        {
+            return EmptyFields;
+        }
+
+        return actions;
     }
 
     public static IReadOnlyList<string> GetCriticalMissingFields(CompletedProjectSummaryDto item)
@@ -157,63 +181,13 @@ public static class CompletedProjectPortfolioPolicy
     public static int GetTotalMissingCount(CompletedProjectSummaryDto item) =>
         GetCriticalMissingCount(item) + GetSupplementaryMissingCount(item);
 
-    public static string GetReadinessBlockers(CompletedProjectSummaryDto item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-
-        var blockers = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(item.TechStatus))
-        {
-            blockers.Add("Technology not assessed");
-        }
-        else if (string.Equals(item.TechStatus, ProjectTechStatusCodes.Outdated, StringComparison.OrdinalIgnoreCase))
-        {
-            blockers.Add("Technology refresh required");
-        }
-        else if (string.Equals(item.TechStatus, ProjectTechStatusCodes.Obsolete, StringComparison.OrdinalIgnoreCase))
-        {
-            blockers.Add("Technology obsolete");
-        }
-        else if (!string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase))
-        {
-            blockers.Add($"Technology: {item.TechStatus}");
-        }
-
-        if (item.AvailableForProliferation is null)
-        {
-            blockers.Add("Proliferation decision not recorded");
-        }
-        else if (item.AvailableForProliferation == false)
-        {
-            blockers.Add("Not available for proliferation");
-        }
-
-        switch (item.TotStatus)
-        {
-            case null:
-                blockers.Add("ToT status not recorded");
-                break;
-            case ProjectTotStatus.NotStarted:
-                blockers.Add("ToT not started");
-                break;
-            case ProjectTotStatus.InProgress:
-                blockers.Add("ToT in progress");
-                break;
-        }
-
-        return blockers.Count == 0 ? "No readiness blockers" : string.Join(" · ", blockers);
-    }
-
     public static bool MatchesPortfolioStatus(CompletedProjectSummaryDto item, string? portfolioStatus)
     {
         ArgumentNullException.ThrowIfNull(item);
 
         return CompletedProjectPortfolioStatusCodes.Normalise(portfolioStatus) switch
         {
-            CompletedProjectPortfolioStatusCodes.FullyReady => IsFullyReady(item),
             CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending => IsProliferationAssessmentPending(item),
-            CompletedProjectPortfolioStatusCodes.AvailableBlocked => IsAvailableButBlocked(item),
             CompletedProjectPortfolioStatusCodes.TechnologyAction => RequiresTechnologyAction(item),
             CompletedProjectPortfolioStatusCodes.TotAction => HasTotActionPending(item),
             CompletedProjectPortfolioStatusCodes.CriticalIncomplete => GetCriticalMissingCount(item) > 0,
@@ -241,9 +215,9 @@ public static class CompletedProjectPortfolioPolicy
         _ => "Not assessed"
     };
 
-    private static void Add(ref List<string>? fields, string value)
+    private static void Add(ref List<string>? items, string value)
     {
-        fields ??= new List<string>();
-        fields.Add(value);
+        items ??= new List<string>();
+        items.Add(value);
     }
 }

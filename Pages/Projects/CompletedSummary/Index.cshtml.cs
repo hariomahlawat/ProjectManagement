@@ -270,7 +270,7 @@ public sealed class IndexModel : PageModel
         {
             filters.Add(new ActiveCompletedProjectFilter(
                 nameof(PortfolioStatus),
-                "Portfolio position",
+                "Portfolio focus",
                 CompletedProjectPortfolioStatusCodes.GetLabel(PortfolioStatus)));
         }
 
@@ -356,13 +356,6 @@ public sealed class IndexModel : PageModel
         // contradictory route while unrelated scope filters remain intact.
         switch (normalisedStatus)
         {
-            case CompletedProjectPortfolioStatusCodes.FullyReady:
-            case CompletedProjectPortfolioStatusCodes.AvailableBlocked:
-                excludedKeys.Add(nameof(AvailableForProliferation));
-                excludedKeys.Add(nameof(TechStatus));
-                excludedKeys.Add(nameof(TotCompleted));
-                break;
-
             case CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending:
                 excludedKeys.Add(nameof(AvailableForProliferation));
                 break;
@@ -394,7 +387,10 @@ public sealed class IndexModel : PageModel
         return values;
     }
 
-    public Dictionary<string, string> GetRoutesForAvailability(bool available)
+    public Dictionary<string, string> GetRoutesForAvailability(
+        bool available,
+        string? sort = null,
+        string? direction = null)
     {
         var values = new Dictionary<string, string>(
             BuildRouteValues(nameof(PortfolioStatus), nameof(AvailableForProliferation)))
@@ -402,6 +398,14 @@ public sealed class IndexModel : PageModel
             [nameof(AvailableForProliferation)] = available.ToString().ToLowerInvariant(),
             [nameof(WorkspaceView)] = "register"
         };
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            values[nameof(Sort)] = sort;
+            values[nameof(Dir)] = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase)
+                ? "asc"
+                : "desc";
+        }
 
         return values;
     }
@@ -573,8 +577,6 @@ public sealed class IndexModel : PageModel
         {
             (string.Empty, "All"),
             (CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "Proliferation assessment pending"),
-            (CompletedProjectPortfolioStatusCodes.AvailableBlocked, "Available but blocked"),
-            (CompletedProjectPortfolioStatusCodes.FullyReady, "Fully ready"),
             (CompletedProjectPortfolioStatusCodes.TechnologyAction, "Technology review required"),
             (CompletedProjectPortfolioStatusCodes.TotAction, "ToT action pending"),
             (CompletedProjectPortfolioStatusCodes.CriticalIncomplete, "Records with critical gaps"),

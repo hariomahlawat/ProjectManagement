@@ -1,9 +1,14 @@
-Pages/Projects/CompletedSummary/Index.cshtml
-Pages/Projects/CompletedSummary/Index.cshtml.cs
 Services/Projects/CompletedProjectPortfolioPolicy.cs
 Services/Projects/CompletedProjectsPortfolioOverview.cs
+Pages/Projects/CompletedSummary/Index.cshtml
+Pages/Projects/CompletedSummary/Index.cshtml.cs
+Pages/Projects/CompletedSummary/Edit.cshtml
+Pages/Projects/CompletedSummary/Edit.cshtml.cs
+Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
 wwwroot/css/pages/projects-completed-summary.css
+wwwroot/css/pages/projects-completed-summary-edit.css
 wwwroot/js/pages/projects-completed-summary.js
+wwwroot/js/pages/projects-completed-summary-edit.js
 ProjectManagement.Tests/CompletedProjectPortfolioPolicyTests.cs
 ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
 README-APPLY.txt

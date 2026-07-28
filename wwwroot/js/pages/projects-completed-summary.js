@@ -5,6 +5,7 @@
   if (!root) return;
 
   const viewStorageKey = 'completedProjectsWorkspaceViewV2';
+  const returnStateStorageKey = 'completedProjectsReturnStateV1';
   const validViews = new Set(['register', 'overview', 'quality']);
 
   const stickyChrome = [
@@ -136,7 +137,7 @@
     if (target instanceof HTMLElement && document.contains(target)) target.focus();
   };
 
-  const openDrawer = (id, opener) => {
+  const openDrawer = (id, opener, focusClose = true) => {
     const template = document.getElementById(`cpw-project-${id}`);
     if (!template || !drawer || !drawerBody) return;
 
@@ -147,7 +148,9 @@
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('cpw-drawer-open');
 
-    requestAnimationFrame(() => drawer.querySelector('[data-close-drawer]')?.focus());
+    if (focusClose) {
+      requestAnimationFrame(() => drawer.querySelector('[data-close-drawer]')?.focus());
+    }
   };
 
   root.addEventListener('click', (event) => {
@@ -155,6 +158,30 @@
     if (opener) {
       event.preventDefault();
       openDrawer(opener.dataset.openProject, opener);
+      return;
+    }
+
+    const editLink = event.target.closest('[data-edit-project]');
+    if (editLink instanceof HTMLAnchorElement) {
+      event.preventDefault();
+
+      const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const state = {
+        returnUrl: currentUrl,
+        scrollY: window.scrollY,
+        projectId: editLink.dataset.projectId,
+        view: tabs.find((tab) => tab.classList.contains('is-active'))?.dataset.view || 'register'
+      };
+
+      try {
+        sessionStorage.setItem(returnStateStorageKey, JSON.stringify(state));
+      } catch {
+        // Context restoration remains optional when session storage is unavailable.
+      }
+
+      const target = new URL(editLink.href, window.location.origin);
+      target.searchParams.set('returnUrl', currentUrl);
+      window.location.assign(target.toString());
       return;
     }
 
@@ -185,4 +212,38 @@
       first.focus();
     }
   });
+
+  const restoreReturnState = () => {
+    let state = null;
+
+    try {
+      const raw = sessionStorage.getItem(returnStateStorageKey);
+      state = raw ? JSON.parse(raw) : null;
+    } catch {
+      state = null;
+    }
+
+    if (!state || typeof state !== 'object') return;
+
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (state.returnUrl !== currentUrl) return;
+
+    try {
+      sessionStorage.removeItem(returnStateStorageKey);
+    } catch {
+      // No action required.
+    }
+
+    if (validViews.has(state.view)) setView(state.view);
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: Number(state.scrollY) || 0, behavior: 'auto' });
+      requestAnimationFrame(() => {
+        const opener = root.querySelector(`[data-open-project="${CSS.escape(String(state.projectId || ''))}"]`);
+        openDrawer(state.projectId, opener, false);
+      });
+    });
+  };
+
+  restoreReturnState();
 })();

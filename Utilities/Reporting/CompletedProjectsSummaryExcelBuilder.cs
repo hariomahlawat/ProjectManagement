@@ -215,7 +215,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             ("ToT filter", FormatTotFilter(context.TotCompleted)),
             ("Completed year", context.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "(all)"),
             ("Build type", context.Build ?? "(all)"),
-            ("Portfolio position", CompletedProjectPortfolioStatusCodes.GetLabel(context.PortfolioStatus)),
+            ("Portfolio focus", CompletedProjectPortfolioStatusCodes.GetLabel(context.PortfolioStatus)),
             ("Search", string.IsNullOrWhiteSpace(context.Search) ? "(none)" : context.Search)
         };
 

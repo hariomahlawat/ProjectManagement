@@ -1,174 +1,293 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Projects.CompletedSummary.EditModel
+@using ProjectManagement.Services.Projects
 @{
-    ViewData["Title"] = "Edit completed project cost and status";
+    ViewData["Title"] = "Edit technology and proliferation details";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
+
+    static string FormatMoney(decimal? value)
+    {
+        if (!value.HasValue) return "Not recorded";
+        return value.Value >= 100m
+            ? $"₹{value.Value / 100m:0.##} Cr"
+            : $"₹{value.Value:0.##} L";
+    }
 }
 
-<h1 class="mb-3">Edit completed project</h1>
-<p class="text-muted mb-4">@Model.ProjectName</p>
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-completed-summary-edit.css" asp-append-version="true" />
+}
 
-<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div class="cpe">
+    <header class="cpe-page-header">
+        <div>
+            <a href="@Model.BackUrl" class="cpe-back" data-cancel-edit>
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                Completed projects
+            </a>
+            <div class="cpe-kicker">Completed-project assessment</div>
+            <h1>Edit technology and proliferation details</h1>
+            <p>@Model.ProjectName · Completed @(Model.CompletedYear?.ToString() ?? "year not recorded")</p>
+        </div>
+        <a asp-page="/Projects/Overview"
+           asp-route-id="@Model.Input.ProjectId"
+           class="cpe-open-project"
+           data-cancel-edit>Open full project</a>
+    </header>
 
-<form method="post" class="row g-3">
-    @Html.AntiForgeryToken()
-    <input type="hidden" asp-for="Input.ProjectId" />
+    <section class="cpe-authoritative-strip" aria-label="Authoritative project information">
+        <article>
+            <span>Recorded development cost</span>
+            <strong>@FormatMoney(Model.RecordedDevelopmentCostLakhs)</strong>
+            <small>Managed in the project financial record</small>
+        </article>
+        <article>
+            <span>Completion year</span>
+            <strong>@(Model.CompletedYear?.ToString() ?? "Not recorded")</strong>
+            <small>Managed in the project lifecycle record</small>
+        </article>
+        <article>
+            <span>ToT status</span>
+            <strong>@Model.TotStatusLabel</strong>
+            <small>Managed in the project lifecycle workspace</small>
+        </article>
+    </section>
 
-    <div class="col-12 col-md-4">
-        <label asp-for="Input.ApproxProductionCost" class="form-label">Approx Prod cost (lakh)</label>
-        <input asp-for="Input.ApproxProductionCost" class="form-control" type="number" min="0.01" step="0.01" inputmode="decimal" />
-        <span asp-validation-for="Input.ApproxProductionCost" class="text-danger"></span>
-    </div>
+    <form method="post" class="cpe-form" data-completed-project-edit-form>
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Input.ProjectId" />
+        <input type="hidden" asp-for="ReturnUrl" />
 
-    <div class="col-12">
-        <label asp-for="Input.ProductionRemarks" class="form-label">Production remarks</label>
-        <textarea asp-for="Input.ProductionRemarks" rows="2" class="form-control"></textarea>
-        <span asp-validation-for="Input.ProductionRemarks" class="text-danger"></span>
-    </div>
+        <div asp-validation-summary="ModelOnly" class="cpe-validation-summary" role="alert"></div>
 
-    <div class="col-12 col-md-4">
-        <label asp-for="Input.TechStatus" class="form-label">Technology status</label>
-        <select asp-for="Input.TechStatus" asp-items="Model.TechStatusOptions" class="form-select"></select>
-        <span asp-validation-for="Input.TechStatus" class="text-danger"></span>
-    </div>
+        <div class="cpe-layout">
+            <div class="cpe-column">
+                <section class="cpe-card" aria-labelledby="technologyHeading">
+                    <div class="cpe-card-head">
+                        <div>
+                            <span>Assessment</span>
+                            <h2 id="technologyHeading">Technology assessment</h2>
+                        </div>
+                    </div>
 
-    <div class="col-12 col-lg-8">
-        <fieldset>
-            <legend class="form-label">Availability for proliferation</legend>
-            <div class="d-flex flex-wrap gap-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="Input.AvailableForProliferation" id="availabilityNotAssessed" value="" checked="@(Model.Input.AvailableForProliferation is null ? "checked" : null)" />
-                    <label class="form-check-label" for="availabilityNotAssessed">Not assessed</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="Input.AvailableForProliferation" id="availabilityYes" value="true" checked="@(Model.Input.AvailableForProliferation == true ? "checked" : null)" />
-                    <label class="form-check-label" for="availabilityYes">Available</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="Input.AvailableForProliferation" id="availabilityNo" value="false" checked="@(Model.Input.AvailableForProliferation == false ? "checked" : null)" />
-                    <label class="form-check-label" for="availabilityNo">Not available</label>
-                </div>
+                    <div class="cpe-field">
+                        <label asp-for="Input.TechStatus">Technology status</label>
+                        <select asp-for="Input.TechStatus" asp-items="Model.TechStatusOptions"></select>
+                        <span asp-validation-for="Input.TechStatus" class="cpe-field-error"></span>
+                    </div>
+
+                    <div class="cpe-field">
+                        <label asp-for="Input.TechRemarks">Technology remarks</label>
+                        <textarea asp-for="Input.TechRemarks" rows="4" maxlength="500" data-autogrow></textarea>
+                        <span asp-validation-for="Input.TechRemarks" class="cpe-field-error"></span>
+                    </div>
+                </section>
+
+                <section class="cpe-card" aria-labelledby="proliferationHeading">
+                    <div class="cpe-card-head">
+                        <div>
+                            <span>Decision</span>
+                            <h2 id="proliferationHeading">Availability for proliferation</h2>
+                        </div>
+                    </div>
+
+                    <fieldset class="cpe-choice-field">
+                        <legend>Recorded decision</legend>
+                        <div class="cpe-choice-grid">
+                            <label>
+                                <input type="radio"
+                                       name="Input.AvailableForProliferation"
+                                       value=""
+                                       checked="@(Model.Input.AvailableForProliferation is null ? "checked" : null)" />
+                                <span><strong>Not assessed</strong><small>Decision is pending</small></span>
+                            </label>
+                            <label>
+                                <input type="radio"
+                                       name="Input.AvailableForProliferation"
+                                       value="true"
+                                       checked="@(Model.Input.AvailableForProliferation == true ? "checked" : null)" />
+                                <span><strong>Available</strong><small>Available for proliferation</small></span>
+                            </label>
+                            <label>
+                                <input type="radio"
+                                       name="Input.AvailableForProliferation"
+                                       value="false"
+                                       checked="@(Model.Input.AvailableForProliferation == false ? "checked" : null)" />
+                                <span><strong>Not available</strong><small>Reason must be recorded</small></span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <div class="cpe-field cpe-reason-field @(Model.Input.AvailableForProliferation == false ? string.Empty : "is-hidden")"
+                         data-not-available-reason>
+                        <label asp-for="Input.NotAvailableReason">Reason for non-availability <span aria-hidden="true">*</span></label>
+                        <textarea asp-for="Input.NotAvailableReason"
+                                  rows="3"
+                                  maxlength="500"
+                                  data-autogrow
+                                  data-reason-input></textarea>
+                        <span asp-validation-for="Input.NotAvailableReason" class="cpe-field-error"></span>
+                    </div>
+                    <p class="cpe-cleared-value-note" data-reason-clear-note hidden>
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        The recorded non-availability reason will be cleared when these changes are saved.
+                    </p>
+
+                    <div class="cpe-field">
+                        <label asp-for="Input.ProliferationRemarks">Proliferation remarks</label>
+                        <textarea asp-for="Input.ProliferationRemarks" rows="4" maxlength="500" data-autogrow></textarea>
+                        <span asp-validation-for="Input.ProliferationRemarks" class="cpe-field-error"></span>
+                    </div>
+                </section>
             </div>
-        </fieldset>
-    </div>
 
-    <div class="col-12">
-        <label asp-for="Input.NotAvailableReason" class="form-label">Reason if not available</label>
-        <textarea asp-for="Input.NotAvailableReason" rows="2" maxlength="500" class="form-control"></textarea>
-        <span asp-validation-for="Input.NotAvailableReason" class="text-danger"></span>
-    </div>
+            <div class="cpe-column">
+                <section class="cpe-card" aria-labelledby="productionHeading">
+                    <div class="cpe-card-head">
+                        <div>
+                            <span>Commercial information</span>
+                            <h2 id="productionHeading">Production information</h2>
+                        </div>
+                    </div>
 
-    <div class="col-12">
-        <label asp-for="Input.ProliferationRemarks" class="form-label">Proliferation remarks</label>
-        <textarea asp-for="Input.ProliferationRemarks" rows="2" maxlength="500" class="form-control"></textarea>
-        <span asp-validation-for="Input.ProliferationRemarks" class="text-danger"></span>
-    </div>
+                    <div class="cpe-field cpe-field-compact">
+                        <label asp-for="Input.ApproxProductionCost">Approximate production cost (lakh)</label>
+                        <div class="cpe-money-input">
+                            <span aria-hidden="true">₹</span>
+                            <input asp-for="Input.ApproxProductionCost"
+                                   type="number"
+                                   min="0.01"
+                                   step="0.01"
+                                   inputmode="decimal" />
+                        </div>
+                        <small class="cpe-field-note">Enter the approximate unit production cost in lakh.</small>
+                        <span asp-validation-for="Input.ApproxProductionCost" class="cpe-field-error"></span>
+                    </div>
 
-    <div class="col-12">
-        <label asp-for="Input.TechRemarks" class="form-label">Technology remarks</label>
-        <textarea asp-for="Input.TechRemarks" rows="2" class="form-control"></textarea>
-        <span asp-validation-for="Input.TechRemarks" class="text-danger"></span>
-    </div>
+                    <div class="cpe-field">
+                        <label asp-for="Input.ProductionRemarks">Production remarks</label>
+                        <textarea asp-for="Input.ProductionRemarks" rows="4" maxlength="500" data-autogrow></textarea>
+                        <span asp-validation-for="Input.ProductionRemarks" class="cpe-field-error"></span>
+                    </div>
+                </section>
 
-    <!-- SECTION: Existing LPP records (editable) -->
-    <div class="col-12">
-        <h2 class="h5 mt-2">Existing LPP records</h2>
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col" class="project-summary__col-amount">Amount (lakh)</th>
-                        <th scope="col" class="project-summary__col-date">Date</th>
-                        <th scope="col" class="project-summary__col-document">Document</th>
-                        <th scope="col" class="project-summary__col-so-number">SO number</th>
-                        <th scope="col">Remarks</th>
-                    </tr>
-                </thead>
-                <tbody>
+                <section class="cpe-card cpe-lpp-card" aria-labelledby="lppHeading">
+                    <div class="cpe-card-head">
+                        <div>
+                            <span>Commercial history</span>
+                            <h2 id="lppHeading">Latest purchase price records</h2>
+                        </div>
+                    </div>
+
                     @if (Model.Input.LppRecords == null || Model.Input.LppRecords.Count == 0)
                     {
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-3">No LPP records captured yet.</td>
-                        </tr>
+                        <div class="cpe-empty-state">
+                            <i class="bi bi-receipt" aria-hidden="true"></i>
+                            <strong>No LPP record has been added</strong>
+                            <span>Add a record when a purchase price becomes available.</span>
+                        </div>
                     }
                     else
                     {
-                        for (var i = 0; i < Model.Input.LppRecords.Count; i++)
-                        {
-                            <tr>
-                                <td>
-                                    <input asp-for="Input.LppRecords[i].Id" type="hidden" />
-                                    <input asp-for="Input.LppRecords[i].Amount" class="form-control form-control-sm" />
-                                    <span asp-validation-for="Input.LppRecords[i].Amount" class="text-danger"></span>
-                                </td>
-                                <td>
-                                    <input asp-for="Input.LppRecords[i].Date" type="date" class="form-control form-control-sm" />
-                                    <span asp-validation-for="Input.LppRecords[i].Date" class="text-danger"></span>
-                                </td>
-                                <td>
-                                    <select asp-for="Input.LppRecords[i].DocumentId"
-                                            asp-items="Model.DocumentOptions"
-                                            class="form-select form-select-sm"></select>
-                                    <span asp-validation-for="Input.LppRecords[i].DocumentId" class="text-danger"></span>
-                                </td>
-                                <td>
-                                    <input asp-for="Input.LppRecords[i].SupplyOrderNumber" class="form-control form-control-sm" />
-                                    <span asp-validation-for="Input.LppRecords[i].SupplyOrderNumber" class="text-danger"></span>
-                                </td>
-                                <td>
-                                    <input asp-for="Input.LppRecords[i].Remarks" class="form-control form-control-sm" />
-                                    <span asp-validation-for="Input.LppRecords[i].Remarks" class="text-danger"></span>
-                                </td>
-                            </tr>
-                        }
+                        <div class="cpe-lpp-table-wrap">
+                            <table class="cpe-lpp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Amount (lakh)</th>
+                                        <th>Date</th>
+                                        <th>Supply order number</th>
+                                        <th>Supporting document</th>
+                                        <th>Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var i = 0; i < Model.Input.LppRecords.Count; i++)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <input asp-for="Input.LppRecords[i].Id" type="hidden" />
+                                                <input asp-for="Input.LppRecords[i].Amount" type="number" min="0" step="0.01" inputmode="decimal" />
+                                                <span asp-validation-for="Input.LppRecords[i].Amount" class="cpe-field-error"></span>
+                                            </td>
+                                            <td>
+                                                <input asp-for="Input.LppRecords[i].Date" type="date" />
+                                                <span asp-validation-for="Input.LppRecords[i].Date" class="cpe-field-error"></span>
+                                            </td>
+                                            <td>
+                                                <input asp-for="Input.LppRecords[i].SupplyOrderNumber" maxlength="64" />
+                                                <span asp-validation-for="Input.LppRecords[i].SupplyOrderNumber" class="cpe-field-error"></span>
+                                            </td>
+                                            <td>
+                                                <select asp-for="Input.LppRecords[i].DocumentId" asp-items="Model.DocumentOptions"></select>
+                                                <span asp-validation-for="Input.LppRecords[i].DocumentId" class="cpe-field-error"></span>
+                                            </td>
+                                            <td>
+                                                <input asp-for="Input.LppRecords[i].Remarks" maxlength="500" />
+                                                <span asp-validation-for="Input.LppRecords[i].Remarks" class="cpe-field-error"></span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     }
-                </tbody>
-            </table>
-        </div>
-    </div>
 
-    <!-- SECTION: Add new LPP -->
-    <div class="col-12">
-        <h2 class="h5">Add new LPP</h2>
-    </div>
-    <div class="col-12 col-md-3">
-        <label asp-for="Input.NewLppAmount" class="form-label">Amount (lakh)</label>
-        <input asp-for="Input.NewLppAmount" class="form-control" />
-        <span asp-validation-for="Input.NewLppAmount" class="text-danger"></span>
-    </div>
-    <div class="col-12 col-md-3">
-        <label asp-for="Input.NewLppDate" class="form-label">Date</label>
-        <input asp-for="Input.NewLppDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.NewLppDate" class="text-danger"></span>
-    </div>
-    <div class="col-12 col-md-3">
-        <label asp-for="Input.NewSupplyOrderNumber" class="form-label">SO number</label>
-        <input asp-for="Input.NewSupplyOrderNumber" class="form-control" />
-        <span asp-validation-for="Input.NewSupplyOrderNumber" class="text-danger"></span>
-    </div>
-    <div class="col-12 col-md-3">
-        <div class="d-flex align-items-center gap-2">
-            <label asp-for="Input.NewProjectDocumentId" class="form-label mb-0">Supporting document</label>
-            <span class="help-tooltip d-inline-flex align-items-center"
-                  role="button"
-                  tabindex="0"
-                  data-toggle="tooltip"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.">
-                <i class="bi bi-info-circle"></i>
-            </span>
+                    <details class="cpe-add-lpp" data-new-lpp-panel data-open-on-load="@Model.ShowNewLppEditor.ToString().ToLowerInvariant()">
+                        <summary><i class="bi bi-plus-lg" aria-hidden="true"></i> Add LPP record</summary>
+                        <div class="cpe-add-lpp-body">
+                            <p>This record will be added when the page is saved.</p>
+                            <div class="cpe-lpp-form-grid">
+                                <div class="cpe-field">
+                                    <label asp-for="Input.NewLppAmount">Amount (lakh)</label>
+                                    <input asp-for="Input.NewLppAmount" type="number" min="0" step="0.01" inputmode="decimal" data-new-lpp-input />
+                                    <span asp-validation-for="Input.NewLppAmount" class="cpe-field-error"></span>
+                                </div>
+                                <div class="cpe-field">
+                                    <label asp-for="Input.NewLppDate">Date</label>
+                                    <input asp-for="Input.NewLppDate" type="date" data-new-lpp-input />
+                                    <span asp-validation-for="Input.NewLppDate" class="cpe-field-error"></span>
+                                </div>
+                                <div class="cpe-field">
+                                    <label asp-for="Input.NewSupplyOrderNumber">Supply order number</label>
+                                    <input asp-for="Input.NewSupplyOrderNumber" maxlength="64" data-new-lpp-input />
+                                    <span asp-validation-for="Input.NewSupplyOrderNumber" class="cpe-field-error"></span>
+                                </div>
+                                <div class="cpe-field">
+                                    <label asp-for="Input.NewProjectDocumentId" title="Upload and publish the project document before selecting it here.">Supporting document</label>
+                                    <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" data-new-lpp-input></select>
+                                    <span asp-validation-for="Input.NewProjectDocumentId" class="cpe-field-error"></span>
+                                </div>
+                                <div class="cpe-field cpe-field-full">
+                                    <label asp-for="Input.NewLppRemarks">Remarks</label>
+                                    <textarea asp-for="Input.NewLppRemarks" rows="3" maxlength="500" data-new-lpp-input data-autogrow></textarea>
+                                    <span asp-validation-for="Input.NewLppRemarks" class="cpe-field-error"></span>
+                                </div>
+                            </div>
+                            <button type="button" class="cpe-text-button" data-cancel-new-lpp>Cancel new LPP entry</button>
+                        </div>
+                    </details>
+                </section>
+            </div>
         </div>
-        <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select"></select>
-        <span asp-validation-for="Input.NewProjectDocumentId" class="text-danger"></span>
-    </div>
-    <div class="col-12">
-        <label asp-for="Input.NewLppRemarks" class="form-label">Remarks</label>
-        <textarea asp-for="Input.NewLppRemarks" rows="2" class="form-control"></textarea>
-        <span asp-validation-for="Input.NewLppRemarks" class="text-danger"></span>
-    </div>
 
-    <div class="col-12 mt-3 d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Save changes</button>
-        <a asp-page="./Index" class="btn btn-outline-secondary">Back to list</a>
-    </div>
-</form>
+        <div class="cpe-action-bar">
+            <div>
+                <strong>Review the changes before saving.</strong>
+                <span>Authoritative development cost and ToT information remain managed in the full project workspace.</span>
+            </div>
+            <div class="cpe-action-buttons">
+                <a href="@Model.BackUrl" class="cpe-button cpe-button-secondary" data-cancel-edit>Cancel</a>
+                <button type="submit" class="cpe-button cpe-button-primary" data-save-button>
+                    <span data-save-label>Save changes</span>
+                    <span data-saving-label hidden>Saving…</span>
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/projects-completed-summary-edit.js" asp-append-version="true"></script>
+}

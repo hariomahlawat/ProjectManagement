@@ -14,14 +14,13 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.CompletedSummary;
 
 [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.HoD},{RoleNames.ProjectOffice}")]
-// SECTION: Completed projects summary edit page model
 public sealed class EditModel : PageModel
 {
-    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IClock _clock;
@@ -36,19 +35,30 @@ public sealed class EditModel : PageModel
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
-    // SECTION: View data
     [BindProperty]
     public EditCompletedProjectInput Input { get; set; } = new();
 
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
     public string ProjectName { get; private set; } = string.Empty;
+    public int? CompletedYear { get; private set; }
+    public decimal? RecordedDevelopmentCostLakhs { get; private set; }
+    public ProjectTotStatus? TotStatus { get; private set; }
+    public bool ShowNewLppEditor { get; private set; }
+
     public IReadOnlyList<SelectListItem> DocumentOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> TechStatusOptions { get; } = ProjectTechStatusCodes.All
         .Select(status => new SelectListItem(status, status))
         .ToArray();
 
-    // SECTION: Handlers
+    public string BackUrl => ReturnUrl ?? Url.Page("./Index") ?? "/Projects/CompletedSummary";
+    public string TotStatusLabel => CompletedProjectPortfolioPolicy.GetTotLabel(TotStatus);
+
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
+        ReturnUrl = NormaliseReturnUrl(ReturnUrl);
+
         var loaded = await LoadAsync(id, populateForm: true, cancellationToken);
         if (!loaded)
         {
@@ -60,131 +70,28 @@ public sealed class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        // basic model binding errors
-        if (!ModelState.IsValid)
-        {
-            await LoadAsync(Input.ProjectId, populateForm: false, cancellationToken);
-            return Page();
-        }
+        ReturnUrl = NormaliseReturnUrl(ReturnUrl);
 
-        // ensure project exists
         var projectExists = await _db.Projects
-            .AnyAsync(p => p.Id == Input.ProjectId, cancellationToken);
+            .AsNoTracking()
+            .AnyAsync(
+                p => p.Id == Input.ProjectId
+                     && p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                     && !p.IsDeleted
+                     && !p.IsArchived,
+                cancellationToken);
+
         if (!projectExists)
         {
             return NotFound();
         }
 
-        // 1. validate tech status
-        if (!string.IsNullOrWhiteSpace(Input.TechStatus) &&
-            Array.IndexOf(ProjectTechStatusCodes.All, Input.TechStatus) < 0)
-        {
-            ModelState.AddModelError(nameof(Input.TechStatus), "Select a valid technology status.");
-        }
-
-        // 2. validate production cost
-        if (Input.ApproxProductionCost is <= 0m)
-        {
-            ModelState.AddModelError(nameof(Input.ApproxProductionCost), "Enter a cost greater than zero, or leave it blank.");
-        }
-
-        if (Input.AvailableForProliferation == false && string.IsNullOrWhiteSpace(Input.NotAvailableReason))
-        {
-            ModelState.AddModelError(nameof(Input.NotAvailableReason), "Enter the reason the project is not available for proliferation.");
-        }
-
-        if (Normalize(Input.NotAvailableReason)?.Length > 500)
-        {
-            ModelState.AddModelError(nameof(Input.NotAvailableReason), "Reason cannot exceed 500 characters.");
-        }
-
-        if (Normalize(Input.ProliferationRemarks)?.Length > 500)
-        {
-            ModelState.AddModelError(nameof(Input.ProliferationRemarks), "Proliferation remarks cannot exceed 500 characters.");
-        }
-
-        // 3. validate existing LPP edits
-        if (Input.LppRecords is not null)
-        {
-            for (var i = 0; i < Input.LppRecords.Count; i++)
-            {
-                var rec = Input.LppRecords[i];
-
-                if (rec.Amount < 0)
-                {
-                    ModelState.AddModelError($"Input.LppRecords[{i}].Amount", "LPP amount cannot be negative.");
-                }
-
-                if (rec.Date is { } existingDate &&
-                    existingDate > DateOnly.FromDateTime(_clock.UtcNow.Date))
-                {
-                    ModelState.AddModelError($"Input.LppRecords[{i}].Date", "LPP date cannot be in the future.");
-                }
-            }
-        }
-
-        // 4. validate new LPP block
-        var hasNewLppInput = Input.HasNewLppPayload();
-
-        if (hasNewLppInput && !Input.NewLppAmount.HasValue)
-        {
-            ModelState.AddModelError(nameof(Input.NewLppAmount), "Enter an amount for the new LPP.");
-        }
-
-        if (Input.NewLppAmount is < 0)
-        {
-            ModelState.AddModelError(nameof(Input.NewLppAmount), "LPP amount cannot be negative.");
-        }
-
-        if (Input.NewLppDate is { } d &&
-            d > DateOnly.FromDateTime(_clock.UtcNow.Date))
-        {
-            ModelState.AddModelError(nameof(Input.NewLppDate), "LPP date cannot be in the future.");
-        }
-
-        // 5. validate selected document for new LPP
-        if (Input.NewProjectDocumentId.HasValue)
-        {
-            var newDocExists = await _db.ProjectDocuments
-                .AnyAsync(
-                    x => x.Id == Input.NewProjectDocumentId.Value &&
-                         x.ProjectId == Input.ProjectId &&
-                         x.Status == ProjectDocumentStatus.Published &&
-                         !x.IsArchived,
-                    cancellationToken);
-
-            if (!newDocExists)
-            {
-                ModelState.AddModelError(nameof(Input.NewProjectDocumentId), "Select a valid document from the list.");
-            }
-        }
-
-        // 6. validate selected documents for edited LPPs
-        if (Input.LppRecords is not null)
-        {
-            for (var i = 0; i < Input.LppRecords.Count; i++)
-            {
-                var rec = Input.LppRecords[i];
-                if (rec.DocumentId.HasValue)
-                {
-                    var docExists = await _db.ProjectDocuments
-                        .AnyAsync(
-                            x => x.Id == rec.DocumentId.Value &&
-                                 x.ProjectId == Input.ProjectId &&
-                                 x.Status == ProjectDocumentStatus.Published &&
-                                 !x.IsArchived,
-                            cancellationToken);
-
-                    if (!docExists)
-                    {
-                        ModelState.AddModelError($"Input.LppRecords[{i}].DocumentId", "Select a valid document from the list.");
-                    }
-                }
-            }
-        }
+        ValidateAssessmentAndCommercialInputs();
+        await ValidateLppInputsAsync(cancellationToken);
 
         if (!ModelState.IsValid)
         {
+            ShowNewLppEditor = Input.HasNewLppPayload();
             await LoadAsync(Input.ProjectId, populateForm: false, cancellationToken);
             return Page();
         }
@@ -192,81 +99,230 @@ public sealed class EditModel : PageModel
         var userId = _userManager.GetUserId(User) ?? "system";
         var now = _clock.UtcNow;
 
-        // 7. upsert production cost fact
-        var prod = await _db.ProjectProductionCostFacts
-            .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
+        await UpsertProductionInformationAsync(userId, now, cancellationToken);
+        await UpsertTechnologyAndProliferationAsync(userId, now, cancellationToken);
+        await UpdateExistingLppRecordsAsync(cancellationToken);
+        await AddNewLppRecordAsync(userId, now, cancellationToken);
 
-        if (prod == null)
+        await _db.SaveChangesAsync(cancellationToken);
+
+        TempData["CompletedProjectEditSuccess"] = "Completed-project details updated.";
+        return LocalRedirect(BackUrl);
+    }
+
+    private void ValidateAssessmentAndCommercialInputs()
+    {
+        if (string.IsNullOrWhiteSpace(Input.TechStatus)
+            || Array.IndexOf(ProjectTechStatusCodes.All, Input.TechStatus) < 0)
         {
-            prod = new ProjectProductionCostFact
-            {
-                ProjectId = Input.ProjectId
-            };
-            await _db.ProjectProductionCostFacts.AddAsync(prod, cancellationToken);
+            ModelState.AddModelError("Input.TechStatus", "Select a valid technology status.");
         }
 
-        prod.ApproxProductionCost = Input.ApproxProductionCost;
-        prod.Remarks = Normalize(Input.ProductionRemarks);
-        prod.UpdatedAtUtc = now;
-        prod.UpdatedByUserId = userId;
-
-        // 8. upsert tech status
-        var tech = await _db.ProjectTechStatuses
-            .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
-
-        if (tech == null)
+        if (Input.ApproxProductionCost is <= 0m)
         {
-            tech = new ProjectTechStatus
-            {
-                ProjectId = Input.ProjectId
-            };
-            await _db.ProjectTechStatuses.AddAsync(tech, cancellationToken);
+            ModelState.AddModelError("Input.ApproxProductionCost", "Enter a cost greater than zero, or leave it blank.");
         }
 
-        tech.TechStatus = Input.TechStatus ?? ProjectTechStatusCodes.Current;
-        tech.AvailableForProliferation = Input.AvailableForProliferation;
-
-        if (Input.AvailableForProliferation == false)
+        if (Input.AvailableForProliferation == false && string.IsNullOrWhiteSpace(Input.NotAvailableReason))
         {
-            tech.NotAvailableReason = Normalize(Input.NotAvailableReason);
-        }
-        else
-        {
-            tech.NotAvailableReason = null;
+            ModelState.AddModelError("Input.NotAvailableReason", "Enter the reason the project is not available for proliferation.");
         }
 
-        tech.ProliferationRemarks = Normalize(Input.ProliferationRemarks);
-        tech.Remarks = Normalize(Input.TechRemarks);
-        tech.MarkedAtUtc = now;
-        tech.MarkedByUserId = userId;
+        if (Normalize(Input.NotAvailableReason)?.Length > 500)
+        {
+            ModelState.AddModelError("Input.NotAvailableReason", "Reason cannot exceed 500 characters.");
+        }
 
-        // 9. update existing LPPs
+        if (Normalize(Input.ProliferationRemarks)?.Length > 500)
+        {
+            ModelState.AddModelError("Input.ProliferationRemarks", "Proliferation remarks cannot exceed 500 characters.");
+        }
+
+        if (Normalize(Input.TechRemarks)?.Length > 500)
+        {
+            ModelState.AddModelError("Input.TechRemarks", "Technology remarks cannot exceed 500 characters.");
+        }
+
+        if (Normalize(Input.ProductionRemarks)?.Length > 500)
+        {
+            ModelState.AddModelError("Input.ProductionRemarks", "Production remarks cannot exceed 500 characters.");
+        }
+    }
+
+    private async Task ValidateLppInputsAsync(CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(_clock.UtcNow.Date);
+
         if (Input.LppRecords is not null && Input.LppRecords.Count > 0)
         {
-            var ids = Input.LppRecords.Select(r => r.Id).ToList();
-
-            var existingLpps = await _db.ProjectLppRecords
-                .Where(x => x.ProjectId == Input.ProjectId && ids.Contains(x.Id))
+            var postedIds = Input.LppRecords.Select(x => x.Id).Distinct().ToList();
+            var ownedIds = await _db.ProjectLppRecords
+                .AsNoTracking()
+                .Where(x => x.ProjectId == Input.ProjectId && postedIds.Contains(x.Id))
+                .Select(x => x.Id)
                 .ToListAsync(cancellationToken);
 
-            foreach (var rec in Input.LppRecords)
+            if (ownedIds.Count != postedIds.Count)
             {
-                var entity = existingLpps.FirstOrDefault(x => x.Id == rec.Id);
-                if (entity == null) continue;
+                ModelState.AddModelError(string.Empty, "One or more LPP records could not be validated for this project.");
+            }
 
-                entity.LppAmount = rec.Amount;
-                entity.LppDate = rec.Date;
-                entity.SupplyOrderNumber = Normalize(rec.SupplyOrderNumber);
-                entity.ProjectDocumentId = rec.DocumentId;
-                entity.Remarks = Normalize(rec.Remarks);
-                // we keep CreatedAt / CreatedBy as is
+            for (var i = 0; i < Input.LppRecords.Count; i++)
+            {
+                var record = Input.LppRecords[i];
+
+                if (record.Amount < 0)
+                {
+                    ModelState.AddModelError($"Input.LppRecords[{i}].Amount", "LPP amount cannot be negative.");
+                }
+
+                if (record.Date is { } existingDate && existingDate > today)
+                {
+                    ModelState.AddModelError($"Input.LppRecords[{i}].Date", "LPP date cannot be in the future.");
+                }
+
+                if (Normalize(record.SupplyOrderNumber)?.Length > 64)
+                {
+                    ModelState.AddModelError($"Input.LppRecords[{i}].SupplyOrderNumber", "Supply order number cannot exceed 64 characters.");
+                }
+
+                if (Normalize(record.Remarks)?.Length > 500)
+                {
+                    ModelState.AddModelError($"Input.LppRecords[{i}].Remarks", "Remarks cannot exceed 500 characters.");
+                }
+
+                if (record.DocumentId.HasValue && !await IsValidProjectDocumentAsync(record.DocumentId.Value, cancellationToken))
+                {
+                    ModelState.AddModelError($"Input.LppRecords[{i}].DocumentId", "Select a valid document from the list.");
+                }
             }
         }
 
-        // 10. insert new LPP if present
-        if (Input.NewLppAmount.HasValue)
+        var hasNewLppInput = Input.HasNewLppPayload();
+        if (hasNewLppInput && !Input.NewLppAmount.HasValue)
         {
-            var lpp = new ProjectLppRecord
+            ModelState.AddModelError("Input.NewLppAmount", "Enter an amount for the new LPP.");
+        }
+
+        if (Input.NewLppAmount is < 0)
+        {
+            ModelState.AddModelError("Input.NewLppAmount", "LPP amount cannot be negative.");
+        }
+
+        if (Input.NewLppDate is { } newDate && newDate > today)
+        {
+            ModelState.AddModelError("Input.NewLppDate", "LPP date cannot be in the future.");
+        }
+
+        if (Normalize(Input.NewSupplyOrderNumber)?.Length > 64)
+        {
+            ModelState.AddModelError("Input.NewSupplyOrderNumber", "Supply order number cannot exceed 64 characters.");
+        }
+
+        if (Normalize(Input.NewLppRemarks)?.Length > 500)
+        {
+            ModelState.AddModelError("Input.NewLppRemarks", "Remarks cannot exceed 500 characters.");
+        }
+
+        if (Input.NewProjectDocumentId.HasValue
+            && !await IsValidProjectDocumentAsync(Input.NewProjectDocumentId.Value, cancellationToken))
+        {
+            ModelState.AddModelError("Input.NewProjectDocumentId", "Select a valid document from the list.");
+        }
+    }
+
+    private Task<bool> IsValidProjectDocumentAsync(int documentId, CancellationToken cancellationToken) =>
+        _db.ProjectDocuments.AnyAsync(
+            x => x.Id == documentId
+                 && x.ProjectId == Input.ProjectId
+                 && x.Status == ProjectDocumentStatus.Published
+                 && !x.IsArchived,
+            cancellationToken);
+
+    private async Task UpsertProductionInformationAsync(
+        string userId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var production = await _db.ProjectProductionCostFacts
+            .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
+
+        if (production is null)
+        {
+            production = new ProjectProductionCostFact { ProjectId = Input.ProjectId };
+            await _db.ProjectProductionCostFacts.AddAsync(production, cancellationToken);
+        }
+
+        production.ApproxProductionCost = Input.ApproxProductionCost;
+        production.Remarks = Normalize(Input.ProductionRemarks);
+        production.UpdatedAtUtc = now;
+        production.UpdatedByUserId = userId;
+    }
+
+    private async Task UpsertTechnologyAndProliferationAsync(
+        string userId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var technology = await _db.ProjectTechStatuses
+            .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
+
+        if (technology is null)
+        {
+            technology = new ProjectTechStatus { ProjectId = Input.ProjectId };
+            await _db.ProjectTechStatuses.AddAsync(technology, cancellationToken);
+        }
+
+        technology.TechStatus = Input.TechStatus!;
+        technology.AvailableForProliferation = Input.AvailableForProliferation;
+        technology.NotAvailableReason = Input.AvailableForProliferation == false
+            ? Normalize(Input.NotAvailableReason)
+            : null;
+        technology.ProliferationRemarks = Normalize(Input.ProliferationRemarks);
+        technology.Remarks = Normalize(Input.TechRemarks);
+        technology.MarkedAtUtc = now;
+        technology.MarkedByUserId = userId;
+    }
+
+    private async Task UpdateExistingLppRecordsAsync(CancellationToken cancellationToken)
+    {
+        if (Input.LppRecords is null || Input.LppRecords.Count == 0)
+        {
+            return;
+        }
+
+        var ids = Input.LppRecords.Select(r => r.Id).ToList();
+        var existingLpps = await _db.ProjectLppRecords
+            .Where(x => x.ProjectId == Input.ProjectId && ids.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        foreach (var record in Input.LppRecords)
+        {
+            if (!existingLpps.TryGetValue(record.Id, out var entity))
+            {
+                continue;
+            }
+
+            entity.LppAmount = record.Amount;
+            entity.LppDate = record.Date;
+            entity.SupplyOrderNumber = Normalize(record.SupplyOrderNumber);
+            entity.ProjectDocumentId = record.DocumentId;
+            entity.Remarks = Normalize(record.Remarks);
+        }
+    }
+
+    private async Task AddNewLppRecordAsync(
+        string userId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (!Input.NewLppAmount.HasValue)
+        {
+            return;
+        }
+
+        await _db.ProjectLppRecords.AddAsync(
+            new ProjectLppRecord
             {
                 ProjectId = Input.ProjectId,
                 LppAmount = Input.NewLppAmount.Value,
@@ -276,49 +332,61 @@ public sealed class EditModel : PageModel
                 Remarks = Normalize(Input.NewLppRemarks),
                 CreatedAtUtc = now,
                 CreatedByUserId = userId
-            };
-            await _db.ProjectLppRecords.AddAsync(lpp, cancellationToken);
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return RedirectToPage("./Index");
+            },
+            cancellationToken);
     }
 
-    // SECTION: Helpers
-    private async Task<bool> LoadAsync(int projectId, bool populateForm, CancellationToken cancellationToken)
+    private async Task<bool> LoadAsync(
+        int projectId,
+        bool populateForm,
+        CancellationToken cancellationToken)
     {
         var project = await _db.Projects
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+            .FirstOrDefaultAsync(
+                p => p.Id == projectId
+                     && p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                     && !p.IsDeleted
+                     && !p.IsArchived,
+                cancellationToken);
 
-        if (project == null)
+        if (project is null)
         {
             return false;
         }
 
         ProjectName = project.Name;
+        CompletedYear = project.CompletedYear;
+        RecordedDevelopmentCostLakhs = project.CostLakhs;
         Input.ProjectId = projectId;
 
-        var prod = await _db.ProjectProductionCostFacts
+        TotStatus = await _db.ProjectTots
+            .AsNoTracking()
+            .Where(x => x.ProjectId == projectId)
+            .OrderByDescending(x => x.Id)
+            .Select(x => (ProjectTotStatus?)x.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var production = await _db.ProjectProductionCostFacts
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.ProjectId == projectId, cancellationToken);
 
-        var tech = await _db.ProjectTechStatuses
+        var technology = await _db.ProjectTechStatuses
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.ProjectId == projectId, cancellationToken);
 
         var lpps = await _db.ProjectLppRecords
             .AsNoTracking()
             .Where(x => x.ProjectId == projectId)
-            .Include(x => x.ProjectDocument)
             .OrderByDescending(x => x.LppDate ?? DateOnly.MinValue)
             .ThenByDescending(x => x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         var documentOptions = await _db.ProjectDocuments
             .AsNoTracking()
-            .Where(d => d.ProjectId == projectId && d.Status == ProjectDocumentStatus.Published && !d.IsArchived)
+            .Where(d => d.ProjectId == projectId
+                        && d.Status == ProjectDocumentStatus.Published
+                        && !d.IsArchived)
             .OrderBy(d => d.Title)
             .Select(d => new SelectListItem(d.Title, d.Id.ToString()))
             .ToListAsync(cancellationToken);
@@ -327,81 +395,82 @@ public sealed class EditModel : PageModel
             .Concat(documentOptions)
             .ToArray();
 
-        // populate form fields
         if (populateForm)
         {
-            Input.ApproxProductionCost = prod?.ApproxProductionCost;
-            Input.ProductionRemarks = prod?.Remarks;
-            Input.TechStatus = tech?.TechStatus ?? ProjectTechStatusCodes.Current;
-            Input.AvailableForProliferation = tech?.AvailableForProliferation;
-            Input.NotAvailableReason = tech?.NotAvailableReason;
-            Input.ProliferationRemarks = tech?.ProliferationRemarks;
-            Input.TechRemarks = tech?.Remarks;
+            Input.ApproxProductionCost = production?.ApproxProductionCost;
+            Input.ProductionRemarks = production?.Remarks;
+            Input.TechStatus = technology?.TechStatus ?? ProjectTechStatusCodes.Current;
+            Input.AvailableForProliferation = technology?.AvailableForProliferation;
+            Input.NotAvailableReason = technology?.NotAvailableReason;
+            Input.ProliferationRemarks = technology?.ProliferationRemarks;
+            Input.TechRemarks = technology?.Remarks;
+            Input.LppRecords = MapLppRecords(lpps);
         }
-
-        // populate LPP records (these are editable rows)
-        Input.LppRecords = lpps
-            .Select(l => new LppRecordInput
-            {
-                Id = l.Id,
-                Amount = l.LppAmount,
-                Date = l.LppDate,
-                SupplyOrderNumber = l.SupplyOrderNumber,
-                Remarks = l.Remarks,
-                DocumentId = l.ProjectDocumentId,
-                DocumentTitle = l.ProjectDocument?.Title
-            })
-            .ToList();
+        else if (Input.LppRecords is null || Input.LppRecords.Count == 0)
+        {
+            Input.LppRecords = MapLppRecords(lpps);
+        }
 
         return true;
     }
 
-    private static string? Normalize(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static List<LppRecordInput> MapLppRecords(IEnumerable<ProjectLppRecord> records) =>
+        records.Select(record => new LppRecordInput
+        {
+            Id = record.Id,
+            Amount = record.LppAmount,
+            Date = record.LppDate,
+            SupplyOrderNumber = record.SupplyOrderNumber,
+            Remarks = record.Remarks,
+            DocumentId = record.ProjectDocumentId
+        }).ToList();
 
-    // SECTION: View models
+    private string? NormaliseReturnUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return Url.IsLocalUrl(trimmed) ? trimmed : null;
+    }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     public sealed class EditCompletedProjectInput
     {
         public int ProjectId { get; set; }
-
         public decimal? ApproxProductionCost { get; set; }
         public string? ProductionRemarks { get; set; }
-
         public string? TechStatus { get; set; } = ProjectTechStatusCodes.Current;
         public bool? AvailableForProliferation { get; set; }
         public string? NotAvailableReason { get; set; }
         public string? ProliferationRemarks { get; set; }
         public string? TechRemarks { get; set; }
-
         public List<LppRecordInput> LppRecords { get; set; } = new();
-
-        // new LPP
         public decimal? NewLppAmount { get; set; }
         public DateOnly? NewLppDate { get; set; }
         public string? NewSupplyOrderNumber { get; set; }
         public int? NewProjectDocumentId { get; set; }
         public string? NewLppRemarks { get; set; }
 
-        public bool HasNewLppPayload()
-        {
-            return NewLppAmount.HasValue ||
-                   NewLppDate.HasValue ||
-                   !string.IsNullOrWhiteSpace(NewSupplyOrderNumber) ||
-                   NewProjectDocumentId.HasValue ||
-                   !string.IsNullOrWhiteSpace(NewLppRemarks);
-        }
+        public bool HasNewLppPayload() =>
+            NewLppAmount.HasValue
+            || NewLppDate.HasValue
+            || !string.IsNullOrWhiteSpace(NewSupplyOrderNumber)
+            || NewProjectDocumentId.HasValue
+            || !string.IsNullOrWhiteSpace(NewLppRemarks);
     }
 
     public sealed class LppRecordInput
     {
         public int Id { get; set; }
-
         public decimal Amount { get; set; }
         public DateOnly? Date { get; set; }
         public string? SupplyOrderNumber { get; set; }
         public string? Remarks { get; set; }
-
         public int? DocumentId { get; set; }
-        public string? DocumentTitle { get; set; }
     }
 }

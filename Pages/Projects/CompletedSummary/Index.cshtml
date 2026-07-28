@@ -13,6 +13,7 @@
     var overview = Model.Overview;
     var total = items.Count;
     var projectLabel = total == 1 ? "project" : "projects";
+    var returnUrl = $"{Request.Path}{Request.QueryString}";
     var criticalCompletenessScore = total == 0
         ? 0
         : Math.Round((total - overview.CriticalIncompleteCount) * 100d / total);
@@ -75,6 +76,14 @@
         _ => "muted"
     };
 
+    static string FormatLatestLpp(LatestLppViewModel? lpp)
+    {
+        if (lpp is null) return "Not recorded";
+        return lpp.Date.HasValue
+            ? $"{FormatMoney(lpp.Amount)} · {lpp.Date.Value:dd MMM yyyy}"
+            : FormatMoney(lpp.Amount);
+    }
+
     static string JoinFields(IReadOnlyList<string> fields) => string.Join(", ", fields);
 }
 
@@ -83,6 +92,13 @@
 }
 
 <div class="cpw" data-default-view="register" data-requested-view="@Model.WorkspaceView">
+    @if (TempData["CompletedProjectEditSuccess"] is string successMessage)
+    {
+        <div class="cpw-success-banner" role="status">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+            <span>@successMessage</span>
+        </div>
+    }
     <header class="cpw-commandbar">
         <div class="cpw-titleblock">
             <div class="cpw-kicker">Completed project portfolio</div>
@@ -90,7 +106,7 @@
                 <h1>Completed projects</h1>
                 <span class="cpw-count">@total</span>
             </div>
-            <p>Readiness, technology health, transfer-of-technology maturity and financial visibility.</p>
+            <p>Proliferation availability, technology health, transfer-of-technology maturity and financial visibility.</p>
         </div>
         <div class="cpw-command-actions">
             <button type="button"
@@ -132,7 +148,7 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
                 <input asp-for="Search" placeholder="Search by project name…" autocomplete="off" />
             </div>
-            <label class="cpw-field cpw-filter-position"><span>Portfolio position</span><select asp-for="PortfolioStatus" asp-items="Model.PortfolioStatusOptions"></select></label>
+            <label class="cpw-field cpw-filter-position"><span>Portfolio focus</span><select asp-for="PortfolioStatus" asp-items="Model.PortfolioStatusOptions"></select></label>
             <label class="cpw-field cpw-filter-category"><span>Technical category</span><select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategoryOptions"></select></label>
             <label class="cpw-field cpw-filter-technology"><span>Technology</span><select asp-for="TechStatus" asp-items="Model.TechStatusOptions"></select></label>
             <label class="cpw-field cpw-filter-year"><span>Completion year</span><select asp-for="CompletedYear" asp-items="Model.CompletedYearOptions"></select></label>
@@ -182,7 +198,7 @@
         </div>
     }
 
-    <section class="cpw-summary-strip" aria-label="Portfolio position summary">
+    <section class="cpw-summary-strip" aria-label="Completed-project action summary">
         <a asp-page="./Index"
            asp-all-route-data="Model.GetRoutesForAvailability(true)"
            class="cpw-summary-card info"
@@ -196,13 +212,6 @@
            title="Open projects where the proliferation assessment is pending">
             <span class="cpw-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5" /><path d="M17 16h.01" /></svg></span>
             <span><strong>@overview.AvailabilityPendingCount</strong><small>Proliferation assessment pending</small></span>
-        </a>
-        <a asp-page="./Index"
-           asp-all-route-data="Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.AvailableBlocked)"
-           class="cpw-summary-card warning"
-           title="Open available projects with readiness blockers">
-            <span class="cpw-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5m0 3h.01M10.3 4.5 3.7 16a2 2 0 0 0 1.7 3h13.2a2 2 0 0 0 1.7-3L13.7 4.5a2 2 0 0 0-3.4 0Z" /></svg></span>
-            <span><strong>@overview.AvailableBlockedCount</strong><small>Available but blocked</small></span>
         </a>
         <a asp-page="./Index"
            asp-all-route-data="Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction)"
@@ -255,7 +264,7 @@
             {
                 <div class="cpw-register-shell">
                     <div class="cpw-register-head">
-                        <div><h2>Completed projects register</h2><p>High-density comparison across completion, cost, readiness and record quality.</p></div>
+                        <div><h2>Completed projects register</h2><p>High-density comparison across completion, cost, proliferation and record quality.</p></div>
                         <span>Open a project name for details</span>
                     </div>
                     <div class="cpw-table-scroll" role="region" aria-label="Completed projects register" tabindex="0">
@@ -453,31 +462,30 @@
                         </article>
                     </section>
 
-                    <section class="cpw-readiness-grid">
+                    <section class="cpw-availability-grid">
                         <article class="cpw-overview-card">
-                            <div class="cpw-section-heading"><div><span>Readiness position</span><h2>Proliferation posture</h2></div><small>Current filtered scope</small></div>
+                            <div class="cpw-section-heading"><div><span>Proliferation position</span><h2>Availability posture</h2></div><small>Current filtered scope</small></div>
                             <div class="cpw-position-list">
-                                <div><span><i class="positive"></i>Fully ready</span><strong>@overview.FullyReadyCount</strong></div>
-                                <div><span><i class="warning"></i>Available but blocked</span><strong>@overview.AvailableBlockedCount</strong></div>
+                                <div><span><i class="positive"></i>Available for proliferation</span><strong>@overview.AvailableCount</strong></div>
                                 <div><span><i class="negative"></i>Not available</span><strong>@overview.NotAvailableCount</strong></div>
-                                <div><span><i class="muted"></i>Decision not recorded</span><strong>@overview.AvailabilityPendingCount</strong></div>
+                                <div><span><i class="muted"></i>Assessment pending</span><strong>@overview.AvailabilityPendingCount</strong></div>
                             </div>
-                            <p class="cpw-definition">Fully ready means current technology, marked available for proliferation, with ToT completed or not required.</p>
+                            <p class="cpw-definition">Availability is the recorded proliferation decision. Technology and ToT actions are managed separately.</p>
                         </article>
 
                         <article class="cpw-overview-card">
                             <div class="cpw-section-heading">
-                                <div><span>Exploitation-ready</span><h2>Recently completed, fully ready projects</h2></div>
-                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.FullyReady, "year", "desc")'>View in register</a>
+                                <div><span>Available portfolio</span><h2>Recently completed projects available for proliferation</h2></div>
+                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "year", "desc")'>View in register</a>
                             </div>
                             <div class="cpw-queue-list">
-                                @if (overview.ReadyProjects.Count == 0)
+                                @if (overview.AvailableProjects.Count == 0)
                                 {
-                                    <div class="cpw-queue-empty">No project currently meets the full readiness rule.</div>
+                                    <div class="cpw-queue-empty">No project in the current scope is marked available for proliferation.</div>
                                 }
                                 else
                                 {
-                                    @foreach (var item in overview.ReadyProjects)
+                                    @foreach (var item in overview.AvailableProjects)
                                     {
                                         <button type="button"
                                                 class="cpw-queue-row"
@@ -485,7 +493,7 @@
                                                 title="@item.Name">
                                             <span>
                                                 <strong>@item.Name</strong>
-                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small>
+                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded") · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
                                             </span>
                                             @if (item.RdCostLakhs.HasValue)
                                             {
@@ -499,25 +507,25 @@
                     </section>
 
                     <section class="cpw-action-grid" aria-label="Priority action queues">
-                        <article class="cpw-action-card warning">
+                        <article class="cpw-action-card neutral">
                             <div class="cpw-action-head">
-                                <div><span>Readiness blocker</span><h3>Other availability blockers</h3></div>
-                                <strong>@overview.OtherAvailabilityBlockerCount</strong>
+                                <div><span>Proliferation decision</span><h3>Assessment pending</h3></div>
+                                <strong>@overview.AvailabilityPendingCount</strong>
                             </div>
                             <div class="cpw-action-list">
-                                @if (overview.AvailableBlockedProjects.Count == 0)
+                                @if (overview.AvailabilityPendingProjects.Count == 0)
                                 {
-                                    <p>No additional availability blocker remains after technology and ToT actions are separated.</p>
+                                    <p>All projects in the current scope have a recorded proliferation decision.</p>
                                 }
                                 else
                                 {
-                                    @foreach (var item in overview.AvailableBlockedProjects)
+                                    @foreach (var item in overview.AvailabilityPendingProjects)
                                     {
-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Blocked by: @CompletedProjectPortfolioPolicy.GetReadinessBlockers(item)</small></button>
+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.AvailableBlocked, "year", "desc")'>Open all blocked projects →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "year", "desc")'>Open filtered register →</a>
                         </article>
 
                         <article class="cpw-action-card danger">
@@ -565,7 +573,7 @@
 
                     <section class="cpw-quality-callout">
                         <div>
-                            <h2>Record quality is managed separately from readiness</h2>
+                            <h2>Record quality is managed separately from proliferation availability</h2>
                             <p><strong>@overview.CriticalIncompleteCount projects</strong> have one or more critical fields incomplete. Technology assessment, proliferation decision, ToT status and development cost are critical; production cost and latest LPP are supplementary.</p>
                         </div>
                         <button type="button" class="cpw-btn cpw-btn-ghost" data-open-view="quality">Open data quality</button>
@@ -652,49 +660,81 @@
     {
         var criticalMissing = CompletedProjectPortfolioPolicy.GetCriticalMissingFields(item);
         var supplementaryMissing = CompletedProjectPortfolioPolicy.GetSupplementaryMissingFields(item);
+        var actionItems = CompletedProjectPortfolioPolicy.GetActionItems(item);
         <template id="cpw-project-@item.ProjectId">
-            <div class="cpw-drawer-content">
-                <div class="cpw-drawer-kicker">Completed project · @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "Year not recorded")</div>
-                <h2>@item.Name</h2>
-                <div class="cpw-drawer-status-grid">
-                    <div><span>Technology</span><strong>@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</strong></div>
-                    <div><span>Proliferation</span><strong>@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</strong></div>
-                    <div><span>ToT</span><strong>@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</strong></div>
+            <div class="cpw-drawer-scroll">
+                <div class="cpw-drawer-identity">
+                    <div class="cpw-drawer-kicker">Completed project · @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "Year not recorded")</div>
+                    <h2>@item.Name</h2>
                 </div>
-                <div class="cpw-drawer-section">
-                    <h3>Financial picture</h3>
-                    <dl>
-                        <div><dt>Development / L1 cost</dt><dd>@FormatMoney(item.RdCostLakhs)</dd></div>
-                        <div><dt>Approx. production cost</dt><dd>@FormatMoney(item.ApproxProductionCost)</dd></div>
-                        <div><dt>Latest LPP</dt><dd>@(item.LatestLpp is null ? "Not recorded" : $"{FormatMoney(item.LatestLpp.Amount)} · {item.LatestLpp.Date:dd MMM yyyy}")</dd></div>
-                    </dl>
-                </div>
-                <div class="cpw-drawer-section">
-                    <h3>Readiness</h3>
-                    <p>@(CompletedProjectPortfolioPolicy.IsFullyReady(item) ? "Fully ready for proliferation." : CompletedProjectPortfolioPolicy.GetReadinessBlockers(item))</p>
-                </div>
-                <div class="cpw-drawer-section">
-                    <h3>Data quality</h3>
-                    @if (criticalMissing.Count == 0 && supplementaryMissing.Count == 0)
+
+                <div class="cpw-drawer-content">
+                    <div class="cpw-drawer-status-grid">
+                        <div><span>Technology</span><strong>@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</strong></div>
+                        <div><span>Proliferation</span><strong>@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</strong></div>
+                        <div><span>ToT</span><strong>@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</strong></div>
+                    </div>
+
+                    <div class="cpw-drawer-section">
+                        <h3>Financial information</h3>
+                        <dl>
+                            <div><dt>Recorded development cost</dt><dd>@FormatMoney(item.RdCostLakhs)</dd></div>
+                            <div><dt>Approximate production cost</dt><dd>@FormatMoney(item.ApproxProductionCost)</dd></div>
+                            <div><dt>Latest LPP</dt><dd>@FormatLatestLpp(item.LatestLpp)</dd></div>
+                        </dl>
+                    </div>
+
+                    @if (actionItems.Count > 0)
                     {
-                        <p>All portfolio fields are recorded.</p>
+                        <div class="cpw-drawer-section cpw-drawer-actions">
+                            <h3>Actions required</h3>
+                            <ul>
+                                @foreach (var action in actionItems)
+                                {
+                                    <li>@action</li>
+                                }
+                            </ul>
+                        </div>
                     }
-                    else
-                    {
-                        @if (criticalMissing.Count > 0)
+
+                    <div class="cpw-drawer-section">
+                        <h3>Data quality</h3>
+                        @if (criticalMissing.Count == 0 && supplementaryMissing.Count == 0)
                         {
-                            <p><strong>Critical:</strong> @JoinFields(criticalMissing)</p>
+                            <p>All completed-project portfolio fields are recorded.</p>
                         }
-                        @if (supplementaryMissing.Count > 0)
+                        else
                         {
-                            <p><strong>Supplementary:</strong> @JoinFields(supplementaryMissing)</p>
+                            @if (criticalMissing.Count > 0)
+                            {
+                                <p><strong>Critical information missing:</strong> @JoinFields(criticalMissing)</p>
+                            }
+                            @if (supplementaryMissing.Count > 0)
+                            {
+                                <p><strong>Supplementary information missing:</strong> @JoinFields(supplementaryMissing)</p>
+                            }
                         }
-                    }
+                    </div>
+
+                    <div class="cpw-drawer-section">
+                        <h3>Remarks</h3>
+                        <p class="cpw-remarks">@(string.IsNullOrWhiteSpace(item.Remarks) ? "No remarks recorded." : item.Remarks)</p>
+                    </div>
                 </div>
-                <div class="cpw-drawer-section"><h3>Remarks</h3><p class="cpw-remarks">@(string.IsNullOrWhiteSpace(item.Remarks) ? "No remarks recorded." : item.Remarks)</p></div>
+            </div>
+
+            <div class="cpw-drawer-footer">
+                <a asp-page="/Projects/Overview"
+                   asp-route-id="@item.ProjectId"
+                   class="cpw-btn cpw-btn-ghost">Open full project</a>
                 @if (Model.CanEdit)
                 {
-                    <a asp-page="./Edit" asp-route-id="@item.ProjectId" class="cpw-btn cpw-btn-primary cpw-drawer-edit">Edit completed-project record</a>
+                    <a asp-page="./Edit"
+                       asp-route-id="@item.ProjectId"
+                       asp-route-returnUrl="@returnUrl"
+                       data-edit-project
+                       data-project-id="@item.ProjectId"
+                       class="cpw-btn cpw-btn-primary">Edit details</a>
                 }
             </div>
         </template>
@@ -707,8 +747,11 @@
            aria-modal="true"
            aria-hidden="true"
            aria-labelledby="cpwDrawerTitle">
-        <div class="cpw-drawer-header"><span id="cpwDrawerTitle">Project intelligence</span><button type="button" data-close-drawer aria-label="Close">×</button></div>
-        <div data-drawer-body></div>
+        <div class="cpw-drawer-header">
+            <span id="cpwDrawerTitle">Completed project details</span>
+            <button type="button" data-close-drawer aria-label="Close">×</button>
+        </div>
+        <div class="cpw-drawer-body" data-drawer-body></div>
     </aside>
 </div>
 
