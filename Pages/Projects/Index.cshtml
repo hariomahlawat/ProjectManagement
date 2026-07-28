@@ -46,6 +46,29 @@
         AddValue("ProjectTypeId", Model.ProjectTypeId);
         AddValue("ProjectTypeUnclassified", Model.ProjectTypeUnclassified ? "true" : null);
         AddValue("PageSize", Model.PageSize);
+        if (Model.Sort != ProjectRepositorySort.Operational)
+        {
+            AddValue("Sort", Model.Sort);
+            AddValue("Dir", Model.Dir);
+        }
+        return values;
+    }
+
+    IDictionary<string, string?> SortRoute(ProjectRepositorySort sort)
+    {
+        var values = BaseRouteValues();
+        values["Sort"] = sort.ToString();
+        values["Dir"] = Model.NextSortDirection(sort).ToString();
+        values["p"] = "1";
+        return values;
+    }
+
+    IDictionary<string, string?> OperationalOrderRoute()
+    {
+        var values = BaseRouteValues();
+        values.Remove("Sort");
+        values.Remove("Dir");
+        values["p"] = "1";
         return values;
     }
 
@@ -137,6 +160,11 @@
         <form method="get" class="projects-toolbar" data-project-filter-form>
             <input type="hidden" name="p" value="1" />
             <input type="hidden" name="Lifecycle" value="@(Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString())" />
+            @if (Model.Sort != ProjectRepositorySort.Operational)
+            {
+                <input type="hidden" name="Sort" value="@Model.Sort" />
+                <input type="hidden" name="Dir" value="@Model.Dir" />
+            }
             @if (!string.IsNullOrWhiteSpace(Model.StageCode)) { <input type="hidden" name="StageCode" value="@Model.StageCode" /> }
             @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth)) { <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" /> }
             @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" /> }
@@ -297,6 +325,16 @@
                     <span>Showing @Model.ResultsStart–@Model.ResultsEnd</span>
                 }
             </div>
+            <span class="projects-results-header__order" title="The order is applied to the complete filtered result before pagination.">
+                <i class="bi bi-sort-down" aria-hidden="true"></i>
+                <span>@Model.OrderDescription</span>
+                @if (Model.Sort != ProjectRepositorySort.Operational)
+                {
+                    <a asp-page="./Index"
+                       asp-all-route-data="OperationalOrderRoute()"
+                       class="projects-results-header__order-reset">Reset order</a>
+                }
+            </span>
         </div>
 
         @if (!Model.Projects.Any())
@@ -379,15 +417,50 @@
 
             <div class="projects-results-view" data-project-results="table" hidden>
                 <div class="projects-table-wrap">
-                    <table class="table projects-table align-middle" data-project-sort-table>
+                    <table class="table projects-table align-middle">
                         <thead>
                             <tr>
-                                <th scope="col"><button type="button" class="projects-sort" data-sort="project">Project <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                <th scope="col"><button type="button" class="projects-sort" data-sort="status">Status <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Project)">
+                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Project) ? "is-active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Project)"
+                                       title="Sort the complete result by project name">
+                                        Project <i class="@Model.GetSortIconClass(ProjectRepositorySort.Project)" aria-hidden="true"></i>
+                                    </a>
+                                </th>
+                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Status)">
+                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Status) ? "is-active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Status)"
+                                       title="Sort the complete result by lifecycle status">
+                                        Status <i class="@Model.GetSortIconClass(ProjectRepositorySort.Status)" aria-hidden="true"></i>
+                                    </a>
+                                </th>
                                 <th scope="col">Current position</th>
-                                <th scope="col"><button type="button" class="projects-sort" data-sort="officer">Project Officer <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                <th scope="col"><button type="button" class="projects-sort" data-sort="category">Category <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                <th scope="col"><button type="button" class="projects-sort" data-sort="casefile">Case file <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Officer)">
+                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Officer) ? "is-active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Officer)"
+                                       title="Sort the complete result by project officer">
+                                        Project Officer <i class="@Model.GetSortIconClass(ProjectRepositorySort.Officer)" aria-hidden="true"></i>
+                                    </a>
+                                </th>
+                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Category)">
+                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Category) ? "is-active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Category)"
+                                       title="Sort the complete result by category">
+                                        Category <i class="@Model.GetSortIconClass(ProjectRepositorySort.Category)" aria-hidden="true"></i>
+                                    </a>
+                                </th>
+                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.CaseFile)">
+                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.CaseFile) ? "is-active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="SortRoute(ProjectRepositorySort.CaseFile)"
+                                       title="Sort the complete result by case file">
+                                        Case file <i class="@Model.GetSortIconClass(ProjectRepositorySort.CaseFile)" aria-hidden="true"></i>
+                                    </a>
+                                </th>
                                 <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
                             </tr>
                         </thead>

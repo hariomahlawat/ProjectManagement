@@ -40,6 +40,22 @@ public sealed class ProjectRepositoryPresentationContractTests
     }
 
     [Fact]
+    public void Repository_UsesServerSideOrderingAcrossViewsAndPagination()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
+        var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
+        var query = ReadRepoFile("Services", "Projects", "ProjectSearchFilters.cs");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+
+        Assert.Contains("query.ApplyProjectOrdering(filters, Sort, Dir)", model, StringComparison.Ordinal);
+        Assert.Contains("OperationalLifecycleRank", query, StringComparison.Ordinal);
+        Assert.Contains("asp-all-route-data=\"SortRoute(ProjectRepositorySort.Project)\"", view, StringComparison.Ordinal);
+        Assert.Contains("The order is applied to the complete filtered result before pagination.", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("sortTable", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-project-sort-table", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Repository_UsesFixedResponsiveTracksAndDoesNotStretchSingleResult()
     {
         var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");

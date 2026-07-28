@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
 using Xunit;
 
@@ -483,6 +484,153 @@ namespace ProjectManagement.Tests
             Assert.Contains(results, p => p.Name == "Parent Project");
             Assert.Contains(results, p => p.Name == "Child Project");
             Assert.DoesNotContain(results, p => p.Name == "Other Project");
+        }
+
+        [Fact]
+        public async Task Operational_Order_GroupsLifecycleAndKeepsLegacyAfterModernCompletedProjects()
+        {
+            await using var context = CreateContext();
+            var now = DateTime.UtcNow;
+
+            var activeWithRecentUpdate = new Project
+            {
+                Name = "Active Recent",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedAt = now.AddMonths(-6),
+                CreatedByUserId = "creator"
+            };
+            activeWithRecentUpdate.Remarks.Add(new Remark
+            {
+                AuthorUserId = "creator",
+                AuthorRole = RemarkActorRole.ProjectOfficer,
+                Type = RemarkType.Internal,
+                Body = "Recent update",
+                EventDate = DateOnly.FromDateTime(now.AddDays(-1)),
+                CreatedAtUtc = now.AddDays(-1)
+            });
+
+            var activeWithoutUpdate = new Project
+            {
+                Name = "Active Older",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedAt = now.AddMonths(-2),
+                CreatedByUserId = "creator"
+            };
+
+            var modernCompleted = new Project
+            {
+                Name = "Modern Completed",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = 2025,
+                CompletedMonth = 6,
+                CompletedOn = new DateOnly(2025, 6, 15),
+                CreatedAt = now.AddYears(-1),
+                CreatedByUserId = "creator"
+            };
+
+            var newerLegacy = new Project
+            {
+                Name = "Legacy Completed",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsLegacy = true,
+                CompletedYear = 2026,
+                CompletedMonth = 1,
+                CompletedOn = new DateOnly(2026, 1, 15),
+                CreatedAt = now,
+                CreatedByUserId = "creator"
+            };
+
+            var cancelled = new Project
+            {
+                Name = "Cancelled",
+                LifecycleStatus = ProjectLifecycleStatus.Cancelled,
+                CancelledOn = new DateOnly(2026, 7, 1),
+                CreatedAt = now,
+                CreatedByUserId = "creator"
+            };
+
+            context.Projects.AddRange(activeWithoutUpdate, modernCompleted, newerLegacy, cancelled, activeWithRecentUpdate);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, IncludeArchived: true);
+            var ordered = await context.Projects
+                .ApplyProjectOrdering(filters)
+                .Select(project => project.Name)
+                .ToListAsync();
+
+            Assert.Equal(
+                new[] { "Active Recent", "Active Older", "Modern Completed", "Legacy Completed", "Cancelled" },
+                ordered);
+        }
+
+        [Fact]
+        public async Task Operational_Order_UsesCompletionPrecisionBeforeAlphabeticalTieBreaker()
+        {
+            await using var context = CreateContext();
+
+            context.Projects.AddRange(
+                new Project
+                {
+                    Name = "Zulu 2024",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    CompletedYear = 2024,
+                    CompletedMonth = 12,
+                    CompletedOn = new DateOnly(2024, 12, 1),
+                    CreatedAt = new DateTime(2025, 1, 1),
+                    CreatedByUserId = "creator"
+                },
+                new Project
+                {
+                    Name = "Bravo 2025",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    CompletedYear = 2025,
+                    CompletedMonth = 2,
+                    CompletedOn = new DateOnly(2025, 2, 1),
+                    CreatedAt = new DateTime(2025, 2, 1),
+                    CreatedByUserId = "creator"
+                },
+                new Project
+                {
+                    Name = "Alpha 2025",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    CompletedYear = 2025,
+                    CompletedMonth = 2,
+                    CompletedOn = new DateOnly(2025, 2, 1),
+                    CreatedAt = new DateTime(2025, 2, 1),
+                    CreatedByUserId = "creator"
+                });
+
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, Lifecycle: ProjectLifecycleFilter.Completed, IncludeArchived: true);
+            var ordered = await context.Projects
+                .ApplyProjectSearch(filters)
+                .ApplyProjectOrdering(filters)
+                .Select(project => project.Name)
+                .ToListAsync();
+
+            Assert.Equal(new[] { "Alpha 2025", "Bravo 2025", "Zulu 2024" }, ordered);
+        }
+
+        [Fact]
+        public async Task Explicit_Project_Sort_IsAppliedBeforePaginationSequence()
+        {
+            await using var context = CreateContext();
+
+            context.Projects.AddRange(
+                new Project { Name = "Bravo", CreatedAt = DateTime.UtcNow, CreatedByUserId = "creator" },
+                new Project { Name = "Charlie", CreatedAt = DateTime.UtcNow, CreatedByUserId = "creator" },
+                new Project { Name = "Alpha", CreatedAt = DateTime.UtcNow, CreatedByUserId = "creator" });
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, IncludeArchived: true);
+            var firstPage = await context.Projects
+                .ApplyProjectOrdering(filters, ProjectRepositorySort.Project, ProjectSortDirection.Desc)
+                .Take(2)
+                .Select(project => project.Name)
+                .ToListAsync();
+
+            Assert.Equal(new[] { "Charlie", "Bravo" }, firstPage);
         }
 
         private static ApplicationDbContext CreateContext()

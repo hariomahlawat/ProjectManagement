@@ -101,6 +101,12 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public string? Build { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public ProjectRepositorySort Sort { get; set; } = ProjectRepositorySort.Operational;
+
+        [BindProperty(SupportsGet = true)]
+        public ProjectSortDirection Dir { get; set; } = ProjectSortDirection.Asc;
+
         public int TotalCount { get; private set; }
 
         // Section: KPI counters (filtered dataset)
@@ -155,10 +161,13 @@ namespace ProjectManagement.Pages.Projects
         public LifecycleFilterTab LegacyArchive { get; private set; } =
             new(ProjectLifecycleFilter.Legacy, "Legacy archive", ProjectLifecycleFilter.Legacy.ToString(), false, 0);
 
+        public string OrderDescription => BuildOrderDescription();
+
         public async Task OnGetAsync()
         {
             // Section: Normalize query parameters
             NormalizeProjectTypeFilters();
+            NormalizeOrdering();
             var buildFilter = NormalizeBuildFilter();
 
             // Section: Filter option loading
@@ -220,7 +229,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.ProjectType)
                 .AsQueryable();
 
-            query = query.ApplyProjectOrdering(filters);
+            query = query.ApplyProjectOrdering(filters, Sort, Dir);
 
             // Section: Normalize paging values
             var isAll = PageSize == AllPageSizeValue;
@@ -280,6 +289,94 @@ namespace ProjectManagement.Pages.Projects
 
             ResultsStart = TotalCount == 0 ? 0 : isAll ? 1 : skip + 1;
             ResultsEnd = TotalCount == 0 ? 0 : isAll ? TotalCount : Math.Min(skip + Projects.Count, TotalCount);
+        }
+
+        // Section: Repository ordering helpers
+        public bool IsSortActive(ProjectRepositorySort sort) => Sort == sort;
+
+        public ProjectSortDirection NextSortDirection(ProjectRepositorySort sort)
+        {
+            if (Sort != sort)
+            {
+                return ProjectSortDirection.Asc;
+            }
+
+            return Dir == ProjectSortDirection.Asc
+                ? ProjectSortDirection.Desc
+                : ProjectSortDirection.Asc;
+        }
+
+        public string GetSortAria(ProjectRepositorySort sort)
+        {
+            if (Sort != sort)
+            {
+                return "none";
+            }
+
+            return Dir == ProjectSortDirection.Asc ? "ascending" : "descending";
+        }
+
+        public string GetSortIconClass(ProjectRepositorySort sort)
+        {
+            if (Sort != sort)
+            {
+                return "bi bi-arrow-down-up";
+            }
+
+            return Dir == ProjectSortDirection.Asc
+                ? "bi bi-sort-alpha-down"
+                : "bi bi-sort-alpha-up";
+        }
+
+        private void NormalizeOrdering()
+        {
+            if (!Enum.IsDefined(Sort))
+            {
+                Sort = ProjectRepositorySort.Operational;
+                ModelState.Remove(nameof(Sort));
+            }
+
+            if (!Enum.IsDefined(Dir))
+            {
+                Dir = ProjectSortDirection.Asc;
+                ModelState.Remove(nameof(Dir));
+            }
+
+            if (Sort == ProjectRepositorySort.Operational)
+            {
+                Dir = ProjectSortDirection.Asc;
+            }
+        }
+
+        private string BuildOrderDescription()
+        {
+            if (Sort != ProjectRepositorySort.Operational)
+            {
+                var direction = Dir == ProjectSortDirection.Asc ? "ascending" : "descending";
+                return Sort switch
+                {
+                    ProjectRepositorySort.Project => $"Project name, {direction}",
+                    ProjectRepositorySort.Status => $"Lifecycle status, {direction}",
+                    ProjectRepositorySort.Officer => $"Project officer, {direction}",
+                    ProjectRepositorySort.Category => $"Category, {direction}",
+                    ProjectRepositorySort.CaseFile => $"Case file, {direction}",
+                    _ => "Operational order"
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(Query))
+            {
+                return "Search relevance, then operational order";
+            }
+
+            return Lifecycle switch
+            {
+                ProjectLifecycleFilter.Active => "Recent recorded update first",
+                ProjectLifecycleFilter.Completed => "Latest completion first",
+                ProjectLifecycleFilter.Legacy => "Latest completion first",
+                ProjectLifecycleFilter.Cancelled => "Latest cancellation first",
+                _ => "Active first; completed by latest completion"
+            };
         }
 
         // Section: KPI helpers

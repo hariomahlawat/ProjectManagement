@@ -1,57 +1,52 @@
-PRISM COMPLETED PROJECTS — FINAL PRESENTATION REFINEMENTS
-========================================================
+PROJECT REPOSITORY — OPERATIONAL ORDER AND SERVER-SIDE SORTING
+==============================================================
 
 APPLICATION
 -----------
-1. Apply this package over the latest Completed Projects implementation,
-   including the Proliferation cost terminology patch.
-2. Extract the ZIP into the ProjectManagement project root.
-3. Preserve the folder structure and replace the listed files.
-4. Clean the solution. If Visual Studio retains stale output, delete bin and obj.
-5. Rebuild the solution and run the test project.
+1. Extract this ZIP into the ProjectManagement project root.
+2. Preserve the repository-relative folders and replace the listed files.
+3. Clean and rebuild the solution.
+4. Run the test project.
+5. Open /Projects and verify both card and table views.
 
-IMPLEMENTED
------------
-- Prevents the Proliferation cost register heading from truncating:
-  the sortable header can wrap cleanly and has a dedicated column width.
-- Renames the proliferation-status presentation to Availability in:
-  filters, the register, the project drawer and relevant Overview metadata.
-- Uses “Availability for proliferation” in the Excel register heading and metadata.
-- Preserves each remark source independently in the summary DTO:
-    Technology remarks
-    Availability/proliferation remarks
-    Reason not available
-    Proliferation cost remarks
-- Shows drawer remarks under explicit source labels rather than one ambiguous
-  combined Remarks paragraph.
-- Keeps a labelled aggregate remarks value for Excel export compatibility.
-- Shows a compact success confirmation inside the automatically reopened drawer
-  after a successful edit.
-- Corrects the success copy to “Completed project details updated.”
-- Renames the LPP section eyebrow from Commercial history to Purchase history.
-- Adds presentation-contract regression coverage for these refinements.
+DEFAULT OPERATIONAL ORDER
+-------------------------
+The order is applied to the complete filtered result before Skip/Take pagination:
 
-DATA AND DATABASE
------------------
-No database migration is required. No stored values or persistence property names
-are changed.
+1. Active projects
+   - Latest recorded project remark/edit first.
+   - Project creation date is the fallback where no remark exists.
+   - Content/stage dates and stable name/ID tie-breakers are retained.
 
-VALIDATION CHECKLIST
---------------------
-- Proliferation cost is fully visible in the register header at normal desktop width.
-- The status column and drawer status card read Availability.
-- Filters show Availability rather than the ambiguous Proliferation label.
-- Technology, availability, non-availability reason and proliferation-cost remarks
-  appear separately in the drawer when populated.
-- Saving an edit returns to the original context, reopens the project drawer and
-  displays “Completed project details updated.” inside the drawer.
-- The success message disappears automatically and remains available in the page
-  banner after the drawer is closed.
-- Excel export uses Availability for proliferation and retains labelled remarks.
-- Verify at 1366x768, 1920x1080, 2560x1440 and 125% display/browser scaling.
+2. Completed, non-legacy projects
+   - Latest completion year/month/exact date first.
 
-BUILD NOTE
+3. Completed legacy projects
+   - Kept after normal completed projects, latest completion first.
+
+4. Cancelled projects
+   - Latest cancellation date first.
+
+All groups use project name and project ID as deterministic final tie-breakers.
+Search results retain relevance as the primary order and use the operational
+sequence as the deterministic tie-breaker.
+
+SERVER-SIDE TABLE SORTING
+-------------------------
+Project, Status, Project Officer, Category and Case file headings now create
+server-side sort URLs. Sorting therefore applies to all matching projects,
+not only the 25 rows currently rendered. Card view, table view and pagination
+share the same authoritative sequence. A visible Reset order action restores
+the default operational order.
+
+SCHEMA
+------
+No database migration is required.
+
+VALIDATION
 ----------
-JavaScript syntax, CSS brace balance, source contracts and package integrity were
-validated. A complete .NET build could not be run in the packaging environment
-because the .NET SDK is not installed.
+- JavaScript syntax was validated with node --check.
+- The package includes ordering and presentation regression tests.
+- ZIP integrity was validated.
+- A full .NET build could not be run in this environment because the .NET SDK
+  is not installed. Run Clean/Rebuild and the tests in Visual Studio.

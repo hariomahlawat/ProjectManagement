@@ -986,3 +986,54 @@
         max-width: 1540px;
     }
 }
+
+/* SECTION: Repository-wide ordering */
+.projects-results-header__order {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #667085;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: right;
+}
+
+.projects-results-header__order i {
+    color: #8b95a7;
+    font-size: 0.8rem;
+}
+
+.projects-sort {
+    text-decoration: none;
+}
+
+.projects-sort:focus-visible {
+    border-radius: 0.25rem;
+    outline: 2px solid color-mix(in srgb, var(--projects-primary) 42%, transparent);
+    outline-offset: 3px;
+}
+
+@media (max-width: 767.98px) {
+    .projects-results-header {
+        align-items: flex-start;
+        gap: 0.45rem;
+    }
+
+    .projects-results-header__order {
+        max-width: 48%;
+        justify-content: flex-end;
+        line-height: 1.25;
+    }
+}
+
+.projects-results-header__order-reset {
+    margin-left: 0.2rem;
+    color: var(--projects-primary);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.projects-results-header__order-reset:hover,
+.projects-results-header__order-reset:focus-visible {
+    text-decoration: underline;
+}

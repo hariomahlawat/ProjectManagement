@@ -1,8 +1,7 @@
-Pages/Projects/CompletedSummary/Edit.cshtml
-Pages/Projects/CompletedSummary/Edit.cshtml.cs
-Pages/Projects/CompletedSummary/Index.cshtml
-ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
-Services/Projects/CompletedProjectsSummaryService.cs
-Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
-wwwroot/css/pages/projects-completed-summary.css
-wwwroot/js/pages/projects-completed-summary.js
+Services/Projects/ProjectSearchFilters.cs
+Pages/Projects/Index.cshtml.cs
+Pages/Projects/Index.cshtml
+wwwroot/js/pages/projects-index.js
+wwwroot/css/projects/index.css
+ProjectManagement.Tests/ProjectSearchFiltersTests.cs
+ProjectManagement.Tests/ProjectRepositoryPresentationContractTests.cs
