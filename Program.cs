@@ -666,6 +666,7 @@ builder.Services.AddScoped<IApprovalQueueService, ApprovalQueueService>();
 builder.Services.AddScoped<RepositoryDocumentDeleteApprovalService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<IAuthoritativeIpaPositionResolver, AuthoritativeIpaPositionResolver>();
+builder.Services.AddScoped<IArppIpaStageAuthorityService, ArppIpaStageAuthorityService>();
 builder.Services.AddScoped<IArppIpaStageSynchronizer, ArppIpaStageSynchronizer>();
 builder.Services.AddScoped<IArppReadService, ArppReadService>();
 builder.Services.AddScoped<IArppLibraryService, ArppLibraryService>();
@@ -2807,6 +2808,49 @@ using (var scope = app.Services.CreateScope())
     {
         app.Logger.LogDebug(
             "Published ARPP records required no IPA lifecycle stage reconciliation.");
+    }
+
+    if (ipaStageSynchronization.SupersededRequestCount > 0)
+    {
+        app.Logger.LogInformation(
+            "Superseded {RequestCount} pending IPA stage request(s) because published ARPP records are authoritative.",
+            ipaStageSynchronization.SupersededRequestCount);
+
+        await services.GetRequiredService<IAuditService>().LogAsync(
+            action: "Arpp.IpaStagePendingRequestsSuperseded",
+            message: $"Superseded {ipaStageSynchronization.SupersededRequestCount} pending IPA stage request(s) during startup reconciliation.",
+            userName: "PRISM system",
+            data: new Dictionary<string, string?>
+            {
+                ["SupersededRequestCount"] = ipaStageSynchronization.SupersededRequestCount.ToString(),
+                ["SourceAction"] = "StartupRepair"
+            });
+    }
+
+    if (ipaStageSynchronization.DataQualityIssueCount > 0)
+    {
+        app.Logger.LogWarning(
+            "Detected {IssueCount} IPA lifecycle data-quality issue(s): recorded actual start falls after the ARPP-derived completion date.",
+            ipaStageSynchronization.DataQualityIssueCount);
+
+        foreach (var issue in ipaStageSynchronization.DataQualityIssues)
+        {
+            await services.GetRequiredService<IAuditService>().LogAsync(
+                action: "Arpp.IpaStageDataQualityIssue",
+                message: $"IPA actual start is later than the ARPP-derived completion date for project {issue.ProjectId}.",
+                level: "Warning",
+                userName: "PRISM system",
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = issue.ProjectId.ToString(),
+                    ["ActualStart"] = issue.ActualStart.ToString("yyyy-MM-dd"),
+                    ["CompletionDate"] = issue.CompletionDate.ToString("yyyy-MM-dd"),
+                    ["AuthorityIssueId"] = issue.SourceIssueId.ToString(),
+                    ["AuthorityDocument"] = issue.SourceDocumentLabel,
+                    ["AuthorityIssueDate"] = issue.SourceIssueDate.ToString("yyyy-MM-dd"),
+                    ["SourceAction"] = "StartupRepair"
+                });
+        }
     }
 }
 

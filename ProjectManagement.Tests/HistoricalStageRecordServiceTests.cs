@@ -9,9 +9,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
 using Xunit;
@@ -130,6 +132,60 @@ public sealed class HistoricalStageRecordServiceTests
 
         var project = await db.Projects.AsNoTracking().SingleAsync();
         Assert.Equal(ProjectLifecycleStatus.Cancelled, project.LifecycleStatus);
+    }
+
+    [Fact]
+    public async Task SaveAsync_AllowsArppManagedIpaAfterCeasedStage_WithoutInventingStart()
+    {
+        var fixture = await CreateFixtureAsync(ProjectLifecycleStatus.Cancelled);
+        await using var connection = fixture.Connection;
+        await using var db = fixture.Db;
+
+        AddPublishedPosition(
+            db,
+            fixture.ProjectId,
+            issueDate: new DateOnly(2024, 1, 15));
+        await db.SaveChangesAsync();
+
+        var input = ValidInput(fixture.ProjectId);
+        input.EvidenceNote = "Cancellation proceedings and published ARPP record.";
+
+        var feasibility = input.Rows.Single(row => row.StageCode == StageCodes.FS);
+        feasibility.Outcome = HistoricalStageOutcome.NotRecorded;
+        feasibility.ActualStart = null;
+        feasibility.CompletedOn = null;
+
+        var sow = input.Rows.Single(row => row.StageCode == StageCodes.SOW);
+        sow.Outcome = HistoricalStageOutcome.Ceased;
+        sow.ActualStart = new DateOnly(2024, 1, 11);
+
+        var ipa = input.Rows.Single(row => row.StageCode == StageCodes.IPA);
+        ipa.Outcome = HistoricalStageOutcome.Completed;
+        ipa.ActualStart = null;
+        ipa.CompletedOn = new DateOnly(2024, 1, 15);
+
+        var service = new HistoricalStageRecordService(
+            db,
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)),
+            fixture.Audit,
+            NullLogger<HistoricalStageRecordService>.Instance,
+            new ArppIpaStageAuthorityService(db));
+
+        await service.SaveAsync(
+            input,
+            userId: "hod-1",
+            userName: "HoD");
+
+        var stages = await db.ProjectStages
+            .AsNoTracking()
+            .ToDictionaryAsync(stage => stage.StageCode);
+
+        Assert.Equal(StageStatus.InProgress, stages[StageCodes.SOW].Status);
+        Assert.Equal(StageStatus.Completed, stages[StageCodes.IPA].Status);
+        Assert.Equal(new DateOnly(2024, 1, 15), stages[StageCodes.IPA].CompletedOn);
+        Assert.Null(stages[StageCodes.IPA].ActualStart);
+        Assert.False(stages[StageCodes.IPA].RequiresBackfill);
     }
 
     [Fact]
@@ -264,6 +320,63 @@ public sealed class HistoricalStageRecordServiceTests
             exception.Errors,
             error => error.Contains("stage list is incomplete", StringComparison.OrdinalIgnoreCase));
         Assert.Empty(await db.ProjectStages.AsNoTracking().ToListAsync());
+    }
+
+    private static void AddPublishedPosition(
+        ApplicationDbContext db,
+        int projectId,
+        DateOnly issueDate)
+    {
+        var issue = new ArppIssue
+        {
+            FinancialYearStart = issueDate.Year,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP/I&R&D/ARTRAC",
+            IssueDate = issueDate,
+            IsVerified = true,
+            VerifiedAtUtc = DateTimeOffset.UtcNow,
+            VerifiedByUserId = "verifier",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            RevisionNumber = 1,
+            FinancialYearStart = issue.FinancialYearStart,
+            Kind = issue.Kind,
+            IssueSequence = issue.IssueSequence,
+            Name = issue.Name,
+            IssueDate = issueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = "arpp/history-test.pdf",
+            AttachmentOriginalFileName = "history-test.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    SourceEntryId = 1,
+                    SortOrder = 1,
+                    SerialNumber = "33",
+                    ProjectReference = "Legacy history test",
+                    ProjectId = projectId,
+                    Category = ArppCategory.Delisted,
+                    IpaCost = 5_000_000m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3"
+                }
+            }
+        };
+
+        db.ArppIssues.Add(issue);
     }
 
     private static HistoricalStageRecordInput ValidInput(int projectId)

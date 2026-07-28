@@ -1,13 +1,12 @@
 using System.Globalization;
 using ProjectManagement.Infrastructure;
-using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Arpp;
 
 /// <summary>
 /// Registers post-commit audit records for ARPP-driven IPA lifecycle changes.
-/// The stage update remains part of the primary transaction; audit persistence is
-/// deliberately post-commit so an audit-store problem cannot reverse published data.
+/// Stage updates remain part of the primary transaction; audit persistence is
+/// post-commit so an audit-store problem cannot reverse published data.
 /// </summary>
 internal static class ArppIpaStageSynchronizationAudit
 {
@@ -27,7 +26,9 @@ internal static class ArppIpaStageSynchronizationAudit
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceAction);
         ArgumentNullException.ThrowIfNull(sourceIssueIds);
 
-        if (synchronization.Changes.Count == 0)
+        if (synchronization.Changes.Count == 0 &&
+            synchronization.DataQualityIssues.Count == 0 &&
+            synchronization.SupersededRequestCount == 0)
         {
             return;
         }
@@ -40,7 +41,7 @@ internal static class ArppIpaStageSynchronizationAudit
             {
                 await audit.LogAsync(
                     action: "Arpp.IpaStageSynchronized",
-                    message: $"Synchronized the IPA stage from the earliest published ARPP position for project {change.ProjectId}.",
+                    message: $"Synchronized the IPA stage from the first published ARPP position for project {change.ProjectId}.",
                     userId: userId,
                     userName: userName,
                     data: new Dictionary<string, string?>
@@ -51,6 +52,44 @@ internal static class ArppIpaStageSynchronizationAudit
                         ["PreviousCompletionDate"] = change.PreviousCompletedOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         ["PreviousActualStart"] = change.PreviousActualStart?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         ["StageCreated"] = change.StageCreated.ToString(CultureInfo.InvariantCulture),
+                        ["AuthorityIssueId"] = change.SourceIssueId.ToString(CultureInfo.InvariantCulture),
+                        ["AuthorityDocument"] = change.SourceDocumentLabel,
+                        ["SourceAction"] = sourceAction,
+                        ["SourceIssueIds"] = issueIds
+                    });
+            }
+
+            if (synchronization.SupersededRequestCount > 0)
+            {
+                await audit.LogAsync(
+                    action: "Arpp.IpaStagePendingRequestsSuperseded",
+                    message: $"Superseded {synchronization.SupersededRequestCount} pending IPA stage request(s) because published ARPP records became authoritative.",
+                    userId: userId,
+                    userName: userName,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["SupersededRequestCount"] = synchronization.SupersededRequestCount.ToString(CultureInfo.InvariantCulture),
+                        ["SourceAction"] = sourceAction,
+                        ["SourceIssueIds"] = issueIds
+                    });
+            }
+
+            foreach (var issue in synchronization.DataQualityIssues)
+            {
+                await audit.LogAsync(
+                    action: "Arpp.IpaStageDataQualityIssue",
+                    message: $"IPA actual start is later than the ARPP-derived completion date for project {issue.ProjectId}.",
+                    level: "Warning",
+                    userId: userId,
+                    userName: userName,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["ProjectId"] = issue.ProjectId.ToString(CultureInfo.InvariantCulture),
+                        ["ActualStart"] = issue.ActualStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        ["CompletionDate"] = issue.CompletionDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        ["AuthorityIssueId"] = issue.SourceIssueId.ToString(CultureInfo.InvariantCulture),
+                        ["AuthorityDocument"] = issue.SourceDocumentLabel,
+                        ["AuthorityIssueDate"] = issue.SourceIssueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         ["SourceAction"] = sourceAction,
                         ["SourceIssueIds"] = issueIds
                     });

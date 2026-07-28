@@ -14,6 +14,7 @@ using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.Services.Approvals;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Stages;
@@ -40,6 +41,7 @@ public sealed class StageDecisionService
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IPlanRealignment _planRealignment;
     private readonly StageApprovalSequenceService? _sequenceService;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageDecisionService(
         ApplicationDbContext db,
@@ -48,7 +50,8 @@ public sealed class StageDecisionService
         ILogger<StageDecisionService> logger,
         IProjectStageWorkflowPolicy workflowPolicy,
         IPlanRealignment? planRealignment = null,
-        StageApprovalSequenceService? sequenceService = null)
+        StageApprovalSequenceService? sequenceService = null,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -57,6 +60,7 @@ public sealed class StageDecisionService
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _planRealignment = planRealignment ?? new NullPlanRealignment();
         _sequenceService = sequenceService;
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<StageDecisionResult> DecideAsync(
@@ -208,6 +212,12 @@ public sealed class StageDecisionService
                 connectionHash);
 
             return StageDecisionResult.Success(beforeStatus, beforeActualStart, beforeCompletedOn);
+        }
+
+        if (string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase) &&
+            await _arppIpaStageAuthority.IsManagedAsync(stage.ProjectId, cancellationToken))
+        {
+            return StageDecisionResult.ValidationFailed(ArppManagedIpaStageException.UserMessage);
         }
 
         if (!Enum.TryParse<StageStatus>(request.RequestedStatus, ignoreCase: true, out var requestedStatus))

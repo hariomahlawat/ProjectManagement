@@ -12,6 +12,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Stages;
 
 using ProjectManagement.Services.Scheduling;
@@ -27,6 +28,7 @@ public class StageProgressService
     private readonly IStageNotificationService _stageNotifications;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IOfficeCalendarService? _officeCalendar;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageProgressService(
         ApplicationDbContext db,
@@ -35,7 +37,8 @@ public class StageProgressService
         ProjectFactsReadService factsRead,
         IStageNotificationService stageNotifications,
         IProjectStageWorkflowPolicy workflowPolicy,
-        IOfficeCalendarService? officeCalendar = null)
+        IOfficeCalendarService? officeCalendar = null,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -44,6 +47,7 @@ public class StageProgressService
         _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _officeCalendar = officeCalendar;
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public Task UpdateStageStatusAsync(
@@ -82,6 +86,11 @@ public class StageProgressService
         {
             throw new ArgumentException("A valid user identifier is required.", nameof(userId));
         }
+
+        await _arppIpaStageAuthority.EnsureManualLifecycleMutationAllowedAsync(
+            projectId,
+            stageCode,
+            cancellationToken);
 
         var stage = await _db.ProjectStages
             .Include(s => s.Project)

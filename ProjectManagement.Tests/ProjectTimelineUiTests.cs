@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.ViewModels;
 using Xunit;
@@ -116,6 +118,75 @@ public class ProjectTimelineUiTests
         Assert.DoesNotContain("data-direct-apply", poHtml, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task ArppManagedIpa_RendersAuthorityAndUnknownDuration_WithoutManualActions()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 208,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "IPA",
+                    Name = "In-Principle Approval",
+                    Status = StageStatus.Completed,
+                    CompletedOn = new DateOnly(2026, 2, 26),
+                    ActualStart = null,
+                    EffectiveActualStart = null,
+                    SortOrder = 1,
+                    IsArppManaged = true,
+                    ArppSourceIssueId = 10,
+                    ArppSourceDocumentLabel = "Original ARPP",
+                    ArppSourceIssueDate = new DateOnly(2026, 2, 26),
+                    ArppSourceSerialNumber = "33"
+                }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: true);
+
+        Assert.Contains("ARPP-derived", html, StringComparison.Ordinal);
+        Assert.Contains("Initial IPA approval", html, StringComparison.Ordinal);
+        Assert.Contains("Original ARPP", html, StringComparison.Ordinal);
+        Assert.Contains("Unavailable", html, StringComparison.Ordinal);
+        Assert.Contains("Not recorded", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-direct-apply", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-stage-request-button", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ArppManagedIpa_WithInvalidStart_ShowsCorrectionWarningAndNoFabricatedDuration()
+    {
+        var item = new TimelineItemVm
+        {
+            Code = "IPA",
+            Name = "In-Principle Approval",
+            Status = StageStatus.Completed,
+            CompletedOn = new DateOnly(2026, 2, 26),
+            ActualStart = new DateOnly(2026, 3, 1),
+            EffectiveActualStart = new DateOnly(2026, 3, 1),
+            SortOrder = 1,
+            IsArppManaged = true,
+            ArppSourceIssueId = 10,
+            ArppSourceDocumentLabel = "Original ARPP",
+            ArppSourceIssueDate = new DateOnly(2026, 2, 26)
+        };
+        var timeline = new TimelineVm
+        {
+            ProjectId = 208,
+            Items = new[] { item }
+        };
+
+        Assert.Null(item.ActualDurationDays);
+
+        var html = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: true);
+
+        Assert.Contains("Actual start needs correction", html, StringComparison.Ordinal);
+        Assert.Contains("Unavailable", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">1 day<", html, StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task PendingProjectOfficerUpdate_IsImmediatelyVisibleAsAwaitingApproval()
@@ -246,6 +317,12 @@ public class ProjectTimelineUiTests
         services.AddSingleton<IHostEnvironment>(environment);
         services.AddLogging();
         services.AddRouting();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(
+                ProjectOfficeReportsPolicies.ViewArpp,
+                policy => policy.RequireAssertion(_ => true));
+        });
         services.AddRazorPages();
         services.AddControllersWithViews();
 

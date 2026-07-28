@@ -9,6 +9,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -16,11 +17,16 @@ public sealed class StageBackfillService
 {
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
-    public StageBackfillService(ApplicationDbContext db, IClock clock)
+    public StageBackfillService(
+        ApplicationDbContext db,
+        IClock clock,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<StageBackfillResult> ApplyAsync(
@@ -69,6 +75,15 @@ public sealed class StageBackfillService
         }
 
         var stageCodes = distinctUpdates.Select(u => u.StageCode).ToArray();
+
+        if (stageCodes.Any(code => string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)) &&
+            await _arppIpaStageAuthority.IsManagedAsync(projectId, ct))
+        {
+            throw new StageBackfillValidationException(new[]
+            {
+                ArppManagedIpaStageException.UserMessage
+            });
+        }
 
         var stageLookup = await _db.ProjectStages
             .Where(s => s.ProjectId == projectId && stageCodes.Contains(s.StageCode))

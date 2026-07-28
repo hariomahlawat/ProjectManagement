@@ -3,6 +3,8 @@
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using ProjectManagement.Areas.ProjectOfficeReports.Application
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 @{
     var timeline = Model.Timeline;
     var access = Model.Access;
@@ -21,6 +23,15 @@
                 .OrderBy(item => item.SortOrder)
                 .FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped)?.Code
         : null;
+    var actualStartCorrectionLocation = isActiveLifecycle
+        ? "Edit actual dates"
+        : Model.IsLegacy
+            ? "the historical stage editor"
+            : "the stage-date correction workflow";
+    var canViewArpp = (await AuthorizationService.AuthorizeAsync(
+        User,
+        resource: null,
+        policyName: ProjectOfficeReportsPolicies.ViewArpp)).Succeeded;
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -148,7 +159,7 @@
         _                      => "pm-item"
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
-      var hasStageMenuActions = isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest);
+      var hasStageMenuActions = !s.IsArppManaged && (isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest));
       <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
@@ -159,6 +170,13 @@
                     aria-label="Stage status: @displayedStatus">
                 @displayedStatus
               </span>
+              @if (s.IsArppManaged)
+              {
+                <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle"
+                      title="IPA status and completion date are controlled by the published ARPP record.">
+                  ARPP-derived
+                </span>
+              }
               @if (isActiveLifecycle)
               {
                 <button type="button"
@@ -220,7 +238,7 @@
               }
             </div>
             <div class="pm-item-actions">
-              @if (canSubmitStageUpdate && (isCurrentStage || s.HasPendingRequest))
+              @if (!s.IsArppManaged && canSubmitStageUpdate && (isCurrentStage || s.HasPendingRequest))
               {
                 <button class="btn btn-sm @(s.HasPendingRequest ? "btn-warning" : "btn-outline-primary") pm-stage-update-primary"
                         type="button"
@@ -444,6 +462,41 @@
               }
             </span>
           </div>
+          @if (s.IsArppManaged && s.ArppSourceIssueDate.HasValue)
+          {
+            <section class="pm-stage-arpp-source mt-2 rounded border bg-light-subtle px-3 py-2 small" aria-label="ARPP source for IPA completion">
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div>
+                  <span class="text-muted">Initial IPA approval</span>
+                  <strong class="ms-1">@s.ArppSourceDocumentLabel · @D(s.ArppSourceIssueDate)</strong>
+                  @if (!string.IsNullOrWhiteSpace(s.ArppSourceSerialNumber))
+                  {
+                    <span class="text-muted"> · Ser No. @s.ArppSourceSerialNumber</span>
+                  }
+                </div>
+                <span class="d-inline-flex gap-2">
+                  @if (canViewArpp && s.ArppSourceIssueId.HasValue)
+                  {
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/ARPP/Details"
+                       asp-route-id="@s.ArppSourceIssueId.Value"
+                       class="fw-semibold">View issue</a>
+                  }
+                  <a asp-area=""
+                     asp-page="/Projects/Arpp/History"
+                     asp-route-projectId="@timeline.ProjectId"
+                     class="fw-semibold">ARPP history</a>
+                </span>
+              </div>
+            </section>
+          }
+          @if (s.HasActualStartDataQualityIssue)
+          {
+            <div class="pm-stage-data-quality alert alert-warning py-2 px-3 mt-2 mb-0 small" role="alert">
+              <strong>Actual start needs correction.</strong>
+              The recorded start date is later than the ARPP-derived completion date. Correct or clear the actual start in @actualStartCorrectionLocation.
+            </div>
+          }
           @if (isActiveLifecycle && s.HasPendingRequest)
           {
             <section class="pm-stage-pending-update" aria-label="Stage update awaiting HoD approval">
@@ -473,18 +526,22 @@
                 <span class="pm-date-label">Completed on</span>
                 <strong data-stage-completed>@D(s.CompletedOn)</strong>
               </div>
-              @if (s.ActualDurationDays.HasValue)
+              @if (s.ActualDurationDays.HasValue || s.IsArppManaged)
               {
                 <div class="pm-stage-outcome__metric">
                   <span class="pm-date-label">Time taken</span>
-                  <strong data-stage-duration>@($"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}")</strong>
+                  <strong data-stage-duration>
+                    @(s.ActualDurationDays.HasValue
+                      ? $"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}"
+                      : "Unavailable")
+                  </strong>
                 </div>
               }
-              @if (s.EffectiveActualStart.HasValue)
+              @if (s.EffectiveActualStart.HasValue || s.IsArppManaged)
               {
                 <div class="pm-stage-outcome__metric">
                   <span class="pm-date-label">Actual start</span>
-                  <strong data-stage-actual-start>@D(s.EffectiveActualStart)</strong>
+                  <strong data-stage-actual-start>@(s.EffectiveActualStart.HasValue ? D(s.EffectiveActualStart) : "Not recorded")</strong>
                   @if (s.IsActualStartInferred)
                   {
                     <span class="small text-muted">Inferred from preceding completion</span>

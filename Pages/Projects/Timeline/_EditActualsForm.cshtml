@@ -30,8 +30,10 @@
                 var completedId = $"actual-completed-{row.StageCode}";
                 var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
                 var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
-                var canEdit = row.IsEditable && !row.HasPendingDecision;
-                var disableAttr = canEdit ? null : "disabled";
+                var canEditStart = row.IsEditable && !row.HasPendingDecision;
+                var canEditCompletion = canEditStart && !row.IsArppManaged;
+                var startDisabledAttr = canEditStart ? null : "disabled";
+                var completionDisabledAttr = canEditCompletion ? null : "disabled";
                 <section class="actuals-editor__stage border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div class="d-flex flex-column">
@@ -47,6 +49,10 @@
                             @if (row.RequiresBackfill)
                             {
                                 <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Needs backfill</span>
+                            }
+                            @if (row.IsArppManaged)
+                            {
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">ARPP-derived</span>
                             }
                             @if (row.IsAutoCompleted)
                             {
@@ -66,8 +72,17 @@
                                    max="@todayIso"
                                    aria-describedby="@startId-help"
                                    data-field="start"
-                                   @(disableAttr) />
-                            <div class="form-text" id="@startId-help">@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration is inferred from the preceding completion date." : "Enter when work began for the current stage.")</div>
+                                   @(startDisabledAttr) />
+                            <div class="form-text" id="@startId-help">
+                                @if (row.IsArppManaged)
+                                {
+                                    <text>Optional. Leave blank when the actual start is not documented; PRISM will show duration as unavailable.</text>
+                                }
+                                else
+                                {
+                                    <text>@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration may be inferred from the preceding completion date." : "Enter when work began for the current stage.")</text>
+                                }
+                            </div>
                         </div>
                         <div>
                             <label class="form-label" for="@completedId">Completed on</label>
@@ -79,8 +94,17 @@
                                    max="@todayIso"
                                    aria-describedby="@completedId-help"
                                    data-field="completed"
-                                   @(disableAttr) />
-                            <div class="form-text" id="@completedId-help">Enter the known completion date for this stage.</div>
+                                   @(completionDisabledAttr) />
+                            <div class="form-text" id="@completedId-help">
+                                @if (row.IsArppManaged)
+                                {
+                                    <text>Controlled by @row.ArppSourceLabel. Change the published ARPP record or project linkage to revise it.</text>
+                                }
+                                else
+                                {
+                                    <text>Enter the known completion date for this stage.</text>
+                                }
+                            </div>
                         </div>
                     </div>
 

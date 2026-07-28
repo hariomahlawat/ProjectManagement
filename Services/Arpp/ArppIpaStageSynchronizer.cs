@@ -1,24 +1,43 @@
+using System.Globalization;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Arpp;
 
 /// <summary>
-/// Applies the lifecycle consequence of a published ARPP position:
-/// the IPA stage is completed on the earliest HQ-issued document date in which
-/// the linked project appears. Later addenda may change the authoritative IPA
-/// amount, while the stage date continues to be recalculated from the earliest
-/// published appearance of the project.
+/// Applies the lifecycle consequence of a published ARPP position: the IPA stage
+/// is completed on the first HQ-issued document date in which the linked project
+/// appears. A published ARPP proves completion, but it does not prove when IPA
+/// processing began; an unknown ActualStart therefore remains null.
 /// </summary>
 public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
 {
-    private readonly ApplicationDbContext _db;
+    private const int SynchronizationBatchSize = 250;
+    internal const string PendingRequestSupersededAction = "Superseded";
+    private const string PendingDecisionStatus = "Pending";
+    private const string SupersededDecisionStatus = "Superseded";
+    private const string SystemUserId = "PRISM system";
+    private const string SupersededRequestNote =
+        "Superseded because published ARPP records became authoritative for In-Principle Approval.";
 
-    public ArppIpaStageSynchronizer(ApplicationDbContext db)
+    private readonly ApplicationDbContext _db;
+    private readonly IArppIpaStageAuthorityService _authority;
+    private readonly IClock _clock;
+    private readonly HashSet<string> _reportedDataQualityKeys = new(StringComparer.Ordinal);
+    private bool _recordedDataQualityKeysLoaded;
+
+    public ArppIpaStageSynchronizer(
+        ApplicationDbContext db,
+        IArppIpaStageAuthorityService? authority = null,
+        IClock? clock = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _authority = authority ?? new ArppIpaStageAuthorityService(db);
+        _clock = clock ?? new SystemClock();
     }
 
     public async Task<ArppIpaStageSynchronizationResult> SynchronizeAllAsync(
@@ -31,7 +50,28 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
             .Distinct()
             .ToArrayAsync(cancellationToken);
 
-        return await SynchronizeProjectsAsync(projectIds, cancellationToken);
+        if (projectIds.Length == 0)
+        {
+            return ArppIpaStageSynchronizationResult.Empty;
+        }
+
+        var changes = new List<ArppIpaStageSynchronizationChange>();
+        var dataQualityIssues = new List<ArppIpaStageDataQualityIssue>();
+        var supersededRequestCount = 0;
+
+        foreach (var batch in projectIds.Chunk(SynchronizationBatchSize))
+        {
+            var batchResult = await SynchronizeProjectsAsync(batch, cancellationToken);
+            changes.AddRange(batchResult.Changes);
+            dataQualityIssues.AddRange(batchResult.DataQualityIssues);
+            supersededRequestCount += batchResult.SupersededRequestCount;
+        }
+
+        return new ArppIpaStageSynchronizationResult(
+            projectIds.Length,
+            changes,
+            dataQualityIssues,
+            supersededRequestCount);
     }
 
     public async Task<ArppIpaStageSynchronizationResult> SynchronizeProjectsAsync(
@@ -50,38 +90,16 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
             return ArppIpaStageSynchronizationResult.Empty;
         }
 
-        // Materialize the compact authority projection and calculate the minimum in
-        // memory. This keeps DateOnly aggregation provider-neutral for PostgreSQL and
-        // the EF Core in-memory provider used by the regression tests.
-        var publishedPositions = await _db.ArppPublishedEntries
-            .AsNoTracking()
-            .Where(entry =>
-                entry.ProjectId.HasValue &&
-                requestedIds.Contains(entry.ProjectId.Value))
-            .Select(entry => new
-            {
-                ProjectId = entry.ProjectId!.Value,
-                entry.PublishedIssue.IssueDate
-            })
-            .ToListAsync(cancellationToken);
-
-        var earliestIssueDateByProject = publishedPositions
-            .GroupBy(position => position.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.Min(position => position.IssueDate));
-
-        if (earliestIssueDateByProject.Count == 0)
+        var authorities = await _authority.ResolveManyAsync(requestedIds, cancellationToken);
+        if (authorities.Count == 0)
         {
-            return new ArppIpaStageSynchronizationResult(requestedIds.Length, []);
+            return new ArppIpaStageSynchronizationResult(requestedIds.Length, [], [], 0);
         }
 
-        var authoritativeProjectIds = earliestIssueDateByProject.Keys.ToArray();
+        var authoritativeProjectIds = authorities.Keys.ToArray();
         var projects = await _db.Projects
             .AsNoTracking()
-            .Where(project =>
-                authoritativeProjectIds.Contains(project.Id) &&
-                !project.IsDeleted)
+            .Where(project => authoritativeProjectIds.Contains(project.Id) && !project.IsDeleted)
             .Select(project => new
             {
                 project.Id,
@@ -95,11 +113,27 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
                 stage.StageCode == StageCodes.IPA)
             .ToDictionaryAsync(stage => stage.ProjectId, cancellationToken);
 
+        var pendingRequests = await _db.StageChangeRequests
+            .Where(request =>
+                authoritativeProjectIds.Contains(request.ProjectId) &&
+                request.StageCode == StageCodes.IPA &&
+                request.DecisionStatus == PendingDecisionStatus)
+            .ToListAsync(cancellationToken);
+
+        var pendingRequestsByProject = pendingRequests
+            .GroupBy(request => request.ProjectId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
+        var recordedIssueKeys = await LoadRecordedDataQualityKeysAsync(cancellationToken);
+
         var changes = new List<ArppIpaStageSynchronizationChange>();
+        var dataQualityIssues = new List<ArppIpaStageDataQualityIssue>();
+        var supersededRequestCount = 0;
 
         foreach (var project in projects)
         {
-            var completionDate = earliestIssueDateByProject[project.Id];
+            var authority = authorities[project.Id];
+            var completionDate = authority.IssueDate;
             var stageCreated = !existingStages.TryGetValue(project.Id, out var stage);
 
             if (stageCreated)
@@ -109,7 +143,8 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
                     ProjectId = project.Id,
                     StageCode = StageCodes.IPA,
                     SortOrder = ProcurementWorkflow.OrderOf(project.WorkflowVersion, StageCodes.IPA),
-                    Status = StageStatus.NotStarted
+                    Status = StageStatus.NotStarted,
+                    ActualStart = null
                 };
                 _db.ProjectStages.Add(stage);
                 existingStages[project.Id] = stage;
@@ -122,23 +157,63 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
             var previousAutoCompletedFromCode = stage.AutoCompletedFromCode;
             var previousRequiresBackfill = stage.RequiresBackfill;
 
-            // A completed stage cannot start after it completed. Preserve any genuine
-            // earlier start; otherwise use the authoritative issue date for both fields.
-            var actualStart = stage.ActualStart.HasValue && stage.ActualStart.Value <= completionDate
-                ? stage.ActualStart.Value
-                : completionDate;
-
             stage.Status = StageStatus.Completed;
             stage.CompletedOn = completionDate;
-            stage.ActualStart = actualStart;
+            // Deliberately preserve a genuine recorded start and deliberately leave
+            // an unknown start blank. ARPP publication proves completion only.
             stage.IsAutoCompleted = false;
             stage.AutoCompletedFromCode = null;
             stage.RequiresBackfill = false;
 
+            if (stage.ActualStart is { } actualStart && actualStart > completionDate)
+            {
+                var issueKey = BuildDataQualityKey(project.Id, actualStart, completionDate);
+                if (recordedIssueKeys.Add(issueKey))
+                {
+                    _reportedDataQualityKeys.Add(issueKey);
+                    dataQualityIssues.Add(new ArppIpaStageDataQualityIssue(
+                        project.Id,
+                        actualStart,
+                        completionDate,
+                        authority.IssueId,
+                        authority.DocumentLabel,
+                        authority.IssueDate));
+                }
+            }
+
+            if (pendingRequestsByProject.TryGetValue(project.Id, out var projectPendingRequests))
+            {
+                foreach (var request in projectPendingRequests)
+                {
+                    request.DecisionStatus = SupersededDecisionStatus;
+                    request.DecidedByUserId = SystemUserId;
+                    request.DecidedOn = _clock.UtcNow;
+                    request.DecisionNote = SupersededRequestNote;
+                    supersededRequestCount++;
+
+                    await _db.StageChangeLogs.AddAsync(
+                        new StageChangeLog
+                        {
+                            ProjectId = project.Id,
+                            StageCode = StageCodes.IPA,
+                            Action = PendingRequestSupersededAction,
+                            FromStatus = stage.Status.ToString(),
+                            ToStatus = stage.Status.ToString(),
+                            FromActualStart = stage.ActualStart,
+                            ToActualStart = stage.ActualStart,
+                            FromCompletedOn = stage.CompletedOn,
+                            ToCompletedOn = stage.CompletedOn,
+                            UserId = SystemUserId,
+                            At = _clock.UtcNow,
+                            Note = SupersededRequestNote
+                        },
+                        cancellationToken);
+                }
+            }
+
             var changed = stageCreated ||
                           previousStatus != stage.Status ||
                           previousCompletedOn != stage.CompletedOn ||
-                          previousActualStart != stage.ActualStart ||
                           previousIsAutoCompleted != stage.IsAutoCompleted ||
                           !string.Equals(
                               previousAutoCompletedFromCode,
@@ -157,25 +232,98 @@ public sealed class ArppIpaStageSynchronizer : IArppIpaStageSynchronizer
                 previousStatus,
                 previousCompletedOn,
                 previousActualStart,
-                stageCreated));
+                stageCreated,
+                authority.IssueId,
+                authority.DocumentLabel));
         }
 
-        if (changes.Count > 0)
+        if (changes.Count > 0 || dataQualityIssues.Count > 0 || supersededRequestCount > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
 
-        return new ArppIpaStageSynchronizationResult(requestedIds.Length, changes);
+        return new ArppIpaStageSynchronizationResult(
+            requestedIds.Length,
+            changes,
+            dataQualityIssues,
+            supersededRequestCount);
     }
+
+    private async Task<HashSet<string>> LoadRecordedDataQualityKeysAsync(
+        CancellationToken cancellationToken)
+    {
+        if (_recordedDataQualityKeysLoaded)
+        {
+            return new HashSet<string>(_reportedDataQualityKeys, StringComparer.Ordinal);
+        }
+
+        const string auditAction = "Arpp.IpaStageDataQualityIssue";
+
+        var payloads = await _db.AuditLogs
+            .AsNoTracking()
+            .Where(log => log.Action == auditAction && log.DataJson != null)
+            .Select(log => log.DataJson!)
+            .ToListAsync(cancellationToken);
+
+        foreach (var payload in payloads)
+        {
+            try
+            {
+                var data = JsonSerializer.Deserialize<Dictionary<string, string?>>(payload);
+                if (data is null ||
+                    !data.TryGetValue("ProjectId", out var projectIdText) ||
+                    !int.TryParse(projectIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var projectId) ||
+                    !data.TryGetValue("ActualStart", out var actualStartText) ||
+                    !DateOnly.TryParseExact(
+                        actualStartText,
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var actualStart) ||
+                    !data.TryGetValue("CompletionDate", out var completionDateText) ||
+                    !DateOnly.TryParseExact(
+                        completionDateText,
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var completionDate))
+                {
+                    continue;
+                }
+
+                _reportedDataQualityKeys.Add(
+                    BuildDataQualityKey(projectId, actualStart, completionDate));
+            }
+            catch (JsonException)
+            {
+                // A malformed legacy audit payload must not block ARPP synchronization.
+            }
+        }
+
+        _recordedDataQualityKeysLoaded = true;
+        return new HashSet<string>(_reportedDataQualityKeys, StringComparer.Ordinal);
+    }
+
+    private static string BuildDataQualityKey(
+        int projectId,
+        DateOnly actualStart,
+        DateOnly completionDate)
+        => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{projectId}|{actualStart:yyyy-MM-dd}|{completionDate:yyyy-MM-dd}");
 }
 
 public sealed record ArppIpaStageSynchronizationResult(
     int EvaluatedProjectCount,
-    IReadOnlyList<ArppIpaStageSynchronizationChange> Changes)
+    IReadOnlyList<ArppIpaStageSynchronizationChange> Changes,
+    IReadOnlyList<ArppIpaStageDataQualityIssue> DataQualityIssues,
+    int SupersededRequestCount)
 {
-    public static ArppIpaStageSynchronizationResult Empty { get; } = new(0, []);
+    public static ArppIpaStageSynchronizationResult Empty { get; } = new(0, [], [], 0);
 
     public int ChangedProjectCount => Changes.Count;
+
+    public int DataQualityIssueCount => DataQualityIssues.Count;
 }
 
 public sealed record ArppIpaStageSynchronizationChange(
@@ -184,4 +332,14 @@ public sealed record ArppIpaStageSynchronizationChange(
     StageStatus PreviousStatus,
     DateOnly? PreviousCompletedOn,
     DateOnly? PreviousActualStart,
-    bool StageCreated);
+    bool StageCreated,
+    long SourceIssueId,
+    string SourceDocumentLabel);
+
+public sealed record ArppIpaStageDataQualityIssue(
+    int ProjectId,
+    DateOnly ActualStart,
+    DateOnly CompletionDate,
+    long SourceIssueId,
+    string SourceDocumentLabel,
+    DateOnly SourceIssueDate);

@@ -53,6 +53,17 @@ public sealed class TimelineItemVm
     public bool IsAutoCompleted { get; init; }
     public string? AutoCompletedFromCode { get; init; }
     public bool RequiresBackfill { get; init; }
+    public bool IsArppManaged { get; init; }
+    public long? ArppSourceIssueId { get; init; }
+    public string? ArppSourceDocumentLabel { get; init; }
+    public string? ArppSourceIssueName { get; init; }
+    public DateOnly? ArppSourceIssueDate { get; init; }
+    public string? ArppSourceSerialNumber { get; init; }
+    public bool HasActualStartDataQualityIssue =>
+        IsArppManaged &&
+        ActualStart.HasValue &&
+        CompletedOn.HasValue &&
+        ActualStart.Value > CompletedOn.Value;
     public bool HasPendingRequest { get; init; }
     public string? PendingStatus { get; init; }
     public DateOnly? PendingDate { get; init; }
@@ -71,8 +82,10 @@ public sealed class TimelineItemVm
     public int? PlannedDurationDays =>
         (PlannedStart.HasValue && PlannedEnd.HasValue) ? (PlannedEnd.Value.DayNumber - PlannedStart.Value.DayNumber + 1) : null;
     public int? ActualDurationDays =>
-        (EffectiveActualStart.HasValue && CompletedOn.HasValue)
-            ? Math.Max(1, CompletedOn.Value.DayNumber - EffectiveActualStart.Value.DayNumber + 1)
+        EffectiveActualStart.HasValue &&
+        CompletedOn.HasValue &&
+        EffectiveActualStart.Value <= CompletedOn.Value
+            ? CompletedOn.Value.DayNumber - EffectiveActualStart.Value.DayNumber + 1
             : null;
 
     // Completed stages are completion-driven. Actual start is optional and may be inferred.

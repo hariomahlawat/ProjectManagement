@@ -80,7 +80,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
 
             var errors = new List<string>();
 
-            var isIpaManagedByArpp = Input.IpaCost.HasValue && await _db.ArppEntries
+            var isIpaManagedByArpp = Input.IpaCost.HasValue && await _db.ArppPublishedEntries
                 .AsNoTracking()
                 .AnyAsync(entry => entry.ProjectId == id, ct);
 

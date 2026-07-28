@@ -10,6 +10,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Arpp;
 
 
 namespace ProjectManagement.Services.Stages;
@@ -35,6 +36,7 @@ public sealed class StageDirectApplyService
     private readonly StageRulesService _stageRules;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IPlanRealignment _planRealignment;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageDirectApplyService(
         ApplicationDbContext db,
@@ -42,7 +44,8 @@ public sealed class StageDirectApplyService
         IStageValidationService validator,
         StageRulesService stageRules,
         IProjectStageWorkflowPolicy workflowPolicy,
-        IPlanRealignment? planRealignment = null)
+        IPlanRealignment? planRealignment = null,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -50,6 +53,7 @@ public sealed class StageDirectApplyService
         _stageRules = stageRules ?? throw new ArgumentNullException(nameof(stageRules));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _planRealignment = planRealignment ?? new NullPlanRealignment();
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
 
@@ -129,6 +133,18 @@ public sealed class StageDirectApplyService
 
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
         var normalizedStatus = status.Trim();
+
+        try
+        {
+            await _arppIpaStageAuthority.EnsureManualLifecycleMutationAllowedAsync(
+                projectId,
+                normalizedStageCode,
+                ct);
+        }
+        catch (ArppManagedIpaStageException ex)
+        {
+            throw StageDirectApplyValidationException.FromMessages(ex.Message);
+        }
         var isReopen = string.Equals(normalizedStatus, "Reopen", StringComparison.OrdinalIgnoreCase);
         var validationTargetStatus = isReopen
             ? (date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted).ToString()

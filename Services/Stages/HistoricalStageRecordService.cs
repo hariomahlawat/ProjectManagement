@@ -12,6 +12,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
@@ -33,19 +34,22 @@ public sealed class HistoricalStageRecordService
     private readonly IClock _clock;
     private readonly IAuditService _audit;
     private readonly ILogger<HistoricalStageRecordService> _logger;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public HistoricalStageRecordService(
         ApplicationDbContext db,
         IWorkflowStageMetadataProvider metadataProvider,
         IClock clock,
         IAuditService audit,
-        ILogger<HistoricalStageRecordService> logger)
+        ILogger<HistoricalStageRecordService> logger,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _metadataProvider = metadataProvider ?? throw new ArgumentNullException(nameof(metadataProvider));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<HistoricalStageEditorVm> GetEditorAsync(
@@ -67,6 +71,7 @@ public sealed class HistoricalStageRecordService
             .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
             .ToDictionary(item => item.StageCode, StringComparer.OrdinalIgnoreCase);
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, cancellationToken);
         var definitions = _metadataProvider.GetStages(project.WorkflowVersion);
         var rows = definitions
             .Select((definition, index) =>
@@ -86,7 +91,17 @@ public sealed class HistoricalStageRecordService
                     Outcome = ResolveOutcome(project.LifecycleStatus, stage),
                     ActualStart = stage?.ActualStart,
                     CompletedOn = stage?.CompletedOn,
-                    HasRecordedData = hasRecordedData
+                    HasRecordedData = hasRecordedData,
+                    IsArppManaged = ipaAuthority is not null &&
+                        string.Equals(definition.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase),
+                    ArppSourceLabel = ipaAuthority is not null &&
+                        string.Equals(definition.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+                            ? $"{ipaAuthority.DocumentLabel} · {ipaAuthority.IssueDate:dd MMM yyyy}"
+                            : null,
+                    ArppCompletionDate = ipaAuthority is not null &&
+                        string.Equals(definition.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+                            ? ipaAuthority.IssueDate
+                            : null
                 };
             })
             .ToArray();
@@ -147,7 +162,25 @@ public sealed class HistoricalStageRecordService
             .ToDictionary(item => item.Code, StringComparer.OrdinalIgnoreCase);
 
         var rows = NormalizeRows(input.Rows, definitionLookup, errors);
-        ValidateRows(project, rows, errors);
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(project.Id, cancellationToken);
+        if (ipaAuthority is not null)
+        {
+            var managedIpaRow = rows.FirstOrDefault(row =>
+                string.Equals(row.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase));
+
+            if (managedIpaRow is null ||
+                managedIpaRow.Outcome != HistoricalStageOutcome.Completed ||
+                managedIpaRow.CompletedOn != ipaAuthority.IssueDate)
+            {
+                errors.Add(ArppManagedIpaStageException.UserMessage);
+            }
+        }
+
+        ValidateRows(
+            project,
+            rows,
+            errors,
+            ipaAuthority is null ? null : StageCodes.IPA);
 
         if (errors.Count > 0)
         {
@@ -173,14 +206,23 @@ public sealed class HistoricalStageRecordService
             }
 
             stageLookup.TryGetValue(row.StageCode, out var stage);
-            var proposedStatus = ResolveStatus(row.Outcome, stage);
-            var proposedStart = row.Outcome is HistoricalStageOutcome.Completed or HistoricalStageOutcome.Ceased
+            var isArppManagedIpa = ipaAuthority is not null &&
+                                   string.Equals(row.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
+            var proposedStatus = isArppManagedIpa
+                ? StageStatus.Completed
+                : ResolveStatus(row.Outcome, stage);
+            var proposedStart = isArppManagedIpa
                 ? row.ActualStart
-                : null;
-            var proposedCompleted = row.Outcome == HistoricalStageOutcome.Completed
-                ? row.CompletedOn
-                : null;
-            var proposedBackfill = row.Outcome == HistoricalStageOutcome.Completed &&
+                : row.Outcome is HistoricalStageOutcome.Completed or HistoricalStageOutcome.Ceased
+                    ? row.ActualStart
+                    : null;
+            var proposedCompleted = isArppManagedIpa
+                ? ipaAuthority!.IssueDate
+                : row.Outcome == HistoricalStageOutcome.Completed
+                    ? row.CompletedOn
+                    : null;
+            var proposedBackfill = !isArppManagedIpa &&
+                                   row.Outcome == HistoricalStageOutcome.Completed &&
                                    !proposedCompleted.HasValue;
 
             var definition = definitionLookup[row.StageCode];
@@ -373,7 +415,8 @@ public sealed class HistoricalStageRecordService
     private void ValidateRows(
         Project project,
         IReadOnlyList<NormalizedHistoricalStageRow> rows,
-        ICollection<string> errors)
+        ICollection<string> errors,
+        string? externallyManagedCompletedStageCode = null)
     {
         var today = TodayInIndia();
         var terminalDate = ResolveTerminalDateUpperBound(project);
@@ -392,7 +435,11 @@ public sealed class HistoricalStageRecordService
             var ceasedStage = ceasedRows[0];
             var laterResolvedStage = rows.FirstOrDefault(row =>
                 row.SortOrder > ceasedStage.SortOrder &&
-                row.Outcome is HistoricalStageOutcome.Completed or HistoricalStageOutcome.Skipped);
+                (row.Outcome is HistoricalStageOutcome.Completed or HistoricalStageOutcome.Skipped) &&
+                !string.Equals(
+                    row.StageCode,
+                    externallyManagedCompletedStageCode,
+                    StringComparison.OrdinalIgnoreCase));
             if (laterResolvedStage is not null)
             {
                 errors.Add(

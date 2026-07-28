@@ -64,6 +64,12 @@ public sealed class HistoricalStageEditorRowVm
     public DateOnly? CompletedOn { get; init; }
 
     public bool HasRecordedData { get; init; }
+
+    public bool IsArppManaged { get; init; }
+
+    public string? ArppSourceLabel { get; init; }
+
+    public DateOnly? ArppCompletionDate { get; init; }
 }
 
 public sealed class HistoricalStageRecordInput

@@ -6,10 +6,12 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Tests.Fakes;
@@ -365,6 +367,44 @@ public class StageDirectApplyServiceTests
     }
 
     [Fact]
+    public async Task ApplyAsync_ArppManagedIpa_RejectsManualLifecycleChange()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.Completed, new DateOnly(2026, 1, 1));
+        var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.IPA);
+        stage.CompletedOn = new DateOnly(2026, 2, 26);
+        AddPublishedPosition(db, projectId: 1, issueDate: new DateOnly(2026, 2, 26));
+        await db.SaveChangesAsync();
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(
+            db,
+            clock,
+            validation,
+            stageRules,
+            workflowPolicy,
+            arppIpaStageAuthority: new ArppIpaStageAuthorityService(db));
+
+        var exception = await Assert.ThrowsAsync<StageDirectApplyValidationException>(() => service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            status: StageStatus.InProgress.ToString(),
+            date: new DateOnly(2026, 7, 1),
+            note: "Manual change",
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None));
+
+        Assert.Contains(exception.Details, detail => detail.Contains("controlled by published ARPP", StringComparison.OrdinalIgnoreCase));
+        var persisted = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.IPA);
+        Assert.Equal(StageStatus.Completed, persisted.Status);
+        Assert.Equal(new DateOnly(2026, 2, 26), persisted.CompletedOn);
+    }
+
+    [Fact]
     public async Task ApplyAsync_WhenRealignmentFails_RollsBackStageAndAuditChanges()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");
@@ -451,6 +491,63 @@ public class StageDirectApplyServiceTests
         });
 
         await db.SaveChangesAsync();
+    }
+
+    private static void AddPublishedPosition(ApplicationDbContext db, int projectId, DateOnly issueDate)
+    {
+        var issue = new ArppIssue
+        {
+            Id = 100,
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP/I&R&D/ARTRAC",
+            IssueDate = issueDate,
+            IsVerified = true,
+            VerifiedAtUtc = DateTimeOffset.UtcNow,
+            VerifiedByUserId = "verifier",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = issue.Name,
+            IssueDate = issueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = "arpp/100.pdf",
+            AttachmentOriginalFileName = "ARPP-100.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    ArppIssueId = issue.Id,
+                    SourceEntryId = 1,
+                    SortOrder = 1,
+                    SerialNumber = "33",
+                    ProjectReference = "Project",
+                    ProjectId = projectId,
+                    Category = ArppCategory.New,
+                    IpaCost = 40_000_000m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3"
+                }
+            }
+        };
+
+        db.ArppIssues.Add(issue);
     }
 
     private static ApplicationDbContext CreateContext()

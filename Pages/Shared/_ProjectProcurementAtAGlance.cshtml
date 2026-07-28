@@ -39,25 +39,22 @@
     var ipaCategory = ipaPosition?.Category is { } category
         ? ArppDisplayNames.For(category)
         : null;
-    var ipaFinancialYear = ipaPosition?.FinancialYearStart is { } startYear
-        ? FinancialYearHelper.Format(startYear)
-        : null;
     var ipaSourceParts = new List<string>();
     if (ipaPosition?.IsManagedByArpp == true)
     {
-        if (!string.IsNullOrWhiteSpace(ipaFinancialYear))
-        {
-            ipaSourceParts.Add(ipaFinancialYear);
-        }
+        var documentLabel = ipaPosition.IssueSequence.GetValueOrDefault() == 0
+            ? "Original ARPP"
+            : $"Addendum No. {ipaPosition.IssueSequence}";
+        ipaSourceParts.Add(documentLabel);
 
-        if (!string.IsNullOrWhiteSpace(ipaPosition.IssueName))
+        if (ipaPosition.IssueDate.HasValue)
         {
-            ipaSourceParts.Add(ipaPosition.IssueName);
+            ipaSourceParts.Add(ipaPosition.IssueDate.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture));
         }
 
         if (!string.IsNullOrWhiteSpace(ipaPosition.SerialNumber))
         {
-            ipaSourceParts.Add($"Ser No {ipaPosition.SerialNumber}");
+            ipaSourceParts.Add($"Ser No. {ipaPosition.SerialNumber}");
         }
     }
 
@@ -65,7 +62,7 @@
     var canViewArpp = (await AuthorizationService.AuthorizeAsync(
         User,
         resource: null,
-        ProjectOfficeReportsPolicies.ViewArpp)).Succeeded;
+        policyName: ProjectOfficeReportsPolicies.ViewArpp)).Succeeded;
 }
 
 <div class="card pm-card procurement-summary-card">
@@ -162,7 +159,7 @@
       @if (ipaPosition?.IsManagedByArpp == true)
       {
         <div class="mt-2 small text-muted d-flex flex-wrap align-items-center gap-2">
-          <span>IPA source: @ipaSourceText.</span>
+          <span><strong>Current IPA source:</strong> @ipaSourceText</span>
           @if (canViewArpp && ipaPosition.IssueId.HasValue)
           {
             <a asp-area="ProjectOfficeReports"
@@ -170,13 +167,11 @@
                asp-route-id="@ipaPosition.IssueId.Value"
                class="fw-semibold">View ARPP issue</a>
           }
-          @if (canViewArpp)
-          {
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/ARPP/ProjectHistory"
-               asp-route-projectId="@ipaPosition.ProjectId"
-               class="fw-semibold">ARPP history</a>
-          }
+          <a asp-area=""
+             asp-page="/Projects/Arpp/History"
+             asp-route-projectId="@ipaPosition.ProjectId"
+             asp-route-financialYearStart="@ipaPosition.FinancialYearStart"
+             class="fw-semibold">ARPP history</a>
         </div>
       }
       else if (ipaPosition?.IsLegacyFallback == true)

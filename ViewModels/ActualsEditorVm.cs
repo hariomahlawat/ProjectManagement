@@ -38,6 +38,12 @@ public sealed class ActualsEditorRowVm
     public bool RequiresBackfill { get; init; }
 
     public bool HasPendingDecision { get; init; }
+
+    public bool IsArppManaged { get; init; }
+
+    public string? ArppSourceLabel { get; init; }
+
+    public DateOnly? ArppCompletionDate { get; init; }
 }
 
 public sealed class ActualsEditInput

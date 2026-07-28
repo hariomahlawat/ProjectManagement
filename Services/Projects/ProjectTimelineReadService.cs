@@ -11,6 +11,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
@@ -25,15 +26,18 @@ public sealed class ProjectTimelineReadService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public ProjectTimelineReadService(
         ApplicationDbContext db,
         IClock clock,
-        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db;
         _clock = clock;
         _workflowStageMetadataProvider = workflowStageMetadataProvider;
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
@@ -69,6 +73,7 @@ public sealed class ProjectTimelineReadService
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, StringComparer.OrdinalIgnoreCase);
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
         var rows = workflowStages
             .Select(stage =>
@@ -90,7 +95,17 @@ public sealed class ProjectTimelineReadService
                     RequiresBackfill = projectStage is not null &&
                         status == StageStatus.Completed &&
                         !projectStage.CompletedOn.HasValue,
-                    HasPendingDecision = hasPending
+                    HasPendingDecision = hasPending,
+                    IsArppManaged = ipaAuthority is not null &&
+                        string.Equals(stage.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase),
+                    ArppSourceLabel = ipaAuthority is not null &&
+                        string.Equals(stage.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+                            ? $"{ipaAuthority.DocumentLabel} · {ipaAuthority.IssueDate:dd MMM yyyy}"
+                            : null,
+                    ArppCompletionDate = ipaAuthority is not null &&
+                        string.Equals(stage.Code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)
+                            ? ipaAuthority.IssueDate
+                            : null
                 };
             })
             .ToArray();
@@ -228,6 +243,7 @@ public sealed class ProjectTimelineReadService
         var pendingLookup = latestPendingByStage
             .ToDictionary(r => r.StageCode, StringComparer.OrdinalIgnoreCase);
 
+        var ipaAuthority = await _arppIpaStageAuthority.ResolveAsync(projectId, ct);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         var items = new List<TimelineItemVm>();
@@ -244,12 +260,15 @@ public sealed class ProjectTimelineReadService
             var plannedEnd = r?.PlannedDue;
             var actualEnd = r?.CompletedOn;
             var status = r?.Status ?? StageStatus.NotStarted;
+            var isArppManaged = ipaAuthority is not null &&
+                                string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
 
             var startSuggestion = StageDateSuggestionResolver.Resolve(workflowStages, rows, code);
 
             DateOnly? effectiveActualStart = actualStart;
             var isActualStartInferred = false;
-            if (status == StageStatus.Completed
+            if (!isArppManaged
+                && status == StageStatus.Completed
                 && !effectiveActualStart.HasValue
                 && actualEnd.HasValue
                 && startSuggestion.SuggestedStartDate.HasValue)
@@ -288,6 +307,12 @@ public sealed class ProjectTimelineReadService
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
                 AutoCompletedFromCode = r?.AutoCompletedFromCode,
                 RequiresBackfill = status == StageStatus.Completed && !actualEnd.HasValue,
+                IsArppManaged = isArppManaged,
+                ArppSourceIssueId = isArppManaged ? ipaAuthority!.IssueId : null,
+                ArppSourceDocumentLabel = isArppManaged ? ipaAuthority!.DocumentLabel : null,
+                ArppSourceIssueName = isArppManaged ? ipaAuthority!.IssueName : null,
+                ArppSourceIssueDate = isArppManaged ? ipaAuthority!.IssueDate : null,
+                ArppSourceSerialNumber = isArppManaged ? ipaAuthority!.SerialNumber : null,
                 SortOrder = index++,
                 Today = today,
                 HasPendingRequest = pendingRequest is not null,

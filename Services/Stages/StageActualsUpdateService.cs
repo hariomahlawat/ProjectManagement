@@ -11,6 +11,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Services.Stages;
@@ -25,17 +26,20 @@ public sealed class StageActualsUpdateService
     private readonly IClock _clock;
     private readonly IAuditService _audit;
     private readonly ILogger<StageActualsUpdateService> _logger;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageActualsUpdateService(
         ApplicationDbContext db,
         IClock clock,
         IAuditService audit,
-        ILogger<StageActualsUpdateService> logger)
+        ILogger<StageActualsUpdateService> logger,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<StageActualsUpdateResult> UpdateAsync(
@@ -87,6 +91,11 @@ public sealed class StageActualsUpdateService
             throw new StageActualsNotFoundException(missing);
         }
 
+        var ipaAuthority = codes.Any(code =>
+                string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase))
+            ? await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken)
+            : null;
+
         var lockedStages = await _db.StageChangeRequests
             .AsNoTracking()
             .Where(r => r.ProjectId == input.ProjectId && r.DecisionStatus == PendingDecisionStatus && codes.Contains(r.StageCode))
@@ -104,8 +113,23 @@ public sealed class StageActualsUpdateService
             var stage = stageLookup[row.StageCode];
             var start = row.ActualStart;
             var completed = row.CompletedOn;
-            var proposedStart = start ?? stage.ActualStart;
-            var proposedCompleted = completed ?? stage.CompletedOn;
+            var isArppManagedIpa = ipaAuthority is not null &&
+                                   string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
+
+            if (isArppManagedIpa && completed.HasValue && completed != stage.CompletedOn)
+            {
+                validationErrors.Add($"{row.StageCode}: Completion date is controlled by the published ARPP record and cannot be edited here.");
+                continue;
+            }
+
+            // For ARPP-managed IPA, a blank start is an explicit correction to
+            // "not recorded". The completion date remains immutable.
+            var proposedStart = isArppManagedIpa
+                ? start
+                : start ?? stage.ActualStart;
+            var proposedCompleted = isArppManagedIpa
+                ? stage.CompletedOn
+                : completed ?? stage.CompletedOn;
             var isChanged = proposedStart != stage.ActualStart || proposedCompleted != stage.CompletedOn;
 
             if (!isChanged)
@@ -207,7 +231,11 @@ public sealed class StageActualsUpdateService
             // SECTION: Completed stage backfill state
             if (stage.Status == StageStatus.Completed)
             {
-                stage.RequiresBackfill = !stage.CompletedOn.HasValue;
+                var isArppManagedIpa = ipaAuthority is not null &&
+                                       string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
+                stage.RequiresBackfill = isArppManagedIpa
+                    ? false
+                    : !stage.CompletedOn.HasValue;
             }
 
             stage.IsAutoCompleted = false;

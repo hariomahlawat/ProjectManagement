@@ -2809,16 +2809,24 @@ namespace ProjectManagement.Pages.Projects
                 return null;
             }
 
-            var parts = new List<string> { "Managed through ARPP" };
+            var documentLabel = position.IssueSequence.GetValueOrDefault() == 0
+                ? "Original ARPP"
+                : $"Addendum No. {position.IssueSequence.Value}";
 
-            if (position.FinancialYearStart.HasValue)
+            var parts = new List<string>
             {
-                parts.Add(FinancialYearHelper.Format(position.FinancialYearStart.Value));
+                "Managed through ARPP",
+                documentLabel
+            };
+
+            if (position.IssueDate.HasValue)
+            {
+                parts.Add(position.IssueDate.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture));
             }
 
-            if (!string.IsNullOrWhiteSpace(position.IssueName))
+            if (!string.IsNullOrWhiteSpace(position.SerialNumber))
             {
-                parts.Add(position.IssueName.Trim());
+                parts.Add($"Ser No. {position.SerialNumber.Trim()}");
             }
 
             if (position.Category.HasValue)
@@ -2826,12 +2834,7 @@ namespace ProjectManagement.Pages.Projects
                 parts.Add(ArppDisplayNames.For(position.Category.Value));
             }
 
-            if (!string.IsNullOrWhiteSpace(position.SerialNumber))
-            {
-                parts.Add($"Ser No {position.SerialNumber.Trim()}");
-            }
-
-            return string.Join(" · ", parts) + ". Update this value from the ARPP register.";
+            return string.Join(" · ", parts) + ". Update the authoritative value in the ARPP register.";
         }
 
         private async Task<IReadOnlyList<ProjectCategory>> BuildCategoryPathAsync(int categoryId, CancellationToken ct)

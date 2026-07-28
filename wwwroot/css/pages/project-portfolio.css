@@ -520,7 +520,9 @@ button.project-intelligence-card:hover {
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-flags,
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-dates,
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-variance,
-.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-stage-outcome {
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-stage-outcome,
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-stage-arpp-source,
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-stage-data-quality {
     display: none;
 }
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-card {

@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
 using Xunit;
@@ -228,6 +230,89 @@ public sealed class StageActualsUpdateServiceTests
         Assert.Equal(new DateOnly(2024, 1, 20), updated.CompletedOn);
     }
 
+    [Fact]
+    public async Task UpdateAsync_ArppManagedIpa_AllowsClearingActualStart_AndPreservesCompletion()
+    {
+        var (connection, db, _) = await CreateServiceWithSingleStageAsync(
+            StageStatus.Completed,
+            actualStart: new DateOnly(2026, 3, 1),
+            completedOn: new DateOnly(2026, 2, 26));
+        await using var __ = connection;
+        await using var ___ = db;
+        AddPublishedPosition(db, projectId: 1, issueDate: new DateOnly(2026, 2, 26));
+        await db.SaveChangesAsync();
+
+        var service = new StageActualsUpdateService(
+            db,
+            new FixedClock(new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero)),
+            new FakeAudit(),
+            NullLogger<StageActualsUpdateService>.Instance,
+            new ArppIpaStageAuthorityService(db));
+
+        var result = await service.UpdateAsync(
+            new ActualsEditInput
+            {
+                ProjectId = 1,
+                Rows = new List<ActualsEditRowInput>
+                {
+                    new()
+                    {
+                        StageCode = StageCodes.IPA,
+                        ActualStart = null,
+                        CompletedOn = null
+                    }
+                }
+            },
+            userId: "user-1",
+            userName: "Tester");
+
+        Assert.Equal(1, result.UpdatedCount);
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.Null(stage.ActualStart);
+        Assert.Equal(new DateOnly(2026, 2, 26), stage.CompletedOn);
+        Assert.False(stage.RequiresBackfill);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ArppManagedIpa_RejectsCompletionDateChange()
+    {
+        var (connection, db, _) = await CreateServiceWithSingleStageAsync(
+            StageStatus.Completed,
+            actualStart: null,
+            completedOn: new DateOnly(2026, 2, 26));
+        await using var __ = connection;
+        await using var ___ = db;
+        AddPublishedPosition(db, projectId: 1, issueDate: new DateOnly(2026, 2, 26));
+        await db.SaveChangesAsync();
+
+        var service = new StageActualsUpdateService(
+            db,
+            new FixedClock(new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero)),
+            new FakeAudit(),
+            NullLogger<StageActualsUpdateService>.Instance,
+            new ArppIpaStageAuthorityService(db));
+
+        var exception = await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(
+            new ActualsEditInput
+            {
+                ProjectId = 1,
+                Rows = new List<ActualsEditRowInput>
+                {
+                    new()
+                    {
+                        StageCode = StageCodes.IPA,
+                        CompletedOn = new DateOnly(2026, 3, 1)
+                    }
+                }
+            },
+            userId: "user-1",
+            userName: "Tester"));
+
+        Assert.Contains(exception.Errors, error => error.Contains("controlled by the published ARPP", StringComparison.OrdinalIgnoreCase));
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.Equal(new DateOnly(2026, 2, 26), stage.CompletedOn);
+    }
+
     // SECTION: Test helpers
     private static async Task<(SqliteConnection Connection, ApplicationDbContext Db, StageActualsUpdateService Service)> CreateServiceWithSingleStageAsync(
         StageStatus status,
@@ -266,6 +351,63 @@ public sealed class StageActualsUpdateServiceTests
         var clock = new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
         var service = new StageActualsUpdateService(db, clock, new FakeAudit(), NullLogger<StageActualsUpdateService>.Instance);
         return (connection, db, service);
+    }
+
+    private static void AddPublishedPosition(ApplicationDbContext db, int projectId, DateOnly issueDate)
+    {
+        var issue = new ArppIssue
+        {
+            Id = 100,
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = "ARPP/I&R&D/ARTRAC",
+            IssueDate = issueDate,
+            IsVerified = true,
+            VerifiedAtUtc = DateTimeOffset.UtcNow,
+            VerifiedByUserId = "verifier",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        };
+
+        issue.PublishedSnapshot = new ArppPublishedIssue
+        {
+            ArppIssueId = issue.Id,
+            RevisionNumber = 1,
+            FinancialYearStart = 2026,
+            Kind = ArppIssueKind.Original,
+            IssueSequence = 0,
+            Name = issue.Name,
+            IssueDate = issueDate,
+            PublishedAtUtc = DateTimeOffset.UtcNow,
+            PublishedByUserId = "verifier",
+            AttachmentStorageKey = "arpp/100.pdf",
+            AttachmentOriginalFileName = "ARPP-100.pdf",
+            AttachmentContentType = "application/pdf",
+            AttachmentSizeBytes = 100,
+            AttachmentSha256 = new string('a', 64),
+            Entries =
+            {
+                new ArppPublishedEntry
+                {
+                    ArppIssueId = issue.Id,
+                    SourceEntryId = 1,
+                    SortOrder = 1,
+                    SerialNumber = "33",
+                    ProjectReference = "Project",
+                    ProjectId = projectId,
+                    Category = ArppCategory.New,
+                    IpaCost = 40_000_000m,
+                    Cfa = "Comdt SDD",
+                    Fund = "IR&D",
+                    DfpdsSchedule = "9.3"
+                }
+            }
+        };
+
+        db.ArppIssues.Add(issue);
     }
 
     private sealed class FixedClock : IClock

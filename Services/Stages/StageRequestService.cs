@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -31,13 +32,15 @@ public class StageRequestService
     private readonly IStageValidationService _validationService;
     private readonly IProjectStageWorkflowPolicy? _workflowPolicy;
     private readonly ProjectFactsReadService? _factsRead;
+    private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
 
     public StageRequestService(
         ApplicationDbContext db,
         IClock clock,
         IStageValidationService validationService,
         IProjectStageWorkflowPolicy? workflowPolicy = null,
-        ProjectFactsReadService? factsRead = null)
+        ProjectFactsReadService? factsRead = null,
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -45,6 +48,7 @@ public class StageRequestService
             ?? throw new ArgumentNullException(nameof(validationService));
         _workflowPolicy = workflowPolicy;
         _factsRead = factsRead;
+        _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
     }
 
     public async Task<StageRequestResult> CreateAsync(
@@ -176,6 +180,16 @@ public class StageRequestService
         if (!string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
         {
             return BatchStageRequestResult.NotProjectOfficerResult();
+        }
+
+        if (preparedItems.Any(item =>
+                string.Equals(item.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase)) &&
+            await _arppIpaStageAuthority.IsManagedAsync(input.ProjectId, cancellationToken))
+        {
+            return BatchStageRequestResult.Invalid(new[]
+            {
+                ArppManagedIpaStageException.UserMessage
+            });
         }
 
         var stages = await _db.ProjectStages
