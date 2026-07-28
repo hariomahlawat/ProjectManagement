@@ -27,6 +27,7 @@ public sealed class CompletedProjectsSummaryService
         int? completedYear,
         string? search,
         string? build,
+        string? portfolioStatus,
         string sortKey,
         string sortDir,
         CancellationToken cancellationToken = default)
@@ -211,6 +212,13 @@ public sealed class CompletedProjectsSummaryService
                 r.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
+        var normalisedPortfolioStatus = CompletedProjectPortfolioStatusCodes.Normalise(portfolioStatus);
+        if (normalisedPortfolioStatus is not null)
+        {
+            filtered = filtered.Where(r =>
+                CompletedProjectPortfolioPolicy.MatchesPortfolioStatus(r, normalisedPortfolioStatus));
+        }
+
         return ApplySorting(filtered, sortKey, sortDir).ToList();
     }
 
@@ -225,19 +233,27 @@ public sealed class CompletedProjectsSummaryService
         return sortKey switch
         {
             "name" => desc
-                ? source.OrderByDescending(x => x.Name).ThenBy(x => x.ProjectId)
-                : source.OrderBy(x => x.Name).ThenBy(x => x.ProjectId),
+                ? source.OrderByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId)
+                : source.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId),
 
-            "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name),
-            "prod" => ApplyNullableSort(source, x => x.ApproxProductionCost, desc).ThenBy(x => x.Name),
-            "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name),
-            "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name),
-            "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name),
-            "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name),
+            "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "prod" => ApplyNullableSort(source, x => x.ApproxProductionCost, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
 
-            "tech" => ApplyNullableStringSort(source, x => x.TechStatus, desc).ThenBy(x => x.Name),
+            "tech" => ApplyNullableStringSort(source, x => x.TechStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
 
-            _ => source.OrderBy(x => x.Name).ThenBy(x => x.ProjectId)
+            "quality" => desc
+                ? source.OrderByDescending(CompletedProjectPortfolioPolicy.GetCriticalMissingCount)
+                    .ThenByDescending(CompletedProjectPortfolioPolicy.GetSupplementaryMissingCount)
+                    .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                : source.OrderBy(CompletedProjectPortfolioPolicy.GetCriticalMissingCount)
+                    .ThenBy(CompletedProjectPortfolioPolicy.GetSupplementaryMissingCount)
+                    .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+
+            _ => source.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId)
         };
     }
 
@@ -249,7 +265,7 @@ public sealed class CompletedProjectsSummaryService
         where TKey : struct, IComparable
     {
         return desc
-            ? source.OrderBy(x => keySelector(x).HasValue ? 1 : 0)
+            ? source.OrderBy(x => keySelector(x).HasValue ? 0 : 1)
                 .ThenByDescending(x => keySelector(x))
             : source.OrderBy(x => keySelector(x).HasValue ? 0 : 1)
                 .ThenBy(x => keySelector(x));
@@ -261,7 +277,7 @@ public sealed class CompletedProjectsSummaryService
         bool desc)
     {
         return desc
-            ? source.OrderBy(x => string.IsNullOrWhiteSpace(keySelector(x)) ? 0 : 1)
+            ? source.OrderBy(x => string.IsNullOrWhiteSpace(keySelector(x)) ? 1 : 0)
                 .ThenByDescending(x => keySelector(x), StringComparer.OrdinalIgnoreCase)
             : source.OrderBy(x => string.IsNullOrWhiteSpace(keySelector(x)) ? 1 : 0)
                 .ThenBy(x => keySelector(x), StringComparer.OrdinalIgnoreCase);

@@ -1,10 +1,4 @@
-Program.cs
-ProjectManagement.csproj
-web.config
-Infrastructure/UploadRequestLimitResolver.cs
-Migrations/20261201160000_FinalizeProjectStageCompletionConstraint.cs
-Migrations/immutable-migration-ids.txt
-ProjectManagement.Tests/ApplicationDatabaseMigrationsTests.cs
-ProjectManagement.Tests/PostgresMigrationIntegrationTests.cs
-ops/publish/create-publish-folder.ps1
-README - REPLACE FILES.txt
+Services/Projects/CompletedProjectPortfolioPolicy.cs
+Pages/Projects/CompletedSummary/Index.cshtml.cs
+Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
+Pages/Projects/Overview.cshtml.cs

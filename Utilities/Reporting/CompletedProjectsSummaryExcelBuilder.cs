@@ -12,11 +12,14 @@ namespace ProjectManagement.Utilities.Reporting;
 public sealed record CompletedProjectsSummaryExportContext(
     IReadOnlyList<CompletedProjectSummaryDto> Items,
     DateTimeOffset GeneratedAtUtc,
+    string? TechnicalCategory,
     string? TechStatus,
     bool? AvailableForProliferation,
     bool? TotCompleted,
     int? CompletedYear,
-    string? Search);
+    string? Search,
+    string? Build,
+    string? PortfolioStatus);
 
 // SECTION: Builder contract
 public interface ICompletedProjectsSummaryExcelBuilder
@@ -27,8 +30,8 @@ public interface ICompletedProjectsSummaryExcelBuilder
 // SECTION: Builder implementation
 public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSummaryExcelBuilder
 {
-    private const string TotCompletedLabel = "Completed";
-    private const string TotNotCompletedLabel = "Not completed";
+    private const int FirstDataRow = 2;
+    private const int ColumnCount = 13;
 
     public byte[] Build(CompletedProjectsSummaryExportContext context)
     {
@@ -54,102 +57,76 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         {
             "S.No.",
             "Project",
-            "R&D / L1 cost (lakh)",
-            "Approx Prod cost (lakh)",
+            "Completed year",
+            "Development / L1 cost (lakh)",
+            "Approx. production cost (lakh)",
             "Latest LPP (lakh)",
             "Latest LPP date",
-            "Tech status",
+            "Technology status",
             "Available for proliferation",
             "ToT status",
+            "Critical data gaps",
+            "Supplementary data gaps",
             "Remarks"
         };
 
         for (var column = 0; column < headers.Length; column++)
         {
-            var cell = worksheet.Cell(1, column + 1);
-            cell.Value = headers[column];
+            worksheet.Cell(1, column + 1).Value = headers[column];
         }
 
         var headerRange = worksheet.Range(1, 1, 1, headers.Length);
         headerRange.Style.Font.Bold = true;
         headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        headerRange.Style.Alignment.WrapText = true;
         headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(233, 236, 239);
         worksheet.SheetView.FreezeRows(1);
+        worksheet.SheetView.FreezeColumns(2);
     }
 
     // SECTION: Row rendering
     private static void WriteRows(IXLWorksheet worksheet, IReadOnlyList<CompletedProjectSummaryDto> items)
     {
-        if (items.Count == 0)
+        for (var index = 0; index < items.Count; index++)
         {
-            return;
-        }
-
-        var rowNumber = 2;
-        for (var index = 0; index < items.Count; index++, rowNumber++)
-        {
+            var rowNumber = FirstDataRow + index;
             var item = items[index];
+
             worksheet.Cell(rowNumber, 1).Value = index + 1;
             worksheet.Cell(rowNumber, 2).Value = item.Name;
 
-            var rdCostCell = worksheet.Cell(rowNumber, 3);
-            if (item.RdCostLakhs.HasValue)
+            if (item.CompletedYear.HasValue)
             {
-                rdCostCell.Value = (double)item.RdCostLakhs.Value;
+                worksheet.Cell(rowNumber, 3).Value = item.CompletedYear.Value;
             }
-            else
-            {
-                rdCostCell.Clear(XLClearOptions.Contents);
-            }
-            rdCostCell.Style.NumberFormat.Format = "0.00";
 
-            var productionCell = worksheet.Cell(rowNumber, 4);
-            if (item.ApproxProductionCost.HasValue)
-            {
-                productionCell.Value = (double)item.ApproxProductionCost.Value;
-            }
-            else
-            {
-                productionCell.Clear(XLClearOptions.Contents);
-            }
-            productionCell.Style.NumberFormat.Format = "0.00";
-
-            var lppCell = worksheet.Cell(rowNumber, 5);
-            if (item.LatestLpp is { } latestLpp)
-            {
-                lppCell.Value = (double)latestLpp.Amount;
-            }
-            else
-            {
-                lppCell.Clear(XLClearOptions.Contents);
-            }
-            lppCell.Style.NumberFormat.Format = "0.00";
+            WriteDecimal(worksheet.Cell(rowNumber, 4), item.RdCostLakhs);
+            WriteDecimal(worksheet.Cell(rowNumber, 5), item.ApproxProductionCost);
+            WriteDecimal(worksheet.Cell(rowNumber, 6), item.LatestLpp?.Amount);
 
             if (item.LatestLpp?.Date is { } lppDate)
             {
-                worksheet.Cell(rowNumber, 6).Value = lppDate.ToDateTime(TimeOnly.MinValue);
-                worksheet.Cell(rowNumber, 6).Style.DateFormat.Format = "dd-MMM-yyyy";
+                worksheet.Cell(rowNumber, 7).Value = lppDate.ToDateTime(TimeOnly.MinValue);
+                worksheet.Cell(rowNumber, 7).Style.DateFormat.Format = "dd-MMM-yyyy";
             }
 
-            worksheet.Cell(rowNumber, 7).Value = item.TechStatus ?? string.Empty;
-            worksheet.Cell(rowNumber, 8).Value = item.AvailableForProliferation switch
-            {
-                true => "Yes",
-                false => "No",
-                _ => string.Empty
-            };
-            worksheet.Cell(rowNumber, 9).Value = FormatTotStatus(item.TotStatus);
-            worksheet.Cell(rowNumber, 10).Value = item.Remarks ?? string.Empty;
+            worksheet.Cell(rowNumber, 8).Value = CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus);
+            worksheet.Cell(rowNumber, 9).Value = CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation);
+            worksheet.Cell(rowNumber, 10).Value = CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus);
+            worksheet.Cell(rowNumber, 11).Value = string.Join(", ", CompletedProjectPortfolioPolicy.GetCriticalMissingFields(item));
+            worksheet.Cell(rowNumber, 12).Value = string.Join(", ", CompletedProjectPortfolioPolicy.GetSupplementaryMissingFields(item));
+            worksheet.Cell(rowNumber, 13).Value = item.Remarks ?? string.Empty;
         }
     }
 
     // SECTION: Formatting helpers
     private static void ApplyFormatting(IXLWorksheet worksheet, CompletedProjectsSummaryExportContext context)
     {
-        var lastRow = Math.Max(2, context.Items.Count + 1);
-        worksheet.Columns(1, 10).AdjustToContents(1, lastRow);
+        var lastDataRow = Math.Max(FirstDataRow, context.Items.Count + 1);
+        worksheet.Columns(1, ColumnCount).AdjustToContents(1, lastDataRow);
 
-        foreach (var column in worksheet.Columns(1, 10))
+        foreach (var column in worksheet.Columns(1, ColumnCount))
         {
             if (column.Width > 60)
             {
@@ -157,10 +134,61 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             }
         }
 
-        worksheet.Column(2).Width = Math.Min(worksheet.Column(2).Width, 40);
-        worksheet.Column(10).Style.Alignment.WrapText = true;
-        worksheet.Column(10).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Column(1).Width = 8;
+        worksheet.Column(2).Width = Math.Clamp(worksheet.Column(2).Width, 28, 46);
+        worksheet.Column(3).Width = 13;
+        worksheet.Columns(4, 6).Width = 18;
+        worksheet.Column(7).Width = 16;
+        worksheet.Columns(8, 10).Width = 20;
+        worksheet.Columns(11, 12).Width = 34;
+        worksheet.Column(13).Width = 55;
 
+        worksheet.Columns(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Columns(3, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Columns(4, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        worksheet.Columns(7, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Columns(11, 13).Style.Alignment.WrapText = true;
+        worksheet.Columns(1, ColumnCount).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+
+        if (context.Items.Count > 0)
+        {
+            var dataRange = worksheet.Range(1, 1, context.Items.Count + 1, ColumnCount);
+            ApplyGridBorders(dataRange, XLColor.FromArgb(218, 224, 233));
+            worksheet.Range(FirstDataRow, 1, context.Items.Count + 1, ColumnCount)
+                .Style.Font.FontSize = 10;
+            dataRange.SetAutoFilter();
+        }
+
+        WriteMetadata(worksheet, context);
+        worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        worksheet.PageSetup.FitToPages(1, 0);
+        worksheet.PageSetup.Margins.Top = 0.45;
+        worksheet.PageSetup.Margins.Bottom = 0.45;
+        worksheet.PageSetup.Margins.Left = 0.35;
+        worksheet.PageSetup.Margins.Right = 0.35;
+        worksheet.PageSetup.SetRowsToRepeatAtTop(1, 1);
+    }
+
+    private static void ApplyGridBorders(IXLRange range, XLColor borderColor)
+    {
+        var border = range.Style.Border;
+
+        // ClosedXML 0.104 exposes the individual border sides on IXLBorder.
+        // Applying them to the range produces a consistent, light grid without
+        // relying on version-specific aggregate-border members.
+        border.TopBorder = XLBorderStyleValues.Thin;
+        border.RightBorder = XLBorderStyleValues.Thin;
+        border.BottomBorder = XLBorderStyleValues.Thin;
+        border.LeftBorder = XLBorderStyleValues.Thin;
+
+        border.TopBorderColor = borderColor;
+        border.RightBorderColor = borderColor;
+        border.BottomBorderColor = borderColor;
+        border.LeftBorderColor = borderColor;
+    }
+
+    private static void WriteMetadata(IXLWorksheet worksheet, CompletedProjectsSummaryExportContext context)
+    {
         var metadataRow = context.Items.Count + 3;
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
 
@@ -168,47 +196,50 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         worksheet.Cell(metadataRow, 2).Value = generatedAtIst.DateTime;
         worksheet.Cell(metadataRow, 2).Style.DateFormat.Format = "yyyy-MM-dd HH:mm\" IST\"";
 
-        worksheet.Cell(metadataRow + 1, 1).Value = "Tech status";
-        worksheet.Cell(metadataRow + 1, 2).Value = context.TechStatus ?? "(all)";
-
-        worksheet.Cell(metadataRow + 2, 1).Value = "Available";
-        worksheet.Cell(metadataRow + 2, 2).Value = context.AvailableForProliferation switch
+        var metadata = new (string Label, string Value)[]
         {
-            true => "Yes",
-            false => "No",
-            _ => "(all)"
+            ("Technical category", context.TechnicalCategory ?? "(all)"),
+            ("Technology status", context.TechStatus ?? "(all)"),
+            ("Available for proliferation", context.AvailableForProliferation switch
+            {
+                true => "Yes",
+                false => "No",
+                _ => "(all)"
+            }),
+            ("ToT filter", FormatTotFilter(context.TotCompleted)),
+            ("Completed year", context.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "(all)"),
+            ("Build type", context.Build ?? "(all)"),
+            ("Portfolio position", CompletedProjectPortfolioStatusCodes.GetLabel(context.PortfolioStatus)),
+            ("Search", string.IsNullOrWhiteSpace(context.Search) ? "(none)" : context.Search)
         };
 
-        worksheet.Cell(metadataRow + 3, 1).Value = "ToT status";
-        worksheet.Cell(metadataRow + 3, 2).Value = FormatTotFilter(context.TotCompleted);
-
-        worksheet.Cell(metadataRow + 4, 1).Value = "Completed year";
-        worksheet.Cell(metadataRow + 4, 2).Value = context.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "(all)";
-
-        worksheet.Cell(metadataRow + 5, 1).Value = "Search";
-        worksheet.Cell(metadataRow + 5, 2).Value = string.IsNullOrWhiteSpace(context.Search) ? "(none)" : context.Search;
-
-        worksheet.Range(metadataRow, 1, metadataRow + 5, 1).Style.Font.Bold = true;
-    }
-
-    // SECTION: ToT status formatting
-    private static string FormatTotStatus(Models.ProjectTotStatus? totStatus)
-    {
-        if (totStatus == Models.ProjectTotStatus.Completed)
+        for (var index = 0; index < metadata.Length; index++)
         {
-            return TotCompletedLabel;
+            worksheet.Cell(metadataRow + index + 1, 1).Value = metadata[index].Label;
+            worksheet.Cell(metadataRow + index + 1, 2).Value = metadata[index].Value;
         }
 
-        return totStatus.HasValue ? TotNotCompletedLabel : string.Empty;
+        worksheet.Range(metadataRow, 1, metadataRow + metadata.Length, 1).Style.Font.Bold = true;
+        worksheet.Range(metadataRow, 1, metadataRow + metadata.Length, 2).Style.Font.FontSize = 9;
     }
 
-    private static string FormatTotFilter(bool? totCompleted)
+    private static void WriteDecimal(IXLCell cell, decimal? value)
     {
-        return totCompleted switch
+        if (value.HasValue)
         {
-            true => TotCompletedLabel,
-            false => TotNotCompletedLabel,
-            _ => "(all)"
-        };
+            cell.Value = (double)value.Value;
+            cell.Style.NumberFormat.Format = "0.00";
+        }
+        else
+        {
+            cell.Clear(XLClearOptions.Contents);
+        }
     }
+
+    private static string FormatTotFilter(bool? totCompleted) => totCompleted switch
+    {
+        true => "Completed",
+        false => "Not completed",
+        _ => "(all)"
+    };
 }

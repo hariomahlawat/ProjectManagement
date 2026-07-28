@@ -2809,9 +2809,10 @@ namespace ProjectManagement.Pages.Projects
                 return null;
             }
 
-            var documentLabel = position.IssueSequence.GetValueOrDefault() == 0
+            var issueSequence = position.IssueSequence.GetValueOrDefault();
+            var documentLabel = issueSequence == 0
                 ? "Original ARPP"
-                : $"Addendum No. {position.IssueSequence.Value}";
+                : $"Addendum No. {issueSequence}";
 
             var parts = new List<string>
             {
