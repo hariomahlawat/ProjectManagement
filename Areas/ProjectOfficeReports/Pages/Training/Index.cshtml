@@ -5,6 +5,9 @@
     ViewData["Title"] = "Training tracker";
     ViewData["UseFullWidth"] = false;
     var showExportModal = ViewData["ShowTrainingExportModal"] as bool? ?? false;
+    var selectedExportProjectName = Model.Export.ProjectId.HasValue
+        ? Model.ProjectOptions.FirstOrDefault(option => option.Value == Model.Export.ProjectId.Value.ToString(CultureInfo.InvariantCulture))?.Text ?? string.Empty
+        : string.Empty;
 
     // ------------------------------------------------------------
     // active filters counter
@@ -427,8 +430,8 @@ else
          aria-labelledby="trainingFiltersModalLabel"
          aria-hidden="true"
          data-bs-focus="true">
-        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
-            <div class="modal-content">
+        <div class="modal-dialog modal-dialog-scrollable modal-xl modal-fullscreen-sm-down">
+            <div class="modal-content training-export-modal">
                 <form method="get" class="w-100">
                     <div class="modal-header">
                         <h2 class="modal-title h5" id="trainingFiltersModalLabel">Filters</h2>
@@ -482,8 +485,8 @@ else
          aria-hidden="true"
          data-bs-focus="true"
          data-training-export-auto-show="@(showExportModal.ToString().ToLowerInvariant())">
-        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
-            <div class="modal-content">
+        <div class="modal-dialog modal-dialog-scrollable modal-xl modal-fullscreen-sm-down">
+            <div class="modal-content training-export-modal">
                 <form method="post"
                       asp-page-handler="Export"
                       class="w-100 training-export-form"
@@ -504,22 +507,78 @@ else
                              data-training-export-errors></div>
 
                         <div class="row g-3">
-                            <div class="col-md-6 col-xl-3">
+                            <div class="col-lg-6">
                                 <label asp-for="Export.TypeId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <select asp-for="Export.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
                                 <span asp-validation-for="Export.TypeId" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-6 col-xl-3">
+                            <div class="col-lg-6">
                                 <label asp-for="Export.ProjectId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <select asp-for="Export.ProjectId" asp-items="Model.ProjectOptions" class="form-select"></select>
+                                <div class="training-export-project-picker" data-training-export-project-picker>
+                                    <div class="training-export-project-picker__control">
+                                        <i class="bi bi-search" aria-hidden="true"></i>
+                                        <input id="Export_ProjectSearch"
+                                               type="search"
+                                               class="form-control training-export-project-picker__search"
+                                               value="@selectedExportProjectName"
+                                               placeholder="All projects"
+                                               autocomplete="off"
+                                               spellcheck="false"
+                                               role="combobox"
+                                               aria-autocomplete="list"
+                                               aria-expanded="false"
+                                               aria-controls="Export_ProjectSuggestions"
+                                               data-training-export-project-search />
+                                        <button type="button"
+                                                class="btn training-export-project-picker__clear @(string.IsNullOrWhiteSpace(selectedExportProjectName) ? "d-none" : string.Empty)"
+                                                aria-label="Clear project"
+                                                title="Clear project"
+                                                data-training-export-project-clear>
+                                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
+                                    <input asp-for="Export.ProjectId" type="hidden" data-training-export-project-id />
+                                    <div id="Export_ProjectSuggestions"
+                                         class="training-export-project-picker__panel d-none"
+                                         role="listbox"
+                                         aria-label="Projects"
+                                         data-training-export-project-options>
+                                        <button type="button"
+                                                class="training-export-project-picker__option"
+                                                role="option"
+                                                data-training-export-project-option
+                                                data-project-id=""
+                                                data-project-label="All projects"
+                                                data-project-search="all projects">
+                                            <span>All projects</span>
+                                            <small>Export the complete filtered portfolio</small>
+                                        </button>
+                                        @foreach (var projectOption in Model.ProjectOptions.Where(option => !string.IsNullOrWhiteSpace(option.Value)))
+                                        {
+                                            <button type="button"
+                                                    class="training-export-project-picker__option"
+                                                    role="option"
+                                                    data-training-export-project-option
+                                                    data-project-id="@projectOption.Value"
+                                                    data-project-label="@projectOption.Text"
+                                                    data-project-search="@projectOption.Text">
+                                                <span>@projectOption.Text</span>
+                                            </button>
+                                        }
+                                        <div class="training-export-project-picker__empty d-none" data-training-export-project-empty>
+                                            No matching project found.
+                                        </div>
+                                    </div>
+                                    <div class="visually-hidden" role="status" aria-live="polite" data-training-export-project-status></div>
+                                </div>
                                 <span asp-validation-for="Export.ProjectId" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-6 col-xl-3">
+                            <div class="col-lg-6">
                                 <label asp-for="Export.ProjectTechnicalCategoryId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <select asp-for="Export.ProjectTechnicalCategoryId" asp-items="Model.ProjectTechnicalCategoryOptions" class="form-select"></select>
                                 <span asp-validation-for="Export.ProjectTechnicalCategoryId" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-6 col-xl-3">
+                            <div class="col-lg-6">
                                 <label asp-for="Export.Category" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <select asp-for="Export.Category" asp-items="Model.CategoryOptions" class="form-select" data-training-export-category></select>
                                 <div class="form-text">Includes training events attended by this category. Event totals remain complete.</div>

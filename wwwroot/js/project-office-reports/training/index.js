@@ -38,6 +38,159 @@ function hideModalElement(modalEl) {
 }
 
 // ================================================================
+// searchable project picker used by the export modal
+// ================================================================
+function normalizePickerText(value) {
+    return (value || '')
+        .toLocaleLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+function initTrainingExportProjectPicker(picker) {
+    if (!picker || picker.dataset.trainingExportProjectPickerReady === 'true') return;
+    picker.dataset.trainingExportProjectPickerReady = 'true';
+
+    const search = picker.querySelector('[data-training-export-project-search]');
+    const hidden = picker.querySelector('[data-training-export-project-id]');
+    const panel = picker.querySelector('[data-training-export-project-options]');
+    const clear = picker.querySelector('[data-training-export-project-clear]');
+    const empty = picker.querySelector('[data-training-export-project-empty]');
+    const status = picker.querySelector('[data-training-export-project-status]');
+    const options = Array.from(picker.querySelectorAll('[data-training-export-project-option]'));
+    if (!search || !hidden || !panel || options.length === 0) return;
+
+    let visibleOptions = [];
+    let activeIndex = -1;
+    search.dataset.selectedLabel = search.value.trim();
+
+    const close = () => {
+        panel.classList.add('d-none');
+        search.setAttribute('aria-expanded', 'false');
+        search.removeAttribute('aria-activedescendant');
+        activeIndex = -1;
+        options.forEach((option) => option.classList.remove('is-active'));
+    };
+
+    const setActive = (index) => {
+        if (visibleOptions.length === 0) {
+            activeIndex = -1;
+            return;
+        }
+
+        activeIndex = Math.max(0, Math.min(index, visibleOptions.length - 1));
+        visibleOptions.forEach((option, optionIndex) => {
+            const active = optionIndex === activeIndex;
+            option.classList.toggle('is-active', active);
+            option.setAttribute('aria-selected', active ? 'true' : 'false');
+            if (active) {
+                if (!option.id) option.id = `training-export-project-option-${optionIndex}`;
+                search.setAttribute('aria-activedescendant', option.id);
+                option.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    };
+
+    const select = (option) => {
+        const id = option.dataset.projectId || '';
+        const label = option.dataset.projectLabel || '';
+        hidden.value = id;
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        search.value = id ? label : '';
+        search.dataset.selectedLabel = search.value;
+        clear?.classList.toggle('d-none', !id);
+        options.forEach((candidate) => candidate.setAttribute(
+            'aria-selected',
+            candidate === option ? 'true' : 'false'));
+        if (status) status.textContent = id ? `${label} selected.` : 'All projects selected.';
+        close();
+    };
+
+    const render = () => {
+        const query = normalizePickerText(search.value);
+        visibleOptions = options.filter((option) => {
+            const searchable = normalizePickerText(option.dataset.projectSearch || option.dataset.projectLabel);
+            const visible = !query || searchable.includes(query);
+            option.classList.toggle('d-none', !visible);
+            option.classList.remove('is-active');
+            option.setAttribute('aria-selected', 'false');
+            return visible;
+        });
+
+        empty?.classList.toggle('d-none', visibleOptions.length > 0);
+        panel.classList.remove('d-none');
+        search.setAttribute('aria-expanded', 'true');
+        activeIndex = -1;
+        if (status) {
+            status.textContent = visibleOptions.length === 0
+                ? 'No matching project found.'
+                : `${visibleOptions.length} matching ${visibleOptions.length === 1 ? 'project' : 'projects'}.`;
+        }
+    };
+
+    search.addEventListener('input', () => {
+        if (search.value.trim() !== (search.dataset.selectedLabel || '')) {
+            hidden.value = '';
+            clear?.classList.add('d-none');
+        }
+        render();
+    });
+    search.addEventListener('focus', render);
+    search.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (panel.classList.contains('d-none')) render();
+            setActive(activeIndex + 1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (panel.classList.contains('d-none')) render();
+            setActive(activeIndex <= 0 ? visibleOptions.length - 1 : activeIndex - 1);
+        } else if (event.key === 'Enter' && activeIndex >= 0) {
+            event.preventDefault();
+            select(visibleOptions[activeIndex]);
+        } else if (event.key === 'Escape') {
+            close();
+        }
+    });
+
+    options.forEach((option) => {
+        option.addEventListener('mousedown', (event) => event.preventDefault());
+        option.addEventListener('click', () => select(option));
+    });
+
+    clear?.addEventListener('click', () => {
+        hidden.value = '';
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        search.value = '';
+        search.dataset.selectedLabel = '';
+        clear.classList.add('d-none');
+        if (status) status.textContent = 'Project selection cleared.';
+        search.focus();
+        render();
+    });
+
+    document.addEventListener('pointerdown', (event) => {
+        if (!picker.contains(event.target)) close();
+    });
+    picker.closest('.modal')?.addEventListener('hidden.bs.modal', close);
+}
+
+function validateTrainingExportProjectPicker(form) {
+    const search = form.querySelector('[data-training-export-project-search]');
+    const hidden = form.querySelector('[data-training-export-project-id]');
+    if (!search || !hidden) return true;
+
+    if (search.value.trim() && !hidden.value) {
+        showExportErrors(form, ['Select a project from the matching list, or clear the Project field to export all projects.']);
+        search.focus();
+        return false;
+    }
+
+    return true;
+}
+
+// ================================================================
 // reliable training export download lifecycle
 // ================================================================
 function setExportButtonBusy(button, busy) {
@@ -188,16 +341,18 @@ function initRosterScope(form) {
 
 function initTrainingExportForm(form) {
     initRosterScope(form);
+    form.querySelectorAll('[data-training-export-project-picker]').forEach(initTrainingExportProjectPicker);
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (form.dataset.trainingExportBusy === 'true') return;
+        clearExportErrors(form);
         if (!form.reportValidity()) return;
+        if (!validateTrainingExportProjectPicker(form)) return;
 
         const submitter = event.submitter || form.querySelector('[type="submit"]');
         if (!submitter) return;
 
-        clearExportErrors(form);
         form.dataset.trainingExportBusy = 'true';
         form.setAttribute('aria-busy', 'true');
         const formData = new FormData(form);

@@ -40,6 +40,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
     private const string PaleGreen = "#E2F0D9";
     private const string PaleAmber = "#FFF2CC";
     private const string LightGray = "#F2F2F2";
+    private const string AlternateGroupFill = "#F4F8FC";
     private const string BorderGray = "#D9E1F2";
 
     public byte[] Build(TrainingExcelWorkbookContext context)
@@ -72,7 +73,6 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 
     private static void WriteSummaryWorksheet(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
     {
-
         worksheet.Range("A1:H1").Merge();
         worksheet.Cell("A1").Value = "TRAINING TRACKER";
         worksheet.Cell("A1").Style.Font.Bold = true;
@@ -127,7 +127,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             context.IncludeRoster ? context.Dataset.RosterRowCount : "Not included",
             LightGray);
 
-        var byTypeStart = 19;
+        const int byTypeStart = 19;
         worksheet.Range(byTypeStart, 1, byTypeStart, 4).Merge();
         worksheet.Cell(byTypeStart, 1).Value = "TRAINING TYPE SUMMARY";
         StyleSectionHeading(worksheet.Cell(byTypeStart, 1));
@@ -150,7 +150,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             row++;
         }
 
-        var yearStart = 19;
+        const int yearStart = 19;
         worksheet.Range(yearStart, 5, yearStart, 8).Merge();
         worksheet.Cell(yearStart, 5).Value = "TRAINING YEAR TREND (APR–MAR)";
         StyleSectionHeading(worksheet.Cell(yearStart, 5));
@@ -200,9 +200,21 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             technicalRow++;
         }
 
+        var categoryNoteRow = technicalRow + 1;
+        worksheet.Range(categoryNoteRow, 1, categoryNoteRow + 1, 8).Merge();
+        worksheet.Cell(categoryNoteRow, 1).Value =
+            "Note: A training linked to projects in more than one technical category is counted under each applicable category. Category rows are therefore not additive.";
+        worksheet.Cell(categoryNoteRow, 1).Style.Font.Italic = true;
+        worksheet.Cell(categoryNoteRow, 1).Style.Font.FontColor = XLColor.FromHtml("#5B6573");
+        worksheet.Cell(categoryNoteRow, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFC");
+        worksheet.Cell(categoryNoteRow, 1).Style.Alignment.WrapText = true;
+        worksheet.Cell(categoryNoteRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Range(categoryNoteRow, 1, categoryNoteRow + 1, 8).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        worksheet.Range(categoryNoteRow, 1, categoryNoteRow + 1, 8).Style.Border.OutsideBorderColor = XLColor.FromHtml(BorderGray);
+
         if (context.IncludeRoster)
         {
-            var noticeRow = technicalRow + 2;
+            var noticeRow = categoryNoteRow + 3;
             worksheet.Range(noticeRow, 1, noticeRow + 1, 8).Merge();
             worksheet.Cell(noticeRow, 1).Value =
                 "Handling note: The Roster sheet contains personnel details. Handle and share this workbook in accordance with organisational policy.";
@@ -232,12 +244,20 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 
     private static void WriteTrainingsWorksheet(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
     {
-        var headers = new[]
+        var normalizedNotes = context.Dataset.Trainings
+            .ToDictionary(item => item.Summary.Id, item => NormalizeReportNote(item.Summary.Notes));
+        var includeNotes = normalizedNotes.Values.Any(value => !string.IsNullOrWhiteSpace(value));
+
+        var headers = new List<string>
         {
-            "S.No.", "Training ID", "Training type", "Start date", "End date", "Recorded period",
+            "S.No.", "Training type", "Start date", "End date", "Recorded period",
             "Duration (days)", "Training year", "Officers", "JCOs", "ORs", "Total trainees",
-            "Source", "Project count", "Projects", "Notes", "Open in PRISM"
+            "Source", "Project count", "Projects"
         };
+        if (includeNotes)
+        {
+            headers.Add("Notes");
+        }
 
         WriteTableHeader(worksheet, headers);
         var rowNumber = 2;
@@ -247,38 +267,45 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         {
             var row = detail.Summary;
             worksheet.Cell(rowNumber, 1).Value = serial++;
-            worksheet.Cell(rowNumber, 2).Value = row.Id.ToString();
-            worksheet.Cell(rowNumber, 3).Value = row.TrainingTypeName;
-            WriteDate(worksheet.Cell(rowNumber, 4), row.StartDate);
-            WriteDate(worksheet.Cell(rowNumber, 5), row.EndDate);
-            worksheet.Cell(rowNumber, 6).Value = row.Period;
-            if (row.DurationDays.HasValue) worksheet.Cell(rowNumber, 7).Value = row.DurationDays.Value;
-            worksheet.Cell(rowNumber, 8).Value = row.TrainingYearLabel;
-            worksheet.Cell(rowNumber, 9).Value = row.Officers;
-            worksheet.Cell(rowNumber, 10).Value = row.JuniorCommissionedOfficers;
-            worksheet.Cell(rowNumber, 11).Value = row.OtherRanks;
-            worksheet.Cell(rowNumber, 12).Value = row.Total;
-            worksheet.Cell(rowNumber, 13).Value = FormatSource(row.Source);
-            worksheet.Cell(rowNumber, 14).Value = row.Projects?.Count ?? 0;
-            worksheet.Cell(rowNumber, 15).Value = row.Projects is { Count: > 0 }
+            worksheet.Cell(rowNumber, 2).Value = row.TrainingTypeName;
+            WriteDate(worksheet.Cell(rowNumber, 3), row.StartDate);
+            WriteDate(worksheet.Cell(rowNumber, 4), row.EndDate);
+            worksheet.Cell(rowNumber, 5).Value = row.Period;
+            if (row.DurationDays.HasValue) worksheet.Cell(rowNumber, 6).Value = row.DurationDays.Value;
+            worksheet.Cell(rowNumber, 7).Value = row.TrainingYearLabel;
+            worksheet.Cell(rowNumber, 8).Value = row.Officers;
+            worksheet.Cell(rowNumber, 9).Value = row.JuniorCommissionedOfficers;
+            worksheet.Cell(rowNumber, 10).Value = row.OtherRanks;
+            worksheet.Cell(rowNumber, 11).Value = row.Total;
+            worksheet.Cell(rowNumber, 12).Value = FormatSource(row.Source);
+            worksheet.Cell(rowNumber, 13).Value = row.Projects?.Count ?? 0;
+            worksheet.Cell(rowNumber, 14).Value = row.Projects is { Count: > 0 }
                 ? string.Join("; ", row.Projects)
                 : string.Empty;
-            worksheet.Cell(rowNumber, 16).Value = row.Notes ?? string.Empty;
-            WriteLink(worksheet.Cell(rowNumber, 17), BuildTrainingUrl(context.ApplicationBaseUrl, row.Id), "Open training");
+            if (includeNotes)
+            {
+                worksheet.Cell(rowNumber, 15).Value = normalizedNotes[row.Id] ?? string.Empty;
+            }
             rowNumber++;
         }
 
-        CreateTableIfPopulated(worksheet, "TrainingsTable", headers.Length, rowNumber - 1);
+        CreateTableIfPopulated(worksheet, "TrainingsTable", headers.Count, rowNumber - 1);
         worksheet.SheetView.FreezeRows(1);
-        worksheet.SheetView.FreezeColumns(3);
+        worksheet.SheetView.FreezeColumns(2);
 
-        SetWidths(worksheet, new Dictionary<int, double>
+        var widths = new Dictionary<int, double>
         {
-            [1] = 8, [2] = 38, [3] = 24, [4] = 14, [5] = 14, [6] = 28, [7] = 14,
-            [8] = 14, [9] = 11, [10] = 11, [11] = 11, [12] = 14, [13] = 12,
-            [14] = 13, [15] = 42, [16] = 55, [17] = 18
-        });
-        worksheet.Columns(15, 16).Style.Alignment.WrapText = true;
+            [1] = 8, [2] = 24, [3] = 14, [4] = 14, [5] = 28, [6] = 14,
+            [7] = 14, [8] = 11, [9] = 11, [10] = 11, [11] = 14, [12] = 14,
+            [13] = 13, [14] = 42
+        };
+        if (includeNotes) widths[15] = 48;
+        SetWidths(worksheet, widths);
+        worksheet.Column(14).Style.Alignment.WrapText = true;
+        if (includeNotes) worksheet.Column(15).Style.Alignment.WrapText = true;
+        worksheet.Column(1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Columns(6, 13).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
         var usedRange = worksheet.RangeUsed();
         if (usedRange is not null)
         {
@@ -291,38 +318,38 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
     {
         var headers = new[]
         {
-            "Training ID", "Training type", "Start date", "Project ID", "Project name",
-            "Technical category", "Project status", "Open project"
+            "Training S.No.", "Training type", "Project name", "Technical category", "Project status"
         };
 
         WriteTableHeader(worksheet, headers);
+        var trainingSerials = BuildTrainingSerialLookup(context.Dataset.Trainings);
         var summaries = context.Dataset.Trainings.ToDictionary(item => item.Summary.Id, item => item.Summary);
         var rowNumber = 2;
 
         foreach (var project in context.Dataset.ProjectLinks
-                     .OrderByDescending(item => summaries.TryGetValue(item.TrainingId, out var summary) ? summary.StartDate : null)
+                     .Where(item => trainingSerials.ContainsKey(item.TrainingId))
+                     .OrderBy(item => trainingSerials[item.TrainingId])
                      .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase))
         {
             summaries.TryGetValue(project.TrainingId, out var training);
-            worksheet.Cell(rowNumber, 1).Value = project.TrainingId.ToString();
+            worksheet.Cell(rowNumber, 1).Value = trainingSerials[project.TrainingId];
             worksheet.Cell(rowNumber, 2).Value = training?.TrainingTypeName ?? string.Empty;
-            WriteDate(worksheet.Cell(rowNumber, 3), training?.StartDate);
-            worksheet.Cell(rowNumber, 4).Value = project.ProjectId;
-            worksheet.Cell(rowNumber, 5).Value = project.ProjectName;
-            worksheet.Cell(rowNumber, 6).Value = project.TechnicalCategoryName;
-            worksheet.Cell(rowNumber, 7).Value = project.ProjectStatus;
-            WriteLink(worksheet.Cell(rowNumber, 8), BuildProjectUrl(context.ApplicationBaseUrl, project.ProjectId), "Open project");
+            worksheet.Cell(rowNumber, 3).Value = project.ProjectName;
+            worksheet.Cell(rowNumber, 4).Value = project.TechnicalCategoryName;
+            worksheet.Cell(rowNumber, 5).Value = project.ProjectStatus;
             rowNumber++;
         }
 
         CreateTableIfPopulated(worksheet, "TrainingProjectsTable", headers.Length, rowNumber - 1);
+        ApplyTrainingGroupFormatting(worksheet, 2, rowNumber - 1, headers.Length, serialColumn: 1);
         worksheet.SheetView.FreezeRows(1);
         worksheet.SheetView.FreezeColumns(2);
         SetWidths(worksheet, new Dictionary<int, double>
         {
-            [1] = 38, [2] = 24, [3] = 14, [4] = 12, [5] = 42, [6] = 26, [7] = 16, [8] = 18
+            [1] = 15, [2] = 24, [3] = 46, [4] = 27, [5] = 18
         });
-        worksheet.Columns(5, 6).Style.Alignment.WrapText = true;
+        worksheet.Columns(2, 4).Style.Alignment.WrapText = true;
+        worksheet.Column(1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         ConfigurePrint(worksheet, repeatHeaderRow: 1, landscape: true);
     }
 
@@ -330,20 +357,22 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
     {
         var headers = new[]
         {
-            "S.No.", "Training ID", "Training type", "Start date", "End date", "Army number",
-            "Rank", "Name", "Unit", "Trainee category", "Open training"
+            "S.No.", "Training S.No.", "Training type", "Start date", "End date", "Army number",
+            "Rank", "Name", "Unit", "Trainee category"
         };
 
         WriteTableHeader(worksheet, headers);
+        var trainingSerials = BuildTrainingSerialLookup(context.Dataset.Trainings);
         var rowNumber = 2;
-        var serial = 1;
+        var rosterSerial = 1;
 
         foreach (var training in context.Dataset.Trainings)
         {
+            var trainingSerial = trainingSerials[training.Summary.Id];
             foreach (var trainee in training.Roster)
             {
-                worksheet.Cell(rowNumber, 1).Value = serial++;
-                worksheet.Cell(rowNumber, 2).Value = training.Summary.Id.ToString();
+                worksheet.Cell(rowNumber, 1).Value = rosterSerial++;
+                worksheet.Cell(rowNumber, 2).Value = trainingSerial;
                 worksheet.Cell(rowNumber, 3).Value = training.Summary.TrainingTypeName;
                 WriteDate(worksheet.Cell(rowNumber, 4), training.Summary.StartDate);
                 WriteDate(worksheet.Cell(rowNumber, 5), training.Summary.EndDate);
@@ -352,21 +381,74 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
                 worksheet.Cell(rowNumber, 8).Value = trainee.Name;
                 worksheet.Cell(rowNumber, 9).Value = trainee.UnitName;
                 worksheet.Cell(rowNumber, 10).Value = FormatRosterCategory(trainee.Category);
-                WriteLink(worksheet.Cell(rowNumber, 11), BuildTrainingUrl(context.ApplicationBaseUrl, training.Summary.Id), "Open training");
                 rowNumber++;
             }
         }
 
         CreateTableIfPopulated(worksheet, "RosterTable", headers.Length, rowNumber - 1);
+        ApplyTrainingGroupFormatting(worksheet, 2, rowNumber - 1, headers.Length, serialColumn: 2);
         worksheet.SheetView.FreezeRows(1);
         worksheet.SheetView.FreezeColumns(3);
         SetWidths(worksheet, new Dictionary<int, double>
         {
-            [1] = 8, [2] = 38, [3] = 24, [4] = 14, [5] = 14, [6] = 18,
-            [7] = 12, [8] = 24, [9] = 28, [10] = 24, [11] = 18
+            [1] = 8, [2] = 15, [3] = 24, [4] = 14, [5] = 14, [6] = 18,
+            [7] = 12, [8] = 24, [9] = 30, [10] = 28
         });
-        worksheet.Columns(8, 9).Style.Alignment.WrapText = true;
+        worksheet.Columns(8, 10).Style.Alignment.WrapText = true;
+        worksheet.Columns(1, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         ConfigurePrint(worksheet, repeatHeaderRow: 1, landscape: true);
+    }
+
+    private static IReadOnlyDictionary<Guid, int> BuildTrainingSerialLookup(
+        IReadOnlyList<TrainingExportDetail> trainings)
+        => trainings
+            .Select((training, index) => new { training.Summary.Id, Serial = index + 1 })
+            .ToDictionary(item => item.Id, item => item.Serial);
+
+    private static void ApplyTrainingGroupFormatting(
+        IXLWorksheet worksheet,
+        int firstRow,
+        int lastRow,
+        int lastColumn,
+        int serialColumn)
+    {
+        if (lastRow < firstRow)
+        {
+            return;
+        }
+
+        int? previousSerial = null;
+        var groupIndex = -1;
+
+        for (var row = firstRow; row <= lastRow; row++)
+        {
+            var serial = worksheet.Cell(row, serialColumn).GetValue<int>();
+            if (previousSerial != serial)
+            {
+                groupIndex++;
+                var topBorder = worksheet.Range(row, 1, row, lastColumn).Style.Border;
+                topBorder.TopBorder = XLBorderStyleValues.Medium;
+                topBorder.TopBorderColor = XLColor.FromHtml(Blue);
+                previousSerial = serial;
+            }
+
+            var rowRange = worksheet.Range(row, 1, row, lastColumn);
+            rowRange.Style.Fill.BackgroundColor = groupIndex % 2 == 0
+                ? XLColor.White
+                : XLColor.FromHtml(AlternateGroupFill);
+            rowRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        }
+    }
+
+    private static string? NormalizeReportNote(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Any(char.IsLetter) ? normalized : null;
     }
 
     private static void WriteFilter(
@@ -486,38 +568,6 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 
         cell.Value = value.Value.ToDateTime(TimeOnly.MinValue);
         cell.Style.DateFormat.Format = "dd-mmm-yyyy";
-    }
-
-    private static void WriteLink(IXLCell cell, string? url, string label)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return;
-        }
-
-        cell.FormulaA1 = $"HYPERLINK(\"{EscapeFormulaText(url)}\",\"{EscapeFormulaText(label)}\")";
-        cell.Style.Font.FontColor = XLColor.FromHtml("#0563C1");
-        cell.Style.Font.Underline = XLFontUnderlineValues.Single;
-    }
-
-
-    private static string EscapeFormulaText(string value)
-        => value.Replace("\"", "\"\"", StringComparison.Ordinal);
-
-    private static string? BuildTrainingUrl(string baseUrl, Guid trainingId)
-        => BuildUrl(baseUrl, $"/ProjectOfficeReports/Training/View?id={trainingId}");
-
-    private static string? BuildProjectUrl(string baseUrl, int projectId)
-        => BuildUrl(baseUrl, $"/Projects/Overview/{projectId}");
-
-    private static string? BuildUrl(string baseUrl, string relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            return null;
-        }
-
-        return string.Concat(baseUrl.TrimEnd('/'), relativePath);
     }
 
     private static void StyleSectionHeading(IXLCell cell)

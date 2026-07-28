@@ -14,10 +14,10 @@ namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 public sealed class TrainingExcelWorkbookBuilderTests
 {
     [Fact]
-    public void Build_CreatesProfessionalNormalizedWorkbook()
+    public void Build_CreatesReadableWorkbookWithoutInternalIdentifiersOrNavigationColumns()
     {
         var trainingId = Guid.NewGuid();
-        var detail = CreateDetail(trainingId, includeRoster: false);
+        var detail = CreateDetail(trainingId, includeRoster: false, notes: "Field readiness drills.");
         var dataset = new TrainingExportDataset(
             new[] { detail },
             new[]
@@ -32,28 +32,42 @@ public sealed class TrainingExcelWorkbookBuilderTests
 
         Assert.Equal(3, workbook.Worksheets.Count);
         Assert.Equal("TRAINING TRACKER", workbook.Worksheet("Summary").Cell("A1").GetString());
-        Assert.Equal("All projects", workbook.Worksheet("Summary").Cell("F7").GetString());
+        Assert.Contains(
+            workbook.Worksheet("Summary").CellsUsed().Select(cell => cell.GetString()),
+            value => value.Contains("not additive", StringComparison.OrdinalIgnoreCase));
 
         var trainings = workbook.Worksheet("Trainings");
-        Assert.Equal("Training ID", trainings.Cell(1, 2).GetString());
-        Assert.Equal(trainingId.ToString(), trainings.Cell(2, 2).GetString());
-        Assert.Equal(new DateTime(2024, 4, 5), trainings.Cell(2, 4).GetDateTime());
-        Assert.Equal(8, trainings.Cell(2, 7).GetValue<int>());
-        Assert.Equal(12, trainings.Cell(2, 12).GetValue<int>());
-        Assert.True(trainings.Column(15).Width <= 42.1);
+        var trainingHeaders = trainings.Row(1).CellsUsed().Select(cell => cell.GetString()).ToArray();
+        Assert.Equal("S.No.", trainingHeaders[0]);
+        Assert.Equal("Training type", trainingHeaders[1]);
+        Assert.DoesNotContain("Training ID", trainingHeaders);
+        Assert.DoesNotContain("Open in PRISM", trainingHeaders);
+        Assert.Equal(1, trainings.Cell(2, 1).GetValue<int>());
+        Assert.Equal("Simulator", trainings.Cell(2, 2).GetString());
+        Assert.Equal(new DateTime(2024, 4, 5), trainings.Cell(2, 3).GetDateTime());
+        Assert.Equal(8, trainings.Cell(2, 6).GetValue<int>());
+        Assert.Equal(12, trainings.Cell(2, 11).GetValue<int>());
+        Assert.Equal("Field readiness drills.", trainings.Cell(2, 15).GetString());
+        Assert.True(trainings.Column(14).Width <= 42.1);
         Assert.Equal("TrainingsTable", workbook.Table("TrainingsTable").Name);
 
         var projects = workbook.Worksheet("Training Projects");
-        Assert.Equal("Project Atlas", projects.Cell(2, 5).GetString());
+        var projectHeaders = projects.Row(1).CellsUsed().Select(cell => cell.GetString()).ToArray();
+        Assert.Equal(new[] { "Training S.No.", "Training type", "Project name", "Technical category", "Project status" }, projectHeaders);
+        Assert.DoesNotContain("Training ID", projectHeaders);
+        Assert.DoesNotContain("Project ID", projectHeaders);
+        Assert.DoesNotContain("Open project", projectHeaders);
+        Assert.Equal(1, projects.Cell(2, 1).GetValue<int>());
+        Assert.Equal("Project Atlas", projects.Cell(2, 3).GetString());
         Assert.Equal("TrainingProjectsTable", workbook.Table("TrainingProjectsTable").Name);
         Assert.False(workbook.Worksheets.TryGetWorksheet("Roster", out _));
     }
 
     [Fact]
-    public void Build_CreatesRosterWithoutRepeatingProjectLists()
+    public void Build_CreatesRosterWithWorkbookLocalTrainingSerials()
     {
         var trainingId = Guid.NewGuid();
-        var detail = CreateDetail(trainingId, includeRoster: true);
+        var detail = CreateDetail(trainingId, includeRoster: true, notes: null);
         var dataset = new TrainingExportDataset(
             new[] { detail },
             new[] { new TrainingProjectExportRow(trainingId, 7, "Project X", "AI", "Completed") });
@@ -63,12 +77,17 @@ public sealed class TrainingExcelWorkbookBuilderTests
 
         using var workbook = new XLWorkbook(new MemoryStream(bytes));
         var roster = workbook.Worksheet("Roster");
+        var headers = roster.Row(1).CellsUsed().Select(cell => cell.GetString()).ToArray();
 
-        Assert.Equal("S.No.", roster.Cell(1, 1).GetString());
-        Assert.Equal(trainingId.ToString(), roster.Cell(2, 2).GetString());
+        Assert.Equal("S.No.", headers[0]);
+        Assert.Equal("Training S.No.", headers[1]);
+        Assert.DoesNotContain("Training ID", headers);
+        Assert.DoesNotContain("Open training", headers);
+        Assert.Equal(1, roster.Cell(2, 1).GetValue<int>());
+        Assert.Equal(1, roster.Cell(2, 2).GetValue<int>());
         Assert.Equal("A123", roster.Cell(2, 6).GetString());
         Assert.Equal("Officer", roster.Cell(2, 10).GetString());
-        Assert.DoesNotContain("Project", roster.Row(1).CellsUsed().Select(cell => cell.GetString()));
+        Assert.DoesNotContain("Project", headers);
         Assert.Equal("RosterTable", workbook.Table("RosterTable").Name);
         Assert.Contains(
             workbook.Worksheet("Summary").CellsUsed().Select(cell => cell.GetString()),
@@ -76,11 +95,65 @@ public sealed class TrainingExcelWorkbookBuilderTests
     }
 
     [Fact]
+    public void Build_SuppressesNumericOnlyLegacyNotePlaceholders()
+    {
+        var trainingId = Guid.NewGuid();
+        var dataset = new TrainingExportDataset(
+            new[] { CreateDetail(trainingId, includeRoster: false, notes: "68") },
+            Array.Empty<TrainingProjectExportRow>());
+
+        var builder = new TrainingExcelWorkbookBuilder();
+        var bytes = builder.Build(CreateContext(dataset, includeRoster: false));
+
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        var headers = workbook.Worksheet("Trainings").Row(1).CellsUsed().Select(cell => cell.GetString()).ToArray();
+
+        Assert.DoesNotContain("Notes", headers);
+        Assert.DoesNotContain("68", workbook.Worksheet("Trainings").CellsUsed().Select(cell => cell.GetString()));
+    }
+
+    [Fact]
+    public void Build_VisuallyGroupsRelatedProjectAndRosterRowsWithoutMergedDataCells()
+    {
+        var firstTrainingId = Guid.NewGuid();
+        var secondTrainingId = Guid.NewGuid();
+        var dataset = new TrainingExportDataset(
+            new[]
+            {
+                CreateDetail(firstTrainingId, includeRoster: true, notes: null),
+                CreateDetail(secondTrainingId, includeRoster: true, notes: null)
+            },
+            new[]
+            {
+                new TrainingProjectExportRow(firstTrainingId, 1, "Alpha", "AI", "Ongoing"),
+                new TrainingProjectExportRow(firstTrainingId, 2, "Bravo", "AR / VR", "Ongoing"),
+                new TrainingProjectExportRow(secondTrainingId, 3, "Charlie", "Misc", "Completed")
+            });
+
+        var builder = new TrainingExcelWorkbookBuilder();
+        var bytes = builder.Build(CreateContext(dataset, includeRoster: true));
+
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        var projects = workbook.Worksheet("Training Projects");
+        Assert.Equal(1, projects.Cell(2, 1).GetValue<int>());
+        Assert.Equal(1, projects.Cell(3, 1).GetValue<int>());
+        Assert.Equal(2, projects.Cell(4, 1).GetValue<int>());
+        Assert.Equal(XLBorderStyleValues.Medium, projects.Cell(4, 1).Style.Border.TopBorder);
+        Assert.Empty(projects.MergedRanges);
+
+        var roster = workbook.Worksheet("Roster");
+        Assert.Equal(1, roster.Cell(2, 2).GetValue<int>());
+        Assert.Equal(2, roster.Cell(3, 2).GetValue<int>());
+        Assert.Equal(XLBorderStyleValues.Medium, roster.Cell(3, 1).Style.Border.TopBorder);
+        Assert.Empty(roster.MergedRanges);
+    }
+
+    [Fact]
     public void Build_UsesTypedDatesAndNumericCells()
     {
         var trainingId = Guid.NewGuid();
         var dataset = new TrainingExportDataset(
-            new[] { CreateDetail(trainingId, includeRoster: false) },
+            new[] { CreateDetail(trainingId, includeRoster: false, notes: null) },
             Array.Empty<TrainingProjectExportRow>());
 
         var builder = new TrainingExcelWorkbookBuilder();
@@ -89,9 +162,9 @@ public sealed class TrainingExcelWorkbookBuilderTests
         using var workbook = new XLWorkbook(new MemoryStream(bytes));
         var sheet = workbook.Worksheet("Trainings");
 
-        Assert.True(sheet.Cell(2, 4).TryGetValue<DateTime>(out _));
-        Assert.True(sheet.Cell(2, 7).TryGetValue<int>(out _));
-        Assert.True(sheet.Cell(2, 12).TryGetValue<int>(out _));
+        Assert.True(sheet.Cell(2, 3).TryGetValue<DateTime>(out _));
+        Assert.True(sheet.Cell(2, 6).TryGetValue<int>(out _));
+        Assert.True(sheet.Cell(2, 11).TryGetValue<int>(out _));
         Assert.Equal(XLPageOrientation.Landscape, sheet.PageSetup.PageOrientation);
         Assert.Equal(XLPaperSize.A4Paper, sheet.PageSetup.PaperSize);
     }
@@ -101,11 +174,11 @@ public sealed class TrainingExcelWorkbookBuilderTests
             dataset,
             new TrainingKpiDto
             {
-                TotalTrainings = 1,
-                TotalTrainees = 12,
+                TotalTrainings = dataset.Trainings.Count,
+                TotalTrainees = dataset.Trainings.Sum(item => item.Summary.Total),
                 ByType = new[]
                 {
-                    new TrainingKpiByTypeDto(Guid.NewGuid(), "Simulator", 1, 12, 5, 4, 3)
+                    new TrainingKpiByTypeDto(Guid.NewGuid(), "Simulator", dataset.Trainings.Count, 12, 5, 4, 3)
                 },
                 ByTechnicalCategory = new[]
                 {
@@ -129,7 +202,7 @@ public sealed class TrainingExcelWorkbookBuilderTests
             null,
             "Engineering > AR / VR");
 
-    private static TrainingExportDetail CreateDetail(Guid trainingId, bool includeRoster)
+    private static TrainingExportDetail CreateDetail(Guid trainingId, bool includeRoster, string? notes)
     {
         var summary = new TrainingExportRow(
             trainingId,
@@ -146,7 +219,7 @@ public sealed class TrainingExcelWorkbookBuilderTests
             Total: 12,
             Source: TrainingCounterSource.Roster,
             Projects: new[] { "Project Atlas" },
-            Notes: "Field readiness drills.");
+            Notes: notes);
 
         var roster = includeRoster
             ? new[]
