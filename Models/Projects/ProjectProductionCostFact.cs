@@ -2,14 +2,14 @@ using System;
 
 namespace ProjectManagement.Models.Projects;
 
-// SECTION: Completed project production cost fact model
+// SECTION: Legacy persistence model for completed-project proliferation cost
 public class ProjectProductionCostFact
 {
     // SECTION: Identity and navigation
     public int ProjectId { get; set; }
     public Project Project { get; set; } = default!;
 
-    // SECTION: Production cost metadata
+    // SECTION: Schema-compatible proliferation-cost metadata
     public decimal? ApproxProductionCost { get; set; }
     public string? Remarks { get; set; }
 

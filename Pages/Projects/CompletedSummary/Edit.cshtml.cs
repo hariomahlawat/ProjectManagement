@@ -86,7 +86,7 @@ public sealed class EditModel : PageModel
             return NotFound();
         }
 
-        ValidateAssessmentAndCommercialInputs();
+        ValidateAssessmentAndProliferationInputs();
         await ValidateLppInputsAsync(cancellationToken);
 
         if (!ModelState.IsValid)
@@ -99,7 +99,7 @@ public sealed class EditModel : PageModel
         var userId = _userManager.GetUserId(User) ?? "system";
         var now = _clock.UtcNow;
 
-        await UpsertProductionInformationAsync(userId, now, cancellationToken);
+        await UpsertProliferationCostInformationAsync(userId, now, cancellationToken);
         await UpsertTechnologyAndProliferationAsync(userId, now, cancellationToken);
         await UpdateExistingLppRecordsAsync(cancellationToken);
         await AddNewLppRecordAsync(userId, now, cancellationToken);
@@ -110,7 +110,7 @@ public sealed class EditModel : PageModel
         return LocalRedirect(BackUrl);
     }
 
-    private void ValidateAssessmentAndCommercialInputs()
+    private void ValidateAssessmentAndProliferationInputs()
     {
         if (string.IsNullOrWhiteSpace(Input.TechStatus)
             || Array.IndexOf(ProjectTechStatusCodes.All, Input.TechStatus) < 0)
@@ -118,9 +118,9 @@ public sealed class EditModel : PageModel
             ModelState.AddModelError("Input.TechStatus", "Select a valid technology status.");
         }
 
-        if (Input.ApproxProductionCost is <= 0m)
+        if (Input.ProliferationCostLakhs is <= 0m)
         {
-            ModelState.AddModelError("Input.ApproxProductionCost", "Enter a cost greater than zero, or leave it blank.");
+            ModelState.AddModelError("Input.ProliferationCostLakhs", "Enter a proliferation cost greater than zero, or leave it blank.");
         }
 
         if (Input.AvailableForProliferation == false && string.IsNullOrWhiteSpace(Input.NotAvailableReason))
@@ -143,9 +143,9 @@ public sealed class EditModel : PageModel
             ModelState.AddModelError("Input.TechRemarks", "Technology remarks cannot exceed 500 characters.");
         }
 
-        if (Normalize(Input.ProductionRemarks)?.Length > 500)
+        if (Normalize(Input.ProliferationCostRemarks)?.Length > 500)
         {
-            ModelState.AddModelError("Input.ProductionRemarks", "Production remarks cannot exceed 500 characters.");
+            ModelState.AddModelError("Input.ProliferationCostRemarks", "Proliferation cost remarks cannot exceed 500 characters.");
         }
     }
 
@@ -239,24 +239,24 @@ public sealed class EditModel : PageModel
                  && !x.IsArchived,
             cancellationToken);
 
-    private async Task UpsertProductionInformationAsync(
+    private async Task UpsertProliferationCostInformationAsync(
         string userId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var production = await _db.ProjectProductionCostFacts
+        var proliferationCostFact = await _db.ProjectProductionCostFacts
             .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
 
-        if (production is null)
+        if (proliferationCostFact is null)
         {
-            production = new ProjectProductionCostFact { ProjectId = Input.ProjectId };
-            await _db.ProjectProductionCostFacts.AddAsync(production, cancellationToken);
+            proliferationCostFact = new ProjectProductionCostFact { ProjectId = Input.ProjectId };
+            await _db.ProjectProductionCostFacts.AddAsync(proliferationCostFact, cancellationToken);
         }
 
-        production.ApproxProductionCost = Input.ApproxProductionCost;
-        production.Remarks = Normalize(Input.ProductionRemarks);
-        production.UpdatedAtUtc = now;
-        production.UpdatedByUserId = userId;
+        proliferationCostFact.ApproxProductionCost = Input.ProliferationCostLakhs;
+        proliferationCostFact.Remarks = Normalize(Input.ProliferationCostRemarks);
+        proliferationCostFact.UpdatedAtUtc = now;
+        proliferationCostFact.UpdatedByUserId = userId;
     }
 
     private async Task UpsertTechnologyAndProliferationAsync(
@@ -367,7 +367,7 @@ public sealed class EditModel : PageModel
             .Select(x => (ProjectTotStatus?)x.Status)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var production = await _db.ProjectProductionCostFacts
+        var proliferationCostFact = await _db.ProjectProductionCostFacts
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.ProjectId == projectId, cancellationToken);
 
@@ -397,8 +397,8 @@ public sealed class EditModel : PageModel
 
         if (populateForm)
         {
-            Input.ApproxProductionCost = production?.ApproxProductionCost;
-            Input.ProductionRemarks = production?.Remarks;
+            Input.ProliferationCostLakhs = proliferationCostFact?.ApproxProductionCost;
+            Input.ProliferationCostRemarks = proliferationCostFact?.Remarks;
             Input.TechStatus = technology?.TechStatus ?? ProjectTechStatusCodes.Current;
             Input.AvailableForProliferation = technology?.AvailableForProliferation;
             Input.NotAvailableReason = technology?.NotAvailableReason;
@@ -442,8 +442,8 @@ public sealed class EditModel : PageModel
     public sealed class EditCompletedProjectInput
     {
         public int ProjectId { get; set; }
-        public decimal? ApproxProductionCost { get; set; }
-        public string? ProductionRemarks { get; set; }
+        public decimal? ProliferationCostLakhs { get; set; }
+        public string? ProliferationCostRemarks { get; set; }
         public string? TechStatus { get; set; } = ProjectTechStatusCodes.Current;
         public bool? AvailableForProliferation { get; set; }
         public string? NotAvailableReason { get; set; }

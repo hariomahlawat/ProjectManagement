@@ -69,7 +69,7 @@ public class EditModel : PageModel
         await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
         IsLegacyProject = project.IsLegacy;
 
-        var approxProductionCost = await LoadApproxProductionCostAsync(project.Id, cancellationToken);
+        var proliferationCost = await LoadProliferationCostAsync(project.Id, cancellationToken);
 
         Input = new MetaEditInput
         {
@@ -84,7 +84,7 @@ public class EditModel : PageModel
             SponsoringUnitId = project.SponsoringUnitId,
             SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
             RdCostLakhs = project.CostLakhs,
-            ApproxProductionCost = approxProductionCost,
+            ProliferationCostLakhs = proliferationCost,
             RowVersion = Convert.ToBase64String(project.RowVersion)
         };
 
@@ -158,15 +158,15 @@ public class EditModel : PageModel
         var selectedCategoryId = Input.CategoryId;
         var selectedTechnicalCategoryId = Input.TechnicalCategoryId;
         var selectedProjectTypeId = Input.ProjectTypeId;
-        var previousProductionCost = project.IsLegacy
-            ? await LoadApproxProductionCostAsync(project.Id, cancellationToken)
+        var previousProliferationCost = project.IsLegacy
+            ? await LoadProliferationCostAsync(project.Id, cancellationToken)
             : null;
-        ProjectProductionCostFact? productionFact = null;
+        ProjectProductionCostFact? proliferationCostFact = null;
 
         // SECTION: Legacy cost validation
         if (project.IsLegacy)
         {
-            productionFact = await _db.ProjectProductionCostFacts
+            proliferationCostFact = await _db.ProjectProductionCostFacts
                 .SingleOrDefaultAsync(f => f.ProjectId == project.Id, cancellationToken);
 
             if (Input.RdCostLakhs is < 0)
@@ -174,9 +174,9 @@ public class EditModel : PageModel
                 ModelState.AddModelError("Input.RdCostLakhs", "R&D / L1 cost cannot be negative.");
             }
 
-            if (Input.ApproxProductionCost is < 0)
+            if (Input.ProliferationCostLakhs is < 0)
             {
-                ModelState.AddModelError("Input.ApproxProductionCost", "Approx Prod cost cannot be negative.");
+                ModelState.AddModelError("Input.ProliferationCostLakhs", "Proliferation cost cannot be negative.");
             }
         }
 
@@ -299,19 +299,19 @@ public class EditModel : PageModel
         {
             project.CostLakhs = Input.RdCostLakhs;
 
-            productionFact ??= new ProjectProductionCostFact
+            proliferationCostFact ??= new ProjectProductionCostFact
             {
                 ProjectId = project.Id
             };
 
-            if (_db.Entry(productionFact).State == EntityState.Detached)
+            if (_db.Entry(proliferationCostFact).State == EntityState.Detached)
             {
-                await _db.ProjectProductionCostFacts.AddAsync(productionFact, cancellationToken);
+                await _db.ProjectProductionCostFacts.AddAsync(proliferationCostFact, cancellationToken);
             }
 
-            productionFact.ApproxProductionCost = Input.ApproxProductionCost;
-            productionFact.UpdatedAtUtc = DateTimeOffset.UtcNow;
-            productionFact.UpdatedByUserId = userId;
+            proliferationCostFact.ApproxProductionCost = Input.ProliferationCostLakhs;
+            proliferationCostFact.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            proliferationCostFact.UpdatedByUserId = userId;
         }
 
         _db.Entry(project).Property(p => p.RowVersion).OriginalValue = rowVersionBytes;
@@ -330,8 +330,8 @@ public class EditModel : PageModel
             await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
             IsLegacyProject = project.IsLegacy;
 
-            var updatedProductionCost = project.IsLegacy
-                ? await LoadApproxProductionCostAsync(project.Id, cancellationToken)
+            var updatedProliferationCost = project.IsLegacy
+                ? await LoadProliferationCostAsync(project.Id, cancellationToken)
                 : null;
 
             Input = new MetaEditInput
@@ -347,7 +347,7 @@ public class EditModel : PageModel
                 SponsoringUnitId = project.SponsoringUnitId,
                 SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
                 RdCostLakhs = project.CostLakhs,
-                ApproxProductionCost = updatedProductionCost,
+                ProliferationCostLakhs = updatedProliferationCost,
                 RowVersion = Convert.ToBase64String(project.RowVersion)
             };
 
@@ -379,8 +379,8 @@ public class EditModel : PageModel
                 ["SponsoringLineDirectorateIdAfter"] = project.SponsoringLineDirectorateId?.ToString(),
                 ["RdCostLakhsBefore"] = previousRdCostLakhs?.ToString(),
                 ["RdCostLakhsAfter"] = project.CostLakhs?.ToString(),
-                ["ApproxProductionCostBefore"] = previousProductionCost?.ToString(),
-                ["ApproxProductionCostAfter"] = productionFact?.ApproxProductionCost?.ToString()
+                ["ApproxProductionCostBefore"] = previousProliferationCost?.ToString(),
+                ["ApproxProductionCostAfter"] = proliferationCostFact?.ApproxProductionCost?.ToString()
             },
             userId: userId,
             userName: User.Identity?.Name);
@@ -424,12 +424,12 @@ public class EditModel : PageModel
 
         public decimal? RdCostLakhs { get; set; }
 
-        public decimal? ApproxProductionCost { get; set; }
+        public decimal? ProliferationCostLakhs { get; set; }
 
         public string RowVersion { get; set; } = string.Empty;
     }
 
-    private Task<decimal?> LoadApproxProductionCostAsync(int projectId, CancellationToken cancellationToken)
+    private Task<decimal?> LoadProliferationCostAsync(int projectId, CancellationToken cancellationToken)
     {
         return _db.ProjectProductionCostFacts
             .AsNoTracking()

@@ -61,7 +61,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             "Build type",
             "Completed year",
             "Development / L1 cost (lakh)",
-            "Approx. production cost (lakh)",
+            "Proliferation cost (lakh)",
             "Latest LPP (lakh)",
             "Latest LPP date",
             "Technology status",
@@ -106,7 +106,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             }
 
             WriteDecimal(worksheet.Cell(rowNumber, 6), item.RdCostLakhs);
-            WriteDecimal(worksheet.Cell(rowNumber, 7), item.ApproxProductionCost);
+            WriteDecimal(worksheet.Cell(rowNumber, 7), item.ProliferationCostLakhs);
             WriteDecimal(worksheet.Cell(rowNumber, 8), item.LatestLpp?.Amount);
 
             if (item.LatestLpp?.Date is { } lppDate)
@@ -143,7 +143,9 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         worksheet.Column(3).Width = Math.Clamp(worksheet.Column(3).Width, 18, 30);
         worksheet.Column(4).Width = 12;
         worksheet.Column(5).Width = 13;
-        worksheet.Columns(6, 8).Width = 18;
+        worksheet.Column(6).Width = 18;
+        worksheet.Column(7).Width = 21;
+        worksheet.Column(8).Width = 18;
         worksheet.Column(9).Width = 16;
         worksheet.Columns(10, 12).Width = 20;
         worksheet.Columns(13, 14).Width = 34;

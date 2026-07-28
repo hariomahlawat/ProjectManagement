@@ -64,7 +64,7 @@ public sealed class CompletedProjectPortfolioPolicyTests
         var supplementary = CompletedProjectPortfolioPolicy.GetSupplementaryMissingFields(item);
 
         Assert.Equal(new[] { "Technology assessment", "ToT status" }, critical);
-        Assert.Equal(new[] { "Production cost", "Latest LPP" }, supplementary);
+        Assert.Equal(new[] { "Proliferation cost", "Latest LPP" }, supplementary);
         Assert.Equal(2, CompletedProjectPortfolioPolicy.GetCriticalMissingCount(item));
         Assert.Equal(2, CompletedProjectPortfolioPolicy.GetSupplementaryMissingCount(item));
     }

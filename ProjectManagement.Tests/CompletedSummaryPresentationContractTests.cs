@@ -82,7 +82,7 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("Edit technology and proliferation details", view, StringComparison.Ordinal);
         Assert.Contains("Technology assessment", view, StringComparison.Ordinal);
         Assert.Contains("Availability for proliferation", view, StringComparison.Ordinal);
-        Assert.Contains("Production information", view, StringComparison.Ordinal);
+        Assert.Contains("Proliferation cost", view, StringComparison.Ordinal);
         Assert.Contains("Latest purchase price records", view, StringComparison.Ordinal);
         Assert.Contains("data-not-available-reason", view, StringComparison.Ordinal);
         Assert.Contains("data-new-lpp-panel", view, StringComparison.Ordinal);
@@ -93,6 +93,37 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("reasonInput.required", script, StringComparison.Ordinal);
         Assert.Contains("data-reason-clear-note", view, StringComparison.Ordinal);
         Assert.Contains("data-cancel-edit", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProliferationCostTerminology_IsConsistentAcrossPresentationBoundaries()
+    {
+        var register = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+        var edit = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml");
+        var editModel = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml.cs");
+        var legacyMeta = ReadRepoFile("Pages", "Projects", "Meta", "Edit.cshtml");
+        var legacyMetaModel = ReadRepoFile("Pages", "Projects", "Meta", "Edit.cshtml.cs");
+        var policy = ReadRepoFile("Services", "Projects", "CompletedProjectPortfolioPolicy.cs");
+        var summaryService = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");
+        var export = ReadRepoFile("Utilities", "Reporting", "CompletedProjectsSummaryExcelBuilder.cs");
+
+        Assert.Contains("Proliferation cost", register, StringComparison.Ordinal);
+        Assert.Contains("Proliferation cost (lakh)", edit, StringComparison.Ordinal);
+        Assert.Contains("Proliferation cost remarks", edit, StringComparison.Ordinal);
+        Assert.Contains("ProliferationCostLakhs", editModel, StringComparison.Ordinal);
+        Assert.Contains("ProliferationCostRemarks", editModel, StringComparison.Ordinal);
+        Assert.Contains("Proliferation cost (lakh)", legacyMeta, StringComparison.Ordinal);
+        Assert.Contains("ProliferationCostLakhs", legacyMetaModel, StringComparison.Ordinal);
+        Assert.Contains("\"Proliferation cost\"", policy, StringComparison.Ordinal);
+        Assert.Contains("ProliferationCostLakhs => ApproxProductionCost", summaryService, StringComparison.Ordinal);
+        Assert.Contains("\"Proliferation cost (lakh)\"", export, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("Approximate production cost", register, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Production information", edit, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Production remarks", edit, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Approx Prod cost", legacyMeta, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"Production cost\"", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("Approx. production cost", export, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

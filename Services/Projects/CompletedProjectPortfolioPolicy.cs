@@ -145,7 +145,7 @@ public static class CompletedProjectPortfolioPolicy
         ArgumentNullException.ThrowIfNull(item);
 
         List<string>? fields = null;
-        if (!item.ApproxProductionCost.HasValue) Add(ref fields, "Production cost");
+        if (!item.ProliferationCostLakhs.HasValue) Add(ref fields, "Proliferation cost");
         if (item.LatestLpp is null) Add(ref fields, "Latest LPP");
 
         if (fields is null)
@@ -173,7 +173,7 @@ public static class CompletedProjectPortfolioPolicy
         ArgumentNullException.ThrowIfNull(item);
 
         var count = 0;
-        if (!item.ApproxProductionCost.HasValue) count++;
+        if (!item.ProliferationCostLakhs.HasValue) count++;
         if (item.LatestLpp is null) count++;
         return count;
     }

@@ -143,32 +143,32 @@
             </div>
 
             <div class="cpe-column">
-                <section class="cpe-card" aria-labelledby="productionHeading">
+                <section class="cpe-card" aria-labelledby="proliferationCostHeading">
                     <div class="cpe-card-head">
                         <div>
-                            <span>Commercial information</span>
-                            <h2 id="productionHeading">Production information</h2>
+                            <span>Proliferation</span>
+                            <h2 id="proliferationCostHeading">Proliferation cost</h2>
                         </div>
                     </div>
 
                     <div class="cpe-field cpe-field-compact">
-                        <label asp-for="Input.ApproxProductionCost">Approximate production cost (lakh)</label>
+                        <label asp-for="Input.ProliferationCostLakhs">Proliferation cost (lakh)</label>
                         <div class="cpe-money-input">
                             <span aria-hidden="true">₹</span>
-                            <input asp-for="Input.ApproxProductionCost"
+                            <input asp-for="Input.ProliferationCostLakhs"
                                    type="number"
                                    min="0.01"
                                    step="0.01"
                                    inputmode="decimal" />
                         </div>
-                        <small class="cpe-field-note">Enter the approximate unit production cost in lakh.</small>
-                        <span asp-validation-for="Input.ApproxProductionCost" class="cpe-field-error"></span>
+                        <small class="cpe-field-note">Enter the indicative cost for one proliferation unit or package, as applicable.</small>
+                        <span asp-validation-for="Input.ProliferationCostLakhs" class="cpe-field-error"></span>
                     </div>
 
                     <div class="cpe-field">
-                        <label asp-for="Input.ProductionRemarks">Production remarks</label>
-                        <textarea asp-for="Input.ProductionRemarks" rows="4" maxlength="500" data-autogrow></textarea>
-                        <span asp-validation-for="Input.ProductionRemarks" class="cpe-field-error"></span>
+                        <label asp-for="Input.ProliferationCostRemarks">Proliferation cost remarks</label>
+                        <textarea asp-for="Input.ProliferationCostRemarks" rows="4" maxlength="500" data-autogrow></textarea>
+                        <span asp-validation-for="Input.ProliferationCostRemarks" class="cpe-field-error"></span>
                     </div>
                 </section>
 

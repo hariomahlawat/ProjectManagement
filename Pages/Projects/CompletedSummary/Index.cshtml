@@ -309,8 +309,8 @@
                                     <th class="cpw-cell-money cpw-secondary-column" aria-sort="@productionSort.Aria">
                                         <a asp-page="./Index"
                                            asp-all-route-data='Model.GetRoutesForSort("prod", productionSort.Direction)'
-                                           title="Sort by production cost">
-                                            Production <span aria-hidden="true">@productionSort.Indicator</span>
+                                           title="Sort by proliferation cost">
+                                            Proliferation cost <span aria-hidden="true">@productionSort.Indicator</span>
                                         </a>
                                     </th>
                                     <th class="cpw-cell-money cpw-secondary-column" aria-sort="@lppSort.Aria">
@@ -376,7 +376,7 @@
                                     <td class="cpw-cell-build cpw-ultrawide-column">@item.BuildType</td>
                                     <td class="cpw-cell-year">@(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
                                     <td class="cpw-cell-money cpw-num">@FormatMoney(item.RdCostLakhs)</td>
-                                    <td class="cpw-cell-money cpw-num cpw-secondary-column">@FormatMoney(item.ApproxProductionCost)</td>
+                                    <td class="cpw-cell-money cpw-num cpw-secondary-column">@FormatMoney(item.ProliferationCostLakhs)</td>
                                     <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
                                     <td class="cpw-cell-status"><span class="cpw-inline-status @TechnologyTone(item.TechStatus)">@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</span></td>
                                     <td class="cpw-cell-proliferation"><span class="cpw-inline-status @AvailabilityTone(item.AvailableForProliferation)">@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</span></td>
@@ -574,7 +574,7 @@
                     <section class="cpw-quality-callout">
                         <div>
                             <h2>Record quality is managed separately from proliferation availability</h2>
-                            <p><strong>@overview.CriticalIncompleteCount projects</strong> have one or more critical fields incomplete. Technology assessment, proliferation decision, ToT status and development cost are critical; production cost and latest LPP are supplementary.</p>
+                            <p><strong>@overview.CriticalIncompleteCount projects</strong> have one or more critical fields incomplete. Technology assessment, proliferation decision, ToT status and development cost are critical; proliferation cost and latest LPP are supplementary.</p>
                         </div>
                         <button type="button" class="cpw-btn cpw-btn-ghost" data-open-view="quality">Open data quality</button>
                     </section>
@@ -600,7 +600,7 @@
                         <div><dt>Fully complete</dt><dd>@overview.FullyCompleteCount</dd></div>
                     </dl>
                     <p>Critical: technology assessment, proliferation decision, ToT status and development cost.</p>
-                    <p>Supplementary: production cost and latest LPP.</p>
+                    <p>Supplementary: proliferation cost and latest LPP.</p>
                 </aside>
 
                 <div class="cpw-quality-content">
@@ -631,7 +631,7 @@
                     </section>
 
                     <section class="cpw-quality-section supplementary">
-                        <div class="cpw-quality-list-head"><div><span>Priority 2</span><h2>Supplementary information gaps</h2><p>Critical fields are complete; production cost or latest LPP remains unrecorded.</p></div><strong>@supplementaryOnlyItems.Count</strong></div>
+                        <div class="cpw-quality-list-head"><div><span>Priority 2</span><h2>Supplementary information gaps</h2><p>Critical fields are complete; proliferation cost or latest LPP remains unrecorded.</p></div><strong>@supplementaryOnlyItems.Count</strong></div>
                         @if (supplementaryOnlyItems.Count == 0)
                         {
                             <div class="cpw-quality-empty">No supplementary-only gaps in the current scope.</div>
@@ -679,7 +679,7 @@
                         <h3>Financial information</h3>
                         <dl>
                             <div><dt>Recorded development cost</dt><dd>@FormatMoney(item.RdCostLakhs)</dd></div>
-                            <div><dt>Approximate production cost</dt><dd>@FormatMoney(item.ApproxProductionCost)</dd></div>
+                            <div><dt>Proliferation cost</dt><dd>@FormatMoney(item.ProliferationCostLakhs)</dd></div>
                             <div><dt>Latest LPP</dt><dd>@FormatLatestLpp(item.LatestLpp)</dd></div>
                         </dl>
                     </div>

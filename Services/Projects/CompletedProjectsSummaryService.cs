@@ -257,7 +257,7 @@ public sealed class CompletedProjectsSummaryService
                 : source.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId),
 
             "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-            "prod" => ApplyNullableSort(source, x => x.ApproxProductionCost, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "prod" => ApplyNullableSort(source, x => x.ProliferationCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
@@ -315,7 +315,9 @@ public sealed class CompletedProjectSummaryDto
     public string? TechnicalCategoryName { get; set; }
     public string BuildType { get; set; } = "New";
     public decimal? RdCostLakhs { get; set; }
+    // Legacy persistence naming is retained internally; presentation code should use the business term.
     public decimal? ApproxProductionCost { get; set; }
+    public decimal? ProliferationCostLakhs => ApproxProductionCost;
     public string? TechStatus { get; set; }
     public bool? AvailableForProliferation { get; set; }
     public string? Remarks { get; set; }
