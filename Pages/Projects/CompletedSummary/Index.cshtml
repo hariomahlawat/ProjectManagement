@@ -85,18 +85,23 @@
     }
 
     static string JoinFields(IReadOnlyList<string> fields) => string.Join(", ", fields);
+
+    var editSuccessMessage = TempData["CompletedProjectEditSuccess"] as string;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/projects-completed-summary.css" asp-append-version="true" />
 }
 
-<div class="cpw" data-default-view="register" data-requested-view="@Model.WorkspaceView">
-    @if (TempData["CompletedProjectEditSuccess"] is string successMessage)
+<div class="cpw"
+     data-default-view="register"
+     data-requested-view="@Model.WorkspaceView"
+     data-success-message="@editSuccessMessage">
+    @if (!string.IsNullOrWhiteSpace(editSuccessMessage))
     {
         <div class="cpw-success-banner" role="status">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
-            <span>@successMessage</span>
+            <span>@editSuccessMessage</span>
         </div>
     }
     <header class="cpw-commandbar">
@@ -152,7 +157,7 @@
             <label class="cpw-field cpw-filter-category"><span>Technical category</span><select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategoryOptions"></select></label>
             <label class="cpw-field cpw-filter-technology"><span>Technology</span><select asp-for="TechStatus" asp-items="Model.TechStatusOptions"></select></label>
             <label class="cpw-field cpw-filter-year"><span>Completion year</span><select asp-for="CompletedYear" asp-items="Model.CompletedYearOptions"></select></label>
-            <label class="cpw-field cpw-filter-proliferation"><span>Proliferation</span><select asp-for="AvailableForProliferation" asp-items="Model.AvailabilityOptions"></select></label>
+            <label class="cpw-field cpw-filter-proliferation"><span>Availability</span><select asp-for="AvailableForProliferation" asp-items="Model.AvailabilityOptions"></select></label>
             <label class="cpw-field cpw-filter-tot"><span>ToT</span><select asp-for="TotCompleted" asp-items="Model.TotStatusOptions"></select></label>
             <div class="cpw-build-field cpw-filter-build">
                 <span>Build type</span>
@@ -306,11 +311,12 @@
                                             Development <span aria-hidden="true">@rdSort.Indicator</span>
                                         </a>
                                     </th>
-                                    <th class="cpw-cell-money cpw-secondary-column" aria-sort="@productionSort.Aria">
+                                    <th class="cpw-cell-money cpw-cell-proliferation-cost cpw-secondary-column" aria-sort="@productionSort.Aria">
                                         <a asp-page="./Index"
                                            asp-all-route-data='Model.GetRoutesForSort("prod", productionSort.Direction)'
                                            title="Sort by proliferation cost">
-                                            Proliferation cost <span aria-hidden="true">@productionSort.Indicator</span>
+                                            <span class="cpw-header-text">Proliferation<br />cost</span>
+                                            <span aria-hidden="true">@productionSort.Indicator</span>
                                         </a>
                                     </th>
                                     <th class="cpw-cell-money cpw-secondary-column" aria-sort="@lppSort.Aria">
@@ -330,8 +336,8 @@
                                     <th class="cpw-cell-proliferation" aria-sort="@availabilitySort.Aria">
                                         <a asp-page="./Index"
                                            asp-all-route-data='Model.GetRoutesForSort("avail", availabilitySort.Direction)'
-                                           title="Sort by proliferation status">
-                                            Proliferation <span aria-hidden="true">@availabilitySort.Indicator</span>
+                                           title="Sort by availability for proliferation">
+                                            Availability <span aria-hidden="true">@availabilitySort.Indicator</span>
                                         </a>
                                     </th>
                                     <th class="cpw-cell-tot" aria-sort="@totSort.Aria">
@@ -376,7 +382,7 @@
                                     <td class="cpw-cell-build cpw-ultrawide-column">@item.BuildType</td>
                                     <td class="cpw-cell-year">@(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
                                     <td class="cpw-cell-money cpw-num">@FormatMoney(item.RdCostLakhs)</td>
-                                    <td class="cpw-cell-money cpw-num cpw-secondary-column">@FormatMoney(item.ProliferationCostLakhs)</td>
+                                    <td class="cpw-cell-money cpw-cell-proliferation-cost cpw-num cpw-secondary-column">@FormatMoney(item.ProliferationCostLakhs)</td>
                                     <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
                                     <td class="cpw-cell-status"><span class="cpw-inline-status @TechnologyTone(item.TechStatus)">@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</span></td>
                                     <td class="cpw-cell-proliferation"><span class="cpw-inline-status @AvailabilityTone(item.AvailableForProliferation)">@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</span></td>
@@ -563,7 +569,7 @@
                                 {
                                     @foreach (var item in overview.TotActionProjects)
                                     {
-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus) · Proliferation: @CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</small></button>
+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus) · Availability: @CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</small></button>
                                     }
                                 }
                             </div>
@@ -661,6 +667,14 @@
         var criticalMissing = CompletedProjectPortfolioPolicy.GetCriticalMissingFields(item);
         var supplementaryMissing = CompletedProjectPortfolioPolicy.GetSupplementaryMissingFields(item);
         var actionItems = CompletedProjectPortfolioPolicy.GetActionItems(item);
+        var hasTechnologyRemarks = !string.IsNullOrWhiteSpace(item.TechnologyRemarks);
+        var hasProliferationRemarks = !string.IsNullOrWhiteSpace(item.ProliferationRemarks);
+        var hasNotAvailableReason = !string.IsNullOrWhiteSpace(item.NotAvailableReason);
+        var hasProliferationCostRemarks = !string.IsNullOrWhiteSpace(item.ProliferationCostRemarks);
+        var hasAnyRemarks = hasTechnologyRemarks
+                            || hasProliferationRemarks
+                            || hasNotAvailableReason
+                            || hasProliferationCostRemarks;
         <template id="cpw-project-@item.ProjectId">
             <div class="cpw-drawer-scroll">
                 <div class="cpw-drawer-identity">
@@ -671,7 +685,7 @@
                 <div class="cpw-drawer-content">
                     <div class="cpw-drawer-status-grid">
                         <div><span>Technology</span><strong>@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</strong></div>
-                        <div><span>Proliferation</span><strong>@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</strong></div>
+                        <div><span>Availability</span><strong>@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</strong></div>
                         <div><span>ToT</span><strong>@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</strong></div>
                     </div>
 
@@ -718,7 +732,43 @@
 
                     <div class="cpw-drawer-section">
                         <h3>Remarks</h3>
-                        <p class="cpw-remarks">@(string.IsNullOrWhiteSpace(item.Remarks) ? "No remarks recorded." : item.Remarks)</p>
+                        @if (!hasAnyRemarks)
+                        {
+                            <p class="cpw-remarks">No remarks recorded.</p>
+                        }
+                        else
+                        {
+                            <div class="cpw-remark-list">
+                                @if (hasTechnologyRemarks)
+                                {
+                                    <div class="cpw-remark-item">
+                                        <span>Technology</span>
+                                        <p>@item.TechnologyRemarks</p>
+                                    </div>
+                                }
+                                @if (hasProliferationRemarks)
+                                {
+                                    <div class="cpw-remark-item">
+                                        <span>Availability for proliferation</span>
+                                        <p>@item.ProliferationRemarks</p>
+                                    </div>
+                                }
+                                @if (hasNotAvailableReason)
+                                {
+                                    <div class="cpw-remark-item">
+                                        <span>Reason not available</span>
+                                        <p>@item.NotAvailableReason</p>
+                                    </div>
+                                }
+                                @if (hasProliferationCostRemarks)
+                                {
+                                    <div class="cpw-remark-item">
+                                        <span>Proliferation cost</span>
+                                        <p>@item.ProliferationCostRemarks</p>
+                                    </div>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -750,6 +800,10 @@
         <div class="cpw-drawer-header">
             <span id="cpwDrawerTitle">Completed project details</span>
             <button type="button" data-close-drawer aria-label="Close">×</button>
+        </div>
+        <div class="cpw-drawer-success" data-drawer-success role="status" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+            <span></span>
         </div>
         <div class="cpw-drawer-body" data-drawer-body></div>
     </aside>

@@ -153,18 +153,15 @@ public sealed class CompletedProjectsSummaryService
             }
 
             // SECTION: Remarks projection
-            string? remarks = null;
-            var hasTechRemarks = !string.IsNullOrWhiteSpace(tech?.Remarks);
-            var hasCostRemarks = !string.IsNullOrWhiteSpace(cost?.Remarks);
-
-            if (hasTechRemarks && hasCostRemarks)
-            {
-                remarks = $"Tech: {tech!.Remarks}\nProd: {cost!.Remarks}";
-            }
-            else
-            {
-                remarks = hasTechRemarks ? tech!.Remarks : cost?.Remarks;
-            }
+            var technologyRemarks = Normalize(tech?.Remarks);
+            var proliferationRemarks = Normalize(tech?.ProliferationRemarks);
+            var notAvailableReason = Normalize(tech?.NotAvailableReason);
+            var proliferationCostRemarks = Normalize(cost?.Remarks);
+            var remarks = BuildRemarks(
+                technologyRemarks,
+                proliferationRemarks,
+                notAvailableReason,
+                proliferationCostRemarks);
 
             var dto = new CompletedProjectSummaryDto
             {
@@ -176,6 +173,10 @@ public sealed class CompletedProjectsSummaryService
                 ApproxProductionCost = cost?.ApproxProductionCost,
                 TechStatus = tech?.TechStatus,
                 AvailableForProliferation = tech?.AvailableForProliferation,
+                TechnologyRemarks = technologyRemarks,
+                ProliferationRemarks = proliferationRemarks,
+                NotAvailableReason = notAvailableReason,
+                ProliferationCostRemarks = proliferationCostRemarks,
                 Remarks = remarks,
                 CompletedYear = p.CompletedYear,
                 TotStatus = totStatus,
@@ -240,6 +241,36 @@ public sealed class CompletedProjectsSummaryService
         }
 
         return ApplySorting(filtered, sortKey, sortDir).ToList();
+    }
+
+    // SECTION: Remarks helpers
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? BuildRemarks(
+        string? technologyRemarks,
+        string? proliferationRemarks,
+        string? notAvailableReason,
+        string? proliferationCostRemarks)
+    {
+        var remarks = new List<string>(4);
+
+        AddRemark(remarks, "Technology", technologyRemarks);
+        AddRemark(remarks, "Availability for proliferation", proliferationRemarks);
+        AddRemark(remarks, "Reason not available", notAvailableReason);
+        AddRemark(remarks, "Proliferation cost", proliferationCostRemarks);
+
+        return remarks.Count == 0
+            ? null
+            : string.Join(Environment.NewLine, remarks);
+    }
+
+    private static void AddRemark(List<string> remarks, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            remarks.Add($"{label}: {value}");
+        }
     }
 
     // SECTION: Deterministic sort application
@@ -320,6 +351,10 @@ public sealed class CompletedProjectSummaryDto
     public decimal? ProliferationCostLakhs => ApproxProductionCost;
     public string? TechStatus { get; set; }
     public bool? AvailableForProliferation { get; set; }
+    public string? TechnologyRemarks { get; set; }
+    public string? ProliferationRemarks { get; set; }
+    public string? NotAvailableReason { get; set; }
+    public string? ProliferationCostRemarks { get; set; }
     public string? Remarks { get; set; }
     public int? CompletedYear { get; set; }
     public ProjectTotStatus? TotStatus { get; set; }

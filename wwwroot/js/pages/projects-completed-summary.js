@@ -116,17 +116,44 @@
 
   const drawer = root.querySelector('[data-drawer]');
   const drawerBody = root.querySelector('[data-drawer-body]');
+  const drawerSuccess = root.querySelector('[data-drawer-success]');
   const backdrop = root.querySelector('[data-drawer-backdrop]');
   let returnFocusTarget = null;
+  let drawerSuccessTimer = null;
 
   const getFocusableElements = () => drawer
     ? [...drawer.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
         .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true')
     : [];
 
+  const hideDrawerSuccess = () => {
+    if (drawerSuccessTimer) {
+      window.clearTimeout(drawerSuccessTimer);
+      drawerSuccessTimer = null;
+    }
+
+    if (drawerSuccess) {
+      drawerSuccess.hidden = true;
+      const message = drawerSuccess.querySelector('span');
+      if (message) message.textContent = '';
+    }
+  };
+
+  const showDrawerSuccess = (message) => {
+    if (!drawerSuccess || !message) return;
+
+    const target = drawerSuccess.querySelector('span');
+    if (target) target.textContent = message;
+    drawerSuccess.hidden = false;
+
+    if (drawerSuccessTimer) window.clearTimeout(drawerSuccessTimer);
+    drawerSuccessTimer = window.setTimeout(hideDrawerSuccess, 5000);
+  };
+
   const closeDrawer = () => {
     if (!drawer?.classList.contains('is-open')) return;
 
+    hideDrawerSuccess();
     drawer.classList.remove('is-open');
     drawer.setAttribute('aria-hidden', 'true');
     if (backdrop) backdrop.hidden = true;
@@ -137,16 +164,19 @@
     if (target instanceof HTMLElement && document.contains(target)) target.focus();
   };
 
-  const openDrawer = (id, opener, focusClose = true) => {
+  const openDrawer = (id, opener, focusClose = true, successMessage = '') => {
     const template = document.getElementById(`cpw-project-${id}`);
     if (!template || !drawer || !drawerBody) return;
 
+    hideDrawerSuccess();
     returnFocusTarget = opener instanceof HTMLElement ? opener : document.activeElement;
     drawerBody.replaceChildren(template.content.cloneNode(true));
     drawer.classList.add('is-open');
     drawer.setAttribute('aria-hidden', 'false');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('cpw-drawer-open');
+
+    if (successMessage) showDrawerSuccess(successMessage);
 
     if (focusClose) {
       requestAnimationFrame(() => drawer.querySelector('[data-close-drawer]')?.focus());
@@ -240,7 +270,7 @@
       window.scrollTo({ top: Number(state.scrollY) || 0, behavior: 'auto' });
       requestAnimationFrame(() => {
         const opener = root.querySelector(`[data-open-project="${CSS.escape(String(state.projectId || ''))}"]`);
-        openDrawer(state.projectId, opener, false);
+        openDrawer(state.projectId, opener, false, root.dataset.successMessage || '');
       });
     });
   };

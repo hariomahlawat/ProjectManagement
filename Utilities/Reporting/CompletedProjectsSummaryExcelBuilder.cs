@@ -65,7 +65,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             "Latest LPP (lakh)",
             "Latest LPP date",
             "Technology status",
-            "Available for proliferation",
+            "Availability for proliferation",
             "ToT status",
             "Critical data gaps",
             "Supplementary data gaps",
@@ -208,7 +208,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         {
             ("Technical category", context.TechnicalCategory ?? "(all)"),
             ("Technology status", context.TechStatus ?? "(all)"),
-            ("Available for proliferation", context.AvailableForProliferation switch
+            ("Availability for proliferation", context.AvailableForProliferation switch
             {
                 true => "Yes",
                 false => "No",

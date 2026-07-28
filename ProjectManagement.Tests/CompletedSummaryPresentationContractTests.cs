@@ -145,6 +145,36 @@ public sealed class CompletedSummaryPresentationContractTests
     }
 
     [Fact]
+    public void FinalPresentationRefinements_PreserveMeaningAndContext()
+    {
+        var register = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+        var edit = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml");
+        var editModel = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Edit.cshtml.cs");
+        var service = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");
+        var export = ReadRepoFile("Utilities", "Reporting", "CompletedProjectsSummaryExcelBuilder.cs");
+        var css = ReadRepoFile("wwwroot", "css", "pages", "projects-completed-summary.css");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-completed-summary.js");
+
+        Assert.Contains("cpw-cell-proliferation-cost", register, StringComparison.Ordinal);
+        Assert.Contains("Availability <span", register, StringComparison.Ordinal);
+        Assert.Contains("<span>Availability</span>", register, StringComparison.Ordinal);
+        Assert.Contains("cpw-remark-list", register, StringComparison.Ordinal);
+        Assert.Contains("Availability for proliferation", register, StringComparison.Ordinal);
+        Assert.Contains("Proliferation cost remarks", edit, StringComparison.Ordinal);
+        Assert.Contains("Purchase history", edit, StringComparison.Ordinal);
+        Assert.Contains("Completed project details updated.", editModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Completed-project details updated.", editModel, StringComparison.Ordinal);
+        Assert.Contains("TechnologyRemarks", service, StringComparison.Ordinal);
+        Assert.Contains("ProliferationRemarks", service, StringComparison.Ordinal);
+        Assert.Contains("ProliferationCostRemarks", service, StringComparison.Ordinal);
+        Assert.Contains(""Availability for proliferation"", export, StringComparison.Ordinal);
+        Assert.Contains("white-space: normal", css, StringComparison.Ordinal);
+        Assert.Contains("cpw-drawer-success", css, StringComparison.Ordinal);
+        Assert.Contains("data-drawer-success", register, StringComparison.Ordinal);
+        Assert.Contains("root.dataset.successMessage", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WideScreenColumns_AreBackedByServiceAndExport()
     {
         var service = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");

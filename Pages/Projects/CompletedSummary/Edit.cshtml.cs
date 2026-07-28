@@ -106,7 +106,7 @@ public sealed class EditModel : PageModel
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        TempData["CompletedProjectEditSuccess"] = "Completed-project details updated.";
+        TempData["CompletedProjectEditSuccess"] = "Completed project details updated.";
         return LocalRedirect(BackUrl);
     }
 
