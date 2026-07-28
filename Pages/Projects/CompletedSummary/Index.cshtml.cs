@@ -340,13 +340,56 @@ public sealed class IndexModel : PageModel
             nameof(TotCompleted),
             nameof(Build));
 
-    public Dictionary<string, string> GetRoutesForPortfolioStatus(string portfolioStatus)
+    public Dictionary<string, string> GetRoutesForPortfolioStatus(
+        string portfolioStatus,
+        string? sort = null,
+        string? direction = null)
     {
-        var values = new Dictionary<string, string>(BuildRouteValues(nameof(PortfolioStatus)))
+        var normalisedStatus = CompletedProjectPortfolioStatusCodes.Normalise(portfolioStatus);
+        var excludedKeys = new HashSet<string>(StringComparer.Ordinal)
         {
-            [nameof(PortfolioStatus)] = portfolioStatus,
+            nameof(PortfolioStatus)
+        };
+
+        // A headline position filter owns the direct filter dimensions used to
+        // calculate it. Clear only those dimensions so the card cannot create a
+        // contradictory route while unrelated scope filters remain intact.
+        switch (normalisedStatus)
+        {
+            case CompletedProjectPortfolioStatusCodes.FullyReady:
+            case CompletedProjectPortfolioStatusCodes.AvailableBlocked:
+                excludedKeys.Add(nameof(AvailableForProliferation));
+                excludedKeys.Add(nameof(TechStatus));
+                excludedKeys.Add(nameof(TotCompleted));
+                break;
+
+            case CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending:
+                excludedKeys.Add(nameof(AvailableForProliferation));
+                break;
+
+            case CompletedProjectPortfolioStatusCodes.TechnologyAction:
+            case CompletedProjectPortfolioStatusCodes.TechnologyAssessmentPending:
+                excludedKeys.Add(nameof(TechStatus));
+                break;
+
+            case CompletedProjectPortfolioStatusCodes.TotAction:
+                excludedKeys.Add(nameof(TotCompleted));
+                break;
+        }
+
+        var values = new Dictionary<string, string>(BuildRouteValues(excludedKeys.ToArray()))
+        {
+            [nameof(PortfolioStatus)] = normalisedStatus ?? portfolioStatus,
             [nameof(WorkspaceView)] = "register"
         };
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            values[nameof(Sort)] = sort;
+            values[nameof(Dir)] = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase)
+                ? "asc"
+                : "desc";
+        }
 
         return values;
     }
@@ -529,8 +572,9 @@ public sealed class IndexModel : PageModel
         var options = new (string Value, string Label)[]
         {
             (string.Empty, "All"),
-            (CompletedProjectPortfolioStatusCodes.FullyReady, "Fully ready"),
+            (CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "Proliferation assessment pending"),
             (CompletedProjectPortfolioStatusCodes.AvailableBlocked, "Available but blocked"),
+            (CompletedProjectPortfolioStatusCodes.FullyReady, "Fully ready"),
             (CompletedProjectPortfolioStatusCodes.TechnologyAction, "Technology review required"),
             (CompletedProjectPortfolioStatusCodes.TotAction, "ToT action pending"),
             (CompletedProjectPortfolioStatusCodes.CriticalIncomplete, "Records with critical gaps"),

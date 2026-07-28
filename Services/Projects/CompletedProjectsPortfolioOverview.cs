@@ -15,6 +15,7 @@ public sealed class CompletedProjectsPortfolioOverview
     public int AvailableCount { get; init; }
     public int FullyReadyCount { get; init; }
     public int AvailableBlockedCount { get; init; }
+    public int OtherAvailabilityBlockerCount { get; init; }
     public int NotAvailableCount { get; init; }
     public int AvailabilityPendingCount { get; init; }
     public int TechnologyCurrentCount { get; init; }
@@ -54,6 +55,14 @@ public sealed class CompletedProjectsPortfolioOverview
         var availableBlocked = items.Where(CompletedProjectPortfolioPolicy.IsAvailableButBlocked).ToList();
         var technologyAction = items.Where(CompletedProjectPortfolioPolicy.RequiresTechnologyAction).ToList();
         var totAction = items.Where(CompletedProjectPortfolioPolicy.HasTotActionPending).ToList();
+
+        // The availability-blocker queue excludes projects already surfaced in
+        // the dedicated technology or ToT action queues. Headline counts remain
+        // unchanged; only the concise command queue is de-duplicated.
+        var availabilityBlockerQueue = availableBlocked
+            .Where(x => !CompletedProjectPortfolioPolicy.RequiresTechnologyAction(x))
+            .Where(x => !CompletedProjectPortfolioPolicy.HasTotActionPending(x))
+            .ToList();
         var criticalIncomplete = items
             .Where(x => CompletedProjectPortfolioPolicy.GetCriticalMissingCount(x) > 0)
             .ToList();
@@ -71,6 +80,7 @@ public sealed class CompletedProjectsPortfolioOverview
             AvailableCount = items.Count(x => x.AvailableForProliferation == true),
             FullyReadyCount = ready.Count,
             AvailableBlockedCount = availableBlocked.Count,
+            OtherAvailabilityBlockerCount = availabilityBlockerQueue.Count,
             NotAvailableCount = items.Count(x => x.AvailableForProliferation == false),
             AvailabilityPendingCount = items.Count(x => !x.AvailableForProliferation.HasValue),
             TechnologyCurrentCount = items.Count(x => string.Equals(x.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)),
@@ -90,7 +100,7 @@ public sealed class CompletedProjectsPortfolioOverview
             Age16PlusCount = items.Count(x => x.CompletedYear.HasValue && currentYear - x.CompletedYear.Value >= 16),
             AgeUnknownCount = items.Count(x => !x.CompletedYear.HasValue),
             ReadyProjects = Prioritise(ready, queueSize),
-            AvailableBlockedProjects = Prioritise(availableBlocked, queueSize),
+            AvailableBlockedProjects = Prioritise(availabilityBlockerQueue, queueSize),
             TechnologyActionProjects = Prioritise(technologyAction, queueSize),
             TotActionProjects = Prioritise(totAction, queueSize),
             CriticalIncompleteProjects = criticalIncomplete

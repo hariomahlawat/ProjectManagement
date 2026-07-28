@@ -1237,7 +1237,7 @@ body.cpw-drawer-open { overflow: hidden; }
 }
 
 .cpw-table th {
-  top: 92px;
+  top: var(--cpw-sticky-offset, 98px);
   height: 44px;
   padding-inline: 10px;
   box-shadow: 0 1px 0 #dce3ed;
@@ -1365,17 +1365,10 @@ body.cpw-drawer-open { overflow: hidden; }
 }
 
 @media (max-width: 1460px) {
-  .cpw-table-scroll {
-    overflow-x: auto;
-    overflow-y: visible;
-    scrollbar-gutter: stable;
-  }
-
-  .cpw-table { min-width: 74rem; }
-  .cpw-table th { position: static; }
-  .cpw-table th:first-child,
-  .cpw-table td:first-child { position: sticky; left: 0; }
-  .cpw-table th:first-child { z-index: 2; }
+  /* Retain the sticky register header on normal laptop screens by hiding
+     supplementary financial columns before introducing horizontal scroll. */
+  .cpw-secondary-column { display: none; }
+  .cpw-table { min-width: 0; }
 }
 
 @media (max-width: 1180px) {
@@ -1404,8 +1397,21 @@ body.cpw-drawer-open { overflow: hidden; }
   .cpw-filter-actions { grid-column: auto; }
 }
 
-@media (max-width: 1460px) {
-  .cpw-table th:first-child { top: auto; }
+@media (max-width: 900px) {
+  .cpw-table-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  .cpw-table { min-width: 64rem; }
+  .cpw-table th { position: static; }
+  .cpw-table th:first-child,
+  .cpw-table td:first-child {
+    position: sticky;
+    left: 0;
+  }
+  .cpw-table th:first-child { z-index: 4; }
 }
 
 .cpw { box-sizing: border-box; }

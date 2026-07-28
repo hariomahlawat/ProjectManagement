@@ -7,6 +7,28 @@
   const viewStorageKey = 'completedProjectsWorkspaceViewV2';
   const validViews = new Set(['register', 'overview', 'quality']);
 
+  const stickyChrome = [
+    document.querySelector('.pm-topbar'),
+    document.querySelector('.pm-module-subnav-wrap')
+  ].filter(Boolean);
+
+  const syncStickyOffset = () => {
+    const offset = stickyChrome.reduce((total, element) => {
+      if (!(element instanceof HTMLElement) || element.getClientRects().length === 0) return total;
+      return total + element.getBoundingClientRect().height;
+    }, 0);
+
+    root.style.setProperty('--cpw-sticky-offset', `${Math.ceil(offset || 98)}px`);
+  };
+
+  syncStickyOffset();
+  window.addEventListener('resize', syncStickyOffset, { passive: true });
+
+  if ('ResizeObserver' in window) {
+    const chromeObserver = new ResizeObserver(syncStickyOffset);
+    stickyChrome.forEach((element) => chromeObserver.observe(element));
+  }
+
   const readStoredView = () => {
     try {
       const stored = sessionStorage.getItem(viewStorageKey);

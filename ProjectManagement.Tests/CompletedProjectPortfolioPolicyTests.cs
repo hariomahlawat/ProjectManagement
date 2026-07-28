@@ -20,6 +20,22 @@ public sealed class CompletedProjectPortfolioPolicyTests
         Assert.Contains("ToT in progress", CompletedProjectPortfolioPolicy.GetReadinessBlockers(item));
     }
 
+
+    [Fact]
+    public void ProliferationAssessmentPending_MatchesOnlyUnrecordedDecisions()
+    {
+        var item = CreateCompleteItem();
+
+        Assert.False(CompletedProjectPortfolioPolicy.IsProliferationAssessmentPending(item));
+
+        item.AvailableForProliferation = null;
+
+        Assert.True(CompletedProjectPortfolioPolicy.IsProliferationAssessmentPending(item));
+        Assert.True(CompletedProjectPortfolioPolicy.MatchesPortfolioStatus(
+            item,
+            CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending));
+    }
+
     [Theory]
     [InlineData(ProjectTechStatusCodes.Outdated)]
     [InlineData(ProjectTechStatusCodes.Obsolete)]
@@ -71,9 +87,12 @@ public sealed class CompletedProjectPortfolioPolicyTests
         Assert.Equal(4, overview.AvailableCount);
         Assert.Equal(2, overview.FullyReadyCount);
         Assert.Equal(2, overview.AvailableBlockedCount);
+        Assert.Equal(1, overview.OtherAvailabilityBlockerCount);
         Assert.Equal(1, overview.TotActionPendingCount);
         Assert.Equal(1, overview.TechnologyAssessmentPendingCount);
         Assert.Equal("Newer", overview.ReadyProjects[0].Name);
+        Assert.DoesNotContain(overview.AvailableBlockedProjects, x => x.ProjectId == blocked.ProjectId);
+        Assert.Contains(overview.TotActionProjects, x => x.ProjectId == blocked.ProjectId);
     }
 
     private static CompletedProjectSummaryDto CreateCompleteItem(

@@ -34,6 +34,37 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("asp-route-PortfolioStatus", view, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void HeadlineKpis_PrioritiseProliferationAvailabilityOverDerivedReadiness()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+        var policy = ReadRepoFile("Services", "Projects", "CompletedProjectPortfolioPolicy.cs");
+
+        var summaryStart = view.IndexOf("<section class=\"cpw-summary-strip\"", StringComparison.Ordinal);
+        var summaryEnd = view.IndexOf("<div class=\"cpw-workspace-toolbar\"", summaryStart, StringComparison.Ordinal);
+        Assert.True(summaryStart >= 0 && summaryEnd > summaryStart);
+
+        var summary = view[summaryStart..summaryEnd];
+        Assert.Contains("Available for proliferation", summary, StringComparison.Ordinal);
+        Assert.Contains("Proliferation assessment pending", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("<small>Fully ready</small>", summary, StringComparison.Ordinal);
+        Assert.Contains("ProliferationAssessmentPending", policy, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Register_RetainsStickyHeaderOnLaptopWidthsAndUsesMeasuredChromeOffset()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+        var css = ReadRepoFile("wwwroot", "css", "pages", "projects-completed-summary.css");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-completed-summary.js");
+
+        Assert.Contains("cpw-secondary-column", view, StringComparison.Ordinal);
+        Assert.Contains("--cpw-sticky-offset", css, StringComparison.Ordinal);
+        Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
+        Assert.Contains("@media (max-width: 900px)", css, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Register_ExposesServerSortingAndSeparateQualitySemantics()
     {

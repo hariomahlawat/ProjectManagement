@@ -191,11 +191,11 @@
             <span><strong>@overview.AvailableCount</strong><small>Available for proliferation</small></span>
         </a>
         <a asp-page="./Index"
-           asp-all-route-data="Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.FullyReady)"
-           class="cpw-summary-card positive"
-           title="Open fully ready projects">
-            <span class="cpw-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></span>
-            <span><strong>@overview.FullyReadyCount</strong><small>Fully ready</small></span>
+           asp-all-route-data="Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending)"
+           class="cpw-summary-card neutral"
+           title="Open projects where the proliferation assessment is pending">
+            <span class="cpw-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5" /><path d="M17 16h.01" /></svg></span>
+            <span><strong>@overview.AvailabilityPendingCount</strong><small>Proliferation assessment pending</small></span>
         </a>
         <a asp-page="./Index"
            asp-all-route-data="Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.AvailableBlocked)"
@@ -233,16 +233,12 @@
             <button type="button" id="cpw-tab-overview" data-view="overview" role="tab" aria-controls="cpw-panel-overview" aria-selected="false">Overview</button>
             <button type="button" id="cpw-tab-quality" data-view="quality" role="tab" aria-controls="cpw-panel-quality" aria-selected="false">Data quality</button>
         </div>
-        <div class="cpw-workspace-meta">
-            @if (Model.HasActiveFilters)
-            {
+        @if (Model.HasActiveFilters)
+        {
+            <div class="cpw-workspace-meta">
                 <span>Showing <strong>@total</strong> @projectLabel in the current scope</span>
-            }
-            else
-            {
-                <span>Showing all <strong>@total</strong> @projectLabel</span>
-            }
-        </div>
+            </div>
+        }
     </div>
 
     <main class="cpw-workspace">
@@ -259,7 +255,7 @@
             {
                 <div class="cpw-register-shell">
                     <div class="cpw-register-head">
-                        <div><h2>Portfolio register</h2><p>High-density comparison across completion, cost, readiness and record quality.</p></div>
+                        <div><h2>Completed projects register</h2><p>High-density comparison across completion, cost, readiness and record quality.</p></div>
                         <span>Open a project name for details</span>
                     </div>
                     <div class="cpw-table-scroll" role="region" aria-label="Completed projects register" tabindex="0">
@@ -301,14 +297,14 @@
                                             Development <span aria-hidden="true">@rdSort.Indicator</span>
                                         </a>
                                     </th>
-                                    <th class="cpw-cell-money" aria-sort="@productionSort.Aria">
+                                    <th class="cpw-cell-money cpw-secondary-column" aria-sort="@productionSort.Aria">
                                         <a asp-page="./Index"
                                            asp-all-route-data='Model.GetRoutesForSort("prod", productionSort.Direction)'
                                            title="Sort by production cost">
                                             Production <span aria-hidden="true">@productionSort.Indicator</span>
                                         </a>
                                     </th>
-                                    <th class="cpw-cell-money" aria-sort="@lppSort.Aria">
+                                    <th class="cpw-cell-money cpw-secondary-column" aria-sort="@lppSort.Aria">
                                         <a asp-page="./Index"
                                            asp-all-route-data='Model.GetRoutesForSort("lpp", lppSort.Direction)'
                                            title="Sort by latest LPP date">
@@ -371,23 +367,23 @@
                                     <td class="cpw-cell-build cpw-ultrawide-column">@item.BuildType</td>
                                     <td class="cpw-cell-year">@(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
                                     <td class="cpw-cell-money cpw-num">@FormatMoney(item.RdCostLakhs)</td>
-                                    <td class="cpw-cell-money cpw-num">@FormatMoney(item.ApproxProductionCost)</td>
-                                    <td class="cpw-cell-money cpw-num">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
+                                    <td class="cpw-cell-money cpw-num cpw-secondary-column">@FormatMoney(item.ApproxProductionCost)</td>
+                                    <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
                                     <td class="cpw-cell-status"><span class="cpw-inline-status @TechnologyTone(item.TechStatus)">@CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus)</span></td>
                                     <td class="cpw-cell-proliferation"><span class="cpw-inline-status @AvailabilityTone(item.AvailableForProliferation)">@CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation)</span></td>
                                     <td class="cpw-cell-tot"><span class="cpw-inline-status @TotTone(item.TotStatus)">@CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</span></td>
                                     <td class="cpw-cell-quality" title="@qualityTitle">
                                         @if (criticalMissing.Count > 0)
                                         {
-                                            <span class="cpw-quality-score critical">@criticalMissing.Count critical gap@(criticalMissing.Count == 1 ? string.Empty : "s")</span>
+                                            <span class="cpw-quality-score critical" title="@qualityTitle" aria-label="@qualityTitle">@criticalMissing.Count critical gap@(criticalMissing.Count == 1 ? string.Empty : "s")</span>
                                         }
                                         else if (supplementaryMissing.Count > 0)
                                         {
-                                            <span class="cpw-quality-score supplementary">@supplementaryMissing.Count supplementary gap@(supplementaryMissing.Count == 1 ? string.Empty : "s")</span>
+                                            <span class="cpw-quality-score supplementary" title="@qualityTitle" aria-label="@qualityTitle">@supplementaryMissing.Count supplementary gap@(supplementaryMissing.Count == 1 ? string.Empty : "s")</span>
                                         }
                                         else
                                         {
-                                            <span class="cpw-quality-score complete">Complete</span>
+                                            <span class="cpw-quality-score complete" title="@qualityTitle" aria-label="@qualityTitle">Complete</span>
                                         }
                                     </td>
                                 </tr>
@@ -472,7 +468,7 @@
                         <article class="cpw-overview-card">
                             <div class="cpw-section-heading">
                                 <div><span>Exploitation-ready</span><h2>Recently completed, fully ready projects</h2></div>
-                                <a asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus" asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted" asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build" asp-route-PortfolioStatus="@CompletedProjectPortfolioStatusCodes.FullyReady" asp-route-WorkspaceView="register" asp-route-Sort="year" asp-route-Dir="desc">View in register</a>
+                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.FullyReady, "year", "desc")'>View in register</a>
                             </div>
                             <div class="cpw-queue-list">
                                 @if (overview.ReadyProjects.Count == 0)
@@ -505,13 +501,13 @@
                     <section class="cpw-action-grid" aria-label="Priority action queues">
                         <article class="cpw-action-card warning">
                             <div class="cpw-action-head">
-                                <div><span>Readiness blocker</span><h3>Available but not fully ready</h3></div>
-                                <strong>@overview.AvailableBlockedCount</strong>
+                                <div><span>Readiness blocker</span><h3>Other availability blockers</h3></div>
+                                <strong>@overview.OtherAvailabilityBlockerCount</strong>
                             </div>
                             <div class="cpw-action-list">
                                 @if (overview.AvailableBlockedProjects.Count == 0)
                                 {
-                                    <p>No available project has an unresolved readiness blocker.</p>
+                                    <p>No additional availability blocker remains after technology and ToT actions are separated.</p>
                                 }
                                 else
                                 {
@@ -521,7 +517,7 @@
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus" asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted" asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build" asp-route-PortfolioStatus="@CompletedProjectPortfolioStatusCodes.AvailableBlocked" asp-route-WorkspaceView="register" asp-route-Sort="year" asp-route-Dir="desc">Open filtered register →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.AvailableBlocked, "year", "desc")'>Open all blocked projects →</a>
                         </article>
 
                         <article class="cpw-action-card danger">
@@ -542,7 +538,7 @@
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus" asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted" asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build" asp-route-PortfolioStatus="@CompletedProjectPortfolioStatusCodes.TechnologyAction" asp-route-WorkspaceView="register" asp-route-Sort="year" asp-route-Dir="desc">Open filtered register →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "year", "desc")'>Open filtered register →</a>
                         </article>
 
                         <article class="cpw-action-card info">
@@ -563,7 +559,7 @@
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus" asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted" asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build" asp-route-PortfolioStatus="@CompletedProjectPortfolioStatusCodes.TotAction" asp-route-WorkspaceView="register" asp-route-Sort="year" asp-route-Dir="desc">Open filtered register →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "year", "desc")'>Open filtered register →</a>
                         </article>
                     </section>
 

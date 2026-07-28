@@ -10,6 +10,7 @@ namespace ProjectManagement.Services.Projects;
 public static class CompletedProjectPortfolioStatusCodes
 {
     public const string FullyReady = "fully-ready";
+    public const string ProliferationAssessmentPending = "proliferation-assessment-pending";
     public const string AvailableBlocked = "available-blocked";
     public const string TechnologyAction = "technology-action";
     public const string TotAction = "tot-action";
@@ -19,6 +20,7 @@ public static class CompletedProjectPortfolioStatusCodes
     public static readonly string[] All =
     {
         FullyReady,
+        ProliferationAssessmentPending,
         AvailableBlocked,
         TechnologyAction,
         TotAction,
@@ -40,6 +42,7 @@ public static class CompletedProjectPortfolioStatusCodes
     public static string GetLabel(string? value) => Normalise(value) switch
     {
         FullyReady => "Fully ready",
+        ProliferationAssessmentPending => "Proliferation assessment pending",
         AvailableBlocked => "Available but blocked",
         TechnologyAction => "Technology review required",
         TotAction => "ToT action pending",
@@ -61,6 +64,12 @@ public static class CompletedProjectPortfolioPolicy
         return string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)
                && item.AvailableForProliferation == true
                && item.TotStatus is ProjectTotStatus.Completed or ProjectTotStatus.NotRequired;
+    }
+
+    public static bool IsProliferationAssessmentPending(CompletedProjectSummaryDto item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return !item.AvailableForProliferation.HasValue;
     }
 
     public static bool IsAvailableButBlocked(CompletedProjectSummaryDto item)
@@ -203,6 +212,7 @@ public static class CompletedProjectPortfolioPolicy
         return CompletedProjectPortfolioStatusCodes.Normalise(portfolioStatus) switch
         {
             CompletedProjectPortfolioStatusCodes.FullyReady => IsFullyReady(item),
+            CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending => IsProliferationAssessmentPending(item),
             CompletedProjectPortfolioStatusCodes.AvailableBlocked => IsAvailableButBlocked(item),
             CompletedProjectPortfolioStatusCodes.TechnologyAction => RequiresTechnologyAction(item),
             CompletedProjectPortfolioStatusCodes.TotAction => HasTotActionPending(item),
