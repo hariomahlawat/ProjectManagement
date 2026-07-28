@@ -80,6 +80,11 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         Assert.Contains("Not recorded", markup, StringComparison.Ordinal);
         Assert.Contains("Unavailable", markup, StringComparison.Ordinal);
         Assert.Contains("Actual start needs correction", markup, StringComparison.Ordinal);
+        Assert.Contains("View ARPP issue", markup, StringComparison.Ordinal);
+        Assert.Contains("Record actual start", markup, StringComparison.Ordinal);
+        Assert.Contains("Correct actual start", markup, StringComparison.Ordinal);
+        Assert.Contains("data-actuals-focus-stage", markup, StringComparison.Ordinal);
+        Assert.Contains("data-historical-focus-stage", markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -96,6 +101,20 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         Assert.Contains("name=\"Input.Rows[@index].CompletedOn\"", historical, StringComparison.Ordinal);
         Assert.Contains("Earliest published ARPP issue date", historical, StringComparison.Ordinal);
         Assert.Contains("name=\"Input.Rows[@index].ActualStart\"", historical, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScopedActualStartCorrection_FocusesTheArppManagedStage()
+    {
+        var actualsScript = ReadRepoFile("wwwroot", "js", "projects", "actuals-edit.js");
+        var historicalScript = ReadRepoFile("wwwroot", "js", "projects", "historical-stage-editor.js");
+        var historicalMarkup = ReadRepoFile("Pages", "Projects", "Timeline", "_HistoricalStageForm.cshtml");
+
+        Assert.Contains("data-actuals-focus-stage", actualsScript, StringComparison.Ordinal);
+        Assert.Contains("focusStageRow", actualsScript, StringComparison.Ordinal);
+        Assert.Contains("data-historical-focus-stage", historicalScript, StringComparison.Ordinal);
+        Assert.Contains("focusStageRow", historicalScript, StringComparison.Ordinal);
+        Assert.Contains("data-stage-code=\"@row.StageCode\"", historicalMarkup, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] segments)

@@ -517,6 +517,10 @@ button.project-intelligence-card:hover {
     border-color: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 55%, var(--portfolio-border));
     box-shadow: 0 7px 20px rgba(59, 130, 246, .11);
 }
+.pm-stage-arpp-source .pm-arpp-actual-start-action {
+    white-space: nowrap;
+}
+
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-flags,
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-dates,
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-variance,
@@ -695,6 +699,12 @@ button.project-intelligence-card:hover {
     border: 1px solid var(--portfolio-border, #dfe5ef);
     border-radius: .8rem;
     background: var(--pm-surface-subtle, #f8fafc);
+}
+
+.historical-stage-editor__row.is-targeted,
+.actuals-editor__stage.is-targeted {
+    border-color: var(--bs-primary, #315fe8) !important;
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--bs-primary, #315fe8) 14%, transparent);
 }
 
 .historical-stage-editor__row-heading {

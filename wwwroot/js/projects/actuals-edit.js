@@ -25,6 +25,42 @@
     });
   });
 
+
+  const clearTargetedRow = () => {
+    rows.forEach((row) => row.classList.remove('is-targeted'));
+  };
+
+  const focusStageRow = (stageCode) => {
+    clearTargetedRow();
+    if (!stageCode) {
+      return;
+    }
+
+    const row = rows.find((candidate) =>
+      (candidate.dataset.stageCode ?? '').toLowerCase() === stageCode.toLowerCase());
+    if (!(row instanceof HTMLElement)) {
+      return;
+    }
+
+    row.classList.add('is-targeted');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const startInput = row.querySelector('[data-field="start"]');
+    if (startInput instanceof HTMLInputElement && !startInput.disabled) {
+      window.setTimeout(() => startInput.focus({ preventScroll: true }), 180);
+    }
+  };
+
+  offcanvas.addEventListener('shown.bs.offcanvas', (event) => {
+    const trigger = event.relatedTarget;
+    const stageCode = trigger instanceof Element
+      ? trigger.getAttribute('data-actuals-focus-stage') ?? ''
+      : '';
+    focusStageRow(stageCode);
+  });
+
+  offcanvas.addEventListener('hidden.bs.offcanvas', clearTargetedRow);
+
   const setRowError = (row, message) => {
     const errorEl = row.querySelector('[data-row-error]');
     if (!(errorEl instanceof HTMLElement)) {

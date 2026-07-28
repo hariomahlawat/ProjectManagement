@@ -27,7 +27,8 @@ public partial class OverviewModel
         Timeline = Timeline,
         Access = Access,
         LifecycleStatus = Project?.LifecycleStatus ?? ProjectManagement.Models.ProjectLifecycleStatus.Active,
-        IsLegacy = Project?.IsLegacy == true
+        IsLegacy = Project?.IsLegacy == true,
+        CanManageHistoricalStageHistory = CanManageHistoricalStageHistory
     };
 
     public bool CanManageHistoricalStageHistory =>

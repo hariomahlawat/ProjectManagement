@@ -23,11 +23,6 @@
                 .OrderBy(item => item.SortOrder)
                 .FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped)?.Code
         : null;
-    var actualStartCorrectionLocation = isActiveLifecycle
-        ? "Edit actual dates"
-        : Model.IsLegacy
-            ? "the historical stage editor"
-            : "the stage-date correction workflow";
     var canViewArpp = (await AuthorizationService.AuthorizeAsync(
         User,
         resource: null,
@@ -160,6 +155,14 @@
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
       var hasStageMenuActions = !s.IsArppManaged && (isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest));
+      var needsArppActualStartAttention = s.IsArppManaged &&
+          (!s.ActualStart.HasValue || s.HasActualStartDataQualityIssue);
+      var canCorrectArppActualStart = needsArppActualStartAttention &&
+          ((isActiveLifecycle && canEditTimeline) ||
+           (!isActiveLifecycle && Model.CanManageHistoricalStageHistory));
+      var arppActualStartActionLabel = s.HasActualStartDataQualityIssue
+          ? "Correct actual start"
+          : "Record actual start";
       <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
@@ -474,18 +477,45 @@
                     <span class="text-muted"> · Ser No. @s.ArppSourceSerialNumber</span>
                   }
                 </div>
-                <span class="d-inline-flex gap-2">
+                <span class="d-inline-flex flex-wrap align-items-center gap-2">
                   @if (canViewArpp && s.ArppSourceIssueId.HasValue)
                   {
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/ARPP/Details"
                        asp-route-id="@s.ArppSourceIssueId.Value"
-                       class="fw-semibold">View issue</a>
+                       class="fw-semibold">View ARPP issue</a>
                   }
                   <a asp-area=""
                      asp-page="/Projects/Arpp/History"
                      asp-route-projectId="@timeline.ProjectId"
                      class="fw-semibold">ARPP history</a>
+                  @if (canCorrectArppActualStart)
+                  {
+                    if (isActiveLifecycle)
+                    {
+                      <button type="button"
+                              class="btn btn-sm btn-outline-primary pm-arpp-actual-start-action"
+                              data-bs-toggle="offcanvas"
+                              data-bs-target="#offcanvasActualDates"
+                              data-actuals-focus-stage="@s.Code"
+                              aria-controls="offcanvasActualDates"
+                              aria-label="@arppActualStartActionLabel for @s.Name">
+                        @arppActualStartActionLabel
+                      </button>
+                    }
+                    else
+                    {
+                      <button type="button"
+                              class="btn btn-sm btn-outline-primary pm-arpp-actual-start-action"
+                              data-bs-toggle="offcanvas"
+                              data-bs-target="#offcanvasHistoricalStages"
+                              data-historical-focus-stage="@s.Code"
+                              aria-controls="offcanvasHistoricalStages"
+                              aria-label="@arppActualStartActionLabel for @s.Name">
+                        @arppActualStartActionLabel
+                      </button>
+                    }
+                  }
                 </span>
               </div>
             </section>
@@ -494,7 +524,10 @@
           {
             <div class="pm-stage-data-quality alert alert-warning py-2 px-3 mt-2 mb-0 small" role="alert">
               <strong>Actual start needs correction.</strong>
-              The recorded start date is later than the ARPP-derived completion date. Correct or clear the actual start in @actualStartCorrectionLocation.
+              The recorded start date is later than the ARPP-derived completion date.
+              @(canCorrectArppActualStart
+                ? "Use Correct actual start to amend or clear it."
+                : "An authorised user must amend or clear the recorded start date.")
             </div>
           }
           @if (isActiveLifecycle && s.HasPendingRequest)

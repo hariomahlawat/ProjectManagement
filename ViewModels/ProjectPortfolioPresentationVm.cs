@@ -426,6 +426,7 @@ public sealed class ProjectTimelinePanelVm
     public ProjectOverviewAccessVm Access { get; init; } = new();
     public ProjectLifecycleStatus LifecycleStatus { get; init; } = ProjectLifecycleStatus.Active;
     public bool IsLegacy { get; init; }
+    public bool CanManageHistoricalStageHistory { get; init; }
 
     public bool HasRecordedStageHistory =>
         Timeline.Items.Any(item =>

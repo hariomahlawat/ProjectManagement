@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.ViewModels;
 using Xunit;
@@ -152,6 +153,9 @@ public class ProjectTimelineUiTests
         Assert.Contains("Original ARPP", html, StringComparison.Ordinal);
         Assert.Contains("Unavailable", html, StringComparison.Ordinal);
         Assert.Contains("Not recorded", html, StringComparison.Ordinal);
+        Assert.Contains("View ARPP issue", html, StringComparison.Ordinal);
+        Assert.Contains("Record actual start", html, StringComparison.Ordinal);
+        Assert.Contains("data-actuals-focus-stage=\"IPA\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-direct-apply", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-stage-request-button", html, StringComparison.Ordinal);
     }
@@ -184,8 +188,48 @@ public class ProjectTimelineUiTests
         var html = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: true);
 
         Assert.Contains("Actual start needs correction", html, StringComparison.Ordinal);
+        Assert.Contains("Correct actual start", html, StringComparison.Ordinal);
+        Assert.Contains("Use Correct actual start to amend or clear it.", html, StringComparison.Ordinal);
         Assert.Contains("Unavailable", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">1 day<", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ArppManagedIpa_OnTerminalLegacyProject_UsesHistoricalStartCorrection()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 182,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "IPA",
+                    Name = "In-Principle Approval",
+                    Status = StageStatus.Completed,
+                    CompletedOn = new DateOnly(2026, 2, 26),
+                    ActualStart = null,
+                    EffectiveActualStart = null,
+                    SortOrder = 1,
+                    IsArppManaged = true,
+                    ArppSourceIssueId = 10,
+                    ArppSourceDocumentLabel = "Original ARPP",
+                    ArppSourceIssueDate = new DateOnly(2026, 2, 26)
+                }
+            }
+        };
+
+        var html = await RenderAsync(
+            timeline,
+            isHoD: true,
+            isAssignedProjectOfficer: false,
+            lifecycleStatus: ProjectLifecycleStatus.Cancelled,
+            isLegacy: true,
+            canManageHistoricalStageHistory: true);
+
+        Assert.Contains("Record actual start", html, StringComparison.Ordinal);
+        Assert.Contains("data-historical-focus-stage=\"IPA\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-actuals-focus-stage=\"IPA\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -239,7 +283,10 @@ public class ProjectTimelineUiTests
     private static async Task<string> RenderAsync(
         TimelineVm model,
         bool isHoD,
-        bool isAssignedProjectOfficer)
+        bool isAssignedProjectOfficer,
+        ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active,
+        bool isLegacy = false,
+        bool canManageHistoricalStageHistory = false)
     {
         using var scope = Services.CreateScope();
         var provider = scope.ServiceProvider;
@@ -267,8 +314,12 @@ public class ProjectTimelineUiTests
             Access = new ProjectOverviewAccessVm
             {
                 IsHoD = isHoD,
-                IsAssignedProjectOfficer = isAssignedProjectOfficer
-            }
+                IsAssignedProjectOfficer = isAssignedProjectOfficer,
+                CanEditTimeline = isHoD || isAssignedProjectOfficer
+            },
+            LifecycleStatus = lifecycleStatus,
+            IsLegacy = isLegacy,
+            CanManageHistoricalStageHistory = canManageHistoricalStageHistory
         };
         var viewData = new ViewDataDictionary<ProjectTimelinePanelVm>(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         {
