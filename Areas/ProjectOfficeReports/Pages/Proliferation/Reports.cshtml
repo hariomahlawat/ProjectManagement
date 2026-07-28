@@ -14,7 +14,8 @@
      data-project-page-base="/ProjectOfficeReports/Proliferation/Project/"
      data-minimum-year="@Model.MinimumYear"
      data-maximum-year="@Model.MaximumYear"
-     data-current-year="@Model.CurrentYear">
+     data-current-year="@Model.CurrentYear"
+     data-export-timeout-ms="@Model.ExportTimeoutMilliseconds">
 
     <div class="d-none" id="pf-analysis-antiforgery">
         @Html.AntiForgeryToken()
@@ -36,7 +37,11 @@
             <p class="pf-page-subtitle mb-0">Analyse proliferation by period, technical category or selected simulators.</p>
         </div>
         <div class="pf-page-actions">
-            <button class="btn btn-outline-success" id="pf-analysis-export" type="button" disabled>
+            <button class="btn btn-outline-success"
+                    id="pf-analysis-export"
+                    type="button"
+                    aria-haspopup="dialog"
+                    disabled>
                 <i class="bi bi-download" aria-hidden="true"></i>
                 Export Excel
             </button>
@@ -244,6 +249,7 @@
         </div>
 
         <div class="pf-analysis-coverage" id="pf-analysis-coverage" role="note"></div>
+        <div class="pf-analysis-data-quality d-none" id="pf-analysis-data-quality" role="note"></div>
 
         <section class="pf-card pf-analysis-breakdown" aria-labelledby="pf-analysis-project-breakdown-heading">
             <div class="pf-card__header">
@@ -299,6 +305,56 @@
             </div>
         </section>
     </section>
+
+    <div class="modal fade"
+         id="pf-analysis-export-modal"
+         tabindex="-1"
+         aria-labelledby="pf-analysis-export-modal-title"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h2 class="modal-title fs-5" id="pf-analysis-export-modal-title">Export proliferation report</h2>
+                        <p class="text-muted small mb-0" id="pf-analysis-export-context">The workbook will use the generated report scope and period.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pf-analysis-export-sheet-list">
+                        <div>
+                            <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
+                            <span><strong>Summary</strong> with filters, totals, calculation basis and data-quality disclosure</span>
+                        </div>
+                        <div>
+                            <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
+                            <span><strong>Simulator breakdown</strong> with a filterable Excel table and report totals</span>
+                        </div>
+                    </div>
+
+                    <div class="form-check pf-analysis-export-unit-option">
+                        <input class="form-check-input" type="checkbox" id="pf-analysis-export-units" />
+                        <label class="form-check-label" for="pf-analysis-export-units">
+                            Include unit summary
+                        </label>
+                        <div class="form-text" id="pf-analysis-export-units-note">
+                            Adds grouped receiving-unit data from approved detailed entries.
+                        </div>
+                    </div>
+
+                    <div class="pf-analysis-export-quality d-none" id="pf-analysis-export-quality" role="note"></div>
+                    <div class="alert alert-danger d-none mb-0" id="pf-analysis-export-error" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="pf-analysis-export-confirm">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                        Export workbook
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Styles {

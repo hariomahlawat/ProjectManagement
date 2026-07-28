@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -13,17 +17,26 @@ public sealed class ProliferationAnalysisService
     private readonly ApplicationDbContext _db;
     private readonly ProliferationAggregateReadService _aggregateReadService;
     private readonly ProliferationAnalysisExcelBuilder _excelBuilder;
+    private readonly ProliferationChronologyQualityService _chronologyQualityService;
+    private readonly IClock _clock;
+    private readonly ProliferationExportOptions _exportOptions;
     private readonly ILogger<ProliferationAnalysisService> _logger;
 
     public ProliferationAnalysisService(
         ApplicationDbContext db,
         ProliferationAggregateReadService aggregateReadService,
         ProliferationAnalysisExcelBuilder excelBuilder,
+        ProliferationChronologyQualityService chronologyQualityService,
+        IClock clock,
+        IOptions<ProliferationExportOptions> exportOptions,
         ILogger<ProliferationAnalysisService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _aggregateReadService = aggregateReadService ?? throw new ArgumentNullException(nameof(aggregateReadService));
         _excelBuilder = excelBuilder ?? throw new ArgumentNullException(nameof(excelBuilder));
+        _chronologyQualityService = chronologyQualityService ?? throw new ArgumentNullException(nameof(chronologyQualityService));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _exportOptions = exportOptions?.Value ?? throw new ArgumentNullException(nameof(exportOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -37,6 +50,13 @@ public sealed class ProliferationAnalysisService
         var scope = await ResolveScopeAsync(request, cancellationToken);
         var projectIds = scope.Projects.Select(x => x.Id).ToArray();
         var projectIdSet = projectIds.ToHashSet();
+        var chronologyQuality = await _chronologyQualityService.GetApprovedSummaryAsync(
+            projectIds,
+            request.Source,
+            cancellationToken);
+        var dataQualityMessage = ProliferationChronologyQualityService.BuildDisclosure(
+            chronologyQuality,
+            request.PeriodMode == ProliferationAnalysisPeriodMode.AllTime);
 
         IReadOnlyList<ProliferationAnalysisProjectRowDto> projectRows;
         int annualQuantity;
@@ -147,6 +167,12 @@ public sealed class ProliferationAnalysisService
                 detailedQuantity,
                 unitQuantity,
                 unitDataLoaded),
+            DataQualityMessage = dataQualityMessage,
+            InvalidChronologyRecordCount = chronologyQuality.ApprovedRecordCount,
+            InvalidChronologyReportedQuantity = chronologyQuality.ReportedQuantity,
+            InvalidChronologyPositionCount = chronologyQuality.AffectedPositionCount,
+            MinimumValidYear = chronologyQuality.MinimumValidYear,
+            MaximumValidYear = chronologyQuality.MaximumValidYear,
             Summary = summary,
             Projects = projectRows,
             Units = unitRows
@@ -155,6 +181,7 @@ public sealed class ProliferationAnalysisService
 
     public async Task<(byte[] Content, string FileName)> ExportAsync(
         ProliferationAnalysisRequestDto request,
+        string generatedBy,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -171,13 +198,74 @@ public sealed class ProliferationAnalysisService
             FromDate = request.FromDate,
             ToDate = request.ToDate,
             Source = request.Source,
-            IncludeUnitBreakdown = true
+            IncludeUnitBreakdown = request.IncludeUnitBreakdown
         };
 
         var result = await RunAsync(exportRequest, cancellationToken);
-        var content = _excelBuilder.Build(result);
-        var fileName = $"proliferation-analysis-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx";
+        ValidateExportSize(result);
+
+        var quality = new ProliferationChronologyQualitySummary(
+            result.InvalidChronologyRecordCount,
+            result.InvalidChronologyPositionCount,
+            result.InvalidChronologyReportedQuantity,
+            result.MinimumValidYear,
+            result.MaximumValidYear);
+        var generatedAtUtc = _clock.UtcNow;
+        var metadata = new ProliferationExportMetadata(
+            generatedAtUtc,
+            string.IsNullOrWhiteSpace(generatedBy) ? "Unknown user" : generatedBy.Trim(),
+            quality,
+            result.DataQualityMessage,
+            IncludesUnitSummary: exportRequest.IncludeUnitBreakdown);
+
+        var content = _excelBuilder.Build(result, metadata);
+        var fileName = BuildExportFileName(result, generatedAtUtc);
         return (content, fileName);
+    }
+
+    private void ValidateExportSize(ProliferationAnalysisResultDto result)
+    {
+        var maximumProjectRows = Math.Max(1, _exportOptions.MaximumProjectRows);
+        var maximumUnitRows = Math.Max(1, _exportOptions.MaximumUnitRows);
+
+        if (result.Projects.Count > maximumProjectRows)
+        {
+            throw new ProliferationAnalysisValidationException(
+                $"The simulator breakdown contains {result.Projects.Count:N0} rows, which exceeds the configured export limit of {maximumProjectRows:N0}. Narrow the report scope and try again.");
+        }
+
+        if (result.Units.Count > maximumUnitRows)
+        {
+            throw new ProliferationAnalysisValidationException(
+                $"The unit summary contains {result.Units.Count:N0} rows, which exceeds the configured export limit of {maximumUnitRows:N0}. Narrow the period or scope and try again.");
+        }
+    }
+
+    private static string BuildExportFileName(
+        ProliferationAnalysisResultDto result,
+        DateTimeOffset generatedAtUtc)
+    {
+        var generatedAtIst = TimeZoneInfo.ConvertTime(generatedAtUtc, TimeZoneHelper.GetIst());
+        var scope = Slug(result.ScopeLabel, "report");
+        var period = Slug(result.PeriodLabel, "all-time");
+        return $"proliferation-{scope}-{period}-{generatedAtIst:yyyyMMdd-HHmmss}-IST.xlsx";
+    }
+
+    private static string Slug(string? value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        var characters = value.Trim().ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) ? character : '-')
+            .ToArray();
+        var slug = string.Join('-', new string(characters)
+            .Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return string.IsNullOrWhiteSpace(slug)
+            ? fallback
+            : slug.Length <= 64 ? slug : slug[..64].TrimEnd('-');
     }
 
     private static void ValidateRequest(ProliferationAnalysisRequestDto request)

@@ -42,6 +42,18 @@ public sealed class ProliferationAnalysisResultDto
 
     public string CoverageMessage { get; init; } = string.Empty;
 
+    public string DataQualityMessage { get; init; } = string.Empty;
+
+    public int InvalidChronologyRecordCount { get; init; }
+
+    public int InvalidChronologyReportedQuantity { get; init; }
+
+    public int InvalidChronologyPositionCount { get; init; }
+
+    public int MinimumValidYear { get; init; }
+
+    public int MaximumValidYear { get; init; }
+
     public ProliferationAnalysisSummaryDto Summary { get; init; } = new();
 
     public IReadOnlyList<ProliferationAnalysisProjectRowDto> Projects { get; init; } =

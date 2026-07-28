@@ -504,3 +504,55 @@
     color: #cbd5e1;
     background: #18202d;
 }
+
+/* Export and chronology disclosure */
+.pf-analysis-data-quality,
+.pf-analysis-export-quality {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    margin-top: .7rem;
+    padding: .7rem .8rem;
+    color: #795c00;
+    background: #fff9e8;
+    border: 1px solid #f0dda0;
+    border-radius: .55rem;
+    font-size: .8rem;
+    line-height: 1.4;
+}
+
+.pf-analysis-export-quality {
+    margin-top: 1rem;
+}
+
+.pf-analysis-export-sheet-list {
+    display: grid;
+    gap: .65rem;
+}
+
+.pf-analysis-export-sheet-list > div {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    font-size: .86rem;
+    line-height: 1.4;
+}
+
+.pf-analysis-export-unit-option {
+    margin-top: 1rem;
+    padding: .8rem .85rem .8rem 2.35rem;
+    background: var(--pf-analysis-soft);
+    border: 1px solid var(--pf-analysis-border);
+    border-radius: .6rem;
+}
+
+.pf-analysis-export-unit-option .form-check-input {
+    margin-left: -1.45rem;
+}
+
+[data-bs-theme="dark"] .pf-analysis-data-quality,
+[data-bs-theme="dark"] .pf-analysis-export-quality {
+    color: #f7d878;
+    background: rgba(245, 158, 11, .1);
+    border-color: rgba(245, 158, 11, .3);
+}

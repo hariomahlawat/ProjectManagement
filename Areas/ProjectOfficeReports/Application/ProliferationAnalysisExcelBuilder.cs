@@ -1,21 +1,30 @@
 using ClosedXML.Excel;
 using ProjectManagement.Areas.ProjectOfficeReports.Api;
+using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 public sealed class ProliferationAnalysisExcelBuilder
 {
-    public byte[] Build(ProliferationAnalysisResultDto report)
+    public byte[] Build(
+        ProliferationAnalysisResultDto report,
+        ProliferationExportMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(report);
+        ArgumentNullException.ThrowIfNull(metadata);
 
         using var workbook = new XLWorkbook();
-        BuildSummarySheet(workbook, report);
-        BuildProjectSheet(workbook, report);
+        ProliferationExcelWorkbookFormatter.ConfigureWorkbook(
+            workbook,
+            "Proliferation analysis",
+            metadata);
 
-        if (report.Units.Count > 0)
+        BuildSummarySheet(workbook, report, metadata);
+        BuildProjectSheet(workbook, report, metadata);
+
+        if (metadata.IncludesUnitSummary)
         {
-            BuildUnitSheet(workbook, report);
+            BuildUnitSheet(workbook, report, metadata);
         }
 
         using var stream = new MemoryStream();
@@ -23,135 +32,180 @@ public sealed class ProliferationAnalysisExcelBuilder
         return stream.ToArray();
     }
 
-    private static void BuildSummarySheet(XLWorkbook workbook, ProliferationAnalysisResultDto report)
+    private static void BuildSummarySheet(
+        XLWorkbook workbook,
+        ProliferationAnalysisResultDto report,
+        ProliferationExportMetadata metadata)
     {
         var sheet = workbook.Worksheets.Add("Summary");
-        sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
-        sheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
-        sheet.PageSetup.ShowGridlines = false;
+        var nextRow = ProliferationExcelWorkbookFormatter.WriteHeading(
+            sheet,
+            "Proliferation analysis",
+            "Filtered analytical position generated from approved PRISM records.",
+            metadata,
+            8);
 
-        sheet.Range("A1:D1").Merge();
-        sheet.Cell("A1").Value = "Proliferation Analysis";
-        sheet.Cell("A1").Style.Font.Bold = true;
-        sheet.Cell("A1").Style.Font.FontSize = 16;
+        sheet.Cell(nextRow, 1).Value = "Scope";
+        sheet.Cell(nextRow, 2).Value = report.ScopeLabel;
+        sheet.Cell(nextRow, 3).Value = "Period";
+        sheet.Cell(nextRow, 4).Value = report.PeriodLabel;
+        sheet.Cell(nextRow, 5).Value = "Source";
+        sheet.Cell(nextRow, 6).Value = report.SourceLabel;
+        sheet.Cell(nextRow, 7).Value = "Unit summary";
+        sheet.Cell(nextRow, 8).Value = metadata.IncludesUnitSummary ? "Included" : "Not included";
 
-        sheet.Cell("A3").Value = "Scope";
-        sheet.Cell("B3").Value = report.ScopeLabel;
-        sheet.Cell("A4").Value = "Period";
-        sheet.Cell("B4").Value = report.PeriodLabel;
-        sheet.Cell("A5").Value = "Source";
-        sheet.Cell("B5").Value = report.SourceLabel;
-        sheet.Cell("A6").Value = "Calculation basis";
-        sheet.Cell("B6").Value = report.CalculationBasis;
-        sheet.Range("B6:D6").Merge();
-        sheet.Cell("A7").Value = "Unit-data coverage";
-        sheet.Cell("B7").Value = report.CoverageMessage;
-        sheet.Range("B7:D7").Merge();
-
-        var labels = new[]
+        var contextRange = sheet.Range(nextRow, 1, nextRow, 8);
+        for (var column = 1; column <= 8; column += 2)
         {
-            "Total proliferation",
-            "SDD",
-            "515 ABW",
-            "Simulators with proliferation",
-            "Receiving units recorded",
-            "Approved annual quantity",
-            "Approved detailed quantity"
-        };
-        var values = new[]
-        {
-            report.Summary.TotalProliferation,
-            report.Summary.SddTotal,
-            report.Summary.Abw515Total,
-            report.Summary.ProjectCount,
-            report.Summary.ReceivingUnitCount,
-            report.Summary.ApprovedAnnualQuantity,
-            report.Summary.ApprovedDetailedQuantity
-        };
-
-        const int firstMetricRow = 10;
-        for (var index = 0; index < labels.Length; index++)
-        {
-            var row = firstMetricRow + index;
-            sheet.Cell(row, 1).Value = labels[index];
-            sheet.Cell(row, 2).Value = values[index];
-            sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0";
+            sheet.Cell(nextRow, column).Style.Font.Bold = true;
+            sheet.Cell(nextRow, column).Style.Font.FontColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Navy);
+            sheet.Cell(nextRow, column).Style.Fill.BackgroundColor = XLColor.FromHtml("#F5F7FA");
         }
+        contextRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        contextRange.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+        contextRange.Style.Border.OutsideBorderColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Border);
+        contextRange.Style.Border.InsideBorderColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.LightBorder);
+        contextRange.Style.Alignment.WrapText = true;
 
-        sheet.Range("A3:A7").Style.Font.Bold = true;
-        sheet.Range(firstMetricRow, 1, firstMetricRow + labels.Length - 1, 1).Style.Font.Bold = true;
-        sheet.Range(firstMetricRow, 1, firstMetricRow + labels.Length - 1, 2).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-        sheet.Range(firstMetricRow, 1, firstMetricRow + labels.Length - 1, 2).Style.Border.BottomBorderColor = XLColor.LightGray;
-        sheet.Range("B6:D7").Style.Alignment.WrapText = true;
+        nextRow += 2;
+        var basisRange = sheet.Range(nextRow, 1, nextRow, 8).Merge();
+        basisRange.Value = $"Calculation basis: {report.CalculationBasis}";
+        basisRange.Style.Alignment.WrapText = true;
+        basisRange.Style.Font.FontColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Muted);
 
-        sheet.Column(1).Width = 32;
-        sheet.Column(2).Width = 28;
-        sheet.Column(3).Width = 22;
-        sheet.Column(4).Width = 22;
-        sheet.Rows(6, 7).AdjustToContents();
+        var coverageRange = sheet.Range(nextRow + 1, 1, nextRow + 1, 8).Merge();
+        coverageRange.Value = $"Unit-data coverage: {report.CoverageMessage}";
+        coverageRange.Style.Alignment.WrapText = true;
+        coverageRange.Style.Font.FontColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Muted);
+
+        nextRow += 3;
+        nextRow = ProliferationExcelWorkbookFormatter.WriteDataQualityDisclosure(
+            sheet,
+            nextRow,
+            8,
+            metadata);
+
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow, 1, "Total proliferation", report.Summary.TotalProliferation);
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow, 3, "SDD", report.Summary.SddTotal);
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow, 5, "515 ABW", report.Summary.Abw515Total);
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow, 7, "Simulators", report.Summary.ProjectCount);
+
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow + 1, 1, "Technical categories", report.Summary.TechnicalCategoryCount);
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow + 1, 3, "Approved annual quantity", report.Summary.ApprovedAnnualQuantity);
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow + 1, 5, "Approved detailed quantity", report.Summary.ApprovedDetailedQuantity);
+        ProliferationExcelWorkbookFormatter.WriteMetric(sheet, nextRow + 1, 7, "Receiving units", report.Summary.ReceivingUnitCount);
+
+        var metricsRange = sheet.Range(nextRow, 1, nextRow + 1, 8);
+        metricsRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        metricsRange.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+        metricsRange.Style.Border.OutsideBorderColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Border);
+        metricsRange.Style.Border.InsideBorderColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.LightBorder);
+
+        sheet.Columns(1, 8).Width = 18;
+        sheet.Column(1).Width = 24;
+        sheet.Column(3).Width = 24;
+        sheet.Column(5).Width = 24;
+        sheet.Column(7).Width = 24;
+        sheet.Rows(1, nextRow + 2).AdjustToContents();
+        ProliferationExcelWorkbookFormatter.ConfigurePrint(sheet, landscape: true);
     }
 
-    private static void BuildProjectSheet(XLWorkbook workbook, ProliferationAnalysisResultDto report)
+    private static void BuildProjectSheet(
+        XLWorkbook workbook,
+        ProliferationAnalysisResultDto report,
+        ProliferationExportMetadata metadata)
     {
         var sheet = workbook.Worksheets.Add("Simulator breakdown");
-        sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
-        sheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
-        sheet.PageSetup.ShowGridlines = false;
+        var headerRow = ProliferationExcelWorkbookFormatter.WriteHeading(
+            sheet,
+            "Simulator breakdown",
+            $"{report.ScopeLabel} · {report.PeriodLabel} · {report.SourceLabel}",
+            metadata,
+            5);
 
         var headers = new[]
         {
             "Simulator",
-            "Code",
             "Technical category",
             "SDD",
             "515 ABW",
             "Total proliferation"
         };
 
-        for (var index = 0; index < headers.Length; index++)
+        for (var column = 1; column <= headers.Length; column++)
         {
-            sheet.Cell(1, index + 1).Value = headers[index];
+            sheet.Cell(headerRow, column).Value = headers[column - 1];
         }
+        ProliferationExcelWorkbookFormatter.StyleHeader(sheet.Range(headerRow, 1, headerRow, headers.Length));
+        sheet.Row(headerRow).Height = 28;
 
-        StyleHeader(sheet.Range(1, 1, 1, headers.Length));
-
-        var row = 2;
+        var rowNumber = headerRow + 1;
         foreach (var item in report.Projects)
         {
-            sheet.Cell(row, 1).Value = item.ProjectName;
-            sheet.Cell(row, 2).Value = item.ProjectCode ?? string.Empty;
-            sheet.Cell(row, 3).Value = item.TechnicalCategory;
-            sheet.Cell(row, 4).Value = item.SddQuantity;
-            sheet.Cell(row, 5).Value = item.Abw515Quantity;
-            sheet.Cell(row, 6).Value = item.TotalQuantity;
-            row++;
+            sheet.Cell(rowNumber, 1).Value = item.ProjectName;
+            sheet.Cell(rowNumber, 2).Value = item.TechnicalCategory;
+            sheet.Cell(rowNumber, 3).Value = item.SddQuantity;
+            sheet.Cell(rowNumber, 4).Value = item.Abw515Quantity;
+            sheet.Cell(rowNumber, 5).Value = item.TotalQuantity;
+            rowNumber++;
         }
 
-        if (row > 2)
+        var lastDataRow = rowNumber - 1;
+        ProliferationExcelWorkbookFormatter.CreateTable(
+            sheet,
+            headerRow,
+            lastDataRow,
+            headers.Length,
+            "SimulatorBreakdownTable");
+
+        if (lastDataRow >= headerRow + 1)
         {
-            sheet.Range(2, 4, row - 1, 6).Style.NumberFormat.Format = "#,##0";
-            sheet.Range(1, 1, row - 1, headers.Length).SetAutoFilter();
+            sheet.Range(headerRow + 1, 3, lastDataRow, 5).Style.NumberFormat.Format = "#,##0";
+            sheet.Range(headerRow + 1, 3, lastDataRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
         }
 
-        sheet.SheetView.FreezeRows(1);
-        sheet.Column(1).Width = 40;
-        sheet.Column(2).Width = 18;
-        sheet.Column(3).Width = 28;
-        sheet.Columns(4, 6).Width = 18;
+        var totalRow = Math.Max(headerRow + 2, rowNumber + 1);
+        sheet.Cell(totalRow, 1).Value = "Report total";
+        sheet.Cell(totalRow, 3).Value = report.Summary.SddTotal;
+        sheet.Cell(totalRow, 4).Value = report.Summary.Abw515Total;
+        sheet.Cell(totalRow, 5).Value = report.Summary.TotalProliferation;
+        sheet.Range(totalRow, 1, totalRow, 5).Style.Font.Bold = true;
+        sheet.Range(totalRow, 3, totalRow, 5).Style.NumberFormat.Format = "#,##0";
+        sheet.Range(totalRow, 1, totalRow, 5).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        sheet.Range(totalRow, 1, totalRow, 5).Style.Border.TopBorderColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Border);
+
+        sheet.SheetView.FreezeRows(headerRow);
+        sheet.SheetView.FreezeColumns(1);
+        sheet.Column(1).Width = 58;
+        sheet.Column(2).Width = 30;
+        sheet.Columns(3, 5).Width = 18;
+        sheet.Columns(1, 2).Style.Alignment.WrapText = true;
+        ProliferationExcelWorkbookFormatter.ConfigurePrint(sheet, landscape: true, repeatingHeaderRow: headerRow);
     }
 
-    private static void BuildUnitSheet(XLWorkbook workbook, ProliferationAnalysisResultDto report)
+    private static void BuildUnitSheet(
+        XLWorkbook workbook,
+        ProliferationAnalysisResultDto report,
+        ProliferationExportMetadata metadata)
     {
-        var sheet = workbook.Worksheets.Add("Unit-wise breakdown");
-        sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
-        sheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
-        sheet.PageSetup.ShowGridlines = false;
+        var sheet = workbook.Worksheets.Add("Unit summary");
+        var headerRow = ProliferationExcelWorkbookFormatter.WriteHeading(
+            sheet,
+            "Unit summary",
+            "Rows consolidate approved detailed entries by receiving unit, simulator and source.",
+            metadata,
+            7);
+
+        var coverage = sheet.Range(headerRow, 1, headerRow, 7).Merge();
+        coverage.Value = report.CoverageMessage;
+        coverage.Style.Alignment.WrapText = true;
+        coverage.Style.Font.FontColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Muted);
+        headerRow += 2;
 
         var headers = new[]
         {
             "Receiving unit",
             "Simulator",
-            "Code",
             "Source",
             "Quantity",
             "Entries",
@@ -159,49 +213,71 @@ public sealed class ProliferationAnalysisExcelBuilder
             "Last date"
         };
 
-        for (var index = 0; index < headers.Length; index++)
+        for (var column = 1; column <= headers.Length; column++)
         {
-            sheet.Cell(1, index + 1).Value = headers[index];
+            sheet.Cell(headerRow, column).Value = headers[column - 1];
         }
+        ProliferationExcelWorkbookFormatter.StyleHeader(sheet.Range(headerRow, 1, headerRow, headers.Length));
 
-        StyleHeader(sheet.Range(1, 1, 1, headers.Length));
-
-        var row = 2;
+        var rowNumber = headerRow + 1;
         foreach (var item in report.Units)
         {
-            sheet.Cell(row, 1).Value = item.UnitName;
-            sheet.Cell(row, 2).Value = item.ProjectName;
-            sheet.Cell(row, 3).Value = item.ProjectCode ?? string.Empty;
-            sheet.Cell(row, 4).Value = item.SourceLabel;
-            sheet.Cell(row, 5).Value = item.Quantity;
-            sheet.Cell(row, 6).Value = item.EntryCount;
-            sheet.Cell(row, 7).Value = item.FirstDate.ToDateTime(TimeOnly.MinValue);
-            sheet.Cell(row, 8).Value = item.LastDate.ToDateTime(TimeOnly.MinValue);
-            row++;
+            sheet.Cell(rowNumber, 1).Value = item.UnitName;
+            sheet.Cell(rowNumber, 2).Value = item.ProjectName;
+            sheet.Cell(rowNumber, 3).Value = item.SourceLabel;
+            sheet.Cell(rowNumber, 4).Value = item.Quantity;
+            sheet.Cell(rowNumber, 5).Value = item.EntryCount;
+            ProliferationExcelWorkbookFormatter.WriteChronologyDate(
+                sheet.Cell(rowNumber, 6),
+                item.FirstDate,
+                report.MinimumValidYear,
+                report.MaximumValidYear);
+            ProliferationExcelWorkbookFormatter.WriteChronologyDate(
+                sheet.Cell(rowNumber, 7),
+                item.LastDate,
+                report.MinimumValidYear,
+                report.MaximumValidYear);
+            rowNumber++;
         }
 
-        if (row > 2)
+        var lastDataRow = rowNumber - 1;
+        ProliferationExcelWorkbookFormatter.CreateTable(
+            sheet,
+            headerRow,
+            lastDataRow,
+            headers.Length,
+            "UnitSummaryTable");
+
+        if (lastDataRow >= headerRow + 1)
         {
-            sheet.Range(2, 5, row - 1, 6).Style.NumberFormat.Format = "#,##0";
-            sheet.Range(2, 7, row - 1, 8).Style.NumberFormat.Format = "dd-mmm-yyyy";
-            sheet.Range(1, 1, row - 1, headers.Length).SetAutoFilter();
+            sheet.Range(headerRow + 1, 4, lastDataRow, 5).Style.NumberFormat.Format = "#,##0";
+            sheet.Range(headerRow + 1, 4, lastDataRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        }
+        else
+        {
+            var emptyRow = headerRow + 1;
+            var emptyRange = sheet.Range(emptyRow, 1, emptyRow, 7).Merge();
+            emptyRange.Value = "No approved detailed entries with a usable receiving-unit name were available for the selected report.";
+            emptyRange.Style.Font.FontColor = XLColor.FromHtml(ProliferationExcelWorkbookFormatter.Muted);
+            emptyRange.Style.Alignment.WrapText = true;
         }
 
-        sheet.SheetView.FreezeRows(1);
-        sheet.Column(1).Width = 34;
-        sheet.Column(2).Width = 40;
-        sheet.Column(3).Width = 18;
-        sheet.Column(4).Width = 14;
-        sheet.Columns(5, 6).Width = 13;
-        sheet.Columns(7, 8).Width = 16;
-    }
+        var totalRow = Math.Max(headerRow + 3, rowNumber + 1);
+        sheet.Cell(totalRow, 1).Value = "Unit-summary total";
+        sheet.Cell(totalRow, 4).Value = report.Units.Sum(item => item.Quantity);
+        sheet.Cell(totalRow, 5).Value = report.Units.Sum(item => item.EntryCount);
+        sheet.Range(totalRow, 1, totalRow, 7).Style.Font.Bold = true;
+        sheet.Range(totalRow, 4, totalRow, 5).Style.NumberFormat.Format = "#,##0";
+        sheet.Range(totalRow, 1, totalRow, 7).Style.Border.TopBorder = XLBorderStyleValues.Thin;
 
-    private static void StyleHeader(IXLRange range)
-    {
-        range.Style.Font.Bold = true;
-        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#EAF0FF");
-        range.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.BottomBorderColor = XLColor.FromHtml("#A8B7D8");
-        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        sheet.SheetView.FreezeRows(headerRow);
+        sheet.SheetView.FreezeColumns(1);
+        sheet.Column(1).Width = 36;
+        sheet.Column(2).Width = 52;
+        sheet.Column(3).Width = 15;
+        sheet.Columns(4, 5).Width = 13;
+        sheet.Columns(6, 7).Width = 16;
+        sheet.Columns(1, 3).Style.Alignment.WrapText = true;
+        ProliferationExcelWorkbookFormatter.ConfigurePrint(sheet, landscape: true, repeatingHeaderRow: headerRow);
     }
 }

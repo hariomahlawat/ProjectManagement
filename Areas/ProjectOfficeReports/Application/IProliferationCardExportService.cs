@@ -1,10 +1,14 @@
-﻿using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
-namespace ProjectManagement.Areas.ProjectOfficeReports.Application
+namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
+
+public interface IProliferationCardExportService
 {
-    public interface IProliferationCardExportService
-    {
-        byte[] BuildProjectsRanking(ProliferationSummaryViewModel summary);
-        byte[] BuildYearBreakdown(ProliferationSummaryViewModel summary);
-    }
+    byte[] BuildProjectsRanking(
+        ProliferationSummaryViewModel summary,
+        ProliferationExportMetadata metadata);
+
+    byte[] BuildYearBreakdown(
+        ProliferationSummaryViewModel summary,
+        ProliferationExportMetadata metadata);
 }

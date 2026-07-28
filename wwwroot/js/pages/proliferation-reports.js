@@ -15,6 +15,7 @@
     const minimumYear = Number(root.dataset.minimumYear || 2000);
     const maximumYear = Number(root.dataset.maximumYear || new Date().getUTCFullYear() + 1);
     const currentYear = Number(root.dataset.currentYear || new Date().getUTCFullYear());
+    const exportTimeoutMs = Math.max(30000, Number(root.dataset.exportTimeoutMs || 120000));
     const token = root.querySelector('#pf-analysis-antiforgery input[name="__RequestVerificationToken"]')?.value || "";
 
     const elements = {
@@ -56,11 +57,19 @@
         unitCount: root.querySelector('#pf-analysis-unit-count'),
         unitCountNote: root.querySelector('#pf-analysis-unit-count-note'),
         coverage: root.querySelector('#pf-analysis-coverage'),
+        dataQuality: root.querySelector('#pf-analysis-data-quality'),
         projectBody: root.querySelector('#pf-analysis-project-body'),
         loadUnits: root.querySelector('#pf-analysis-load-units'),
         unitPlaceholder: root.querySelector('#pf-analysis-unit-placeholder'),
         unitTableWrap: root.querySelector('#pf-analysis-unit-table-wrap'),
-        unitBody: root.querySelector('#pf-analysis-unit-body')
+        unitBody: root.querySelector('#pf-analysis-unit-body'),
+        exportModal: root.querySelector('#pf-analysis-export-modal'),
+        exportContext: root.querySelector('#pf-analysis-export-context'),
+        exportUnits: root.querySelector('#pf-analysis-export-units'),
+        exportUnitsNote: root.querySelector('#pf-analysis-export-units-note'),
+        exportQuality: root.querySelector('#pf-analysis-export-quality'),
+        exportError: root.querySelector('#pf-analysis-export-error'),
+        exportConfirm: root.querySelector('#pf-analysis-export-confirm')
     };
 
     const state = {
@@ -72,7 +81,8 @@
         latestRequest: null,
         latestResult: null,
         unitsLoaded: false,
-        requestController: null
+        requestController: null,
+        exportController: null
     };
 
     const numberFormatter = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -536,6 +546,13 @@
         elements.basis.textContent = result.calculationBasis || "";
         elements.coverage.innerHTML = `<i class="bi bi-info-circle" aria-hidden="true"></i><span>${escapeHtml(result.coverageMessage || "")}</span>`;
 
+        const hasChronologyIssues = Number(result.invalidChronologyRecordCount || 0) > 0
+            || Number(result.invalidChronologyReportedQuantity || 0) !== 0;
+        setHidden(elements.dataQuality, !hasChronologyIssues);
+        if (hasChronologyIssues && elements.dataQuality) {
+            elements.dataQuality.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>${escapeHtml(result.dataQualityMessage || "")}</span>`;
+        }
+
         renderProjectRows(Array.isArray(result.projects) ? result.projects : []);
 
         if (unitDataLoaded) {
@@ -613,12 +630,56 @@
         elements.unitBody.append(fragment);
     }
 
+    function exportModalInstance() {
+        if (!elements.exportModal || !window.bootstrap?.Modal) return null;
+        return window.bootstrap.Modal.getOrCreateInstance(elements.exportModal);
+    }
+
+    function openExportModal() {
+        if (!state.latestResult || !state.latestRequest) return;
+
+        const result = state.latestResult;
+        const summary = result.summary || {};
+        const hasUnitSummary = Boolean(summary.hasUnitBreakdown);
+
+        if (elements.exportContext) {
+            elements.exportContext.textContent = `${result.scopeLabel || "Report"} · ${result.periodLabel || "All time"} · ${result.sourceLabel || "All sources"}`;
+        }
+
+        if (elements.exportUnits) {
+            elements.exportUnits.disabled = !hasUnitSummary;
+            elements.exportUnits.checked = hasUnitSummary && state.unitsLoaded;
+        }
+
+        if (elements.exportUnitsNote) {
+            elements.exportUnitsNote.textContent = hasUnitSummary
+                ? "Adds grouped receiving-unit data from approved detailed entries. This may take longer for broad reports."
+                : "No approved detailed entries are available for a unit summary in this report.";
+        }
+
+        const hasChronologyIssues = Number(result.invalidChronologyRecordCount || 0) > 0
+            || Number(result.invalidChronologyReportedQuantity || 0) !== 0;
+        setHidden(elements.exportQuality, !hasChronologyIssues);
+        if (hasChronologyIssues && elements.exportQuality) {
+            elements.exportQuality.innerHTML = `<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>${escapeHtml(result.dataQualityMessage || "")}</span>`;
+        }
+
+        setHidden(elements.exportError, true);
+        if (elements.exportError) elements.exportError.textContent = "";
+        exportModalInstance()?.show();
+    }
+
+    function setExportBusy(isBusy) {
+        if (!elements.exportConfirm) return;
+        elements.exportConfirm.disabled = isBusy;
+        elements.exportConfirm.innerHTML = isBusy
+            ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Preparing…'
+            : '<i class="bi bi-download" aria-hidden="true"></i> Export workbook';
+    }
+
     async function exportReport() {
-        let request;
-        try {
-            request = buildRequest(true);
-        } catch (error) {
-            setStatus(error.message, true);
+        if (!state.latestRequest || !state.latestResult) {
+            setStatus("Generate the report before exporting.", true);
             return;
         }
 
@@ -629,10 +690,27 @@
             return;
         }
 
+        const request = {
+            ...state.latestRequest,
+            projectIds: Array.isArray(state.latestRequest.projectIds)
+                ? [...state.latestRequest.projectIds]
+                : [],
+            includeUnitBreakdown: Boolean(elements.exportUnits?.checked)
+        };
+
         elements.export.disabled = true;
-        const originalHtml = elements.export.innerHTML;
-        elements.export.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Exporting…';
+        setExportBusy(true);
+        setHidden(elements.exportError, true);
+        if (elements.exportError) elements.exportError.textContent = "";
         setStatus("Preparing Excel workbook…");
+
+        state.exportController?.abort();
+        state.exportController = new AbortController();
+        let timedOut = false;
+        const timeoutId = window.setTimeout(() => {
+            timedOut = true;
+            state.exportController?.abort();
+        }, exportTimeoutMs);
 
         try {
             const response = await fetch(endpoints.export, {
@@ -643,7 +721,8 @@
                     "Content-Type": "application/json",
                     ...antiforgeryHeaders()
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
+                signal: state.exportController.signal
             });
 
             if (!response.ok) throw await createSafeError(response);
@@ -659,11 +738,21 @@
             anchor.click();
             anchor.remove();
             window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            exportModalInstance()?.hide();
             setStatus("Excel report exported.");
         } catch (error) {
-            setStatus(error?.message || "The Excel report could not be exported.", true);
+            const message = timedOut || error?.name === "AbortError"
+                ? "The export took too long and was cancelled. Narrow the scope or period and try again."
+                : error?.message || "The Excel report could not be exported.";
+            if (elements.exportError) {
+                elements.exportError.textContent = message;
+                setHidden(elements.exportError, false);
+            }
+            setStatus(message, true);
         } finally {
-            elements.export.innerHTML = originalHtml;
+            window.clearTimeout(timeoutId);
+            state.exportController = null;
+            setExportBusy(false);
             elements.export.disabled = !state.latestResult;
         }
     }
@@ -691,10 +780,13 @@
         state.latestRequest = null;
         state.latestResult = null;
         state.unitsLoaded = false;
+        state.exportController?.abort();
+        state.exportController = null;
         renderProjectChips();
         updateScopeUi();
         updatePeriodUi();
         setHidden(elements.results, true);
+        setHidden(elements.dataQuality, true);
         elements.export.disabled = true;
         setStatus("");
         closeProjectSuggestions();
@@ -739,7 +831,8 @@
 
         elements.run?.addEventListener("click", () => runReport());
         elements.clear?.addEventListener("click", clearReport);
-        elements.export?.addEventListener("click", exportReport);
+        elements.export?.addEventListener("click", openExportModal);
+        elements.exportConfirm?.addEventListener("click", exportReport);
         elements.loadUnits?.addEventListener("click", () => runReport({ includeUnitBreakdown: true, keepPosition: true }));
         elements.edit?.addEventListener("click", () => {
             root.querySelector('.pf-analysis-setup')?.scrollIntoView({ behavior: "smooth", block: "start" });

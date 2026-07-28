@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -12,6 +13,8 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
+using ProjectManagement.Services;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation;
 
@@ -22,20 +25,32 @@ public sealed class SummaryModel : PageModel
     private readonly IProliferationCardExportService _cardExportService;
     private readonly ApplicationDbContext _db;
     private readonly ProliferationDataQualityService _dataQualityService;
+    private readonly ProliferationChronologyQualityService _chronologyQualityService;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IClock _clock;
+    private readonly IAuditService _audit;
+    private readonly ILogger<SummaryModel> _logger;
 
     public SummaryModel(
         IProliferationSummaryReadService summaryService,
         IProliferationCardExportService cardExportService,
         ApplicationDbContext db,
         ProliferationDataQualityService dataQualityService,
-        IAuthorizationService authorizationService)
+        ProliferationChronologyQualityService chronologyQualityService,
+        IAuthorizationService authorizationService,
+        IClock clock,
+        IAuditService audit,
+        ILogger<SummaryModel> logger)
     {
         _summaryService = summaryService ?? throw new ArgumentNullException(nameof(summaryService));
         _cardExportService = cardExportService ?? throw new ArgumentNullException(nameof(cardExportService));
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _dataQualityService = dataQualityService ?? throw new ArgumentNullException(nameof(dataQualityService));
+        _chronologyQualityService = chronologyQualityService ?? throw new ArgumentNullException(nameof(chronologyQualityService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public ProliferationSummaryViewModel Summary { get; private set; } = ProliferationSummaryViewModel.Empty;
@@ -87,23 +102,101 @@ public sealed class SummaryModel : PageModel
     public async Task<FileResult> OnGetExportProjectsAsync(CancellationToken cancellationToken)
     {
         var summary = await _summaryService.GetSummaryAsync(cancellationToken);
-        var bytes = _cardExportService.BuildProjectsRanking(summary);
+        var quality = await _chronologyQualityService.GetApprovedSummaryAsync(
+            projectIds: null,
+            source: null,
+            cancellationToken);
+        var metadata = BuildExportMetadata(
+            quality,
+            ProliferationChronologyQualityService.BuildDisclosure(quality, allTimeReport: true));
+        var bytes = _cardExportService.BuildProjectsRanking(summary, metadata);
+
+        await AuditExportAsync(
+            "Project totals",
+            summary.ByProject.Count,
+            quality,
+            cancellationToken);
 
         return File(
             bytes,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "ProliferationProjects.xlsx");
+            BuildExportFileName("proliferation-project-totals"));
     }
 
     public async Task<FileResult> OnGetExportYearBreakdownAsync(CancellationToken cancellationToken)
     {
         var summary = await _summaryService.GetSummaryAsync(cancellationToken);
-        var bytes = _cardExportService.BuildYearBreakdown(summary);
+        var quality = await _chronologyQualityService.GetApprovedSummaryAsync(
+            projectIds: null,
+            source: null,
+            cancellationToken);
+        var metadata = BuildExportMetadata(
+            quality,
+            ProliferationChronologyQualityService.BuildDisclosure(quality, allTimeReport: false));
+        var bytes = _cardExportService.BuildYearBreakdown(summary, metadata);
+
+        await AuditExportAsync(
+            "Year-wise data",
+            summary.ByProjectYear.Count,
+            quality,
+            cancellationToken);
 
         return File(
             bytes,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "ProliferationYearBreakdown.xlsx");
+            BuildExportFileName("proliferation-year-wise"));
+    }
+
+    private ProliferationExportMetadata BuildExportMetadata(
+        ProliferationChronologyQualitySummary quality,
+        string dataQualityMessage)
+        => new(
+            _clock.UtcNow,
+            User.Identity?.Name ?? "Unknown user",
+            quality,
+            dataQualityMessage);
+
+    private string BuildExportFileName(string stem)
+    {
+        var generatedAtIst = TimeZoneInfo.ConvertTime(_clock.UtcNow, TimeZoneHelper.GetIst());
+        return $"{stem}-{generatedAtIst:yyyyMMdd-HHmmss}-IST.xlsx";
+    }
+
+    private async Task AuditExportAsync(
+        string exportType,
+        int rowCount,
+        ProliferationChronologyQualitySummary quality,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _audit.LogAsync(
+                "Proliferation.Export",
+                $"Exported {exportType} workbook.",
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                userName: User.Identity?.Name,
+                data: new Dictionary<string, string?>
+                {
+                    ["ExportType"] = exportType,
+                    ["Rows"] = rowCount.ToString(CultureInfo.InvariantCulture),
+                    ["InvalidChronologyRecords"] = quality.ApprovedRecordCount.ToString(CultureInfo.InvariantCulture),
+                    ["InvalidChronologyQuantity"] = quality.ReportedQuantity.ToString(CultureInfo.InvariantCulture)
+                },
+                http: HttpContext);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "The {ExportType} proliferation workbook was generated, but its export audit could not be recorded. TraceId: {TraceId}",
+                exportType,
+                HttpContext.TraceIdentifier);
+        }
     }
 
     private async Task<IReadOnlyList<TechnicalCategoryBreakdownRow>> BuildTechnicalCategoryBreakdownAsync(

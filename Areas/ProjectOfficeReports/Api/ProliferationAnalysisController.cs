@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
+using System.Security.Claims;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api;
 
@@ -10,13 +13,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api;
 public sealed class ProliferationAnalysisController : ControllerBase
 {
     private readonly ProliferationAnalysisService _analysisService;
+    private readonly IAuditService _audit;
     private readonly ILogger<ProliferationAnalysisController> _logger;
 
     public ProliferationAnalysisController(
         ProliferationAnalysisService analysisService,
+        IAuditService audit,
         ILogger<ProliferationAnalysisController> logger)
     {
         _analysisService = analysisService ?? throw new ArgumentNullException(nameof(analysisService));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -61,7 +67,13 @@ public sealed class ProliferationAnalysisController : ControllerBase
     {
         try
         {
-            var (content, fileName) = await _analysisService.ExportAsync(request, cancellationToken);
+            var (content, fileName) = await _analysisService.ExportAsync(
+                request,
+                User.Identity?.Name ?? "Unknown user",
+                cancellationToken);
+
+            await TryAuditExportAsync(request, fileName, cancellationToken);
+
             return File(
                 content,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -78,6 +90,43 @@ public sealed class ProliferationAnalysisController : ControllerBase
         catch (Exception exception)
         {
             return CreateUnexpectedFailure(exception, "export");
+        }
+    }
+
+
+    private async Task TryAuditExportAsync(
+        ProliferationAnalysisRequestDto request,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _audit.LogAsync(
+                "Proliferation.Export",
+                "Exported proliferation analysis workbook.",
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                userName: User.Identity?.Name,
+                data: new Dictionary<string, string?>
+                {
+                    ["Scope"] = request.Scope.ToString(),
+                    ["PeriodMode"] = request.PeriodMode.ToString(),
+                    ["SelectedProjects"] = (request.ProjectIds?.Length ?? 0).ToString(CultureInfo.InvariantCulture),
+                    ["Source"] = request.Source?.ToString() ?? "All",
+                    ["IncludedUnitSummary"] = request.IncludeUnitBreakdown.ToString(),
+                    ["FileName"] = fileName
+                },
+                http: HttpContext);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "The proliferation workbook was generated, but its export audit could not be recorded. TraceId: {TraceId}",
+                HttpContext.TraceIdentifier);
         }
     }
 

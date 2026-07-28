@@ -623,6 +623,7 @@ builder.Services.AddScoped<ProliferationAggregateReadService>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
 builder.Services.AddScoped<ProliferationDataQualityService>();
+builder.Services.AddScoped<ProliferationChronologyQualityService>();
 builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
 
 // SECTION: Project briefing decks
@@ -642,6 +643,8 @@ builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuild
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
 // SECTION: Proliferation reports services
+builder.Services.AddOptions<ProliferationExportOptions>()
+    .Bind(builder.Configuration.GetSection(ProliferationExportOptions.SectionName));
 builder.Services.AddScoped<ProliferationReportsService>();
 builder.Services.AddScoped<ProliferationAnalysisService>();
 builder.Services.AddScoped<ProliferationAnalysisExcelBuilder>();
@@ -829,6 +832,8 @@ builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
 builder.Services.AddScoped<IProjectVideoService, ProjectVideoService>();
 builder.Services.AddOptions<ProjectRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Projects:Retention"));
+builder.Services.AddScoped<ProliferationProjectsCardExcelWorkbookBuilder>();
+builder.Services.AddScoped<ProliferationYearBreakdownCardExcelWorkbookBuilder>();
 builder.Services.AddScoped<IProliferationCardExportService, ProliferationCardExportService>();
 
 var enumConverter = new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: true);
