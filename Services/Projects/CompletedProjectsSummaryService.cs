@@ -19,6 +19,23 @@ public sealed class CompletedProjectsSummaryService
         _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
+
+    public async Task<IReadOnlyList<int>> GetCompletionYearsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _db.Projects
+            .AsNoTracking()
+            .Where(p =>
+                p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                && !p.IsDeleted
+                && !p.IsArchived
+                && p.CompletedYear.HasValue)
+            .Select(p => p.CompletedYear.GetValueOrDefault())
+            .Distinct()
+            .OrderByDescending(year => year)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<CompletedProjectSummaryDto>> GetAsync(
         int? technicalCategoryId,
         string? techStatus,
@@ -35,6 +52,7 @@ public sealed class CompletedProjectsSummaryService
         // SECTION: Base project selection
         var query = _db.Projects
             .AsNoTracking()
+            .Include(p => p.TechnicalCategory)
             .Where(p =>
                 p.LifecycleStatus == ProjectLifecycleStatus.Completed
                 && !p.IsDeleted
@@ -152,6 +170,8 @@ public sealed class CompletedProjectsSummaryService
             {
                 ProjectId = p.Id,
                 Name = p.Name,
+                TechnicalCategoryName = p.TechnicalCategory?.Name,
+                BuildType = p.IsBuild ? "Rebuild" : "New",
                 RdCostLakhs = p.CostLakhs,
                 ApproxProductionCost = cost?.ApproxProductionCost,
                 TechStatus = tech?.TechStatus,
@@ -244,6 +264,10 @@ public sealed class CompletedProjectsSummaryService
             "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
 
             "tech" => ApplyNullableStringSort(source, x => x.TechStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "category" => ApplyNullableStringSort(source, x => x.TechnicalCategoryName, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "build" => desc
+                ? source.OrderByDescending(x => x.BuildType, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                : source.OrderBy(x => x.BuildType, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
 
             "quality" => desc
                 ? source.OrderByDescending(CompletedProjectPortfolioPolicy.GetCriticalMissingCount)
@@ -288,6 +312,8 @@ public sealed class CompletedProjectSummaryDto
 {
     public int ProjectId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? TechnicalCategoryName { get; set; }
+    public string BuildType { get; set; } = "New";
     public decimal? RdCostLakhs { get; set; }
     public decimal? ApproxProductionCost { get; set; }
     public string? TechStatus { get; set; }

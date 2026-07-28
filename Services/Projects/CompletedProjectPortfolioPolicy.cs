@@ -41,9 +41,9 @@ public static class CompletedProjectPortfolioStatusCodes
     {
         FullyReady => "Fully ready",
         AvailableBlocked => "Available but blocked",
-        TechnologyAction => "Technology action required",
+        TechnologyAction => "Technology review required",
         TotAction => "ToT action pending",
-        CriticalIncomplete => "Critical record incomplete",
+        CriticalIncomplete => "Records with critical gaps",
         TechnologyAssessmentPending => "Technology assessment pending",
         _ => "All portfolio positions"
     };

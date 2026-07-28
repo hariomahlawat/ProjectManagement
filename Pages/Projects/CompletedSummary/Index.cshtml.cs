@@ -77,6 +77,8 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<SelectListItem> TechStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> TotStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> PortfolioStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> CompletedYearOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<ActiveCompletedProjectFilter> ActiveFilters { get; private set; } = Array.Empty<ActiveCompletedProjectFilter>();
 
     public IReadOnlyList<SelectListItem> AvailabilityOptions { get; } = new[]
     {
@@ -103,10 +105,13 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadTechnicalCategoriesAsync(cancellationToken);
+        var completionYears = await _summaryService.GetCompletionYearsAsync(cancellationToken);
+
         NormaliseFilters();
         NormaliseSorting();
         UpdateActiveFilterCount();
-        BuildOptionLists();
+        BuildOptionLists(completionYears);
+        BuildActiveFilters();
 
         Items = await LoadItemsAsync(cancellationToken);
         var currentYear = TimeZoneInfo.ConvertTime(_clock.UtcNow, TimeZoneHelper.GetIst()).Year;
@@ -223,7 +228,7 @@ public sealed class IndexModel : PageModel
         var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
         var dir = (Dir ?? string.Empty).Trim().ToLowerInvariant();
 
-        Sort = sort is "name" or "rd" or "prod" or "lpp" or "tech" or "avail" or "tot" or "year" or "quality"
+        Sort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp" or "tech" or "avail" or "tot" or "year" or "quality"
             ? sort
             : "name";
 
@@ -244,11 +249,160 @@ public sealed class IndexModel : PageModel
         if (!string.IsNullOrWhiteSpace(PortfolioStatus)) ActiveFilterCount++;
     }
 
-    private void BuildOptionLists()
+    private void BuildOptionLists(IReadOnlyList<int> completionYears)
     {
         TechStatusOptions = BuildTechStatusOptions(TechStatus);
         TotStatusOptions = BuildTotStatusOptions(TotCompleted);
         PortfolioStatusOptions = BuildPortfolioStatusOptions(PortfolioStatus);
+        CompletedYearOptions = BuildCompletedYearOptions(completionYears, CompletedYear);
+    }
+
+    private void BuildActiveFilters()
+    {
+        var filters = new List<ActiveCompletedProjectFilter>();
+
+        if (!string.IsNullOrWhiteSpace(Search))
+        {
+            filters.Add(new ActiveCompletedProjectFilter(nameof(Search), "Search", Search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(PortfolioStatus))
+        {
+            filters.Add(new ActiveCompletedProjectFilter(
+                nameof(PortfolioStatus),
+                "Portfolio position",
+                CompletedProjectPortfolioStatusCodes.GetLabel(PortfolioStatus)));
+        }
+
+        if (TechnicalCategoryId.HasValue)
+        {
+            var categoryName = TechnicalCategoryOptions
+                .FirstOrDefault(x => string.Equals(
+                    x.Value,
+                    TechnicalCategoryId.Value.ToString(),
+                    StringComparison.Ordinal))?.Text
+                ?? $"Category {TechnicalCategoryId.Value}";
+
+            filters.Add(new ActiveCompletedProjectFilter(
+                nameof(TechnicalCategoryId),
+                "Technical category",
+                categoryName));
+        }
+
+        if (!string.IsNullOrWhiteSpace(TechStatus))
+        {
+            filters.Add(new ActiveCompletedProjectFilter(nameof(TechStatus), "Technology", TechStatus));
+        }
+
+        if (CompletedYear.HasValue)
+        {
+            filters.Add(new ActiveCompletedProjectFilter(
+                nameof(CompletedYear),
+                "Completion year",
+                CompletedYear.Value.ToString()));
+        }
+
+        if (AvailableForProliferation.HasValue)
+        {
+            filters.Add(new ActiveCompletedProjectFilter(
+                nameof(AvailableForProliferation),
+                "Proliferation",
+                AvailableForProliferation.Value ? "Available" : "Not available"));
+        }
+
+        if (TotCompleted.HasValue)
+        {
+            filters.Add(new ActiveCompletedProjectFilter(
+                nameof(TotCompleted),
+                "ToT",
+                TotCompleted.Value ? "Completed" : "Not completed"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(Build))
+        {
+            filters.Add(new ActiveCompletedProjectFilter(nameof(Build), "Build type", Build));
+        }
+
+        ActiveFilters = filters;
+    }
+
+    public Dictionary<string, string> GetRoutesWithoutFilter(string filterKey) =>
+        BuildRouteValues(filterKey);
+
+    public Dictionary<string, string> GetClearFilterRoutes() =>
+        BuildRouteValues(
+            nameof(Search),
+            nameof(PortfolioStatus),
+            nameof(TechnicalCategoryId),
+            nameof(TechStatus),
+            nameof(CompletedYear),
+            nameof(AvailableForProliferation),
+            nameof(TotCompleted),
+            nameof(Build));
+
+    public Dictionary<string, string> GetRoutesForPortfolioStatus(string portfolioStatus)
+    {
+        var values = new Dictionary<string, string>(BuildRouteValues(nameof(PortfolioStatus)))
+        {
+            [nameof(PortfolioStatus)] = portfolioStatus,
+            [nameof(WorkspaceView)] = "register"
+        };
+
+        return values;
+    }
+
+    public Dictionary<string, string> GetRoutesForAvailability(bool available)
+    {
+        var values = new Dictionary<string, string>(
+            BuildRouteValues(nameof(PortfolioStatus), nameof(AvailableForProliferation)))
+        {
+            [nameof(AvailableForProliferation)] = available.ToString().ToLowerInvariant(),
+            [nameof(WorkspaceView)] = "register"
+        };
+
+        return values;
+    }
+
+    public Dictionary<string, string> GetRoutesForSort(string sortKey, string direction)
+    {
+        var values = new Dictionary<string, string>(BuildRouteValues(nameof(Sort), nameof(Dir)))
+        {
+            [nameof(Sort)] = sortKey,
+            [nameof(Dir)] = direction,
+            [nameof(WorkspaceView)] = "register"
+        };
+
+        return values;
+    }
+
+    private Dictionary<string, string> BuildRouteValues(params string[] excludedKeys)
+    {
+        var excluded = excludedKeys.ToHashSet(StringComparer.Ordinal);
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        Add(nameof(TechnicalCategoryId), TechnicalCategoryId?.ToString());
+        Add(nameof(TechStatus), TechStatus);
+        Add(nameof(AvailableForProliferation), AvailableForProliferation?.ToString().ToLowerInvariant());
+        Add(nameof(TotCompleted), TotCompleted?.ToString().ToLowerInvariant());
+        Add(nameof(CompletedYear), CompletedYear?.ToString());
+        Add(nameof(Search), Search);
+        Add(nameof(Build), Build);
+        Add(nameof(PortfolioStatus), PortfolioStatus);
+        Add(nameof(Sort), Sort);
+        Add(nameof(Dir), Dir);
+        Add(nameof(WorkspaceView), WorkspaceView);
+
+        return values;
+
+        void Add(string key, string? value)
+        {
+            if (excluded.Contains(key) || string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            values[key] = value;
+        }
     }
 
     private static string? NormaliseWorkspaceView(string? value)
@@ -342,6 +496,34 @@ public sealed class IndexModel : PageModel
         return items;
     }
 
+    private static IReadOnlyList<SelectListItem> BuildCompletedYearOptions(
+        IReadOnlyList<int> completionYears,
+        int? selected)
+    {
+        var items = new List<SelectListItem>
+        {
+            new("All years", string.Empty, selected is null)
+        };
+
+        foreach (var year in completionYears)
+        {
+            items.Add(new SelectListItem(
+                year.ToString(),
+                year.ToString(),
+                selected == year));
+        }
+
+        if (selected.HasValue && completionYears.All(year => year != selected.Value))
+        {
+            items.Add(new SelectListItem(
+                selected.Value.ToString(),
+                selected.Value.ToString(),
+                true));
+        }
+
+        return items;
+    }
+
     private static IReadOnlyList<SelectListItem> BuildPortfolioStatusOptions(string? selected)
     {
         var options = new (string Value, string Label)[]
@@ -349,9 +531,9 @@ public sealed class IndexModel : PageModel
             (string.Empty, "All"),
             (CompletedProjectPortfolioStatusCodes.FullyReady, "Fully ready"),
             (CompletedProjectPortfolioStatusCodes.AvailableBlocked, "Available but blocked"),
-            (CompletedProjectPortfolioStatusCodes.TechnologyAction, "Technology action required"),
+            (CompletedProjectPortfolioStatusCodes.TechnologyAction, "Technology review required"),
             (CompletedProjectPortfolioStatusCodes.TotAction, "ToT action pending"),
-            (CompletedProjectPortfolioStatusCodes.CriticalIncomplete, "Critical record incomplete"),
+            (CompletedProjectPortfolioStatusCodes.CriticalIncomplete, "Records with critical gaps"),
             (CompletedProjectPortfolioStatusCodes.TechnologyAssessmentPending, "Technology assessment pending")
         };
 
@@ -363,3 +545,9 @@ public sealed class IndexModel : PageModel
             .ToList();
     }
 }
+
+
+public sealed record ActiveCompletedProjectFilter(
+    string Key,
+    string Label,
+    string Value);

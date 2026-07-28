@@ -45,7 +45,7 @@ public sealed class CompletedProjectsPortfolioOverview
     public static CompletedProjectsPortfolioOverview Build(
         IReadOnlyList<CompletedProjectSummaryDto> items,
         int currentYear,
-        int queueSize = 6)
+        int queueSize = 5)
     {
         ArgumentNullException.ThrowIfNull(items);
         if (queueSize < 1) throw new ArgumentOutOfRangeException(nameof(queueSize));

@@ -31,7 +31,7 @@ public interface ICompletedProjectsSummaryExcelBuilder
 public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSummaryExcelBuilder
 {
     private const int FirstDataRow = 2;
-    private const int ColumnCount = 13;
+    private const int ColumnCount = 15;
 
     public byte[] Build(CompletedProjectsSummaryExportContext context)
     {
@@ -57,6 +57,8 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         {
             "S.No.",
             "Project",
+            "Technical category",
+            "Build type",
             "Completed year",
             "Development / L1 cost (lakh)",
             "Approx. production cost (lakh)",
@@ -95,28 +97,30 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
 
             worksheet.Cell(rowNumber, 1).Value = index + 1;
             worksheet.Cell(rowNumber, 2).Value = item.Name;
+            worksheet.Cell(rowNumber, 3).Value = item.TechnicalCategoryName ?? string.Empty;
+            worksheet.Cell(rowNumber, 4).Value = item.BuildType;
 
             if (item.CompletedYear.HasValue)
             {
-                worksheet.Cell(rowNumber, 3).Value = item.CompletedYear.Value;
+                worksheet.Cell(rowNumber, 5).Value = item.CompletedYear.Value;
             }
 
-            WriteDecimal(worksheet.Cell(rowNumber, 4), item.RdCostLakhs);
-            WriteDecimal(worksheet.Cell(rowNumber, 5), item.ApproxProductionCost);
-            WriteDecimal(worksheet.Cell(rowNumber, 6), item.LatestLpp?.Amount);
+            WriteDecimal(worksheet.Cell(rowNumber, 6), item.RdCostLakhs);
+            WriteDecimal(worksheet.Cell(rowNumber, 7), item.ApproxProductionCost);
+            WriteDecimal(worksheet.Cell(rowNumber, 8), item.LatestLpp?.Amount);
 
             if (item.LatestLpp?.Date is { } lppDate)
             {
-                worksheet.Cell(rowNumber, 7).Value = lppDate.ToDateTime(TimeOnly.MinValue);
-                worksheet.Cell(rowNumber, 7).Style.DateFormat.Format = "dd-MMM-yyyy";
+                worksheet.Cell(rowNumber, 9).Value = lppDate.ToDateTime(TimeOnly.MinValue);
+                worksheet.Cell(rowNumber, 9).Style.DateFormat.Format = "dd-MMM-yyyy";
             }
 
-            worksheet.Cell(rowNumber, 8).Value = CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus);
-            worksheet.Cell(rowNumber, 9).Value = CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation);
-            worksheet.Cell(rowNumber, 10).Value = CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus);
-            worksheet.Cell(rowNumber, 11).Value = string.Join(", ", CompletedProjectPortfolioPolicy.GetCriticalMissingFields(item));
-            worksheet.Cell(rowNumber, 12).Value = string.Join(", ", CompletedProjectPortfolioPolicy.GetSupplementaryMissingFields(item));
-            worksheet.Cell(rowNumber, 13).Value = item.Remarks ?? string.Empty;
+            worksheet.Cell(rowNumber, 10).Value = CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus);
+            worksheet.Cell(rowNumber, 11).Value = CompletedProjectPortfolioPolicy.GetAvailabilityLabel(item.AvailableForProliferation);
+            worksheet.Cell(rowNumber, 12).Value = CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus);
+            worksheet.Cell(rowNumber, 13).Value = string.Join(", ", CompletedProjectPortfolioPolicy.GetCriticalMissingFields(item));
+            worksheet.Cell(rowNumber, 14).Value = string.Join(", ", CompletedProjectPortfolioPolicy.GetSupplementaryMissingFields(item));
+            worksheet.Cell(rowNumber, 15).Value = item.Remarks ?? string.Empty;
         }
     }
 
@@ -136,18 +140,20 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
 
         worksheet.Column(1).Width = 8;
         worksheet.Column(2).Width = Math.Clamp(worksheet.Column(2).Width, 28, 46);
-        worksheet.Column(3).Width = 13;
-        worksheet.Columns(4, 6).Width = 18;
-        worksheet.Column(7).Width = 16;
-        worksheet.Columns(8, 10).Width = 20;
-        worksheet.Columns(11, 12).Width = 34;
-        worksheet.Column(13).Width = 55;
+        worksheet.Column(3).Width = Math.Clamp(worksheet.Column(3).Width, 18, 30);
+        worksheet.Column(4).Width = 12;
+        worksheet.Column(5).Width = 13;
+        worksheet.Columns(6, 8).Width = 18;
+        worksheet.Column(9).Width = 16;
+        worksheet.Columns(10, 12).Width = 20;
+        worksheet.Columns(13, 14).Width = 34;
+        worksheet.Column(15).Width = 55;
 
         worksheet.Columns(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Columns(3, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Columns(4, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-        worksheet.Columns(7, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.Columns(11, 13).Style.Alignment.WrapText = true;
+        worksheet.Columns(4, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Columns(6, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        worksheet.Columns(9, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        worksheet.Columns(13, 15).Style.Alignment.WrapText = true;
         worksheet.Columns(1, ColumnCount).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
 
         if (context.Items.Count > 0)

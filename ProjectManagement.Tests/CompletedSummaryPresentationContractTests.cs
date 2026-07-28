@@ -28,7 +28,7 @@ public sealed class CompletedSummaryPresentationContractTests
 
         Assert.Contains("Proliferation posture", view, StringComparison.Ordinal);
         Assert.Contains("Available but blocked", view, StringComparison.Ordinal);
-        Assert.Contains("Technology action required", view, StringComparison.Ordinal);
+        Assert.Contains("Technology review required", view, StringComparison.Ordinal);
         Assert.Contains("ToT action pending", view, StringComparison.Ordinal);
         Assert.Contains("Open filtered register", view, StringComparison.Ordinal);
         Assert.Contains("asp-route-PortfolioStatus", view, StringComparison.Ordinal);
@@ -41,10 +41,42 @@ public sealed class CompletedSummaryPresentationContractTests
         var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
 
         Assert.Contains("aria-sort=\"@nameSort.Aria\"", view, StringComparison.Ordinal);
-        Assert.Contains("asp-route-Sort=\"quality\"", view, StringComparison.Ordinal);
+        Assert.Contains("GetRoutesForSort(\"quality\"", view, StringComparison.Ordinal);
         Assert.Contains("critical", view, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("supplementary", view, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("or \"quality\"", model, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Register_UsesNaturalPageFlowAndProgressivelyRevealsWideScreenColumns()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+        var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
+        var css = ReadRepoFile("wwwroot", "css", "pages", "projects-completed-summary.css");
+
+        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", view, StringComparison.Ordinal);
+        Assert.Contains("cpw-wide-column", view, StringComparison.Ordinal);
+        Assert.Contains("cpw-ultrawide-column", view, StringComparison.Ordinal);
+        Assert.Contains("CompletedYearOptions", view, StringComparison.Ordinal);
+        Assert.Contains("GetRoutesForSort", view, StringComparison.Ordinal);
+        Assert.Contains("or \"category\" or \"build\"", model, StringComparison.Ordinal);
+        Assert.Contains("max-height: none", css, StringComparison.Ordinal);
+        Assert.Contains("@media (min-width: 1760px)", css, StringComparison.Ordinal);
+        Assert.Contains("@media (min-width: 2160px)", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WideScreenColumns_AreBackedByServiceAndExport()
+    {
+        var service = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");
+        var export = ReadRepoFile("Utilities", "Reporting", "CompletedProjectsSummaryExcelBuilder.cs");
+
+        Assert.Contains("Include(p => p.TechnicalCategory)", service, StringComparison.Ordinal);
+        Assert.Contains("TechnicalCategoryName = p.TechnicalCategory?.Name", service, StringComparison.Ordinal);
+        Assert.Contains("BuildType = p.IsBuild ? \"Rebuild\" : \"New\"", service, StringComparison.Ordinal);
+        Assert.Contains("\"Technical category\"", export, StringComparison.Ordinal);
+        Assert.Contains("\"Build type\"", export, StringComparison.Ordinal);
+        Assert.Contains("private const int ColumnCount = 15", export, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] relativePath)

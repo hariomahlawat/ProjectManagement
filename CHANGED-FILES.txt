@@ -1,4 +1,12 @@
-Services/Projects/CompletedProjectPortfolioPolicy.cs
+Pages/Projects/CompletedSummary/Index.cshtml
 Pages/Projects/CompletedSummary/Index.cshtml.cs
+Services/Projects/CompletedProjectPortfolioPolicy.cs
+Services/Projects/CompletedProjectsPortfolioOverview.cs
+Services/Projects/CompletedProjectsSummaryService.cs
 Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
-Pages/Projects/Overview.cshtml.cs
+wwwroot/css/pages/projects-completed-summary.css
+wwwroot/js/pages/projects-completed-summary.js
+ProjectManagement.Tests/CompletedProjectPortfolioPolicyTests.cs
+ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
+README-APPLY.txt
+CHANGED-FILES.txt

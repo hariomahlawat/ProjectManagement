@@ -33,6 +33,24 @@
 
   const tabs = [...root.querySelectorAll('[data-view]')];
   const panels = [...root.querySelectorAll('[data-view-panel]')];
+  const workspaceViewInput = root.querySelector('[data-workspace-view-input]');
+
+  const syncViewState = (view) => {
+    if (workspaceViewInput) workspaceViewInput.value = view;
+
+    try {
+      const url = new URL(window.location.href);
+      if (view === 'register') {
+        url.searchParams.delete('WorkspaceView');
+      } else {
+        url.searchParams.set('WorkspaceView', view);
+      }
+
+      window.history.replaceState(window.history.state, '', url);
+    } catch {
+      // URL synchronisation is progressive enhancement only.
+    }
+  };
 
   const setView = (requestedView, focusTab = false) => {
     const view = validViews.has(requestedView) ? requestedView : 'register';
@@ -52,6 +70,7 @@
     });
 
     storeView(view);
+    syncViewState(view);
   };
 
   tabs.forEach((tab) => {
