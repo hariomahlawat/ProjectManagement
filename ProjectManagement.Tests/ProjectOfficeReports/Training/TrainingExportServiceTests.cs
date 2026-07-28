@@ -5,8 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -20,49 +23,117 @@ namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 public sealed class TrainingExportServiceTests
 {
     [Fact]
-    public async Task ExportAsync_MissingUserId_ReturnsFailure()
+    public async Task ExportAsync_ProjectFilterIsHonoured_AndFilenameUsesIst()
     {
         await using var context = CreateContext();
-        var readService = new TrainingTrackerReadService(context);
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 7, 0, 0, TimeSpan.Zero));
-        var service = new TrainingExportService(readService, new TrainingExcelWorkbookBuilder(), clock);
+        var seed = await SeedAsync(context);
+        var audit = new RecordingAudit();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var service = CreateService(context, clock, audit);
 
-        var request = new TrainingExportRequest(
-            TrainingTypeId: null,
-            Category: null,
-            ProjectTechnicalCategoryId: null,
-            From: null,
-            To: null,
-            Search: null,
-            IncludeRoster: false,
-            RequestedByUserId: "");
+        var result = await service.ExportAsync(
+            CreateRequest(projectId: seed.ProjectAId),
+            CancellationToken.None);
 
-        var result = await service.ExportAsync(request, CancellationToken.None);
+        Assert.True(result.Success);
+        var file = Assert.IsType<TrainingExportFile>(result.File);
+        Assert.Equal("training-tracker-20240501-053000-IST.xlsx", file.FileName);
 
-        Assert.False(result.Success);
-        Assert.Null(result.File);
-        Assert.Contains(result.Errors, error => error.Contains("requesting user", StringComparison.OrdinalIgnoreCase));
+        using var workbook = new XLWorkbook(new MemoryStream(file.Content));
+        var trainings = workbook.Worksheet("Trainings");
+        Assert.Equal(seed.TrainingAId.ToString(), trainings.Cell(2, 2).GetString());
+        Assert.True(trainings.Cell(3, 2).IsEmpty());
+        Assert.Equal("Project Alpha", workbook.Worksheet("Summary").Cell("F7").GetString());
+
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal("ProjectOfficeReports.TrainingExportGenerated", entry.Action);
+        Assert.Equal("1", entry.Data["TrainingRowCount"]);
+        Assert.Equal(seed.ProjectAId.ToString(), entry.Data["ProjectId"]);
     }
 
     [Fact]
-    public async Task ExportAsync_InvalidDateRange_ReturnsFailure()
+    public async Task ExportAsync_SelectedCategoryRosterScope_FiltersOnlyRosterRows()
     {
         await using var context = CreateContext();
-        var readService = new TrainingTrackerReadService(context);
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 7, 30, 0, TimeSpan.Zero));
-        var service = new TrainingExportService(readService, new TrainingExcelWorkbookBuilder(), clock);
+        var seed = await SeedAsync(context);
+        var service = CreateService(
+            context,
+            FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 1, 0, 0, TimeSpan.Zero)),
+            new RecordingAudit());
 
-        var request = new TrainingExportRequest(
-            TrainingTypeId: null,
-            Category: null,
-            ProjectTechnicalCategoryId: null,
-            From: new DateOnly(2024, 5, 15),
-            To: new DateOnly(2024, 5, 1),
-            Search: null,
-            IncludeRoster: false,
-            RequestedByUserId: "export-user");
+        var request = CreateRequest(
+            projectId: seed.ProjectAId,
+            category: TrainingCategory.Officer,
+            includeRoster: true,
+            rosterScope: TrainingRosterScope.SelectedTraineeCategoryOnly);
 
         var result = await service.ExportAsync(request, CancellationToken.None);
+
+        Assert.True(result.Success);
+        using var workbook = new XLWorkbook(new MemoryStream(result.File!.Content));
+        var trainings = workbook.Worksheet("Trainings");
+        var roster = workbook.Worksheet("Roster");
+
+        Assert.Equal(2, trainings.Cell(2, 12).GetValue<int>()); // complete event total
+        Assert.Equal("Officer", roster.Cell(2, 10).GetString());
+        Assert.True(roster.Cell(3, 10).IsEmpty());
+    }
+
+    [Fact]
+    public async Task ExportAsync_OrdersTrainingRowsByTrainingDateDescending()
+    {
+        await using var context = CreateContext();
+        var seed = await SeedAsync(context);
+        var service = CreateService(
+            context,
+            FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 1, 0, 0, TimeSpan.Zero)),
+            new RecordingAudit());
+
+        var result = await service.ExportAsync(CreateRequest(projectId: null), CancellationToken.None);
+
+        Assert.True(result.Success);
+        using var workbook = new XLWorkbook(new MemoryStream(result.File!.Content));
+        var trainings = workbook.Worksheet("Trainings");
+
+        Assert.Equal(seed.TrainingAId.ToString(), trainings.Cell(2, 2).GetString());
+        Assert.Equal(new DateTime(2024, 4, 10), trainings.Cell(2, 4).GetDateTime());
+        Assert.Equal(new DateTime(2024, 3, 10), trainings.Cell(3, 4).GetDateTime());
+    }
+
+    [Fact]
+    public async Task ExportAsync_ExceedingConfiguredTrainingLimit_ReturnsControlledFailure()
+    {
+        await using var context = CreateContext();
+        await SeedAsync(context);
+        var service = CreateService(
+            context,
+            FakeClock.AtUtc(DateTimeOffset.UtcNow),
+            new RecordingAudit(),
+            maxTrainingRows: 1);
+
+        var result = await service.ExportAsync(CreateRequest(projectId: null), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Null(result.File);
+        Assert.Contains(result.Errors, error => error.Contains("current limit is 1", StringComparison.OrdinalIgnoreCase));
+    }
+
+
+    [Fact]
+    public async Task ExportAsync_InvalidDateRange_ReturnsValidationFailure()
+    {
+        await using var context = CreateContext();
+        var service = CreateService(
+            context,
+            FakeClock.AtUtc(DateTimeOffset.UtcNow),
+            new RecordingAudit());
+
+        var result = await service.ExportAsync(
+            CreateRequest(
+                projectId: null,
+                from: new DateOnly(2024, 5, 2),
+                to: new DateOnly(2024, 5, 1)),
+            CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Null(result.File);
@@ -70,148 +141,200 @@ public sealed class TrainingExportServiceTests
     }
 
     [Fact]
-    public async Task ExportAsync_WithValidInput_ReturnsWorkbook()
+    public async Task ExportAsync_ExceedingConfiguredRosterLimit_ReturnsControlledFailure()
     {
         await using var context = CreateContext();
-        var trainingTypeId = Guid.NewGuid();
-        var trainingId = Guid.NewGuid();
-        var projectId = 100;
-        var parentCategory = new TechnicalCategory
-        {
-            Id = 10,
-            Name = "Engineering",
-            CreatedByUserId = "seed"
-        };
-        var technicalCategory = new TechnicalCategory
-        {
-            Id = 11,
-            Name = "Networking",
-            ParentId = parentCategory.Id,
-            CreatedByUserId = "seed"
-        };
-        context.TechnicalCategories.AddRange(parentCategory, technicalCategory);
+        var seed = await SeedAsync(context);
+        var service = CreateService(
+            context,
+            FakeClock.AtUtc(DateTimeOffset.UtcNow),
+            new RecordingAudit(),
+            maxRosterRows: 1);
 
-        var project = new Project
-        {
-            Id = projectId,
-            Name = "Project Atlas",
-            CreatedByUserId = "creator",
-            TechnicalCategoryId = technicalCategory.Id
-        };
-        context.Projects.Add(project);
+        var result = await service.ExportAsync(
+            CreateRequest(projectId: seed.ProjectAId, includeRoster: true),
+            CancellationToken.None);
 
-        var trainingType = new TrainingType
-        {
-            Id = trainingTypeId,
-            Name = "Infantry Bootcamp",
-            CreatedByUserId = "creator",
-            CreatedAtUtc = new DateTimeOffset(2024, 3, 1, 6, 0, 0, TimeSpan.Zero)
-        };
-        context.TrainingTypes.Add(trainingType);
+        Assert.False(result.Success);
+        Assert.Null(result.File);
+        Assert.Contains(result.Errors, error => error.Contains("roster rows", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Errors, error => error.Contains("current limit is 1", StringComparison.OrdinalIgnoreCase));
+    }
 
-        var training = new TrainingEntity
-        {
-            Id = trainingId,
-            TrainingTypeId = trainingTypeId,
-            TrainingType = trainingType,
-            StartDate = new DateOnly(2024, 4, 5),
-            EndDate = new DateOnly(2024, 4, 12),
-            LegacyOfficerCount = 0,
-            LegacyJcoCount = 0,
-            LegacyOrCount = 0,
-            Notes = "Field readiness drills.",
-            CreatedByUserId = "creator",
-            CreatedAtUtc = new DateTimeOffset(2024, 4, 1, 8, 0, 0, TimeSpan.Zero),
-            ProjectLinks =
-            {
-                new TrainingProject
-                {
-                    TrainingId = trainingId,
-                    ProjectId = projectId,
-                    Project = project
-                }
-            },
-            Counters = new TrainingCounters
-            {
-                TrainingId = trainingId,
-                Officers = 5,
-                JuniorCommissionedOfficers = 4,
-                OtherRanks = 3,
-                Total = 12,
-                Source = TrainingCounterSource.Roster,
-                UpdatedAtUtc = new DateTimeOffset(2024, 4, 12, 12, 0, 0, TimeSpan.Zero)
-            }
-        };
-        context.Trainings.Add(training);
+    [Fact]
+    public async Task ExportAsync_SelectedRosterCategoryWithoutEventCategory_ReturnsValidationFailure()
+    {
+        await using var context = CreateContext();
+        var service = CreateService(
+            context,
+            FakeClock.AtUtc(DateTimeOffset.UtcNow),
+            new RecordingAudit());
 
-        context.TrainingTrainees.Add(new TrainingTrainee
-        {
-            TrainingId = trainingId,
-            Training = training,
-            ArmyNumber = "A123",
-            Rank = "Capt",
-            Name = "R. Iyer",
-            UnitName = "45 Signals",
-            Category = 0
-        });
-
-        await context.SaveChangesAsync();
-
-        var readService = new TrainingTrackerReadService(context);
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 8, 30, 0, TimeSpan.Zero));
-        var service = new TrainingExportService(readService, new TrainingExcelWorkbookBuilder(), clock);
-
-        var request = new TrainingExportRequest(
-            TrainingTypeId: trainingTypeId,
-            Category: TrainingCategory.Officer,
-            ProjectTechnicalCategoryId: technicalCategory.Id,
-            From: new DateOnly(2024, 4, 1),
-            To: new DateOnly(2024, 4, 30),
-            Search: "  Atlas  ",
-            IncludeRoster: true,
-            RequestedByUserId: "export-user");
+        var request = CreateRequest(
+            projectId: null,
+            category: null,
+            includeRoster: true,
+            rosterScope: TrainingRosterScope.SelectedTraineeCategoryOnly);
 
         var result = await service.ExportAsync(request, CancellationToken.None);
 
-        Assert.True(result.Success);
-        var file = Assert.IsType<TrainingExportFile>(result.File);
-        Assert.Equal("training-tracker-20240501-083000.xlsx", file.FileName);
-        Assert.Equal(TrainingExportFile.ExcelContentType, file.ContentType);
-        Assert.NotEmpty(file.Content);
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, error => error.Contains("Select a trainee category", StringComparison.OrdinalIgnoreCase));
+    }
 
-        using var stream = new MemoryStream(file.Content);
-        using var workbook = new XLWorkbook(stream);
-        var trainingsSheet = workbook.Worksheet("Trainings");
+    private static TrainingExportService CreateService(
+        ApplicationDbContext context,
+        IClock clock,
+        RecordingAudit audit,
+        int maxTrainingRows = 5000,
+        int maxRosterRows = 50000)
+        => new(
+            new TrainingTrackerReadService(context),
+            new TrainingExcelWorkbookBuilder(),
+            clock,
+            new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions
+            {
+                Enabled = true,
+                MaxExportTrainingRows = maxTrainingRows,
+                MaxExportRosterRows = maxRosterRows,
+                ExportTimeoutSeconds = 120
+            }),
+            audit,
+            NullLogger<TrainingExportService>.Instance);
 
-        Assert.Equal("Trainings", trainingsSheet.Name);
-        Assert.Equal("Infantry Bootcamp", trainingsSheet.Cell(2, 2).GetString());
-        Assert.Equal("Field readiness drills.", trainingsSheet.Cell(2, 11).GetString());
+    private static TrainingExportRequest CreateRequest(
+        int? projectId,
+        TrainingCategory? category = null,
+        bool includeRoster = false,
+        TrainingRosterScope rosterScope = TrainingRosterScope.AllTraineesInMatchingEvents,
+        DateOnly? from = null,
+        DateOnly? to = null)
+        => new(
+            TrainingTypeId: null,
+            Category: category,
+            ProjectId: projectId,
+            ProjectTechnicalCategoryId: null,
+            From: from,
+            To: to,
+            Search: null,
+            IncludeRoster: includeRoster,
+            RosterScope: rosterScope,
+            RequestedByUserId: "export-user",
+            RequestedByDisplayName: "Export User",
+            ApplicationBaseUrl: "https://prism.local");
 
-        var metadataStartRow = 4;
-        Assert.Equal("Export generated", trainingsSheet.Cell(metadataStartRow, 1).GetString());
-        Assert.Equal("From", trainingsSheet.Cell(metadataStartRow + 1, 1).GetString());
-        Assert.Equal("2024-04-01", trainingsSheet.Cell(metadataStartRow + 1, 2).GetString());
-        Assert.Equal("To", trainingsSheet.Cell(metadataStartRow + 2, 1).GetString());
-        Assert.Equal("2024-04-30", trainingsSheet.Cell(metadataStartRow + 2, 2).GetString());
-        Assert.Equal("Search", trainingsSheet.Cell(metadataStartRow + 3, 1).GetString());
-        Assert.Equal("Atlas", trainingsSheet.Cell(metadataStartRow + 3, 2).GetString());
-        Assert.Equal("Include roster", trainingsSheet.Cell(metadataStartRow + 4, 1).GetString());
-        Assert.Equal("Yes", trainingsSheet.Cell(metadataStartRow + 4, 2).GetString());
-        Assert.Equal("Training type", trainingsSheet.Cell(metadataStartRow + 5, 1).GetString());
-        Assert.Equal("Infantry Bootcamp", trainingsSheet.Cell(metadataStartRow + 5, 2).GetString());
-        Assert.Equal("Category", trainingsSheet.Cell(metadataStartRow + 6, 1).GetString());
-        Assert.Equal("Officers", trainingsSheet.Cell(metadataStartRow + 6, 2).GetString());
-        Assert.Equal("Technical category", trainingsSheet.Cell(metadataStartRow + 7, 1).GetString());
-        Assert.Equal("Networking", trainingsSheet.Cell(metadataStartRow + 7, 2).GetString());
-        Assert.Equal("Technical category display", trainingsSheet.Cell(metadataStartRow + 8, 1).GetString());
-        Assert.Equal("— Networking", trainingsSheet.Cell(metadataStartRow + 8, 2).GetString());
+    private static async Task<SeedResult> SeedAsync(ApplicationDbContext context)
+    {
+        var type = new TrainingType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Simulator",
+            DisplayOrder = 1,
+            IsActive = true,
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
 
-        var rosterSheet = workbook.Worksheet("Roster");
-        Assert.Equal("Roster", rosterSheet.Name);
-        Assert.Equal("Infantry Bootcamp", rosterSheet.Cell(2, 1).GetString());
-        Assert.Equal("Project Atlas", rosterSheet.Cell(2, 3).GetString());
-        Assert.Equal("45 Signals", rosterSheet.Cell(2, 7).GetString());
-        Assert.Equal(0, rosterSheet.Cell(2, 8).GetValue<int>());
+        var category = new TechnicalCategory
+        {
+            Id = 10,
+            Name = "AR / VR",
+            IsActive = true,
+            CreatedByUserId = "seed"
+        };
+
+        var projectA = new Project
+        {
+            Id = 101,
+            Name = "Project Alpha",
+            CreatedByUserId = "seed",
+            TechnicalCategoryId = category.Id,
+            TechnicalCategory = category
+        };
+
+        var projectB = new Project
+        {
+            Id = 102,
+            Name = "Project Bravo",
+            CreatedByUserId = "seed",
+            TechnicalCategoryId = category.Id,
+            TechnicalCategory = category
+        };
+
+        var trainingA = CreateTraining(type, new DateOnly(2024, 4, 10), officers: 1, ors: 1);
+        var trainingB = CreateTraining(type, new DateOnly(2024, 3, 10), officers: 0, ors: 3);
+
+        trainingA.ProjectLinks.Add(new TrainingProject
+        {
+            TrainingId = trainingA.Id,
+            ProjectId = projectA.Id,
+            Project = projectA
+        });
+        trainingB.ProjectLinks.Add(new TrainingProject
+        {
+            TrainingId = trainingB.Id,
+            ProjectId = projectB.Id,
+            Project = projectB
+        });
+
+        trainingA.Trainees.Add(new TrainingTrainee
+        {
+            TrainingId = trainingA.Id,
+            Training = trainingA,
+            ArmyNumber = "A001",
+            Rank = "Capt",
+            Name = "Officer One",
+            UnitName = "Unit A",
+            Category = (byte)TrainingCategory.Officer
+        });
+        trainingA.Trainees.Add(new TrainingTrainee
+        {
+            TrainingId = trainingA.Id,
+            Training = trainingA,
+            ArmyNumber = "A002",
+            Rank = "Hav",
+            Name = "Other Rank One",
+            UnitName = "Unit A",
+            Category = (byte)TrainingCategory.OtherRank
+        });
+
+        context.TrainingTypes.Add(type);
+        context.TechnicalCategories.Add(category);
+        context.Projects.AddRange(projectA, projectB);
+        context.Trainings.AddRange(trainingA, trainingB);
+        await context.SaveChangesAsync();
+
+        return new SeedResult(projectA.Id, trainingA.Id);
+    }
+
+    private static TrainingEntity CreateTraining(
+        TrainingType type,
+        DateOnly startDate,
+        int officers,
+        int ors)
+    {
+        var id = Guid.NewGuid();
+        return new TrainingEntity
+        {
+            Id = id,
+            TrainingTypeId = type.Id,
+            TrainingType = type,
+            StartDate = startDate,
+            EndDate = startDate.AddDays(1),
+            Notes = "Export test",
+            CreatedByUserId = "seed",
+            CreatedAtUtc = startDate.ToDateTime(TimeOnly.MinValue),
+            Counters = new TrainingCounters
+            {
+                TrainingId = id,
+                Officers = officers,
+                JuniorCommissionedOfficers = 0,
+                OtherRanks = ors,
+                Total = officers + ors,
+                Source = TrainingCounterSource.Roster,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            }
+        };
     }
 
     private static ApplicationDbContext CreateContext()
@@ -220,5 +343,15 @@ public sealed class TrainingExportServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new ApplicationDbContext(options);
+    }
+
+    private sealed record SeedResult(int ProjectAId, Guid TrainingAId);
+
+    private sealed class StubOptionsSnapshot<T> : IOptionsSnapshot<T> where T : class
+    {
+        private readonly T _value;
+        public StubOptionsSnapshot(T value) => _value = value;
+        public T Value => _value;
+        public T Get(string? name) => _value;
     }
 }

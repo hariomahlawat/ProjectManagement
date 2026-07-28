@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -61,6 +62,15 @@ public class IndexModel : PageModel
     public bool CanApproveTrainingTracker { get; private set; }
     public bool CanManageTrainingTracker { get; private set; }
 
+    public int ExportTimeoutMilliseconds
+    {
+        get
+        {
+            var seconds = Math.Clamp(_options.Value.ExportTimeoutSeconds, 10, 900);
+            return seconds * 1000;
+        }
+    }
+
     [BindProperty(SupportsGet = true)]
     public FilterInput Filter { get; set; } = new();
 
@@ -68,10 +78,11 @@ public class IndexModel : PageModel
     public ExportInput Export { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> TrainingTypes { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> ProjectTechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> CategoryOptions { get; } = new List<SelectListItem>
     {
-        new("All categories", string.Empty),
+        new("All trainee categories", string.Empty),
         new("Officers", TrainingCategory.Officer.ToString()),
         new("Junior Commissioned Officers", TrainingCategory.JuniorCommissionedOfficer.ToString()),
         new("Other Ranks", TrainingCategory.OtherRank.ToString())
@@ -121,48 +132,77 @@ public class IndexModel : PageModel
         IsFeatureEnabled = _options.Value.Enabled;
         if (!IsFeatureEnabled)
         {
-            return Forbid();
+            return IsAjaxRequest()
+                ? StatusCode(StatusCodes.Status403Forbidden, new { errors = new[] { "Training exports are currently unavailable." } })
+                : Forbid();
         }
-
-        BackfillExportDefaultsFromFilter();
 
         if (!ModelState.IsValid)
         {
+            var errors = GetModelStateErrors();
+            if (IsAjaxRequest())
+            {
+                return BadRequest(new { errors });
+            }
+
             await PopulateAsync(cancellationToken);
             ViewData["ShowTrainingExportModal"] = true;
             return Page();
         }
 
-        var userId = _userManager.GetUserId(User);
+        var user = await _userManager.GetUserAsync(User);
+        var userId = user?.Id ?? _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId))
         {
-            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
+            const string message = "You are not signed in or your session has expired. Please sign in again.";
+            if (IsAjaxRequest())
+            {
+                return new UnauthorizedObjectResult(new { errors = new[] { message } });
+            }
+
+            TempData["ToastError"] = message;
             return Challenge();
         }
 
+        var displayName = !string.IsNullOrWhiteSpace(user?.FullName)
+            ? user.FullName
+            : !string.IsNullOrWhiteSpace(user?.UserName)
+                ? user.UserName!
+                : userId;
+
+        var applicationBaseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var request = new TrainingExportRequest(
             Export.TypeId,
             Export.Category,
+            Export.ProjectId,
             Export.ProjectTechnicalCategoryId,
             Export.From,
             Export.To,
             Export.Search,
             Export.IncludeRoster,
-            userId);
+            Export.RosterScope,
+            userId,
+            displayName,
+            applicationBaseUrl);
 
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
-            foreach (var error in result.Errors)
+            IReadOnlyList<string> errors = result.Errors.Count > 0
+                ? result.Errors
+                : new[] { "The export could not be generated." };
+
+            if (IsAjaxRequest())
+            {
+                return BadRequest(new { errors });
+            }
+
+            foreach (var error in errors)
             {
                 ModelState.AddModelError(string.Empty, error);
             }
 
-            if (result.Errors.Count > 0)
-            {
-                TempData["ToastError"] = result.Errors[0];
-            }
-
+            TempData["ToastError"] = errors[0];
             await PopulateAsync(cancellationToken);
             ViewData["ShowTrainingExportModal"] = true;
             return Page();
@@ -170,6 +210,21 @@ public class IndexModel : PageModel
 
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
+
+    private bool IsAjaxRequest()
+        => string.Equals(
+            Request.Headers["X-Requested-With"].ToString(),
+            "XMLHttpRequest",
+            StringComparison.OrdinalIgnoreCase);
+
+    private string[] GetModelStateErrors()
+        => ModelState.Values
+            .SelectMany(value => value.Errors)
+            .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                ? "The export request contains an invalid value."
+                : error.ErrorMessage)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     // -------------------------------------------------------------------------
     // main populate
@@ -274,7 +329,7 @@ public class IndexModel : PageModel
     // -------------------------------------------------------------------------
     private async Task LoadOptionsAsync(CancellationToken cancellationToken)
     {
-        var selectedTypeId = Filter.TypeId.GetValueOrDefault();
+        var selectedTypeId = (Export.TypeId ?? Filter.TypeId).GetValueOrDefault();
 
         var options = new List<SelectListItem>
         {
@@ -291,6 +346,17 @@ public class IndexModel : PageModel
             }));
 
         TrainingTypes = options;
+
+        var selectedProjectId = Export.ProjectId ?? Filter.ProjectId;
+        var projects = await _readService.GetProjectOptionsAsync(
+            selectedProjectId.HasValue ? new[] { selectedProjectId.Value } : Array.Empty<int>(),
+            cancellationToken);
+        ProjectOptions = new[] { new SelectListItem("All projects", string.Empty, !selectedProjectId.HasValue) }
+            .Concat(projects.Select(project => new SelectListItem(
+                project.Name,
+                project.Id.ToString(CultureInfo.InvariantCulture),
+                selectedProjectId == project.Id)))
+            .ToList();
 
         var technicalCategories = await _readService.GetProjectTechnicalCategoryOptionsAsync(cancellationToken);
         var selectedTechnicalCategoryId = Export.ProjectTechnicalCategoryId ?? Filter.ProjectTechnicalCategoryId;
@@ -331,6 +397,7 @@ public class IndexModel : PageModel
     {
         Export.From ??= Filter.From;
         Export.To ??= Filter.To;
+        Export.ProjectId ??= Filter.ProjectId;
         Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
         Export.TypeId ??= Filter.TypeId;
         Export.Category ??= Filter.Category;
@@ -351,7 +418,7 @@ public class IndexModel : PageModel
         [Display(Name = "Project technical category")]
         public int? ProjectTechnicalCategoryId { get; set; }
 
-        [Display(Name = "Category")]
+        [Display(Name = "Training includes")]
         public TrainingCategory? Category { get; set; }
 
         [DataType(DataType.Date)]
@@ -374,7 +441,10 @@ public class IndexModel : PageModel
         [Display(Name = "Training type")]
         public Guid? TypeId { get; set; }
 
-        [Display(Name = "Category")]
+        [Display(Name = "Project")]
+        public int? ProjectId { get; set; }
+
+        [Display(Name = "Training includes")]
         public TrainingCategory? Category { get; set; }
 
         [DataType(DataType.Date)]
@@ -389,10 +459,14 @@ public class IndexModel : PageModel
         public int? ProjectTechnicalCategoryId { get; set; }
 
         [Display(Name = "Search")]
+        [StringLength(200, ErrorMessage = "Search text cannot exceed 200 characters.")]
         public string? Search { get; set; }
 
         [Display(Name = "Include roster details")]
         public bool IncludeRoster { get; set; }
+
+        [Display(Name = "Roster rows")]
+        public TrainingRosterScope RosterScope { get; set; } = TrainingRosterScope.AllTraineesInMatchingEvents;
     }
 
     // -------------------------------------------------------------------------

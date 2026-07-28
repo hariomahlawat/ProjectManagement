@@ -59,8 +59,8 @@
                                 ),
                 @(
                                 Model.Filter.Category.HasValue
-                                ? Model.CategoryOptions.FirstOrDefault(t => t.Value == Model.Filter.Category.ToString())?.Text ?? "Selected category"
-                                : "All categories"
+                                ? Model.CategoryOptions.FirstOrDefault(t => t.Value == Model.Filter.Category.ToString())?.Text ?? "Selected trainee category"
+                                : "All trainee categories"
                                 )
                 @if (Model.Filter.ProjectId.HasValue)
                 {
@@ -484,29 +484,48 @@ else
          data-training-export-auto-show="@(showExportModal.ToString().ToLowerInvariant())">
         <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
             <div class="modal-content">
-                <form method="post" asp-page-handler="Export" class="w-100 training-export-form">
+                <form method="post"
+                      asp-page-handler="Export"
+                      class="w-100 training-export-form"
+                      data-training-export-timeout-ms="@Model.ExportTimeoutMilliseconds">
                     <div class="modal-header">
-                        <h2 class="modal-title h5" id="trainingExportModalLabel">Export trainings</h2>
+                        <div>
+                            <h2 class="modal-title h5 mb-1" id="trainingExportModalLabel">Export trainings</h2>
+                            <p class="small text-muted mb-0">Create a filtered analytical workbook with summary and detailed sheets.</p>
+                        </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        <div class="alert alert-danger d-none mb-3"
+                             role="alert"
+                             aria-live="assertive"
+                             tabindex="-1"
+                             data-training-export-errors></div>
+
                         <div class="row g-3">
-                            <div class="col-lg-4">
+                            <div class="col-md-6 col-xl-3">
                                 <label asp-for="Export.TypeId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <select asp-for="Export.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
                                 <span asp-validation-for="Export.TypeId" class="text-danger small"></span>
                             </div>
-                            <div class="col-lg-4">
+                            <div class="col-md-6 col-xl-3">
+                                <label asp-for="Export.ProjectId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Export.ProjectId" asp-items="Model.ProjectOptions" class="form-select"></select>
+                                <span asp-validation-for="Export.ProjectId" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 col-xl-3">
                                 <label asp-for="Export.ProjectTechnicalCategoryId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <select asp-for="Export.ProjectTechnicalCategoryId" asp-items="Model.ProjectTechnicalCategoryOptions" class="form-select"></select>
                                 <span asp-validation-for="Export.ProjectTechnicalCategoryId" class="text-danger small"></span>
                             </div>
-                            <div class="col-lg-4">
+                            <div class="col-md-6 col-xl-3">
                                 <label asp-for="Export.Category" class="form-label small text-uppercase text-secondary fw-semibold"></label>
-                                <select asp-for="Export.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
+                                <select asp-for="Export.Category" asp-items="Model.CategoryOptions" class="form-select" data-training-export-category></select>
+                                <div class="form-text">Includes training events attended by this category. Event totals remain complete.</div>
                                 <span asp-validation-for="Export.Category" class="text-danger small"></span>
                             </div>
+
                             <div class="col-md-3">
                                 <label asp-for="Export.From" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <input asp-for="Export.From" class="form-control" />
@@ -517,24 +536,50 @@ else
                                 <input asp-for="Export.To" class="form-control" />
                                 <span asp-validation-for="Export.To" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-6 col-lg-4">
+                            <div class="col-md-6">
                                 <label asp-for="Export.Search" class="form-label small text-uppercase text-secondary fw-semibold"></label>
                                 <input asp-for="Export.Search" class="form-control" placeholder="Search notes or projects" />
                                 <span asp-validation-for="Export.Search" class="text-danger small"></span>
                             </div>
+
                             <div class="col-12">
-                                <div class="form-check">
-                                    <input asp-for="Export.IncludeRoster" class="form-check-input" />
-                                    <label asp-for="Export.IncludeRoster" class="form-check-label"></label>
+                                <div class="border rounded-3 p-3 bg-light-subtle">
+                                    <div class="row g-3 align-items-start">
+                                        <div class="col-md-5">
+                                            <div class="form-check">
+                                                <input asp-for="Export.IncludeRoster"
+                                                       class="form-check-input"
+                                                       data-training-export-include-roster />
+                                                <label asp-for="Export.IncludeRoster" class="form-check-label fw-semibold"></label>
+                                            </div>
+                                            <div class="form-text ms-4">Adds Army number, rank, name, unit and trainee category.</div>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <label asp-for="Export.RosterScope" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                            <select asp-for="Export.RosterScope"
+                                                    class="form-select"
+                                                    data-training-export-roster-scope>
+                                                <option value="@((int)ProjectManagement.Areas.ProjectOfficeReports.Application.TrainingRosterScope.AllTraineesInMatchingEvents)">
+                                                    All trainees in matching events
+                                                </option>
+                                                <option value="@((int)ProjectManagement.Areas.ProjectOfficeReports.Application.TrainingRosterScope.SelectedTraineeCategoryOnly)">
+                                                    Selected trainee category only
+                                                </option>
+                                            </select>
+                                            <div class="form-text" data-training-export-roster-scope-help>
+                                                Select a trainee category above to limit roster rows.
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer gap-2 justify-content-between flex-wrap">
-                        <p class="text-muted small mb-0">Your export will use the filters above. Default values match the current view.</p>
+                        <p class="text-muted small mb-0">Default values match the current tracker view. You may refine them before exporting.</p>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary btn-sm" data-training-busy-label="Preparing...">
+                            <button type="submit" class="btn btn-primary btn-sm" data-training-busy-label="Preparing…">
                                 <i class="bi bi-download" aria-hidden="true"></i>
                                 <span>Export</span>
                             </button>

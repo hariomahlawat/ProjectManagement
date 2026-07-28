@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using ClosedXML.Excel;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Utilities;
 
@@ -15,37 +17,52 @@ public interface ITrainingExcelWorkbookBuilder
 }
 
 public sealed record TrainingExcelWorkbookContext(
-    IReadOnlyList<TrainingExportDetail> Trainings,
+    TrainingExportDataset Dataset,
+    TrainingKpiDto Kpis,
     DateTimeOffset GeneratedAtUtc,
+    string RequestedByDisplayName,
+    string ApplicationBaseUrl,
     DateOnly? From,
     DateOnly? To,
     string? Search,
     bool IncludeRoster,
+    TrainingRosterScope RosterScope,
     string? TrainingTypeName,
     string? CategoryName,
-    string? ProjectTechnicalCategoryName,
-    string? ProjectTechnicalCategoryDisplayName);
+    string? ProjectName,
+    string? ProjectTechnicalCategoryName);
 
 public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 {
+    private const string Navy = "#17365D";
+    private const string Blue = "#2F75B5";
+    private const string PaleBlue = "#D9EAF7";
+    private const string PaleGreen = "#E2F0D9";
+    private const string PaleAmber = "#FFF2CC";
+    private const string LightGray = "#F2F2F2";
+    private const string BorderGray = "#D9E1F2";
+
     public byte[] Build(TrainingExcelWorkbookContext context)
     {
-        if (context.Trainings is null)
-        {
-            throw new ArgumentNullException(nameof(context.Trainings));
-        }
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(context.Dataset);
+        ArgumentNullException.ThrowIfNull(context.Kpis);
 
         using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("Trainings");
+        workbook.Properties.Title = "PRISM ERP Training Tracker Export";
+        workbook.Properties.Subject = "Filtered training tracker report";
+        workbook.Properties.Author = string.IsNullOrWhiteSpace(context.RequestedByDisplayName)
+            ? "PRISM ERP"
+            : context.RequestedByDisplayName;
+        workbook.Properties.Company = "Simulator Development Division";
 
-        WriteHeader(worksheet);
-        WriteRows(worksheet, context.Trainings);
-        ApplyMetadata(worksheet, context);
+        WriteSummaryWorksheet(workbook.Worksheets.Add("Summary"), context);
+        WriteTrainingsWorksheet(workbook.Worksheets.Add("Trainings"), context);
+        WriteTrainingProjectsWorksheet(workbook.Worksheets.Add("Training Projects"), context);
 
         if (context.IncludeRoster)
         {
-            var rosterWorksheet = workbook.Worksheets.Add("Roster");
-            WriteRosterWorksheet(rosterWorksheet, context.Trainings);
+            WriteRosterWorksheet(workbook.Worksheets.Add("Roster"), context);
         }
 
         using var stream = new MemoryStream();
@@ -53,171 +70,499 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         return stream.ToArray();
     }
 
-    private static void WriteHeader(IXLWorksheet worksheet)
+    private static void WriteSummaryWorksheet(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
     {
-        var headers = new[]
-        {
-            "S.No.",
-            "Training type",
-            "Period",
-            "Officers",
-            "JCOs",
-            "ORs",
-            "Strength (O-J-OR)",
-            "Total",
-            "Source",
-            "Projects",
-            "Notes"
-        };
 
-        for (var column = 0; column < headers.Length; column++)
-        {
-            worksheet.Cell(1, column + 1).Value = headers[column];
-        }
+        worksheet.Range("A1:H1").Merge();
+        worksheet.Cell("A1").Value = "TRAINING TRACKER";
+        worksheet.Cell("A1").Style.Font.Bold = true;
+        worksheet.Cell("A1").Style.Font.FontSize = 20;
+        worksheet.Cell("A1").Style.Font.FontColor = XLColor.White;
+        worksheet.Cell("A1").Style.Fill.BackgroundColor = XLColor.FromHtml(Navy);
+        worksheet.Cell("A1").Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Row(1).Height = 32;
 
-        var headerRange = worksheet.Range(1, 1, 1, headers.Length);
-        headerRange.Style.Font.Bold = true;
-        headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        worksheet.SheetView.FreezeRows(1);
-    }
+        worksheet.Range("A2:H2").Merge();
+        worksheet.Cell("A2").Value = "Filtered training position and supporting detail";
+        worksheet.Cell("A2").Style.Font.FontColor = XLColor.FromHtml("#5B6573");
+        worksheet.Cell("A2").Style.Font.Italic = true;
+        worksheet.Row(2).Height = 22;
 
-    private static void WriteRows(IXLWorksheet worksheet, IReadOnlyList<TrainingExportDetail> trainings)
-    {
-        var rowNumber = 2;
-
-        for (var index = 0; index < trainings.Count; index++, rowNumber++)
-        {
-            var row = trainings[index].Summary;
-            worksheet.Cell(rowNumber, 1).Value = index + 1;
-            worksheet.Cell(rowNumber, 2).Value = row.TrainingTypeName;
-            worksheet.Cell(rowNumber, 3).Value = row.Period;
-            worksheet.Cell(rowNumber, 4).Value = row.Officers;
-            worksheet.Cell(rowNumber, 5).Value = row.JuniorCommissionedOfficers;
-            worksheet.Cell(rowNumber, 6).Value = row.OtherRanks;
-            worksheet.Cell(rowNumber, 7).Value = $"{row.Officers}-{row.JuniorCommissionedOfficers}-{row.OtherRanks}";
-            worksheet.Cell(rowNumber, 8).Value = row.Total;
-            worksheet.Cell(rowNumber, 9).Value = FormatSource(row.Source);
-            if (row.Projects is { Count: > 0 } projects)
-            {
-                worksheet.Cell(rowNumber, 10).Value = string.Join(", ", projects);
-            }
-            else
-            {
-                worksheet.Cell(rowNumber, 10).Value = string.Empty;
-            }
-            worksheet.Cell(rowNumber, 11).Value = row.Notes ?? string.Empty;
-        }
-
-        worksheet.Column(11).Style.Alignment.WrapText = true;
-        worksheet.Column(11).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-    }
-
-    private static void ApplyMetadata(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
-    {
-        var lastRow = Math.Max(2, context.Trainings.Count + 1);
-        worksheet.Columns(1, 11).AdjustToContents(1, lastRow);
-
-        foreach (var column in worksheet.Columns(1, 11))
-        {
-            if (column.Width > 60)
-            {
-                column.Width = 60;
-            }
-        }
-
-        worksheet.Column(10).Width = Math.Min(worksheet.Column(10).Width, 40);
-        worksheet.Column(11).Width = Math.Min(worksheet.Column(11).Width, 60);
-
-        var metadataRow = context.Trainings.Count + 3;
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
+        worksheet.Cell("A4").Value = "Generated on";
+        worksheet.Cell("B4").Value = generatedAtIst.DateTime;
+        worksheet.Cell("B4").Style.DateFormat.Format = "dd-mmm-yyyy hh:mm AM/PM \"IST\"";
+        worksheet.Cell("E4").Value = "Generated by";
+        worksheet.Cell("F4").Value = DisplayOrAll(context.RequestedByDisplayName, "PRISM user");
+        worksheet.Range("F4:H4").Merge();
+        StyleMetadataLabel(worksheet.Cell("A4"));
+        StyleMetadataLabel(worksheet.Cell("E4"));
 
-        worksheet.Cell(metadataRow, 1).Value = "Export generated";
-        worksheet.Cell(metadataRow, 2).Value = generatedAtIst.DateTime;
-        worksheet.Cell(metadataRow, 2).Style.DateFormat.Format = "yyyy-MM-dd HH:mm\" IST\"";
+        worksheet.Range("A6:H6").Merge();
+        worksheet.Cell("A6").Value = "APPLIED FILTERS";
+        StyleSectionHeading(worksheet.Cell("A6"));
 
-        var metadataItems = new (string Label, string Value)[]
+        WriteFilter(worksheet, 7, "Training type", DisplayOrAll(context.TrainingTypeName, "All training types"), "Project", DisplayOrAll(context.ProjectName, "All projects"));
+        WriteFilter(worksheet, 8, "Technical category", DisplayOrAll(context.ProjectTechnicalCategoryName, "All technical categories"), "Training includes", DisplayOrAll(context.CategoryName, "All trainee categories"));
+        WriteFilter(worksheet, 9, "From", context.From?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "All dates", "To", context.To?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "All dates");
+        WriteFilter(worksheet, 10, "Search", DisplayOrAll(context.Search, "No search term"), "Roster", FormatRosterScope(context));
+
+        worksheet.Range("A12:H12").Merge();
+        worksheet.Cell("A12").Value = "CURRENT POSITION";
+        StyleSectionHeading(worksheet.Cell("A12"));
+
+        var trainings = context.Dataset.Trainings;
+        var officers = trainings.Sum(row => row.Summary.Officers);
+        var jcos = trainings.Sum(row => row.Summary.JuniorCommissionedOfficers);
+        var ors = trainings.Sum(row => row.Summary.OtherRanks);
+        var totalTrainees = trainings.Sum(row => row.Summary.Total);
+
+        WriteKpiCard(worksheet, "A14:B16", "TOTAL TRAININGS", trainings.Count, PaleBlue);
+        WriteKpiCard(worksheet, "C14:D16", "TOTAL TRAINEES", totalTrainees, PaleGreen);
+        WriteKpiCard(worksheet, "E14:F16", "OFFICERS · JCOS · ORS", $"{officers:N0} · {jcos:N0} · {ors:N0}", PaleAmber);
+        WriteKpiCard(
+            worksheet,
+            "G14:H16",
+            "ROSTER ROWS",
+            context.IncludeRoster ? context.Dataset.RosterRowCount : "Not included",
+            LightGray);
+
+        var byTypeStart = 19;
+        worksheet.Range(byTypeStart, 1, byTypeStart, 4).Merge();
+        worksheet.Cell(byTypeStart, 1).Value = "TRAINING TYPE SUMMARY";
+        StyleSectionHeading(worksheet.Cell(byTypeStart, 1));
+        WriteSimpleHeader(worksheet, byTypeStart + 1, 1, new[] { "Training type", "Trainings", "Trainees", "Strength (O-JCO-OR)" });
+
+        var row = byTypeStart + 2;
+        foreach (var item in context.Kpis.ByType.OrderByDescending(item => item.Trainees).ThenBy(item => item.TypeName))
         {
-            ("From", context.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)"),
-            ("To", context.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)"),
-            ("Search", string.IsNullOrWhiteSpace(context.Search) ? "(not set)" : context.Search!),
-            ("Include roster", context.IncludeRoster ? "Yes" : "No"),
-            ("Training type", string.IsNullOrWhiteSpace(context.TrainingTypeName) ? "(not set)" : context.TrainingTypeName!),
-            ("Category", string.IsNullOrWhiteSpace(context.CategoryName) ? "(not set)" : context.CategoryName!),
-            (
-                "Technical category",
-                string.IsNullOrWhiteSpace(context.ProjectTechnicalCategoryName)
-                    ? "(not set)"
-                    : context.ProjectTechnicalCategoryName!),
-            (
-                "Technical category display",
-                string.IsNullOrWhiteSpace(context.ProjectTechnicalCategoryDisplayName)
-                    ? "(not set)"
-                    : context.ProjectTechnicalCategoryDisplayName!)
-        };
-
-        var metadataRowIndex = metadataRow + 1;
-        foreach (var (label, value) in metadataItems)
-        {
-            worksheet.Cell(metadataRowIndex, 1).Value = label;
-            worksheet.Cell(metadataRowIndex, 2).Value = value;
-            metadataRowIndex++;
+            worksheet.Cell(row, 1).Value = item.TypeName;
+            worksheet.Cell(row, 2).Value = item.Trainings;
+            worksheet.Cell(row, 3).Value = item.Trainees;
+            worksheet.Cell(row, 4).Value = $"{item.Officers:N0}-{item.Jcos:N0}-{item.Ors:N0}";
+            row++;
         }
 
-        worksheet.Range(metadataRow, 1, metadataRowIndex - 1, 1).Style.Font.Bold = true;
+        if (row == byTypeStart + 2)
+        {
+            worksheet.Cell(row, 1).Value = "No matching data";
+            worksheet.Range(row, 1, row, 4).Merge();
+            row++;
+        }
+
+        var yearStart = 19;
+        worksheet.Range(yearStart, 5, yearStart, 8).Merge();
+        worksheet.Cell(yearStart, 5).Value = "TRAINING YEAR TREND (APR–MAR)";
+        StyleSectionHeading(worksheet.Cell(yearStart, 5));
+        WriteSimpleHeader(worksheet, yearStart + 1, 5, new[] { "Training year", "Trainings", "Simulator trainees", "Drone trainees" });
+
+        var yearRow = yearStart + 2;
+        foreach (var item in context.Kpis.ByTrainingYear.OrderBy(item => item.TrainingYearLabel))
+        {
+            worksheet.Cell(yearRow, 5).Value = item.TrainingYearLabel;
+            worksheet.Cell(yearRow, 6).Value = item.TotalTrainings;
+            worksheet.Cell(yearRow, 7).Value = item.SimulatorTrainings;
+            worksheet.Cell(yearRow, 8).Value = item.DroneTrainings;
+            yearRow++;
+        }
+
+        if (yearRow == yearStart + 2)
+        {
+            worksheet.Cell(yearRow, 5).Value = "No matching data";
+            worksheet.Range(yearRow, 5, yearRow, 8).Merge();
+            yearRow++;
+        }
+
+        var technicalStart = Math.Max(row, yearRow) + 2;
+        worksheet.Range(technicalStart, 1, technicalStart, 8).Merge();
+        worksheet.Cell(technicalStart, 1).Value = "PROJECT TECHNICAL CATEGORY SUMMARY";
+        StyleSectionHeading(worksheet.Cell(technicalStart, 1));
+        WriteSimpleHeader(worksheet, technicalStart + 1, 1, new[] { "Technical category", "Trainings", "Trainees", "Officers", "JCOs", "ORs" });
+
+        var technicalRow = technicalStart + 2;
+        foreach (var item in context.Kpis.ByTechnicalCategory
+                     .OrderByDescending(item => item.Trainees)
+                     .ThenBy(item => item.TechnicalCategoryName))
+        {
+            worksheet.Cell(technicalRow, 1).Value = item.TechnicalCategoryName;
+            worksheet.Cell(technicalRow, 2).Value = item.Trainings;
+            worksheet.Cell(technicalRow, 3).Value = item.Trainees;
+            worksheet.Cell(technicalRow, 4).Value = item.Officers;
+            worksheet.Cell(technicalRow, 5).Value = item.Jcos;
+            worksheet.Cell(technicalRow, 6).Value = item.Ors;
+            technicalRow++;
+        }
+
+        if (technicalRow == technicalStart + 2)
+        {
+            worksheet.Cell(technicalRow, 1).Value = "No matching data";
+            worksheet.Range(technicalRow, 1, technicalRow, 6).Merge();
+            technicalRow++;
+        }
+
+        if (context.IncludeRoster)
+        {
+            var noticeRow = technicalRow + 2;
+            worksheet.Range(noticeRow, 1, noticeRow + 1, 8).Merge();
+            worksheet.Cell(noticeRow, 1).Value =
+                "Handling note: The Roster sheet contains personnel details. Handle and share this workbook in accordance with organisational policy.";
+            worksheet.Cell(noticeRow, 1).Style.Fill.BackgroundColor = XLColor.FromHtml(PaleAmber);
+            worksheet.Cell(noticeRow, 1).Style.Font.Bold = true;
+            worksheet.Cell(noticeRow, 1).Style.Alignment.WrapText = true;
+            worksheet.Cell(noticeRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            worksheet.Range(noticeRow, 1, noticeRow + 1, 8).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            worksheet.Range(noticeRow, 1, noticeRow + 1, 8).Style.Border.OutsideBorderColor = XLColor.FromHtml(BorderGray);
+        }
+
+        worksheet.Column(1).Width = 24;
+        worksheet.Column(2).Width = 16;
+        worksheet.Column(3).Width = 19;
+        worksheet.Column(4).Width = 20;
+        worksheet.Column(5).Width = 24;
+        worksheet.Column(6).Width = 16;
+        worksheet.Column(7).Width = 18;
+        worksheet.Column(8).Width = 18;
+        var usedRange = worksheet.RangeUsed();
+        if (usedRange is not null)
+        {
+            usedRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        }
+        ConfigurePrint(worksheet, repeatHeaderRow: null, landscape: true);
     }
 
-    private static void WriteRosterWorksheet(IXLWorksheet worksheet, IReadOnlyList<TrainingExportDetail> trainings)
+    private static void WriteTrainingsWorksheet(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
     {
         var headers = new[]
         {
-            "Training type",
-            "Period",
-            "Projects",
-            "Army number",
-            "Rank",
-            "Name",
-            "Unit",
-            "Category"
+            "S.No.", "Training ID", "Training type", "Start date", "End date", "Recorded period",
+            "Duration (days)", "Training year", "Officers", "JCOs", "ORs", "Total trainees",
+            "Source", "Project count", "Projects", "Notes", "Open in PRISM"
         };
 
-        for (var column = 0; column < headers.Length; column++)
+        WriteTableHeader(worksheet, headers);
+        var rowNumber = 2;
+        var serial = 1;
+
+        foreach (var detail in context.Dataset.Trainings)
         {
-            worksheet.Cell(1, column + 1).Value = headers[column];
+            var row = detail.Summary;
+            worksheet.Cell(rowNumber, 1).Value = serial++;
+            worksheet.Cell(rowNumber, 2).Value = row.Id.ToString();
+            worksheet.Cell(rowNumber, 3).Value = row.TrainingTypeName;
+            WriteDate(worksheet.Cell(rowNumber, 4), row.StartDate);
+            WriteDate(worksheet.Cell(rowNumber, 5), row.EndDate);
+            worksheet.Cell(rowNumber, 6).Value = row.Period;
+            if (row.DurationDays.HasValue) worksheet.Cell(rowNumber, 7).Value = row.DurationDays.Value;
+            worksheet.Cell(rowNumber, 8).Value = row.TrainingYearLabel;
+            worksheet.Cell(rowNumber, 9).Value = row.Officers;
+            worksheet.Cell(rowNumber, 10).Value = row.JuniorCommissionedOfficers;
+            worksheet.Cell(rowNumber, 11).Value = row.OtherRanks;
+            worksheet.Cell(rowNumber, 12).Value = row.Total;
+            worksheet.Cell(rowNumber, 13).Value = FormatSource(row.Source);
+            worksheet.Cell(rowNumber, 14).Value = row.Projects?.Count ?? 0;
+            worksheet.Cell(rowNumber, 15).Value = row.Projects is { Count: > 0 }
+                ? string.Join("; ", row.Projects)
+                : string.Empty;
+            worksheet.Cell(rowNumber, 16).Value = row.Notes ?? string.Empty;
+            WriteLink(worksheet.Cell(rowNumber, 17), BuildTrainingUrl(context.ApplicationBaseUrl, row.Id), "Open training");
+            rowNumber++;
         }
 
-        var headerRange = worksheet.Range(1, 1, 1, headers.Length);
-        headerRange.Style.Font.Bold = true;
+        CreateTableIfPopulated(worksheet, "TrainingsTable", headers.Length, rowNumber - 1);
         worksheet.SheetView.FreezeRows(1);
+        worksheet.SheetView.FreezeColumns(3);
 
+        SetWidths(worksheet, new Dictionary<int, double>
+        {
+            [1] = 8, [2] = 38, [3] = 24, [4] = 14, [5] = 14, [6] = 28, [7] = 14,
+            [8] = 14, [9] = 11, [10] = 11, [11] = 11, [12] = 14, [13] = 12,
+            [14] = 13, [15] = 42, [16] = 55, [17] = 18
+        });
+        worksheet.Columns(15, 16).Style.Alignment.WrapText = true;
+        var usedRange = worksheet.RangeUsed();
+        if (usedRange is not null)
+        {
+            usedRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        }
+        ConfigurePrint(worksheet, repeatHeaderRow: 1, landscape: true);
+    }
+
+    private static void WriteTrainingProjectsWorksheet(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
+    {
+        var headers = new[]
+        {
+            "Training ID", "Training type", "Start date", "Project ID", "Project name",
+            "Technical category", "Project status", "Open project"
+        };
+
+        WriteTableHeader(worksheet, headers);
+        var summaries = context.Dataset.Trainings.ToDictionary(item => item.Summary.Id, item => item.Summary);
         var rowNumber = 2;
-        foreach (var training in trainings)
+
+        foreach (var project in context.Dataset.ProjectLinks
+                     .OrderByDescending(item => summaries.TryGetValue(item.TrainingId, out var summary) ? summary.StartDate : null)
+                     .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase))
+        {
+            summaries.TryGetValue(project.TrainingId, out var training);
+            worksheet.Cell(rowNumber, 1).Value = project.TrainingId.ToString();
+            worksheet.Cell(rowNumber, 2).Value = training?.TrainingTypeName ?? string.Empty;
+            WriteDate(worksheet.Cell(rowNumber, 3), training?.StartDate);
+            worksheet.Cell(rowNumber, 4).Value = project.ProjectId;
+            worksheet.Cell(rowNumber, 5).Value = project.ProjectName;
+            worksheet.Cell(rowNumber, 6).Value = project.TechnicalCategoryName;
+            worksheet.Cell(rowNumber, 7).Value = project.ProjectStatus;
+            WriteLink(worksheet.Cell(rowNumber, 8), BuildProjectUrl(context.ApplicationBaseUrl, project.ProjectId), "Open project");
+            rowNumber++;
+        }
+
+        CreateTableIfPopulated(worksheet, "TrainingProjectsTable", headers.Length, rowNumber - 1);
+        worksheet.SheetView.FreezeRows(1);
+        worksheet.SheetView.FreezeColumns(2);
+        SetWidths(worksheet, new Dictionary<int, double>
+        {
+            [1] = 38, [2] = 24, [3] = 14, [4] = 12, [5] = 42, [6] = 26, [7] = 16, [8] = 18
+        });
+        worksheet.Columns(5, 6).Style.Alignment.WrapText = true;
+        ConfigurePrint(worksheet, repeatHeaderRow: 1, landscape: true);
+    }
+
+    private static void WriteRosterWorksheet(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
+    {
+        var headers = new[]
+        {
+            "S.No.", "Training ID", "Training type", "Start date", "End date", "Army number",
+            "Rank", "Name", "Unit", "Trainee category", "Open training"
+        };
+
+        WriteTableHeader(worksheet, headers);
+        var rowNumber = 2;
+        var serial = 1;
+
+        foreach (var training in context.Dataset.Trainings)
         {
             foreach (var trainee in training.Roster)
             {
-                worksheet.Cell(rowNumber, 1).Value = training.Summary.TrainingTypeName;
-                worksheet.Cell(rowNumber, 2).Value = training.Summary.Period;
-                var projects = training.Summary.Projects is { Count: > 0 }
-                    ? string.Join(", ", training.Summary.Projects)
-                    : string.Empty;
-
-                worksheet.Cell(rowNumber, 3).Value = projects;
-                worksheet.Cell(rowNumber, 4).Value = trainee.ArmyNumber ?? string.Empty;
-                worksheet.Cell(rowNumber, 5).Value = trainee.Rank;
-                worksheet.Cell(rowNumber, 6).Value = trainee.Name;
-                worksheet.Cell(rowNumber, 7).Value = trainee.UnitName;
-                worksheet.Cell(rowNumber, 8).Value = FormatRosterCategory(trainee.Category);
+                worksheet.Cell(rowNumber, 1).Value = serial++;
+                worksheet.Cell(rowNumber, 2).Value = training.Summary.Id.ToString();
+                worksheet.Cell(rowNumber, 3).Value = training.Summary.TrainingTypeName;
+                WriteDate(worksheet.Cell(rowNumber, 4), training.Summary.StartDate);
+                WriteDate(worksheet.Cell(rowNumber, 5), training.Summary.EndDate);
+                worksheet.Cell(rowNumber, 6).Value = trainee.ArmyNumber ?? string.Empty;
+                worksheet.Cell(rowNumber, 7).Value = trainee.Rank;
+                worksheet.Cell(rowNumber, 8).Value = trainee.Name;
+                worksheet.Cell(rowNumber, 9).Value = trainee.UnitName;
+                worksheet.Cell(rowNumber, 10).Value = FormatRosterCategory(trainee.Category);
+                WriteLink(worksheet.Cell(rowNumber, 11), BuildTrainingUrl(context.ApplicationBaseUrl, training.Summary.Id), "Open training");
                 rowNumber++;
             }
         }
 
-        if (rowNumber > 2)
+        CreateTableIfPopulated(worksheet, "RosterTable", headers.Length, rowNumber - 1);
+        worksheet.SheetView.FreezeRows(1);
+        worksheet.SheetView.FreezeColumns(3);
+        SetWidths(worksheet, new Dictionary<int, double>
         {
-            worksheet.Columns(1, headers.Length).AdjustToContents(1, rowNumber - 1);
+            [1] = 8, [2] = 38, [3] = 24, [4] = 14, [5] = 14, [6] = 18,
+            [7] = 12, [8] = 24, [9] = 28, [10] = 24, [11] = 18
+        });
+        worksheet.Columns(8, 9).Style.Alignment.WrapText = true;
+        ConfigurePrint(worksheet, repeatHeaderRow: 1, landscape: true);
+    }
+
+    private static void WriteFilter(
+        IXLWorksheet worksheet,
+        int row,
+        string leftLabel,
+        string leftValue,
+        string rightLabel,
+        string rightValue)
+    {
+        worksheet.Cell(row, 1).Value = leftLabel;
+        worksheet.Cell(row, 2).Value = leftValue;
+        worksheet.Range(row, 2, row, 4).Merge();
+        worksheet.Cell(row, 5).Value = rightLabel;
+        worksheet.Cell(row, 6).Value = rightValue;
+        worksheet.Range(row, 6, row, 8).Merge();
+        StyleMetadataLabel(worksheet.Cell(row, 1));
+        StyleMetadataLabel(worksheet.Cell(row, 5));
+        worksheet.Range(row, 2, row, 4).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFC");
+        worksheet.Range(row, 6, row, 8).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFC");
+    }
+
+    private static void WriteKpiCard(
+        IXLWorksheet worksheet,
+        string rangeAddress,
+        string label,
+        object value,
+        string fillColor)
+    {
+        var range = worksheet.Range(rangeAddress);
+        range.Merge();
+        var cell = range.FirstCell();
+        cell.Value = $"{label}\n{value}";
+        cell.Style.Alignment.WrapText = true;
+        cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        cell.Style.Font.Bold = true;
+        cell.Style.Font.FontSize = 13;
+        cell.Style.Fill.BackgroundColor = XLColor.FromHtml(fillColor);
+        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml(BorderGray);
+    }
+
+    private static void WriteSimpleHeader(IXLWorksheet worksheet, int row, int startColumn, IReadOnlyList<string> headers)
+    {
+        for (var index = 0; index < headers.Count; index++)
+        {
+            worksheet.Cell(row, startColumn + index).Value = headers[index];
+        }
+
+        var range = worksheet.Range(row, startColumn, row, startColumn + headers.Count - 1);
+        range.Style.Font.Bold = true;
+        range.Style.Font.FontColor = XLColor.White;
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml(Blue);
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        range.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+    }
+
+    private static void WriteTableHeader(IXLWorksheet worksheet, IReadOnlyList<string> headers)
+    {
+        for (var column = 0; column < headers.Count; column++)
+        {
+            worksheet.Cell(1, column + 1).Value = headers[column];
+        }
+
+        var headerRange = worksheet.Range(1, 1, 1, headers.Count);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Font.FontColor = XLColor.White;
+        headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml(Navy);
+        headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        headerRange.Style.Alignment.WrapText = true;
+        worksheet.Row(1).Height = 30;
+    }
+
+    private static void CreateTableIfPopulated(IXLWorksheet worksheet, string tableName, int columnCount, int lastRow)
+    {
+        if (lastRow < 2)
+        {
+            return;
+        }
+
+        var table = worksheet.Range(1, 1, lastRow, columnCount).CreateTable(tableName);
+        table.Theme = XLTableTheme.TableStyleMedium2;
+    }
+
+    private static void ConfigurePrint(IXLWorksheet worksheet, int? repeatHeaderRow, bool landscape)
+    {
+        worksheet.PageSetup.PageOrientation = landscape
+            ? XLPageOrientation.Landscape
+            : XLPageOrientation.Portrait;
+        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+        worksheet.PageSetup.FitToPages(1, 0);
+        worksheet.PageSetup.Margins.Top = 0.5;
+        worksheet.PageSetup.Margins.Bottom = 0.5;
+        worksheet.PageSetup.Margins.Left = 0.35;
+        worksheet.PageSetup.Margins.Right = 0.35;
+        worksheet.PageSetup.Footer.Left.AddText("PRISM ERP");
+        worksheet.PageSetup.Footer.Center.AddText("Training Tracker");
+        worksheet.PageSetup.Footer.Right.AddText("Page ");
+        worksheet.PageSetup.Footer.Right.AddText(XLHFPredefinedText.PageNumber);
+        worksheet.PageSetup.Footer.Right.AddText(" of ");
+        worksheet.PageSetup.Footer.Right.AddText(XLHFPredefinedText.NumberOfPages);
+
+        if (repeatHeaderRow.HasValue)
+        {
+            worksheet.PageSetup.SetRowsToRepeatAtTop(repeatHeaderRow.Value, repeatHeaderRow.Value);
         }
     }
 
+    private static void WriteDate(IXLCell cell, DateOnly? value)
+    {
+        if (!value.HasValue)
+        {
+            return;
+        }
+
+        cell.Value = value.Value.ToDateTime(TimeOnly.MinValue);
+        cell.Style.DateFormat.Format = "dd-mmm-yyyy";
+    }
+
+    private static void WriteLink(IXLCell cell, string? url, string label)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        cell.FormulaA1 = $"HYPERLINK(\"{EscapeFormulaText(url)}\",\"{EscapeFormulaText(label)}\")";
+        cell.Style.Font.FontColor = XLColor.FromHtml("#0563C1");
+        cell.Style.Font.Underline = XLFontUnderlineValues.Single;
+    }
+
+
+    private static string EscapeFormulaText(string value)
+        => value.Replace("\"", "\"\"", StringComparison.Ordinal);
+
+    private static string? BuildTrainingUrl(string baseUrl, Guid trainingId)
+        => BuildUrl(baseUrl, $"/ProjectOfficeReports/Training/View?id={trainingId}");
+
+    private static string? BuildProjectUrl(string baseUrl, int projectId)
+        => BuildUrl(baseUrl, $"/Projects/Overview/{projectId}");
+
+    private static string? BuildUrl(string baseUrl, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return null;
+        }
+
+        return string.Concat(baseUrl.TrimEnd('/'), relativePath);
+    }
+
+    private static void StyleSectionHeading(IXLCell cell)
+    {
+        cell.Style.Font.Bold = true;
+        cell.Style.Font.FontColor = XLColor.White;
+        cell.Style.Fill.BackgroundColor = XLColor.FromHtml(Blue);
+        cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+    }
+
+    private static void StyleMetadataLabel(IXLCell cell)
+    {
+        cell.Style.Font.Bold = true;
+        cell.Style.Font.FontColor = XLColor.FromHtml("#44546A");
+    }
+
+    private static void SetWidths(IXLWorksheet worksheet, IReadOnlyDictionary<int, double> widths)
+    {
+        foreach (var (column, width) in widths)
+        {
+            worksheet.Column(column).Width = width;
+        }
+    }
+
+    private static string DisplayOrAll(string? value, string fallback)
+        => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+    private static string FormatRosterScope(TrainingExcelWorkbookContext context)
+    {
+        if (!context.IncludeRoster)
+        {
+            return "Not included";
+        }
+
+        if (context.RosterScope == TrainingRosterScope.SelectedTraineeCategoryOnly
+            && !string.IsNullOrWhiteSpace(context.CategoryName))
+        {
+            return $"Selected category only ({context.CategoryName})";
+        }
+
+        return "All trainees in matching events";
+    }
+
     private static string FormatSource(TrainingCounterSource source)
-        => source == TrainingCounterSource.Legacy ? "Legacy" : "Roster";
+        => source == TrainingCounterSource.Legacy ? "Legacy counters" : "Roster";
 
     private static string FormatRosterCategory(byte category)
         => category switch

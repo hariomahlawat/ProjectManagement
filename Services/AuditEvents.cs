@@ -418,6 +418,40 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.VisitExported", userId, data);
         }
 
+        public static AuditEvent TrainingExportGenerated(
+            string userId,
+            Guid? trainingTypeId,
+            int? projectId,
+            int? technicalCategoryId,
+            TrainingCategory? traineeCategory,
+            DateOnly? fromDate,
+            DateOnly? toDate,
+            string? searchTerm,
+            bool includeRoster,
+            string rosterScope,
+            int trainingRowCount,
+            int rosterRowCount,
+            string fileName)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["TrainingTypeId"] = trainingTypeId?.ToString(),
+                ["ProjectId"] = projectId?.ToString(CultureInfo.InvariantCulture),
+                ["TechnicalCategoryId"] = technicalCategoryId?.ToString(CultureInfo.InvariantCulture),
+                ["TraineeCategory"] = traineeCategory?.ToString(),
+                ["FromDate"] = fromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["ToDate"] = toDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["SearchTerm"] = searchTerm,
+                ["IncludeRoster"] = includeRoster ? "true" : "false",
+                ["RosterScope"] = rosterScope,
+                ["TrainingRowCount"] = trainingRowCount.ToString(CultureInfo.InvariantCulture),
+                ["RosterRowCount"] = rosterRowCount.ToString(CultureInfo.InvariantCulture),
+                ["FileName"] = fileName
+            };
+
+            return new AuditEvent("ProjectOfficeReports.TrainingExportGenerated", userId, data);
+        }
+
         public static AuditEvent SocialMediaEventExported(
             string userId,
             Guid? socialMediaEventTypeId,

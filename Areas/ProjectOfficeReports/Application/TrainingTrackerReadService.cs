@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using DomainTraining = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application
@@ -457,7 +458,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     group.Key.TrainingTypeId,
                     group.Key.TrainingTypeName,
                     group.Count(),
-                    group.Sum(item => item.CounterTotal)))
+                    group.Sum(item => item.CounterTotal),
+                    group.Sum(item => item.CounterOfficers),
+                    group.Sum(item => item.CounterJcos),
+                    group.Sum(item => item.CounterOrs)))
                 .OrderByDescending(entry => entry.Trainees)
                 .ThenBy(entry => entry.TypeName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -624,53 +628,152 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // ============================================================
         // EXPORT
         // ============================================================
-        public async Task<IReadOnlyList<TrainingExportDetail>> ExportAsync(
+        public async Task<TrainingExportDataset> ExportAsync(
             TrainingTrackerQuery? query,
             bool includeRoster,
+            TrainingCategory? rosterCategory,
             CancellationToken cancellationToken)
         {
-            var rows = await SearchAsync(query, cancellationToken);
+            var rows = (await SearchAsync(query, cancellationToken))
+                .OrderByDescending(GetExportSortDate)
+                .ThenBy(item => item.TrainingTypeName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.Id)
+                .ToList();
 
             var summaries = rows
-                .Select(item => new TrainingExportRow(
-                    item.Id,
-                    item.TrainingTypeName,
-                    FormatPeriod(item),
-                    item.CounterOfficers,
-                    item.CounterJcos,
-                    item.CounterOrs,
-                    item.CounterTotal,
-                    item.CounterSource,
-                    item.ProjectNames,
-                    item.Notes))
-                .ToList();
-
-            if (!includeRoster || summaries.Count == 0)
-            {
-                return summaries
-                    .Select(summary => new TrainingExportDetail(summary, Array.Empty<TrainingRosterRow>()))
-                    .ToList();
-            }
-
-            var rosterLookup = await LoadRosterAsync(rows.Select(item => item.Id).ToArray(), cancellationToken);
-
-            return summaries
-                .Select(summary =>
+                .Select(item =>
                 {
-                    var roster = rosterLookup.TryGetValue(summary.Id, out var trainees)
-                        ? trainees
-                        : Array.Empty<TrainingRosterRow>();
+                    int? durationDays = null;
+                    if (item.StartDate is { } startDate)
+                    {
+                        var endDate = item.EndDate ?? startDate;
+                        if (endDate >= startDate)
+                        {
+                            durationDays = endDate.DayNumber - startDate.DayNumber + 1;
+                        }
+                    }
 
-                    return new TrainingExportDetail(summary, roster);
+                    var trainingYearLabel = TryGetTrainingYearStart(item, out var startYear)
+                        ? FormatTrainingYearLabel(startYear)
+                        : string.Empty;
+
+                    return new TrainingExportRow(
+                        item.Id,
+                        item.TrainingTypeId,
+                        item.TrainingTypeName,
+                        item.StartDate,
+                        item.EndDate,
+                        durationDays,
+                        trainingYearLabel,
+                        FormatPeriod(item),
+                        item.CounterOfficers,
+                        item.CounterJcos,
+                        item.CounterOrs,
+                        item.CounterTotal,
+                        item.CounterSource,
+                        item.ProjectNames,
+                        item.Notes);
                 })
                 .ToList();
+
+            if (summaries.Count == 0)
+            {
+                return TrainingExportDataset.Empty;
+            }
+
+            var trainingIds = summaries.Select(summary => summary.Id).ToArray();
+            var projectRows = await LoadExportProjectsAsync(trainingIds, cancellationToken);
+
+            var rosterLookup = includeRoster
+                ? await LoadRosterAsync(trainingIds, rosterCategory, cancellationToken)
+                : new Dictionary<Guid, IReadOnlyList<TrainingRosterRow>>();
+
+            var details = summaries
+                .Select(summary => new TrainingExportDetail(
+                    summary,
+                    rosterLookup.TryGetValue(summary.Id, out var trainees)
+                        ? trainees
+                        : Array.Empty<TrainingRosterRow>()))
+                .ToList();
+
+            return new TrainingExportDataset(details, projectRows);
         }
+
+        private async Task<IReadOnlyList<TrainingProjectExportRow>> LoadExportProjectsAsync(
+            Guid[] trainingIds,
+            CancellationToken cancellationToken)
+        {
+            if (trainingIds.Length == 0)
+            {
+                return Array.Empty<TrainingProjectExportRow>();
+            }
+
+            var rows = await _db.TrainingProjects
+                .AsNoTracking()
+                .Where(link => trainingIds.Contains(link.TrainingId))
+                .Where(link => link.Project != null)
+                .OrderBy(link => link.TrainingId)
+                .ThenBy(link => link.Project!.Name)
+                .Select(link => new
+                {
+                    link.TrainingId,
+                    link.ProjectId,
+                    ProjectName = link.Project!.Name,
+                    TechnicalCategoryName = link.Project.TechnicalCategory != null
+                        ? link.Project.TechnicalCategory.Name
+                        : string.Empty,
+                    link.Project.LifecycleStatus
+                })
+                .ToListAsync(cancellationToken);
+
+            return rows
+                .Select(row => new TrainingProjectExportRow(
+                    row.TrainingId,
+                    row.ProjectId,
+                    row.ProjectName,
+                    row.TechnicalCategoryName,
+                    FormatProjectLifecycleStatus(row.LifecycleStatus)))
+                .ToList();
+        }
+
+        private static DateOnly GetExportSortDate(TrainingListItem item)
+        {
+            if (item.StartDate.HasValue)
+            {
+                return item.StartDate.Value;
+            }
+
+            if (item.EndDate.HasValue)
+            {
+                return item.EndDate.Value;
+            }
+
+            if (item.TrainingYear.HasValue
+                && item.TrainingMonth.HasValue
+                && item.TrainingMonth.Value is >= 1 and <= 12
+                && item.TrainingYear.Value is >= 1 and <= 9999)
+            {
+                return new DateOnly(item.TrainingYear.Value, item.TrainingMonth.Value, 1);
+            }
+
+            return DateOnly.MinValue;
+        }
+
+        private static string FormatProjectLifecycleStatus(ProjectLifecycleStatus status)
+            => status switch
+            {
+                ProjectLifecycleStatus.Active => "Ongoing",
+                ProjectLifecycleStatus.Completed => "Completed",
+                ProjectLifecycleStatus.Cancelled => "Cancelled",
+                _ => status.ToString()
+            };
 
         // ============================================================
         // HELPER: load roster
         // ============================================================
         private async Task<Dictionary<Guid, IReadOnlyList<TrainingRosterRow>>> LoadRosterAsync(
             Guid[] trainingIds,
+            TrainingCategory? category,
             CancellationToken cancellationToken)
         {
             if (trainingIds.Length == 0)
@@ -678,9 +781,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return new Dictionary<Guid, IReadOnlyList<TrainingRosterRow>>();
             }
 
-            var rosterRows = await _db.TrainingTrainees
+            var rosterQuery = _db.TrainingTrainees
                 .AsNoTracking()
-                .Where(trainee => trainingIds.Contains(trainee.TrainingId))
+                .Where(trainee => trainingIds.Contains(trainee.TrainingId));
+
+            if (category.HasValue)
+            {
+                var categoryValue = (byte)category.Value;
+                rosterQuery = rosterQuery.Where(trainee => trainee.Category == categoryValue);
+            }
+
+            var rosterRows = await rosterQuery
                 .OrderBy(trainee => trainee.TrainingId)
                 .ThenBy(trainee => trainee.Category)
                 .ThenBy(trainee => trainee.Rank)
@@ -1407,7 +1518,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
     public sealed record TrainingExportRow(
         Guid Id,
+        Guid TrainingTypeId,
         string TrainingTypeName,
+        DateOnly? StartDate,
+        DateOnly? EndDate,
+        int? DurationDays,
+        string TrainingYearLabel,
         string Period,
         int Officers,
         int JuniorCommissionedOfficers,
@@ -1417,7 +1533,25 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         IReadOnlyList<string> Projects,
         string? Notes);
 
+    public sealed record TrainingProjectExportRow(
+        Guid TrainingId,
+        int ProjectId,
+        string ProjectName,
+        string TechnicalCategoryName,
+        string ProjectStatus);
+
     public sealed record TrainingExportDetail(TrainingExportRow Summary, IReadOnlyList<TrainingRosterRow> Roster);
+
+    public sealed record TrainingExportDataset(
+        IReadOnlyList<TrainingExportDetail> Trainings,
+        IReadOnlyList<TrainingProjectExportRow> ProjectLinks)
+    {
+        public static TrainingExportDataset Empty { get; } = new(
+            Array.Empty<TrainingExportDetail>(),
+            Array.Empty<TrainingProjectExportRow>());
+
+        public int RosterRowCount => Trainings.Sum(training => training.Roster.Count);
+    }
 
     // ============================================================
     // QUERY DTO
