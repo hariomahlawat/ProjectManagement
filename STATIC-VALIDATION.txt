@@ -1,20 +1,10 @@
-PRISM PROJECT BRIEFING HEADER POLISH - STATIC VALIDATION
-=========================================================
+STATIC VALIDATION
+=================
+PASS - dedicated variant declared
+PASS - update sheet uses dedicated variant
+PASS - right insignia enlarged
+PASS - standard variant retained
+PASS - contract updated
+PASS - optical footprint regression test
 
-PASS: Unified patch applies cleanly to the previously supplied refinement baseline.
-PASS: Patched files exactly match the ready-to-paste source files.
-PASS: Project-sheet header invokes standard two-insignia branding.
-PASS: Repeated PROJECT UPDATE SHEET label removed from production composer.
-PASS: Project title is centred.
-PASS: Project title uses restrained maroon accent.
-PASS: Redundant compact footer insignia path removed.
-PASS: Fund, DFPDS and CFA are stacked.
-PASS: Supply-order date and firm are consistently labelled.
-PASS: Long status remarks receive dynamic row height.
-PASS: Project Update Sheet portfolio totals use consistent two-decimal precision.
-PASS: Visual header composition was preview-rendered through LibreOffice at 16:9.
-
-NOT RUN: dotnet build / dotnet test because the .NET SDK is not installed in this environment.
-Run locally:
-  dotnet build
-  dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+Full .NET compilation/tests not run: dotnet SDK unavailable in packaging environment.

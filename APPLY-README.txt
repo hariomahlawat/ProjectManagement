@@ -1,39 +1,41 @@
-PRISM PROJECT BRIEFING - PROJECT UPDATE SHEET HEADER POLISH
-==========================================================
+PRISM PROJECT BRIEFING — RIGHT INSIGNIA VISUAL BALANCE
+======================================================
 
-BASELINE
---------
-Apply this package after the previously supplied Project Update Sheets implementation
-and the Total IPA Cost / white-header refinement dated 29 Jul 2026.
+Purpose
+-------
+This focused refinement improves the visual weight of the right-side SDD insignia
+on Project Update Sheet slides. It preserves the approved white header, centred
+maroon project title, left formation insignia, and text-only footer.
 
-HOW TO APPLY
+Apply
+-----
+1. Copy the contents of this package into the ProjectManagement project root.
+2. Preserve the folder structure.
+3. Replace the four existing files when prompted.
+4. No database migration is required.
+
+Files
+-----
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+
+Implementation
+--------------
+- Introduces a dedicated HeaderVariant.ProjectUpdateSheet path so the adjustment
+  does not alter Standard PRISM Briefing slides.
+- Retains the left formation insignia at its approved size.
+- Enlarges the visually slender right SDD insignia from 0.36 x 0.56 in to
+  0.46 x 0.68 in, while preserving the same optical vertical centre.
+- Keeps the title safe area unchanged and avoids encroachment on long titles.
+- Adds regression coverage confirming the update-sheet-specific branding path
+  and the increased optical footprint of the right insignia.
+
+Verification
 ------------
-1. Stop the running application or IIS application pool.
-2. Copy the contents of this package into the ProjectManagement project root.
-3. Preserve the folder structure and replace the five existing files.
-4. Rebuild and run the automated tests.
-5. Generate a Project Update Sheets deck with Header branding = All slides.
-
-RECOMMENDED COMMANDS
---------------------
 dotnet build
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-IMPLEMENTED
------------
-- Removes the repeated "PROJECT UPDATE SHEET" label.
-- Restores both insignia to project-sheet headers when branding is enabled.
-- Centres the project name between the two insignia.
-- Uses a restrained maroon project-title treatment on a white header.
-- Removes the redundant footer insignia; the footer is text-only again.
-- Stacks Fund, DFPDS and CFA on separate lines.
-- Labels SO Date and Firm consistently whenever either value is present.
-- Shows only one "Not recorded" when both SO Date and Firm are absent.
-- Gives long external remarks more row height and enforces a readable minimum font.
-- Dynamically aligns the photograph and project-brief panels with the facts table.
-- Uses two-decimal precision for the R&D and IPA totals on the Project Update Sheets
-  portfolio summary, without changing project-level cost formatting.
-
-DATABASE
---------
-No database migration is required.
+The current packaging environment does not include the .NET SDK, so the full
+build and test suite could not be executed here.

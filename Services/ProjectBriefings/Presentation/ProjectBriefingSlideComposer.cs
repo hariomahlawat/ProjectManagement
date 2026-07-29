@@ -1652,7 +1652,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private enum HeaderVariant
     {
         Cover,
-        Standard
+        Standard,
+        ProjectUpdateSheet
     }
 
     private sealed record DetailedSlideLayout(double PhotoHeight);
@@ -1768,6 +1769,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     AddRoundedRect(12.28, .12, .70, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06);
                     AddImageContained(_branding.RightLogo, 12.35, .17, .56, .68, "Right division insignia");
                 }
+                return;
+            }
+
+            if (variant == HeaderVariant.ProjectUpdateSheet)
+            {
+                if (_branding.LeftLogo is { Length: > 0 })
+                {
+                    AddImageContained(_branding.LeftLogo, .32, .20, .48, .48, "Left formation insignia");
+                }
+
+                if (_branding.RightLogo is { Length: > 0 })
+                {
+                    // The SDD insignia is visually slender. A larger optical box balances it
+                    // against the denser formation crest without changing the title safe area.
+                    AddImageContained(_branding.RightLogo, 12.39, .10, .46, .68, "Right division insignia");
+                }
+
                 return;
             }
 

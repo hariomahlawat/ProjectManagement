@@ -1,5 +1,4 @@
-Services/ProjectBriefings/ProjectBriefingCostResolver.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs

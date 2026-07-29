@@ -45,7 +45,7 @@ public sealed partial class ProjectBriefingSlideComposer
 
         canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
         canvas.AddRect(0, 0, SlideWidth, .065, UpdateSheetAccent, name: "Project sheet top accent");
-        canvas.AddBrandingImages(HeaderVariant.Standard);
+        canvas.AddBrandingImages(HeaderVariant.ProjectUpdateSheet);
 
         var titleX = canvas.ShowBranding ? 1.16 : .62;
         var titleWidth = canvas.ShowBranding ? 11.01 : 12.09;

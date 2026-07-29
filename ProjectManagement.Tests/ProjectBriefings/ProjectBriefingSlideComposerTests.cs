@@ -524,6 +524,23 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
         Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
+
+        var leftInsignia = slide.Slide.Descendants<P.Picture>()
+            .Single(picture => string.Equals(
+                picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
+                "Left formation insignia",
+                StringComparison.Ordinal));
+        var rightInsignia = slide.Slide.Descendants<P.Picture>()
+            .Single(picture => string.Equals(
+                picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
+                "Right division insignia",
+                StringComparison.Ordinal));
+        var leftExtent = Assert.IsType<A.Extents>(leftInsignia.ShapeProperties?.Transform2D?.Extents);
+        var rightExtent = Assert.IsType<A.Extents>(rightInsignia.ShapeProperties?.Transform2D?.Extents);
+        Assert.True(rightExtent.Cy?.Value > leftExtent.Cy?.Value);
+        Assert.True((rightExtent.Cx?.Value ?? 0L) * (rightExtent.Cy?.Value ?? 0L)
+            > (leftExtent.Cx?.Value ?? 0L) * (leftExtent.Cy?.Value ?? 0L));
+
         Assert.DoesNotContain("Compact footer insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
         Assert.Equal(2, slide.ImageParts.Count());
         Assert.Single(slide.Slide.Descendants<A.Table>());
