@@ -18,6 +18,7 @@ public interface IIndustryPartnerService
         CancellationToken cancellationToken = default);
 
     Task<IndustryPartnerDto?> GetAsync(int id, CancellationToken cancellationToken = default);
+    Task<bool> IsOwnerAsync(int id, string userId, CancellationToken cancellationToken = default);
     Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default);
     Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(int projectId, CancellationToken cancellationToken = default);
     Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(int projectId, CancellationToken cancellationToken = default);

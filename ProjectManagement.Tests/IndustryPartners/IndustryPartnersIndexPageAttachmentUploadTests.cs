@@ -115,6 +115,9 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         public Task<IndustryPartnerDto?> GetAsync(int id, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task<bool> IsOwnerAsync(int id, string userId, CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
+
         public Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

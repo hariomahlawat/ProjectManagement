@@ -19,6 +19,21 @@ namespace ProjectManagement.Tests.IndustryPartners;
 public sealed class IndustryPartnerRulesTests
 {
     [Fact]
+    public async Task OrganisationOwnership_UsesCreatorUserId()
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var creator = User("creator-1");
+        var partnerId = await service.CreateAsync(
+            new CreateIndustryPartnerRequest("Owner Test Organisation", null),
+            creator);
+
+        Assert.True(await service.IsOwnerAsync(partnerId, "creator-1"));
+        Assert.False(await service.IsOwnerAsync(partnerId, "another-user"));
+        Assert.False(await service.IsOwnerAsync(partnerId, string.Empty));
+    }
+
+    [Fact]
     public async Task SameNameAndNullLocation_CannotRepeat()
     {
         await using var db = CreateDb();

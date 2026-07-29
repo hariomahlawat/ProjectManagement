@@ -75,7 +75,8 @@ public static class Policies
     public static class IndustryPartners
     {
         public const string View = "IndustryPartners.View";
-        public const string Manage = "IndustryPartners.Manage";
+        public const string Create = "IndustryPartners.Create";
+        public const string EditAny = "IndustryPartners.EditAny";
         public const string Delete = "IndustryPartners.Delete";
         public const string AddContact = "IndustryPartners.Contact.Add";
         public const string ManageAnyContact = "IndustryPartners.Contact.ManageAny";
@@ -90,12 +91,28 @@ public static class Policies
             RoleNames.Mco
         };
 
-        public static readonly string[] ManageAllowedRoles =
+        // Organisation creation is intentionally broad: the operational users who
+        // discover a new industry contact should be able to add it without routing the
+        // record through a central clerk. Editing remains owner-based with a limited
+        // command override defined separately below.
+        public static readonly string[] CreateAllowedRoles =
         {
             RoleNames.Admin,
             RoleNames.HoD,
+            RoleNames.Comdt,
+            RoleNames.ProjectOfficer,
             RoleNames.ProjectOffice,
-            RoleNames.ProjectOfficeAlternate
+            RoleNames.ProjectOfficeAlternate,
+            RoleNames.Mco,
+            RoleNames.Ta,
+            RoleNames.Ito
+        };
+
+        public static readonly string[] EditAnyAllowedRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Comdt
         };
 
         public static readonly string[] DeleteAllowedRoles =

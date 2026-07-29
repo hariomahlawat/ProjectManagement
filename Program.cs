@@ -261,8 +261,10 @@ builder.Services.AddAuthorization(options =>
     // NOTE: The Industry Partners page is available to every authenticated user.
     options.AddPolicy(Policies.IndustryPartners.View, policy =>
         policy.RequireAuthenticatedUser());
-    options.AddPolicy(Policies.IndustryPartners.Manage, policy =>
-        policy.RequireRole(Policies.IndustryPartners.ManageAllowedRoles));
+    options.AddPolicy(Policies.IndustryPartners.Create, policy =>
+        policy.RequireRole(Policies.IndustryPartners.CreateAllowedRoles));
+    options.AddPolicy(Policies.IndustryPartners.EditAny, policy =>
+        policy.RequireRole(Policies.IndustryPartners.EditAnyAllowedRoles));
     options.AddPolicy(Policies.IndustryPartners.Delete, policy =>
         policy.RequireRole(Policies.IndustryPartners.DeleteAllowedRoles));
     options.AddPolicy(Policies.IndustryPartners.AddContact, policy =>
@@ -630,7 +632,6 @@ builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjec
 builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
 builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
 builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
-builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();
 builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
 builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
 builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();

@@ -247,6 +247,24 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             linkedProjects);
     }
 
+    public Task<bool> IsOwnerAsync(
+        int id,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Task.FromResult(false);
+        }
+
+        return _db.IndustryPartners
+            .AsNoTracking()
+            .AnyAsync(partner =>
+                partner.Id == id &&
+                partner.CreatedByUserId == userId,
+                cancellationToken);
+    }
+
     public async Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(
         int projectId,
         CancellationToken cancellationToken = default)

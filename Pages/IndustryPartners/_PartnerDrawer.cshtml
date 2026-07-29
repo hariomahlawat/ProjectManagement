@@ -48,7 +48,7 @@
     </div>
 
     <div class="ip-drawer-actions">
-        @if (Model.CanManageOrganisation && !Model.Edit)
+        @if (Model.CanEditOrganisation && !Model.Edit)
         {
             <a href="@Model.BuildDirectoryUrl(partner.Id, "overview", edit: true)" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-pencil" aria-hidden="true"></i> Edit
@@ -60,7 +60,7 @@
                 <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
             </button>
         }
-        @if (Model.CanManageOrganisation)
+        @if (Model.CanEditOrganisation)
         {
             @if (hasContextualAssociation)
             {

@@ -4,7 +4,7 @@
     var primary = partner.PrimaryContact;
 }
 
-@if (Model.Edit && Model.CanManageOrganisation)
+@if (Model.Edit && Model.CanEditOrganisation)
 {
     <form method="post" asp-page-handler="UpdatePartner" class="ip-edit-form" data-update-organisation-form>
         @Html.AntiForgeryToken()

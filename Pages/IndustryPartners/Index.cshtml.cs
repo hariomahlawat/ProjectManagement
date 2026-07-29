@@ -53,7 +53,8 @@ public sealed class IndexModel : PageModel
     public IndustryPartnerDto? SelectedPartner { get; private set; }
     public IndustryPartnerProjectContextDto? ProjectContext { get; private set; }
     public IndustryPartnerDirectoryFilter SelectedFilter { get; private set; }
-    public bool CanManageOrganisation { get; private set; }
+    public bool CanCreateOrganisation { get; private set; }
+    public bool CanEditOrganisation { get; private set; }
     public bool CanDeleteOrganisation { get; private set; }
     public bool CanAddContact { get; private set; }
     public bool CanManageAnyContact { get; private set; }
@@ -63,7 +64,7 @@ public sealed class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        CanManageOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Manage)).Succeeded;
+        CanCreateOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Create)).Succeeded;
         CanDeleteOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Delete)).Succeeded;
         CanAddContact = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.AddContact)).Succeeded;
         CanManageAnyContact = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.ManageAnyContact)).Succeeded;
@@ -95,6 +96,14 @@ public sealed class IndexModel : PageModel
             {
                 Id = null;
             }
+            else
+            {
+                CanEditOrganisation = await CanEditOrganisationAsync(SelectedPartner.Id, cancellationToken);
+                if (Edit && !CanEditOrganisation)
+                {
+                    Edit = false;
+                }
+            }
         }
     }
 
@@ -114,7 +123,7 @@ public sealed class IndexModel : PageModel
         [FromForm] string? contactEmail,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageOrganisationAsync())
+        if (!await CanCreateOrganisationAsync())
         {
             return Forbid();
         }
@@ -152,7 +161,7 @@ public sealed class IndexModel : PageModel
         [FromForm] string? rowVersion,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageOrganisationAsync())
+        if (!await CanEditOrganisationAsync(partnerId, cancellationToken))
         {
             return Forbid();
         }
@@ -261,7 +270,7 @@ public sealed class IndexModel : PageModel
         [FromForm] int partnerId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageOrganisationAsync())
+        if (!await CanEditOrganisationAsync(partnerId, cancellationToken))
         {
             return Forbid();
         }
@@ -291,7 +300,7 @@ public sealed class IndexModel : PageModel
         [FromForm] Guid attachmentId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageOrganisationAsync())
+        if (!await CanEditOrganisationAsync(partnerId, cancellationToken))
         {
             return Forbid();
         }
@@ -323,7 +332,7 @@ public sealed class IndexModel : PageModel
         [FromForm(Name = "associationProjectId")] int projectId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageOrganisationAsync())
+        if (!await CanEditOrganisationAsync(partnerId, cancellationToken))
         {
             return Forbid();
         }
@@ -346,7 +355,7 @@ public sealed class IndexModel : PageModel
         [FromForm(Name = "associationProjectId")] int projectId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageOrganisationAsync())
+        if (!await CanEditOrganisationAsync(partnerId, cancellationToken))
         {
             return Forbid();
         }
@@ -426,8 +435,22 @@ public sealed class IndexModel : PageModel
                string.Equals(contact.CreatedByUserId, CurrentUserId, StringComparison.Ordinal);
     }
 
-    private async Task<bool> CanManageOrganisationAsync() =>
-        (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Manage)).Succeeded;
+    private async Task<bool> CanCreateOrganisationAsync() =>
+        (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Create)).Succeeded;
+
+    private async Task<bool> CanEditOrganisationAsync(
+        int partnerId,
+        CancellationToken cancellationToken)
+    {
+        if ((await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.EditAny)).Succeeded)
+        {
+            return true;
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrWhiteSpace(userId) &&
+               await _service.IsOwnerAsync(partnerId, userId, cancellationToken);
+    }
 
     private async Task<bool> CanAddContactAsync() =>
         (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.AddContact)).Succeeded;
