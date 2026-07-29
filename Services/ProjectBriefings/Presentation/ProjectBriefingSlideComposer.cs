@@ -315,7 +315,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 data.Summary.CostRdRecordedCount,
                 data.Summary.ProjectCount,
                 canvas.Theme.Accent,
-                canvas.Theme.AccentSoft);
+                canvas.Theme.AccentSoft,
+                useFixedTwoDecimalPrecision: true);
             AddCostSummaryCard(
                 canvas,
                 6.82,
@@ -326,7 +327,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 data.Summary.IpaCostRecordedCount,
                 data.Summary.ProjectCount,
                 canvas.Theme.SecondaryAccent,
-                canvas.Theme.SecondaryAccentSoft);
+                canvas.Theme.SecondaryAccentSoft,
+                useFixedTwoDecimalPrecision: true);
             return;
         }
 
@@ -408,12 +410,15 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         int recorded,
         int total,
         string accent,
-        string fill)
+        string fill,
+        bool useFixedTwoDecimalPrecision = false)
     {
         canvas.AddRoundedRect(x, y, width, 1.92, fill, accent, .08);
         canvas.AddText(x + .30, y + .28, width - .60, .28, title, 11.2, accent, true, "l");
         var amountDisplay = recorded > 0
-            ? ProjectBriefingCurrencyFormatter.FormatRupees(amount)
+            ? ProjectBriefingCurrencyFormatter.FormatRupees(
+                amount,
+                minimumDecimalPlaces: useFixedTwoDecimalPrecision ? 2 : 0)
             : "Not recorded";
         canvas.AddText(x + .30, y + .70, width - .60, .48, amountDisplay, 25, canvas.Theme.TextPrimary, true, "l");
         canvas.AddText(
@@ -1532,17 +1537,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
 
         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
-        var footerTextX = .65;
-        var footerTextWidth = 5.55;
-        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-            && kind == SlidePlanKind.Project
-            && canvas.ShowBranding)
-        {
-            canvas.AddBrandingImages(HeaderVariant.FooterCompact);
-            footerTextX = .92;
-            footerTextWidth = 5.28;
-        }
-        canvas.AddText(footerTextX, 7.12, footerTextWidth, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
+        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
         if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
         {
             canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
@@ -1657,8 +1652,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private enum HeaderVariant
     {
         Cover,
-        Standard,
-        FooterCompact
+        Standard
     }
 
     private sealed record DetailedSlideLayout(double PhotoHeight);
@@ -1761,15 +1755,6 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         public void AddBrandingImages(HeaderVariant variant)
         {
             if (!ShowBranding) return;
-
-            if (variant == HeaderVariant.FooterCompact)
-            {
-                if (_branding.LeftLogo is { Length: > 0 })
-                {
-                    AddImageContained(_branding.LeftLogo, .66, 7.09, .19, .19, "Compact footer insignia");
-                }
-                return;
-            }
 
             if (variant == HeaderVariant.Cover)
             {

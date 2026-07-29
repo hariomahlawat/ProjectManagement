@@ -7,6 +7,8 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
 public sealed partial class ProjectBriefingSlideComposer
 {
+    private const string UpdateSheetAccent = "8F0D21";
+
     private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
     {
         var plans = new List<SlidePlan>();
@@ -33,7 +35,6 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingPresentationProject project)
     {
-        const string accent = "8F0D21";
         const string white = "FFFFFF";
         const string text = "172033";
         const string muted = "5C667A";
@@ -43,58 +44,87 @@ public sealed partial class ProjectBriefingSlideComposer
         const string bodyFill = "FFFFFF";
 
         canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
-        canvas.AddRect(0, 0, SlideWidth, .07, accent, name: "Project sheet top accent");
-        canvas.AddText(
-            .55,
-            .17,
-            2.40,
-            .17,
-            "PROJECT UPDATE SHEET",
-            7.8,
-            accent,
-            true,
-            "l",
-            name: "Project sheet label");
-        canvas.AddText(
-            .55,
-            .36,
-            12.23,
-            .42,
-            project.ProjectName,
-            UpdateSheetTitleFontSize(project.ProjectName),
-            text,
-            true,
-            "l",
-            name: "Project name");
+        canvas.AddRect(0, 0, SlideWidth, .065, UpdateSheetAccent, name: "Project sheet top accent");
+        canvas.AddBrandingImages(HeaderVariant.Standard);
+
+        var titleX = canvas.ShowBranding ? 1.16 : .62;
+        var titleWidth = canvas.ShowBranding ? 11.01 : 12.09;
+        canvas.AddRichTextBox(
+            titleX,
+            .15,
+            titleWidth,
+            .64,
+            new[]
+            {
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(
+                            project.ProjectName,
+                            UpdateSheetTitleFontSize(project.ProjectName),
+                            UpdateSheetAccent,
+                            Bold: true)
+                    },
+                    Align: "ctr",
+                    LineSpacingPoints: UpdateSheetTitleFontSize(project.ProjectName) * 1.05)
+            },
+            "Project name",
+            verticalAnchor: "ctr",
+            allowAutoFit: true,
+            leftInset: .03,
+            rightInset: .03,
+            topInset: 0,
+            bottomInset: 0);
         canvas.AddLine(.55, .92, 12.78, .92, border, .65);
 
-        var rows = BuildProjectUpdateRows(project, text, muted, serialFill, labelFill, bodyFill);
-        var heights = new[] { .31, .31, .34, .46, .31, .50, .31, .48, .31, .31 };
+        var status = UpdateSheetStatus(project.ExternalStatus);
+        var arppDetails = BuildArppDetails(project);
+        var supplyOrder = BuildSupplyOrderDisplay(project.SupplyOrderDate, project.JdpNames);
+        var rows = BuildProjectUpdateRows(
+            project,
+            status,
+            arppDetails,
+            supplyOrder,
+            text,
+            muted,
+            serialFill,
+            labelFill,
+            bodyFill);
+        var heights = BuildProjectUpdateRowHeights(status);
+        var factsHeight = heights.Sum();
+
+        const double contentY = 1.08;
         canvas.AddNativeTable(
             .50,
-            1.08,
+            contentY,
             new[] { .34, 1.78, 4.15 },
             heights,
             rows,
             "Project update facts table");
 
         const double photoX = 7.02;
-        const double photoY = 1.08;
         const double photoWidth = 5.81;
-        const double photoHeight = 3.64;
-        canvas.AddRect(photoX, photoY, photoWidth, photoHeight, "F7F8FA", border, .8, "Project photograph frame");
+        canvas.AddRect(
+            photoX,
+            contentY,
+            photoWidth,
+            factsHeight,
+            "F7F8FA",
+            border,
+            .8,
+            "Project photograph frame");
         if (project.CoverPhoto is { Length: > 0 })
         {
             const double inset = .10;
             var maximumWidth = photoWidth - (inset * 2);
-            var maximumHeight = photoHeight - (inset * 2);
+            var maximumHeight = factsHeight - (inset * 2);
             var imageWidth = Math.Min(maximumWidth, maximumHeight * 16d / 9d);
             var imageHeight = imageWidth * 9d / 16d;
             canvas.AddImage(
                 project.CoverPhoto,
                 project.CoverPhotoContentType,
                 photoX + ((photoWidth - imageWidth) / 2d),
-                photoY + ((photoHeight - imageHeight) / 2d),
+                contentY + ((factsHeight - imageHeight) / 2d),
                 imageWidth,
                 imageHeight,
                 $"{project.ProjectName} photograph");
@@ -103,7 +133,7 @@ public sealed partial class ProjectBriefingSlideComposer
         {
             canvas.AddText(
                 photoX + .35,
-                photoY + 1.44,
+                contentY + Math.Max(.35, (factsHeight - .55) / 2d),
                 photoWidth - .70,
                 .55,
                 "PHOTOGRAPH NOT AVAILABLE",
@@ -114,8 +144,8 @@ public sealed partial class ProjectBriefingSlideComposer
                 name: "Photograph not available");
         }
 
-        const double briefY = 4.91;
-        const double briefHeight = 2.02;
+        var briefY = contentY + factsHeight + .16;
+        var briefHeight = 6.93 - briefY;
         canvas.AddRect(.50, briefY, 12.33, briefHeight, white, border, .8, "Project brief panel");
         canvas.AddRect(.50, briefY, 12.33, .31, labelFill, border, .8, "Project brief heading");
         canvas.AddText(
@@ -146,6 +176,9 @@ public sealed partial class ProjectBriefingSlideComposer
 
     private static IReadOnlyList<IReadOnlyList<NativeTableCell>> BuildProjectUpdateRows(
         ProjectBriefingPresentationProject project,
+        string status,
+        string arppDetails,
+        string supplyOrder,
         string text,
         string muted,
         string serialFill,
@@ -155,39 +188,43 @@ public sealed partial class ProjectBriefingSlideComposer
         var pdc = string.Equals(project.PresentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
             ? FormatDate(project.DevelopmentPdcDate)
             : string.Empty;
-        var status = string.IsNullOrWhiteSpace(project.ExternalStatus)
-            || string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.OrdinalIgnoreCase)
-                ? "Not recorded"
-                : project.ExternalStatus.Trim();
-        var arppDetails = string.Join(" · ", new[]
-        {
-            FieldValue("Fund", project.Fund),
-            FieldValue("DFPDS", project.DfpdsSchedule),
-            FieldValue("CFA", project.Cfa)
-        });
-        var supplyOrder = BuildSupplyOrderDisplay(project.SupplyOrderDate, project.JdpNames);
 
-        var values = new (string Label, string Value, double FontSize)[]
+        var values = new (string Label, string Value, double FontSize, string Color)[]
         {
-            ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2),
-            ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2),
-            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8),
-            ("Fund, DFPDS Sch and CFA", arppDetails, 8.2),
-            ("AoN Date", FormatDate(project.AonDate), 9.0),
-            ("SO Date and Name of Firm", supplyOrder, 8.3),
-            ("PDC Date", pdc, 9.0),
-            ("Present Status", status, UpdateSheetStatusFontSize(status)),
-            ("Project Officer", DisplayOrNotRecorded(project.ProjectOfficer), 8.8),
-            ("Line Directorate", DisplayOrNotRecorded(project.LineDirectorate), 8.8)
+            ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2, text),
+            ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2, project.CostRd.IsAvailable ? text : muted),
+            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8, IsRecorded(project.ArppReference) ? text : muted),
+            ("Fund, DFPDS Sch and CFA", arppDetails, 8.0, HasAnyArppDetail(project) ? text : muted),
+            ("AoN Date", FormatDate(project.AonDate), 9.0, project.AonDate.HasValue ? text : muted),
+            ("SO Date and Name of Firm", supplyOrder, 8.1, HasAnySupplyOrderDetail(project.SupplyOrderDate, project.JdpNames) ? text : muted),
+            ("PDC Date", pdc, 9.0, string.IsNullOrWhiteSpace(pdc) ? muted : text),
+            ("Present Status", status, UpdateSheetStatusFontSize(status), string.Equals(status, "Not recorded", StringComparison.Ordinal) ? muted : text),
+            ("Project Officer", DisplayOrNotRecorded(project.ProjectOfficer), 8.8, IsRecorded(project.ProjectOfficer) ? text : muted),
+            ("Line Directorate", DisplayOrNotRecorded(project.LineDirectorate), 8.8, IsRecorded(project.LineDirectorate) ? text : muted)
         };
 
         return values.Select((row, index) => (IReadOnlyList<NativeTableCell>)new[]
         {
             Cell((index + 1).ToString(CultureInfo.InvariantCulture) + ".", 8.8, muted, false, "ctr", serialFill),
             Cell(row.Label, 8.7, text, false, "l", labelFill),
-            Cell(row.Value, row.FontSize, text, false, "l", bodyFill)
+            Cell(row.Value, row.FontSize, row.Color, false, "l", bodyFill)
         }).ToArray();
     }
+
+    private static double[] BuildProjectUpdateRowHeights(string status)
+        => new[]
+        {
+            .31,
+            .30,
+            .32,
+            .58,
+            .30,
+            .48,
+            .30,
+            UpdateSheetStatusRowHeight(status),
+            .30,
+            .30
+        };
 
     private static IReadOnlyList<RichTextParagraph> BuildUpdateSheetBriefParagraphs(
         string? projectBrief,
@@ -221,29 +258,55 @@ public sealed partial class ProjectBriefingSlideComposer
             .ToArray();
     }
 
+    private static string BuildArppDetails(ProjectBriefingPresentationProject project)
+        => string.Join("\n", new[]
+        {
+            FieldValue("Fund", project.Fund),
+            FieldValue("DFPDS", project.DfpdsSchedule),
+            FieldValue("CFA", project.Cfa)
+        });
+
     private static string BuildSupplyOrderDisplay(
         DateOnly? supplyOrderDate,
         IReadOnlyList<string> jdpNames)
     {
-        var hasDate = supplyOrderDate.HasValue;
         var firms = jdpNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (!hasDate && firms.Length == 0)
+        if (!supplyOrderDate.HasValue && firms.Length == 0)
         {
             return "Not recorded";
         }
 
-        var lines = new List<string>(2)
+        return string.Join("\n", new[]
         {
-            hasDate ? FormatDate(supplyOrderDate) : "SO date: Not recorded",
-            firms.Length > 0 ? string.Join("; ", firms) : "Firm: Not recorded"
-        };
-        return string.Join("\n", lines);
+            $"SO Date: {(supplyOrderDate.HasValue ? FormatDate(supplyOrderDate) : "Not recorded")}",
+            $"Firm: {(firms.Length > 0 ? string.Join("; ", firms) : "Not recorded")}"
+        });
     }
+
+    private static string UpdateSheetStatus(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            || string.Equals(value, "No external status recorded", StringComparison.OrdinalIgnoreCase)
+                ? "Not recorded"
+                : value.Trim();
+
+    private static bool HasAnyArppDetail(ProjectBriefingPresentationProject project)
+        => IsRecorded(project.Fund)
+            || IsRecorded(project.DfpdsSchedule)
+            || IsRecorded(project.Cfa);
+
+    private static bool HasAnySupplyOrderDetail(
+        DateOnly? supplyOrderDate,
+        IReadOnlyList<string> jdpNames)
+        => supplyOrderDate.HasValue
+            || jdpNames.Any(IsRecorded);
+
+    private static bool IsRecorded(string? value)
+        => !string.IsNullOrWhiteSpace(value);
 
     private static string FieldValue(string label, string? value)
         => $"{label}: {DisplayOrNotRecorded(value)}";
@@ -258,18 +321,28 @@ public sealed partial class ProjectBriefingSlideComposer
         => title.Length switch
         {
             <= 52 => 18.2,
-            <= 72 => 16.6,
-            <= 94 => 15.0,
-            _ => 13.4
+            <= 72 => 16.8,
+            <= 94 => 15.2,
+            <= 118 => 13.8,
+            _ => 12.6
         };
 
     private static double UpdateSheetStatusFontSize(string status)
         => status.Length switch
         {
-            <= 90 => 8.0,
-            <= 150 => 7.4,
-            <= 230 => 6.8,
-            _ => 6.2
+            <= 95 => 8.2,
+            <= 165 => 7.9,
+            <= 250 => 7.6,
+            _ => 7.4
+        };
+
+    private static double UpdateSheetStatusRowHeight(string status)
+        => status.Length switch
+        {
+            <= 95 => .48,
+            <= 165 => .57,
+            <= 250 => .68,
+            _ => .80
         };
 
     private static double UpdateSheetBriefFontSize(int characterCount)
@@ -281,5 +354,4 @@ public sealed partial class ProjectBriefingSlideComposer
             <= 2_100 => 7.8,
             _ => 6.8
         };
-
 }

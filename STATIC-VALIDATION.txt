@@ -1,10 +1,20 @@
-PASS: Project update red panel removed
-PASS: Project update corner-branding call removed
-PASS: Clean project-sheet label present
-PASS: Total IPA card present
-PASS: Total R&D card present
-PASS: Authoritative IPA carried separately
-PASS: Single-pass cost resolution present
-PASS: Compact footer branding present
-PASS: No database migration required
-NOT RUN: dotnet build/test (.NET SDK unavailable)
+PRISM PROJECT BRIEFING HEADER POLISH - STATIC VALIDATION
+=========================================================
+
+PASS: Unified patch applies cleanly to the previously supplied refinement baseline.
+PASS: Patched files exactly match the ready-to-paste source files.
+PASS: Project-sheet header invokes standard two-insignia branding.
+PASS: Repeated PROJECT UPDATE SHEET label removed from production composer.
+PASS: Project title is centred.
+PASS: Project title uses restrained maroon accent.
+PASS: Redundant compact footer insignia path removed.
+PASS: Fund, DFPDS and CFA are stacked.
+PASS: Supply-order date and firm are consistently labelled.
+PASS: Long status remarks receive dynamic row height.
+PASS: Project Update Sheet portfolio totals use consistent two-decimal precision.
+PASS: Visual header composition was preview-rendered through LibreOffice at 16:9.
+
+NOT RUN: dotnet build / dotnet test because the .NET SDK is not installed in this environment.
+Run locally:
+  dotnet build
+  dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj

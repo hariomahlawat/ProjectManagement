@@ -1,497 +1,532 @@
 --- a/Services/ProjectBriefings/ProjectBriefingCostResolver.cs
 +++ b/Services/ProjectBriefings/ProjectBriefingCostResolver.cs
-@@ -4,8 +4,16 @@
+@@ -195,15 +195,33 @@
+     private const decimal Lakh = 100_000m;
  
- namespace ProjectManagement.Services.ProjectBriefings;
- 
-+public sealed record ProjectBriefingResolvedCosts(
-+    IReadOnlyDictionary<int, ProjectBriefingCostValue> CostRd,
-+    IReadOnlyDictionary<int, ProjectBriefingCostValue> Ipa);
+     public static string FormatRupees(decimal amount)
+-    {
++        => FormatRupees(amount, minimumDecimalPlaces: 0);
 +
- public interface IProjectBriefingCostResolver
- {
-+    Task<ProjectBriefingResolvedCosts> ResolveCostsAsync(
-+        IReadOnlyCollection<int> projectIds,
-+        CancellationToken cancellationToken = default);
-+
-     Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
-         IReadOnlyCollection<int> projectIds,
-         CancellationToken cancellationToken = default);
-@@ -34,14 +42,15 @@
-         _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
-     }
- 
--    public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
-+    public async Task<ProjectBriefingResolvedCosts> ResolveCostsAsync(
-         IReadOnlyCollection<int> projectIds,
-         CancellationToken cancellationToken = default)
-     {
-         var ids = Normalize(projectIds);
-         if (ids.Length == 0)
-         {
--            return new Dictionary<int, ProjectBriefingCostValue>();
-+            var empty = new Dictionary<int, ProjectBriefingCostValue>();
-+            return new ProjectBriefingResolvedCosts(empty, empty);
-         }
- 
-         var l1Rows = await _db.ProjectCommercialFacts
-@@ -56,6 +65,8 @@
-             .Select(row => new CostFactRow(row.ProjectId, row.AonCost, row.CreatedOnUtc, row.Id))
-             .ToListAsync(cancellationToken);
- 
-+        // Resolve the authoritative IPA position once. The same snapshot is used both
-+        // as the R&D-cost fallback and for the separate Total IPA Cost summary.
-         var ipaPositions = await _ipaResolver.ResolveManyAsync(ids, cancellationToken);
- 
-         var l1 = Latest(l1Rows);
-@@ -63,30 +74,42 @@
-         var ipa = ipaPositions
-             .Where(pair => pair.Value.AmountInRupees > 0m)
-             .ToDictionary(pair => pair.Key, pair => pair.Value.AmountInRupees);
--        var result = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
-+
-+        var costRd = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
-+        var ipaCost = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
- 
-         foreach (var projectId in ids)
-         {
-+            var authoritativeIpaAmount = ipa.GetValueOrDefault(projectId);
-+            ipaCost[projectId] = authoritativeIpaAmount > 0m
-+                ? Build(authoritativeIpaAmount, ProjectBriefingCostBasis.IPA, "IPA")
-+                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
-+
-             if (l1.TryGetValue(projectId, out var l1Amount))
-             {
--                result[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
-+                costRd[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
-             }
-             else if (aon.TryGetValue(projectId, out var aonAmount))
-             {
--                result[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
-+                costRd[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
-             }
-             else if (ipa.TryGetValue(projectId, out var ipaAmount))
-             {
--                result[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
-+                costRd[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
-             }
-             else
-             {
--                result[projectId] = ProjectBriefingCostValue.Missing();
--            }
--        }
--
--        return result;
--    }
-+                costRd[projectId] = ProjectBriefingCostValue.Missing();
-+            }
++    public static string FormatRupees(decimal amount, int minimumDecimalPlaces)
++    {
++        if (minimumDecimalPlaces is < 0 or > 2)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(minimumDecimalPlaces),
++                minimumDecimalPlaces,
++                "Currency precision must be between zero and two decimal places.");
 +        }
 +
-+        return new ProjectBriefingResolvedCosts(costRd, ipaCost);
-+    }
++        var numberFormat = minimumDecimalPlaces switch
++        {
++            0 => "0.##",
++            1 => "0.0#",
++            _ => "0.00"
++        };
 +
-+    public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
-+        IReadOnlyCollection<int> projectIds,
-+        CancellationToken cancellationToken = default)
-+        => (await ResolveCostsAsync(projectIds, cancellationToken)).CostRd;
- 
-     public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveProliferationCostAsync(
-         IReadOnlyCollection<int> projectIds,
---- a/Services/ProjectBriefings/ProjectBriefingContracts.cs
-+++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs
-@@ -88,6 +88,7 @@
-     public string? ProjectCategory { get; init; }
-     public string? TechnicalCategory { get; init; }
-     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
-+    public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
-     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
-     public string? ExternalStatus { get; init; }
-     public DateOnly? ExternalStatusDate { get; init; }
-@@ -275,6 +276,7 @@
-     public string? ProjectCategory { get; init; }
-     public string? TechnicalCategory { get; init; }
-     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
-+    public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
-     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
-     public string ExternalStatus { get; init; } = "No external status recorded";
-     public DateOnly? ExternalStatusDate { get; init; }
-@@ -305,6 +307,8 @@
-     public int CompletedCount { get; init; }
-     public decimal TotalCostRdInRupees { get; init; }
-     public int CostRdRecordedCount { get; init; }
-+    public decimal TotalIpaCostInRupees { get; init; }
-+    public int IpaCostRecordedCount { get; init; }
-     public decimal TotalProliferationCostInRupees { get; init; }
-     public int ProliferationCostRecordedCount { get; init; }
-     public int MissingExternalStatusCount { get; init; }
---- a/Services/ProjectBriefings/ProjectBriefingDataService.cs
-+++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs
-@@ -116,6 +116,7 @@
-                 ProjectCategory = project.ProjectCategory,
-                 TechnicalCategory = project.TechnicalCategory,
-                 CostRd = project.CostRd,
-+                IpaCost = project.IpaCost,
-                 ProliferationCost = project.ProliferationCost,
-                 ExternalStatus = project.ExternalStatus ?? "No external status recorded",
-                 ExternalStatusDate = project.ExternalStatusDate,
-@@ -378,7 +379,9 @@
+         if (amount >= Crore)
+         {
+-            return $"₹{amount / Crore:0.##} Cr";
++            return $"₹{(amount / Crore).ToString(numberFormat, System.Globalization.CultureInfo.InvariantCulture)} Cr";
          }
  
-         var projectIds = items.Select(item => item.ProjectId).Distinct().ToArray();
--        var costRd = await _costResolver.ResolveCostRdAsync(projectIds, cancellationToken);
-+        var resolvedCosts = await _costResolver.ResolveCostsAsync(projectIds, cancellationToken);
-+        var costRd = resolvedCosts.CostRd;
-+        var ipaCost = resolvedCosts.Ipa;
-         IReadOnlyDictionary<int, ProjectBriefingCostValue> proliferation =
-             layout == ProjectBriefingLayout.ProjectUpdateSheet
-                 ? new Dictionary<int, ProjectBriefingCostValue>()
-@@ -427,6 +430,8 @@
-                     ProjectCategory = item.ProjectCategory,
-                     TechnicalCategory = item.TechnicalCategory,
-                     CostRd = costRd.GetValueOrDefault(item.ProjectId) ?? ProjectBriefingCostValue.Missing(),
-+                    IpaCost = ipaCost.GetValueOrDefault(item.ProjectId)
-+                        ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
-                     ProliferationCost = proliferation.GetValueOrDefault(item.ProjectId)
-                         ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
-                     ExternalStatus = external?.Body,
-@@ -538,6 +543,8 @@
-             CompletedCount = projects.Count(project => project.LifecycleStatus == ProjectLifecycleStatus.Completed),
-             TotalCostRdInRupees = projects.Sum(project => project.CostRd.AmountInRupees ?? 0m),
-             CostRdRecordedCount = projects.Count(project => project.CostRd.IsAvailable),
-+            TotalIpaCostInRupees = projects.Sum(project => project.IpaCost.AmountInRupees ?? 0m),
-+            IpaCostRecordedCount = projects.Count(project => project.IpaCost.IsAvailable),
-             TotalProliferationCostInRupees = projects.Sum(project => project.ProliferationCost.AmountInRupees ?? 0m),
-             ProliferationCostRecordedCount = projects.Count(project => project.ProliferationCost.IsAvailable),
-             MissingExternalStatusCount = projects.Count(project => string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal)),
+         if (amount >= Lakh)
+         {
+-            return $"₹{amount / Lakh:0.##} Lakh";
++            return $"₹{(amount / Lakh).ToString(numberFormat, System.Globalization.CultureInfo.InvariantCulture)} Lakh";
+         }
+ 
+         return $"₹{amount:N0}";
 --- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
 +++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-@@ -83,7 +83,7 @@
-                 var showBranding = ShouldShowBranding(data.BrandingScope, plans[index].Kind);
-                 var canvas = new SlideCanvas(slidePart, theme, branding, showBranding);
-                 plans[index].Render(canvas);
--                AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind == SlidePlanKind.Cover);
-+                AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind);
-                 canvas.Commit();
- 
-                 slideIdList.Append(new SlideId
-@@ -301,6 +301,33 @@
-                 canvas.Theme.TextMuted,
-                 true,
-                 "l");
-+        }
-+
-+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
-+        {
-+            AddCostSummaryCard(
-+                canvas,
-+                .65,
-+                3.42,
-+                5.86,
-+                "TOTAL R&D COST",
-+                data.Summary.TotalCostRdInRupees,
-+                data.Summary.CostRdRecordedCount,
-+                data.Summary.ProjectCount,
-+                canvas.Theme.Accent,
-+                canvas.Theme.AccentSoft);
-+            AddCostSummaryCard(
-+                canvas,
-+                6.82,
-+                3.42,
-+                5.86,
-+                "TOTAL IPA COST",
-+                data.Summary.TotalIpaCostInRupees,
-+                data.Summary.IpaCostRecordedCount,
-+                data.Summary.ProjectCount,
-+                canvas.Theme.SecondaryAccent,
-+                canvas.Theme.SecondaryAccentSoft);
-+            return;
-         }
- 
-         var showRd = data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
-@@ -1497,15 +1524,25 @@
-         ProjectBriefingPresentationData data,
-         int slideNumber,
-         int slideCount,
--        bool isCover)
--    {
--        if (isCover)
-+        SlidePlanKind kind)
-+    {
-+        if (kind == SlidePlanKind.Cover)
-         {
+@@ -315,7 +315,8 @@
+                 data.Summary.CostRdRecordedCount,
+                 data.Summary.ProjectCount,
+                 canvas.Theme.Accent,
+-                canvas.Theme.AccentSoft);
++                canvas.Theme.AccentSoft,
++                useFixedTwoDecimalPrecision: true);
+             AddCostSummaryCard(
+                 canvas,
+                 6.82,
+@@ -326,7 +327,8 @@
+                 data.Summary.IpaCostRecordedCount,
+                 data.Summary.ProjectCount,
+                 canvas.Theme.SecondaryAccent,
+-                canvas.Theme.SecondaryAccentSoft);
++                canvas.Theme.SecondaryAccentSoft,
++                useFixedTwoDecimalPrecision: true);
              return;
          }
  
+@@ -408,12 +410,15 @@
+         int recorded,
+         int total,
+         string accent,
+-        string fill)
++        string fill,
++        bool useFixedTwoDecimalPrecision = false)
+     {
+         canvas.AddRoundedRect(x, y, width, 1.92, fill, accent, .08);
+         canvas.AddText(x + .30, y + .28, width - .60, .28, title, 11.2, accent, true, "l");
+         var amountDisplay = recorded > 0
+-            ? ProjectBriefingCurrencyFormatter.FormatRupees(amount)
++            ? ProjectBriefingCurrencyFormatter.FormatRupees(
++                amount,
++                minimumDecimalPlaces: useFixedTwoDecimalPrecision ? 2 : 0)
+             : "Not recorded";
+         canvas.AddText(x + .30, y + .70, width - .60, .48, amountDisplay, 25, canvas.Theme.TextPrimary, true, "l");
+         canvas.AddText(
+@@ -1532,17 +1537,7 @@
+         }
+ 
          canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
--        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
-+        var footerTextX = .65;
-+        var footerTextWidth = 5.55;
-+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+            && kind == SlidePlanKind.Project
-+            && canvas.ShowBranding)
-+        {
-+            canvas.AddBrandingImages(HeaderVariant.FooterCompact);
-+            footerTextX = .92;
-+            footerTextWidth = 5.28;
-+        }
-+        canvas.AddText(footerTextX, 7.12, footerTextWidth, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
+-        var footerTextX = .65;
+-        var footerTextWidth = 5.55;
+-        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+-            && kind == SlidePlanKind.Project
+-            && canvas.ShowBranding)
+-        {
+-            canvas.AddBrandingImages(HeaderVariant.FooterCompact);
+-            footerTextX = .92;
+-            footerTextWidth = 5.28;
+-        }
+-        canvas.AddText(footerTextX, 7.12, footerTextWidth, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
++        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
          if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
          {
              canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
-@@ -1620,7 +1657,8 @@
+@@ -1657,8 +1652,7 @@
      private enum HeaderVariant
      {
          Cover,
--        Standard
-+        Standard,
-+        FooterCompact
+-        Standard,
+-        FooterCompact
++        Standard
      }
  
      private sealed record DetailedSlideLayout(double PhotoHeight);
-@@ -1723,6 +1761,15 @@
+@@ -1761,15 +1755,6 @@
          public void AddBrandingImages(HeaderVariant variant)
          {
              if (!ShowBranding) return;
-+
-+            if (variant == HeaderVariant.FooterCompact)
-+            {
-+                if (_branding.LeftLogo is { Length: > 0 })
-+                {
-+                    AddImageContained(_branding.LeftLogo, .66, 7.09, .19, .19, "Compact footer insignia");
-+                }
-+                return;
-+            }
+-
+-            if (variant == HeaderVariant.FooterCompact)
+-            {
+-                if (_branding.LeftLogo is { Length: > 0 })
+-                {
+-                    AddImageContained(_branding.LeftLogo, .66, 7.09, .19, .19, "Compact footer insignia");
+-                }
+-                return;
+-            }
  
              if (variant == HeaderVariant.Cover)
              {
 --- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
 +++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-@@ -33,8 +33,7 @@
+@@ -7,6 +7,8 @@
+ 
+ public sealed partial class ProjectBriefingSlideComposer
+ {
++    private const string UpdateSheetAccent = "8F0D21";
++
+     private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
+     {
+         var plans = new List<SlidePlan>();
+@@ -33,7 +35,6 @@
          SlideCanvas canvas,
          ProjectBriefingPresentationProject project)
      {
--        const string headerRed = "B5122B";
--        const string headerRedDark = "8F0D21";
-+        const string accent = "8F0D21";
+-        const string accent = "8F0D21";
          const string white = "FFFFFF";
          const string text = "172033";
          const string muted = "5C667A";
-@@ -44,20 +43,30 @@
+@@ -43,58 +44,87 @@
          const string bodyFill = "FFFFFF";
  
          canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
--        canvas.AddRect(0, 0, SlideWidth, .10, headerRedDark);
--        canvas.AddRect(.46, .24, 12.41, .68, headerRed, headerRedDark, .8, "Project update title band");
-+        canvas.AddRect(0, 0, SlideWidth, .07, accent, name: "Project sheet top accent");
-         canvas.AddText(
--            1.04,
--            .34,
--            11.25,
--            .46,
--            project.ProjectName.ToUpperInvariant(),
-+            .55,
-+            .17,
-+            2.40,
-+            .17,
-+            "PROJECT UPDATE SHEET",
-+            7.8,
-+            accent,
-+            true,
-+            "l",
-+            name: "Project sheet label");
-+        canvas.AddText(
-+            .55,
-+            .36,
-+            12.23,
-+            .42,
-+            project.ProjectName,
-             UpdateSheetTitleFontSize(project.ProjectName),
--            white,
-+            text,
-             true,
--            "ctr",
-+            "l",
-             name: "Project name");
--        canvas.AddBrandingImages(HeaderVariant.Standard);
+-        canvas.AddRect(0, 0, SlideWidth, .07, accent, name: "Project sheet top accent");
+-        canvas.AddText(
+-            .55,
+-            .17,
+-            2.40,
+-            .17,
+-            "PROJECT UPDATE SHEET",
+-            7.8,
+-            accent,
+-            true,
+-            "l",
+-            name: "Project sheet label");
+-        canvas.AddText(
+-            .55,
+-            .36,
+-            12.23,
+-            .42,
+-            project.ProjectName,
+-            UpdateSheetTitleFontSize(project.ProjectName),
++        canvas.AddRect(0, 0, SlideWidth, .065, UpdateSheetAccent, name: "Project sheet top accent");
++        canvas.AddBrandingImages(HeaderVariant.Standard);
++
++        var titleX = canvas.ShowBranding ? 1.16 : .62;
++        var titleWidth = canvas.ShowBranding ? 11.01 : 12.09;
++        canvas.AddRichTextBox(
++            titleX,
++            .15,
++            titleWidth,
++            .64,
++            new[]
++            {
++                new RichTextParagraph(
++                    new[]
++                    {
++                        new RichTextRun(
++                            project.ProjectName,
++                            UpdateSheetTitleFontSize(project.ProjectName),
++                            UpdateSheetAccent,
++                            Bold: true)
++                    },
++                    Align: "ctr",
++                    LineSpacingPoints: UpdateSheetTitleFontSize(project.ProjectName) * 1.05)
++            },
++            "Project name",
++            verticalAnchor: "ctr",
++            allowAutoFit: true,
++            leftInset: .03,
++            rightInset: .03,
++            topInset: 0,
++            bottomInset: 0);
 +        canvas.AddLine(.55, .92, 12.78, .92, border, .65);
- 
-         var rows = BuildProjectUpdateRows(project, text, muted, serialFill, labelFill, bodyFill);
-         var heights = new[] { .31, .31, .34, .46, .31, .50, .31, .48, .31, .31 };
-@@ -156,8 +165,7 @@
-             FieldValue("DFPDS", project.DfpdsSchedule),
-             FieldValue("CFA", project.Cfa)
-         });
--        var supplyOrder = $"{FormatDate(project.SupplyOrderDate)}\n{DisplayOrNotRecorded(
--            project.JdpNames.Count == 0 ? null : string.Join("; ", project.JdpNames))}";
++
++        var status = UpdateSheetStatus(project.ExternalStatus);
++        var arppDetails = BuildArppDetails(project);
 +        var supplyOrder = BuildSupplyOrderDisplay(project.SupplyOrderDate, project.JdpNames);
++        var rows = BuildProjectUpdateRows(
++            project,
++            status,
++            arppDetails,
++            supplyOrder,
+             text,
+-            true,
+-            "l",
+-            name: "Project name");
+-        canvas.AddLine(.55, .92, 12.78, .92, border, .65);
+-
+-        var rows = BuildProjectUpdateRows(project, text, muted, serialFill, labelFill, bodyFill);
+-        var heights = new[] { .31, .31, .34, .46, .31, .50, .31, .48, .31, .31 };
++            muted,
++            serialFill,
++            labelFill,
++            bodyFill);
++        var heights = BuildProjectUpdateRowHeights(status);
++        var factsHeight = heights.Sum();
++
++        const double contentY = 1.08;
+         canvas.AddNativeTable(
+             .50,
+-            1.08,
++            contentY,
+             new[] { .34, 1.78, 4.15 },
+             heights,
+             rows,
+             "Project update facts table");
  
-         var values = new (string Label, string Value, double FontSize)[]
+         const double photoX = 7.02;
+-        const double photoY = 1.08;
+         const double photoWidth = 5.81;
+-        const double photoHeight = 3.64;
+-        canvas.AddRect(photoX, photoY, photoWidth, photoHeight, "F7F8FA", border, .8, "Project photograph frame");
++        canvas.AddRect(
++            photoX,
++            contentY,
++            photoWidth,
++            factsHeight,
++            "F7F8FA",
++            border,
++            .8,
++            "Project photograph frame");
+         if (project.CoverPhoto is { Length: > 0 })
          {
-@@ -213,6 +221,30 @@
+             const double inset = .10;
+             var maximumWidth = photoWidth - (inset * 2);
+-            var maximumHeight = photoHeight - (inset * 2);
++            var maximumHeight = factsHeight - (inset * 2);
+             var imageWidth = Math.Min(maximumWidth, maximumHeight * 16d / 9d);
+             var imageHeight = imageWidth * 9d / 16d;
+             canvas.AddImage(
+                 project.CoverPhoto,
+                 project.CoverPhotoContentType,
+                 photoX + ((photoWidth - imageWidth) / 2d),
+-                photoY + ((photoHeight - imageHeight) / 2d),
++                contentY + ((factsHeight - imageHeight) / 2d),
+                 imageWidth,
+                 imageHeight,
+                 $"{project.ProjectName} photograph");
+@@ -103,7 +133,7 @@
+         {
+             canvas.AddText(
+                 photoX + .35,
+-                photoY + 1.44,
++                contentY + Math.Max(.35, (factsHeight - .55) / 2d),
+                 photoWidth - .70,
+                 .55,
+                 "PHOTOGRAPH NOT AVAILABLE",
+@@ -114,8 +144,8 @@
+                 name: "Photograph not available");
+         }
+ 
+-        const double briefY = 4.91;
+-        const double briefHeight = 2.02;
++        var briefY = contentY + factsHeight + .16;
++        var briefHeight = 6.93 - briefY;
+         canvas.AddRect(.50, briefY, 12.33, briefHeight, white, border, .8, "Project brief panel");
+         canvas.AddRect(.50, briefY, 12.33, .31, labelFill, border, .8, "Project brief heading");
+         canvas.AddText(
+@@ -146,6 +176,9 @@
+ 
+     private static IReadOnlyList<IReadOnlyList<NativeTableCell>> BuildProjectUpdateRows(
+         ProjectBriefingPresentationProject project,
++        string status,
++        string arppDetails,
++        string supplyOrder,
+         string text,
+         string muted,
+         string serialFill,
+@@ -155,39 +188,43 @@
+         var pdc = string.Equals(project.PresentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
+             ? FormatDate(project.DevelopmentPdcDate)
+             : string.Empty;
+-        var status = string.IsNullOrWhiteSpace(project.ExternalStatus)
+-            || string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.OrdinalIgnoreCase)
+-                ? "Not recorded"
+-                : project.ExternalStatus.Trim();
+-        var arppDetails = string.Join(" · ", new[]
+-        {
+-            FieldValue("Fund", project.Fund),
+-            FieldValue("DFPDS", project.DfpdsSchedule),
+-            FieldValue("CFA", project.Cfa)
+-        });
+-        var supplyOrder = BuildSupplyOrderDisplay(project.SupplyOrderDate, project.JdpNames);
+-
+-        var values = new (string Label, string Value, double FontSize)[]
+-        {
+-            ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2),
+-            ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2),
+-            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8),
+-            ("Fund, DFPDS Sch and CFA", arppDetails, 8.2),
+-            ("AoN Date", FormatDate(project.AonDate), 9.0),
+-            ("SO Date and Name of Firm", supplyOrder, 8.3),
+-            ("PDC Date", pdc, 9.0),
+-            ("Present Status", status, UpdateSheetStatusFontSize(status)),
+-            ("Project Officer", DisplayOrNotRecorded(project.ProjectOfficer), 8.8),
+-            ("Line Directorate", DisplayOrNotRecorded(project.LineDirectorate), 8.8)
++
++        var values = new (string Label, string Value, double FontSize, string Color)[]
++        {
++            ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2, text),
++            ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2, project.CostRd.IsAvailable ? text : muted),
++            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8, IsRecorded(project.ArppReference) ? text : muted),
++            ("Fund, DFPDS Sch and CFA", arppDetails, 8.0, HasAnyArppDetail(project) ? text : muted),
++            ("AoN Date", FormatDate(project.AonDate), 9.0, project.AonDate.HasValue ? text : muted),
++            ("SO Date and Name of Firm", supplyOrder, 8.1, HasAnySupplyOrderDetail(project.SupplyOrderDate, project.JdpNames) ? text : muted),
++            ("PDC Date", pdc, 9.0, string.IsNullOrWhiteSpace(pdc) ? muted : text),
++            ("Present Status", status, UpdateSheetStatusFontSize(status), string.Equals(status, "Not recorded", StringComparison.Ordinal) ? muted : text),
++            ("Project Officer", DisplayOrNotRecorded(project.ProjectOfficer), 8.8, IsRecorded(project.ProjectOfficer) ? text : muted),
++            ("Line Directorate", DisplayOrNotRecorded(project.LineDirectorate), 8.8, IsRecorded(project.LineDirectorate) ? text : muted)
+         };
+ 
+         return values.Select((row, index) => (IReadOnlyList<NativeTableCell>)new[]
+         {
+             Cell((index + 1).ToString(CultureInfo.InvariantCulture) + ".", 8.8, muted, false, "ctr", serialFill),
+             Cell(row.Label, 8.7, text, false, "l", labelFill),
+-            Cell(row.Value, row.FontSize, text, false, "l", bodyFill)
++            Cell(row.Value, row.FontSize, row.Color, false, "l", bodyFill)
+         }).ToArray();
+     }
++
++    private static double[] BuildProjectUpdateRowHeights(string status)
++        => new[]
++        {
++            .31,
++            .30,
++            .32,
++            .58,
++            .30,
++            .48,
++            .30,
++            UpdateSheetStatusRowHeight(status),
++            .30,
++            .30
++        };
+ 
+     private static IReadOnlyList<RichTextParagraph> BuildUpdateSheetBriefParagraphs(
+         string? projectBrief,
+@@ -221,29 +258,55 @@
              .ToArray();
      }
  
-+    private static string BuildSupplyOrderDisplay(
-+        DateOnly? supplyOrderDate,
-+        IReadOnlyList<string> jdpNames)
-+    {
-+        var hasDate = supplyOrderDate.HasValue;
-+        var firms = jdpNames
-+            .Where(name => !string.IsNullOrWhiteSpace(name))
-+            .Select(name => name.Trim())
-+            .Distinct(StringComparer.OrdinalIgnoreCase)
-+            .ToArray();
-+
-+        if (!hasDate && firms.Length == 0)
++    private static string BuildArppDetails(ProjectBriefingPresentationProject project)
++        => string.Join("\n", new[]
 +        {
-+            return "Not recorded";
-+        }
++            FieldValue("Fund", project.Fund),
++            FieldValue("DFPDS", project.DfpdsSchedule),
++            FieldValue("CFA", project.Cfa)
++        });
 +
-+        var lines = new List<string>(2)
+     private static string BuildSupplyOrderDisplay(
+         DateOnly? supplyOrderDate,
+         IReadOnlyList<string> jdpNames)
+     {
+-        var hasDate = supplyOrderDate.HasValue;
+         var firms = jdpNames
+             .Where(name => !string.IsNullOrWhiteSpace(name))
+             .Select(name => name.Trim())
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .ToArray();
+ 
+-        if (!hasDate && firms.Length == 0)
++        if (!supplyOrderDate.HasValue && firms.Length == 0)
+         {
+             return "Not recorded";
+         }
+ 
+-        var lines = new List<string>(2)
+-        {
+-            hasDate ? FormatDate(supplyOrderDate) : "SO date: Not recorded",
+-            firms.Length > 0 ? string.Join("; ", firms) : "Firm: Not recorded"
+-        };
+-        return string.Join("\n", lines);
+-    }
++        return string.Join("\n", new[]
 +        {
-+            hasDate ? FormatDate(supplyOrderDate) : "SO date: Not recorded",
-+            firms.Length > 0 ? string.Join("; ", firms) : "Firm: Not recorded"
-+        };
-+        return string.Join("\n", lines);
++            $"SO Date: {(supplyOrderDate.HasValue ? FormatDate(supplyOrderDate) : "Not recorded")}",
++            $"Firm: {(firms.Length > 0 ? string.Join("; ", firms) : "Not recorded")}"
++        });
 +    }
 +
++    private static string UpdateSheetStatus(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            || string.Equals(value, "No external status recorded", StringComparison.OrdinalIgnoreCase)
++                ? "Not recorded"
++                : value.Trim();
++
++    private static bool HasAnyArppDetail(ProjectBriefingPresentationProject project)
++        => IsRecorded(project.Fund)
++            || IsRecorded(project.DfpdsSchedule)
++            || IsRecorded(project.Cfa);
++
++    private static bool HasAnySupplyOrderDetail(
++        DateOnly? supplyOrderDate,
++        IReadOnlyList<string> jdpNames)
++        => supplyOrderDate.HasValue
++            || jdpNames.Any(IsRecorded);
++
++    private static bool IsRecorded(string? value)
++        => !string.IsNullOrWhiteSpace(value);
+ 
      private static string FieldValue(string label, string? value)
          => $"{label}: {DisplayOrNotRecorded(value)}";
- 
-@@ -225,10 +257,10 @@
-     private static double UpdateSheetTitleFontSize(string title)
+@@ -258,18 +321,28 @@
          => title.Length switch
          {
--            <= 52 => 19.0,
--            <= 72 => 17.0,
-+            <= 52 => 18.2,
-+            <= 72 => 16.6,
-             <= 94 => 15.0,
--            _ => 13.2
-+            _ => 13.4
+             <= 52 => 18.2,
+-            <= 72 => 16.6,
+-            <= 94 => 15.0,
+-            _ => 13.4
++            <= 72 => 16.8,
++            <= 94 => 15.2,
++            <= 118 => 13.8,
++            _ => 12.6
          };
  
      private static double UpdateSheetStatusFontSize(string status)
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-@@ -454,6 +454,7 @@
-             PresentStage = "Development",
-             PresentStageOrder = ProjectBriefingStageOrder.Development,
-             CostRd = new ProjectBriefingCostValue(7_400_000m, ProjectBriefingCostBasis.L1, "₹0.74 Cr", "L1"),
-+            IpaCost = new ProjectBriefingCostValue(8_000_000m, ProjectBriefingCostBasis.IPA, "₹0.8 Cr", "IPA"),
-             ProliferationCost = new ProjectBriefingCostValue(6_200_000m, ProjectBriefingCostBasis.Proliferation, "₹0.62 Cr", "Proliferation"),
-             ArppReference = "ARPP/IR&D/CU/2026-27/14",
-             Fund = "IR&D",
-@@ -478,7 +479,7 @@
-             CostMode = ProjectBriefingCostMode.Both,
-             NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
-             PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark,
--            BrandingScope = ProjectBriefingBrandingScope.None,
-+            BrandingScope = ProjectBriefingBrandingScope.AllSlides,
-             IncludeCoverSlide = false,
-             IncludePortfolioSummarySlide = false,
-             GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
-@@ -488,7 +489,9 @@
-                 ProjectCount = 1,
-                 OngoingCount = 1,
-                 TotalCostRdInRupees = 7_400_000m,
--                CostRdRecordedCount = 1
-+                CostRdRecordedCount = 1,
-+                TotalIpaCostInRupees = 8_000_000m,
-+                IpaCostRecordedCount = 1
-             }
+         => status.Length switch
+         {
+-            <= 90 => 8.0,
+-            <= 150 => 7.4,
+-            <= 230 => 6.8,
+-            _ => 6.2
++            <= 95 => 8.2,
++            <= 165 => 7.9,
++            <= 250 => 7.6,
++            _ => 7.4
++        };
++
++    private static double UpdateSheetStatusRowHeight(string status)
++        => status.Length switch
++        {
++            <= 95 => .48,
++            <= 165 => .57,
++            <= 250 => .68,
++            _ => .80
          };
  
-@@ -503,7 +506,8 @@
+     private static double UpdateSheetBriefFontSize(int characterCount)
+@@ -281,5 +354,4 @@
+             <= 2_100 => 7.8,
+             _ => 6.8
+         };
+-
+ }
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -506,13 +506,14 @@
          var slide = Assert.Single(presentationPart.SlideParts);
          var text = SlideText(slide);
  
--        Assert.Contains("TOUCH SCREEN BASED SIMULATOR", text, StringComparison.Ordinal);
-+        Assert.Contains("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
-+        Assert.Contains("Touch Screen Based Simulator", text, StringComparison.Ordinal);
+-        Assert.Contains("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
++        Assert.DoesNotContain("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
+         Assert.Contains("Touch Screen Based Simulator", text, StringComparison.Ordinal);
          Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
          Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
          Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
-@@ -515,6 +519,8 @@
-         Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
+         Assert.Contains("20 Sep 24", text, StringComparison.Ordinal);
+-        Assert.Contains("Example Defence Technologies", text, StringComparison.Ordinal);
++        Assert.Contains("SO Date: 14 Dec 24", text, StringComparison.Ordinal);
++        Assert.Contains("Firm: Example Defence Technologies", text, StringComparison.Ordinal);
+         Assert.Contains("04 Dec 25", text, StringComparison.Ordinal);
+         Assert.Contains("Lt Col Udit Agarwal", text, StringComparison.Ordinal);
+         Assert.Contains("DG AAD", text, StringComparison.Ordinal);
+@@ -520,7 +521,11 @@
          Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
          Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
-+        Assert.DoesNotContain("B5122B", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-+        Assert.Single(slide.ImageParts);
+         Assert.DoesNotContain("B5122B", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+-        Assert.Single(slide.ImageParts);
++        Assert.Contains("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
++        Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
++        Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
++        Assert.DoesNotContain("Compact footer insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
++        Assert.Equal(2, slide.ImageParts.Count());
          Assert.Single(slide.Slide.Descendants<A.Table>());
      }
  
-@@ -586,7 +592,11 @@
-             Summary = new ProjectBriefingPresentationSummary
-             {
-                 ProjectCount = 1,
--                OngoingCount = 1
-+                OngoingCount = 1,
-+                TotalCostRdInRupees = 7_400_000m,
-+                CostRdRecordedCount = 1,
-+                TotalIpaCostInRupees = 8_000_000m,
-+                IpaCostRecordedCount = 1
-             }
-         };
- 
-@@ -601,7 +611,11 @@
-             .ToArray();
-         Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
-         Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
--        Assert.Contains("UPDATE SHEET PROJECT", slideTexts[2], StringComparison.Ordinal);
-+        Assert.Contains("TOTAL R&D COST", slideTexts[1], StringComparison.Ordinal);
-+        Assert.Contains("TOTAL IPA COST", slideTexts[1], StringComparison.Ordinal);
-+        Assert.Contains("₹0.74 Cr", slideTexts[1], StringComparison.Ordinal);
-+        Assert.Contains("₹0.8 Cr", slideTexts[1], StringComparison.Ordinal);
-+        Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
+@@ -614,7 +619,7 @@
+         Assert.Contains("TOTAL R&D COST", slideTexts[1], StringComparison.Ordinal);
+         Assert.Contains("TOTAL IPA COST", slideTexts[1], StringComparison.Ordinal);
+         Assert.Contains("₹0.74 Cr", slideTexts[1], StringComparison.Ordinal);
+-        Assert.Contains("₹0.8 Cr", slideTexts[1], StringComparison.Ordinal);
++        Assert.Contains("₹0.80 Cr", slideTexts[1], StringComparison.Ordinal);
+         Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
      }
  
-     private static ProjectBriefingPresentationProject BriefingProject(
-@@ -622,6 +636,7 @@
-             PresentStage = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : stageCode,
-             PresentStageOrder = stageOrder,
-             CostRd = ProjectBriefingCostValue.Missing(),
-+            IpaCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
-             ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
-             ExternalStatus = "Status recorded.",
-             BriefDescription = "Capability description for ordering regression coverage.",
 --- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 +++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-@@ -48,6 +48,9 @@
-         var ipa = source.IndexOf("ipa.TryGetValue", StringComparison.Ordinal);
+@@ -91,11 +91,16 @@
  
-         Assert.True(l1 >= 0 && aon > l1 && ipa > aon, "Cost (R&D) resolution must remain L1 → AoN → IPA.");
-+        Assert.Contains("ResolveCostsAsync", source, StringComparison.Ordinal);
-+        Assert.Contains("ProjectBriefingResolvedCosts", source, StringComparison.Ordinal);
-+        Assert.Contains("ProjectBriefingCostBasis.IPA", source, StringComparison.Ordinal);
-         Assert.Contains("ProjectProductionCostFacts", source, StringComparison.Ordinal);
-         Assert.Contains("ProjectBriefingCostBasis.Proliferation", source, StringComparison.Ordinal);
-     }
-@@ -90,8 +93,25 @@
+         Assert.Contains("RenderProjectUpdateSheet", composer, StringComparison.Ordinal);
          Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
-         Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
+-        Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
++        Assert.Contains("UpdateSheetStatus(project.ExternalStatus)", composer, StringComparison.Ordinal);
          Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
--    }
--
-+        Assert.Contains("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
-+        Assert.DoesNotContain("B5122B", composer, StringComparison.OrdinalIgnoreCase);
-+        Assert.DoesNotContain("AddBrandingImages", composer, StringComparison.Ordinal);
-+    }
-+
-+
-+
-+    [Fact]
-+    public void ProjectUpdateSheet_PortfolioSummaryShowsSeparateRdAndAuthoritativeIpaTotals()
-+    {
-+        var dataSource = Read("ProjectBriefingDataService.cs");
-+        var composer = Read("ProjectBriefingSlideComposer.cs");
-+
-+        Assert.Contains("TotalIpaCostInRupees", dataSource, StringComparison.Ordinal);
-+        Assert.Contains("IpaCostRecordedCount", dataSource, StringComparison.Ordinal);
-+        Assert.Contains("TOTAL R&D COST", composer, StringComparison.Ordinal);
-+        Assert.Contains("TOTAL IPA COST", composer, StringComparison.Ordinal);
-+        Assert.Contains("ProjectBriefingLayout.ProjectUpdateSheet", composer, StringComparison.Ordinal);
-+    }
+-        Assert.Contains("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
++        Assert.DoesNotContain("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
++        Assert.Contains("AddBrandingImages(HeaderVariant.Standard)", composer, StringComparison.Ordinal);
++        Assert.Contains("Align: \"ctr\"", composer, StringComparison.Ordinal);
++        Assert.Contains("UpdateSheetAccent", composer, StringComparison.Ordinal);
++        Assert.Contains("SO Date:", composer, StringComparison.Ordinal);
++        Assert.Contains("Firm:", composer, StringComparison.Ordinal);
++        Assert.Contains("string.Join(\"\\n\"", composer, StringComparison.Ordinal);
+         Assert.DoesNotContain("B5122B", composer, StringComparison.OrdinalIgnoreCase);
+-        Assert.DoesNotContain("AddBrandingImages", composer, StringComparison.Ordinal);
+     }
  
-     [Fact]
-     public void SharedDecks_AreCommandWorkspaceWideAndTrackLastModifier()
+ 

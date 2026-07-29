@@ -91,11 +91,16 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("RenderProjectUpdateSheet", composer, StringComparison.Ordinal);
         Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
-        Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
+        Assert.Contains("UpdateSheetStatus(project.ExternalStatus)", composer, StringComparison.Ordinal);
         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
-        Assert.Contains("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
+        Assert.Contains("AddBrandingImages(HeaderVariant.Standard)", composer, StringComparison.Ordinal);
+        Assert.Contains("Align: \"ctr\"", composer, StringComparison.Ordinal);
+        Assert.Contains("UpdateSheetAccent", composer, StringComparison.Ordinal);
+        Assert.Contains("SO Date:", composer, StringComparison.Ordinal);
+        Assert.Contains("Firm:", composer, StringComparison.Ordinal);
+        Assert.Contains("string.Join(\"\\n\"", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("B5122B", composer, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("AddBrandingImages", composer, StringComparison.Ordinal);
     }
 
 

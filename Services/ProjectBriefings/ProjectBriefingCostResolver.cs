@@ -195,15 +195,33 @@ public static class ProjectBriefingCurrencyFormatter
     private const decimal Lakh = 100_000m;
 
     public static string FormatRupees(decimal amount)
+        => FormatRupees(amount, minimumDecimalPlaces: 0);
+
+    public static string FormatRupees(decimal amount, int minimumDecimalPlaces)
     {
+        if (minimumDecimalPlaces is < 0 or > 2)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(minimumDecimalPlaces),
+                minimumDecimalPlaces,
+                "Currency precision must be between zero and two decimal places.");
+        }
+
+        var numberFormat = minimumDecimalPlaces switch
+        {
+            0 => "0.##",
+            1 => "0.0#",
+            _ => "0.00"
+        };
+
         if (amount >= Crore)
         {
-            return $"₹{amount / Crore:0.##} Cr";
+            return $"₹{(amount / Crore).ToString(numberFormat, System.Globalization.CultureInfo.InvariantCulture)} Cr";
         }
 
         if (amount >= Lakh)
         {
-            return $"₹{amount / Lakh:0.##} Lakh";
+            return $"₹{(amount / Lakh).ToString(numberFormat, System.Globalization.CultureInfo.InvariantCulture)} Lakh";
         }
 
         return $"₹{amount:N0}";

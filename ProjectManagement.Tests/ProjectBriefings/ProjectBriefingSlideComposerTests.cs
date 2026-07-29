@@ -506,13 +506,14 @@ public sealed class ProjectBriefingSlideComposerTests
         var slide = Assert.Single(presentationPart.SlideParts);
         var text = SlideText(slide);
 
-        Assert.Contains("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
         Assert.Contains("Touch Screen Based Simulator", text, StringComparison.Ordinal);
         Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
         Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
         Assert.Contains("20 Sep 24", text, StringComparison.Ordinal);
-        Assert.Contains("Example Defence Technologies", text, StringComparison.Ordinal);
+        Assert.Contains("SO Date: 14 Dec 24", text, StringComparison.Ordinal);
+        Assert.Contains("Firm: Example Defence Technologies", text, StringComparison.Ordinal);
         Assert.Contains("04 Dec 25", text, StringComparison.Ordinal);
         Assert.Contains("Lt Col Udit Agarwal", text, StringComparison.Ordinal);
         Assert.Contains("DG AAD", text, StringComparison.Ordinal);
@@ -520,7 +521,11 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
         Assert.DoesNotContain("B5122B", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Single(slide.ImageParts);
+        Assert.Contains("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
+        Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Compact footer insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
+        Assert.Equal(2, slide.ImageParts.Count());
         Assert.Single(slide.Slide.Descendants<A.Table>());
     }
 
@@ -614,7 +619,7 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("TOTAL R&D COST", slideTexts[1], StringComparison.Ordinal);
         Assert.Contains("TOTAL IPA COST", slideTexts[1], StringComparison.Ordinal);
         Assert.Contains("₹0.74 Cr", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("₹0.8 Cr", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("₹0.80 Cr", slideTexts[1], StringComparison.Ordinal);
         Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
     }
 

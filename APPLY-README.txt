@@ -1,41 +1,39 @@
-PRISM PROJECT BRIEFING DECK — UPDATE SHEET REFINEMENT
-=====================================================
+PRISM PROJECT BRIEFING - PROJECT UPDATE SHEET HEADER POLISH
+==========================================================
 
-Apply this package on top of the already implemented Project Update Sheets feature.
-Copy the folders into the ProjectManagement project root and replace the listed files.
+BASELINE
+--------
+Apply this package after the previously supplied Project Update Sheets implementation
+and the Total IPA Cost / white-header refinement dated 29 Jul 2026.
 
-Implemented changes
--------------------
-1. Portfolio summary now shows two separate financial cards for Project Update Sheets:
-   - Total R&D Cost (existing L1 → AoN → IPA resolution)
-   - Total IPA Cost (authoritative IPA position only)
+HOW TO APPLY
+------------
+1. Stop the running application or IIS application pool.
+2. Copy the contents of this package into the ProjectManagement project root.
+3. Preserve the folder structure and replace the five existing files.
+4. Rebuild and run the automated tests.
+5. Generate a Project Update Sheets deck with Header branding = All slides.
 
-2. Authoritative IPA positions are resolved once in the briefing cost pipeline and reused
-   for both the R&D fallback and the independent IPA summary. This avoids duplicate database
-   queries and preserves the existing ARPP/legacy IPA authority rules.
-
-3. Project-sheet header has been redesigned:
-   - Removed the solid red title panel.
-   - Preserved only a restrained maroon top accent.
-   - Uses original project-name casing on a clean white header.
-   - Removed the two corner insignia from project-sheet headers.
-
-4. Branding behaviour remains meaningful:
-   - Cover and summary slides retain normal header branding.
-   - With "All slides", project sheets receive one compact footer insignia instead of two
-     corner insignia.
-   - With "Cover and summary", project sheets remain clean and text-branded through the footer.
-
-5. The SO Date / Firm field no longer displays "Not recorded" twice when both values are absent.
-
-Database migration
-------------------
-None required.
-
-Recommended verification
-------------------------
+RECOMMENDED COMMANDS
+--------------------
 dotnet build
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-The .NET SDK was not available in the patch-generation environment, so the full build and test
-suite could not be executed here. Structural, manifest, patch and static source checks passed.
+IMPLEMENTED
+-----------
+- Removes the repeated "PROJECT UPDATE SHEET" label.
+- Restores both insignia to project-sheet headers when branding is enabled.
+- Centres the project name between the two insignia.
+- Uses a restrained maroon project-title treatment on a white header.
+- Removes the redundant footer insignia; the footer is text-only again.
+- Stacks Fund, DFPDS and CFA on separate lines.
+- Labels SO Date and Firm consistently whenever either value is present.
+- Shows only one "Not recorded" when both SO Date and Firm are absent.
+- Gives long external remarks more row height and enforces a readable minimum font.
+- Dynamically aligns the photograph and project-brief panels with the facts table.
+- Uses two-decimal precision for the R&D and IPA totals on the Project Update Sheets
+  portfolio summary, without changing project-level cost formatting.
+
+DATABASE
+--------
+No database migration is required.
