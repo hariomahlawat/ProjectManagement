@@ -6,6 +6,7 @@
     {
         Roles = Model.RoleOptions,
         SelectedRoles = Model.Input.Roles,
+        AccessGroups = Model.RoleAccessGroups,
         InputName = "Input.Roles",
         IdPrefix = "edit-role"
     };
@@ -81,7 +82,7 @@
             <span class="admin-form-section__step">03</span>
             <div>
                 <h2 id="edit-user-roles-title">Roles and access</h2>
-                <p>Review the complete role set. Removing or adding roles refreshes the account security state.</p>
+                <p>Select the required roles and review the resulting module access below. Role changes refresh the account security state.</p>
             </div>
         </header>
         <div class="admin-form-section__body">

@@ -34,32 +34,87 @@ const initialiseFlashMessages = () => {
 };
 
 const initialiseRoleGrids = () => {
-    document.querySelectorAll("[data-admin-role-grid]").forEach((grid) => {
+    document.querySelectorAll("[data-admin-role-assignment]").forEach((assignment) => {
+        const grid = assignment.querySelector("[data-admin-role-grid]");
+        if (!(grid instanceof HTMLElement)) return;
+
         const options = Array.from(grid.querySelectorAll("[data-admin-role-option]"));
-        const summary = grid.nextElementSibling;
-        const count = summary?.querySelector("[data-admin-role-count]");
-        const warning = summary?.querySelector("[data-admin-privileged-warning]");
+        const count = assignment.querySelector("[data-admin-role-count]");
+        const warning = assignment.querySelector("[data-admin-privileged-warning]");
+        const accessCount = assignment.querySelector("[data-admin-access-count]");
+        const roleChips = assignment.querySelector("[data-admin-access-role-chips]");
+        const emptyState = assignment.querySelector("[data-admin-access-empty]");
+        const accessGroups = assignment.querySelector("[data-admin-access-groups]");
+        const accessItems = Array.from(assignment.querySelectorAll("[data-admin-access-item]"));
+        const groups = Array.from(assignment.querySelectorAll("[data-admin-access-group]"));
+
+        const splitRoles = (value) => (value ?? "")
+            .split("|")
+            .map(normalise)
+            .filter((role) => role.length > 0);
 
         const refresh = () => {
-            const selected = options.filter((option) => {
+            const selectedOptions = options.filter((option) => {
                 const checkbox = option.querySelector("[data-admin-role-checkbox]");
                 const checked = checkbox instanceof HTMLInputElement && checkbox.checked;
                 option.classList.toggle("is-selected", checked);
                 return checked;
             });
 
+            const selectedRoleNames = new Set(selectedOptions
+                .map((option) => option.querySelector("[data-admin-role-checkbox]"))
+                .filter((checkbox) => checkbox instanceof HTMLInputElement)
+                .map((checkbox) => normalise(checkbox.value)));
+
             if (count) {
-                count.textContent = `${selected.length} role${selected.length === 1 ? "" : "s"} selected`;
+                count.textContent = `${selectedOptions.length} role${selectedOptions.length === 1 ? "" : "s"} selected`;
             }
 
             if (warning) {
-                const privilegedSelected = selected.some((option) => {
+                const privilegedSelected = selectedOptions.some((option) => {
                     const checkbox = option.querySelector("[data-admin-role-checkbox]");
                     return checkbox instanceof HTMLInputElement
                         && checkbox.dataset.privileged === "true";
                 });
                 warning.hidden = !privilegedSelected;
             }
+
+            if (roleChips instanceof HTMLElement) {
+                const labels = selectedOptions
+                    .map((option) => option.querySelector("[data-admin-role-checkbox]"))
+                    .filter((checkbox) => checkbox instanceof HTMLInputElement)
+                    .map((checkbox) => checkbox.dataset.roleDisplay || checkbox.value)
+                    .filter((label, index, all) => all.indexOf(label) === index);
+
+                roleChips.replaceChildren(...labels.map((label) => {
+                    const chip = document.createElement("span");
+                    chip.textContent = label;
+                    return chip;
+                }));
+                roleChips.hidden = labels.length === 0;
+            }
+
+            let visibleCapabilityCount = 0;
+            accessItems.forEach((item) => {
+                const permittedRoles = splitRoles(item.dataset.roleNames);
+                const visible = permittedRoles.some((role) => selectedRoleNames.has(role));
+                item.hidden = !visible;
+                if (visible) visibleCapabilityCount += 1;
+            });
+
+            groups.forEach((group) => {
+                const hasVisibleItem = Array.from(group.querySelectorAll("[data-admin-access-item]"))
+                    .some((item) => !item.hidden);
+                group.hidden = !hasVisibleItem;
+            });
+
+            if (accessCount) {
+                accessCount.textContent = `${visibleCapabilityCount} capabilit${visibleCapabilityCount === 1 ? "y" : "ies"}`;
+            }
+
+            const hasSelection = selectedRoleNames.size > 0;
+            if (emptyState instanceof HTMLElement) emptyState.hidden = hasSelection;
+            if (accessGroups instanceof HTMLElement) accessGroups.hidden = !hasSelection;
         };
 
         grid.addEventListener("change", refresh);

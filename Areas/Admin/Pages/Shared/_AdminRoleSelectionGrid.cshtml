@@ -2,51 +2,123 @@
 @{
     var selected = new HashSet<string>(Model.SelectedRoles, StringComparer.OrdinalIgnoreCase);
     var privilegedSelected = Model.Roles.Any(role => role.IsPrivileged && selected.Contains(role.Name));
+    var selectedDisplayNames = Model.Roles
+        .Where(role => selected.Contains(role.Name))
+        .Select(role => role.DisplayName)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var visibleAccessCount = Model.AccessGroups
+        .SelectMany(group => group.Items)
+        .Count(item => item.PermittedRoles.Any(selected.Contains));
 }
-<div class="admin-role-grid" data-admin-role-grid>
-    @for (var index = 0; index < Model.Roles.Count; index++)
-    {
-        var role = Model.Roles[index];
-        var inputId = $"{Model.IdPrefix}-{index}";
-        var isChecked = selected.Contains(role.Name);
 
-        <label class="admin-role-option@(isChecked ? " is-selected" : string.Empty)@(role.IsPrivileged ? " is-privileged" : string.Empty)"
-               for="@inputId"
-               data-admin-role-option>
-            <input class="admin-role-option__input"
-                   type="checkbox"
-                   name="@Model.InputName"
-                   value="@role.Name"
-                   id="@inputId"
-                   checked="@isChecked"
-                   data-admin-role-checkbox
-                   data-privileged="@(role.IsPrivileged ? "true" : "false")" />
-            <span class="admin-role-option__icon" aria-hidden="true">
-                <i class="bi @role.Icon"></i>
-            </span>
-            <span class="admin-role-option__copy">
-                <span class="admin-role-option__title-row">
-                    <strong>@role.DisplayName</strong>
-                    @if (role.IsPrivileged)
-                    {
-                        <span class="admin-role-option__privileged">Privileged</span>
-                    }
+<div class="admin-role-assignment" data-admin-role-assignment>
+    <div class="admin-role-grid" data-admin-role-grid>
+        @for (var index = 0; index < Model.Roles.Count; index++)
+        {
+            var role = Model.Roles[index];
+            var inputId = $"{Model.IdPrefix}-{index}";
+            var isChecked = selected.Contains(role.Name);
+
+            <label class="admin-role-option@(isChecked ? " is-selected" : string.Empty)@(role.IsPrivileged ? " is-privileged" : string.Empty)"
+                   for="@inputId"
+                   data-admin-role-option>
+                <input class="admin-role-option__input"
+                       type="checkbox"
+                       name="@Model.InputName"
+                       value="@role.Name"
+                       id="@inputId"
+                       checked="@isChecked"
+                       data-admin-role-checkbox
+                       data-role-name="@role.Name"
+                       data-role-display="@role.DisplayName"
+                       data-privileged="@(role.IsPrivileged ? "true" : "false")" />
+                <span class="admin-role-option__icon" aria-hidden="true">
+                    <i class="bi @role.Icon"></i>
                 </span>
-                <span class="admin-role-option__category">@role.Category</span>
-                <span class="admin-role-option__description">@role.Description</span>
-            </span>
-            <span class="admin-role-option__check" aria-hidden="true">
-                <i class="bi bi-check-lg"></i>
-            </span>
-        </label>
-    }
-</div>
-<div class="admin-role-selection-summary" aria-live="polite">
-    <span data-admin-role-count>@selected.Count role@(selected.Count == 1 ? string.Empty : "s") selected</span>
-    <span class="admin-role-selection-summary__warning"
-          data-admin-privileged-warning
-          hidden="@(!privilegedSelected)">
-        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
-        Privileged access selected. Verify operational need before saving.
-    </span>
+                <strong class="admin-role-option__name">@role.DisplayName</strong>
+                <span class="admin-role-option__check" aria-hidden="true">
+                    <i class="bi bi-check-lg"></i>
+                </span>
+            </label>
+        }
+    </div>
+
+    <div class="admin-role-selection-summary" aria-live="polite">
+        <span data-admin-role-count>@selected.Count role@(selected.Count == 1 ? string.Empty : "s") selected</span>
+        <span class="admin-role-selection-summary__warning"
+              data-admin-privileged-warning
+              hidden="@(!privilegedSelected)">
+            <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+            Privileged access selected. Verify operational need before saving.
+        </span>
+    </div>
+
+    <section class="admin-role-access-reference"
+             aria-labelledby="@($"{Model.IdPrefix}-access-title")"
+             data-admin-role-access-reference>
+        <header class="admin-role-access-reference__header">
+            <div>
+                <span class="admin-role-access-reference__eyebrow">Effective permissions</span>
+                <h3 id="@($"{Model.IdPrefix}-access-title")">Access granted by selected roles</h3>
+                <p>Capabilities are grouped by module. Project assignment, record ownership and approval state may further restrict an action.</p>
+            </div>
+            <div class="admin-role-access-reference__summary">
+                <span data-admin-access-count>
+                    @visibleAccessCount capabilit@(visibleAccessCount == 1 ? "y" : "ies")
+                </span>
+            </div>
+        </header>
+
+        <div class="admin-role-access-reference__roles"
+             data-admin-access-role-chips
+             hidden="@(selectedDisplayNames.Length == 0)">
+            @foreach (var displayName in selectedDisplayNames)
+            {
+                <span>@displayName</span>
+            }
+        </div>
+
+        <div class="admin-role-access-empty"
+             data-admin-access-empty
+             hidden="@(selected.Count > 0)">
+            <span aria-hidden="true"><i class="bi bi-person-check"></i></span>
+            <div>
+                <strong>Select a role to review access</strong>
+                <p>The capability list updates immediately as roles are added or removed.</p>
+            </div>
+        </div>
+
+        <div class="admin-role-access-groups"
+             data-admin-access-groups
+             hidden="@(selected.Count == 0)">
+            @foreach (var group in Model.AccessGroups)
+            {
+                var visibleGroupItems = group.Items
+                    .Where(item => item.PermittedRoles.Any(selected.Contains))
+                    .ToArray();
+
+                <section class="admin-role-access-group"
+                         data-admin-access-group
+                         hidden="@(visibleGroupItems.Length == 0)">
+                    <header>
+                        <span aria-hidden="true"><i class="bi @group.Icon"></i></span>
+                        <h4>@group.Title</h4>
+                    </header>
+                    <ul>
+                        @foreach (var item in group.Items)
+                        {
+                            var itemVisible = item.PermittedRoles.Any(selected.Contains);
+                            <li data-admin-access-item
+                                data-role-names="@string.Join("|", item.PermittedRoles)"
+                                hidden="@(!itemVisible)">
+                                <strong>@item.Title</strong>
+                                <span>@item.Description</span>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+        </div>
+    </section>
 </div>

@@ -5,7 +5,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 public static class ProjectOfficeReportsPolicies
 {
-    private static readonly string[] ProjectOfficeRoles =
+    public static readonly string[] ProjectOfficeManagerRoles =
     {
         "Admin",
         "HoD",
@@ -14,7 +14,7 @@ public static class ProjectOfficeReportsPolicies
     };
 
 
-    private static readonly string[] ArppViewerRoles =
+    public static readonly string[] ArppViewerRoles =
     {
         "Admin",
         "HoD",
@@ -26,19 +26,19 @@ public static class ProjectOfficeReportsPolicies
     };
 
 
-    private static readonly string[] ArppVerifierRoles =
+    public static readonly string[] ArppVerifierRoles =
     {
         "Admin",
         "HoD",
         "Comdt"
     };
 
-    private static readonly string[] ArppUnlockRoles =
+    public static readonly string[] ArppUnlockRoles =
     {
         "Admin",
         "HoD"
     };
-    private static readonly string[] TrainingTrackerViewerRoles =
+    public static readonly string[] TrainingTrackerViewerRoles =
     {
         "Admin",
         "HoD",
@@ -51,7 +51,7 @@ public static class ProjectOfficeReportsPolicies
         "Main Office"
     };
 
-    private static readonly string[] TrainingTrackerManagerRoles =
+    public static readonly string[] TrainingTrackerManagerRoles =
     {
         "Admin",
         "HoD",
@@ -59,7 +59,7 @@ public static class ProjectOfficeReportsPolicies
         "Project Office"
     };
 
-    private static readonly string[] ProgressReviewRoles =
+    public static readonly string[] ProgressReviewViewerRoles =
     {
         "Admin",
         "HoD",
@@ -68,7 +68,7 @@ public static class ProjectOfficeReportsPolicies
         "Comdt"
     };
 
-    private static readonly string[] TotTrackerSubmitterRoles =
+    public static readonly string[] TotTrackerSubmitterRoles =
     {
         "Admin",
         "HoD",
@@ -77,7 +77,7 @@ public static class ProjectOfficeReportsPolicies
         "Project Officer"
     };
 
-    private static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
+    public static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
 
     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
@@ -105,7 +105,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProjectOfficeRoles);
+        return builder.RequireRole(ProjectOfficeManagerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireTotTrackerViewer(this AuthorizationPolicyBuilder builder)
@@ -155,7 +155,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProjectOfficeRoles);
+        return builder.RequireRole(ProjectOfficeManagerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireProliferationApprover(this AuthorizationPolicyBuilder builder)
@@ -175,7 +175,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProjectOfficeRoles);
+        return builder.RequireRole(ProjectOfficeManagerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireTrainingTrackerViewer(this AuthorizationPolicyBuilder builder)
@@ -215,7 +215,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProgressReviewRoles);
+        return builder.RequireRole(ProgressReviewViewerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireArppViewer(this AuthorizationPolicyBuilder builder)
@@ -235,7 +235,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProjectOfficeRoles);
+        return builder.RequireRole(ProjectOfficeManagerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireArppVerifier(this AuthorizationPolicyBuilder builder)

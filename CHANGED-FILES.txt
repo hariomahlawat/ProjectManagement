@@ -1,14 +1,2 @@
-Configuration/Policies.cs
-Pages/IndustryPartners/Index.cshtml
-Pages/IndustryPartners/Index.cshtml.cs
-Pages/IndustryPartners/_Attachments.cshtml
-Pages/IndustryPartners/_DirectoryTable.cshtml
-Pages/IndustryPartners/_LinkedProjects.cshtml
-Pages/IndustryPartners/_PartnerDrawer.cshtml
-Pages/IndustryPartners/_PartnerOverview.cshtml
 Program.cs
-ProjectManagement.Tests/IndustryPartners/IndustryPartnerOrganisationAuthorizationTests.cs
-ProjectManagement.Tests/IndustryPartners/IndustryPartnerRulesTests.cs
-ProjectManagement.Tests/IndustryPartners/IndustryPartnersIndexPageAttachmentUploadTests.cs
-Services/IndustryPartners/IIndustryPartnerService.cs
-Services/IndustryPartners/IndustryPartnerService.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs

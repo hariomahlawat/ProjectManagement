@@ -71,6 +71,94 @@ public static class Policies
         };
     }
 
+    // SECTION: Project authorisation policies
+    public static class Projects
+    {
+        public const string Create = "Project.Create";
+
+        public static readonly string[] CreatorRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD
+        };
+    }
+
+    // SECTION: Checklist policies
+    public static class Checklist
+    {
+        public const string View = "Checklist.View";
+        public const string Edit = "Checklist.Edit";
+
+        public static readonly string[] EditorRoles =
+        {
+            RoleNames.Mco,
+            RoleNames.HoD
+        };
+    }
+
+    // SECTION: Document repository policies
+    public static class Documents
+    {
+        public const string View = "DocRepo.View";
+        public const string Upload = "DocRepo.Upload";
+        public const string SoftDelete = "DocRepo.SoftDelete";
+        public const string ManageCategories = "DocRepo.ManageCategories";
+        public const string DeleteApprove = "DocRepo.DeleteApprove";
+        public const string EditMetadata = "DocRepo.EditMetadata";
+        public const string Purge = "DocRepo.Purge";
+
+        public static readonly string[] UploadAndSoftDeleteRoles =
+        {
+            RoleNames.ProjectOffice,
+            RoleNames.MainOfficeClerk,
+            RoleNames.McCellClerk,
+            RoleNames.ItCellClerk,
+            RoleNames.Admin,
+            RoleNames.HoD
+        };
+
+        public static readonly string[] MetadataEditorRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.Ta,
+            RoleNames.Ito,
+            RoleNames.Mco,
+            RoleNames.HoD
+        };
+
+        public static readonly string[] DeleteApprovalRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD
+        };
+
+        public static readonly string[] CategoryManagerRoles =
+        {
+            RoleNames.Admin
+        };
+
+        public static readonly string[] PurgeRoles =
+        {
+            RoleNames.Admin
+        };
+    }
+
+    // SECTION: Action tracker policies
+    public static class ActionTracker
+    {
+        public const string Access = "ActionTracker.Access";
+
+        public static readonly string[] AccessAllowedRoles =
+        {
+            RoleNames.Comdt,
+            RoleNames.HoD,
+            RoleNames.ProjectOfficer,
+            RoleNames.Mco,
+            RoleNames.Ta,
+            RoleNames.Ito
+        };
+    }
+
     // SECTION: Industry partners policies
     public static class IndustryPartners
     {

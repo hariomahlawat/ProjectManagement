@@ -201,8 +201,8 @@ builder.Services.AddAuthorization(options =>
     AdminCapabilityCatalog.RegisterPolicies(options);
     options.AddPolicy(Policies.Usage.View, policy =>
         policy.RequireRole(Policies.Usage.ViewerRoles));
-    options.AddPolicy("Project.Create", policy =>
-        policy.RequireRole("Admin", "HoD"));
+    options.AddPolicy(Policies.Projects.Create, policy =>
+        policy.RequireRole(Policies.Projects.CreatorRoles));
 
     // SECTION: Calendar authorization policies
     options.AddPolicy(Policies.Calendar.ManageEvents, policy =>
@@ -213,10 +213,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.Calendar.BirthdayManagerRoles));
     options.AddPolicy(Policies.Calendar.ManageAnniversaries, policy =>
         policy.RequireRole(Policies.Calendar.AnniversaryManagerRoles));
-    options.AddPolicy("Checklist.View", policy =>
+    options.AddPolicy(Policies.Checklist.View, policy =>
         policy.RequireAuthenticatedUser());
-    options.AddPolicy("Checklist.Edit", policy =>
-        policy.RequireRole("MCO", "HoD"));
+    options.AddPolicy(Policies.Checklist.Edit, policy =>
+        policy.RequireRole(Policies.Checklist.EditorRoles));
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewVisits, policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>
@@ -271,25 +271,25 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy(Policies.IndustryPartners.ManageAnyContact, policy =>
         policy.RequireRole(Policies.IndustryPartners.ContactOverrideRoles));
-    options.AddPolicy("DocRepo.View", policy =>
-    policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.Documents.View, policy =>
+        policy.RequireAuthenticatedUser());
 
-    options.AddPolicy("DocRepo.Upload", policy =>
-        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk, RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy("DocRepo.SoftDelete", policy =>
-        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk, RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy("DocRepo.ManageCategories", policy =>
-        policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy("DocRepo.DeleteApprove", policy =>
-        policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy("DocRepo.EditMetadata", policy =>
-        policy.RequireRole("Admin", "TA", "ITO", "MCO", "HoD"));
-    options.AddPolicy("DocRepo.Purge", policy =>
-        policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(Policies.Documents.Upload, policy =>
+        policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
+    options.AddPolicy(Policies.Documents.SoftDelete, policy =>
+        policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
+    options.AddPolicy(Policies.Documents.ManageCategories, policy =>
+        policy.RequireRole(Policies.Documents.CategoryManagerRoles));
+    options.AddPolicy(Policies.Documents.DeleteApprove, policy =>
+        policy.RequireRole(Policies.Documents.DeleteApprovalRoles));
+    options.AddPolicy(Policies.Documents.EditMetadata, policy =>
+        policy.RequireRole(Policies.Documents.MetadataEditorRoles));
+    options.AddPolicy(Policies.Documents.Purge, policy =>
+        policy.RequireRole(Policies.Documents.PurgeRoles));
 
     // SECTION: Action tracker authorization policy
-    options.AddPolicy("ActionTracker.Access", policy =>
-        policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
+    options.AddPolicy(Policies.ActionTracker.Access, policy =>
+        policy.RequireRole(Policies.ActionTracker.AccessAllowedRoles));
 
     // SECTION: Project briefing deck authorization policy
     options.AddPolicy(Policies.ProjectBriefingDecks.Manage, policy =>
@@ -520,6 +520,7 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 // SECTION: Shared Admin module foundations
 builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
 builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCatalog>();
+builder.Services.AddSingleton<IAdminRoleAccessCatalog, AdminRoleAccessCatalog>();
 builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
 builder.Services.AddSingleton<IAdminClientDescriptorService, AdminClientDescriptorService>();
 builder.Services.AddSingleton<IAdminCapabilityCatalog, AdminCapabilityCatalog>();
@@ -632,6 +633,7 @@ builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjec
 builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
 builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
 builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
+builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();
 builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
 builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
 builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();

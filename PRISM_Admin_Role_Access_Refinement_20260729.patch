@@ -1,0 +1,1515 @@
+--- a/Areas/Admin/Models/AdminRoleSelectionGrid.cs
++++ b/Areas/Admin/Models/AdminRoleSelectionGrid.cs
+@@ -10,6 +10,9 @@
+     public IReadOnlyCollection<string> SelectedRoles { get; init; } =
+         Array.Empty<string>();
+ 
++    public IReadOnlyList<AdminRoleAccessGroup> AccessGroups { get; init; } =
++        Array.Empty<AdminRoleAccessGroup>();
++
+     public string InputName { get; init; } = "Input.Roles";
+ 
+     public string IdPrefix { get; init; } = "admin-role";
+--- a/Areas/Admin/Pages/Shared/_AdminRoleSelectionGrid.cshtml
++++ b/Areas/Admin/Pages/Shared/_AdminRoleSelectionGrid.cshtml
+@@ -2,51 +2,123 @@
+ @{
+     var selected = new HashSet<string>(Model.SelectedRoles, StringComparer.OrdinalIgnoreCase);
+     var privilegedSelected = Model.Roles.Any(role => role.IsPrivileged && selected.Contains(role.Name));
++    var selectedDisplayNames = Model.Roles
++        .Where(role => selected.Contains(role.Name))
++        .Select(role => role.DisplayName)
++        .Distinct(StringComparer.OrdinalIgnoreCase)
++        .ToArray();
++    var visibleAccessCount = Model.AccessGroups
++        .SelectMany(group => group.Items)
++        .Count(item => item.PermittedRoles.Any(selected.Contains));
+ }
+-<div class="admin-role-grid" data-admin-role-grid>
+-    @for (var index = 0; index < Model.Roles.Count; index++)
+-    {
+-        var role = Model.Roles[index];
+-        var inputId = $"{Model.IdPrefix}-{index}";
+-        var isChecked = selected.Contains(role.Name);
+-
+-        <label class="admin-role-option@(isChecked ? " is-selected" : string.Empty)@(role.IsPrivileged ? " is-privileged" : string.Empty)"
+-               for="@inputId"
+-               data-admin-role-option>
+-            <input class="admin-role-option__input"
+-                   type="checkbox"
+-                   name="@Model.InputName"
+-                   value="@role.Name"
+-                   id="@inputId"
+-                   checked="@isChecked"
+-                   data-admin-role-checkbox
+-                   data-privileged="@(role.IsPrivileged ? "true" : "false")" />
+-            <span class="admin-role-option__icon" aria-hidden="true">
+-                <i class="bi @role.Icon"></i>
+-            </span>
+-            <span class="admin-role-option__copy">
+-                <span class="admin-role-option__title-row">
+-                    <strong>@role.DisplayName</strong>
+-                    @if (role.IsPrivileged)
+-                    {
+-                        <span class="admin-role-option__privileged">Privileged</span>
+-                    }
++
++<div class="admin-role-assignment" data-admin-role-assignment>
++    <div class="admin-role-grid" data-admin-role-grid>
++        @for (var index = 0; index < Model.Roles.Count; index++)
++        {
++            var role = Model.Roles[index];
++            var inputId = $"{Model.IdPrefix}-{index}";
++            var isChecked = selected.Contains(role.Name);
++
++            <label class="admin-role-option@(isChecked ? " is-selected" : string.Empty)@(role.IsPrivileged ? " is-privileged" : string.Empty)"
++                   for="@inputId"
++                   data-admin-role-option>
++                <input class="admin-role-option__input"
++                       type="checkbox"
++                       name="@Model.InputName"
++                       value="@role.Name"
++                       id="@inputId"
++                       checked="@isChecked"
++                       data-admin-role-checkbox
++                       data-role-name="@role.Name"
++                       data-role-display="@role.DisplayName"
++                       data-privileged="@(role.IsPrivileged ? "true" : "false")" />
++                <span class="admin-role-option__icon" aria-hidden="true">
++                    <i class="bi @role.Icon"></i>
+                 </span>
+-                <span class="admin-role-option__category">@role.Category</span>
+-                <span class="admin-role-option__description">@role.Description</span>
+-            </span>
+-            <span class="admin-role-option__check" aria-hidden="true">
+-                <i class="bi bi-check-lg"></i>
+-            </span>
+-        </label>
+-    }
+-</div>
+-<div class="admin-role-selection-summary" aria-live="polite">
+-    <span data-admin-role-count>@selected.Count role@(selected.Count == 1 ? string.Empty : "s") selected</span>
+-    <span class="admin-role-selection-summary__warning"
+-          data-admin-privileged-warning
+-          hidden="@(!privilegedSelected)">
+-        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+-        Privileged access selected. Verify operational need before saving.
+-    </span>
++                <strong class="admin-role-option__name">@role.DisplayName</strong>
++                <span class="admin-role-option__check" aria-hidden="true">
++                    <i class="bi bi-check-lg"></i>
++                </span>
++            </label>
++        }
++    </div>
++
++    <div class="admin-role-selection-summary" aria-live="polite">
++        <span data-admin-role-count>@selected.Count role@(selected.Count == 1 ? string.Empty : "s") selected</span>
++        <span class="admin-role-selection-summary__warning"
++              data-admin-privileged-warning
++              hidden="@(!privilegedSelected)">
++            <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
++            Privileged access selected. Verify operational need before saving.
++        </span>
++    </div>
++
++    <section class="admin-role-access-reference"
++             aria-labelledby="@($"{Model.IdPrefix}-access-title")"
++             data-admin-role-access-reference>
++        <header class="admin-role-access-reference__header">
++            <div>
++                <span class="admin-role-access-reference__eyebrow">Effective permissions</span>
++                <h3 id="@($"{Model.IdPrefix}-access-title")">Access granted by selected roles</h3>
++                <p>Capabilities are grouped by module. Project assignment, record ownership and approval state may further restrict an action.</p>
++            </div>
++            <div class="admin-role-access-reference__summary">
++                <span data-admin-access-count>
++                    @visibleAccessCount capabilit@(visibleAccessCount == 1 ? "y" : "ies")
++                </span>
++            </div>
++        </header>
++
++        <div class="admin-role-access-reference__roles"
++             data-admin-access-role-chips
++             hidden="@(selectedDisplayNames.Length == 0)">
++            @foreach (var displayName in selectedDisplayNames)
++            {
++                <span>@displayName</span>
++            }
++        </div>
++
++        <div class="admin-role-access-empty"
++             data-admin-access-empty
++             hidden="@(selected.Count > 0)">
++            <span aria-hidden="true"><i class="bi bi-person-check"></i></span>
++            <div>
++                <strong>Select a role to review access</strong>
++                <p>The capability list updates immediately as roles are added or removed.</p>
++            </div>
++        </div>
++
++        <div class="admin-role-access-groups"
++             data-admin-access-groups
++             hidden="@(selected.Count == 0)">
++            @foreach (var group in Model.AccessGroups)
++            {
++                var visibleGroupItems = group.Items
++                    .Where(item => item.PermittedRoles.Any(selected.Contains))
++                    .ToArray();
++
++                <section class="admin-role-access-group"
++                         data-admin-access-group
++                         hidden="@(visibleGroupItems.Length == 0)">
++                    <header>
++                        <span aria-hidden="true"><i class="bi @group.Icon"></i></span>
++                        <h4>@group.Title</h4>
++                    </header>
++                    <ul>
++                        @foreach (var item in group.Items)
++                        {
++                            var itemVisible = item.PermittedRoles.Any(selected.Contains);
++                            <li data-admin-access-item
++                                data-role-names="@string.Join("|", item.PermittedRoles)"
++                                hidden="@(!itemVisible)">
++                                <strong>@item.Title</strong>
++                                <span>@item.Description</span>
++                            </li>
++                        }
++                    </ul>
++                </section>
++            }
++        </div>
++    </section>
+ </div>
+--- a/Areas/Admin/Pages/Users/Create.cshtml
++++ b/Areas/Admin/Pages/Users/Create.cshtml
+@@ -6,6 +6,7 @@
+     {
+         Roles = Model.RoleOptions,
+         SelectedRoles = Model.Input.Roles,
++        AccessGroups = Model.RoleAccessGroups,
+         InputName = "Input.Roles",
+         IdPrefix = "create-role"
+     };
+@@ -122,7 +123,7 @@
+             <span class="admin-form-section__step">04</span>
+             <div>
+                 <h2 id="create-user-roles-title">Roles and access</h2>
+-                <p>Assign only the roles required for the user’s current duties. Privileged roles require additional scrutiny.</p>
++                <p>Select the roles required for the user’s current duties. Review the effective module access below before creating the account.</p>
+             </div>
+         </header>
+         <div class="admin-form-section__body">
+--- a/Areas/Admin/Pages/Users/Create.cshtml.cs
++++ b/Areas/Admin/Pages/Users/Create.cshtml.cs
+@@ -19,17 +19,20 @@
+ {
+     private readonly IUserManagementService _users;
+     private readonly IAdminRoleDescriptorCatalog _roleCatalog;
++    private readonly IAdminRoleAccessCatalog _roleAccessCatalog;
+     private readonly ILogger<CreateModel> _logger;
+     private readonly PasswordOptions _passwordOptions;
+ 
+     public CreateModel(
+         IUserManagementService users,
+         IAdminRoleDescriptorCatalog roleCatalog,
++        IAdminRoleAccessCatalog roleAccessCatalog,
+         ILogger<CreateModel> logger,
+         IOptions<IdentityOptions> identityOptions)
+     {
+         _users = users ?? throw new ArgumentNullException(nameof(users));
+         _roleCatalog = roleCatalog ?? throw new ArgumentNullException(nameof(roleCatalog));
++        _roleAccessCatalog = roleAccessCatalog ?? throw new ArgumentNullException(nameof(roleAccessCatalog));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+         _passwordOptions = identityOptions?.Value.Password ?? throw new ArgumentNullException(nameof(identityOptions));
+     }
+@@ -42,6 +45,9 @@
+     public IReadOnlyList<AdminRoleDescriptor> RoleOptions { get; private set; } =
+         Array.Empty<AdminRoleDescriptor>();
+ 
++    public IReadOnlyList<AdminRoleAccessGroup> RoleAccessGroups { get; private set; } =
++        Array.Empty<AdminRoleAccessGroup>();
++
+     public string PasswordPolicyDescription => IdentityPasswordPolicy.Describe(_passwordOptions);
+ 
+     public int GeneratedPasswordLength => IdentityPasswordPolicy.SuggestedGeneratedLength(_passwordOptions);
+@@ -134,6 +140,7 @@
+     {
+         var roles = await _users.GetRolesAsync();
+         RoleOptions = _roleCatalog.DescribeMany(roles);
++        RoleAccessGroups = _roleAccessCatalog.BuildForRoles(RoleOptions.Select(role => role.Name));
+         Header = new AdminPageHeaderModel
+         {
+             Eyebrow = "People and access",
+--- a/Areas/Admin/Pages/Users/Edit.cshtml
++++ b/Areas/Admin/Pages/Users/Edit.cshtml
+@@ -6,6 +6,7 @@
+     {
+         Roles = Model.RoleOptions,
+         SelectedRoles = Model.Input.Roles,
++        AccessGroups = Model.RoleAccessGroups,
+         InputName = "Input.Roles",
+         IdPrefix = "edit-role"
+     };
+@@ -81,7 +82,7 @@
+             <span class="admin-form-section__step">03</span>
+             <div>
+                 <h2 id="edit-user-roles-title">Roles and access</h2>
+-                <p>Review the complete role set. Removing or adding roles refreshes the account security state.</p>
++                <p>Select the required roles and review the resulting module access below. Role changes refresh the account security state.</p>
+             </div>
+         </header>
+         <div class="admin-form-section__body">
+--- a/Areas/Admin/Pages/Users/Edit.cshtml.cs
++++ b/Areas/Admin/Pages/Users/Edit.cshtml.cs
+@@ -17,17 +17,20 @@
+     private readonly IUserManagementService _users;
+     private readonly IAdminUserQueryService _queries;
+     private readonly IAdminRoleDescriptorCatalog _roleCatalog;
++    private readonly IAdminRoleAccessCatalog _roleAccessCatalog;
+     private readonly ILogger<EditModel> _logger;
+ 
+     public EditModel(
+         IUserManagementService users,
+         IAdminUserQueryService queries,
+         IAdminRoleDescriptorCatalog roleCatalog,
++        IAdminRoleAccessCatalog roleAccessCatalog,
+         ILogger<EditModel> logger)
+     {
+         _users = users ?? throw new ArgumentNullException(nameof(users));
+         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+         _roleCatalog = roleCatalog ?? throw new ArgumentNullException(nameof(roleCatalog));
++        _roleAccessCatalog = roleAccessCatalog ?? throw new ArgumentNullException(nameof(roleAccessCatalog));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+     }
+ 
+@@ -41,6 +44,9 @@
+     public IReadOnlyList<AdminRoleDescriptor> RoleOptions { get; private set; } =
+         Array.Empty<AdminRoleDescriptor>();
+ 
++    public IReadOnlyList<AdminRoleAccessGroup> RoleAccessGroups { get; private set; } =
++        Array.Empty<AdminRoleAccessGroup>();
++
+     public sealed class InputModel
+     {
+         [Required]
+@@ -158,6 +164,7 @@
+     {
+         var roles = await _users.GetRolesAsync();
+         RoleOptions = _roleCatalog.DescribeMany(roles);
++        RoleAccessGroups = _roleAccessCatalog.BuildForRoles(RoleOptions.Select(role => role.Name));
+ 
+         var title = Account is null
+             ? "Edit user"
+--- a/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs
++++ b/Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs
+@@ -5,7 +5,7 @@
+ 
+ public static class ProjectOfficeReportsPolicies
+ {
+-    private static readonly string[] ProjectOfficeRoles =
++    public static readonly string[] ProjectOfficeManagerRoles =
+     {
+         "Admin",
+         "HoD",
+@@ -14,7 +14,7 @@
+     };
+ 
+ 
+-    private static readonly string[] ArppViewerRoles =
++    public static readonly string[] ArppViewerRoles =
+     {
+         "Admin",
+         "HoD",
+@@ -26,19 +26,19 @@
+     };
+ 
+ 
+-    private static readonly string[] ArppVerifierRoles =
++    public static readonly string[] ArppVerifierRoles =
+     {
+         "Admin",
+         "HoD",
+         "Comdt"
+     };
+ 
+-    private static readonly string[] ArppUnlockRoles =
++    public static readonly string[] ArppUnlockRoles =
+     {
+         "Admin",
+         "HoD"
+     };
+-    private static readonly string[] TrainingTrackerViewerRoles =
++    public static readonly string[] TrainingTrackerViewerRoles =
+     {
+         "Admin",
+         "HoD",
+@@ -51,7 +51,7 @@
+         "Main Office"
+     };
+ 
+-    private static readonly string[] TrainingTrackerManagerRoles =
++    public static readonly string[] TrainingTrackerManagerRoles =
+     {
+         "Admin",
+         "HoD",
+@@ -59,7 +59,7 @@
+         "Project Office"
+     };
+ 
+-    private static readonly string[] ProgressReviewRoles =
++    public static readonly string[] ProgressReviewViewerRoles =
+     {
+         "Admin",
+         "HoD",
+@@ -68,7 +68,7 @@
+         "Comdt"
+     };
+ 
+-    private static readonly string[] TotTrackerSubmitterRoles =
++    public static readonly string[] TotTrackerSubmitterRoles =
+     {
+         "Admin",
+         "HoD",
+@@ -77,7 +77,7 @@
+         "Project Officer"
+     };
+ 
+-    private static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
++    public static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
+ 
+     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
+     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
+@@ -105,7 +105,7 @@
+             throw new ArgumentNullException(nameof(builder));
+         }
+ 
+-        return builder.RequireRole(ProjectOfficeRoles);
++        return builder.RequireRole(ProjectOfficeManagerRoles);
+     }
+ 
+     public static AuthorizationPolicyBuilder RequireTotTrackerViewer(this AuthorizationPolicyBuilder builder)
+@@ -155,7 +155,7 @@
+             throw new ArgumentNullException(nameof(builder));
+         }
+ 
+-        return builder.RequireRole(ProjectOfficeRoles);
++        return builder.RequireRole(ProjectOfficeManagerRoles);
+     }
+ 
+     public static AuthorizationPolicyBuilder RequireProliferationApprover(this AuthorizationPolicyBuilder builder)
+@@ -175,7 +175,7 @@
+             throw new ArgumentNullException(nameof(builder));
+         }
+ 
+-        return builder.RequireRole(ProjectOfficeRoles);
++        return builder.RequireRole(ProjectOfficeManagerRoles);
+     }
+ 
+     public static AuthorizationPolicyBuilder RequireTrainingTrackerViewer(this AuthorizationPolicyBuilder builder)
+@@ -215,7 +215,7 @@
+             throw new ArgumentNullException(nameof(builder));
+         }
+ 
+-        return builder.RequireRole(ProgressReviewRoles);
++        return builder.RequireRole(ProgressReviewViewerRoles);
+     }
+ 
+     public static AuthorizationPolicyBuilder RequireArppViewer(this AuthorizationPolicyBuilder builder)
+@@ -235,7 +235,7 @@
+             throw new ArgumentNullException(nameof(builder));
+         }
+ 
+-        return builder.RequireRole(ProjectOfficeRoles);
++        return builder.RequireRole(ProjectOfficeManagerRoles);
+     }
+ 
+     public static AuthorizationPolicyBuilder RequireArppVerifier(this AuthorizationPolicyBuilder builder)
+--- a/Configuration/Policies.cs
++++ b/Configuration/Policies.cs
+@@ -71,6 +71,94 @@
+         };
+     }
+ 
++    // SECTION: Project authorisation policies
++    public static class Projects
++    {
++        public const string Create = "Project.Create";
++
++        public static readonly string[] CreatorRoles =
++        {
++            RoleNames.Admin,
++            RoleNames.HoD
++        };
++    }
++
++    // SECTION: Checklist policies
++    public static class Checklist
++    {
++        public const string View = "Checklist.View";
++        public const string Edit = "Checklist.Edit";
++
++        public static readonly string[] EditorRoles =
++        {
++            RoleNames.Mco,
++            RoleNames.HoD
++        };
++    }
++
++    // SECTION: Document repository policies
++    public static class Documents
++    {
++        public const string View = "DocRepo.View";
++        public const string Upload = "DocRepo.Upload";
++        public const string SoftDelete = "DocRepo.SoftDelete";
++        public const string ManageCategories = "DocRepo.ManageCategories";
++        public const string DeleteApprove = "DocRepo.DeleteApprove";
++        public const string EditMetadata = "DocRepo.EditMetadata";
++        public const string Purge = "DocRepo.Purge";
++
++        public static readonly string[] UploadAndSoftDeleteRoles =
++        {
++            RoleNames.ProjectOffice,
++            RoleNames.MainOfficeClerk,
++            RoleNames.McCellClerk,
++            RoleNames.ItCellClerk,
++            RoleNames.Admin,
++            RoleNames.HoD
++        };
++
++        public static readonly string[] MetadataEditorRoles =
++        {
++            RoleNames.Admin,
++            RoleNames.Ta,
++            RoleNames.Ito,
++            RoleNames.Mco,
++            RoleNames.HoD
++        };
++
++        public static readonly string[] DeleteApprovalRoles =
++        {
++            RoleNames.Admin,
++            RoleNames.HoD
++        };
++
++        public static readonly string[] CategoryManagerRoles =
++        {
++            RoleNames.Admin
++        };
++
++        public static readonly string[] PurgeRoles =
++        {
++            RoleNames.Admin
++        };
++    }
++
++    // SECTION: Action tracker policies
++    public static class ActionTracker
++    {
++        public const string Access = "ActionTracker.Access";
++
++        public static readonly string[] AccessAllowedRoles =
++        {
++            RoleNames.Comdt,
++            RoleNames.HoD,
++            RoleNames.ProjectOfficer,
++            RoleNames.Mco,
++            RoleNames.Ta,
++            RoleNames.Ito
++        };
++    }
++
+     // SECTION: Industry partners policies
+     public static class IndustryPartners
+     {
+--- a/Program.cs
++++ b/Program.cs
+@@ -201,8 +201,8 @@
+     AdminCapabilityCatalog.RegisterPolicies(options);
+     options.AddPolicy(Policies.Usage.View, policy =>
+         policy.RequireRole(Policies.Usage.ViewerRoles));
+-    options.AddPolicy("Project.Create", policy =>
+-        policy.RequireRole("Admin", "HoD"));
++    options.AddPolicy(Policies.Projects.Create, policy =>
++        policy.RequireRole(Policies.Projects.CreatorRoles));
+ 
+     // SECTION: Calendar authorization policies
+     options.AddPolicy(Policies.Calendar.ManageEvents, policy =>
+@@ -213,10 +213,10 @@
+         policy.RequireRole(Policies.Calendar.BirthdayManagerRoles));
+     options.AddPolicy(Policies.Calendar.ManageAnniversaries, policy =>
+         policy.RequireRole(Policies.Calendar.AnniversaryManagerRoles));
+-    options.AddPolicy("Checklist.View", policy =>
++    options.AddPolicy(Policies.Checklist.View, policy =>
+         policy.RequireAuthenticatedUser());
+-    options.AddPolicy("Checklist.Edit", policy =>
+-        policy.RequireRole("MCO", "HoD"));
++    options.AddPolicy(Policies.Checklist.Edit, policy =>
++        policy.RequireRole(Policies.Checklist.EditorRoles));
+     options.AddPolicy(ProjectOfficeReportsPolicies.ViewVisits, policy =>
+         policy.RequireAuthenticatedUser());
+     options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>
+@@ -271,25 +271,25 @@
+         policy.RequireAuthenticatedUser());
+     options.AddPolicy(Policies.IndustryPartners.ManageAnyContact, policy =>
+         policy.RequireRole(Policies.IndustryPartners.ContactOverrideRoles));
+-    options.AddPolicy("DocRepo.View", policy =>
+-    policy.RequireAuthenticatedUser());
++    options.AddPolicy(Policies.Documents.View, policy =>
++        policy.RequireAuthenticatedUser());
+ 
+-    options.AddPolicy("DocRepo.Upload", policy =>
+-        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk, RoleNames.Admin, RoleNames.HoD));
+-    options.AddPolicy("DocRepo.SoftDelete", policy =>
+-        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk, RoleNames.Admin, RoleNames.HoD));
+-    options.AddPolicy("DocRepo.ManageCategories", policy =>
+-        policy.RequireRole(RoleNames.Admin));
+-    options.AddPolicy("DocRepo.DeleteApprove", policy =>
+-        policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+-    options.AddPolicy("DocRepo.EditMetadata", policy =>
+-        policy.RequireRole("Admin", "TA", "ITO", "MCO", "HoD"));
+-    options.AddPolicy("DocRepo.Purge", policy =>
+-        policy.RequireRole(RoleNames.Admin));
++    options.AddPolicy(Policies.Documents.Upload, policy =>
++        policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
++    options.AddPolicy(Policies.Documents.SoftDelete, policy =>
++        policy.RequireRole(Policies.Documents.UploadAndSoftDeleteRoles));
++    options.AddPolicy(Policies.Documents.ManageCategories, policy =>
++        policy.RequireRole(Policies.Documents.CategoryManagerRoles));
++    options.AddPolicy(Policies.Documents.DeleteApprove, policy =>
++        policy.RequireRole(Policies.Documents.DeleteApprovalRoles));
++    options.AddPolicy(Policies.Documents.EditMetadata, policy =>
++        policy.RequireRole(Policies.Documents.MetadataEditorRoles));
++    options.AddPolicy(Policies.Documents.Purge, policy =>
++        policy.RequireRole(Policies.Documents.PurgeRoles));
+ 
+     // SECTION: Action tracker authorization policy
+-    options.AddPolicy("ActionTracker.Access", policy =>
+-        policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
++    options.AddPolicy(Policies.ActionTracker.Access, policy =>
++        policy.RequireRole(Policies.ActionTracker.AccessAllowedRoles));
+ 
+     // SECTION: Project briefing deck authorization policy
+     options.AddPolicy(Policies.ProjectBriefingDecks.Manage, policy =>
+@@ -520,6 +520,7 @@
+ // SECTION: Shared Admin module foundations
+ builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
+ builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCatalog>();
++builder.Services.AddSingleton<IAdminRoleAccessCatalog, AdminRoleAccessCatalog>();
+ builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
+ builder.Services.AddSingleton<IAdminClientDescriptorService, AdminClientDescriptorService>();
+ builder.Services.AddSingleton<IAdminCapabilityCatalog, AdminCapabilityCatalog>();
+--- a/ProjectManagement.Tests/AdminPresentationCatalogTests.cs
++++ b/ProjectManagement.Tests/AdminPresentationCatalogTests.cs
+@@ -19,6 +19,15 @@
+         Assert.False(roles[2].IsPrivileged);
+     }
+ 
++    [Fact]
++    public void RoleCatalog_UsesTAAsTheDisplayName()
++    {
++        var role = new AdminRoleDescriptorCatalog().Describe(RoleNames.Ta);
++
++        Assert.Equal("TA", role.DisplayName);
++        Assert.DoesNotContain("Technical Assistant", role.DisplayName, StringComparison.OrdinalIgnoreCase);
++    }
++
+     [Theory]
+     [InlineData("Projects.ActualsUpdated", "Project actuals updated")]
+     [InlineData("AdminUserPasswordReset", "User password reset")]
+--- /dev/null
++++ b/ProjectManagement.Tests/AdminRoleAccessCatalogTests.cs
+@@ -0,0 +1,65 @@
++using ProjectManagement.Configuration;
++using ProjectManagement.Services.Admin;
++using Xunit;
++
++namespace ProjectManagement.Tests;
++
++public sealed class AdminRoleAccessCatalogTests
++{
++    [Fact]
++    public void ProjectOfficer_AccessReflectsAssignedProjectAndOperationalPermissions()
++    {
++        var items = ItemsFor(RoleNames.ProjectOfficer);
++
++        Assert.Contains(items, item => item.Key == "projects-maintain");
++        Assert.Contains(items, item => item.Key == "projects-request-change");
++        Assert.Contains(items, item => item.Key == "command-action-tracker");
++        Assert.Contains(items, item => item.Key == "industry-create");
++        Assert.Contains(items, item => item.Key == "industry-edit-own");
++        Assert.DoesNotContain(items, item => item.Key == "industry-edit-any");
++        Assert.DoesNotContain(items, item => item.Key == "admin-users");
++    }
++
++    [Fact]
++    public void Commandant_AccessIncludesCommandBriefingAndDirectoryOverrideButNotDeletion()
++    {
++        var items = ItemsFor(RoleNames.Comdt);
++
++        Assert.Contains(items, item => item.Key == "command-briefing-decks");
++        Assert.Contains(items, item => item.Key == "command-conference");
++        Assert.Contains(items, item => item.Key == "industry-create");
++        Assert.Contains(items, item => item.Key == "industry-edit-any");
++        Assert.DoesNotContain(items, item => item.Key == "industry-delete");
++        Assert.DoesNotContain(items, item => item.Key == "reports-arpp-unlock");
++    }
++
++    [Fact]
++    public void ProjectOffice_AccessIncludesReportManagementAndRepositoryUpload()
++    {
++        var items = ItemsFor(RoleNames.ProjectOffice);
++
++        Assert.Contains(items, item => item.Key == "reports-visits-social");
++        Assert.Contains(items, item => item.Key == "reports-training-manage");
++        Assert.Contains(items, item => item.Key == "reports-arpp-manage");
++        Assert.Contains(items, item => item.Key == "documents-upload-delete-request");
++        Assert.DoesNotContain(items, item => item.Key == "documents-metadata");
++    }
++
++    [Fact]
++    public void UnknownConfiguredRole_ReceivesOnlyCommonAuthenticatedCapabilities()
++    {
++        const string customRole = "Custom Observer";
++        var catalog = new AdminRoleAccessCatalog();
++
++        var items = catalog.ForRoles(new[] { customRole }, new[] { customRole });
++
++        Assert.NotEmpty(items);
++        Assert.All(items, item => Assert.StartsWith("core-", item.Key));
++    }
++
++    private static IReadOnlyList<AdminRoleAccessItem> ItemsFor(string roleName)
++    {
++        var catalog = new AdminRoleAccessCatalog();
++        return catalog.ForRoles(new[] { roleName }, new[] { roleName });
++    }
++}
+--- /dev/null
++++ b/Services/Admin/AdminRoleAccessCatalog.cs
+@@ -0,0 +1,607 @@
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Configuration;
++using ProjectManagement.Services.Activities;
++
++namespace ProjectManagement.Services.Admin;
++
++public sealed record AdminRoleAccessItem(
++    string Key,
++    string Title,
++    string Description,
++    IReadOnlyList<string> PermittedRoles,
++    int SortOrder);
++
++public sealed record AdminRoleAccessGroup(
++    string Key,
++    string Title,
++    string Icon,
++    int SortOrder,
++    IReadOnlyList<AdminRoleAccessItem> Items);
++
++public interface IAdminRoleAccessCatalog
++{
++    IReadOnlyList<AdminRoleAccessGroup> BuildForRoles(IEnumerable<string> availableRoleNames);
++
++    IReadOnlyList<AdminRoleAccessItem> ForRoles(
++        IEnumerable<string> selectedRoleNames,
++        IEnumerable<string>? availableRoleNames = null);
++}
++
++/// <summary>
++/// Human-readable access reference used while assigning Identity roles.
++/// Entries are deliberately expressed as operational capabilities and use the
++/// same role collections as the registered authorisation policies wherever a
++/// policy collection exists. Record ownership and project assignment rules are
++/// stated explicitly in the descriptions because they cannot be represented by
++/// a role alone.
++/// </summary>
++public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
++{
++    private static readonly IReadOnlyList<AccessDefinition> Definitions = BuildDefinitions();
++
++    public IReadOnlyList<AdminRoleAccessGroup> BuildForRoles(IEnumerable<string> availableRoleNames)
++    {
++        var availableRoles = NormaliseRoles(availableRoleNames);
++        if (availableRoles.Count == 0)
++        {
++            return Array.Empty<AdminRoleAccessGroup>();
++        }
++
++        return Definitions
++            .Select(definition => Materialise(definition, availableRoles))
++            .Where(item => item is not null)
++            .Cast<MaterialisedAccess>()
++            .GroupBy(item => new
++            {
++                item.Definition.GroupKey,
++                item.Definition.GroupTitle,
++                item.Definition.GroupIcon,
++                item.Definition.GroupSortOrder
++            })
++            .OrderBy(group => group.Key.GroupSortOrder)
++            .ThenBy(group => group.Key.GroupTitle, StringComparer.OrdinalIgnoreCase)
++            .Select(group => new AdminRoleAccessGroup(
++                group.Key.GroupKey,
++                group.Key.GroupTitle,
++                group.Key.GroupIcon,
++                group.Key.GroupSortOrder,
++                group.OrderBy(item => item.Definition.SortOrder)
++                    .ThenBy(item => item.Definition.Title, StringComparer.OrdinalIgnoreCase)
++                    .Select(item => new AdminRoleAccessItem(
++                        item.Definition.Key,
++                        item.Definition.Title,
++                        item.Definition.Description,
++                        item.PermittedRoles,
++                        item.Definition.SortOrder))
++                    .ToArray()))
++            .ToArray();
++    }
++
++    public IReadOnlyList<AdminRoleAccessItem> ForRoles(
++        IEnumerable<string> selectedRoleNames,
++        IEnumerable<string>? availableRoleNames = null)
++    {
++        var selectedRoles = NormaliseRoles(selectedRoleNames);
++        if (selectedRoles.Count == 0)
++        {
++            return Array.Empty<AdminRoleAccessItem>();
++        }
++
++        var available = availableRoleNames is null
++            ? selectedRoles
++            : NormaliseRoles(availableRoleNames);
++
++        return BuildForRoles(available)
++            .SelectMany(group => group.Items)
++            .Where(item => item.PermittedRoles.Any(selectedRoles.Contains))
++            .OrderBy(item => item.SortOrder)
++            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++    }
++
++    private static MaterialisedAccess? Materialise(
++        AccessDefinition definition,
++        HashSet<string> availableRoles)
++    {
++        var permittedRoles = definition.AppliesToEveryAuthenticatedRole
++            ? availableRoles.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray()
++            : definition.PermittedRoles
++                .Where(availableRoles.Contains)
++                .Distinct(StringComparer.OrdinalIgnoreCase)
++                .OrderBy(role => role, StringComparer.OrdinalIgnoreCase)
++                .ToArray();
++
++        return permittedRoles.Length == 0
++            ? null
++            : new MaterialisedAccess(definition, permittedRoles);
++    }
++
++    private static HashSet<string> NormaliseRoles(IEnumerable<string>? roles) =>
++        (roles ?? Enumerable.Empty<string>())
++            .Where(role => !string.IsNullOrWhiteSpace(role))
++            .Select(role => role.Trim())
++            .ToHashSet(StringComparer.OrdinalIgnoreCase);
++
++    private static IReadOnlyList<AccessDefinition> BuildDefinitions()
++    {
++        var adminAndHod = Roles(RoleNames.Admin, RoleNames.HoD);
++        var projectEditors = Roles(RoleNames.Admin, RoleNames.HoD, RoleNames.ProjectOfficer);
++        var projectOfficeManagers = ProjectOfficeReportsPolicies.ProjectOfficeManagerRoles;
++
++        return new[]
++        {
++            AllRoles(
++                "core-workspaces",
++                "Core PRISM workspaces",
++                "View the dashboard, calendar, notebook, photos, project repository, activities, project ideas and common reports, subject to record-level restrictions.",
++                Group.Core,
++                10),
++
++            Access(
++                "projects-create",
++                "Create projects",
++                "Create a new project record and initiate its controlled lifecycle.",
++                Policies.Projects.CreatorRoles,
++                Group.Projects,
++                10),
++            Access(
++                "projects-govern",
++                "Govern project records",
++                "Assign project roles and decide controlled metadata, stage, document and lifecycle change requests.",
++                adminAndHod,
++                Group.Projects,
++                20),
++            Access(
++                "projects-maintain",
++                "Maintain assigned projects",
++                "Update lifecycle stages, plans, actuals, procurement facts, project documents, photographs and videos. Project Officers are limited to projects assigned to them where the workflow enforces assignment.",
++                projectEditors,
++                Group.Projects,
++                30),
++            Access(
++                "projects-request-change",
++                "Submit project change requests",
++                "Request controlled metadata and stage changes for assigned projects.",
++                Roles(RoleNames.ProjectOfficer),
++                Group.Projects,
++                40),
++            Access(
++                "projects-completed-summary",
++                "Maintain completed-project summaries",
++                "Edit completed-project summary information used in portfolio reporting and the proliferation compendium.",
++                Roles(RoleNames.Admin, RoleNames.HoD, RoleNames.ProjectOffice),
++                Group.Projects,
++                50),
++            Access(
++                "projects-jdp-command",
++                "Manage project–JDP associations",
++                "Add or remove JDP associations on project records with command-level override.",
++                Roles(RoleNames.Admin, RoleNames.HoD, RoleNames.Comdt),
++                Group.Projects,
++                60),
++            Access(
++                "projects-jdp-assigned",
++                "Manage JDPs on assigned projects",
++                "Add or remove JDP associations when the user is the assigned Project Officer for that project.",
++                Roles(RoleNames.ProjectOfficer),
++                Group.Projects,
++                70),
++
++            Access(
++                "command-action-tracker",
++                "Use the action tracker",
++                "View and work on authorised command actions and assigned follow-up tasks.",
++                Policies.ActionTracker.AccessAllowedRoles,
++                Group.Command,
++                10),
++            Access(
++                "command-briefing-decks",
++                "Manage shared briefing decks",
++                "Create shared project collections and generate editable command briefing PowerPoint presentations.",
++                Policies.ProjectBriefingDecks.ManageAllowedRoles,
++                Group.Command,
++                20),
++            Access(
++                "command-conference",
++                "Record conference directions",
++                "Add conference directions and command remarks that feed the action queue.",
++                Policies.ConferenceRemarks.ManageAllowedRoles,
++                Group.Command,
++                30),
++            Access(
++                "command-usage",
++                "Review ERP usage",
++                "Review adoption, activity patterns and meaningful system use across authorised users.",
++                Policies.Usage.ViewerRoles,
++                Group.Command,
++                40),
++            Access(
++                "command-checklist",
++                "Edit command checklists",
++                "Update checklist items used for monitoring and coordination.",
++                Policies.Checklist.EditorRoles,
++                Group.Command,
++                50),
++
++            AllRoles(
++                "reports-common-view",
++                "View visits, ToT and proliferation trackers",
++                "Open the common Project Office trackers available to authenticated users.",
++                Group.Reports,
++                10),
++            Access(
++                "reports-visits-social",
++                "Manage visits and social-media records",
++                "Create and maintain visit tracker and social-media tracker records.",
++                projectOfficeManagers,
++                Group.Reports,
++                20),
++            Access(
++                "reports-training-view",
++                "View the training tracker",
++                "Review training records and their approval state.",
++                ProjectOfficeReportsPolicies.TrainingTrackerViewerRoles,
++                Group.Reports,
++                30),
++            Access(
++                "reports-training-manage",
++                "Manage training records",
++                "Create and update training tracker entries.",
++                ProjectOfficeReportsPolicies.TrainingTrackerManagerRoles,
++                Group.Reports,
++                40),
++            Access(
++                "reports-training-approve",
++                "Approve training records",
++                "Approve or return submitted training tracker entries.",
++                ProjectOfficeReportsPolicies.TotTrackerApproverRoles,
++                Group.Reports,
++                50),
++            Access(
++                "reports-tot-submit",
++                "Submit ToT tracker entries",
++                "Create and update Transfer of Technology tracker submissions.",
++                ProjectOfficeReportsPolicies.TotTrackerSubmitterRoles,
++                Group.Reports,
++                60),
++            Access(
++                "reports-tot-approve",
++                "Approve ToT tracker entries",
++                "Approve or return submitted Transfer of Technology entries.",
++                ProjectOfficeReportsPolicies.TotTrackerApproverRoles,
++                Group.Reports,
++                70),
++            Access(
++                "reports-proliferation-manage",
++                "Manage proliferation records",
++                "Submit proliferation entries and maintain proliferation preferences.",
++                projectOfficeManagers,
++                Group.Reports,
++                80),
++            Access(
++                "reports-proliferation-approve",
++                "Approve proliferation records",
++                "Approve or return submitted proliferation entries.",
++                ProjectOfficeReportsPolicies.TotTrackerApproverRoles,
++                Group.Reports,
++                90),
++            Access(
++                "reports-progress-review",
++                "View progress review",
++                "Open the command progress-review workspace and current project position.",
++                ProjectOfficeReportsPolicies.ProgressReviewViewerRoles,
++                Group.Reports,
++                100),
++            Access(
++                "reports-arpp-view",
++                "View ARPP / PPP",
++                "Review issued ARPP/PPP records, addenda and project positions.",
++                ProjectOfficeReportsPolicies.ArppViewerRoles,
++                Group.Reports,
++                110),
++            Access(
++                "reports-arpp-manage",
++                "Manage ARPP / PPP",
++                "Create and maintain ARPP/PPP issues, addenda and project rows.",
++                projectOfficeManagers,
++                Group.Reports,
++                120),
++            Access(
++                "reports-arpp-verify",
++                "Verify ARPP / PPP",
++                "Perform command verification of ARPP/PPP records.",
++                ProjectOfficeReportsPolicies.ArppVerifierRoles,
++                Group.Reports,
++                130),
++            Access(
++                "reports-arpp-unlock",
++                "Unlock ARPP / PPP",
++                "Reopen a controlled ARPP/PPP record when correction is authorised.",
++                ProjectOfficeReportsPolicies.ArppUnlockRoles,
++                Group.Reports,
++                140),
++            Access(
++                "reports-ipr-view",
++                "View the IPR tracker",
++                "Review patent and copyright records.",
++                Policies.Ipr.ViewAllowedRoles,
++                Group.Reports,
++                150),
++            Access(
++                "reports-ipr-edit",
++                "Edit IPR records",
++                "Create and maintain patent and copyright records.",
++                Policies.Ipr.EditAllowedRoles,
++                Group.Reports,
++                160),
++
++            AllRoles(
++                "industry-view-contact",
++                "Use the Industry Directory",
++                "View organisations and add contact details. Contacts created by the user remain editable by that user.",
++                Group.Industry,
++                10),
++            Access(
++                "industry-create",
++                "Add organisations",
++                "Create a new organisation or JDP record in the Industry Directory.",
++                Policies.IndustryPartners.CreateAllowedRoles,
++                Group.Industry,
++                20),
++            Access(
++                "industry-edit-own",
++                "Edit organisations created by the user",
++                "Edit organisation details, files and JDP project associations when the user owns the organisation record.",
++                Policies.IndustryPartners.CreateAllowedRoles,
++                Group.Industry,
++                30),
++            Access(
++                "industry-edit-any",
++                "Edit any organisation or contact",
++                "Override ownership and edit any organisation or contact record.",
++                Policies.IndustryPartners.EditAnyAllowedRoles,
++                Group.Industry,
++                40),
++            Access(
++                "industry-delete",
++                "Delete organisations",
++                "Delete an organisation record under the controlled directory workflow.",
++                Policies.IndustryPartners.DeleteAllowedRoles,
++                Group.Industry,
++                50),
++
++            AllRoles(
++                "documents-view",
++                "View the document repository",
++                "Search and open authorised repository documents.",
++                Group.Documents,
++                10),
++            Access(
++                "documents-upload-delete-request",
++                "Upload documents and request deletion",
++                "Upload repository documents and submit soft-delete requests.",
++                Policies.Documents.UploadAndSoftDeleteRoles,
++                Group.Documents,
++                20),
++            Access(
++                "documents-metadata",
++                "Edit document metadata",
++                "Update authorised document metadata and classification fields.",
++                Policies.Documents.MetadataEditorRoles,
++                Group.Documents,
++                30),
++            Access(
++                "documents-approve-delete",
++                "Approve document deletion",
++                "Review delete requests and OCR failure records.",
++                Policies.Documents.DeleteApprovalRoles,
++                Group.Documents,
++                40),
++            Access(
++                "documents-admin",
++                "Manage repository structure and purge",
++                "Maintain office/document categories and perform authorised permanent deletion.",
++                Policies.Documents.CategoryManagerRoles.Concat(Policies.Documents.PurgeRoles).ToArray(),
++                Group.Documents,
++                50),
++
++            Access(
++                "calendar-events",
++                "Manage calendar events",
++                "Create and update shared operational calendar events.",
++                Policies.Calendar.EventManagerRoles,
++                Group.Calendar,
++                10),
++            Access(
++                "calendar-celebrations",
++                "Manage birthdays and anniversaries",
++                "Maintain birthday and anniversary entries shown in the shared calendar.",
++                Policies.Calendar.CelebrationManagerRoles,
++                Group.Calendar,
++                20),
++            Access(
++                "activities-manage",
++                "Manage miscellaneous activities",
++                "Create and edit activity records and request their deletion.",
++                ActivityRoleLists.ManagerRoles,
++                Group.Calendar,
++                30),
++            Access(
++                "activities-approve-delete",
++                "Approve activity deletion",
++                "Approve or reject activity deletion requests.",
++                ActivityRoleLists.DeleteApproverRoles,
++                Group.Calendar,
++                40),
++
++            Access(
++                "admin-users",
++                "Manage users and roles",
++                "Create accounts, assign roles, reset passwords and control account lifecycle state.",
++                Roles(RoleNames.Admin),
++                Group.Administration,
++                10),
++            Access(
++                "admin-security",
++                "Review security and access governance",
++                "Review privileged access, login activity, system health and audit logs.",
++                Roles(RoleNames.Admin),
++                Group.Administration,
++                20),
++            Access(
++                "admin-recovery",
++                "Manage recovery and retention",
++                "Restore deleted records and perform retention-controlled permanent deletion.",
++                Roles(RoleNames.Admin),
++                Group.Administration,
++                30),
++            Access(
++                "admin-master-data",
++                "Manage master data and maintenance",
++                "Maintain controlled taxonomies, configuration integrity and approved maintenance workflows.",
++                Roles(RoleNames.Admin),
++                Group.Administration,
++                40),
++            Access(
++                "admin-department-settings",
++                "Manage department settings",
++                "Maintain activity types, holidays and authorised shared configuration.",
++                adminAndHod,
++                Group.Administration,
++                50),
++            Access(
++                "admin-media",
++                "Administer the media library",
++                "Configure media processing, operate queues, recover media and manage controlled classification values.",
++                adminAndHod,
++                Group.Administration,
++                60),
++            Access(
++                "admin-people-gallery",
++                "Manage people classification in Photos",
++                "Review face matches and maintain people identities in the media library.",
++                adminAndHod,
++                Group.Administration,
++                70)
++        };
++    }
++
++    private static AccessDefinition Access(
++        string key,
++        string title,
++        string description,
++        IReadOnlyList<string> permittedRoles,
++        Group group,
++        int sortOrder) =>
++        new(
++            key,
++            title,
++            description,
++            permittedRoles,
++            AppliesToEveryAuthenticatedRole: false,
++            GroupKey(group),
++            GroupTitle(group),
++            GroupIcon(group),
++            GroupSortOrder(group),
++            sortOrder);
++
++    private static AccessDefinition AllRoles(
++        string key,
++        string title,
++        string description,
++        Group group,
++        int sortOrder) =>
++        new(
++            key,
++            title,
++            description,
++            Array.Empty<string>(),
++            AppliesToEveryAuthenticatedRole: true,
++            GroupKey(group),
++            GroupTitle(group),
++            GroupIcon(group),
++            GroupSortOrder(group),
++            sortOrder);
++
++    private static string[] Roles(params string[] roles) => roles;
++
++    private static string GroupKey(Group group) => group switch
++    {
++        Group.Core => "core",
++        Group.Projects => "projects",
++        Group.Command => "command",
++        Group.Reports => "reports",
++        Group.Industry => "industry",
++        Group.Documents => "documents",
++        Group.Calendar => "calendar-activities",
++        Group.Administration => "administration",
++        _ => throw new ArgumentOutOfRangeException(nameof(group), group, null)
++    };
++
++    private static string GroupTitle(Group group) => group switch
++    {
++        Group.Core => "Common access",
++        Group.Projects => "Projects",
++        Group.Command => "Command and coordination",
++        Group.Reports => "Project Office reports",
++        Group.Industry => "Industry Directory",
++        Group.Documents => "Documents",
++        Group.Calendar => "Calendar and activities",
++        Group.Administration => "Administration",
++        _ => throw new ArgumentOutOfRangeException(nameof(group), group, null)
++    };
++
++    private static string GroupIcon(Group group) => group switch
++    {
++        Group.Core => "bi-grid",
++        Group.Projects => "bi-kanban",
++        Group.Command => "bi-diagram-3",
++        Group.Reports => "bi-clipboard-data",
++        Group.Industry => "bi-buildings",
++        Group.Documents => "bi-folder2-open",
++        Group.Calendar => "bi-calendar3",
++        Group.Administration => "bi-shield-lock",
++        _ => throw new ArgumentOutOfRangeException(nameof(group), group, null)
++    };
++
++    private static int GroupSortOrder(Group group) => group switch
++    {
++        Group.Core => 10,
++        Group.Projects => 20,
++        Group.Command => 30,
++        Group.Reports => 40,
++        Group.Industry => 50,
++        Group.Documents => 60,
++        Group.Calendar => 70,
++        Group.Administration => 80,
++        _ => 900
++    };
++
++    private enum Group
++    {
++        Core,
++        Projects,
++        Command,
++        Reports,
++        Industry,
++        Documents,
++        Calendar,
++        Administration
++    }
++
++    private sealed record AccessDefinition(
++        string Key,
++        string Title,
++        string Description,
++        IReadOnlyList<string> PermittedRoles,
++        bool AppliesToEveryAuthenticatedRole,
++        string GroupKey,
++        string GroupTitle,
++        string GroupIcon,
++        int GroupSortOrder,
++        int SortOrder);
++
++    private sealed record MaterialisedAccess(
++        AccessDefinition Definition,
++        IReadOnlyList<string> PermittedRoles);
++}
+--- a/Services/Admin/AdminRoleDescriptorCatalog.cs
++++ b/Services/Admin/AdminRoleDescriptorCatalog.cs
+@@ -112,10 +112,10 @@
+                 sortOrder: 200),
+             Descriptor(
+                 RoleNames.Ta,
+-                "Technical Assistant",
+-                "Technical coordination and authorised metadata or workflow support functions.",
+-                "Technical & coordination",
+-                "bi-tools",
++                "TA",
++                "Authorised coordination, metadata and workflow support functions.",
++                "Coordination",
++                "bi-person-badge",
+                 privileged: false,
+                 sortOrder: 210),
+             Descriptor(
+--- a/wwwroot/css/admin.css
++++ b/wwwroot/css/admin.css
+@@ -1644,25 +1644,53 @@
+ .admin-security-note strong { color: var(--admin-text); font-size: .68rem; }
+ .admin-security-note p { margin: .18rem 0 0; color: #456052; font-size: .61rem; line-height: 1.45; }
+ 
+-.admin-role-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; }
+-.admin-role-option { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .55rem; min-height: 7rem; padding: .7rem; border: 1px solid var(--admin-border); border-radius: .72rem; background: #fff; cursor: pointer; transition: border-color .14s ease, background-color .14s ease, box-shadow .14s ease; }
+-.admin-role-option:hover { border-color: #b8c7e6; background: #fbfcff; }
++.admin-role-assignment { min-width: 0; }
++.admin-role-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; }
++.admin-role-option { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .55rem; min-height: 3.55rem; padding: .62rem .68rem; border: 1px solid var(--admin-border); border-radius: .68rem; background: #fff; cursor: pointer; transition: border-color .14s ease, background-color .14s ease, box-shadow .14s ease, transform .14s ease; }
++.admin-role-option:hover { border-color: #b8c7e6; background: #fbfcff; transform: translateY(-1px); }
++.admin-role-option:focus-within { outline: 2px solid rgba(49, 94, 232, .22); outline-offset: 2px; }
+ .admin-role-option.is-selected { border-color: #9fb4f4; background: var(--admin-primary-soft); box-shadow: inset 0 0 0 1px rgba(49, 94, 232, .08); }
+-.admin-role-option.is-privileged.is-selected { border-color: #e7c671; background: var(--admin-warning-soft); }
++.admin-role-option.is-privileged.is-selected { border-color: #d8b85d; background: #fff9e9; }
+ .admin-role-option__input { position: absolute; opacity: 0; pointer-events: none; }
+-.admin-role-option__icon { display: inline-grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: .55rem; background: var(--admin-surface-muted); color: #64748b; font-size: .72rem; }
++.admin-role-option__icon { display: inline-grid; width: 1.85rem; height: 1.85rem; place-items: center; border-radius: .55rem; background: var(--admin-surface-muted); color: #64748b; font-size: .72rem; }
+ .admin-role-option.is-selected .admin-role-option__icon { background: #fff; color: var(--admin-primary); }
+-.admin-role-option__copy { min-width: 0; }
+-.admin-role-option__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+-.admin-role-option__title-row strong { color: var(--admin-text); font-size: .68rem; }
+-.admin-role-option__privileged { padding: .08rem .3rem; border-radius: 999px; background: var(--admin-warning-soft); color: var(--admin-warning); font-size: .52rem; font-weight: 800; }
+-.admin-role-option__category { display: block; margin-top: .15rem; color: var(--admin-primary); font-size: .55rem; font-weight: 720; text-transform: uppercase; }
+-.admin-role-option__description { display: block; margin-top: .28rem; color: var(--admin-text-secondary); font-size: .59rem; line-height: 1.42; }
+-.admin-role-option__check { display: inline-grid; width: 1.25rem; height: 1.25rem; place-items: center; border: 1px solid var(--admin-border-strong); border-radius: 999px; background: #fff; color: transparent; font-size: .6rem; }
++.admin-role-option.is-privileged.is-selected .admin-role-option__icon { color: #8a6407; }
++.admin-role-option__name { min-width: 0; overflow: hidden; color: var(--admin-text); font-size: .68rem; font-weight: 740; line-height: 1.25; text-overflow: ellipsis; }
++.admin-role-option__check { display: inline-grid; width: 1.2rem; height: 1.2rem; place-items: center; border: 1px solid var(--admin-border-strong); border-radius: 999px; background: #fff; color: transparent; font-size: .58rem; }
+ .admin-role-option.is-selected .admin-role-option__check { border-color: var(--admin-primary); background: var(--admin-primary); color: #fff; }
+-.admin-role-selection-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .6rem; color: var(--admin-text-muted); font-size: .61rem; }
++.admin-role-option.is-privileged.is-selected .admin-role-option__check { border-color: #a77708; background: #a77708; }
++.admin-role-selection-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .55rem; color: var(--admin-text-muted); font-size: .61rem; }
+ .admin-role-selection-summary__warning { display: inline-flex; align-items: center; gap: .3rem; color: var(--admin-warning); font-weight: 680; }
+ .admin-role-selection-summary__warning[hidden] { display: none; }
++
++.admin-role-access-reference { margin-top: .8rem; border: 1px solid var(--admin-border); border-radius: .78rem; background: #fbfcfe; overflow: hidden; }
++.admin-role-access-reference__header { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: .72rem .8rem; border-bottom: 1px solid var(--admin-border); background: #fff; }
++.admin-role-access-reference__eyebrow { display: block; margin-bottom: .12rem; color: var(--admin-primary); font-size: .53rem; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
++.admin-role-access-reference__header h3 { margin: 0; color: var(--admin-text); font-size: .78rem; font-weight: 780; }
++.admin-role-access-reference__header p { max-width: 54rem; margin: .18rem 0 0; color: var(--admin-text-secondary); font-size: .61rem; line-height: 1.42; }
++.admin-role-access-reference__summary { flex: 0 0 auto; padding-top: .05rem; color: var(--admin-text-muted); font-size: .59rem; white-space: nowrap; }
++.admin-role-access-reference__roles { display: flex; flex-wrap: wrap; gap: .3rem; padding: .55rem .8rem 0; }
++.admin-role-access-reference__roles[hidden] { display: none; }
++.admin-role-access-reference__roles span { display: inline-flex; align-items: center; min-height: 1.45rem; padding: .18rem .46rem; border: 1px solid #c7d5f5; border-radius: 999px; background: #fff; color: #3156a6; font-size: .56rem; font-weight: 700; }
++.admin-role-access-empty { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .65rem; padding: 1rem .85rem; color: var(--admin-text-secondary); }
++.admin-role-access-empty[hidden] { display: none; }
++.admin-role-access-empty > span { display: inline-grid; width: 2rem; height: 2rem; place-items: center; border-radius: .62rem; background: var(--admin-primary-soft); color: var(--admin-primary); }
++.admin-role-access-empty strong { display: block; color: var(--admin-text); font-size: .67rem; }
++.admin-role-access-empty p { margin: .15rem 0 0; font-size: .6rem; }
++.admin-role-access-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; padding: .65rem .8rem .8rem; }
++.admin-role-access-groups[hidden] { display: none; }
++.admin-role-access-group { min-width: 0; border: 1px solid var(--admin-border); border-radius: .68rem; background: #fff; overflow: hidden; }
++.admin-role-access-group[hidden] { display: none; }
++.admin-role-access-group > header { display: flex; align-items: center; gap: .42rem; padding: .5rem .58rem; border-bottom: 1px solid var(--admin-border); background: #fafbfd; }
++.admin-role-access-group > header > span { display: inline-grid; width: 1.45rem; height: 1.45rem; place-items: center; border-radius: .42rem; background: var(--admin-primary-soft); color: var(--admin-primary); font-size: .62rem; }
++.admin-role-access-group h4 { margin: 0; color: var(--admin-text); font-size: .66rem; font-weight: 760; }
++.admin-role-access-group ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
++.admin-role-access-group li { position: relative; display: grid; gap: .1rem; padding: .48rem .58rem .48rem 1.25rem; }
++.admin-role-access-group li + li { border-top: 1px solid #edf0f5; }
++.admin-role-access-group li::before { position: absolute; top: .72rem; left: .62rem; width: .3rem; height: .3rem; border-radius: 999px; background: #6f8fd9; content: ""; }
++.admin-role-access-group li[hidden] { display: none; }
++.admin-role-access-group li strong { color: var(--admin-text); font-size: .61rem; font-weight: 720; line-height: 1.3; }
++.admin-role-access-group li span { color: var(--admin-text-secondary); font-size: .57rem; line-height: 1.42; }
+ .admin-form-section__body--state { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+ .admin-form-actions { position: sticky; bottom: .55rem; z-index: 5; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; padding: .68rem .75rem; border: 1px solid var(--admin-border); border-radius: .72rem; background: rgba(255, 255, 255, .94); box-shadow: 0 14px 40px -24px rgba(15, 23, 42, .45); backdrop-filter: blur(10px); }
+ .admin-form-actions .btn { display: inline-flex; align-items: center; gap: .35rem; }
+@@ -1703,7 +1731,7 @@
+     .admin-user-status-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+     .admin-user-profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+     .admin-account-actions { grid-column: 1 / -1; }
+-    .admin-role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++    .admin-role-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+ }
+ 
+ @media (max-width: 1199.98px) {
+@@ -1713,6 +1741,7 @@
+     .admin-user-profile-hero { align-items: flex-start; flex-direction: column; }
+     .admin-user-profile-hero__facts { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+     .admin-operation-layout { grid-template-columns: 1fr; }
++    .admin-role-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+ }
+ 
+ @media (max-width: 991.98px) {
+@@ -1722,6 +1751,8 @@
+     .admin-account-actions { grid-column: auto; }
+     .admin-form-grid--three,
+     .admin-password-layout { grid-template-columns: 1fr; }
++    .admin-role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++    .admin-role-access-groups { grid-template-columns: 1fr; }
+ }
+ 
+ @media (max-width: 767.98px) {
+@@ -1730,6 +1761,8 @@
+     .admin-filter-toolbar__actions .btn { flex: 1 1 0; justify-content: center; }
+     .admin-user-status-strip { grid-template-columns: 1fr 1fr; }
+     .admin-role-grid { grid-template-columns: 1fr; }
++    .admin-role-access-reference__header { align-items: flex-start; flex-direction: column; }
++    .admin-role-access-reference__summary { white-space: normal; }
+     .admin-user-profile-hero__facts { grid-template-columns: 1fr; gap: .55rem; }
+     .admin-user-profile-hero__facts > div { min-width: 0; }
+     .admin-user-identity { align-items: flex-start; flex-wrap: wrap; }
+--- a/wwwroot/js/admin/admin-users.js
++++ b/wwwroot/js/admin/admin-users.js
+@@ -34,32 +34,87 @@
+ };
+ 
+ const initialiseRoleGrids = () => {
+-    document.querySelectorAll("[data-admin-role-grid]").forEach((grid) => {
++    document.querySelectorAll("[data-admin-role-assignment]").forEach((assignment) => {
++        const grid = assignment.querySelector("[data-admin-role-grid]");
++        if (!(grid instanceof HTMLElement)) return;
++
+         const options = Array.from(grid.querySelectorAll("[data-admin-role-option]"));
+-        const summary = grid.nextElementSibling;
+-        const count = summary?.querySelector("[data-admin-role-count]");
+-        const warning = summary?.querySelector("[data-admin-privileged-warning]");
++        const count = assignment.querySelector("[data-admin-role-count]");
++        const warning = assignment.querySelector("[data-admin-privileged-warning]");
++        const accessCount = assignment.querySelector("[data-admin-access-count]");
++        const roleChips = assignment.querySelector("[data-admin-access-role-chips]");
++        const emptyState = assignment.querySelector("[data-admin-access-empty]");
++        const accessGroups = assignment.querySelector("[data-admin-access-groups]");
++        const accessItems = Array.from(assignment.querySelectorAll("[data-admin-access-item]"));
++        const groups = Array.from(assignment.querySelectorAll("[data-admin-access-group]"));
++
++        const splitRoles = (value) => (value ?? "")
++            .split("|")
++            .map(normalise)
++            .filter((role) => role.length > 0);
+ 
+         const refresh = () => {
+-            const selected = options.filter((option) => {
++            const selectedOptions = options.filter((option) => {
+                 const checkbox = option.querySelector("[data-admin-role-checkbox]");
+                 const checked = checkbox instanceof HTMLInputElement && checkbox.checked;
+                 option.classList.toggle("is-selected", checked);
+                 return checked;
+             });
+ 
++            const selectedRoleNames = new Set(selectedOptions
++                .map((option) => option.querySelector("[data-admin-role-checkbox]"))
++                .filter((checkbox) => checkbox instanceof HTMLInputElement)
++                .map((checkbox) => normalise(checkbox.value)));
++
+             if (count) {
+-                count.textContent = `${selected.length} role${selected.length === 1 ? "" : "s"} selected`;
++                count.textContent = `${selectedOptions.length} role${selectedOptions.length === 1 ? "" : "s"} selected`;
+             }
+ 
+             if (warning) {
+-                const privilegedSelected = selected.some((option) => {
++                const privilegedSelected = selectedOptions.some((option) => {
+                     const checkbox = option.querySelector("[data-admin-role-checkbox]");
+                     return checkbox instanceof HTMLInputElement
+                         && checkbox.dataset.privileged === "true";
+                 });
+                 warning.hidden = !privilegedSelected;
+             }
++
++            if (roleChips instanceof HTMLElement) {
++                const labels = selectedOptions
++                    .map((option) => option.querySelector("[data-admin-role-checkbox]"))
++                    .filter((checkbox) => checkbox instanceof HTMLInputElement)
++                    .map((checkbox) => checkbox.dataset.roleDisplay || checkbox.value)
++                    .filter((label, index, all) => all.indexOf(label) === index);
++
++                roleChips.replaceChildren(...labels.map((label) => {
++                    const chip = document.createElement("span");
++                    chip.textContent = label;
++                    return chip;
++                }));
++                roleChips.hidden = labels.length === 0;
++            }
++
++            let visibleCapabilityCount = 0;
++            accessItems.forEach((item) => {
++                const permittedRoles = splitRoles(item.dataset.roleNames);
++                const visible = permittedRoles.some((role) => selectedRoleNames.has(role));
++                item.hidden = !visible;
++                if (visible) visibleCapabilityCount += 1;
++            });
++
++            groups.forEach((group) => {
++                const hasVisibleItem = Array.from(group.querySelectorAll("[data-admin-access-item]"))
++                    .some((item) => !item.hidden);
++                group.hidden = !hasVisibleItem;
++            });
++
++            if (accessCount) {
++                accessCount.textContent = `${visibleCapabilityCount} capabilit${visibleCapabilityCount === 1 ? "y" : "ies"}`;
++            }
++
++            const hasSelection = selectedRoleNames.size > 0;
++            if (emptyState instanceof HTMLElement) emptyState.hidden = hasSelection;
++            if (accessGroups instanceof HTMLElement) accessGroups.hidden = !hasSelection;
+         };
+ 
+         grid.addEventListener("change", refresh);

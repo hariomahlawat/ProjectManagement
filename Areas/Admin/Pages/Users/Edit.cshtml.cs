@@ -17,17 +17,20 @@ public sealed class EditModel : PageModel
     private readonly IUserManagementService _users;
     private readonly IAdminUserQueryService _queries;
     private readonly IAdminRoleDescriptorCatalog _roleCatalog;
+    private readonly IAdminRoleAccessCatalog _roleAccessCatalog;
     private readonly ILogger<EditModel> _logger;
 
     public EditModel(
         IUserManagementService users,
         IAdminUserQueryService queries,
         IAdminRoleDescriptorCatalog roleCatalog,
+        IAdminRoleAccessCatalog roleAccessCatalog,
         ILogger<EditModel> logger)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
         _roleCatalog = roleCatalog ?? throw new ArgumentNullException(nameof(roleCatalog));
+        _roleAccessCatalog = roleAccessCatalog ?? throw new ArgumentNullException(nameof(roleAccessCatalog));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -40,6 +43,9 @@ public sealed class EditModel : PageModel
 
     public IReadOnlyList<AdminRoleDescriptor> RoleOptions { get; private set; } =
         Array.Empty<AdminRoleDescriptor>();
+
+    public IReadOnlyList<AdminRoleAccessGroup> RoleAccessGroups { get; private set; } =
+        Array.Empty<AdminRoleAccessGroup>();
 
     public sealed class InputModel
     {
@@ -158,6 +164,7 @@ public sealed class EditModel : PageModel
     {
         var roles = await _users.GetRolesAsync();
         RoleOptions = _roleCatalog.DescribeMany(roles);
+        RoleAccessGroups = _roleAccessCatalog.BuildForRoles(RoleOptions.Select(role => role.Name));
 
         var title = Account is null
             ? "Edit user"

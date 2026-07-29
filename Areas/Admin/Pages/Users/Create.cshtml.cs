@@ -19,17 +19,20 @@ public sealed class CreateModel : PageModel
 {
     private readonly IUserManagementService _users;
     private readonly IAdminRoleDescriptorCatalog _roleCatalog;
+    private readonly IAdminRoleAccessCatalog _roleAccessCatalog;
     private readonly ILogger<CreateModel> _logger;
     private readonly PasswordOptions _passwordOptions;
 
     public CreateModel(
         IUserManagementService users,
         IAdminRoleDescriptorCatalog roleCatalog,
+        IAdminRoleAccessCatalog roleAccessCatalog,
         ILogger<CreateModel> logger,
         IOptions<IdentityOptions> identityOptions)
     {
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _roleCatalog = roleCatalog ?? throw new ArgumentNullException(nameof(roleCatalog));
+        _roleAccessCatalog = roleAccessCatalog ?? throw new ArgumentNullException(nameof(roleAccessCatalog));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _passwordOptions = identityOptions?.Value.Password ?? throw new ArgumentNullException(nameof(identityOptions));
     }
@@ -41,6 +44,9 @@ public sealed class CreateModel : PageModel
 
     public IReadOnlyList<AdminRoleDescriptor> RoleOptions { get; private set; } =
         Array.Empty<AdminRoleDescriptor>();
+
+    public IReadOnlyList<AdminRoleAccessGroup> RoleAccessGroups { get; private set; } =
+        Array.Empty<AdminRoleAccessGroup>();
 
     public string PasswordPolicyDescription => IdentityPasswordPolicy.Describe(_passwordOptions);
 
@@ -134,6 +140,7 @@ public sealed class CreateModel : PageModel
     {
         var roles = await _users.GetRolesAsync();
         RoleOptions = _roleCatalog.DescribeMany(roles);
+        RoleAccessGroups = _roleAccessCatalog.BuildForRoles(RoleOptions.Select(role => role.Name));
         Header = new AdminPageHeaderModel
         {
             Eyebrow = "People and access",

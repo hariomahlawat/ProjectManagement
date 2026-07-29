@@ -10,6 +10,9 @@ public sealed record AdminRoleSelectionGridModel
     public IReadOnlyCollection<string> SelectedRoles { get; init; } =
         Array.Empty<string>();
 
+    public IReadOnlyList<AdminRoleAccessGroup> AccessGroups { get; init; } =
+        Array.Empty<AdminRoleAccessGroup>();
+
     public string InputName { get; init; } = "Input.Roles";
 
     public string IdPrefix { get; init; } = "admin-role";

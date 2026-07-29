@@ -6,6 +6,7 @@
     {
         Roles = Model.RoleOptions,
         SelectedRoles = Model.Input.Roles,
+        AccessGroups = Model.RoleAccessGroups,
         InputName = "Input.Roles",
         IdPrefix = "create-role"
     };
@@ -122,7 +123,7 @@
             <span class="admin-form-section__step">04</span>
             <div>
                 <h2 id="create-user-roles-title">Roles and access</h2>
-                <p>Assign only the roles required for the user’s current duties. Privileged roles require additional scrutiny.</p>
+                <p>Select the roles required for the user’s current duties. Review the effective module access below before creating the account.</p>
             </div>
         </header>
         <div class="admin-form-section__body">

@@ -19,6 +19,15 @@ public sealed class AdminPresentationCatalogTests
         Assert.False(roles[2].IsPrivileged);
     }
 
+    [Fact]
+    public void RoleCatalog_UsesTAAsTheDisplayName()
+    {
+        var role = new AdminRoleDescriptorCatalog().Describe(RoleNames.Ta);
+
+        Assert.Equal("TA", role.DisplayName);
+        Assert.DoesNotContain("Technical Assistant", role.DisplayName, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("Projects.ActualsUpdated", "Project actuals updated")]
     [InlineData("AdminUserPasswordReset", "User password reset")]

@@ -112,10 +112,10 @@ public sealed class AdminRoleDescriptorCatalog : IAdminRoleDescriptorCatalog
                 sortOrder: 200),
             Descriptor(
                 RoleNames.Ta,
-                "Technical Assistant",
-                "Technical coordination and authorised metadata or workflow support functions.",
-                "Technical & coordination",
-                "bi-tools",
+                "TA",
+                "Authorised coordination, metadata and workflow support functions.",
+                "Coordination",
+                "bi-person-badge",
                 privileged: false,
                 sortOrder: 210),
             Descriptor(
