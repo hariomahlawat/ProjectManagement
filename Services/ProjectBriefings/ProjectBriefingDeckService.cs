@@ -193,11 +193,14 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             Name = CleanName(name),
             NormalizedName = normalizedName,
             Description = NormalizeDescription(description),
+            Layout = ProjectBriefingLayout.StandardBriefing,
             PresentationMode = ProjectBriefingPresentationMode.Combined,
             CostMode = ProjectBriefingCostMode.Both,
             NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
             PresentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
             BrandingScope = ProjectBriefingBrandingScope.AllSlides,
+            IncludeCoverSlide = true,
+            IncludePortfolioSummarySlide = true,
             IncludeStageSummary = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
@@ -228,11 +231,14 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             Name = name,
             NormalizedName = NormalizeName(name),
             Description = source.Description,
+            Layout = source.Layout,
             PresentationMode = source.PresentationMode,
             CostMode = source.CostMode,
             NarrativeMode = source.NarrativeMode,
             PresentationTheme = source.PresentationTheme,
             BrandingScope = source.BrandingScope,
+            IncludeCoverSlide = source.IncludeCoverSlide,
+            IncludePortfolioSummarySlide = source.IncludePortfolioSummarySlide,
             IncludeStageSummary = source.IncludeStageSummary,
             IncludeProjectCategorySummary = source.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = source.IncludeTechnicalCategorySummary,
@@ -273,6 +279,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         EnsureVersion(deck, command.RowVersion);
         ValidateEnums(
+            command.Layout,
             command.PresentationMode,
             command.CostMode,
             command.NarrativeMode,
@@ -284,11 +291,19 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.Name = CleanName(command.Name);
         deck.NormalizedName = normalizedName;
         deck.Description = NormalizeDescription(command.Description);
+        deck.Layout = command.Layout;
         deck.PresentationMode = command.PresentationMode;
         deck.CostMode = command.CostMode;
         deck.NarrativeMode = command.NarrativeMode;
         deck.PresentationTheme = command.PresentationTheme;
         deck.BrandingScope = command.BrandingScope;
+        // The established Standard PRISM Briefing always retains its cover and
+        // portfolio-summary slides. The new formal update-sheet layout exposes
+        // these as explicit user choices.
+        deck.IncludeCoverSlide = command.Layout == ProjectBriefingLayout.StandardBriefing
+            || command.IncludeCoverSlide;
+        deck.IncludePortfolioSummarySlide = command.Layout == ProjectBriefingLayout.StandardBriefing
+            || command.IncludePortfolioSummarySlide;
         deck.IncludeStageSummary = command.IncludeStageSummary;
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
@@ -617,11 +632,14 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         {
             ["DeckId"] = deck.Id.ToString(),
             ["DeckName"] = deck.Name,
+            ["Layout"] = deck.Layout.ToString(),
             ["PresentationMode"] = deck.PresentationMode.ToString(),
             ["CostMode"] = deck.CostMode.ToString(),
             ["NarrativeMode"] = deck.NarrativeMode.ToString(),
             ["PresentationTheme"] = deck.PresentationTheme.ToString(),
-            ["BrandingScope"] = deck.BrandingScope.ToString()
+            ["BrandingScope"] = deck.BrandingScope.ToString(),
+            ["IncludeCoverSlide"] = deck.IncludeCoverSlide.ToString(),
+            ["IncludePortfolioSummarySlide"] = deck.IncludePortfolioSummarySlide.ToString()
         };
         if (extra is not null)
         {
@@ -673,19 +691,21 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     }
 
     private static void ValidateEnums(
+        ProjectBriefingLayout layout,
         ProjectBriefingPresentationMode presentationMode,
         ProjectBriefingCostMode costMode,
         ProjectBriefingNarrativeMode narrativeMode,
         ProjectBriefingPresentationTheme presentationTheme,
         ProjectBriefingBrandingScope brandingScope)
     {
-        if (!Enum.IsDefined(presentationMode)
+        if (!Enum.IsDefined(layout)
+            || !Enum.IsDefined(presentationMode)
             || !Enum.IsDefined(costMode)
             || !Enum.IsDefined(narrativeMode)
             || !Enum.IsDefined(presentationTheme)
             || !Enum.IsDefined(brandingScope))
         {
-            throw new InvalidOperationException("The deck format, project content, theme or branding setting is invalid.");
+            throw new InvalidOperationException("The presentation template, deck format, project content, theme or branding setting is invalid.");
         }
     }
 

@@ -52,6 +52,7 @@ public sealed class ProjectBriefingDeckVm
     public long Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string? Description { get; init; }
+    public ProjectBriefingLayout Layout { get; init; } = ProjectBriefingLayout.StandardBriefing;
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
@@ -60,6 +61,8 @@ public sealed class ProjectBriefingDeckVm
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
+    public bool IncludeCoverSlide { get; init; } = true;
+    public bool IncludePortfolioSummarySlide { get; init; } = true;
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
@@ -98,6 +101,20 @@ public sealed class ProjectBriefingProjectVm
     public string ProjectBrief { get; init; } = string.Empty;
     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
     public string? BriefDescriptionOverride { get; init; }
+    public string? ArppReference { get; init; }
+    public string? Fund { get; init; }
+    public string? DfpdsSchedule { get; init; }
+    public string? Cfa { get; init; }
+    public DateOnly? AonDate { get; init; }
+    public DateOnly? SupplyOrderDate { get; init; }
+    public DateOnly? DevelopmentPdcDate { get; init; }
+    public IReadOnlyList<string> JdpNames { get; init; } = Array.Empty<string>();
+    public string? ProjectOfficer { get; init; }
+    public bool ProjectOfficerIsComplete { get; init; }
+    public string? LineDirectorate { get; init; }
+    public bool HasCompleteArppDetails { get; init; }
+    public bool IsDevelopmentPdcRequired { get; init; }
+    public bool IsUpdateSheetCoreFactsReady { get; init; }
     public int SortOrder { get; init; }
     public string OpenUrl { get; init; } = string.Empty;
 }
@@ -115,6 +132,15 @@ public sealed class ProjectBriefingReadinessVm
     public int DescriptionAvailableCount { get; init; }
     public int CapabilityOverviewAvailableCount { get; init; }
     public int ProjectBriefAvailableCount { get; init; }
+    public int UpdateSheetCoreFactsAvailableCount { get; init; }
+    public int ArppDetailsAvailableCount { get; init; }
+    public int AonDateAvailableCount { get; init; }
+    public int SupplyOrderDateAvailableCount { get; init; }
+    public int JdpAvailableCount { get; init; }
+    public int DevelopmentProjectCount { get; init; }
+    public int DevelopmentPdcAvailableCount { get; init; }
+    public int ProjectOfficerAvailableCount { get; init; }
+    public int LineDirectorateAvailableCount { get; init; }
 }
 
 public sealed class ProjectBriefingSlideEstimateVm
@@ -126,6 +152,7 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int DetailedProjectSlides { get; init; }
     public int CapabilityContinuationSlides { get; init; }
     public int ProjectBriefSlides { get; init; }
+    public int ProjectUpdateSheetSlides { get; init; }
 }
 
 public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);
@@ -189,11 +216,14 @@ public sealed class ProjectBriefingDeckSettingsCommand
 {
     public string Name { get; init; } = string.Empty;
     public string? Description { get; init; }
+    public ProjectBriefingLayout Layout { get; init; } = ProjectBriefingLayout.StandardBriefing;
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
+    public bool IncludeCoverSlide { get; init; } = true;
+    public bool IncludePortfolioSummarySlide { get; init; } = true;
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
@@ -212,6 +242,7 @@ public sealed class ProjectBriefingPresentationData
     public long DeckId { get; init; }
     public string DeckName { get; init; } = string.Empty;
     public string? DeckDescription { get; init; }
+    public ProjectBriefingLayout Layout { get; init; } = ProjectBriefingLayout.StandardBriefing;
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
@@ -220,6 +251,8 @@ public sealed class ProjectBriefingPresentationData
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
+    public bool IncludeCoverSlide { get; init; } = true;
+    public bool IncludePortfolioSummarySlide { get; init; } = true;
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
@@ -248,6 +281,16 @@ public sealed class ProjectBriefingPresentationProject
     public string BriefDescription { get; init; } = string.Empty;
     public string ProjectBrief { get; init; } = string.Empty;
     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
+    public string? ArppReference { get; init; }
+    public string? Fund { get; init; }
+    public string? DfpdsSchedule { get; init; }
+    public string? Cfa { get; init; }
+    public DateOnly? AonDate { get; init; }
+    public DateOnly? SupplyOrderDate { get; init; }
+    public DateOnly? DevelopmentPdcDate { get; init; }
+    public IReadOnlyList<string> JdpNames { get; init; } = Array.Empty<string>();
+    public string? ProjectOfficer { get; init; }
+    public string? LineDirectorate { get; init; }
     public int SortOrder { get; init; }
     public int? CoverPhotoId { get; init; }
     public bool CoverPhotoIsReady { get; init; }

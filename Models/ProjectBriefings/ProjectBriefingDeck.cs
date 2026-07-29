@@ -3,6 +3,12 @@ using ProjectManagement.Models;
 
 namespace ProjectManagement.Models.ProjectBriefings;
 
+public enum ProjectBriefingLayout
+{
+    StandardBriefing = 1,
+    ProjectUpdateSheet = 2
+}
+
 public enum ProjectBriefingPresentationMode
 {
     ExecutiveTable = 1,
@@ -60,6 +66,9 @@ public sealed class ProjectBriefingDeck
     [MaxLength(600)]
     public string? Description { get; set; }
 
+    public ProjectBriefingLayout Layout { get; set; }
+        = ProjectBriefingLayout.StandardBriefing;
+
     public ProjectBriefingPresentationMode PresentationMode { get; set; }
         = ProjectBriefingPresentationMode.Combined;
 
@@ -75,6 +84,8 @@ public sealed class ProjectBriefingDeck
     public ProjectBriefingBrandingScope BrandingScope { get; set; }
         = ProjectBriefingBrandingScope.AllSlides;
 
+    public bool IncludeCoverSlide { get; set; } = true;
+    public bool IncludePortfolioSummarySlide { get; set; } = true;
     public bool IncludeStageSummary { get; set; } = true;
     public bool IncludeProjectCategorySummary { get; set; }
     public bool IncludeTechnicalCategorySummary { get; set; }

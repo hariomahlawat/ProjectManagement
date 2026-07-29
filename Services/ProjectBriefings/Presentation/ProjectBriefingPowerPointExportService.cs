@@ -34,8 +34,9 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
         CancellationToken cancellationToken = default)
     {
         var data = await _dataService.BuildPresentationDataAsync(deckId, requestingUserId, cancellationToken);
-        if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
-            or ProjectBriefingPresentationMode.Combined)
+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+            || data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
+                or ProjectBriefingPresentationMode.Combined)
         {
             await AttachPhotosAsync(data, cancellationToken);
         }

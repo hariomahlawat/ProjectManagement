@@ -491,6 +491,7 @@
     gap: .5rem;
 }
 
+.pbd-choice-cards--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pbd-choice-cards--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pbd-choice-cards--four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
@@ -520,6 +521,55 @@
 
 .pbd-choice-card--compact > span {
     min-height: 3.7rem;
+}
+
+.pbd-choice-card--template > span {
+    min-height: 5.15rem;
+    padding: .78rem;
+}
+
+.pbd-choice-card--template strong {
+    font-size: .82rem;
+}
+
+.pbd-update-sheet-options {
+    padding: .72rem;
+    border: 1px solid #cbd9ed;
+    border-radius: .65rem;
+    background: linear-gradient(135deg, #f5f9ff, #fff 72%);
+}
+
+.pbd-update-sheet-options legend {
+    margin-left: -.05rem;
+}
+
+.pbd-update-sheet-note {
+    display: flex;
+    align-items: flex-start;
+    gap: .48rem;
+    color: #475467;
+    font-size: .71rem;
+    line-height: 1.45;
+}
+
+.pbd-update-sheet-note > i {
+    flex: 0 0 auto;
+    margin-top: .08rem;
+    color: var(--pbd-blue);
+}
+
+.pbd-checks--inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .45rem .9rem;
+    margin-top: .62rem;
+}
+
+.pbd-checks--inline label {
+    min-height: 2.35rem;
+    padding: .5rem .58rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .5rem;
+    background: #fff;
 }
 
 .pbd-choice-card > span > i {
@@ -1336,6 +1386,10 @@
     gap: .8rem;
 }
 
+.pbd-presentation-design.is-update-sheet {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .pbd-theme-cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1544,6 +1598,8 @@
 }
 
 @media (max-width: 760px) {
+    .pbd-choice-cards--two,
+    .pbd-checks--inline { grid-template-columns: 1fr; }
     .pbd-theme-cards { grid-template-columns: 1fr; }
     .pbd-theme-card__body { grid-template-columns: 6.7rem minmax(0, 1fr); }
     .pbd-theme-preview { width: 6.7rem; }

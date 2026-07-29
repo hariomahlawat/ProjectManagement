@@ -1,81 +1,78 @@
-PRISM PROJECT PORTFOLIO — TERMINAL REMARKS AND LEGACY HISTORY
-=============================================================
+PRISM — PROJECT BRIEFING UPDATE SHEET IMPLEMENTATION
+====================================================
 
-PACKAGE PURPOSE
----------------
-This replacement set completes the project-portfolio refinement:
+PURPOSE
+-------
+This package adds a second presentation template to the Project Briefing Deck Builder:
 
-1. Active projects open the right-hand workspace on Timeline.
-2. Completed and cancelled projects open it on Remarks.
-3. An explicit URL panel/stage deep link overrides the default.
-4. A user's in-session panel choice is retained per project and lifecycle.
-5. Admin and HoD users can add or correct evidence-backed stage history for
-   legacy completed/cancelled projects.
-6. Historical entries use the existing ProjectStages and StageChangeLogs
-   tables; the project lifecycle is never reopened.
-7. Cover-photo failure handling has one owner and reliably reveals the fallback.
-8. Long command-header titles wrap on balanced word boundaries.
+  Project Update Sheets
 
-REPLACEMENT
------------
-Copy the package contents into the ProjectManagement application root.
-Allow folder merge and replace matching files while preserving the relative
-paths. REPLACEMENT-MANIFEST.txt is the authoritative file list.
+The established Standard PRISM Briefing remains available and retains its existing
+behaviour. The new template generates native, editable 16:9 PowerPoint project sheets.
 
-No database migration is required by this package.
+IMPLEMENTED BUSINESS RULES
+--------------------------
+1. Project Cost: authoritative R&D cost only, using the existing L1 -> AoN -> IPA resolver.
+2. AoN Date: AoN-stage completion date.
+3. PDC Date: Development-stage PlannedDue only when the project's current stage is DEVP;
+   deliberately blank for every other current stage.
+4. Present Status: latest external remark.
+5. Project Officer: rank and full name of the assigned Lead Project Officer.
+6. Line Directorate: Sponsoring Line Directorate.
+7. Name of Firm: all distinct JDP names linked with the project.
+8. ARPP/PPP details: latest authoritative published ARPP row, ordered by latest financial
+   year and latest issue/addendum position.
+9. Project brief: the dedicated Project Brief field.
+10. Photograph: existing PowerPoint-ready cover-photo resolver and loader.
+11. Slide size: 16:9.
+12. Sequence: optional cover slide, optional portfolio-summary slide, then one editable
+    project update sheet for each selected project.
 
-HISTORICAL STAGE ENTRY
-----------------------
-For an eligible project:
+HOW TO APPLY
+------------
+1. Back up the project source and database.
+2. Copy the CONTENTS of this folder into the ProjectManagement project root.
+3. Preserve the folder structure and overwrite the listed files.
+4. Apply the included EF Core migration through your normal deployment process.
+5. Alternatively, the supplied IMPLEMENTATION.patch can be applied from the project root
+   with: patch -p1 < IMPLEMENTATION.patch
+6. Restore, build and test before production deployment:
 
-  Overview > Timeline > Timeline actions > Manage historical stage data
+   dotnet restore
+   dotnet ef database update
+   dotnet build
+   dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-When no stage history exists, the Timeline empty state also shows
-"Add historical stage data".
+The project is configured to run EF migrations at startup in the existing deployment
+model, but the migration should still be reviewed and tested against a copy of the
+production database before release.
 
-Access is restricted to Admin and HoD. The project must be:
+USER WORKFLOW
+-------------
+1. Open My Workspace -> Project Briefing Deck Builder.
+2. Open or create a saved deck.
+3. Expand Deck settings.
+4. Under Presentation template, choose Project Update Sheets.
+5. Select whether to include the cover and portfolio-summary slides.
+6. Save settings and generate the PowerPoint.
 
-  - marked as a legacy record; and
-  - completed or cancelled; and
-  - not in the recycle bin.
+IMPLEMENTATION NOTES
+--------------------
+- No second binary .pptx template is required. The layout is generated with native Open
+  XML text boxes, editable table cells, shapes and images over the existing 16:9 briefing
+  foundation.
+- The new factual resolver uses bounded batch queries and avoids an N+1 database pattern.
+- Missing information is surfaced as template-specific readiness warnings. Generation is
+  still permitted; missing values are rendered as "Not recorded", except PDC outside the
+  Development stage, which is intentionally blank.
+- Existing saved decks default to StandardBriefing through the migration.
+- Existing Standard PRISM Briefing output is preserved.
 
-Supported outcomes:
-
-  - Completed (actual start and completion dates may be recorded if known)
-  - Skipped
-  - Ceased at cancellation (cancelled projects only)
-  - Not recorded (non-destructive; it never erases existing history)
-
-Every accepted change requires an evidence/source note, writes the standard
-ProjectStage row, adds an evidence-bearing StageChangeLog entry, and writes the
-Projects.HistoricalStageHistoryUpdated audit event. Those writes share one
-transaction, so stage history is not committed if the formal audit cannot be
-stored.
-
-Historical dates cannot be in the future or later than the recorded lifecycle
-boundary. Exact completion dates are honoured exactly; month-only and year-only
-legacy completion values are honoured through the end of that recorded period.
-
-BUILD AND VERIFY
-----------------
-From the application root:
-
-  npm ci
-  npm test
-  dotnet restore
-  dotnet build -c Release
-  dotnet test -c Release
-
-Publish and deploy through the application's normal production process. Use a
-new publish output and preserve production configuration and connection strings.
-
-POST-DEPLOYMENT CHECKS
-----------------------
-1. Active overview: Timeline is initially selected.
-2. Completed overview: Remarks is initially selected; Timeline remains usable.
-3. Cancelled overview: Remarks is initially selected; #timeline opens Timeline.
-4. Admin/HoD legacy terminal project: historical editor is available.
-5. Non-Admin/HoD or active/non-legacy project: historical editor is unavailable.
-6. Save one verified historical stage and confirm it appears on Timeline while
-   the project's lifecycle status remains unchanged.
-7. Force a missing cover image and confirm the landscape fallback appears.
+VALIDATION COMPLETED IN THE DELIVERY ENVIRONMENT
+------------------------------------------------
+- JavaScript syntax validation passed.
+- Changed C# files passed delimiter/static structural checks.
+- Project and test .csproj XML parsing passed.
+- Migration registration and immutable migration ID were checked.
+- The full .NET build and test suite could not be executed in this delivery environment
+  because the .NET SDK is not installed. Run the commands above before deployment.

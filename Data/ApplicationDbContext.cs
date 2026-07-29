@@ -507,6 +507,7 @@ namespace ProjectManagement.Data
                 entity.Property(deck => deck.Name).HasMaxLength(160).IsRequired();
                 entity.Property(deck => deck.NormalizedName).HasMaxLength(160).IsRequired();
                 entity.Property(deck => deck.Description).HasMaxLength(600);
+                entity.Property(deck => deck.Layout).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.PresentationMode).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.CostMode).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.NarrativeMode).HasConversion<string>().HasMaxLength(32).IsRequired();

@@ -630,6 +630,7 @@ builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjec
 builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
 builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
 builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
+builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();
 builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
 builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
 builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();

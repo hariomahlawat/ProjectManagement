@@ -30,6 +30,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private readonly IProjectBriefingCostResolver _costResolver;
     private readonly IProjectBriefingExternalStatusService _externalStatusService;
     private readonly IProjectBriefingPhotoLoader _photoLoader;
+    private readonly IProjectBriefingUpdateSheetFactsResolver _updateSheetFactsResolver;
     private readonly IClock _clock;
 
     public ProjectBriefingDataService(
@@ -37,12 +38,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IProjectBriefingCostResolver costResolver,
         IProjectBriefingExternalStatusService externalStatusService,
         IProjectBriefingPhotoLoader photoLoader,
+        IProjectBriefingUpdateSheetFactsResolver updateSheetFactsResolver,
         IClock clock)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
         _externalStatusService = externalStatusService ?? throw new ArgumentNullException(nameof(externalStatusService));
         _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
+        _updateSheetFactsResolver = updateSheetFactsResolver ?? throw new ArgumentNullException(nameof(updateSheetFactsResolver));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
@@ -57,17 +60,20 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
-        var projects = await BuildProjectsAsync(snapshot.Items, cancellationToken);
+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, cancellationToken);
         return new ProjectBriefingDeckVm
         {
             Id = snapshot.Id,
             Name = snapshot.Name,
             Description = snapshot.Description,
+            Layout = snapshot.Layout,
             PresentationMode = snapshot.PresentationMode,
             CostMode = snapshot.CostMode,
             NarrativeMode = snapshot.NarrativeMode,
             PresentationTheme = snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
+            IncludeCoverSlide = snapshot.IncludeCoverSlide,
+            IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
             IncludeStageSummary = snapshot.IncludeStageSummary,
             IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
@@ -78,9 +84,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             LastModifiedByDisplay = snapshot.LastModifiedByDisplay,
             Projects = projects,
             Readiness = BuildReadiness(projects),
-            SlideEstimate = BuildSlideEstimate(snapshot.PresentationMode, snapshot.IncludeStageSummary,
-                snapshot.IncludeProjectCategorySummary, snapshot.IncludeTechnicalCategorySummary,
-                snapshot.CostMode, snapshot.NarrativeMode, projects)
+            SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
+                snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
+                snapshot.IncludeTechnicalCategorySummary, snapshot.CostMode, snapshot.NarrativeMode, projects)
         };
     }
 
@@ -91,7 +97,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
-        var projectVms = await BuildProjectsAsync(snapshot.Items, cancellationToken);
+        var projectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, cancellationToken);
         if (projectVms.Count == 0)
         {
             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
@@ -116,6 +122,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 BriefDescription = project.BriefDescription,
                 ProjectBrief = project.ProjectBrief,
                 CapabilityStatements = project.CapabilityStatements,
+                ArppReference = project.ArppReference,
+                Fund = project.Fund,
+                DfpdsSchedule = project.DfpdsSchedule,
+                Cfa = project.Cfa,
+                AonDate = project.AonDate,
+                SupplyOrderDate = project.SupplyOrderDate,
+                DevelopmentPdcDate = project.DevelopmentPdcDate,
+                JdpNames = project.JdpNames,
+                ProjectOfficer = project.ProjectOfficer,
+                LineDirectorate = project.LineDirectorate,
                 SortOrder = project.SortOrder,
                 CoverPhotoId = project.CoverPhotoId,
                 CoverPhotoIsReady = project.HasCoverPhoto
@@ -127,14 +143,23 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             DeckId = snapshot.Id,
             DeckName = snapshot.Name,
             DeckDescription = snapshot.Description,
+            Layout = snapshot.Layout,
             PresentationMode = snapshot.PresentationMode,
-            CostMode = snapshot.CostMode,
-            NarrativeMode = snapshot.NarrativeMode,
-            PresentationTheme = snapshot.PresentationTheme,
+            CostMode = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+                ? ProjectBriefingCostMode.CostRdOnly
+                : snapshot.CostMode,
+            NarrativeMode = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+                ? ProjectBriefingNarrativeMode.ProjectBrief
+                : snapshot.NarrativeMode,
+            PresentationTheme = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+                ? ProjectBriefingPresentationTheme.EditorialLight
+                : snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
-            IncludeStageSummary = snapshot.IncludeStageSummary,
-            IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
-            IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
+            IncludeCoverSlide = snapshot.IncludeCoverSlide,
+            IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
+            IncludeStageSummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeStageSummary,
+            IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeProjectCategorySummary,
+            IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeTechnicalCategorySummary,
             HandlingMarking = snapshot.HandlingMarking,
             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
             Projects = projects,
@@ -160,11 +185,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 candidate.Id,
                 candidate.Name,
                 candidate.Description,
+                candidate.Layout,
                 candidate.PresentationMode,
                 candidate.CostMode,
                 candidate.NarrativeMode,
                 candidate.PresentationTheme,
                 candidate.BrandingScope,
+                candidate.IncludeCoverSlide,
+                candidate.IncludePortfolioSummarySlide,
                 candidate.IncludeStageSummary,
                 candidate.IncludeProjectCategorySummary,
                 candidate.IncludeTechnicalCategorySummary,
@@ -215,11 +243,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.Id,
                 deck.Name,
                 deck.Description,
+                deck.Layout,
                 deck.PresentationMode,
                 deck.CostMode,
                 deck.NarrativeMode,
                 deck.PresentationTheme,
                 deck.BrandingScope,
+                deck.IncludeCoverSlide,
+                deck.IncludePortfolioSummarySlide,
                 deck.IncludeStageSummary,
                 deck.IncludeProjectCategorySummary,
                 deck.IncludeTechnicalCategorySummary,
@@ -317,11 +348,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.Id,
             deck.Name,
             deck.Description,
+            deck.Layout,
             deck.PresentationMode,
             deck.CostMode,
             deck.NarrativeMode,
             deck.PresentationTheme,
             deck.BrandingScope,
+            deck.IncludeCoverSlide,
+            deck.IncludePortfolioSummarySlide,
             deck.IncludeStageSummary,
             deck.IncludeProjectCategorySummary,
             deck.IncludeTechnicalCategorySummary,
@@ -335,6 +369,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
     private async Task<IReadOnlyList<ProjectBriefingProjectVm>> BuildProjectsAsync(
         IReadOnlyList<DeckItemSnapshot> items,
+        ProjectBriefingLayout layout,
         CancellationToken cancellationToken)
     {
         if (items.Count == 0)
@@ -344,8 +379,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var projectIds = items.Select(item => item.ProjectId).Distinct().ToArray();
         var costRd = await _costResolver.ResolveCostRdAsync(projectIds, cancellationToken);
-        var proliferation = await _costResolver.ResolveProliferationCostAsync(projectIds, cancellationToken);
+        IReadOnlyDictionary<int, ProjectBriefingCostValue> proliferation =
+            layout == ProjectBriefingLayout.ProjectUpdateSheet
+                ? new Dictionary<int, ProjectBriefingCostValue>()
+                : await _costResolver.ResolveProliferationCostAsync(projectIds, cancellationToken);
         var externalStatuses = await _externalStatusService.GetLatestAsync(projectIds, cancellationToken);
+        var updateSheetFacts = layout == ProjectBriefingLayout.ProjectUpdateSheet
+            ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
+            : new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
 
         var coverByProject = items.ToDictionary(item => item.ProjectId, ResolveCoverPhotoId);
         var photoReferences = coverByProject
@@ -363,6 +404,17 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     : null;
                 var external = externalStatuses.GetValueOrDefault(item.ProjectId);
                 var stageCode = ResolveStageCode(item);
+                updateSheetFacts.TryGetValue(item.ProjectId, out var updateFacts);
+                var requiresDevelopmentPdc = string.Equals(stageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
+                var hasCompleteArppDetails = updateFacts?.HasCompleteArppDetails == true;
+                var updateSheetCoreFactsReady = updateFacts is not null
+                    && hasCompleteArppDetails
+                    && updateFacts.AonDate.HasValue
+                    && updateFacts.SupplyOrderDate.HasValue
+                    && updateFacts.JdpNames.Count > 0
+                    && updateFacts.ProjectOfficerIsComplete
+                    && !string.IsNullOrWhiteSpace(updateFacts.LineDirectorate)
+                    && (!requiresDevelopmentPdc || updateFacts.DevelopmentPdcDate.HasValue);
                 return new ProjectBriefingProjectVm
                 {
                     ProjectId = item.ProjectId,
@@ -391,6 +443,20 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     ProjectBrief = ProjectBriefingTextNormalizer.NormalizeProjectBrief(item.ProjectBrief),
                     CapabilityStatements = item.CapabilityStatements,
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
+                    ArppReference = updateFacts?.ArppReference,
+                    Fund = updateFacts?.Fund,
+                    DfpdsSchedule = updateFacts?.DfpdsSchedule,
+                    Cfa = updateFacts?.Cfa,
+                    AonDate = updateFacts?.AonDate,
+                    SupplyOrderDate = updateFacts?.SupplyOrderDate,
+                    DevelopmentPdcDate = requiresDevelopmentPdc ? updateFacts?.DevelopmentPdcDate : null,
+                    JdpNames = updateFacts?.JdpNames ?? Array.Empty<string>(),
+                    ProjectOfficer = updateFacts?.ProjectOfficer,
+                    ProjectOfficerIsComplete = updateFacts?.ProjectOfficerIsComplete == true,
+                    LineDirectorate = updateFacts?.LineDirectorate,
+                    HasCompleteArppDetails = hasCompleteArppDetails,
+                    IsDevelopmentPdcRequired = requiresDevelopmentPdc,
+                    IsUpdateSheetCoreFactsReady = updateSheetCoreFactsReady,
                     SortOrder = item.SortOrder,
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
                 };
@@ -424,7 +490,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             SelectedCoverPhotoCount = projects.Count(project => project.HasSelectedCoverPhoto),
             DescriptionAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
             CapabilityOverviewAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
-            ProjectBriefAvailableCount = projects.Count(project => HasProjectBrief(project.ProjectBrief))
+            ProjectBriefAvailableCount = projects.Count(project => HasProjectBrief(project.ProjectBrief)),
+            UpdateSheetCoreFactsAvailableCount = projects.Count(project => project.IsUpdateSheetCoreFactsReady),
+            ArppDetailsAvailableCount = projects.Count(project => project.HasCompleteArppDetails),
+            AonDateAvailableCount = projects.Count(project => project.AonDate.HasValue),
+            SupplyOrderDateAvailableCount = projects.Count(project => project.SupplyOrderDate.HasValue),
+            JdpAvailableCount = projects.Count(project => project.JdpNames.Count > 0),
+            DevelopmentProjectCount = projects.Count(project => project.IsDevelopmentPdcRequired),
+            DevelopmentPdcAvailableCount = projects.Count(project => project.IsDevelopmentPdcRequired && project.DevelopmentPdcDate.HasValue),
+            ProjectOfficerAvailableCount = projects.Count(project => project.ProjectOfficerIsComplete),
+            LineDirectorateAvailableCount = projects.Count(project => !string.IsNullOrWhiteSpace(project.LineDirectorate))
         };
 
     private static bool HasCapabilityOverview(string? value)
@@ -474,6 +549,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     }
 
     private static ProjectBriefingSlideEstimateVm BuildSlideEstimate(
+        ProjectBriefingLayout layout,
+        bool includeCoverSlide,
+        bool includePortfolioSummarySlide,
         ProjectBriefingPresentationMode presentationMode,
         bool includeStageSummary,
         bool includeProjectCategorySummary,
@@ -482,6 +560,17 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingNarrativeMode narrativeMode,
         IReadOnlyList<ProjectBriefingProjectVm> projects)
     {
+        var introductorySlides = (includeCoverSlide ? 1 : 0) + (includePortfolioSummarySlide ? 1 : 0);
+        if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
+        {
+            return new ProjectBriefingSlideEstimateVm
+            {
+                CoverAndPortfolioSlides = introductorySlides,
+                ProjectUpdateSheetSlides = projects.Count,
+                TotalSlides = introductorySlides + projects.Count
+            };
+        }
+
         var summarySlides = includeStageSummary ? 2 : 0;
         if (includeProjectCategorySummary)
         {
@@ -529,13 +618,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         return new ProjectBriefingSlideEstimateVm
         {
-            CoverAndPortfolioSlides = 2,
+            CoverAndPortfolioSlides = introductorySlides,
             SummarySlides = summarySlides,
             ExecutiveTableSlides = executiveSlides,
             DetailedProjectSlides = detailSlides,
             CapabilityContinuationSlides = capabilityContinuationSlides,
             ProjectBriefSlides = projectBriefSlides,
-            TotalSlides = 2
+            TotalSlides = introductorySlides
                 + summarySlides
                 + executiveSlides
                 + detailSlides
@@ -599,11 +688,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         long Id,
         string Name,
         string? Description,
+        ProjectBriefingLayout Layout,
         ProjectBriefingPresentationMode PresentationMode,
         ProjectBriefingCostMode CostMode,
         ProjectBriefingNarrativeMode NarrativeMode,
         ProjectBriefingPresentationTheme PresentationTheme,
         ProjectBriefingBrandingScope BrandingScope,
+        bool IncludeCoverSlide,
+        bool IncludePortfolioSummarySlide,
         bool IncludeStageSummary,
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,
@@ -633,11 +725,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         long Id,
         string Name,
         string? Description,
+        ProjectBriefingLayout Layout,
         ProjectBriefingPresentationMode PresentationMode,
         ProjectBriefingCostMode CostMode,
         ProjectBriefingNarrativeMode NarrativeMode,
         ProjectBriefingPresentationTheme PresentationTheme,
         ProjectBriefingBrandingScope BrandingScope,
+        bool IncludeCoverSlide,
+        bool IncludePortfolioSummarySlide,
         bool IncludeStageSummary,
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,

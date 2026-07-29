@@ -64,6 +64,34 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("RemarkType.Internal", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ProjectUpdateSheet_UsesApprovedTemplateAndAuthoritativeFieldSources()
+    {
+        var page = Read("Index.cshtml");
+        var resolver = Read("ProjectBriefingUpdateSheetFactsResolver.cs");
+        var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
+
+        Assert.Contains("Project Update Sheets", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"ProjectUpdateSheet\"", page, StringComparison.Ordinal);
+        Assert.Contains("Project Cost is always the authoritative R&amp;D cost", page, StringComparison.Ordinal);
+        Assert.Contains("Include cover slide", page, StringComparison.Ordinal);
+        Assert.Contains("Include portfolio-summary slide", page, StringComparison.Ordinal);
+
+        Assert.Contains("StageCodes.AON", resolver, StringComparison.Ordinal);
+        Assert.Contains("StageCodes.DEVP", resolver, StringComparison.Ordinal);
+        Assert.Contains("project.LeadPoUser.Rank", resolver, StringComparison.Ordinal);
+        Assert.Contains("project.LeadPoUser.FullName", resolver, StringComparison.Ordinal);
+        Assert.Contains("project.SponsoringLineDirectorate.Name", resolver, StringComparison.Ordinal);
+        Assert.Contains("link.IndustryPartner.Name", resolver, StringComparison.Ordinal);
+        Assert.Contains("ProjectSupplyOrderFacts", resolver, StringComparison.Ordinal);
+        Assert.Contains("ArppPublishedEntries", resolver, StringComparison.Ordinal);
+
+        Assert.Contains("RenderProjectUpdateSheet", composer, StringComparison.Ordinal);
+        Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
+        Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
+        Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public void SharedDecks_AreCommandWorkspaceWideAndTrackLastModifier()

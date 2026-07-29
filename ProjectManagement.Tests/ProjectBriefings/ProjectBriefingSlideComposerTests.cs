@@ -439,6 +439,171 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("AoN project", detailTexts[3], StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Compose_ProjectUpdateSheet_CreatesSingleEditableWidescreenProjectSheet()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 701,
+            ProjectName = "Touch Screen Based Simulator for OSAAK Missile System",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            CostRd = new ProjectBriefingCostValue(7_400_000m, ProjectBriefingCostBasis.L1, "₹0.74 Cr", "L1"),
+            ProliferationCost = new ProjectBriefingCostValue(6_200_000m, ProjectBriefingCostBasis.Proliferation, "₹0.62 Cr", "Proliferation"),
+            ArppReference = "ARPP/IR&D/CU/2026-27/14",
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            Cfa = "Comdt SDD",
+            AonDate = new DateOnly(2024, 9, 20),
+            SupplyOrderDate = new DateOnly(2024, 12, 14),
+            DevelopmentPdcDate = new DateOnly(2025, 12, 4),
+            JdpNames = new[] { "Example Defence Technologies Pvt Ltd" },
+            ExternalStatus = "Project development is progressing as per the approved plan.",
+            ProjectOfficer = "Lt Col Udit Agarwal",
+            LineDirectorate = "DG AAD",
+            ProjectBrief = "The simulator provides realistic weapon-system training without expenditure of operational ammunition.",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 701,
+            DeckName = "Formal Project Update",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            PresentationMode = ProjectBriefingPresentationMode.Combined,
+            CostMode = ProjectBriefingCostMode.Both,
+            NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
+            PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1,
+                TotalCostRdInRupees = 7_400_000m,
+                CostRdRecordedCount = 1
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(1, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
+        Assert.Equal(12192000, presentationPart.Presentation.SlideSize?.Cx?.Value);
+        Assert.Equal(6858000, presentationPart.Presentation.SlideSize?.Cy?.Value);
+        var slide = Assert.Single(presentationPart.SlideParts);
+        var text = SlideText(slide);
+
+        Assert.Contains("TOUCH SCREEN BASED SIMULATOR", text, StringComparison.Ordinal);
+        Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
+        Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
+        Assert.Contains("20 Sep 24", text, StringComparison.Ordinal);
+        Assert.Contains("Example Defence Technologies", text, StringComparison.Ordinal);
+        Assert.Contains("04 Dec 25", text, StringComparison.Ordinal);
+        Assert.Contains("Lt Col Udit Agarwal", text, StringComparison.Ordinal);
+        Assert.Contains("DG AAD", text, StringComparison.Ordinal);
+        Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
+        Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
+        Assert.Single(slide.Slide.Descendants<A.Table>());
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_LeavesPdcBlankOutsideDevelopmentStage()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 703,
+            ProjectName = "AoN Stage Project",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.AON,
+            PresentStage = "Acceptance of Necessity",
+            PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.Aon, "₹1.00 Cr", "AoN"),
+            DevelopmentPdcDate = new DateOnly(2030, 1, 15),
+            ProjectBrief = "Concise project brief.",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 703,
+            DeckName = "PDC Rule",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(1, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var text = SlideText(slide);
+        Assert.Contains("PDC Date", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("15 Jan 30", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_RespectsOptionalIntroductorySlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            702,
+            "Update sheet project",
+            StageCodes.AON,
+            ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            1,
+            projectBrief: "Concise project brief.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 702,
+            DeckName = "Project Update Review",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = true,
+            IncludePortfolioSummarySlide = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(3, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slideTexts = Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .Select(SlideText)
+            .ToArray();
+        Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
+        Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("UPDATE SHEET PROJECT", slideTexts[2], StringComparison.Ordinal);
+    }
+
     private static ProjectBriefingPresentationProject BriefingProject(
         int id,
         string name,

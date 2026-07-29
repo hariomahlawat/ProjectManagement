@@ -114,15 +114,31 @@ if (root) {
   const generateButton = root.querySelector('[data-pbd-generate]');
   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
 
+  const selectedLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
+  const isUpdateSheet = (deck = null) => {
+    const layout = deck?.layout ?? selectedLayout();
+    return layout === 'ProjectUpdateSheet' || layout === 2 || layout === '2';
+  };
   const includesDetailedSlides = () => {
+    if (isUpdateSheet()) return true;
     const value = root.querySelector('input[name="PresentationMode"]:checked')?.value;
     return value === 'DetailedProjects' || value === 'Combined';
   };
-  const includesCostRd = () => ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
-  const includesProliferation = () => ['ProliferationOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
-  const narrativeMode = () => root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview';
-  const includesCapabilities = () => ['CapabilityOverview', 'Both'].includes(narrativeMode());
-  const includesProjectBrief = () => ['ProjectBrief', 'Both'].includes(narrativeMode());
+  const includesCostRd = () => isUpdateSheet() || ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
+  const includesProliferation = () => !isUpdateSheet() && ['ProliferationOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
+  const narrativeMode = () => isUpdateSheet() ? 'ProjectBrief' : (root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview');
+  const includesCapabilities = () => !isUpdateSheet() && ['CapabilityOverview', 'Both'].includes(narrativeMode());
+  const includesProjectBrief = () => isUpdateSheet() || ['ProjectBrief', 'Both'].includes(narrativeMode());
+
+  const syncTemplateSettings = () => {
+    const updateSheet = isUpdateSheet();
+    root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
+    root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
+    root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
+    root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
+  };
+  root.querySelectorAll('[data-pbd-layout-choice]').forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
+  syncTemplateSettings();
   const hasCapabilityOverview = (project) => {
     const value = normalize(project?.briefDescription);
     return Boolean(value)
@@ -145,24 +161,29 @@ if (root) {
     if (metric('status')) metric('status').textContent = `${readiness.externalStatusAvailableCount || 0}/${total}`;
     if (metric('cost-rd')) metric('cost-rd').textContent = `${readiness.costRdAvailableCount || 0}/${total}`;
     if (metric('proliferation')) metric('proliferation').textContent = `${readiness.proliferationCostAvailableCount || 0}/${total}`;
+    if (metric('update-facts')) metric('update-facts').textContent = `${readiness.updateSheetCoreFactsAvailableCount || 0}/${total}`;
     if (metric('photo')) metric('photo').textContent = `${readiness.coverPhotoAvailableCount || 0}/${total}`;
     if (selectedTotal) selectedTotal.textContent = String(total);
     if (generateButton) generateButton.disabled = total === 0;
 
     if (slideTotal) slideTotal.textContent = `${estimate.totalSlides || 0} ${(estimate.totalSlides || 0) === 1 ? 'slide' : 'slides'}`;
     if (slideBreakdown) {
-      const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
-      const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
-      const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
-      const parts = [
-        `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
-        `Summary ${estimate.summarySlides || 0}`,
-        `Tables ${estimate.executiveTableSlides || 0}`
-      ];
-      if (capabilitySlides > 0) parts.push(`Capability slides ${capabilitySlides}`);
-      if (projectBriefSlides > 0) parts.push(`Project brief slides ${projectBriefSlides}`);
-      if (continuationSlides > 0) parts.push(`Capability continuations ${continuationSlides}`);
-      slideBreakdown.textContent = parts.join(' · ');
+      if (isUpdateSheet(deck)) {
+        slideBreakdown.textContent = `Introductory slides ${estimate.coverAndPortfolioSlides || 0} · Project update sheets ${estimate.projectUpdateSheetSlides || 0}`;
+      } else {
+        const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
+        const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
+        const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
+        const parts = [
+          `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
+          `Summary ${estimate.summarySlides || 0}`,
+          `Tables ${estimate.executiveTableSlides || 0}`
+        ];
+        if (capabilitySlides > 0) parts.push(`Capability slides ${capabilitySlides}`);
+        if (projectBriefSlides > 0) parts.push(`Project brief slides ${projectBriefSlides}`);
+        if (continuationSlides > 0) parts.push(`Capability continuations ${continuationSlides}`);
+        slideBreakdown.textContent = parts.join(' · ');
+      }
     }
 
     if (activeSavedCard) {
@@ -194,13 +215,34 @@ if (root) {
     const missingPhoto = total - Number(readiness.coverPhotoAvailableCount || 0);
     const missingCapabilities = total - Number(readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0);
     const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
-    if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
-    if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
-    if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
-    if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
-    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
-    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
-    if (gaps.length === 0) addPill('bi-check-circle', 'Selected content is ready', 'is-ready');
+    if (isUpdateSheet(deck)) {
+      const missingArpp = total - Number(readiness.arppDetailsAvailableCount || 0);
+      const missingAon = total - Number(readiness.aonDateAvailableCount || 0);
+      const missingSo = total - Number(readiness.supplyOrderDateAvailableCount || 0);
+      const missingJdp = total - Number(readiness.jdpAvailableCount || 0);
+      const missingPdc = Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0);
+      const missingOfficer = total - Number(readiness.projectOfficerAvailableCount || 0);
+      const missingLine = total - Number(readiness.lineDirectorateAvailableCount || 0);
+      if (missingArpp > 0) gaps.push(['bi-journal-text', `${missingArpp} without complete ARPP/PPP details`]);
+      if (missingAon > 0) gaps.push(['bi-calendar-check', `${missingAon} without AoN date`]);
+      if (missingSo > 0) gaps.push(['bi-calendar2-event', `${missingSo} without supply-order date`]);
+      if (missingJdp > 0) gaps.push(['bi-building', `${missingJdp} without linked JDP`]);
+      if (missingPdc > 0) gaps.push(['bi-calendar-x', `${missingPdc} development project(s) without PDC`]);
+      if (missingOfficer > 0) gaps.push(['bi-person-badge', `${missingOfficer} without rank and full name of Project Officer`]);
+      if (missingLine > 0) gaps.push(['bi-diagram-3', `${missingLine} without Line Directorate`]);
+      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
+      if (missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
+      if (missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
+      if (missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
+    } else {
+      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
+      if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
+      if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
+      if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
+      if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
+      if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
+    }
+    if (gaps.length === 0) addPill('bi-check-circle', isUpdateSheet(deck) ? 'Selected project sheets are ready' : 'Selected content is ready', 'is-ready');
     else gaps.forEach(([icon, text]) => addPill(icon, text));
   };
 
@@ -418,6 +460,7 @@ if (root) {
     row.dataset.missingProliferation = String(!project.proliferationCost?.isAvailable);
     row.dataset.missingPhoto = String(!project.hasCoverPhoto);
     row.dataset.missingDescription = String(!narrativeReady);
+    row.dataset.missingFacts = String(!project.isUpdateSheetCoreFactsReady);
 
     const selectCell = document.createElement('td');
     selectCell.className = 'pbd-select-column';
@@ -469,6 +512,8 @@ if (root) {
 
     const proliferationCell = document.createElement('td');
     proliferationCell.className = 'pbd-cost';
+    proliferationCell.dataset.pbdProliferationColumn = '';
+    proliferationCell.hidden = isUpdateSheet();
     const proliferationValue = document.createElement('strong');
     proliferationValue.textContent = project.proliferationCost?.displayValue || 'Not recorded';
     proliferationCell.append(proliferationValue);
@@ -499,9 +544,12 @@ if (root) {
     readiness.append(
       createReadinessIcon('bi-image', project.hasCoverPhoto, project.hasCoverPhoto ? 'PowerPoint-ready cover photograph available' : (project.coverPhotoReadinessReason || 'No PowerPoint-ready cover photograph')),
       createReadinessIcon('bi-chat-left-text', Boolean(project.externalStatus), project.externalStatus ? 'External status available' : 'External status missing'),
-      createReadinessIcon('bi-currency-rupee', Boolean(project.costRd?.isAvailable), project.costRd?.isAvailable ? `Cost (R&D) available from ${project.costRd.basisDisplay}` : 'Cost (R&D) not recorded'),
-      createReadinessIcon(narrativeIcon, narrativeReady, narrativeTitle)
+      createReadinessIcon('bi-currency-rupee', Boolean(project.costRd?.isAvailable), project.costRd?.isAvailable ? `Cost (R&D) available from ${project.costRd.basisDisplay}` : 'Cost (R&D) not recorded')
     );
+    if (isUpdateSheet()) {
+      readiness.append(createReadinessIcon('bi-card-checklist', Boolean(project.isUpdateSheetCoreFactsReady), project.isUpdateSheetCoreFactsReady ? 'Project update facts complete' : 'Project update facts incomplete'));
+    }
+    readiness.append(createReadinessIcon(narrativeIcon, narrativeReady, narrativeTitle));
     readinessCell.append(readiness);
 
     const actionCell = document.createElement('td');

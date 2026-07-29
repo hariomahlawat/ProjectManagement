@@ -11,7 +11,7 @@ using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
-public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 {
     private const double SlideWidth = 13.333333;
     private const double SlideHeight = 7.5;
@@ -68,7 +68,10 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             }
 
             uint nextSlideId = 256;
-            var theme = ProjectBriefingThemeCatalog.Resolve(data.PresentationTheme);
+            var theme = ProjectBriefingThemeCatalog.Resolve(
+                data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+                    ? ProjectBriefingPresentationTheme.EditorialLight
+                    : data.PresentationTheme);
             var branding = new ProjectBriefingBrandingAssets(
                 ReadAsset(_leftLogoPath),
                 ReadAsset(_rightLogoPath));
@@ -92,7 +95,9 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
             presentationPart.Presentation.Save();
             document.PackageProperties.Title = data.DeckName;
-            document.PackageProperties.Subject = "Professional project briefing deck";
+            document.PackageProperties.Subject = data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+                ? "Formal project update sheets"
+                : "Professional project briefing deck";
             document.PackageProperties.Creator = "Simulator Development Division";
             document.PackageProperties.LastModifiedBy = "Project Briefing Deck Builder";
             document.PackageProperties.Modified = data.GeneratedAtUtc.UtcDateTime;
@@ -102,13 +107,22 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
     }
 
     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
+        => data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+            ? BuildProjectUpdateSheetPlans(data)
+            : BuildStandardPlans(data);
+
+    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
     {
         var orderedProjects = OrderProjects(data.Projects);
-        var plans = new List<SlidePlan>
+        var plans = new List<SlidePlan>();
+        if (data.IncludeCoverSlide)
         {
-            new(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)),
-            new(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data))
-        };
+            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
+        }
+        if (data.IncludePortfolioSummarySlide)
+        {
+            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+        }
 
         if (data.IncludeStageSummary)
         {

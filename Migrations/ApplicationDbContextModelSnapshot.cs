@@ -5012,6 +5012,12 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<bool>("IncludeCoverSlide")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IncludePortfolioSummarySlide")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IncludeProjectCategorySummary")
                         .HasColumnType("boolean");
 
@@ -5023,6 +5029,11 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateTimeOffset?>("LastGeneratedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Layout")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("LastModifiedByUserId")
                         .HasMaxLength(450)

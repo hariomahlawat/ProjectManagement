@@ -157,11 +157,14 @@ public sealed class IndexModel : PageModel
                 {
                     Name = input.Name,
                     Description = input.Description,
+                    Layout = input.Layout,
                     PresentationMode = input.PresentationMode,
                     CostMode = input.CostMode,
                     NarrativeMode = input.NarrativeMode,
                     PresentationTheme = input.PresentationTheme,
                     BrandingScope = input.BrandingScope,
+                    IncludeCoverSlide = input.IncludeCoverSlide,
+                    IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
                     IncludeStageSummary = input.IncludeStageSummary,
                     IncludeProjectCategorySummary = input.IncludeProjectCategorySummary,
                     IncludeTechnicalCategorySummary = input.IncludeTechnicalCategorySummary,
@@ -527,6 +530,9 @@ public sealed class IndexModel : PageModel
         public string? Description { get; set; }
 
         [Required]
+        public ProjectBriefingLayout Layout { get; set; }
+
+        [Required]
         public ProjectBriefingPresentationMode PresentationMode { get; set; }
 
         [Required]
@@ -541,6 +547,8 @@ public sealed class IndexModel : PageModel
         [Required]
         public ProjectBriefingBrandingScope BrandingScope { get; set; }
 
+        public bool IncludeCoverSlide { get; set; }
+        public bool IncludePortfolioSummarySlide { get; set; }
         public bool IncludeStageSummary { get; set; }
         public bool IncludeProjectCategorySummary { get; set; }
         public bool IncludeTechnicalCategorySummary { get; set; }

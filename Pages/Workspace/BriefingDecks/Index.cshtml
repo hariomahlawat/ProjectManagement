@@ -9,6 +9,8 @@
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "workspace";
     var deck = Model.SelectedDeck;
+    var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
+    var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
     var presentationModeLabel = deck?.PresentationMode switch
     {
         ProjectBriefingPresentationMode.ExecutiveTable => "Executive table deck",
@@ -37,17 +39,35 @@
         ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
         _ => "Presentation theme"
     };
-    var includesDetailedSlides = deck?.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
-    var includesCostRd = deck?.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
-    var includesProliferationCost = deck?.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+    var standardIncludesDetailedSlides = deck?.PresentationMode
+        is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
+    var standardIncludesCostRd = deck?.CostMode
+        is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+    var standardIncludesProliferationCost = deck?.CostMode
+        is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+    var includesDetailedSlides = isUpdateSheet || standardIncludesDetailedSlides;
+    var includesCostRd = isUpdateSheet || standardIncludesCostRd;
+    var includesProliferationCost = !isUpdateSheet && standardIncludesProliferationCost;
     var missingStatusCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ExternalStatusAvailableCount;
     var missingCostRdCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CostRdAvailableCount;
     var missingProliferationCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProliferationCostAvailableCount;
     var missingPhotoCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CoverPhotoAvailableCount;
     var missingCapabilityCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CapabilityOverviewAvailableCount;
     var missingProjectBriefCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectBriefAvailableCount;
-    var needsCapabilities = deck?.NarrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
-    var needsProjectBrief = deck?.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
+    var standardNeedsCapabilities = deck?.NarrativeMode
+        is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
+    var standardNeedsProjectBrief = deck?.NarrativeMode
+        is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
+    var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
+    var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
+    var missingCoreFactsCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.UpdateSheetCoreFactsAvailableCount;
+    var missingArppCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
+    var missingAonDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.AonDateAvailableCount;
+    var missingSupplyOrderDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.SupplyOrderDateAvailableCount;
+    var missingJdpCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.JdpAvailableCount;
+    var missingDevelopmentPdcCount = deck is null ? 0 : deck.Readiness.DevelopmentProjectCount - deck.Readiness.DevelopmentPdcAvailableCount;
+    var missingProjectOfficerCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectOfficerAvailableCount;
+    var missingLineDirectorateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.LineDirectorateAvailableCount;
 }
 
 @section Styles {
@@ -186,7 +206,14 @@
                             <div><strong data-pbd-metric="projects">@deck.Readiness.ProjectCount</strong><span>Selected projects</span></div>
                             <div><strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong><span>External status</span></div>
                             <div><strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong><span>Cost (R&amp;D)</span></div>
-                            <div><strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong><span>Proliferation cost</span></div>
+                            @if (isUpdateSheet)
+                            {
+                                <div><strong data-pbd-metric="update-facts">@deck.Readiness.UpdateSheetCoreFactsAvailableCount/@deck.Readiness.ProjectCount</strong><span>Project facts</span></div>
+                            }
+                            else
+                            {
+                                <div><strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong><span>Proliferation cost</span></div>
+                            }
                             <div><strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong><span>PowerPoint-ready photo</span></div>
                         </section>
 
@@ -195,20 +222,25 @@
                                 <span class="pbd-eyebrow">Estimated deck size</span>
                                 <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
                                 <small data-pbd-slide-breakdown>
-                                    Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides ·
-                                    Summary @deck.SlideEstimate.SummarySlides ·
-                                    Tables @deck.SlideEstimate.ExecutiveTableSlides
-                                    @if (deck.SlideEstimate.DetailedProjectSlides > 0)
+                                    @if (isUpdateSheet)
                                     {
-                                        <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
+                                        <text>Introductory slides @deck.SlideEstimate.CoverAndPortfolioSlides · Project update sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
                                     }
-                                    @if (deck.SlideEstimate.ProjectBriefSlides > 0)
+                                    else
                                     {
-                                        <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
-                                    }
-                                    @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
-                                    {
-                                        <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
+                                        <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
+                                        @if (deck.SlideEstimate.DetailedProjectSlides > 0)
+                                        {
+                                            <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
+                                        }
+                                        @if (deck.SlideEstimate.ProjectBriefSlides > 0)
+                                        {
+                                            <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
+                                        }
+                                        @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
+                                        {
+                                            <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
+                                        }
                                     }
                                 </small>
                             </div>
@@ -218,6 +250,57 @@
                                     @if (deck.Readiness.ProjectCount == 0)
                                     {
                                         <span class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i> Add projects to generate a deck</span>
+                                    }
+                                    else if (isUpdateSheet)
+                                    {
+                                        @if (missingArppCount > 0)
+                                        {
+                                            <span><i class="bi bi-journal-text" aria-hidden="true"></i> @missingArppCount without complete ARPP/PPP details</span>
+                                        }
+                                        @if (missingAonDateCount > 0)
+                                        {
+                                            <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @missingAonDateCount without AoN date</span>
+                                        }
+                                        @if (missingSupplyOrderDateCount > 0)
+                                        {
+                                            <span><i class="bi bi-calendar2-event" aria-hidden="true"></i> @missingSupplyOrderDateCount without supply-order date</span>
+                                        }
+                                        @if (missingJdpCount > 0)
+                                        {
+                                            <span><i class="bi bi-building" aria-hidden="true"></i> @missingJdpCount without linked JDP</span>
+                                        }
+                                        @if (missingDevelopmentPdcCount > 0)
+                                        {
+                                            <span><i class="bi bi-calendar-x" aria-hidden="true"></i> @missingDevelopmentPdcCount development project(s) without PDC</span>
+                                        }
+                                        @if (missingProjectOfficerCount > 0)
+                                        {
+                                            <span><i class="bi bi-person-badge" aria-hidden="true"></i> @missingProjectOfficerCount without rank and full name of Project Officer</span>
+                                        }
+                                        @if (missingLineDirectorateCount > 0)
+                                        {
+                                            <span><i class="bi bi-diagram-3" aria-hidden="true"></i> @missingLineDirectorateCount without Line Directorate</span>
+                                        }
+                                        @if (missingStatusCount > 0)
+                                        {
+                                            <span><i class="bi bi-chat-left-text" aria-hidden="true"></i> @missingStatusCount without external status</span>
+                                        }
+                                        @if (missingCostRdCount > 0)
+                                        {
+                                            <span><i class="bi bi-currency-rupee" aria-hidden="true"></i> @missingCostRdCount without Cost (R&amp;D)</span>
+                                        }
+                                        @if (missingPhotoCount > 0)
+                                        {
+                                            <span><i class="bi bi-image" aria-hidden="true"></i> @missingPhotoCount without PowerPoint-ready photo</span>
+                                        }
+                                        @if (missingProjectBriefCount > 0)
+                                        {
+                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @missingProjectBriefCount without project brief</span>
+                                        }
+                                        @if (missingCoreFactsCount == 0 && missingStatusCount == 0 && missingCostRdCount == 0 && missingPhotoCount == 0 && missingProjectBriefCount == 0)
+                                        {
+                                            <span class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Selected project sheets are ready</span>
+                                        }
                                     }
                                     else
                                     {
@@ -262,7 +345,7 @@
                         <details class="pbd-settings" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
                             <summary>
                                 <span><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
-                                <small>@presentationModeLabel · @narrativeModeLabel · @themeLabel · @costModeLabel</small>
+                                <small>@layoutLabel@(isUpdateSheet ? " · 16:9 · R&D cost" : $" · {presentationModeLabel} · {narrativeModeLabel} · {themeLabel} · {costModeLabel}")</small>
                             </summary>
                             <form method="post" asp-page-handler="SaveSettings" class="pbd-settings__form">
                                 <input type="hidden" name="DeckId" value="@deck.Id" />
@@ -280,44 +363,59 @@
                                 </div>
 
                                 <fieldset class="pbd-choice-group">
-                                    <legend>Deck format</legend>
-                                    <div class="pbd-choice-cards pbd-choice-cards--three">
-                                        <label class="pbd-choice-card">
-                                            <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
-                                            <span><i class="bi bi-table" aria-hidden="true"></i><strong>Executive table deck</strong><small>Summary and editable project tables</small></span>
+                                    <legend>Presentation template</legend>
+                                    <div class="pbd-choice-cards pbd-choice-cards--two">
+                                        <label class="pbd-choice-card pbd-choice-card--template">
+                                            <input type="radio" name="Layout" value="StandardBriefing" checked="@(deck.Layout == ProjectBriefingLayout.StandardBriefing)" data-pbd-layout-choice />
+                                            <span><i class="bi bi-columns-gap" aria-hidden="true"></i><strong>Standard PRISM Briefing</strong><small>Executive tables, summaries and configurable project slides.</small></span>
                                         </label>
-                                        <label class="pbd-choice-card">
-                                            <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
-                                            <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>One professional slide per project</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card">
-                                            <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
-                                            <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
+                                        <label class="pbd-choice-card pbd-choice-card--template">
+                                            <input type="radio" name="Layout" value="ProjectUpdateSheet" checked="@(deck.Layout == ProjectBriefingLayout.ProjectUpdateSheet)" data-pbd-layout-choice />
+                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Project Update Sheets</strong><small>Formal 16:9 project sheets with facts, R&amp;D cost, brief and photograph.</small></span>
                                         </label>
                                     </div>
                                 </fieldset>
 
-
-                                <fieldset class="pbd-choice-group">
-                                    <legend>Project content</legend>
-                                    <div class="pbd-choice-cards pbd-choice-cards--three">
-                                        <label class="pbd-choice-card">
-                                            <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
-                                            <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>5–8 concise capability statements on the main project slide</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card">
-                                            <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
-                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>Dedicated narrative slide for each project</small></span>
-                                        </label>
-                                        <label class="pbd-choice-card">
-                                            <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
-                                            <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>Capability slide followed by a project brief slide</small></span>
-                                        </label>
-                                    </div>
-                                </fieldset>
-
-                                <div class="pbd-presentation-design">
+                                <div data-pbd-standard-settings hidden="@isUpdateSheet">
                                     <fieldset class="pbd-choice-group">
+                                        <legend>Deck format</legend>
+                                        <div class="pbd-choice-cards pbd-choice-cards--three">
+                                            <label class="pbd-choice-card">
+                                                <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
+                                                <span><i class="bi bi-table" aria-hidden="true"></i><strong>Executive table deck</strong><small>Summary and editable project tables</small></span>
+                                            </label>
+                                            <label class="pbd-choice-card">
+                                                <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
+                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>One professional slide per project</small></span>
+                                            </label>
+                                            <label class="pbd-choice-card">
+                                                <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
+                                                <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
+                                            </label>
+                                        </div>
+                                    </fieldset>
+
+                                    <fieldset class="pbd-choice-group">
+                                        <legend>Project content</legend>
+                                        <div class="pbd-choice-cards pbd-choice-cards--three">
+                                            <label class="pbd-choice-card">
+                                                <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
+                                                <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>5–8 concise capability statements on the main project slide</small></span>
+                                            </label>
+                                            <label class="pbd-choice-card">
+                                                <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
+                                                <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>Dedicated narrative slide for each project</small></span>
+                                            </label>
+                                            <label class="pbd-choice-card">
+                                                <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
+                                                <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>Capability slide followed by a project brief slide</small></span>
+                                            </label>
+                                        </div>
+                                    </fieldset>
+                                </div>
+
+                                <div class="pbd-presentation-design @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-presentation-design>
+                                    <fieldset class="pbd-choice-group" data-pbd-standard-settings hidden="@isUpdateSheet">
                                         <legend>Presentation theme</legend>
                                         <div class="pbd-theme-cards">
                                             <label class="pbd-theme-card">
@@ -370,7 +468,7 @@
                                     </fieldset>
                                 </div>
 
-                                <fieldset class="pbd-choice-group">
+                                <fieldset class="pbd-choice-group" data-pbd-standard-settings hidden="@isUpdateSheet">
                                     <legend>Cost information</legend>
                                     <div class="pbd-choice-cards pbd-choice-cards--four">
                                         <label class="pbd-choice-card pbd-choice-card--compact">
@@ -392,8 +490,19 @@
                                     </div>
                                 </fieldset>
 
+                                <fieldset class="pbd-choice-group pbd-update-sheet-options" data-pbd-update-settings hidden="@(!isUpdateSheet)">
+                                    <legend>Project Update Sheet options</legend>
+                                    <div class="pbd-update-sheet-note">
+                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                        <span>Each project is generated as one editable 16:9 sheet. Project Cost is always the authoritative R&amp;D cost. Project Brief and latest external status are used automatically.</span>
+                                    </div>
+                                    <div class="pbd-checks pbd-checks--inline">
+                                        <label><input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" /> Include cover slide</label>
+                                        <label><input type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" /> Include portfolio-summary slide</label>
+                                    </div>
+                                </fieldset>
                                 <div class="pbd-settings__bottom">
-                                    <fieldset class="pbd-checks">
+                                    <fieldset class="pbd-checks" data-pbd-standard-settings hidden="@isUpdateSheet">
                                         <legend>Summary slides</legend>
                                         <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" /> Stage-wise summary <small>chart and table</small></label>
                                         <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary</label>
@@ -554,9 +663,16 @@
                                 </select>
                                 <select class="form-select" data-pbd-selected-readiness aria-label="Filter selected projects by content readiness">
                                     <option value="">All readiness</option>
+                                    @if (isUpdateSheet)
+                                    {
+                                        <option value="missing-facts">Missing project facts</option>
+                                    }
                                     <option value="missing-status">Missing external status</option>
                                     <option value="missing-cost-rd">Missing Cost (R&amp;D)</option>
-                                    <option value="missing-proliferation">Missing proliferation cost</option>
+                                    @if (!isUpdateSheet)
+                                    {
+                                        <option value="missing-proliferation">Missing proliferation cost</option>
+                                    }
                                     <option value="missing-photo">Missing photograph</option>
                                     <option value="missing-description">@(needsCapabilities && needsProjectBrief
                                         ? "Missing selected project content"
@@ -594,7 +710,7 @@
                                             <th class="pbd-project-column">Project</th>
                                             <th>Present stage</th>
                                             <th>Cost (R&amp;D)</th>
-                                            <th>Proliferation cost</th>
+                                            <th data-pbd-proliferation-column hidden="@isUpdateSheet">Proliferation cost</th>
                                             <th class="pbd-status-column">Status <small>external remark</small></th>
                                             <th>Deck readiness</th>
                                             <th><span class="visually-hidden">Actions</span></th>
@@ -643,7 +759,8 @@
                                                 data-missing-cost-rd="@(!project.CostRd.IsAvailable ? "true" : "false")"
                                                 data-missing-proliferation="@(!project.ProliferationCost.IsAvailable ? "true" : "false")"
                                                 data-missing-photo="@(!project.HasCoverPhoto ? "true" : "false")"
-                                                data-missing-description="@(!hasSelectedNarrative ? "true" : "false")">
+                                                data-missing-description="@(!hasSelectedNarrative ? "true" : "false")"
+                                                data-missing-facts="@(!project.IsUpdateSheetCoreFactsReady ? "true" : "false")">
                                                 <td class="pbd-select-column"><input type="checkbox" data-pbd-row-select aria-label="Select @project.ProjectName" /></td>
                                                 <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName within @project.PresentStage. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Reorder within @project.PresentStage"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
                                                 <td class="pbd-project-name">
@@ -658,7 +775,7 @@
                                                         <small>@project.CostRd.BasisDisplay</small>
                                                     }
                                                 </td>
-                                                <td class="pbd-cost"><strong>@project.ProliferationCost.DisplayValue</strong></td>
+                                                <td class="pbd-cost" data-pbd-proliferation-column hidden="@isUpdateSheet"><strong>@project.ProliferationCost.DisplayValue</strong></td>
                                                 <td class="pbd-status">
                                                     @if (string.IsNullOrWhiteSpace(project.ExternalStatus))
                                                     {
@@ -678,6 +795,11 @@
                                                         <span class="@(project.HasCoverPhoto ? "is-ready" : "is-missing")" title="@photoReadinessTitle"><i class="bi bi-image"></i></span>
                                                         <span class="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "is-ready" : "is-missing")" title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"><i class="bi bi-chat-left-text"></i></span>
                                                         <span class="@(project.CostRd.IsAvailable ? "is-ready" : "is-missing")" title="@costReadinessTitle"><i class="bi bi-currency-rupee"></i></span>
+                                                        @if (isUpdateSheet)
+                                                        {
+                                                            <span class="@(project.IsUpdateSheetCoreFactsReady ? "is-ready" : "is-missing")"
+                                                                  title="@(project.IsUpdateSheetCoreFactsReady ? "Project update facts complete" : "Project update facts incomplete")"><i class="bi bi-card-checklist"></i></span>
+                                                        }
                                                         <span class="@(hasSelectedNarrative ? "is-ready" : "is-missing")" title="@narrativeReadinessTitle"><i class="bi @(needsCapabilities && needsProjectBrief ? "bi-layers" : needsProjectBrief ? "bi-file-earmark-text" : "bi-list-check")"></i></span>
                                                     </div>
                                                 </td>
