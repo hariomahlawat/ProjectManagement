@@ -1,2116 +1,497 @@
-diff -ruN a/Data/ApplicationDbContext.cs b/Data/ApplicationDbContext.cs
---- a/Data/ApplicationDbContext.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Data/ApplicationDbContext.cs	2026-07-29 01:06:26.510388868 +0000
-@@ -507,6 +507,7 @@
-                 entity.Property(deck => deck.Name).HasMaxLength(160).IsRequired();
-                 entity.Property(deck => deck.NormalizedName).HasMaxLength(160).IsRequired();
-                 entity.Property(deck => deck.Description).HasMaxLength(600);
-+                entity.Property(deck => deck.Layout).HasConversion<string>().HasMaxLength(32).IsRequired();
-                 entity.Property(deck => deck.PresentationMode).HasConversion<string>().HasMaxLength(32).IsRequired();
-                 entity.Property(deck => deck.CostMode).HasConversion<string>().HasMaxLength(32).IsRequired();
-                 entity.Property(deck => deck.NarrativeMode).HasConversion<string>().HasMaxLength(32).IsRequired();
-diff -ruN a/Migrations/20261207150000_AddProjectBriefingUpdateSheetLayout.cs b/Migrations/20261207150000_AddProjectBriefingUpdateSheetLayout.cs
---- a/Migrations/20261207150000_AddProjectBriefingUpdateSheetLayout.cs	1970-01-01 00:00:00.000000000 +0000
-+++ b/Migrations/20261207150000_AddProjectBriefingUpdateSheetLayout.cs	2026-07-29 01:49:51.846482042 +0000
-@@ -0,0 +1,52 @@
-+using Microsoft.EntityFrameworkCore.Infrastructure;
-+using Microsoft.EntityFrameworkCore.Migrations;
-+using ProjectManagement.Data;
-+
-+#nullable disable
-+
-+namespace ProjectManagement.Migrations;
-+
-+[DbContext(typeof(ApplicationDbContext))]
-+[Migration("20261207150000_AddProjectBriefingUpdateSheetLayout")]
-+public partial class AddProjectBriefingUpdateSheetLayout : Migration
-+{
-+    protected override void Up(MigrationBuilder migrationBuilder)
-+    {
-+        migrationBuilder.AddColumn<bool>(
-+            name: "IncludeCoverSlide",
-+            table: "ProjectBriefingDecks",
-+            type: "boolean",
-+            nullable: false,
-+            defaultValue: true);
-+
-+        migrationBuilder.AddColumn<bool>(
-+            name: "IncludePortfolioSummarySlide",
-+            table: "ProjectBriefingDecks",
-+            type: "boolean",
-+            nullable: false,
-+            defaultValue: true);
-+
-+        migrationBuilder.AddColumn<string>(
-+            name: "Layout",
-+            table: "ProjectBriefingDecks",
-+            type: "character varying(32)",
-+            maxLength: 32,
-+            nullable: false,
-+            defaultValue: "StandardBriefing");
-+    }
-+
-+    protected override void Down(MigrationBuilder migrationBuilder)
-+    {
-+        migrationBuilder.DropColumn(
-+            name: "IncludeCoverSlide",
-+            table: "ProjectBriefingDecks");
-+
-+        migrationBuilder.DropColumn(
-+            name: "IncludePortfolioSummarySlide",
-+            table: "ProjectBriefingDecks");
-+
-+        migrationBuilder.DropColumn(
-+            name: "Layout",
-+            table: "ProjectBriefingDecks");
-+    }
-+}
-diff -ruN a/Migrations/ApplicationDbContextModelSnapshot.cs b/Migrations/ApplicationDbContextModelSnapshot.cs
---- a/Migrations/ApplicationDbContextModelSnapshot.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Migrations/ApplicationDbContextModelSnapshot.cs	2026-07-29 01:11:02.158398726 +0000
-@@ -5012,6 +5012,12 @@
-                         .HasMaxLength(80)
-                         .HasColumnType("character varying(80)");
+--- a/Services/ProjectBriefings/ProjectBriefingCostResolver.cs
++++ b/Services/ProjectBriefings/ProjectBriefingCostResolver.cs
+@@ -4,8 +4,16 @@
  
-+                    b.Property<bool>("IncludeCoverSlide")
-+                        .HasColumnType("boolean");
-+
-+                    b.Property<bool>("IncludePortfolioSummarySlide")
-+                        .HasColumnType("boolean");
-+
-                     b.Property<bool>("IncludeProjectCategorySummary")
-                         .HasColumnType("boolean");
+ namespace ProjectManagement.Services.ProjectBriefings;
  
-@@ -5024,6 +5030,11 @@
-                     b.Property<DateTimeOffset?>("LastGeneratedAtUtc")
-                         .HasColumnType("timestamp with time zone");
- 
-+                    b.Property<string>("Layout")
-+                        .IsRequired()
-+                        .HasMaxLength(32)
-+                        .HasColumnType("character varying(32)");
++public sealed record ProjectBriefingResolvedCosts(
++    IReadOnlyDictionary<int, ProjectBriefingCostValue> CostRd,
++    IReadOnlyDictionary<int, ProjectBriefingCostValue> Ipa);
 +
-                     b.Property<string>("LastModifiedByUserId")
-                         .HasMaxLength(450)
-                         .HasColumnType("character varying(450)");
-diff -ruN a/Migrations/immutable-migration-ids.txt b/Migrations/immutable-migration-ids.txt
---- a/Migrations/immutable-migration-ids.txt	2026-07-28 17:41:04.000000000 +0000
-+++ b/Migrations/immutable-migration-ids.txt	2026-07-29 01:39:06.774458972 +0000
-@@ -83,3 +83,4 @@
- 20261207120000_AddArppControlledReferenceData
- 20261207130000_AddArppPublishedSnapshots
- 20261207140000_AddProjectContent
-+20261207150000_AddProjectBriefingUpdateSheetLayout
-diff -ruN a/Models/ProjectBriefings/ProjectBriefingDeck.cs b/Models/ProjectBriefings/ProjectBriefingDeck.cs
---- a/Models/ProjectBriefings/ProjectBriefingDeck.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Models/ProjectBriefings/ProjectBriefingDeck.cs	2026-07-29 01:06:26.510388868 +0000
-@@ -3,6 +3,12 @@
- 
- namespace ProjectManagement.Models.ProjectBriefings;
- 
-+public enum ProjectBriefingLayout
-+{
-+    StandardBriefing = 1,
-+    ProjectUpdateSheet = 2
-+}
-+
- public enum ProjectBriefingPresentationMode
+ public interface IProjectBriefingCostResolver
  {
-     ExecutiveTable = 1,
-@@ -60,6 +66,9 @@
-     [MaxLength(600)]
-     public string? Description { get; set; }
- 
-+    public ProjectBriefingLayout Layout { get; set; }
-+        = ProjectBriefingLayout.StandardBriefing;
++    Task<ProjectBriefingResolvedCosts> ResolveCostsAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default);
 +
-     public ProjectBriefingPresentationMode PresentationMode { get; set; }
-         = ProjectBriefingPresentationMode.Combined;
- 
-@@ -75,6 +84,8 @@
-     public ProjectBriefingBrandingScope BrandingScope { get; set; }
-         = ProjectBriefingBrandingScope.AllSlides;
- 
-+    public bool IncludeCoverSlide { get; set; } = true;
-+    public bool IncludePortfolioSummarySlide { get; set; } = true;
-     public bool IncludeStageSummary { get; set; } = true;
-     public bool IncludeProjectCategorySummary { get; set; }
-     public bool IncludeTechnicalCategorySummary { get; set; }
-diff -ruN a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
---- a/Pages/Workspace/BriefingDecks/Index.cshtml	2026-07-28 17:41:04.000000000 +0000
-+++ b/Pages/Workspace/BriefingDecks/Index.cshtml	2026-07-29 01:39:06.142458950 +0000
-@@ -9,6 +9,8 @@
-     ViewData["UseFullWidth"] = true;
-     ViewData["PageShell"] = "workspace";
-     var deck = Model.SelectedDeck;
-+    var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
-+    var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
-     var presentationModeLabel = deck?.PresentationMode switch
-     {
-         ProjectBriefingPresentationMode.ExecutiveTable => "Executive table deck",
-@@ -37,17 +39,35 @@
-         ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
-         _ => "Presentation theme"
-     };
--    var includesDetailedSlides = deck?.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
--    var includesCostRd = deck?.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
--    var includesProliferationCost = deck?.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
-+    var standardIncludesDetailedSlides = deck?.PresentationMode
-+        is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
-+    var standardIncludesCostRd = deck?.CostMode
-+        is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
-+    var standardIncludesProliferationCost = deck?.CostMode
-+        is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
-+    var includesDetailedSlides = isUpdateSheet || standardIncludesDetailedSlides;
-+    var includesCostRd = isUpdateSheet || standardIncludesCostRd;
-+    var includesProliferationCost = !isUpdateSheet && standardIncludesProliferationCost;
-     var missingStatusCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ExternalStatusAvailableCount;
-     var missingCostRdCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CostRdAvailableCount;
-     var missingProliferationCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProliferationCostAvailableCount;
-     var missingPhotoCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CoverPhotoAvailableCount;
-     var missingCapabilityCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CapabilityOverviewAvailableCount;
-     var missingProjectBriefCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectBriefAvailableCount;
--    var needsCapabilities = deck?.NarrativeMode is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
--    var needsProjectBrief = deck?.NarrativeMode is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
-+    var standardNeedsCapabilities = deck?.NarrativeMode
-+        is ProjectBriefingNarrativeMode.CapabilityOverview or ProjectBriefingNarrativeMode.Both;
-+    var standardNeedsProjectBrief = deck?.NarrativeMode
-+        is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
-+    var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
-+    var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
-+    var missingCoreFactsCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.UpdateSheetCoreFactsAvailableCount;
-+    var missingArppCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
-+    var missingAonDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.AonDateAvailableCount;
-+    var missingSupplyOrderDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.SupplyOrderDateAvailableCount;
-+    var missingJdpCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.JdpAvailableCount;
-+    var missingDevelopmentPdcCount = deck is null ? 0 : deck.Readiness.DevelopmentProjectCount - deck.Readiness.DevelopmentPdcAvailableCount;
-+    var missingProjectOfficerCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectOfficerAvailableCount;
-+    var missingLineDirectorateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.LineDirectorateAvailableCount;
- }
- 
- @section Styles {
-@@ -186,7 +206,14 @@
-                             <div><strong data-pbd-metric="projects">@deck.Readiness.ProjectCount</strong><span>Selected projects</span></div>
-                             <div><strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong><span>External status</span></div>
-                             <div><strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong><span>Cost (R&amp;D)</span></div>
--                            <div><strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong><span>Proliferation cost</span></div>
-+                            @if (isUpdateSheet)
-+                            {
-+                                <div><strong data-pbd-metric="update-facts">@deck.Readiness.UpdateSheetCoreFactsAvailableCount/@deck.Readiness.ProjectCount</strong><span>Project facts</span></div>
-+                            }
-+                            else
-+                            {
-+                                <div><strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong><span>Proliferation cost</span></div>
-+                            }
-                             <div><strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong><span>PowerPoint-ready photo</span></div>
-                         </section>
- 
-@@ -195,20 +222,25 @@
-                                 <span class="pbd-eyebrow">Estimated deck size</span>
-                                 <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
-                                 <small data-pbd-slide-breakdown>
--                                    Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides ·
--                                    Summary @deck.SlideEstimate.SummarySlides ·
--                                    Tables @deck.SlideEstimate.ExecutiveTableSlides
--                                    @if (deck.SlideEstimate.DetailedProjectSlides > 0)
-+                                    @if (isUpdateSheet)
-                                     {
--                                        <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
-+                                        <text>Introductory slides @deck.SlideEstimate.CoverAndPortfolioSlides · Project update sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
-                                     }
--                                    @if (deck.SlideEstimate.ProjectBriefSlides > 0)
--                                    {
--                                        <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
--                                    }
--                                    @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
-+                                    else
-                                     {
--                                        <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
-+                                        <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
-+                                        @if (deck.SlideEstimate.DetailedProjectSlides > 0)
-+                                        {
-+                                            <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
-+                                        }
-+                                        @if (deck.SlideEstimate.ProjectBriefSlides > 0)
-+                                        {
-+                                            <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
-+                                        }
-+                                        @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
-+                                        {
-+                                            <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
-+                                        }
-                                     }
-                                 </small>
-                             </div>
-@@ -219,6 +251,57 @@
-                                     {
-                                         <span class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i> Add projects to generate a deck</span>
-                                     }
-+                                    else if (isUpdateSheet)
-+                                    {
-+                                        @if (missingArppCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-journal-text" aria-hidden="true"></i> @missingArppCount without complete ARPP/PPP details</span>
-+                                        }
-+                                        @if (missingAonDateCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @missingAonDateCount without AoN date</span>
-+                                        }
-+                                        @if (missingSupplyOrderDateCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-calendar2-event" aria-hidden="true"></i> @missingSupplyOrderDateCount without supply-order date</span>
-+                                        }
-+                                        @if (missingJdpCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-building" aria-hidden="true"></i> @missingJdpCount without linked JDP</span>
-+                                        }
-+                                        @if (missingDevelopmentPdcCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-calendar-x" aria-hidden="true"></i> @missingDevelopmentPdcCount development project(s) without PDC</span>
-+                                        }
-+                                        @if (missingProjectOfficerCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-person-badge" aria-hidden="true"></i> @missingProjectOfficerCount without rank and full name of Project Officer</span>
-+                                        }
-+                                        @if (missingLineDirectorateCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-diagram-3" aria-hidden="true"></i> @missingLineDirectorateCount without Line Directorate</span>
-+                                        }
-+                                        @if (missingStatusCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-chat-left-text" aria-hidden="true"></i> @missingStatusCount without external status</span>
-+                                        }
-+                                        @if (missingCostRdCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-currency-rupee" aria-hidden="true"></i> @missingCostRdCount without Cost (R&amp;D)</span>
-+                                        }
-+                                        @if (missingPhotoCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-image" aria-hidden="true"></i> @missingPhotoCount without PowerPoint-ready photo</span>
-+                                        }
-+                                        @if (missingProjectBriefCount > 0)
-+                                        {
-+                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @missingProjectBriefCount without project brief</span>
-+                                        }
-+                                        @if (missingCoreFactsCount == 0 && missingStatusCount == 0 && missingCostRdCount == 0 && missingPhotoCount == 0 && missingProjectBriefCount == 0)
-+                                        {
-+                                            <span class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Selected project sheets are ready</span>
-+                                        }
-+                                    }
-                                     else
-                                     {
-                                         @if (missingStatusCount > 0)
-@@ -262,7 +345,7 @@
-                         <details class="pbd-settings" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
-                             <summary>
-                                 <span><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
--                                <small>@presentationModeLabel · @narrativeModeLabel · @themeLabel · @costModeLabel</small>
-+                                <small>@layoutLabel@(isUpdateSheet ? " · 16:9 · R&D cost" : $" · {presentationModeLabel} · {narrativeModeLabel} · {themeLabel} · {costModeLabel}")</small>
-                             </summary>
-                             <form method="post" asp-page-handler="SaveSettings" class="pbd-settings__form">
-                                 <input type="hidden" name="DeckId" value="@deck.Id" />
-@@ -280,44 +363,59 @@
-                                 </div>
- 
-                                 <fieldset class="pbd-choice-group">
--                                    <legend>Deck format</legend>
--                                    <div class="pbd-choice-cards pbd-choice-cards--three">
--                                        <label class="pbd-choice-card">
--                                            <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
--                                            <span><i class="bi bi-table" aria-hidden="true"></i><strong>Executive table deck</strong><small>Summary and editable project tables</small></span>
--                                        </label>
--                                        <label class="pbd-choice-card">
--                                            <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
--                                            <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>One professional slide per project</small></span>
--                                        </label>
--                                        <label class="pbd-choice-card">
--                                            <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
--                                            <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
-+                                    <legend>Presentation template</legend>
-+                                    <div class="pbd-choice-cards pbd-choice-cards--two">
-+                                        <label class="pbd-choice-card pbd-choice-card--template">
-+                                            <input type="radio" name="Layout" value="StandardBriefing" checked="@(deck.Layout == ProjectBriefingLayout.StandardBriefing)" data-pbd-layout-choice />
-+                                            <span><i class="bi bi-columns-gap" aria-hidden="true"></i><strong>Standard PRISM Briefing</strong><small>Executive tables, summaries and configurable project slides.</small></span>
-+                                        </label>
-+                                        <label class="pbd-choice-card pbd-choice-card--template">
-+                                            <input type="radio" name="Layout" value="ProjectUpdateSheet" checked="@(deck.Layout == ProjectBriefingLayout.ProjectUpdateSheet)" data-pbd-layout-choice />
-+                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Project Update Sheets</strong><small>Formal 16:9 project sheets with facts, R&amp;D cost, brief and photograph.</small></span>
-                                         </label>
-                                     </div>
-                                 </fieldset>
- 
-+                                <div data-pbd-standard-settings hidden="@isUpdateSheet">
-+                                    <fieldset class="pbd-choice-group">
-+                                        <legend>Deck format</legend>
-+                                        <div class="pbd-choice-cards pbd-choice-cards--three">
-+                                            <label class="pbd-choice-card">
-+                                                <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
-+                                                <span><i class="bi bi-table" aria-hidden="true"></i><strong>Executive table deck</strong><small>Summary and editable project tables</small></span>
-+                                            </label>
-+                                            <label class="pbd-choice-card">
-+                                                <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
-+                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>One professional slide per project</small></span>
-+                                            </label>
-+                                            <label class="pbd-choice-card">
-+                                                <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
-+                                                <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
-+                                            </label>
-+                                        </div>
-+                                    </fieldset>
- 
--                                <fieldset class="pbd-choice-group">
--                                    <legend>Project content</legend>
--                                    <div class="pbd-choice-cards pbd-choice-cards--three">
--                                        <label class="pbd-choice-card">
--                                            <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
--                                            <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>5–8 concise capability statements on the main project slide</small></span>
--                                        </label>
--                                        <label class="pbd-choice-card">
--                                            <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
--                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>Dedicated narrative slide for each project</small></span>
--                                        </label>
--                                        <label class="pbd-choice-card">
--                                            <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
--                                            <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>Capability slide followed by a project brief slide</small></span>
--                                        </label>
--                                    </div>
--                                </fieldset>
--
--                                <div class="pbd-presentation-design">
-                                     <fieldset class="pbd-choice-group">
-+                                        <legend>Project content</legend>
-+                                        <div class="pbd-choice-cards pbd-choice-cards--three">
-+                                            <label class="pbd-choice-card">
-+                                                <input type="radio" name="NarrativeMode" value="CapabilityOverview" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.CapabilityOverview)" />
-+                                                <span><i class="bi bi-list-check" aria-hidden="true"></i><strong>Capability overview</strong><small>5–8 concise capability statements on the main project slide</small></span>
-+                                            </label>
-+                                            <label class="pbd-choice-card">
-+                                                <input type="radio" name="NarrativeMode" value="ProjectBrief" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.ProjectBrief)" />
-+                                                <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i><strong>Project brief</strong><small>Dedicated narrative slide for each project</small></span>
-+                                            </label>
-+                                            <label class="pbd-choice-card">
-+                                                <input type="radio" name="NarrativeMode" value="Both" checked="@(deck.NarrativeMode == ProjectBriefingNarrativeMode.Both)" />
-+                                                <span><i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i><strong>Both</strong><small>Capability slide followed by a project brief slide</small></span>
-+                                            </label>
-+                                        </div>
-+                                    </fieldset>
-+                                </div>
-+
-+                                <div class="pbd-presentation-design @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-presentation-design>
-+                                    <fieldset class="pbd-choice-group" data-pbd-standard-settings hidden="@isUpdateSheet">
-                                         <legend>Presentation theme</legend>
-                                         <div class="pbd-theme-cards">
-                                             <label class="pbd-theme-card">
-@@ -370,7 +468,7 @@
-                                     </fieldset>
-                                 </div>
- 
--                                <fieldset class="pbd-choice-group">
-+                                <fieldset class="pbd-choice-group" data-pbd-standard-settings hidden="@isUpdateSheet">
-                                     <legend>Cost information</legend>
-                                     <div class="pbd-choice-cards pbd-choice-cards--four">
-                                         <label class="pbd-choice-card pbd-choice-card--compact">
-@@ -392,8 +490,19 @@
-                                     </div>
-                                 </fieldset>
- 
-+                                <fieldset class="pbd-choice-group pbd-update-sheet-options" data-pbd-update-settings hidden="@(!isUpdateSheet)">
-+                                    <legend>Project Update Sheet options</legend>
-+                                    <div class="pbd-update-sheet-note">
-+                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
-+                                        <span>Each project is generated as one editable 16:9 sheet. Project Cost is always the authoritative R&amp;D cost. Project Brief and latest external status are used automatically.</span>
-+                                    </div>
-+                                    <div class="pbd-checks pbd-checks--inline">
-+                                        <label><input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" /> Include cover slide</label>
-+                                        <label><input type="checkbox" name="IncludePortfolioSummarySlide" value="true" checked="@deck.IncludePortfolioSummarySlide" /> Include portfolio-summary slide</label>
-+                                    </div>
-+                                </fieldset>
-                                 <div class="pbd-settings__bottom">
--                                    <fieldset class="pbd-checks">
-+                                    <fieldset class="pbd-checks" data-pbd-standard-settings hidden="@isUpdateSheet">
-                                         <legend>Summary slides</legend>
-                                         <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" /> Stage-wise summary <small>chart and table</small></label>
-                                         <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary</label>
-@@ -554,9 +663,16 @@
-                                 </select>
-                                 <select class="form-select" data-pbd-selected-readiness aria-label="Filter selected projects by content readiness">
-                                     <option value="">All readiness</option>
-+                                    @if (isUpdateSheet)
-+                                    {
-+                                        <option value="missing-facts">Missing project facts</option>
-+                                    }
-                                     <option value="missing-status">Missing external status</option>
-                                     <option value="missing-cost-rd">Missing Cost (R&amp;D)</option>
--                                    <option value="missing-proliferation">Missing proliferation cost</option>
-+                                    @if (!isUpdateSheet)
-+                                    {
-+                                        <option value="missing-proliferation">Missing proliferation cost</option>
-+                                    }
-                                     <option value="missing-photo">Missing photograph</option>
-                                     <option value="missing-description">@(needsCapabilities && needsProjectBrief
-                                         ? "Missing selected project content"
-@@ -594,7 +710,7 @@
-                                             <th class="pbd-project-column">Project</th>
-                                             <th>Present stage</th>
-                                             <th>Cost (R&amp;D)</th>
--                                            <th>Proliferation cost</th>
-+                                            <th data-pbd-proliferation-column hidden="@isUpdateSheet">Proliferation cost</th>
-                                             <th class="pbd-status-column">Status <small>external remark</small></th>
-                                             <th>Deck readiness</th>
-                                             <th><span class="visually-hidden">Actions</span></th>
-@@ -643,7 +759,8 @@
-                                                 data-missing-cost-rd="@(!project.CostRd.IsAvailable ? "true" : "false")"
-                                                 data-missing-proliferation="@(!project.ProliferationCost.IsAvailable ? "true" : "false")"
-                                                 data-missing-photo="@(!project.HasCoverPhoto ? "true" : "false")"
--                                                data-missing-description="@(!hasSelectedNarrative ? "true" : "false")">
-+                                                data-missing-description="@(!hasSelectedNarrative ? "true" : "false")"
-+                                                data-missing-facts="@(!project.IsUpdateSheetCoreFactsReady ? "true" : "false")">
-                                                 <td class="pbd-select-column"><input type="checkbox" data-pbd-row-select aria-label="Select @project.ProjectName" /></td>
-                                                 <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName within @project.PresentStage. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Reorder within @project.PresentStage"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
-                                                 <td class="pbd-project-name">
-@@ -658,7 +775,7 @@
-                                                         <small>@project.CostRd.BasisDisplay</small>
-                                                     }
-                                                 </td>
--                                                <td class="pbd-cost"><strong>@project.ProliferationCost.DisplayValue</strong></td>
-+                                                <td class="pbd-cost" data-pbd-proliferation-column hidden="@isUpdateSheet"><strong>@project.ProliferationCost.DisplayValue</strong></td>
-                                                 <td class="pbd-status">
-                                                     @if (string.IsNullOrWhiteSpace(project.ExternalStatus))
-                                                     {
-@@ -678,6 +795,11 @@
-                                                         <span class="@(project.HasCoverPhoto ? "is-ready" : "is-missing")" title="@photoReadinessTitle"><i class="bi bi-image"></i></span>
-                                                         <span class="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "is-ready" : "is-missing")" title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"><i class="bi bi-chat-left-text"></i></span>
-                                                         <span class="@(project.CostRd.IsAvailable ? "is-ready" : "is-missing")" title="@costReadinessTitle"><i class="bi bi-currency-rupee"></i></span>
-+                                                        @if (isUpdateSheet)
-+                                                        {
-+                                                            <span class="@(project.IsUpdateSheetCoreFactsReady ? "is-ready" : "is-missing")"
-+                                                                  title="@(project.IsUpdateSheetCoreFactsReady ? "Project update facts complete" : "Project update facts incomplete")"><i class="bi bi-card-checklist"></i></span>
-+                                                        }
-                                                         <span class="@(hasSelectedNarrative ? "is-ready" : "is-missing")" title="@narrativeReadinessTitle"><i class="bi @(needsCapabilities && needsProjectBrief ? "bi-layers" : needsProjectBrief ? "bi-file-earmark-text" : "bi-list-check")"></i></span>
-                                                     </div>
-                                                 </td>
-diff -ruN a/Pages/Workspace/BriefingDecks/Index.cshtml.cs b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
---- a/Pages/Workspace/BriefingDecks/Index.cshtml.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Pages/Workspace/BriefingDecks/Index.cshtml.cs	2026-07-29 01:11:16.362399234 +0000
-@@ -157,11 +157,14 @@
-                 {
-                     Name = input.Name,
-                     Description = input.Description,
-+                    Layout = input.Layout,
-                     PresentationMode = input.PresentationMode,
-                     CostMode = input.CostMode,
-                     NarrativeMode = input.NarrativeMode,
-                     PresentationTheme = input.PresentationTheme,
-                     BrandingScope = input.BrandingScope,
-+                    IncludeCoverSlide = input.IncludeCoverSlide,
-+                    IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
-                     IncludeStageSummary = input.IncludeStageSummary,
-                     IncludeProjectCategorySummary = input.IncludeProjectCategorySummary,
-                     IncludeTechnicalCategorySummary = input.IncludeTechnicalCategorySummary,
-@@ -527,6 +530,9 @@
-         public string? Description { get; set; }
- 
-         [Required]
-+        public ProjectBriefingLayout Layout { get; set; }
-+
-+        [Required]
-         public ProjectBriefingPresentationMode PresentationMode { get; set; }
- 
-         [Required]
-@@ -541,6 +547,8 @@
-         [Required]
-         public ProjectBriefingBrandingScope BrandingScope { get; set; }
- 
-+        public bool IncludeCoverSlide { get; set; }
-+        public bool IncludePortfolioSummarySlide { get; set; }
-         public bool IncludeStageSummary { get; set; }
-         public bool IncludeProjectCategorySummary { get; set; }
-         public bool IncludeTechnicalCategorySummary { get; set; }
-diff -ruN a/Program.cs b/Program.cs
---- a/Program.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Program.cs	2026-07-29 01:08:14.990392747 +0000
-@@ -630,6 +630,7 @@
- builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
- builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
- builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
-+builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();
- builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
- builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
- builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();
-diff -ruN a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs	2026-07-29 01:51:25.542485393 +0000
-@@ -64,6 +64,34 @@
-         Assert.DoesNotContain("RemarkType.Internal", source, StringComparison.Ordinal);
+     Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
+         IReadOnlyCollection<int> projectIds,
+         CancellationToken cancellationToken = default);
+@@ -34,14 +42,15 @@
+         _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
      }
  
-+    [Fact]
-+    public void ProjectUpdateSheet_UsesApprovedTemplateAndAuthoritativeFieldSources()
-+    {
-+        var page = Read("Index.cshtml");
-+        var resolver = Read("ProjectBriefingUpdateSheetFactsResolver.cs");
-+        var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
+-    public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
++    public async Task<ProjectBriefingResolvedCosts> ResolveCostsAsync(
+         IReadOnlyCollection<int> projectIds,
+         CancellationToken cancellationToken = default)
+     {
+         var ids = Normalize(projectIds);
+         if (ids.Length == 0)
+         {
+-            return new Dictionary<int, ProjectBriefingCostValue>();
++            var empty = new Dictionary<int, ProjectBriefingCostValue>();
++            return new ProjectBriefingResolvedCosts(empty, empty);
+         }
+ 
+         var l1Rows = await _db.ProjectCommercialFacts
+@@ -56,6 +65,8 @@
+             .Select(row => new CostFactRow(row.ProjectId, row.AonCost, row.CreatedOnUtc, row.Id))
+             .ToListAsync(cancellationToken);
+ 
++        // Resolve the authoritative IPA position once. The same snapshot is used both
++        // as the R&D-cost fallback and for the separate Total IPA Cost summary.
+         var ipaPositions = await _ipaResolver.ResolveManyAsync(ids, cancellationToken);
+ 
+         var l1 = Latest(l1Rows);
+@@ -63,30 +74,42 @@
+         var ipa = ipaPositions
+             .Where(pair => pair.Value.AmountInRupees > 0m)
+             .ToDictionary(pair => pair.Key, pair => pair.Value.AmountInRupees);
+-        var result = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
 +
-+        Assert.Contains("Project Update Sheets", page, StringComparison.Ordinal);
-+        Assert.Contains("value=\"ProjectUpdateSheet\"", page, StringComparison.Ordinal);
-+        Assert.Contains("Project Cost is always the authoritative R&amp;D cost", page, StringComparison.Ordinal);
-+        Assert.Contains("Include cover slide", page, StringComparison.Ordinal);
-+        Assert.Contains("Include portfolio-summary slide", page, StringComparison.Ordinal);
++        var costRd = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
++        var ipaCost = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
+ 
+         foreach (var projectId in ids)
+         {
++            var authoritativeIpaAmount = ipa.GetValueOrDefault(projectId);
++            ipaCost[projectId] = authoritativeIpaAmount > 0m
++                ? Build(authoritativeIpaAmount, ProjectBriefingCostBasis.IPA, "IPA")
++                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
 +
-+        Assert.Contains("StageCodes.AON", resolver, StringComparison.Ordinal);
-+        Assert.Contains("StageCodes.DEVP", resolver, StringComparison.Ordinal);
-+        Assert.Contains("project.LeadPoUser.Rank", resolver, StringComparison.Ordinal);
-+        Assert.Contains("project.LeadPoUser.FullName", resolver, StringComparison.Ordinal);
-+        Assert.Contains("project.SponsoringLineDirectorate.Name", resolver, StringComparison.Ordinal);
-+        Assert.Contains("link.IndustryPartner.Name", resolver, StringComparison.Ordinal);
-+        Assert.Contains("ProjectSupplyOrderFacts", resolver, StringComparison.Ordinal);
-+        Assert.Contains("ArppPublishedEntries", resolver, StringComparison.Ordinal);
+             if (l1.TryGetValue(projectId, out var l1Amount))
+             {
+-                result[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
++                costRd[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
+             }
+             else if (aon.TryGetValue(projectId, out var aonAmount))
+             {
+-                result[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
++                costRd[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
+             }
+             else if (ipa.TryGetValue(projectId, out var ipaAmount))
+             {
+-                result[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
++                costRd[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
+             }
+             else
+             {
+-                result[projectId] = ProjectBriefingCostValue.Missing();
+-            }
+-        }
+-
+-        return result;
+-    }
++                costRd[projectId] = ProjectBriefingCostValue.Missing();
++            }
++        }
 +
-+        Assert.Contains("RenderProjectUpdateSheet", composer, StringComparison.Ordinal);
-+        Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
-+        Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
-+        Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
++        return new ProjectBriefingResolvedCosts(costRd, ipaCost);
 +    }
 +
++    public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
++        IReadOnlyCollection<int> projectIds,
++        CancellationToken cancellationToken = default)
++        => (await ResolveCostsAsync(projectIds, cancellationToken)).CostRd;
+ 
+     public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveProliferationCostAsync(
+         IReadOnlyCollection<int> projectIds,
+--- a/Services/ProjectBriefings/ProjectBriefingContracts.cs
++++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+@@ -88,6 +88,7 @@
+     public string? ProjectCategory { get; init; }
+     public string? TechnicalCategory { get; init; }
+     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
++    public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
+     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
+     public string? ExternalStatus { get; init; }
+     public DateOnly? ExternalStatusDate { get; init; }
+@@ -275,6 +276,7 @@
+     public string? ProjectCategory { get; init; }
+     public string? TechnicalCategory { get; init; }
+     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
++    public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
+     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
+     public string ExternalStatus { get; init; } = "No external status recorded";
+     public DateOnly? ExternalStatusDate { get; init; }
+@@ -305,6 +307,8 @@
+     public int CompletedCount { get; init; }
+     public decimal TotalCostRdInRupees { get; init; }
+     public int CostRdRecordedCount { get; init; }
++    public decimal TotalIpaCostInRupees { get; init; }
++    public int IpaCostRecordedCount { get; init; }
+     public decimal TotalProliferationCostInRupees { get; init; }
+     public int ProliferationCostRecordedCount { get; init; }
+     public int MissingExternalStatusCount { get; init; }
+--- a/Services/ProjectBriefings/ProjectBriefingDataService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+@@ -116,6 +116,7 @@
+                 ProjectCategory = project.ProjectCategory,
+                 TechnicalCategory = project.TechnicalCategory,
+                 CostRd = project.CostRd,
++                IpaCost = project.IpaCost,
+                 ProliferationCost = project.ProliferationCost,
+                 ExternalStatus = project.ExternalStatus ?? "No external status recorded",
+                 ExternalStatusDate = project.ExternalStatusDate,
+@@ -378,7 +379,9 @@
+         }
+ 
+         var projectIds = items.Select(item => item.ProjectId).Distinct().ToArray();
+-        var costRd = await _costResolver.ResolveCostRdAsync(projectIds, cancellationToken);
++        var resolvedCosts = await _costResolver.ResolveCostsAsync(projectIds, cancellationToken);
++        var costRd = resolvedCosts.CostRd;
++        var ipaCost = resolvedCosts.Ipa;
+         IReadOnlyDictionary<int, ProjectBriefingCostValue> proliferation =
+             layout == ProjectBriefingLayout.ProjectUpdateSheet
+                 ? new Dictionary<int, ProjectBriefingCostValue>()
+@@ -427,6 +430,8 @@
+                     ProjectCategory = item.ProjectCategory,
+                     TechnicalCategory = item.TechnicalCategory,
+                     CostRd = costRd.GetValueOrDefault(item.ProjectId) ?? ProjectBriefingCostValue.Missing(),
++                    IpaCost = ipaCost.GetValueOrDefault(item.ProjectId)
++                        ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
+                     ProliferationCost = proliferation.GetValueOrDefault(item.ProjectId)
+                         ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                     ExternalStatus = external?.Body,
+@@ -538,6 +543,8 @@
+             CompletedCount = projects.Count(project => project.LifecycleStatus == ProjectLifecycleStatus.Completed),
+             TotalCostRdInRupees = projects.Sum(project => project.CostRd.AmountInRupees ?? 0m),
+             CostRdRecordedCount = projects.Count(project => project.CostRd.IsAvailable),
++            TotalIpaCostInRupees = projects.Sum(project => project.IpaCost.AmountInRupees ?? 0m),
++            IpaCostRecordedCount = projects.Count(project => project.IpaCost.IsAvailable),
+             TotalProliferationCostInRupees = projects.Sum(project => project.ProliferationCost.AmountInRupees ?? 0m),
+             ProliferationCostRecordedCount = projects.Count(project => project.ProliferationCost.IsAvailable),
+             MissingExternalStatusCount = projects.Count(project => string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal)),
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -83,7 +83,7 @@
+                 var showBranding = ShouldShowBranding(data.BrandingScope, plans[index].Kind);
+                 var canvas = new SlideCanvas(slidePart, theme, branding, showBranding);
+                 plans[index].Render(canvas);
+-                AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind == SlidePlanKind.Cover);
++                AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind);
+                 canvas.Commit();
+ 
+                 slideIdList.Append(new SlideId
+@@ -301,6 +301,33 @@
+                 canvas.Theme.TextMuted,
+                 true,
+                 "l");
++        }
++
++        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
++        {
++            AddCostSummaryCard(
++                canvas,
++                .65,
++                3.42,
++                5.86,
++                "TOTAL R&D COST",
++                data.Summary.TotalCostRdInRupees,
++                data.Summary.CostRdRecordedCount,
++                data.Summary.ProjectCount,
++                canvas.Theme.Accent,
++                canvas.Theme.AccentSoft);
++            AddCostSummaryCard(
++                canvas,
++                6.82,
++                3.42,
++                5.86,
++                "TOTAL IPA COST",
++                data.Summary.TotalIpaCostInRupees,
++                data.Summary.IpaCostRecordedCount,
++                data.Summary.ProjectCount,
++                canvas.Theme.SecondaryAccent,
++                canvas.Theme.SecondaryAccentSoft);
++            return;
+         }
+ 
+         var showRd = data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+@@ -1497,15 +1524,25 @@
+         ProjectBriefingPresentationData data,
+         int slideNumber,
+         int slideCount,
+-        bool isCover)
+-    {
+-        if (isCover)
++        SlidePlanKind kind)
++    {
++        if (kind == SlidePlanKind.Cover)
+         {
+             return;
+         }
+ 
+         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
+-        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
++        var footerTextX = .65;
++        var footerTextWidth = 5.55;
++        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
++            && kind == SlidePlanKind.Project
++            && canvas.ShowBranding)
++        {
++            canvas.AddBrandingImages(HeaderVariant.FooterCompact);
++            footerTextX = .92;
++            footerTextWidth = 5.28;
++        }
++        canvas.AddText(footerTextX, 7.12, footerTextWidth, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
+         if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
+         {
+             canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
+@@ -1620,7 +1657,8 @@
+     private enum HeaderVariant
+     {
+         Cover,
+-        Standard
++        Standard,
++        FooterCompact
+     }
+ 
+     private sealed record DetailedSlideLayout(double PhotoHeight);
+@@ -1723,6 +1761,15 @@
+         public void AddBrandingImages(HeaderVariant variant)
+         {
+             if (!ShowBranding) return;
++
++            if (variant == HeaderVariant.FooterCompact)
++            {
++                if (_branding.LeftLogo is { Length: > 0 })
++                {
++                    AddImageContained(_branding.LeftLogo, .66, 7.09, .19, .19, "Compact footer insignia");
++                }
++                return;
++            }
+ 
+             if (variant == HeaderVariant.Cover)
+             {
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+@@ -33,8 +33,7 @@
+         SlideCanvas canvas,
+         ProjectBriefingPresentationProject project)
+     {
+-        const string headerRed = "B5122B";
+-        const string headerRedDark = "8F0D21";
++        const string accent = "8F0D21";
+         const string white = "FFFFFF";
+         const string text = "172033";
+         const string muted = "5C667A";
+@@ -44,20 +43,30 @@
+         const string bodyFill = "FFFFFF";
+ 
+         canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
+-        canvas.AddRect(0, 0, SlideWidth, .10, headerRedDark);
+-        canvas.AddRect(.46, .24, 12.41, .68, headerRed, headerRedDark, .8, "Project update title band");
++        canvas.AddRect(0, 0, SlideWidth, .07, accent, name: "Project sheet top accent");
+         canvas.AddText(
+-            1.04,
+-            .34,
+-            11.25,
+-            .46,
+-            project.ProjectName.ToUpperInvariant(),
++            .55,
++            .17,
++            2.40,
++            .17,
++            "PROJECT UPDATE SHEET",
++            7.8,
++            accent,
++            true,
++            "l",
++            name: "Project sheet label");
++        canvas.AddText(
++            .55,
++            .36,
++            12.23,
++            .42,
++            project.ProjectName,
+             UpdateSheetTitleFontSize(project.ProjectName),
+-            white,
++            text,
+             true,
+-            "ctr",
++            "l",
+             name: "Project name");
+-        canvas.AddBrandingImages(HeaderVariant.Standard);
++        canvas.AddLine(.55, .92, 12.78, .92, border, .65);
+ 
+         var rows = BuildProjectUpdateRows(project, text, muted, serialFill, labelFill, bodyFill);
+         var heights = new[] { .31, .31, .34, .46, .31, .50, .31, .48, .31, .31 };
+@@ -156,8 +165,7 @@
+             FieldValue("DFPDS", project.DfpdsSchedule),
+             FieldValue("CFA", project.Cfa)
+         });
+-        var supplyOrder = $"{FormatDate(project.SupplyOrderDate)}\n{DisplayOrNotRecorded(
+-            project.JdpNames.Count == 0 ? null : string.Join("; ", project.JdpNames))}";
++        var supplyOrder = BuildSupplyOrderDisplay(project.SupplyOrderDate, project.JdpNames);
+ 
+         var values = new (string Label, string Value, double FontSize)[]
+         {
+@@ -213,6 +221,30 @@
+             .ToArray();
+     }
+ 
++    private static string BuildSupplyOrderDisplay(
++        DateOnly? supplyOrderDate,
++        IReadOnlyList<string> jdpNames)
++    {
++        var hasDate = supplyOrderDate.HasValue;
++        var firms = jdpNames
++            .Where(name => !string.IsNullOrWhiteSpace(name))
++            .Select(name => name.Trim())
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++
++        if (!hasDate && firms.Length == 0)
++        {
++            return "Not recorded";
++        }
++
++        var lines = new List<string>(2)
++        {
++            hasDate ? FormatDate(supplyOrderDate) : "SO date: Not recorded",
++            firms.Length > 0 ? string.Join("; ", firms) : "Firm: Not recorded"
++        };
++        return string.Join("\n", lines);
++    }
++
+     private static string FieldValue(string label, string? value)
+         => $"{label}: {DisplayOrNotRecorded(value)}";
+ 
+@@ -225,10 +257,10 @@
+     private static double UpdateSheetTitleFontSize(string title)
+         => title.Length switch
+         {
+-            <= 52 => 19.0,
+-            <= 72 => 17.0,
++            <= 52 => 18.2,
++            <= 72 => 16.6,
+             <= 94 => 15.0,
+-            _ => 13.2
++            _ => 13.4
+         };
+ 
+     private static double UpdateSheetStatusFontSize(string status)
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -454,6 +454,7 @@
+             PresentStage = "Development",
+             PresentStageOrder = ProjectBriefingStageOrder.Development,
+             CostRd = new ProjectBriefingCostValue(7_400_000m, ProjectBriefingCostBasis.L1, "₹0.74 Cr", "L1"),
++            IpaCost = new ProjectBriefingCostValue(8_000_000m, ProjectBriefingCostBasis.IPA, "₹0.8 Cr", "IPA"),
+             ProliferationCost = new ProjectBriefingCostValue(6_200_000m, ProjectBriefingCostBasis.Proliferation, "₹0.62 Cr", "Proliferation"),
+             ArppReference = "ARPP/IR&D/CU/2026-27/14",
+             Fund = "IR&D",
+@@ -478,7 +479,7 @@
+             CostMode = ProjectBriefingCostMode.Both,
+             NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
+             PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark,
+-            BrandingScope = ProjectBriefingBrandingScope.None,
++            BrandingScope = ProjectBriefingBrandingScope.AllSlides,
+             IncludeCoverSlide = false,
+             IncludePortfolioSummarySlide = false,
+             GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
+@@ -488,7 +489,9 @@
+                 ProjectCount = 1,
+                 OngoingCount = 1,
+                 TotalCostRdInRupees = 7_400_000m,
+-                CostRdRecordedCount = 1
++                CostRdRecordedCount = 1,
++                TotalIpaCostInRupees = 8_000_000m,
++                IpaCostRecordedCount = 1
+             }
+         };
+ 
+@@ -503,7 +506,8 @@
+         var slide = Assert.Single(presentationPart.SlideParts);
+         var text = SlideText(slide);
+ 
+-        Assert.Contains("TOUCH SCREEN BASED SIMULATOR", text, StringComparison.Ordinal);
++        Assert.Contains("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
++        Assert.Contains("Touch Screen Based Simulator", text, StringComparison.Ordinal);
+         Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
+         Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
+         Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
+@@ -515,6 +519,8 @@
+         Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
+         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
+         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
++        Assert.DoesNotContain("B5122B", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
++        Assert.Single(slide.ImageParts);
+         Assert.Single(slide.Slide.Descendants<A.Table>());
+     }
+ 
+@@ -586,7 +592,11 @@
+             Summary = new ProjectBriefingPresentationSummary
+             {
+                 ProjectCount = 1,
+-                OngoingCount = 1
++                OngoingCount = 1,
++                TotalCostRdInRupees = 7_400_000m,
++                CostRdRecordedCount = 1,
++                TotalIpaCostInRupees = 8_000_000m,
++                IpaCostRecordedCount = 1
+             }
+         };
+ 
+@@ -601,7 +611,11 @@
+             .ToArray();
+         Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
+         Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
+-        Assert.Contains("UPDATE SHEET PROJECT", slideTexts[2], StringComparison.Ordinal);
++        Assert.Contains("TOTAL R&D COST", slideTexts[1], StringComparison.Ordinal);
++        Assert.Contains("TOTAL IPA COST", slideTexts[1], StringComparison.Ordinal);
++        Assert.Contains("₹0.74 Cr", slideTexts[1], StringComparison.Ordinal);
++        Assert.Contains("₹0.8 Cr", slideTexts[1], StringComparison.Ordinal);
++        Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
+     }
+ 
+     private static ProjectBriefingPresentationProject BriefingProject(
+@@ -622,6 +636,7 @@
+             PresentStage = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : stageCode,
+             PresentStageOrder = stageOrder,
+             CostRd = ProjectBriefingCostValue.Missing(),
++            IpaCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
+             ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+             ExternalStatus = "Status recorded.",
+             BriefDescription = "Capability description for ordering regression coverage.",
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -48,6 +48,9 @@
+         var ipa = source.IndexOf("ipa.TryGetValue", StringComparison.Ordinal);
+ 
+         Assert.True(l1 >= 0 && aon > l1 && ipa > aon, "Cost (R&D) resolution must remain L1 → AoN → IPA.");
++        Assert.Contains("ResolveCostsAsync", source, StringComparison.Ordinal);
++        Assert.Contains("ProjectBriefingResolvedCosts", source, StringComparison.Ordinal);
++        Assert.Contains("ProjectBriefingCostBasis.IPA", source, StringComparison.Ordinal);
+         Assert.Contains("ProjectProductionCostFacts", source, StringComparison.Ordinal);
+         Assert.Contains("ProjectBriefingCostBasis.Proliferation", source, StringComparison.Ordinal);
+     }
+@@ -90,8 +93,25 @@
+         Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
+         Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
+         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
+-    }
+-
++        Assert.Contains("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
++        Assert.DoesNotContain("B5122B", composer, StringComparison.OrdinalIgnoreCase);
++        Assert.DoesNotContain("AddBrandingImages", composer, StringComparison.Ordinal);
++    }
++
++
++
++    [Fact]
++    public void ProjectUpdateSheet_PortfolioSummaryShowsSeparateRdAndAuthoritativeIpaTotals()
++    {
++        var dataSource = Read("ProjectBriefingDataService.cs");
++        var composer = Read("ProjectBriefingSlideComposer.cs");
++
++        Assert.Contains("TotalIpaCostInRupees", dataSource, StringComparison.Ordinal);
++        Assert.Contains("IpaCostRecordedCount", dataSource, StringComparison.Ordinal);
++        Assert.Contains("TOTAL R&D COST", composer, StringComparison.Ordinal);
++        Assert.Contains("TOTAL IPA COST", composer, StringComparison.Ordinal);
++        Assert.Contains("ProjectBriefingLayout.ProjectUpdateSheet", composer, StringComparison.Ordinal);
++    }
  
      [Fact]
      public void SharedDecks_AreCommandWorkspaceWideAndTrackLastModifier()
-diff -ruN a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs	2026-07-29 01:48:57.510480099 +0000
-@@ -439,6 +439,171 @@
-         Assert.Contains("AoN project", detailTexts[3], StringComparison.Ordinal);
-     }
- 
-+    [Fact]
-+    public void Compose_ProjectUpdateSheet_CreatesSingleEditableWidescreenProjectSheet()
-+    {
-+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-+        var project = new ProjectBriefingPresentationProject
-+        {
-+            ProjectId = 701,
-+            ProjectName = "Touch Screen Based Simulator for OSAAK Missile System",
-+            LifecycleStatus = ProjectLifecycleStatus.Active,
-+            LifecycleDisplay = "Ongoing",
-+            PresentStageCode = StageCodes.DEVP,
-+            PresentStage = "Development",
-+            PresentStageOrder = ProjectBriefingStageOrder.Development,
-+            CostRd = new ProjectBriefingCostValue(7_400_000m, ProjectBriefingCostBasis.L1, "₹0.74 Cr", "L1"),
-+            ProliferationCost = new ProjectBriefingCostValue(6_200_000m, ProjectBriefingCostBasis.Proliferation, "₹0.62 Cr", "Proliferation"),
-+            ArppReference = "ARPP/IR&D/CU/2026-27/14",
-+            Fund = "IR&D",
-+            DfpdsSchedule = "9.3",
-+            Cfa = "Comdt SDD",
-+            AonDate = new DateOnly(2024, 9, 20),
-+            SupplyOrderDate = new DateOnly(2024, 12, 14),
-+            DevelopmentPdcDate = new DateOnly(2025, 12, 4),
-+            JdpNames = new[] { "Example Defence Technologies Pvt Ltd" },
-+            ExternalStatus = "Project development is progressing as per the approved plan.",
-+            ProjectOfficer = "Lt Col Udit Agarwal",
-+            LineDirectorate = "DG AAD",
-+            ProjectBrief = "The simulator provides realistic weapon-system training without expenditure of operational ammunition.",
-+            SortOrder = 1
-+        };
-+        var data = new ProjectBriefingPresentationData
-+        {
-+            DeckId = 701,
-+            DeckName = "Formal Project Update",
-+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
-+            PresentationMode = ProjectBriefingPresentationMode.Combined,
-+            CostMode = ProjectBriefingCostMode.Both,
-+            NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
-+            PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark,
-+            BrandingScope = ProjectBriefingBrandingScope.None,
-+            IncludeCoverSlide = false,
-+            IncludePortfolioSummarySlide = false,
-+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
-+            Projects = new[] { project },
-+            Summary = new ProjectBriefingPresentationSummary
-+            {
-+                ProjectCount = 1,
-+                OngoingCount = 1,
-+                TotalCostRdInRupees = 7_400_000m,
-+                CostRdRecordedCount = 1
-+            }
-+        };
-+
-+        var (content, slideCount) = composer.Compose(data);
-+
-+        Assert.Equal(1, slideCount);
-+        using var stream = new MemoryStream(content, writable: false);
-+        using var document = PresentationDocument.Open(stream, false);
-+        var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
-+        Assert.Equal(12192000, presentationPart.Presentation.SlideSize?.Cx?.Value);
-+        Assert.Equal(6858000, presentationPart.Presentation.SlideSize?.Cy?.Value);
-+        var slide = Assert.Single(presentationPart.SlideParts);
-+        var text = SlideText(slide);
-+
-+        Assert.Contains("TOUCH SCREEN BASED SIMULATOR", text, StringComparison.Ordinal);
-+        Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
-+        Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
-+        Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
-+        Assert.Contains("20 Sep 24", text, StringComparison.Ordinal);
-+        Assert.Contains("Example Defence Technologies", text, StringComparison.Ordinal);
-+        Assert.Contains("04 Dec 25", text, StringComparison.Ordinal);
-+        Assert.Contains("Lt Col Udit Agarwal", text, StringComparison.Ordinal);
-+        Assert.Contains("DG AAD", text, StringComparison.Ordinal);
-+        Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
-+        Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
-+        Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
-+        Assert.Single(slide.Slide.Descendants<A.Table>());
-+    }
-+
-+    [Fact]
-+    public void Compose_ProjectUpdateSheet_LeavesPdcBlankOutsideDevelopmentStage()
-+    {
-+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-+        var project = new ProjectBriefingPresentationProject
-+        {
-+            ProjectId = 703,
-+            ProjectName = "AoN Stage Project",
-+            LifecycleStatus = ProjectLifecycleStatus.Active,
-+            LifecycleDisplay = "Ongoing",
-+            PresentStageCode = StageCodes.AON,
-+            PresentStage = "Acceptance of Necessity",
-+            PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
-+            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.Aon, "₹1.00 Cr", "AoN"),
-+            DevelopmentPdcDate = new DateOnly(2030, 1, 15),
-+            ProjectBrief = "Concise project brief.",
-+            SortOrder = 1
-+        };
-+        var data = new ProjectBriefingPresentationData
-+        {
-+            DeckId = 703,
-+            DeckName = "PDC Rule",
-+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
-+            BrandingScope = ProjectBriefingBrandingScope.None,
-+            IncludeCoverSlide = false,
-+            IncludePortfolioSummarySlide = false,
-+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
-+            Projects = new[] { project },
-+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
-+        };
-+
-+        var (content, slideCount) = composer.Compose(data);
-+
-+        Assert.Equal(1, slideCount);
-+        using var stream = new MemoryStream(content, writable: false);
-+        using var document = PresentationDocument.Open(stream, false);
-+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
-+        var text = SlideText(slide);
-+        Assert.Contains("PDC Date", text, StringComparison.Ordinal);
-+        Assert.DoesNotContain("15 Jan 30", text, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void Compose_ProjectUpdateSheet_RespectsOptionalIntroductorySlides()
-+    {
-+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-+        var project = BriefingProject(
-+            702,
-+            "Update sheet project",
-+            StageCodes.AON,
-+            ProjectBriefingStageOrder.AcceptanceOfNecessity,
-+            1,
-+            projectBrief: "Concise project brief.");
-+        var data = new ProjectBriefingPresentationData
-+        {
-+            DeckId = 702,
-+            DeckName = "Project Update Review",
-+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
-+            BrandingScope = ProjectBriefingBrandingScope.None,
-+            IncludeCoverSlide = true,
-+            IncludePortfolioSummarySlide = true,
-+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
-+            Projects = new[] { project },
-+            Summary = new ProjectBriefingPresentationSummary
-+            {
-+                ProjectCount = 1,
-+                OngoingCount = 1
-+            }
-+        };
-+
-+        var (content, slideCount) = composer.Compose(data);
-+
-+        Assert.Equal(3, slideCount);
-+        using var stream = new MemoryStream(content, writable: false);
-+        using var document = PresentationDocument.Open(stream, false);
-+        var slideTexts = Assert.IsType<PresentationPart>(document.PresentationPart)
-+            .SlideParts
-+            .Select(SlideText)
-+            .ToArray();
-+        Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
-+        Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
-+        Assert.Contains("UPDATE SHEET PROJECT", slideTexts[2], StringComparison.Ordinal);
-+    }
-+
-     private static ProjectBriefingPresentationProject BriefingProject(
-         int id,
-         string name,
-diff -ruN a/ProjectManagement.Tests/ProjectManagement.Tests.csproj b/ProjectManagement.Tests/ProjectManagement.Tests.csproj
---- a/ProjectManagement.Tests/ProjectManagement.Tests.csproj	2026-07-28 17:41:04.000000000 +0000
-+++ b/ProjectManagement.Tests/ProjectManagement.Tests.csproj	2026-07-29 01:51:25.542485393 +0000
-@@ -157,6 +157,9 @@
-     <None Include="..\Services\ProjectBriefings\ProjectBriefingExternalStatusService.cs"
-           Link="TestData\ProjectBriefing\ProjectBriefingExternalStatusService.cs"
-           CopyToOutputDirectory="PreserveNewest" />
-+    <None Include="..\Services\ProjectBriefings\ProjectBriefingUpdateSheetFactsResolver.cs"
-+          Link="TestData\ProjectBriefing\ProjectBriefingUpdateSheetFactsResolver.cs"
-+          CopyToOutputDirectory="PreserveNewest" />
-     <None Include="..\Services\ProjectBriefings\ProjectBriefingDeckService.cs"
-           Link="TestData\ProjectBriefing\ProjectBriefingDeckService.cs"
-           CopyToOutputDirectory="PreserveNewest" />
-@@ -169,6 +172,9 @@
-     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.cs"
-           Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.cs"
-           CopyToOutputDirectory="PreserveNewest" />
-+    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.UpdateSheet.cs"
-+          Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.UpdateSheet.cs"
-+          CopyToOutputDirectory="PreserveNewest" />
-     <None Include="..\Resources\ProjectBriefing\ProjectBriefingTemplate.pptx"
-           Link="TestData\ProjectBriefing\PresentationRoot\Resources\ProjectBriefing\ProjectBriefingTemplate.pptx"
-           CopyToOutputDirectory="PreserveNewest" />
-diff -ruN a/Services/ProjectBriefings/Presentation/ProjectBriefingPowerPointExportService.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingPowerPointExportService.cs
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingPowerPointExportService.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingPowerPointExportService.cs	2026-07-29 01:11:32.658399817 +0000
-@@ -34,8 +34,9 @@
-         CancellationToken cancellationToken = default)
-     {
-         var data = await _dataService.BuildPresentationDataAsync(deckId, requestingUserId, cancellationToken);
--        if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
--            or ProjectBriefingPresentationMode.Combined)
-+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+            || data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
-+                or ProjectBriefingPresentationMode.Combined)
-         {
-             await AttachPhotosAsync(data, cancellationToken);
-         }
-diff -ruN a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs	1970-01-01 00:00:00.000000000 +0000
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs	2026-07-29 01:51:25.542485393 +0000
-@@ -0,0 +1,253 @@
-+using System.Globalization;
-+using ProjectManagement.Models.ProjectBriefings;
-+using ProjectManagement.Models.Stages;
-+using ProjectManagement.Services.ProjectBriefings;
-+
-+namespace ProjectManagement.Services.ProjectBriefings.Presentation;
-+
-+public sealed partial class ProjectBriefingSlideComposer
-+{
-+    private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
-+    {
-+        var plans = new List<SlidePlan>();
-+        if (data.IncludeCoverSlide)
-+        {
-+            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
-+        }
-+        if (data.IncludePortfolioSummarySlide)
-+        {
-+            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
-+        }
-+
-+        foreach (var project in OrderProjects(data.Projects))
-+        {
-+            var capturedProject = project;
-+            plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-+                RenderProjectUpdateSheet(canvas, capturedProject)));
-+        }
-+
-+        return plans;
-+    }
-+
-+    private static void RenderProjectUpdateSheet(
-+        SlideCanvas canvas,
-+        ProjectBriefingPresentationProject project)
-+    {
-+        const string headerRed = "B5122B";
-+        const string headerRedDark = "8F0D21";
-+        const string white = "FFFFFF";
-+        const string text = "172033";
-+        const string muted = "5C667A";
-+        const string border = "B8C0CC";
-+        const string labelFill = "EDF1F6";
-+        const string serialFill = "F7F8FA";
-+        const string bodyFill = "FFFFFF";
-+
-+        canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
-+        canvas.AddRect(0, 0, SlideWidth, .10, headerRedDark);
-+        canvas.AddRect(.46, .24, 12.41, .68, headerRed, headerRedDark, .8, "Project update title band");
-+        canvas.AddText(
-+            1.04,
-+            .34,
-+            11.25,
-+            .46,
-+            project.ProjectName.ToUpperInvariant(),
-+            UpdateSheetTitleFontSize(project.ProjectName),
-+            white,
-+            true,
-+            "ctr",
-+            name: "Project name");
-+        canvas.AddBrandingImages(HeaderVariant.Standard);
-+
-+        var rows = BuildProjectUpdateRows(project, text, muted, serialFill, labelFill, bodyFill);
-+        var heights = new[] { .31, .31, .34, .46, .31, .50, .31, .48, .31, .31 };
-+        canvas.AddNativeTable(
-+            .50,
-+            1.08,
-+            new[] { .34, 1.78, 4.15 },
-+            heights,
-+            rows,
-+            "Project update facts table");
-+
-+        const double photoX = 7.02;
-+        const double photoY = 1.08;
-+        const double photoWidth = 5.81;
-+        const double photoHeight = 3.64;
-+        canvas.AddRect(photoX, photoY, photoWidth, photoHeight, "F7F8FA", border, .8, "Project photograph frame");
-+        if (project.CoverPhoto is { Length: > 0 })
-+        {
-+            const double inset = .10;
-+            var maximumWidth = photoWidth - (inset * 2);
-+            var maximumHeight = photoHeight - (inset * 2);
-+            var imageWidth = Math.Min(maximumWidth, maximumHeight * 16d / 9d);
-+            var imageHeight = imageWidth * 9d / 16d;
-+            canvas.AddImage(
-+                project.CoverPhoto,
-+                project.CoverPhotoContentType,
-+                photoX + ((photoWidth - imageWidth) / 2d),
-+                photoY + ((photoHeight - imageHeight) / 2d),
-+                imageWidth,
-+                imageHeight,
-+                $"{project.ProjectName} photograph");
-+        }
-+        else
-+        {
-+            canvas.AddText(
-+                photoX + .35,
-+                photoY + 1.44,
-+                photoWidth - .70,
-+                .55,
-+                "PHOTOGRAPH NOT AVAILABLE",
-+                10.5,
-+                muted,
-+                true,
-+                "ctr",
-+                name: "Photograph not available");
-+        }
-+
-+        const double briefY = 4.91;
-+        const double briefHeight = 2.02;
-+        canvas.AddRect(.50, briefY, 12.33, briefHeight, white, border, .8, "Project brief panel");
-+        canvas.AddRect(.50, briefY, 12.33, .31, labelFill, border, .8, "Project brief heading");
-+        canvas.AddText(
-+            .68,
-+            briefY + .02,
-+            11.95,
-+            .26,
-+            "BRIEF OF THE PROJECT",
-+            10.2,
-+            text,
-+            true,
-+            "l",
-+            name: "Project brief heading text");
-+        canvas.AddRichTextBox(
-+            .66,
-+            briefY + .39,
-+            12.02,
-+            briefHeight - .49,
-+            BuildUpdateSheetBriefParagraphs(project.ProjectBrief, text, muted),
-+            "Project brief",
-+            verticalAnchor: "t",
-+            allowAutoFit: true,
-+            leftInset: .03,
-+            rightInset: .03,
-+            topInset: .01,
-+            bottomInset: .01);
-+    }
-+
-+    private static IReadOnlyList<IReadOnlyList<NativeTableCell>> BuildProjectUpdateRows(
-+        ProjectBriefingPresentationProject project,
-+        string text,
-+        string muted,
-+        string serialFill,
-+        string labelFill,
-+        string bodyFill)
-+    {
-+        var pdc = string.Equals(project.PresentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
-+            ? FormatDate(project.DevelopmentPdcDate)
-+            : string.Empty;
-+        var status = string.IsNullOrWhiteSpace(project.ExternalStatus)
-+            || string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.OrdinalIgnoreCase)
-+                ? "Not recorded"
-+                : project.ExternalStatus.Trim();
-+        var arppDetails = string.Join(" · ", new[]
-+        {
-+            FieldValue("Fund", project.Fund),
-+            FieldValue("DFPDS", project.DfpdsSchedule),
-+            FieldValue("CFA", project.Cfa)
-+        });
-+        var supplyOrder = $"{FormatDate(project.SupplyOrderDate)}\n{DisplayOrNotRecorded(
-+            project.JdpNames.Count == 0 ? null : string.Join("; ", project.JdpNames))}";
-+
-+        var values = new (string Label, string Value, double FontSize)[]
-+        {
-+            ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2),
-+            ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2),
-+            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8),
-+            ("Fund, DFPDS Sch and CFA", arppDetails, 8.2),
-+            ("AoN Date", FormatDate(project.AonDate), 9.0),
-+            ("SO Date and Name of Firm", supplyOrder, 8.3),
-+            ("PDC Date", pdc, 9.0),
-+            ("Present Status", status, UpdateSheetStatusFontSize(status)),
-+            ("Project Officer", DisplayOrNotRecorded(project.ProjectOfficer), 8.8),
-+            ("Line Directorate", DisplayOrNotRecorded(project.LineDirectorate), 8.8)
-+        };
-+
-+        return values.Select((row, index) => (IReadOnlyList<NativeTableCell>)new[]
-+        {
-+            Cell((index + 1).ToString(CultureInfo.InvariantCulture) + ".", 8.8, muted, false, "ctr", serialFill),
-+            Cell(row.Label, 8.7, text, false, "l", labelFill),
-+            Cell(row.Value, row.FontSize, text, false, "l", bodyFill)
-+        }).ToArray();
-+    }
-+
-+    private static IReadOnlyList<RichTextParagraph> BuildUpdateSheetBriefParagraphs(
-+        string? projectBrief,
-+        string text,
-+        string muted)
-+    {
-+        var isMissing = string.IsNullOrWhiteSpace(projectBrief)
-+            || string.Equals(projectBrief.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
-+        if (isMissing)
-+        {
-+            return new[]
-+            {
-+                new RichTextParagraph(
-+                    new[] { new RichTextRun("Project brief not recorded.", 11.2, muted, Italic: true) },
-+                    LineSpacingPoints: 13.2)
-+            };
-+        }
-+
-+        var normalized = projectBrief!
-+            .Replace("\r\n", "\n", StringComparison.Ordinal)
-+            .Replace("\r", "\n", StringComparison.Ordinal);
-+        var fontSize = UpdateSheetBriefFontSize(normalized.Length);
-+        var lineSpacing = Math.Max(fontSize + 1.5, 8.0);
-+
-+        return normalized
-+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-+            .Select(paragraph => new RichTextParagraph(
-+                new[] { new RichTextRun(paragraph.Replace("\n", " ", StringComparison.Ordinal), fontSize, text) },
-+                SpaceAfterPoints: Math.Max(2.5, fontSize * .42),
-+                LineSpacingPoints: lineSpacing))
-+            .ToArray();
-+    }
-+
-+    private static string FieldValue(string label, string? value)
-+        => $"{label}: {DisplayOrNotRecorded(value)}";
-+
-+    private static string DisplayOrNotRecorded(string? value)
-+        => string.IsNullOrWhiteSpace(value) ? "Not recorded" : value.Trim();
-+
-+    private static string FormatDate(DateOnly? value)
-+        => value.HasValue ? value.Value.ToString("dd MMM yy", CultureInfo.InvariantCulture) : "Not recorded";
-+
-+    private static double UpdateSheetTitleFontSize(string title)
-+        => title.Length switch
-+        {
-+            <= 52 => 19.0,
-+            <= 72 => 17.0,
-+            <= 94 => 15.0,
-+            _ => 13.2
-+        };
-+
-+    private static double UpdateSheetStatusFontSize(string status)
-+        => status.Length switch
-+        {
-+            <= 90 => 8.0,
-+            <= 150 => 7.4,
-+            <= 230 => 6.8,
-+            _ => 6.2
-+        };
-+
-+    private static double UpdateSheetBriefFontSize(int characterCount)
-+        => characterCount switch
-+        {
-+            <= 650 => 10.8,
-+            <= 1_000 => 9.8,
-+            <= 1_500 => 8.8,
-+            <= 2_100 => 7.8,
-+            _ => 6.8
-+        };
-+
-+}
-diff -ruN a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs	2026-07-29 01:51:25.542485393 +0000
-@@ -11,7 +11,7 @@
- 
- namespace ProjectManagement.Services.ProjectBriefings.Presentation;
- 
--public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
-+public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
- {
-     private const double SlideWidth = 13.333333;
-     private const double SlideHeight = 7.5;
-@@ -68,7 +68,10 @@
-             }
- 
-             uint nextSlideId = 256;
--            var theme = ProjectBriefingThemeCatalog.Resolve(data.PresentationTheme);
-+            var theme = ProjectBriefingThemeCatalog.Resolve(
-+                data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+                    ? ProjectBriefingPresentationTheme.EditorialLight
-+                    : data.PresentationTheme);
-             var branding = new ProjectBriefingBrandingAssets(
-                 ReadAsset(_leftLogoPath),
-                 ReadAsset(_rightLogoPath));
-@@ -92,7 +95,9 @@
- 
-             presentationPart.Presentation.Save();
-             document.PackageProperties.Title = data.DeckName;
--            document.PackageProperties.Subject = "Professional project briefing deck";
-+            document.PackageProperties.Subject = data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+                ? "Formal project update sheets"
-+                : "Professional project briefing deck";
-             document.PackageProperties.Creator = "Simulator Development Division";
-             document.PackageProperties.LastModifiedBy = "Project Briefing Deck Builder";
-             document.PackageProperties.Modified = data.GeneratedAtUtc.UtcDateTime;
-@@ -102,13 +107,22 @@
-     }
- 
-     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
-+        => data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+            ? BuildProjectUpdateSheetPlans(data)
-+            : BuildStandardPlans(data);
-+
-+    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
-     {
-         var orderedProjects = OrderProjects(data.Projects);
--        var plans = new List<SlidePlan>
-+        var plans = new List<SlidePlan>();
-+        if (data.IncludeCoverSlide)
-+        {
-+            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
-+        }
-+        if (data.IncludePortfolioSummarySlide)
-         {
--            new(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)),
--            new(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data))
--        };
-+            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
-+        }
- 
-         if (data.IncludeStageSummary)
-         {
-diff -ruN a/Services/ProjectBriefings/ProjectBriefingContracts.cs b/Services/ProjectBriefings/ProjectBriefingContracts.cs
---- a/Services/ProjectBriefings/ProjectBriefingContracts.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs	2026-07-29 01:07:04.610390230 +0000
-@@ -52,6 +52,7 @@
-     public long Id { get; init; }
-     public string Name { get; init; } = string.Empty;
-     public string? Description { get; init; }
-+    public ProjectBriefingLayout Layout { get; init; } = ProjectBriefingLayout.StandardBriefing;
-     public ProjectBriefingPresentationMode PresentationMode { get; init; }
-     public ProjectBriefingCostMode CostMode { get; init; }
-     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
-@@ -60,6 +61,8 @@
-         = ProjectBriefingPresentationTheme.EditorialLight;
-     public ProjectBriefingBrandingScope BrandingScope { get; init; }
-         = ProjectBriefingBrandingScope.AllSlides;
-+    public bool IncludeCoverSlide { get; init; } = true;
-+    public bool IncludePortfolioSummarySlide { get; init; } = true;
-     public bool IncludeStageSummary { get; init; }
-     public bool IncludeProjectCategorySummary { get; init; }
-     public bool IncludeTechnicalCategorySummary { get; init; }
-@@ -98,6 +101,20 @@
-     public string ProjectBrief { get; init; } = string.Empty;
-     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
-     public string? BriefDescriptionOverride { get; init; }
-+    public string? ArppReference { get; init; }
-+    public string? Fund { get; init; }
-+    public string? DfpdsSchedule { get; init; }
-+    public string? Cfa { get; init; }
-+    public DateOnly? AonDate { get; init; }
-+    public DateOnly? SupplyOrderDate { get; init; }
-+    public DateOnly? DevelopmentPdcDate { get; init; }
-+    public IReadOnlyList<string> JdpNames { get; init; } = Array.Empty<string>();
-+    public string? ProjectOfficer { get; init; }
-+    public bool ProjectOfficerIsComplete { get; init; }
-+    public string? LineDirectorate { get; init; }
-+    public bool HasCompleteArppDetails { get; init; }
-+    public bool IsDevelopmentPdcRequired { get; init; }
-+    public bool IsUpdateSheetCoreFactsReady { get; init; }
-     public int SortOrder { get; init; }
-     public string OpenUrl { get; init; } = string.Empty;
- }
-@@ -115,6 +132,15 @@
-     public int DescriptionAvailableCount { get; init; }
-     public int CapabilityOverviewAvailableCount { get; init; }
-     public int ProjectBriefAvailableCount { get; init; }
-+    public int UpdateSheetCoreFactsAvailableCount { get; init; }
-+    public int ArppDetailsAvailableCount { get; init; }
-+    public int AonDateAvailableCount { get; init; }
-+    public int SupplyOrderDateAvailableCount { get; init; }
-+    public int JdpAvailableCount { get; init; }
-+    public int DevelopmentProjectCount { get; init; }
-+    public int DevelopmentPdcAvailableCount { get; init; }
-+    public int ProjectOfficerAvailableCount { get; init; }
-+    public int LineDirectorateAvailableCount { get; init; }
- }
- 
- public sealed class ProjectBriefingSlideEstimateVm
-@@ -126,6 +152,7 @@
-     public int DetailedProjectSlides { get; init; }
-     public int CapabilityContinuationSlides { get; init; }
-     public int ProjectBriefSlides { get; init; }
-+    public int ProjectUpdateSheetSlides { get; init; }
- }
- 
- public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);
-@@ -189,11 +216,14 @@
- {
-     public string Name { get; init; } = string.Empty;
-     public string? Description { get; init; }
-+    public ProjectBriefingLayout Layout { get; init; } = ProjectBriefingLayout.StandardBriefing;
-     public ProjectBriefingPresentationMode PresentationMode { get; init; }
-     public ProjectBriefingCostMode CostMode { get; init; }
-     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
-     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
-     public ProjectBriefingBrandingScope BrandingScope { get; init; }
-+    public bool IncludeCoverSlide { get; init; } = true;
-+    public bool IncludePortfolioSummarySlide { get; init; } = true;
-     public bool IncludeStageSummary { get; init; }
-     public bool IncludeProjectCategorySummary { get; init; }
-     public bool IncludeTechnicalCategorySummary { get; init; }
-@@ -212,6 +242,7 @@
-     public long DeckId { get; init; }
-     public string DeckName { get; init; } = string.Empty;
-     public string? DeckDescription { get; init; }
-+    public ProjectBriefingLayout Layout { get; init; } = ProjectBriefingLayout.StandardBriefing;
-     public ProjectBriefingPresentationMode PresentationMode { get; init; }
-     public ProjectBriefingCostMode CostMode { get; init; }
-     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
-@@ -220,6 +251,8 @@
-         = ProjectBriefingPresentationTheme.EditorialLight;
-     public ProjectBriefingBrandingScope BrandingScope { get; init; }
-         = ProjectBriefingBrandingScope.AllSlides;
-+    public bool IncludeCoverSlide { get; init; } = true;
-+    public bool IncludePortfolioSummarySlide { get; init; } = true;
-     public bool IncludeStageSummary { get; init; }
-     public bool IncludeProjectCategorySummary { get; init; }
-     public bool IncludeTechnicalCategorySummary { get; init; }
-@@ -248,6 +281,16 @@
-     public string BriefDescription { get; init; } = string.Empty;
-     public string ProjectBrief { get; init; } = string.Empty;
-     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
-+    public string? ArppReference { get; init; }
-+    public string? Fund { get; init; }
-+    public string? DfpdsSchedule { get; init; }
-+    public string? Cfa { get; init; }
-+    public DateOnly? AonDate { get; init; }
-+    public DateOnly? SupplyOrderDate { get; init; }
-+    public DateOnly? DevelopmentPdcDate { get; init; }
-+    public IReadOnlyList<string> JdpNames { get; init; } = Array.Empty<string>();
-+    public string? ProjectOfficer { get; init; }
-+    public string? LineDirectorate { get; init; }
-     public int SortOrder { get; init; }
-     public int? CoverPhotoId { get; init; }
-     public bool CoverPhotoIsReady { get; init; }
-diff -ruN a/Services/ProjectBriefings/ProjectBriefingDataService.cs b/Services/ProjectBriefings/ProjectBriefingDataService.cs
---- a/Services/ProjectBriefings/ProjectBriefingDataService.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs	2026-07-29 01:43:27.442468295 +0000
-@@ -30,6 +30,7 @@
-     private readonly IProjectBriefingCostResolver _costResolver;
-     private readonly IProjectBriefingExternalStatusService _externalStatusService;
-     private readonly IProjectBriefingPhotoLoader _photoLoader;
-+    private readonly IProjectBriefingUpdateSheetFactsResolver _updateSheetFactsResolver;
-     private readonly IClock _clock;
- 
-     public ProjectBriefingDataService(
-@@ -37,12 +38,14 @@
-         IProjectBriefingCostResolver costResolver,
-         IProjectBriefingExternalStatusService externalStatusService,
-         IProjectBriefingPhotoLoader photoLoader,
-+        IProjectBriefingUpdateSheetFactsResolver updateSheetFactsResolver,
-         IClock clock)
-     {
-         _db = db ?? throw new ArgumentNullException(nameof(db));
-         _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
-         _externalStatusService = externalStatusService ?? throw new ArgumentNullException(nameof(externalStatusService));
-         _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
-+        _updateSheetFactsResolver = updateSheetFactsResolver ?? throw new ArgumentNullException(nameof(updateSheetFactsResolver));
-         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-     }
- 
-@@ -57,17 +60,20 @@
-             return null;
-         }
- 
--        var projects = await BuildProjectsAsync(snapshot.Items, cancellationToken);
-+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, cancellationToken);
-         return new ProjectBriefingDeckVm
-         {
-             Id = snapshot.Id,
-             Name = snapshot.Name,
-             Description = snapshot.Description,
-+            Layout = snapshot.Layout,
-             PresentationMode = snapshot.PresentationMode,
-             CostMode = snapshot.CostMode,
-             NarrativeMode = snapshot.NarrativeMode,
-             PresentationTheme = snapshot.PresentationTheme,
-             BrandingScope = snapshot.BrandingScope,
-+            IncludeCoverSlide = snapshot.IncludeCoverSlide,
-+            IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
-             IncludeStageSummary = snapshot.IncludeStageSummary,
-             IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
-             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
-@@ -78,9 +84,9 @@
-             LastModifiedByDisplay = snapshot.LastModifiedByDisplay,
-             Projects = projects,
-             Readiness = BuildReadiness(projects),
--            SlideEstimate = BuildSlideEstimate(snapshot.PresentationMode, snapshot.IncludeStageSummary,
--                snapshot.IncludeProjectCategorySummary, snapshot.IncludeTechnicalCategorySummary,
--                snapshot.CostMode, snapshot.NarrativeMode, projects)
-+            SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
-+                snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
-+                snapshot.IncludeTechnicalCategorySummary, snapshot.CostMode, snapshot.NarrativeMode, projects)
-         };
-     }
- 
-@@ -91,7 +97,7 @@
-     {
-         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
-             ?? throw new KeyNotFoundException("The saved deck was not found.");
--        var projectVms = await BuildProjectsAsync(snapshot.Items, cancellationToken);
-+        var projectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, cancellationToken);
-         if (projectVms.Count == 0)
-         {
-             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
-@@ -116,6 +122,16 @@
-                 BriefDescription = project.BriefDescription,
-                 ProjectBrief = project.ProjectBrief,
-                 CapabilityStatements = project.CapabilityStatements,
-+                ArppReference = project.ArppReference,
-+                Fund = project.Fund,
-+                DfpdsSchedule = project.DfpdsSchedule,
-+                Cfa = project.Cfa,
-+                AonDate = project.AonDate,
-+                SupplyOrderDate = project.SupplyOrderDate,
-+                DevelopmentPdcDate = project.DevelopmentPdcDate,
-+                JdpNames = project.JdpNames,
-+                ProjectOfficer = project.ProjectOfficer,
-+                LineDirectorate = project.LineDirectorate,
-                 SortOrder = project.SortOrder,
-                 CoverPhotoId = project.CoverPhotoId,
-                 CoverPhotoIsReady = project.HasCoverPhoto
-@@ -127,14 +143,23 @@
-             DeckId = snapshot.Id,
-             DeckName = snapshot.Name,
-             DeckDescription = snapshot.Description,
-+            Layout = snapshot.Layout,
-             PresentationMode = snapshot.PresentationMode,
--            CostMode = snapshot.CostMode,
--            NarrativeMode = snapshot.NarrativeMode,
--            PresentationTheme = snapshot.PresentationTheme,
-+            CostMode = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+                ? ProjectBriefingCostMode.CostRdOnly
-+                : snapshot.CostMode,
-+            NarrativeMode = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+                ? ProjectBriefingNarrativeMode.ProjectBrief
-+                : snapshot.NarrativeMode,
-+            PresentationTheme = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-+                ? ProjectBriefingPresentationTheme.EditorialLight
-+                : snapshot.PresentationTheme,
-             BrandingScope = snapshot.BrandingScope,
--            IncludeStageSummary = snapshot.IncludeStageSummary,
--            IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
--            IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
-+            IncludeCoverSlide = snapshot.IncludeCoverSlide,
-+            IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
-+            IncludeStageSummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeStageSummary,
-+            IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeProjectCategorySummary,
-+            IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeTechnicalCategorySummary,
-             HandlingMarking = snapshot.HandlingMarking,
-             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
-             Projects = projects,
-@@ -160,11 +185,14 @@
-                 candidate.Id,
-                 candidate.Name,
-                 candidate.Description,
-+                candidate.Layout,
-                 candidate.PresentationMode,
-                 candidate.CostMode,
-                 candidate.NarrativeMode,
-                 candidate.PresentationTheme,
-                 candidate.BrandingScope,
-+                candidate.IncludeCoverSlide,
-+                candidate.IncludePortfolioSummarySlide,
-                 candidate.IncludeStageSummary,
-                 candidate.IncludeProjectCategorySummary,
-                 candidate.IncludeTechnicalCategorySummary,
-@@ -215,11 +243,14 @@
-                 deck.Id,
-                 deck.Name,
-                 deck.Description,
-+                deck.Layout,
-                 deck.PresentationMode,
-                 deck.CostMode,
-                 deck.NarrativeMode,
-                 deck.PresentationTheme,
-                 deck.BrandingScope,
-+                deck.IncludeCoverSlide,
-+                deck.IncludePortfolioSummarySlide,
-                 deck.IncludeStageSummary,
-                 deck.IncludeProjectCategorySummary,
-                 deck.IncludeTechnicalCategorySummary,
-@@ -317,11 +348,14 @@
-             deck.Id,
-             deck.Name,
-             deck.Description,
-+            deck.Layout,
-             deck.PresentationMode,
-             deck.CostMode,
-             deck.NarrativeMode,
-             deck.PresentationTheme,
-             deck.BrandingScope,
-+            deck.IncludeCoverSlide,
-+            deck.IncludePortfolioSummarySlide,
-             deck.IncludeStageSummary,
-             deck.IncludeProjectCategorySummary,
-             deck.IncludeTechnicalCategorySummary,
-@@ -335,6 +369,7 @@
- 
-     private async Task<IReadOnlyList<ProjectBriefingProjectVm>> BuildProjectsAsync(
-         IReadOnlyList<DeckItemSnapshot> items,
-+        ProjectBriefingLayout layout,
-         CancellationToken cancellationToken)
-     {
-         if (items.Count == 0)
-@@ -344,8 +379,14 @@
- 
-         var projectIds = items.Select(item => item.ProjectId).Distinct().ToArray();
-         var costRd = await _costResolver.ResolveCostRdAsync(projectIds, cancellationToken);
--        var proliferation = await _costResolver.ResolveProliferationCostAsync(projectIds, cancellationToken);
-+        IReadOnlyDictionary<int, ProjectBriefingCostValue> proliferation =
-+            layout == ProjectBriefingLayout.ProjectUpdateSheet
-+                ? new Dictionary<int, ProjectBriefingCostValue>()
-+                : await _costResolver.ResolveProliferationCostAsync(projectIds, cancellationToken);
-         var externalStatuses = await _externalStatusService.GetLatestAsync(projectIds, cancellationToken);
-+        var updateSheetFacts = layout == ProjectBriefingLayout.ProjectUpdateSheet
-+            ? await _updateSheetFactsResolver.ResolveAsync(projectIds, cancellationToken)
-+            : new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
- 
-         var coverByProject = items.ToDictionary(item => item.ProjectId, ResolveCoverPhotoId);
-         var photoReferences = coverByProject
-@@ -363,6 +404,17 @@
-                     : null;
-                 var external = externalStatuses.GetValueOrDefault(item.ProjectId);
-                 var stageCode = ResolveStageCode(item);
-+                updateSheetFacts.TryGetValue(item.ProjectId, out var updateFacts);
-+                var requiresDevelopmentPdc = string.Equals(stageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
-+                var hasCompleteArppDetails = updateFacts?.HasCompleteArppDetails == true;
-+                var updateSheetCoreFactsReady = updateFacts is not null
-+                    && hasCompleteArppDetails
-+                    && updateFacts.AonDate.HasValue
-+                    && updateFacts.SupplyOrderDate.HasValue
-+                    && updateFacts.JdpNames.Count > 0
-+                    && updateFacts.ProjectOfficerIsComplete
-+                    && !string.IsNullOrWhiteSpace(updateFacts.LineDirectorate)
-+                    && (!requiresDevelopmentPdc || updateFacts.DevelopmentPdcDate.HasValue);
-                 return new ProjectBriefingProjectVm
-                 {
-                     ProjectId = item.ProjectId,
-@@ -391,6 +443,20 @@
-                     ProjectBrief = ProjectBriefingTextNormalizer.NormalizeProjectBrief(item.ProjectBrief),
-                     CapabilityStatements = item.CapabilityStatements,
-                     BriefDescriptionOverride = item.BriefDescriptionOverride,
-+                    ArppReference = updateFacts?.ArppReference,
-+                    Fund = updateFacts?.Fund,
-+                    DfpdsSchedule = updateFacts?.DfpdsSchedule,
-+                    Cfa = updateFacts?.Cfa,
-+                    AonDate = updateFacts?.AonDate,
-+                    SupplyOrderDate = updateFacts?.SupplyOrderDate,
-+                    DevelopmentPdcDate = requiresDevelopmentPdc ? updateFacts?.DevelopmentPdcDate : null,
-+                    JdpNames = updateFacts?.JdpNames ?? Array.Empty<string>(),
-+                    ProjectOfficer = updateFacts?.ProjectOfficer,
-+                    ProjectOfficerIsComplete = updateFacts?.ProjectOfficerIsComplete == true,
-+                    LineDirectorate = updateFacts?.LineDirectorate,
-+                    HasCompleteArppDetails = hasCompleteArppDetails,
-+                    IsDevelopmentPdcRequired = requiresDevelopmentPdc,
-+                    IsUpdateSheetCoreFactsReady = updateSheetCoreFactsReady,
-                     SortOrder = item.SortOrder,
-                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
-                 };
-@@ -424,7 +490,16 @@
-             SelectedCoverPhotoCount = projects.Count(project => project.HasSelectedCoverPhoto),
-             DescriptionAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
-             CapabilityOverviewAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
--            ProjectBriefAvailableCount = projects.Count(project => HasProjectBrief(project.ProjectBrief))
-+            ProjectBriefAvailableCount = projects.Count(project => HasProjectBrief(project.ProjectBrief)),
-+            UpdateSheetCoreFactsAvailableCount = projects.Count(project => project.IsUpdateSheetCoreFactsReady),
-+            ArppDetailsAvailableCount = projects.Count(project => project.HasCompleteArppDetails),
-+            AonDateAvailableCount = projects.Count(project => project.AonDate.HasValue),
-+            SupplyOrderDateAvailableCount = projects.Count(project => project.SupplyOrderDate.HasValue),
-+            JdpAvailableCount = projects.Count(project => project.JdpNames.Count > 0),
-+            DevelopmentProjectCount = projects.Count(project => project.IsDevelopmentPdcRequired),
-+            DevelopmentPdcAvailableCount = projects.Count(project => project.IsDevelopmentPdcRequired && project.DevelopmentPdcDate.HasValue),
-+            ProjectOfficerAvailableCount = projects.Count(project => project.ProjectOfficerIsComplete),
-+            LineDirectorateAvailableCount = projects.Count(project => !string.IsNullOrWhiteSpace(project.LineDirectorate))
-         };
- 
-     private static bool HasCapabilityOverview(string? value)
-@@ -474,6 +549,9 @@
-     }
- 
-     private static ProjectBriefingSlideEstimateVm BuildSlideEstimate(
-+        ProjectBriefingLayout layout,
-+        bool includeCoverSlide,
-+        bool includePortfolioSummarySlide,
-         ProjectBriefingPresentationMode presentationMode,
-         bool includeStageSummary,
-         bool includeProjectCategorySummary,
-@@ -482,6 +560,17 @@
-         ProjectBriefingNarrativeMode narrativeMode,
-         IReadOnlyList<ProjectBriefingProjectVm> projects)
-     {
-+        var introductorySlides = (includeCoverSlide ? 1 : 0) + (includePortfolioSummarySlide ? 1 : 0);
-+        if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
-+        {
-+            return new ProjectBriefingSlideEstimateVm
-+            {
-+                CoverAndPortfolioSlides = introductorySlides,
-+                ProjectUpdateSheetSlides = projects.Count,
-+                TotalSlides = introductorySlides + projects.Count
-+            };
-+        }
-+
-         var summarySlides = includeStageSummary ? 2 : 0;
-         if (includeProjectCategorySummary)
-         {
-@@ -529,13 +618,13 @@
- 
-         return new ProjectBriefingSlideEstimateVm
-         {
--            CoverAndPortfolioSlides = 2,
-+            CoverAndPortfolioSlides = introductorySlides,
-             SummarySlides = summarySlides,
-             ExecutiveTableSlides = executiveSlides,
-             DetailedProjectSlides = detailSlides,
-             CapabilityContinuationSlides = capabilityContinuationSlides,
-             ProjectBriefSlides = projectBriefSlides,
--            TotalSlides = 2
-+            TotalSlides = introductorySlides
-                 + summarySlides
-                 + executiveSlides
-                 + detailSlides
-@@ -599,11 +688,14 @@
-         long Id,
-         string Name,
-         string? Description,
-+        ProjectBriefingLayout Layout,
-         ProjectBriefingPresentationMode PresentationMode,
-         ProjectBriefingCostMode CostMode,
-         ProjectBriefingNarrativeMode NarrativeMode,
-         ProjectBriefingPresentationTheme PresentationTheme,
-         ProjectBriefingBrandingScope BrandingScope,
-+        bool IncludeCoverSlide,
-+        bool IncludePortfolioSummarySlide,
-         bool IncludeStageSummary,
-         bool IncludeProjectCategorySummary,
-         bool IncludeTechnicalCategorySummary,
-@@ -633,11 +725,14 @@
-         long Id,
-         string Name,
-         string? Description,
-+        ProjectBriefingLayout Layout,
-         ProjectBriefingPresentationMode PresentationMode,
-         ProjectBriefingCostMode CostMode,
-         ProjectBriefingNarrativeMode NarrativeMode,
-         ProjectBriefingPresentationTheme PresentationTheme,
-         ProjectBriefingBrandingScope BrandingScope,
-+        bool IncludeCoverSlide,
-+        bool IncludePortfolioSummarySlide,
-         bool IncludeStageSummary,
-         bool IncludeProjectCategorySummary,
-         bool IncludeTechnicalCategorySummary,
-diff -ruN a/Services/ProjectBriefings/ProjectBriefingDeckService.cs b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
---- a/Services/ProjectBriefings/ProjectBriefingDeckService.cs	2026-07-28 17:41:04.000000000 +0000
-+++ b/Services/ProjectBriefings/ProjectBriefingDeckService.cs	2026-07-29 01:27:49.306434744 +0000
-@@ -193,11 +193,14 @@
-             Name = CleanName(name),
-             NormalizedName = normalizedName,
-             Description = NormalizeDescription(description),
-+            Layout = ProjectBriefingLayout.StandardBriefing,
-             PresentationMode = ProjectBriefingPresentationMode.Combined,
-             CostMode = ProjectBriefingCostMode.Both,
-             NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
-             PresentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
-             BrandingScope = ProjectBriefingBrandingScope.AllSlides,
-+            IncludeCoverSlide = true,
-+            IncludePortfolioSummarySlide = true,
-             IncludeStageSummary = true,
-             CreatedAtUtc = now,
-             UpdatedAtUtc = now,
-@@ -228,11 +231,14 @@
-             Name = name,
-             NormalizedName = NormalizeName(name),
-             Description = source.Description,
-+            Layout = source.Layout,
-             PresentationMode = source.PresentationMode,
-             CostMode = source.CostMode,
-             NarrativeMode = source.NarrativeMode,
-             PresentationTheme = source.PresentationTheme,
-             BrandingScope = source.BrandingScope,
-+            IncludeCoverSlide = source.IncludeCoverSlide,
-+            IncludePortfolioSummarySlide = source.IncludePortfolioSummarySlide,
-             IncludeStageSummary = source.IncludeStageSummary,
-             IncludeProjectCategorySummary = source.IncludeProjectCategorySummary,
-             IncludeTechnicalCategorySummary = source.IncludeTechnicalCategorySummary,
-@@ -273,6 +279,7 @@
- 
-         EnsureVersion(deck, command.RowVersion);
-         ValidateEnums(
-+            command.Layout,
-             command.PresentationMode,
-             command.CostMode,
-             command.NarrativeMode,
-@@ -284,11 +291,19 @@
-         deck.Name = CleanName(command.Name);
-         deck.NormalizedName = normalizedName;
-         deck.Description = NormalizeDescription(command.Description);
-+        deck.Layout = command.Layout;
-         deck.PresentationMode = command.PresentationMode;
-         deck.CostMode = command.CostMode;
-         deck.NarrativeMode = command.NarrativeMode;
-         deck.PresentationTheme = command.PresentationTheme;
-         deck.BrandingScope = command.BrandingScope;
-+        // The established Standard PRISM Briefing always retains its cover and
-+        // portfolio-summary slides. The new formal update-sheet layout exposes
-+        // these as explicit user choices.
-+        deck.IncludeCoverSlide = command.Layout == ProjectBriefingLayout.StandardBriefing
-+            || command.IncludeCoverSlide;
-+        deck.IncludePortfolioSummarySlide = command.Layout == ProjectBriefingLayout.StandardBriefing
-+            || command.IncludePortfolioSummarySlide;
-         deck.IncludeStageSummary = command.IncludeStageSummary;
-         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
-         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
-@@ -617,11 +632,14 @@
-         {
-             ["DeckId"] = deck.Id.ToString(),
-             ["DeckName"] = deck.Name,
-+            ["Layout"] = deck.Layout.ToString(),
-             ["PresentationMode"] = deck.PresentationMode.ToString(),
-             ["CostMode"] = deck.CostMode.ToString(),
-             ["NarrativeMode"] = deck.NarrativeMode.ToString(),
-             ["PresentationTheme"] = deck.PresentationTheme.ToString(),
--            ["BrandingScope"] = deck.BrandingScope.ToString()
-+            ["BrandingScope"] = deck.BrandingScope.ToString(),
-+            ["IncludeCoverSlide"] = deck.IncludeCoverSlide.ToString(),
-+            ["IncludePortfolioSummarySlide"] = deck.IncludePortfolioSummarySlide.ToString()
-         };
-         if (extra is not null)
-         {
-@@ -673,19 +691,21 @@
-     }
- 
-     private static void ValidateEnums(
-+        ProjectBriefingLayout layout,
-         ProjectBriefingPresentationMode presentationMode,
-         ProjectBriefingCostMode costMode,
-         ProjectBriefingNarrativeMode narrativeMode,
-         ProjectBriefingPresentationTheme presentationTheme,
-         ProjectBriefingBrandingScope brandingScope)
-     {
--        if (!Enum.IsDefined(presentationMode)
-+        if (!Enum.IsDefined(layout)
-+            || !Enum.IsDefined(presentationMode)
-             || !Enum.IsDefined(costMode)
-             || !Enum.IsDefined(narrativeMode)
-             || !Enum.IsDefined(presentationTheme)
-             || !Enum.IsDefined(brandingScope))
-         {
--            throw new InvalidOperationException("The deck format, project content, theme or branding setting is invalid.");
-+            throw new InvalidOperationException("The presentation template, deck format, project content, theme or branding setting is invalid.");
-         }
-     }
- 
-diff -ruN a/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs b/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
---- a/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs	1970-01-01 00:00:00.000000000 +0000
-+++ b/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs	2026-07-29 01:07:57.162392110 +0000
-@@ -0,0 +1,228 @@
-+using Microsoft.EntityFrameworkCore;
-+using ProjectManagement.Data;
-+using ProjectManagement.Models.Stages;
-+
-+namespace ProjectManagement.Services.ProjectBriefings;
-+
-+public interface IProjectBriefingUpdateSheetFactsResolver
-+{
-+    Task<IReadOnlyDictionary<int, ProjectBriefingUpdateSheetFacts>> ResolveAsync(
-+        IReadOnlyCollection<int> projectIds,
-+        CancellationToken cancellationToken = default);
-+}
-+
-+public sealed record ProjectBriefingUpdateSheetFacts(
-+    string? ArppReference,
-+    string? Fund,
-+    string? DfpdsSchedule,
-+    string? Cfa,
-+    DateOnly? AonDate,
-+    DateOnly? SupplyOrderDate,
-+    DateOnly? DevelopmentPdcDate,
-+    IReadOnlyList<string> JdpNames,
-+    string? ProjectOfficer,
-+    bool ProjectOfficerIsComplete,
-+    string? LineDirectorate)
-+{
-+    public bool HasCompleteArppDetails =>
-+        !string.IsNullOrWhiteSpace(ArppReference)
-+        && !string.IsNullOrWhiteSpace(Fund)
-+        && !string.IsNullOrWhiteSpace(DfpdsSchedule)
-+        && !string.IsNullOrWhiteSpace(Cfa);
-+}
-+
-+/// <summary>
-+/// Resolves the authoritative factual fields required by the formal project-update-sheet layout.
-+/// All reads are performed in bounded batch queries so deck generation does not create an N+1 query pattern.
-+/// </summary>
-+public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUpdateSheetFactsResolver
-+{
-+    private readonly ApplicationDbContext _db;
-+
-+    public ProjectBriefingUpdateSheetFactsResolver(ApplicationDbContext db)
-+        => _db = db ?? throw new ArgumentNullException(nameof(db));
-+
-+    public async Task<IReadOnlyDictionary<int, ProjectBriefingUpdateSheetFacts>> ResolveAsync(
-+        IReadOnlyCollection<int> projectIds,
-+        CancellationToken cancellationToken = default)
-+    {
-+        var ids = projectIds.Where(id => id > 0).Distinct().ToArray();
-+        if (ids.Length == 0)
-+        {
-+            return new Dictionary<int, ProjectBriefingUpdateSheetFacts>();
-+        }
-+
-+        var projectRows = await _db.Projects
-+            .AsNoTracking()
-+            .Where(project => ids.Contains(project.Id))
-+            .Select(project => new
-+            {
-+                project.Id,
-+                OfficerRank = project.LeadPoUser != null ? project.LeadPoUser.Rank : null,
-+                OfficerFullName = project.LeadPoUser != null ? project.LeadPoUser.FullName : null,
-+                LineDirectorate = project.SponsoringLineDirectorate != null
-+                    ? project.SponsoringLineDirectorate.Name
-+                    : null
-+            })
-+            .ToListAsync(cancellationToken);
-+
-+        var stageRows = await _db.ProjectStages
-+            .AsNoTracking()
-+            .Where(stage => ids.Contains(stage.ProjectId)
-+                && (stage.StageCode == StageCodes.AON || stage.StageCode == StageCodes.DEVP))
-+            .Select(stage => new
-+            {
-+                stage.Id,
-+                stage.ProjectId,
-+                stage.StageCode,
-+                stage.SortOrder,
-+                stage.CompletedOn,
-+                stage.PlannedDue
-+            })
-+            .ToListAsync(cancellationToken);
-+
-+        var aonDates = stageRows
-+            .Where(stage => stage.StageCode == StageCodes.AON)
-+            .GroupBy(stage => stage.ProjectId)
-+            .ToDictionary(
-+                group => group.Key,
-+                group => group
-+                    .OrderByDescending(stage => stage.CompletedOn.HasValue)
-+                    .ThenByDescending(stage => stage.CompletedOn)
-+                    .ThenByDescending(stage => stage.SortOrder)
-+                    .ThenByDescending(stage => stage.Id)
-+                    .Select(stage => stage.CompletedOn)
-+                    .FirstOrDefault());
-+
-+        var developmentPdcs = stageRows
-+            .Where(stage => stage.StageCode == StageCodes.DEVP)
-+            .GroupBy(stage => stage.ProjectId)
-+            .ToDictionary(
-+                group => group.Key,
-+                group => group
-+                    .OrderByDescending(stage => stage.PlannedDue.HasValue)
-+                    .ThenByDescending(stage => stage.PlannedDue)
-+                    .ThenByDescending(stage => stage.SortOrder)
-+                    .ThenByDescending(stage => stage.Id)
-+                    .Select(stage => stage.PlannedDue)
-+                    .FirstOrDefault());
-+
-+        var supplyOrderDates = await _db.ProjectSupplyOrderFacts
-+            .AsNoTracking()
-+            .Where(fact => ids.Contains(fact.ProjectId))
-+            .Select(fact => new
-+            {
-+                fact.Id,
-+                fact.ProjectId,
-+                fact.SupplyOrderDate,
-+                fact.CreatedOnUtc
-+            })
-+            .ToListAsync(cancellationToken);
-+        var supplyOrderByProject = supplyOrderDates
-+            .GroupBy(fact => fact.ProjectId)
-+            .ToDictionary(
-+                group => group.Key,
-+                group => group
-+                    .OrderByDescending(fact => fact.CreatedOnUtc)
-+                    .ThenByDescending(fact => fact.Id)
-+                    .Select(fact => (DateOnly?)fact.SupplyOrderDate)
-+                    .FirstOrDefault());
-+
-+        var jdpRows = await _db.IndustryPartnerProjects
-+            .AsNoTracking()
-+            .Where(link => ids.Contains(link.ProjectId))
-+            .Select(link => new
-+            {
-+                link.ProjectId,
-+                link.IndustryPartner.Name
-+            })
-+            .ToListAsync(cancellationToken);
-+        var jdpsByProject = jdpRows
-+            .Where(row => !string.IsNullOrWhiteSpace(row.Name))
-+            .GroupBy(row => row.ProjectId)
-+            .ToDictionary(
-+                group => group.Key,
-+                group => (IReadOnlyList<string>)group
-+                    .Select(row => Normalize(row.Name))
-+                    .Where(name => !string.IsNullOrWhiteSpace(name))
-+                    .Distinct(StringComparer.OrdinalIgnoreCase)
-+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-+                    .ToArray());
-+
-+        var arppRows = await _db.ArppPublishedEntries
-+            .AsNoTracking()
-+            .Where(entry => entry.ProjectId.HasValue && ids.Contains(entry.ProjectId.Value))
-+            .Select(entry => new
-+            {
-+                ProjectId = entry.ProjectId!.Value,
-+                entry.Id,
-+                entry.Fund,
-+                entry.DfpdsSchedule,
-+                entry.Cfa,
-+                IssueName = entry.PublishedIssue.Name,
-+                entry.PublishedIssue.FinancialYearStart,
-+                entry.PublishedIssue.IssueSequence,
-+                entry.PublishedIssue.IssueDate,
-+                entry.PublishedIssue.ArppIssueId
-+            })
-+            .ToListAsync(cancellationToken);
-+        var arppByProject = arppRows
-+            .GroupBy(row => row.ProjectId)
-+            .ToDictionary(
-+                group => group.Key,
-+                group => group
-+                    .OrderByDescending(row => row.FinancialYearStart)
-+                    .ThenByDescending(row => row.IssueSequence)
-+                    .ThenByDescending(row => row.IssueDate)
-+                    .ThenByDescending(row => row.ArppIssueId)
-+                    .ThenByDescending(row => row.Id)
-+                    .First());
-+
-+        return projectRows.ToDictionary(
-+            row => row.Id,
-+            row =>
-+            {
-+                arppByProject.TryGetValue(row.Id, out var arpp);
-+                var officer = FormatOfficer(row.OfficerRank, row.OfficerFullName);
-+                return new ProjectBriefingUpdateSheetFacts(
-+                    NormalizeNullable(arpp?.IssueName),
-+                    NormalizeNullable(arpp?.Fund),
-+                    NormalizeNullable(arpp?.DfpdsSchedule),
-+                    NormalizeNullable(arpp?.Cfa),
-+                    aonDates.GetValueOrDefault(row.Id),
-+                    supplyOrderByProject.GetValueOrDefault(row.Id),
-+                    developmentPdcs.GetValueOrDefault(row.Id),
-+                    jdpsByProject.GetValueOrDefault(row.Id) ?? Array.Empty<string>(),
-+                    officer.Display,
-+                    officer.IsComplete,
-+                    NormalizeNullable(row.LineDirectorate));
-+            });
-+    }
-+
-+    private static (string? Display, bool IsComplete) FormatOfficer(string? rank, string? fullName)
-+    {
-+        var normalizedRank = NormalizeNullable(rank);
-+        var normalizedName = NormalizeNullable(fullName);
-+        if (normalizedName is null)
-+        {
-+            return (null, false);
-+        }
-+
-+        if (normalizedRank is null)
-+        {
-+            return (normalizedName, false);
-+        }
-+
-+        var display = normalizedName.StartsWith(normalizedRank + " ", StringComparison.OrdinalIgnoreCase)
-+            || string.Equals(normalizedName, normalizedRank, StringComparison.OrdinalIgnoreCase)
-+                ? normalizedName
-+                : $"{normalizedRank} {normalizedName}";
-+        return (display, true);
-+    }
-+
-+    private static string Normalize(string value)
-+        => string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-+
-+    private static string? NormalizeNullable(string? value)
-+        => string.IsNullOrWhiteSpace(value) ? null : Normalize(value);
-+}
-diff -ruN a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
---- a/wwwroot/css/pages/project-briefing-decks.css	2026-07-28 17:41:04.000000000 +0000
-+++ b/wwwroot/css/pages/project-briefing-decks.css	2026-07-29 01:39:50.694460543 +0000
-@@ -491,6 +491,7 @@
-     gap: .5rem;
- }
- 
-+.pbd-choice-cards--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
- .pbd-choice-cards--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
- .pbd-choice-cards--four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
- 
-@@ -522,6 +523,55 @@
-     min-height: 3.7rem;
- }
- 
-+.pbd-choice-card--template > span {
-+    min-height: 5.15rem;
-+    padding: .78rem;
-+}
-+
-+.pbd-choice-card--template strong {
-+    font-size: .82rem;
-+}
-+
-+.pbd-update-sheet-options {
-+    padding: .72rem;
-+    border: 1px solid #cbd9ed;
-+    border-radius: .65rem;
-+    background: linear-gradient(135deg, #f5f9ff, #fff 72%);
-+}
-+
-+.pbd-update-sheet-options legend {
-+    margin-left: -.05rem;
-+}
-+
-+.pbd-update-sheet-note {
-+    display: flex;
-+    align-items: flex-start;
-+    gap: .48rem;
-+    color: #475467;
-+    font-size: .71rem;
-+    line-height: 1.45;
-+}
-+
-+.pbd-update-sheet-note > i {
-+    flex: 0 0 auto;
-+    margin-top: .08rem;
-+    color: var(--pbd-blue);
-+}
-+
-+.pbd-checks--inline {
-+    grid-template-columns: repeat(2, minmax(0, 1fr));
-+    gap: .45rem .9rem;
-+    margin-top: .62rem;
-+}
-+
-+.pbd-checks--inline label {
-+    min-height: 2.35rem;
-+    padding: .5rem .58rem;
-+    border: 1px solid var(--pbd-border);
-+    border-radius: .5rem;
-+    background: #fff;
-+}
-+
- .pbd-choice-card > span > i {
-     margin-bottom: .18rem;
-     color: var(--pbd-blue);
-@@ -1336,6 +1386,10 @@
-     gap: .8rem;
- }
- 
-+.pbd-presentation-design.is-update-sheet {
-+    grid-template-columns: minmax(0, 1fr);
-+}
-+
- .pbd-theme-cards {
-     display: grid;
-     grid-template-columns: repeat(2, minmax(0, 1fr));
-@@ -1544,6 +1598,8 @@
- }
- 
- @media (max-width: 760px) {
-+    .pbd-choice-cards--two,
-+    .pbd-checks--inline { grid-template-columns: 1fr; }
-     .pbd-theme-cards { grid-template-columns: 1fr; }
-     .pbd-theme-card__body { grid-template-columns: 6.7rem minmax(0, 1fr); }
-     .pbd-theme-preview { width: 6.7rem; }
-diff -ruN a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
---- a/wwwroot/js/pages/project-briefing-decks.js	2026-07-28 17:41:04.000000000 +0000
-+++ b/wwwroot/js/pages/project-briefing-decks.js	2026-07-29 01:39:50.694460543 +0000
-@@ -114,15 +114,31 @@
-   const generateButton = root.querySelector('[data-pbd-generate]');
-   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
- 
-+  const selectedLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
-+  const isUpdateSheet = (deck = null) => {
-+    const layout = deck?.layout ?? selectedLayout();
-+    return layout === 'ProjectUpdateSheet' || layout === 2 || layout === '2';
-+  };
-   const includesDetailedSlides = () => {
-+    if (isUpdateSheet()) return true;
-     const value = root.querySelector('input[name="PresentationMode"]:checked')?.value;
-     return value === 'DetailedProjects' || value === 'Combined';
-   };
--  const includesCostRd = () => ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
--  const includesProliferation = () => ['ProliferationOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
--  const narrativeMode = () => root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview';
--  const includesCapabilities = () => ['CapabilityOverview', 'Both'].includes(narrativeMode());
--  const includesProjectBrief = () => ['ProjectBrief', 'Both'].includes(narrativeMode());
-+  const includesCostRd = () => isUpdateSheet() || ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
-+  const includesProliferation = () => !isUpdateSheet() && ['ProliferationOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
-+  const narrativeMode = () => isUpdateSheet() ? 'ProjectBrief' : (root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview');
-+  const includesCapabilities = () => !isUpdateSheet() && ['CapabilityOverview', 'Both'].includes(narrativeMode());
-+  const includesProjectBrief = () => isUpdateSheet() || ['ProjectBrief', 'Both'].includes(narrativeMode());
-+
-+  const syncTemplateSettings = () => {
-+    const updateSheet = isUpdateSheet();
-+    root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
-+    root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
-+    root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
-+    root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
-+  };
-+  root.querySelectorAll('[data-pbd-layout-choice]').forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
-+  syncTemplateSettings();
-   const hasCapabilityOverview = (project) => {
-     const value = normalize(project?.briefDescription);
-     return Boolean(value)
-@@ -145,24 +161,29 @@
-     if (metric('status')) metric('status').textContent = `${readiness.externalStatusAvailableCount || 0}/${total}`;
-     if (metric('cost-rd')) metric('cost-rd').textContent = `${readiness.costRdAvailableCount || 0}/${total}`;
-     if (metric('proliferation')) metric('proliferation').textContent = `${readiness.proliferationCostAvailableCount || 0}/${total}`;
-+    if (metric('update-facts')) metric('update-facts').textContent = `${readiness.updateSheetCoreFactsAvailableCount || 0}/${total}`;
-     if (metric('photo')) metric('photo').textContent = `${readiness.coverPhotoAvailableCount || 0}/${total}`;
-     if (selectedTotal) selectedTotal.textContent = String(total);
-     if (generateButton) generateButton.disabled = total === 0;
- 
-     if (slideTotal) slideTotal.textContent = `${estimate.totalSlides || 0} ${(estimate.totalSlides || 0) === 1 ? 'slide' : 'slides'}`;
-     if (slideBreakdown) {
--      const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
--      const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
--      const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
--      const parts = [
--        `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
--        `Summary ${estimate.summarySlides || 0}`,
--        `Tables ${estimate.executiveTableSlides || 0}`
--      ];
--      if (capabilitySlides > 0) parts.push(`Capability slides ${capabilitySlides}`);
--      if (projectBriefSlides > 0) parts.push(`Project brief slides ${projectBriefSlides}`);
--      if (continuationSlides > 0) parts.push(`Capability continuations ${continuationSlides}`);
--      slideBreakdown.textContent = parts.join(' · ');
-+      if (isUpdateSheet(deck)) {
-+        slideBreakdown.textContent = `Introductory slides ${estimate.coverAndPortfolioSlides || 0} · Project update sheets ${estimate.projectUpdateSheetSlides || 0}`;
-+      } else {
-+        const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
-+        const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
-+        const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
-+        const parts = [
-+          `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
-+          `Summary ${estimate.summarySlides || 0}`,
-+          `Tables ${estimate.executiveTableSlides || 0}`
-+        ];
-+        if (capabilitySlides > 0) parts.push(`Capability slides ${capabilitySlides}`);
-+        if (projectBriefSlides > 0) parts.push(`Project brief slides ${projectBriefSlides}`);
-+        if (continuationSlides > 0) parts.push(`Capability continuations ${continuationSlides}`);
-+        slideBreakdown.textContent = parts.join(' · ');
-+      }
-     }
- 
-     if (activeSavedCard) {
-@@ -194,13 +215,34 @@
-     const missingPhoto = total - Number(readiness.coverPhotoAvailableCount || 0);
-     const missingCapabilities = total - Number(readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0);
-     const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
--    if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
--    if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
--    if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
--    if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
--    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
--    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
--    if (gaps.length === 0) addPill('bi-check-circle', 'Selected content is ready', 'is-ready');
-+    if (isUpdateSheet(deck)) {
-+      const missingArpp = total - Number(readiness.arppDetailsAvailableCount || 0);
-+      const missingAon = total - Number(readiness.aonDateAvailableCount || 0);
-+      const missingSo = total - Number(readiness.supplyOrderDateAvailableCount || 0);
-+      const missingJdp = total - Number(readiness.jdpAvailableCount || 0);
-+      const missingPdc = Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0);
-+      const missingOfficer = total - Number(readiness.projectOfficerAvailableCount || 0);
-+      const missingLine = total - Number(readiness.lineDirectorateAvailableCount || 0);
-+      if (missingArpp > 0) gaps.push(['bi-journal-text', `${missingArpp} without complete ARPP/PPP details`]);
-+      if (missingAon > 0) gaps.push(['bi-calendar-check', `${missingAon} without AoN date`]);
-+      if (missingSo > 0) gaps.push(['bi-calendar2-event', `${missingSo} without supply-order date`]);
-+      if (missingJdp > 0) gaps.push(['bi-building', `${missingJdp} without linked JDP`]);
-+      if (missingPdc > 0) gaps.push(['bi-calendar-x', `${missingPdc} development project(s) without PDC`]);
-+      if (missingOfficer > 0) gaps.push(['bi-person-badge', `${missingOfficer} without rank and full name of Project Officer`]);
-+      if (missingLine > 0) gaps.push(['bi-diagram-3', `${missingLine} without Line Directorate`]);
-+      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
-+      if (missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
-+      if (missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
-+      if (missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
-+    } else {
-+      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
-+      if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
-+      if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
-+      if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
-+      if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
-+      if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
-+    }
-+    if (gaps.length === 0) addPill('bi-check-circle', isUpdateSheet(deck) ? 'Selected project sheets are ready' : 'Selected content is ready', 'is-ready');
-     else gaps.forEach(([icon, text]) => addPill(icon, text));
-   };
- 
-@@ -418,6 +460,7 @@
-     row.dataset.missingProliferation = String(!project.proliferationCost?.isAvailable);
-     row.dataset.missingPhoto = String(!project.hasCoverPhoto);
-     row.dataset.missingDescription = String(!narrativeReady);
-+    row.dataset.missingFacts = String(!project.isUpdateSheetCoreFactsReady);
- 
-     const selectCell = document.createElement('td');
-     selectCell.className = 'pbd-select-column';
-@@ -469,6 +512,8 @@
- 
-     const proliferationCell = document.createElement('td');
-     proliferationCell.className = 'pbd-cost';
-+    proliferationCell.dataset.pbdProliferationColumn = '';
-+    proliferationCell.hidden = isUpdateSheet();
-     const proliferationValue = document.createElement('strong');
-     proliferationValue.textContent = project.proliferationCost?.displayValue || 'Not recorded';
-     proliferationCell.append(proliferationValue);
-@@ -499,9 +544,12 @@
-     readiness.append(
-       createReadinessIcon('bi-image', project.hasCoverPhoto, project.hasCoverPhoto ? 'PowerPoint-ready cover photograph available' : (project.coverPhotoReadinessReason || 'No PowerPoint-ready cover photograph')),
-       createReadinessIcon('bi-chat-left-text', Boolean(project.externalStatus), project.externalStatus ? 'External status available' : 'External status missing'),
--      createReadinessIcon('bi-currency-rupee', Boolean(project.costRd?.isAvailable), project.costRd?.isAvailable ? `Cost (R&D) available from ${project.costRd.basisDisplay}` : 'Cost (R&D) not recorded'),
--      createReadinessIcon(narrativeIcon, narrativeReady, narrativeTitle)
-+      createReadinessIcon('bi-currency-rupee', Boolean(project.costRd?.isAvailable), project.costRd?.isAvailable ? `Cost (R&D) available from ${project.costRd.basisDisplay}` : 'Cost (R&D) not recorded')
-     );
-+    if (isUpdateSheet()) {
-+      readiness.append(createReadinessIcon('bi-card-checklist', Boolean(project.isUpdateSheetCoreFactsReady), project.isUpdateSheetCoreFactsReady ? 'Project update facts complete' : 'Project update facts incomplete'));
-+    }
-+    readiness.append(createReadinessIcon(narrativeIcon, narrativeReady, narrativeTitle));
-     readinessCell.append(readiness);
- 
-     const actionCell = document.createElement('td');

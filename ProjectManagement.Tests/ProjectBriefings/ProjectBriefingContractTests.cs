@@ -48,6 +48,9 @@ public sealed class ProjectBriefingContractTests
         var ipa = source.IndexOf("ipa.TryGetValue", StringComparison.Ordinal);
 
         Assert.True(l1 >= 0 && aon > l1 && ipa > aon, "Cost (R&D) resolution must remain L1 → AoN → IPA.");
+        Assert.Contains("ResolveCostsAsync", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingResolvedCosts", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingCostBasis.IPA", source, StringComparison.Ordinal);
         Assert.Contains("ProjectProductionCostFacts", source, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingCostBasis.Proliferation", source, StringComparison.Ordinal);
     }
@@ -90,8 +93,25 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("project.CostRd.DisplayValue", composer, StringComparison.Ordinal);
         Assert.Contains("project.ExternalStatus.Trim()", composer, StringComparison.Ordinal);
         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
+        Assert.Contains("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("B5122B", composer, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("AddBrandingImages", composer, StringComparison.Ordinal);
     }
 
+
+
+    [Fact]
+    public void ProjectUpdateSheet_PortfolioSummaryShowsSeparateRdAndAuthoritativeIpaTotals()
+    {
+        var dataSource = Read("ProjectBriefingDataService.cs");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+
+        Assert.Contains("TotalIpaCostInRupees", dataSource, StringComparison.Ordinal);
+        Assert.Contains("IpaCostRecordedCount", dataSource, StringComparison.Ordinal);
+        Assert.Contains("TOTAL R&D COST", composer, StringComparison.Ordinal);
+        Assert.Contains("TOTAL IPA COST", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingLayout.ProjectUpdateSheet", composer, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void SharedDecks_AreCommandWorkspaceWideAndTrackLastModifier()

@@ -4,8 +4,16 @@ using ProjectManagement.Services.Arpp;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
+public sealed record ProjectBriefingResolvedCosts(
+    IReadOnlyDictionary<int, ProjectBriefingCostValue> CostRd,
+    IReadOnlyDictionary<int, ProjectBriefingCostValue> Ipa);
+
 public interface IProjectBriefingCostResolver
 {
+    Task<ProjectBriefingResolvedCosts> ResolveCostsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default);
@@ -34,14 +42,15 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
         _ipaResolver = ipaResolver ?? throw new ArgumentNullException(nameof(ipaResolver));
     }
 
-    public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
+    public async Task<ProjectBriefingResolvedCosts> ResolveCostsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default)
     {
         var ids = Normalize(projectIds);
         if (ids.Length == 0)
         {
-            return new Dictionary<int, ProjectBriefingCostValue>();
+            var empty = new Dictionary<int, ProjectBriefingCostValue>();
+            return new ProjectBriefingResolvedCosts(empty, empty);
         }
 
         var l1Rows = await _db.ProjectCommercialFacts
@@ -56,6 +65,8 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
             .Select(row => new CostFactRow(row.ProjectId, row.AonCost, row.CreatedOnUtc, row.Id))
             .ToListAsync(cancellationToken);
 
+        // Resolve the authoritative IPA position once. The same snapshot is used both
+        // as the R&D-cost fallback and for the separate Total IPA Cost summary.
         var ipaPositions = await _ipaResolver.ResolveManyAsync(ids, cancellationToken);
 
         var l1 = Latest(l1Rows);
@@ -63,30 +74,42 @@ public sealed class ProjectBriefingCostResolver : IProjectBriefingCostResolver
         var ipa = ipaPositions
             .Where(pair => pair.Value.AmountInRupees > 0m)
             .ToDictionary(pair => pair.Key, pair => pair.Value.AmountInRupees);
-        var result = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
+
+        var costRd = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
+        var ipaCost = new Dictionary<int, ProjectBriefingCostValue>(ids.Length);
 
         foreach (var projectId in ids)
         {
+            var authoritativeIpaAmount = ipa.GetValueOrDefault(projectId);
+            ipaCost[projectId] = authoritativeIpaAmount > 0m
+                ? Build(authoritativeIpaAmount, ProjectBriefingCostBasis.IPA, "IPA")
+                : ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
+
             if (l1.TryGetValue(projectId, out var l1Amount))
             {
-                result[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
+                costRd[projectId] = Build(l1Amount, ProjectBriefingCostBasis.L1, "L1");
             }
             else if (aon.TryGetValue(projectId, out var aonAmount))
             {
-                result[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
+                costRd[projectId] = Build(aonAmount, ProjectBriefingCostBasis.AoN, "AoN");
             }
             else if (ipa.TryGetValue(projectId, out var ipaAmount))
             {
-                result[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
+                costRd[projectId] = Build(ipaAmount, ProjectBriefingCostBasis.IPA, "IPA");
             }
             else
             {
-                result[projectId] = ProjectBriefingCostValue.Missing();
+                costRd[projectId] = ProjectBriefingCostValue.Missing();
             }
         }
 
-        return result;
+        return new ProjectBriefingResolvedCosts(costRd, ipaCost);
     }
+
+    public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveCostRdAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken = default)
+        => (await ResolveCostsAsync(projectIds, cancellationToken)).CostRd;
 
     public async Task<IReadOnlyDictionary<int, ProjectBriefingCostValue>> ResolveProliferationCostAsync(
         IReadOnlyCollection<int> projectIds,

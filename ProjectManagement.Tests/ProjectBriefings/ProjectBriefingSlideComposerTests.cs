@@ -454,6 +454,7 @@ public sealed class ProjectBriefingSlideComposerTests
             PresentStage = "Development",
             PresentStageOrder = ProjectBriefingStageOrder.Development,
             CostRd = new ProjectBriefingCostValue(7_400_000m, ProjectBriefingCostBasis.L1, "₹0.74 Cr", "L1"),
+            IpaCost = new ProjectBriefingCostValue(8_000_000m, ProjectBriefingCostBasis.IPA, "₹0.8 Cr", "IPA"),
             ProliferationCost = new ProjectBriefingCostValue(6_200_000m, ProjectBriefingCostBasis.Proliferation, "₹0.62 Cr", "Proliferation"),
             ArppReference = "ARPP/IR&D/CU/2026-27/14",
             Fund = "IR&D",
@@ -478,7 +479,7 @@ public sealed class ProjectBriefingSlideComposerTests
             CostMode = ProjectBriefingCostMode.Both,
             NarrativeMode = ProjectBriefingNarrativeMode.CapabilityOverview,
             PresentationTheme = ProjectBriefingPresentationTheme.GraphiteDark,
-            BrandingScope = ProjectBriefingBrandingScope.None,
+            BrandingScope = ProjectBriefingBrandingScope.AllSlides,
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
@@ -488,7 +489,9 @@ public sealed class ProjectBriefingSlideComposerTests
                 ProjectCount = 1,
                 OngoingCount = 1,
                 TotalCostRdInRupees = 7_400_000m,
-                CostRdRecordedCount = 1
+                CostRdRecordedCount = 1,
+                TotalIpaCostInRupees = 8_000_000m,
+                IpaCostRecordedCount = 1
             }
         };
 
@@ -503,7 +506,8 @@ public sealed class ProjectBriefingSlideComposerTests
         var slide = Assert.Single(presentationPart.SlideParts);
         var text = SlideText(slide);
 
-        Assert.Contains("TOUCH SCREEN BASED SIMULATOR", text, StringComparison.Ordinal);
+        Assert.Contains("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
+        Assert.Contains("Touch Screen Based Simulator", text, StringComparison.Ordinal);
         Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
         Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
@@ -515,6 +519,8 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("B5122B", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(slide.ImageParts);
         Assert.Single(slide.Slide.Descendants<A.Table>());
     }
 
@@ -586,7 +592,11 @@ public sealed class ProjectBriefingSlideComposerTests
             Summary = new ProjectBriefingPresentationSummary
             {
                 ProjectCount = 1,
-                OngoingCount = 1
+                OngoingCount = 1,
+                TotalCostRdInRupees = 7_400_000m,
+                CostRdRecordedCount = 1,
+                TotalIpaCostInRupees = 8_000_000m,
+                IpaCostRecordedCount = 1
             }
         };
 
@@ -601,7 +611,11 @@ public sealed class ProjectBriefingSlideComposerTests
             .ToArray();
         Assert.Contains("PROJECT UPDATE REVIEW", slideTexts[0], StringComparison.Ordinal);
         Assert.Contains("Portfolio at a glance", slideTexts[1], StringComparison.Ordinal);
-        Assert.Contains("UPDATE SHEET PROJECT", slideTexts[2], StringComparison.Ordinal);
+        Assert.Contains("TOTAL R&D COST", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("TOTAL IPA COST", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("₹0.74 Cr", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("₹0.8 Cr", slideTexts[1], StringComparison.Ordinal);
+        Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
     }
 
     private static ProjectBriefingPresentationProject BriefingProject(
@@ -622,6 +636,7 @@ public sealed class ProjectBriefingSlideComposerTests
             PresentStage = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : stageCode,
             PresentStageOrder = stageOrder,
             CostRd = ProjectBriefingCostValue.Missing(),
+            IpaCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
             ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
             ExternalStatus = "Status recorded.",
             BriefDescription = "Capability description for ordering regression coverage.",

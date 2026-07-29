@@ -88,6 +88,7 @@ public sealed class ProjectBriefingProjectVm
     public string? ProjectCategory { get; init; }
     public string? TechnicalCategory { get; init; }
     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
+    public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
     public string? ExternalStatus { get; init; }
     public DateOnly? ExternalStatusDate { get; init; }
@@ -275,6 +276,7 @@ public sealed class ProjectBriefingPresentationProject
     public string? ProjectCategory { get; init; }
     public string? TechnicalCategory { get; init; }
     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
+    public ProjectBriefingCostValue IpaCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA);
     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
     public string ExternalStatus { get; init; } = "No external status recorded";
     public DateOnly? ExternalStatusDate { get; init; }
@@ -305,6 +307,8 @@ public sealed class ProjectBriefingPresentationSummary
     public int CompletedCount { get; init; }
     public decimal TotalCostRdInRupees { get; init; }
     public int CostRdRecordedCount { get; init; }
+    public decimal TotalIpaCostInRupees { get; init; }
+    public int IpaCostRecordedCount { get; init; }
     public decimal TotalProliferationCostInRupees { get; init; }
     public int ProliferationCostRecordedCount { get; init; }
     public int MissingExternalStatusCount { get; init; }

@@ -33,8 +33,7 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingPresentationProject project)
     {
-        const string headerRed = "B5122B";
-        const string headerRedDark = "8F0D21";
+        const string accent = "8F0D21";
         const string white = "FFFFFF";
         const string text = "172033";
         const string muted = "5C667A";
@@ -44,20 +43,30 @@ public sealed partial class ProjectBriefingSlideComposer
         const string bodyFill = "FFFFFF";
 
         canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
-        canvas.AddRect(0, 0, SlideWidth, .10, headerRedDark);
-        canvas.AddRect(.46, .24, 12.41, .68, headerRed, headerRedDark, .8, "Project update title band");
+        canvas.AddRect(0, 0, SlideWidth, .07, accent, name: "Project sheet top accent");
         canvas.AddText(
-            1.04,
-            .34,
-            11.25,
-            .46,
-            project.ProjectName.ToUpperInvariant(),
-            UpdateSheetTitleFontSize(project.ProjectName),
-            white,
+            .55,
+            .17,
+            2.40,
+            .17,
+            "PROJECT UPDATE SHEET",
+            7.8,
+            accent,
             true,
-            "ctr",
+            "l",
+            name: "Project sheet label");
+        canvas.AddText(
+            .55,
+            .36,
+            12.23,
+            .42,
+            project.ProjectName,
+            UpdateSheetTitleFontSize(project.ProjectName),
+            text,
+            true,
+            "l",
             name: "Project name");
-        canvas.AddBrandingImages(HeaderVariant.Standard);
+        canvas.AddLine(.55, .92, 12.78, .92, border, .65);
 
         var rows = BuildProjectUpdateRows(project, text, muted, serialFill, labelFill, bodyFill);
         var heights = new[] { .31, .31, .34, .46, .31, .50, .31, .48, .31, .31 };
@@ -156,8 +165,7 @@ public sealed partial class ProjectBriefingSlideComposer
             FieldValue("DFPDS", project.DfpdsSchedule),
             FieldValue("CFA", project.Cfa)
         });
-        var supplyOrder = $"{FormatDate(project.SupplyOrderDate)}\n{DisplayOrNotRecorded(
-            project.JdpNames.Count == 0 ? null : string.Join("; ", project.JdpNames))}";
+        var supplyOrder = BuildSupplyOrderDisplay(project.SupplyOrderDate, project.JdpNames);
 
         var values = new (string Label, string Value, double FontSize)[]
         {
@@ -213,6 +221,30 @@ public sealed partial class ProjectBriefingSlideComposer
             .ToArray();
     }
 
+    private static string BuildSupplyOrderDisplay(
+        DateOnly? supplyOrderDate,
+        IReadOnlyList<string> jdpNames)
+    {
+        var hasDate = supplyOrderDate.HasValue;
+        var firms = jdpNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (!hasDate && firms.Length == 0)
+        {
+            return "Not recorded";
+        }
+
+        var lines = new List<string>(2)
+        {
+            hasDate ? FormatDate(supplyOrderDate) : "SO date: Not recorded",
+            firms.Length > 0 ? string.Join("; ", firms) : "Firm: Not recorded"
+        };
+        return string.Join("\n", lines);
+    }
+
     private static string FieldValue(string label, string? value)
         => $"{label}: {DisplayOrNotRecorded(value)}";
 
@@ -225,10 +257,10 @@ public sealed partial class ProjectBriefingSlideComposer
     private static double UpdateSheetTitleFontSize(string title)
         => title.Length switch
         {
-            <= 52 => 19.0,
-            <= 72 => 17.0,
+            <= 52 => 18.2,
+            <= 72 => 16.6,
             <= 94 => 15.0,
-            _ => 13.2
+            _ => 13.4
         };
 
     private static double UpdateSheetStatusFontSize(string status)

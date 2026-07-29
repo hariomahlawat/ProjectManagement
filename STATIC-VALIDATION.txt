@@ -1,44 +1,10 @@
-PRISM project portfolio — static validation
-Date: 2026-07-26
-
-PASS  wwwroot/css/pages/project-portfolio.css parsed with css-tree.
-PASS  wwwroot/css/projects/index.css parsed with css-tree.
-PASS  The command-header partial carries card, pm-card, and
-      project-command-header classes.
-PASS  Header styling uses a stable class selector, concrete colour fallbacks,
-      and no data-attribute styling dependency.
-PASS  Overview.cshtml calls the command-header partial and loads the primary
-      portfolio stylesheet with asp-append-version.
-PASS  The repository stylesheet contains no auto-fit projects-grid override.
-PASS  Singular/plural repository text uses one shared count label.
-PASS  Cancelled lifecycle badges use a dedicated semantic class.
-PASS  Cancelled repository positions use Ceased rather than In progress.
-PASS  NotStarted remains a valid current stage and uses Start/not-started
-      operational wording.
-PASS  Completed and cancelled lifecycle summaries use historical/read-only
-      wording.
-PASS  Empty terminal timelines select the subtitle from recorded-history
-      availability before lifecycle-specific historical copy.
-PASS  Weighted scoring is labelled Overall record health; the flat checklist
-      is labelled Core profile fields.
-PASS  Cover-photo surfaces retain a 4:3 landscape aspect ratio.
-PASS  REPLACEMENT-MANIFEST.txt contains 23 unique, existing paths, including
-      the complete header delivery contract and regression test.
-PASS  The working changes contain no whitespace errors under git diff --check.
-
-Regression coverage added or strengthened:
-- command-header delivery and CSS fallback contract
-- first unresolved NotStarted stage remains current
-- cancelled InProgress stage renders as Ceased
-- completed project does not advertise a next stage
-- terminal lifecycle summary language
-- fixed responsive repository tracks
-- shared project-count grammar
-- semantic cancelled status badge
-- distinct record-health/profile-checklist labels
-- empty-history subtitle selection
-
-LIMITATION
-The .NET SDK is not installed in this environment, so dotnet build and dotnet
-test could not be executed here. Run the Release build and complete test suite
-on the development or CI machine before deployment.
+PASS: Project update red panel removed
+PASS: Project update corner-branding call removed
+PASS: Clean project-sheet label present
+PASS: Total IPA card present
+PASS: Total R&D card present
+PASS: Authoritative IPA carried separately
+PASS: Single-pass cost resolution present
+PASS: Compact footer branding present
+PASS: No database migration required
+NOT RUN: dotnet build/test (.NET SDK unavailable)

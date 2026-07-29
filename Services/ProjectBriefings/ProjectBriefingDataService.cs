@@ -116,6 +116,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ProjectCategory = project.ProjectCategory,
                 TechnicalCategory = project.TechnicalCategory,
                 CostRd = project.CostRd,
+                IpaCost = project.IpaCost,
                 ProliferationCost = project.ProliferationCost,
                 ExternalStatus = project.ExternalStatus ?? "No external status recorded",
                 ExternalStatusDate = project.ExternalStatusDate,
@@ -378,7 +379,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         }
 
         var projectIds = items.Select(item => item.ProjectId).Distinct().ToArray();
-        var costRd = await _costResolver.ResolveCostRdAsync(projectIds, cancellationToken);
+        var resolvedCosts = await _costResolver.ResolveCostsAsync(projectIds, cancellationToken);
+        var costRd = resolvedCosts.CostRd;
+        var ipaCost = resolvedCosts.Ipa;
         IReadOnlyDictionary<int, ProjectBriefingCostValue> proliferation =
             layout == ProjectBriefingLayout.ProjectUpdateSheet
                 ? new Dictionary<int, ProjectBriefingCostValue>()
@@ -427,6 +430,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     ProjectCategory = item.ProjectCategory,
                     TechnicalCategory = item.TechnicalCategory,
                     CostRd = costRd.GetValueOrDefault(item.ProjectId) ?? ProjectBriefingCostValue.Missing(),
+                    IpaCost = ipaCost.GetValueOrDefault(item.ProjectId)
+                        ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
                     ProliferationCost = proliferation.GetValueOrDefault(item.ProjectId)
                         ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
                     ExternalStatus = external?.Body,
@@ -538,6 +543,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             CompletedCount = projects.Count(project => project.LifecycleStatus == ProjectLifecycleStatus.Completed),
             TotalCostRdInRupees = projects.Sum(project => project.CostRd.AmountInRupees ?? 0m),
             CostRdRecordedCount = projects.Count(project => project.CostRd.IsAvailable),
+            TotalIpaCostInRupees = projects.Sum(project => project.IpaCost.AmountInRupees ?? 0m),
+            IpaCostRecordedCount = projects.Count(project => project.IpaCost.IsAvailable),
             TotalProliferationCostInRupees = projects.Sum(project => project.ProliferationCost.AmountInRupees ?? 0m),
             ProliferationCostRecordedCount = projects.Count(project => project.ProliferationCost.IsAvailable),
             MissingExternalStatusCount = projects.Count(project => string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal)),

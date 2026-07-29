@@ -83,7 +83,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 var showBranding = ShouldShowBranding(data.BrandingScope, plans[index].Kind);
                 var canvas = new SlideCanvas(slidePart, theme, branding, showBranding);
                 plans[index].Render(canvas);
-                AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind == SlidePlanKind.Cover);
+                AddFooter(canvas, data, index + 1, plans.Count, plans[index].Kind);
                 canvas.Commit();
 
                 slideIdList.Append(new SlideId
@@ -301,6 +301,33 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 canvas.Theme.TextMuted,
                 true,
                 "l");
+        }
+
+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
+        {
+            AddCostSummaryCard(
+                canvas,
+                .65,
+                3.42,
+                5.86,
+                "TOTAL R&D COST",
+                data.Summary.TotalCostRdInRupees,
+                data.Summary.CostRdRecordedCount,
+                data.Summary.ProjectCount,
+                canvas.Theme.Accent,
+                canvas.Theme.AccentSoft);
+            AddCostSummaryCard(
+                canvas,
+                6.82,
+                3.42,
+                5.86,
+                "TOTAL IPA COST",
+                data.Summary.TotalIpaCostInRupees,
+                data.Summary.IpaCostRecordedCount,
+                data.Summary.ProjectCount,
+                canvas.Theme.SecondaryAccent,
+                canvas.Theme.SecondaryAccentSoft);
+            return;
         }
 
         var showRd = data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
@@ -1497,15 +1524,25 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         ProjectBriefingPresentationData data,
         int slideNumber,
         int slideCount,
-        bool isCover)
+        SlidePlanKind kind)
     {
-        if (isCover)
+        if (kind == SlidePlanKind.Cover)
         {
             return;
         }
 
         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
-        canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
+        var footerTextX = .65;
+        var footerTextWidth = 5.55;
+        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+            && kind == SlidePlanKind.Project
+            && canvas.ShowBranding)
+        {
+            canvas.AddBrandingImages(HeaderVariant.FooterCompact);
+            footerTextX = .92;
+            footerTextWidth = 5.28;
+        }
+        canvas.AddText(footerTextX, 7.12, footerTextWidth, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
         if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
         {
             canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
@@ -1620,7 +1657,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private enum HeaderVariant
     {
         Cover,
-        Standard
+        Standard,
+        FooterCompact
     }
 
     private sealed record DetailedSlideLayout(double PhotoHeight);
@@ -1723,6 +1761,15 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         public void AddBrandingImages(HeaderVariant variant)
         {
             if (!ShowBranding) return;
+
+            if (variant == HeaderVariant.FooterCompact)
+            {
+                if (_branding.LeftLogo is { Length: > 0 })
+                {
+                    AddImageContained(_branding.LeftLogo, .66, 7.09, .19, .19, "Compact footer insignia");
+                }
+                return;
+            }
 
             if (variant == HeaderVariant.Cover)
             {
