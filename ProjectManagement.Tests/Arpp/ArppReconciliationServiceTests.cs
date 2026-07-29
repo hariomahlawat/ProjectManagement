@@ -56,6 +56,7 @@ public sealed class ArppReconciliationServiceTests
         {
             SortOrder = 1,
             SerialNumber = "12",
+            PppNumber = "ARPP/IR&D/N/2026-27/12",
             ProjectReference = "Indigenous swarm drones Algorithm",
             Category = ArppCategory.New,
             IpaCost = 10_000_000m,
@@ -123,6 +124,7 @@ public sealed class ArppReconciliationServiceTests
         {
             SortOrder = 1,
             SerialNumber = "12",
+            PppNumber = "ARPP/IR&D/N/2026-27/12",
             ProjectReference = "Published project as issued",
             Category = ArppCategory.New,
             IpaCost = 10_000_000m,
@@ -161,6 +163,7 @@ public sealed class ArppReconciliationServiceTests
                     SourceEntryId = workingEntry.Id,
                     SortOrder = workingEntry.SortOrder,
                     SerialNumber = workingEntry.SerialNumber,
+                    PppNumber = workingEntry.PppNumber,
                     ProjectReference = workingEntry.ProjectReference,
                     Category = workingEntry.Category,
                     IpaCost = workingEntry.IpaCost,

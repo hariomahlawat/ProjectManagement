@@ -42,6 +42,7 @@
                 <tr>
                     <th class="number">#</th>
                     <th>Serial</th>
+                    <th>PPP No.</th>
                     <th>Project reference as issued</th>
                     <th>Category</th>
                     <th class="money">IPA cost (₹)</th>
@@ -55,7 +56,8 @@
                 {
                     <tr class="@(row.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
                         <td class="number">@row.SortOrder</td>
-                        <td>@row.SerialNumber</td>
+                        <td>@(row.Category == ArppCategory.Delisted ? string.Empty : row.SerialNumber)</td>
+                        <td>@(row.Category == ArppCategory.Delisted ? string.Empty : row.PppNumber)</td>
                         <td>@row.ProjectReference</td>
                         <td>@ArppDisplayNames.For(row.Category)</td>
                         <td class="money">@IndianCurrencyFormatter.FormatRupees(row.IpaCost).TrimStart('₹')</td>

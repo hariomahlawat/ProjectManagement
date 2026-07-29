@@ -167,7 +167,7 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("TechnologyRemarks", service, StringComparison.Ordinal);
         Assert.Contains("ProliferationRemarks", service, StringComparison.Ordinal);
         Assert.Contains("ProliferationCostRemarks", service, StringComparison.Ordinal);
-        Assert.Contains(""Availability for proliferation"", export, StringComparison.Ordinal);
+        Assert.Contains("\"Availability for proliferation\"", export, StringComparison.Ordinal);
         Assert.Contains("white-space: normal", css, StringComparison.Ordinal);
         Assert.Contains("cpw-drawer-success", css, StringComparison.Ordinal);
         Assert.Contains("data-drawer-success", register, StringComparison.Ordinal);

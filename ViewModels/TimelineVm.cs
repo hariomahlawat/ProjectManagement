@@ -59,6 +59,7 @@ public sealed class TimelineItemVm
     public string? ArppSourceIssueName { get; init; }
     public DateOnly? ArppSourceIssueDate { get; init; }
     public string? ArppSourceSerialNumber { get; init; }
+    public string? ArppSourcePppNumber { get; init; }
     public bool HasActualStartDataQualityIssue =>
         IsArppManaged &&
         ActualStart.HasValue &&

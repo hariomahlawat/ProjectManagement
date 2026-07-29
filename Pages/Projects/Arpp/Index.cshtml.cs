@@ -163,6 +163,7 @@ public sealed class IndexModel : PageModel
                 row.EntryId,
                 row.SortOrder,
                 row.SerialNumber,
+                row.PppNumber,
                 row.ProjectReference,
                 row.ProjectId,
                 row.ProjectName,

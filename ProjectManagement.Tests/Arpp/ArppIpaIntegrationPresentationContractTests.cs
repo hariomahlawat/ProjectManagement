@@ -14,6 +14,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         Assert.Contains("Addendum No.", markup, StringComparison.Ordinal);
         Assert.Contains("IssueDate.Value.ToString", markup, StringComparison.Ordinal);
         Assert.Contains("Ser No.", markup, StringComparison.Ordinal);
+        Assert.Contains("PPP No.", markup, StringComparison.Ordinal);
         Assert.Contains("/Projects/Arpp/History", markup, StringComparison.Ordinal);
     }
 
@@ -27,6 +28,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         Assert.Contains("Addendum No.", pageModel, StringComparison.Ordinal);
         Assert.Contains("position.IssueDate.Value.ToString", pageModel, StringComparison.Ordinal);
         Assert.Contains("Ser No.", pageModel, StringComparison.Ordinal);
+        Assert.Contains("PPP No.", pageModel, StringComparison.Ordinal);
         Assert.Contains("Update the authoritative value in the ARPP register", pageModel, StringComparison.Ordinal);
     }
 
@@ -81,6 +83,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
         Assert.Contains("Unavailable", markup, StringComparison.Ordinal);
         Assert.Contains("Actual start needs correction", markup, StringComparison.Ordinal);
         Assert.Contains("View ARPP issue", markup, StringComparison.Ordinal);
+        Assert.Contains("PPP No.", markup, StringComparison.Ordinal);
         Assert.Contains("Record actual start", markup, StringComparison.Ordinal);
         Assert.Contains("Correct actual start", markup, StringComparison.Ordinal);
         Assert.Contains("data-actuals-focus-stage", markup, StringComparison.Ordinal);

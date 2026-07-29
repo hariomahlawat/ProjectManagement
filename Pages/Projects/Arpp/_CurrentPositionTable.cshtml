@@ -5,6 +5,7 @@
 @model IReadOnlyList<ArppLibraryCurrentRow>
 @{
     var libraryQuery = Context.Request.Query["Query"].ToString();
+    var showIssuedIdentifiers = Model.Any(row => row.Category != ArppCategory.Delisted);
 
     static bool IsSameReference(string issuedReference, string projectName)
         => string.Equals(
@@ -25,7 +26,11 @@ else
                 <tr>
                     <th>Project</th>
                     <th>Latest source</th>
-                    <th>Serial</th>
+                    @if (showIssuedIdentifiers)
+                    {
+                        <th>Serial</th>
+                        <th>PPP No.</th>
+                    }
                     <th>Category</th>
                     <th class="text-end">IPA cost (₹)</th>
                     <th>CFA</th>
@@ -75,7 +80,11 @@ else
                             </a>
                             <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
                         </td>
-                        <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                        @if (showIssuedIdentifiers)
+                        {
+                            <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                            <td class="project-arpp-table__ppp">@row.PppNumber</td>
+                        }
                         <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
                         <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
                         <td>@row.Cfa</td>

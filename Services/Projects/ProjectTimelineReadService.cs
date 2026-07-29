@@ -313,6 +313,7 @@ public sealed class ProjectTimelineReadService
                 ArppSourceIssueName = isArppManaged ? ipaAuthority!.IssueName : null,
                 ArppSourceIssueDate = isArppManaged ? ipaAuthority!.IssueDate : null,
                 ArppSourceSerialNumber = isArppManaged ? ipaAuthority!.SerialNumber : null,
+                ArppSourcePppNumber = isArppManaged ? ipaAuthority!.PppNumber : null,
                 SortOrder = index++,
                 Today = today,
                 HasPendingRequest = pendingRequest is not null,

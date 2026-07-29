@@ -67,6 +67,7 @@ public sealed class ArppReferenceDataServiceTests
         {
             SortOrder = 1,
             SerialNumber = "1",
+            PppNumber = "ARPP/IR&D/N/2026-27/1",
             ProjectReference = "Project One",
             Category = ArppCategory.New,
             IpaCost = 1_000_000m,

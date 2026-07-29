@@ -476,6 +476,10 @@
                   {
                     <span class="text-muted"> · Ser No. @s.ArppSourceSerialNumber</span>
                   }
+                  @if (!string.IsNullOrWhiteSpace(s.ArppSourcePppNumber))
+                  {
+                    <span class="text-muted"> · PPP No. @s.ArppSourcePppNumber</span>
+                  }
                 </div>
                 <span class="d-inline-flex flex-wrap align-items-center gap-2">
                   @if (canViewArpp && s.ArppSourceIssueId.HasValue)

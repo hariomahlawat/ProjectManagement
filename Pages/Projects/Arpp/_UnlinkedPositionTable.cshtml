@@ -17,6 +17,7 @@ else
                     <th>Project reference</th>
                     <th>Source document</th>
                     <th>Serial</th>
+                    <th>PPP No.</th>
                     <th>Category</th>
                     <th class="text-end">IPA cost (₹)</th>
                     <th>CFA</th>
@@ -39,7 +40,8 @@ else
                             <a asp-page="./Index" asp-route-issueId="@row.SourceIssueId">@row.SourceIssueName</a>
                             <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
                         </td>
-                        <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                        <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
+                        <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>
                         <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
                         <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
                         <td>@row.Cfa</td>

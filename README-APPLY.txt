@@ -1,30 +1,23 @@
-PRISM Project Briefing Dependency-Injection Registration Fix
-=============================================================
+PRISM test-constructor compatibility fix
+========================================
 
-Root cause
-----------
-The latest Program.cs replacement omitted the scoped registration for
-IProjectBriefingUpdateSheetFactsResolver. ProjectBriefingDataService requires that
-resolver, so ASP.NET Core failed while validating the service graph at startup.
+Copy the ProjectManagement.Tests folder from this package into the ProjectManagement project root and allow the five files to be added/replaced.
 
-Apply
------
-Copy the contents of this package into the ProjectManagement project root while
-preserving the folder structure. Replace Program.cs and add the test file.
+Changed files:
+1. ProjectManagement.Tests/ProjectPhotoPageTests.cs
+2. ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
+3. ProjectManagement.Tests/ProjectMetaEditPageTests.cs
+4. ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+5. ProjectManagement.Tests/Fakes/ThrowingProjectContentService.cs
 
-The required registration is:
+Corrections:
+- Supplies the new IProjectContentService dependency to OverviewModel test constructors.
+- Supplies the new IClock dependency to the project metadata EditModel test constructor.
+- Corrects ProjectBriefingCostBasis.Aon to the authoritative enum member ProjectBriefingCostBasis.AoN.
+- Uses a fail-fast shared project-content test double so unrelated page tests do not silently execute content commands.
 
-builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver,
-    ProjectBriefingUpdateSheetFactsResolver>();
+No application code or database migration is changed.
 
-It is placed in the Project briefing decks registration section before
-IProjectBriefingDataService.
-
-No database migration is required.
-
-Verification
-------------
-dotnet build
-dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
-
-Then start the application. The service-provider validation error should no longer occur.
+Verify:
+  dotnet build
+  dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj

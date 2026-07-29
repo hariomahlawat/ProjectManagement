@@ -1,0 +1,2469 @@
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/ArppPageModels.cs b/Areas/ProjectOfficeReports/Pages/ARPP/ArppPageModels.cs
+index 9f26bfe..f82af8f 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/ArppPageModels.cs
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/ArppPageModels.cs
+@@ -37,9 +37,11 @@ public sealed class ArppEntryInputModel
+ 
+     public string? RowVersion { get; set; }
+ 
+-    [Required]
+     [StringLength(64)]
+-    public string SerialNumber { get; set; } = string.Empty;
++    public string? SerialNumber { get; set; }
++
++    [StringLength(160)]
++    public string? PppNumber { get; set; }
+ 
+     [Required]
+     [StringLength(300)]
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
+index f818d6f..18c2e51 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
+@@ -270,13 +270,14 @@
+             <div class="arpp-panel__heading"><div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div></div>
+             <div class="arpp-table-wrap arpp-table-wrap--details">
+                 <table class="table arpp-details-table align-middle">
+-                    <thead><tr><th>#</th><th>Serial</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
++                    <thead><tr><th>#</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
+                     <tbody>
+                         @foreach (var entry in Model.Issue.Entries)
+                         {
+                             <tr class="@(entry.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
+                                 <td class="text-body-secondary">@entry.SortOrder</td>
+-                                <td><span class="arpp-serial">@entry.SerialNumber</span></td>
++                                <td><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</span></td>
++                                <td><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</span></td>
+                                 <td>
+                                     <div class="arpp-project-reference">@entry.ProjectReference</div>
+                                     @if (entry.ProjectId.HasValue)
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
+index f2875b5..26fed6c 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
+@@ -73,7 +73,7 @@
+         <div class="arpp-search">
+             <span class="bi bi-search" aria-hidden="true"></span>
+             <label class="visually-hidden" asp-for="Query">Search ARPP register</label>
+-            <input asp-for="Query" type="search" class="form-control" placeholder="Search issue, project, case file or serial number" />
++            <input asp-for="Query" type="search" class="form-control" placeholder="Search issue, project, PPP number, case file or serial number" />
+         </div>
+         <div>
+             <label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label>
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+index 3316a5e..0fe4ab8 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+@@ -98,7 +98,7 @@
+             <div class="arpp-panel__heading arpp-panel__heading--workspace">
+                 <div>
+                     <h2>Issued rows</h2>
+-                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. All fields remain required for Delisted entries.</p>
++                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. Project reference, IPA cost, CFA, Fund and DFPDS remain required for Delisted entries. Serial No. and PPP No. do not apply.</p>
+                 </div>
+                 <div class="arpp-entry-toolbar">
+                     <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
+@@ -153,6 +153,7 @@
+                         <tr>
+                             <th class="arpp-col-order arpp-sticky-left arpp-sticky-left--order">#</th>
+                             <th class="arpp-col-serial arpp-sticky-left arpp-sticky-left--serial">Serial no.</th>
++                            <th class="arpp-col-ppp arpp-sticky-left arpp-sticky-left--ppp">PPP no.</th>
+                             <th class="arpp-col-reference arpp-sticky-left arpp-sticky-left--reference">Project reference as issued</th>
+                             <th class="arpp-col-project">PRISM project <span class="arpp-optional">optional</span></th>
+                             <th class="arpp-col-category">Category</th>
+@@ -171,9 +172,13 @@
+                                 <td class="arpp-sticky-left arpp-sticky-left--serial">
+                                     <input type="hidden" asp-for="Input.Entries[index].Id" />
+                                     <input type="hidden" asp-for="Input.Entries[index].RowVersion" />
+-                                    <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" />
++                                    <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
+                                     <span asp-validation-for="Input.Entries[index].SerialNumber" class="text-danger small"></span>
+                                 </td>
++                                <td class="arpp-sticky-left arpp-sticky-left--ppp">
++                                    <input asp-for="Input.Entries[index].PppNumber" class="form-control form-control-sm" maxlength="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
++                                    <span asp-validation-for="Input.Entries[index].PppNumber" class="text-danger small"></span>
++                                </td>
+                                 <td class="arpp-sticky-left arpp-sticky-left--reference">
+                                     <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" data-arpp-project-reference></textarea>
+                                     <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+@@ -198,7 +203,7 @@
+                                     <span asp-validation-for="Input.Entries[index].ProjectId" class="text-danger small"></span>
+                                 </td>
+                                 <td>
+-                                    <select asp-for="Input.Entries[index].Category" class="form-select form-select-sm">
++                                    <select asp-for="Input.Entries[index].Category" class="form-select form-select-sm" data-arpp-category>
+                                         <option value="">Select</option>
+                                         @foreach (var category in Model.Categories)
+                                         {
+@@ -310,9 +315,13 @@
+                     <td class="arpp-sticky-left arpp-sticky-left--serial">
+                         <input type="hidden" name="Input.Entries[__INDEX__].Id" id="Input_Entries___INDEX____Id" />
+                         <input type="hidden" name="Input.Entries[__INDEX__].RowVersion" id="Input_Entries___INDEX____RowVersion" />
+-                        <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" required data-val="true" data-val-required="Enter the serial number." data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" />
++                        <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" data-val="true" data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
+                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].SerialNumber" data-valmsg-replace="true"></span>
+                     </td>
++                    <td class="arpp-sticky-left arpp-sticky-left--ppp">
++                        <input name="Input.Entries[__INDEX__].PppNumber" id="Input_Entries___INDEX____PppNumber" class="form-control form-control-sm" maxlength="160" data-val="true" data-val-length="The PPP number cannot exceed 160 characters." data-val-length-max="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
++                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].PppNumber" data-valmsg-replace="true"></span>
++                    </td>
+                     <td class="arpp-sticky-left arpp-sticky-left--reference">
+                         <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300" data-arpp-project-reference></textarea>
+                         <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+@@ -333,7 +342,7 @@
+                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectId" data-valmsg-replace="true"></span>
+                     </td>
+                     <td>
+-                        <select name="Input.Entries[__INDEX__].Category" id="Input_Entries___INDEX____Category" class="form-select form-select-sm" required data-val="true" data-val-required="Select an ARPP category.">
++                        <select name="Input.Entries[__INDEX__].Category" id="Input_Entries___INDEX____Category" class="form-select form-select-sm" required data-val="true" data-val-required="Select an ARPP category." data-arpp-category>
+                             <option value="">Select</option><option value="1">New</option><option value="2">CL</option><option value="3">CF</option><option value="4">Delisted</option>
+                         </select>
+                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Category" data-valmsg-replace="true"></span>
+@@ -409,14 +418,14 @@
+             <div class="modal-header">
+                 <div>
+                     <h2 class="modal-title fs-5" id="arppPasteModalLabel">Paste rows from Excel</h2>
+-                    <p class="mb-0 small text-body-secondary">Paste seven tab-separated columns: Serial, Project reference, Category, IPA cost, CFA, Fund and DFPDS.</p>
++                    <p class="mb-0 small text-body-secondary">Paste eight tab-separated columns: Serial, PPP No., Project reference, Category, IPA cost, CFA, Fund and DFPDS. For Delisted rows, leave Serial and PPP No. blank.</p>
+                 </div>
+                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+             </div>
+             <div class="modal-body">
+                 <div data-arpp-paste-entry>
+                     <label for="arpp-paste-text" class="form-label">Excel rows</label>
+-                    <textarea id="arpp-paste-text" class="form-control font-monospace" rows="10" data-arpp-paste-text placeholder="1&#9;Project name&#9;New&#9;12500000&#9;Comdt SDD&#9;IR&amp;D&#9;9.3"></textarea>
++                    <textarea id="arpp-paste-text" class="form-control font-monospace" rows="10" data-arpp-paste-text placeholder="1&#9;ARPP/IR&amp;D/N/2026-27/15&#9;Project name&#9;New&#9;12500000&#9;Comdt SDD&#9;IR&amp;D&#9;9.3"></textarea>
+                     <div class="form-text">A header row is accepted. Comma-formatted and ₹-prefixed costs are recognised.</div>
+                 </div>
+                 <div class="alert alert-danger d-none mt-3 mb-0" role="alert" data-arpp-paste-error></div>
+@@ -430,7 +439,7 @@
+                     </div>
+                     <div class="table-responsive">
+                         <table class="table table-sm arpp-paste-preview-table">
+-                            <thead><tr><th>Row</th><th>Serial</th><th>Project reference</th><th>Category</th><th>IPA cost</th><th>Suggested project</th><th>Review</th></tr></thead>
++                            <thead><tr><th>Row</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th>IPA cost</th><th>Suggested project</th><th>Review</th></tr></thead>
+                             <tbody data-arpp-paste-preview-body></tbody>
+                         </table>
+                     </div>
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml.cs b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml.cs
+index e9e7906..d7c5510 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml.cs
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml.cs
+@@ -102,6 +102,7 @@ public sealed class ManageModel : PageModel
+                     entry.Id,
+                     entry.RowVersion,
+                     entry.SerialNumber,
++                    entry.PppNumber,
+                     entry.ProjectReference,
+                     entry.ProjectId,
+                     entry.Category,
+@@ -158,6 +159,7 @@ public sealed class ManageModel : PageModel
+                 Id = entry.Id,
+                 RowVersion = entry.RowVersion,
+                 SerialNumber = entry.SerialNumber,
++                PppNumber = entry.PppNumber,
+                 ProjectReference = entry.ProjectReference,
+                 ProjectId = entry.ProjectId,
+                 LinkedProjectName = entry.ProjectName,
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
+index 7871994..c199d7d 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
+@@ -85,6 +85,7 @@
+                 <tr>
+                     <th class="number">#</th>
+                     <th>Serial</th>
++                    <th>PPP No.</th>
+                     <th>Project reference as issued</th>
+                     <th>PRISM project</th>
+                     <th>Category</th>
+@@ -99,7 +100,8 @@
+                 {
+                     <tr class="@(entry.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
+                         <td class="number">@entry.SortOrder</td>
+-                        <td>@entry.SerialNumber</td>
++                        <td>@(entry.Category == ArppCategory.Delisted ? string.Empty : entry.SerialNumber)</td>
++                        <td>@(entry.Category == ArppCategory.Delisted ? string.Empty : entry.PppNumber)</td>
+                         <td>@entry.ProjectReference</td>
+                         <td>
+                             @if (entry.ProjectId.HasValue)
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
+index 24f2abe..f5a7406 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
+@@ -59,6 +59,7 @@
+                             <th>Document</th>
+                             <th>Issue date</th>
+                             <th>Serial</th>
++                            <th>PPP No.</th>
+                             <th>Category</th>
+                             <th class="text-end">IPA cost (₹)</th>
+                             <th>CFA</th>
+@@ -86,7 +87,8 @@
+                                     <div class="small text-body-secondary">@(item.Kind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum {item.IssueSequence}")</div>
+                                 </td>
+                                 <td class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
+-                                <td><span class="arpp-serial">@item.SerialNumber</span></td>
++                                <td><span class="arpp-serial">@(item.Category == ArppCategory.Delisted ? "—" : item.SerialNumber)</span></td>
++                                <td><span class="arpp-ppp">@(item.Category == ArppCategory.Delisted ? "—" : item.PppNumber)</span></td>
+                                 <td><span class="arpp-badge arpp-badge--@(item.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(item.Category)</span></td>
+                                 <td class="text-end text-nowrap fw-semibold">@IndianCurrencyFormatter.FormatRupees(item.IpaCost)</td>
+                                 <td>@item.Cfa</td>
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
+index a97f698..ec4fe42 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
+@@ -49,7 +49,7 @@
+         <div class="arpp-search">
+             <span class="bi bi-search" aria-hidden="true"></span>
+             <label class="visually-hidden" asp-for="Query">Search unlinked rows</label>
+-            <input asp-for="Query" type="search" class="form-control" placeholder="Search project reference, serial number or issue" />
++            <input asp-for="Query" type="search" class="form-control" placeholder="Search project reference, PPP number, serial number or issue" />
+         </div>
+         <div>
+             <label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label>
+@@ -102,7 +102,8 @@
+                             </div>
+                             <h2>@item.ProjectReference</h2>
+                             <div class="arpp-reconciliation-meta">
+-                                <span>Serial @item.SerialNumber</span>
++                                @if (!string.IsNullOrWhiteSpace(item.SerialNumber)) { <span>Serial @item.SerialNumber</span> }
++                                @if (!string.IsNullOrWhiteSpace(item.PppNumber)) { <span>PPP @item.PppNumber</span> }
+                                 <span>@item.CategoryLabel</span>
+                                 <span>@IndianCurrencyFormatter.FormatWithCompact(item.IpaCost)</span>
+                             </div>
+diff --git a/Data/ApplicationDbContext.cs b/Data/ApplicationDbContext.cs
+index 517317b..05d8b34 100644
+--- a/Data/ApplicationDbContext.cs
++++ b/Data/ApplicationDbContext.cs
+@@ -1980,17 +1980,22 @@ namespace ProjectManagement.Data
+                         "\"Category\" IN (1, 2, 3, 4)");
+                     table.HasCheckConstraint(
+                         "CK_ArppEntries_RequiredText",
+-                        "length(btrim(\"SerialNumber\")) > 0 AND " +
+                         "length(btrim(\"ProjectReference\")) > 0 AND " +
+                         "length(btrim(\"Cfa\")) > 0 AND " +
+                         "length(btrim(\"Fund\")) > 0 AND " +
+                         "length(btrim(\"DfpdsSchedule\")) > 0");
++                    table.HasCheckConstraint(
++                        "CK_ArppEntries_IssuedIdentifiers",
++                        "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR " +
++                        "(\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND " +
++                        "(\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
+                 });
+ 
+                 ConfigureRowVersion(entity);
+                 entity.HasKey(x => x.Id);
+                 entity.Property(x => x.SortOrder).IsRequired();
+-                entity.Property(x => x.SerialNumber).HasMaxLength(64).IsRequired();
++                entity.Property(x => x.SerialNumber).HasMaxLength(64);
++                entity.Property(x => x.PppNumber).HasMaxLength(160);
+                 entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
+                 entity.Property(x => x.Category).HasConversion<int>().IsRequired();
+                 entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();
+@@ -2169,17 +2174,22 @@ namespace ProjectManagement.Data
+                     table.HasCheckConstraint("CK_ArppPublishedEntries_Category", "\"Category\" IN (1, 2, 3, 4)");
+                     table.HasCheckConstraint(
+                         "CK_ArppPublishedEntries_RequiredText",
+-                        "length(btrim(\"SerialNumber\")) > 0 AND " +
+                         "length(btrim(\"ProjectReference\")) > 0 AND " +
+                         "length(btrim(\"Cfa\")) > 0 AND " +
+                         "length(btrim(\"Fund\")) > 0 AND " +
+                         "length(btrim(\"DfpdsSchedule\")) > 0");
++                    table.HasCheckConstraint(
++                        "CK_ArppPublishedEntries_IssuedIdentifiers",
++                        "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR " +
++                        "(\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND " +
++                        "(\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
+                 });
+ 
+                 entity.HasKey(x => x.Id);
+                 entity.Property(x => x.SourceEntryId).IsRequired();
+                 entity.Property(x => x.SortOrder).IsRequired();
+-                entity.Property(x => x.SerialNumber).HasMaxLength(64).IsRequired();
++                entity.Property(x => x.SerialNumber).HasMaxLength(64);
++                entity.Property(x => x.PppNumber).HasMaxLength(160);
+                 entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
+                 entity.Property(x => x.Category).HasConversion<int>().IsRequired();
+                 entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();
+diff --git a/Migrations/20261207160000_AddArppPppNumberAndCategoryIdentifiers.cs b/Migrations/20261207160000_AddArppPppNumberAndCategoryIdentifiers.cs
+new file mode 100644
+index 0000000..bd8ca2a
+--- /dev/null
++++ b/Migrations/20261207160000_AddArppPppNumberAndCategoryIdentifiers.cs
+@@ -0,0 +1,179 @@
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using ProjectManagement.Data;
++
++#nullable disable
++
++namespace ProjectManagement.Migrations;
++
++[DbContext(typeof(ApplicationDbContext))]
++[Migration("20261207160000_AddArppPppNumberAndCategoryIdentifiers")]
++public partial class AddArppPppNumberAndCategoryIdentifiers : Migration
++{
++    protected override void Up(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.DropCheckConstraint(
++            name: "CK_ArppEntries_RequiredText",
++            table: "ArppEntries");
++
++        migrationBuilder.DropCheckConstraint(
++            name: "CK_ArppPublishedEntries_RequiredText",
++            table: "ArppPublishedEntries");
++
++        migrationBuilder.AlterColumn<string>(
++            name: "SerialNumber",
++            table: "ArppEntries",
++            type: "character varying(64)",
++            maxLength: 64,
++            nullable: true,
++            oldClrType: typeof(string),
++            oldType: "character varying(64)",
++            oldMaxLength: 64);
++
++        migrationBuilder.AlterColumn<string>(
++            name: "SerialNumber",
++            table: "ArppPublishedEntries",
++            type: "character varying(64)",
++            maxLength: 64,
++            nullable: true,
++            oldClrType: typeof(string),
++            oldType: "character varying(64)",
++            oldMaxLength: 64);
++
++        migrationBuilder.AddColumn<string>(
++            name: "PppNumber",
++            table: "ArppEntries",
++            type: "character varying(160)",
++            maxLength: 160,
++            nullable: true);
++
++        migrationBuilder.AddColumn<string>(
++            name: "PppNumber",
++            table: "ArppPublishedEntries",
++            type: "character varying(160)",
++            maxLength: 160,
++            nullable: true);
++
++        // Delisted rows in the issued ARPP do not carry Serial No. or PPP No.
++        // Existing values are cleared rather than preserving identifiers that were
++        // entered only because the earlier schema required them.
++        migrationBuilder.Sql("""
++            UPDATE "ArppEntries"
++            SET "SerialNumber" = NULL,
++                "PppNumber" = NULL
++            WHERE "Category" = 4;
++
++            UPDATE "ArppPublishedEntries"
++            SET "SerialNumber" = NULL,
++                "PppNumber" = NULL
++            WHERE "Category" = 4;
++            """);
++
++        migrationBuilder.AddCheckConstraint(
++            name: "CK_ArppEntries_RequiredText",
++            table: "ArppEntries",
++            sql: "length(btrim(\"ProjectReference\")) > 0 AND " +
++                 "length(btrim(\"Cfa\")) > 0 AND " +
++                 "length(btrim(\"Fund\")) > 0 AND " +
++                 "length(btrim(\"DfpdsSchedule\")) > 0");
++
++        migrationBuilder.AddCheckConstraint(
++            name: "CK_ArppEntries_IssuedIdentifiers",
++            table: "ArppEntries",
++            sql: "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR " +
++                 "(\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND " +
++                 "(\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
++
++        migrationBuilder.AddCheckConstraint(
++            name: "CK_ArppPublishedEntries_RequiredText",
++            table: "ArppPublishedEntries",
++            sql: "length(btrim(\"ProjectReference\")) > 0 AND " +
++                 "length(btrim(\"Cfa\")) > 0 AND " +
++                 "length(btrim(\"Fund\")) > 0 AND " +
++                 "length(btrim(\"DfpdsSchedule\")) > 0");
++
++        migrationBuilder.AddCheckConstraint(
++            name: "CK_ArppPublishedEntries_IssuedIdentifiers",
++            table: "ArppPublishedEntries",
++            sql: "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR " +
++                 "(\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND " +
++                 "(\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
++    }
++
++    protected override void Down(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.DropCheckConstraint(
++            name: "CK_ArppEntries_IssuedIdentifiers",
++            table: "ArppEntries");
++
++        migrationBuilder.DropCheckConstraint(
++            name: "CK_ArppPublishedEntries_IssuedIdentifiers",
++            table: "ArppPublishedEntries");
++
++        migrationBuilder.DropCheckConstraint(
++            name: "CK_ArppEntries_RequiredText",
++            table: "ArppEntries");
++
++        migrationBuilder.DropCheckConstraint(
++            name: "CK_ArppPublishedEntries_RequiredText",
++            table: "ArppPublishedEntries");
++
++        migrationBuilder.Sql("""
++            UPDATE "ArppEntries"
++            SET "SerialNumber" = COALESCE(NULLIF(btrim("SerialNumber"), ''), "SortOrder"::text);
++
++            UPDATE "ArppPublishedEntries"
++            SET "SerialNumber" = COALESCE(NULLIF(btrim("SerialNumber"), ''), "SortOrder"::text);
++            """);
++
++        migrationBuilder.DropColumn(
++            name: "PppNumber",
++            table: "ArppEntries");
++
++        migrationBuilder.DropColumn(
++            name: "PppNumber",
++            table: "ArppPublishedEntries");
++
++        migrationBuilder.AlterColumn<string>(
++            name: "SerialNumber",
++            table: "ArppEntries",
++            type: "character varying(64)",
++            maxLength: 64,
++            nullable: false,
++            defaultValue: "",
++            oldClrType: typeof(string),
++            oldType: "character varying(64)",
++            oldMaxLength: 64,
++            oldNullable: true);
++
++        migrationBuilder.AlterColumn<string>(
++            name: "SerialNumber",
++            table: "ArppPublishedEntries",
++            type: "character varying(64)",
++            maxLength: 64,
++            nullable: false,
++            defaultValue: "",
++            oldClrType: typeof(string),
++            oldType: "character varying(64)",
++            oldMaxLength: 64,
++            oldNullable: true);
++
++        migrationBuilder.AddCheckConstraint(
++            name: "CK_ArppEntries_RequiredText",
++            table: "ArppEntries",
++            sql: "length(btrim(\"SerialNumber\")) > 0 AND " +
++                 "length(btrim(\"ProjectReference\")) > 0 AND " +
++                 "length(btrim(\"Cfa\")) > 0 AND " +
++                 "length(btrim(\"Fund\")) > 0 AND " +
++                 "length(btrim(\"DfpdsSchedule\")) > 0");
++
++        migrationBuilder.AddCheckConstraint(
++            name: "CK_ArppPublishedEntries_RequiredText",
++            table: "ArppPublishedEntries",
++            sql: "length(btrim(\"SerialNumber\")) > 0 AND " +
++                 "length(btrim(\"ProjectReference\")) > 0 AND " +
++                 "length(btrim(\"Cfa\")) > 0 AND " +
++                 "length(btrim(\"Fund\")) > 0 AND " +
++                 "length(btrim(\"DfpdsSchedule\")) > 0");
++    }
++}
+diff --git a/Migrations/ApplicationDbContextModelSnapshot.cs b/Migrations/ApplicationDbContextModelSnapshot.cs
+index 6b2f03f..9745dad 100644
+--- a/Migrations/ApplicationDbContextModelSnapshot.cs
++++ b/Migrations/ApplicationDbContextModelSnapshot.cs
+@@ -4664,10 +4664,13 @@ namespace ProjectManagement.Migrations
+                         .HasColumnType("bytea");
+ 
+                     b.Property<string>("SerialNumber")
+-                        .IsRequired()
+                         .HasMaxLength(64)
+                         .HasColumnType("character varying(64)");
+ 
++                    b.Property<string>("PppNumber")
++                        .HasMaxLength(160)
++                        .HasColumnType("character varying(160)");
++
+                     b.Property<int>("SortOrder")
+                         .HasColumnType("integer");
+ 
+@@ -4702,7 +4705,9 @@ namespace ProjectManagement.Migrations
+ 
+                             t.HasCheckConstraint("CK_ArppEntries_IpaCost", "\"IpaCost\" >= 0");
+ 
+-                            t.HasCheckConstraint("CK_ArppEntries_RequiredText", "length(btrim(\"SerialNumber\")) > 0 AND length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
++                            t.HasCheckConstraint("CK_ArppEntries_IssuedIdentifiers", "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR (\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND (\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
++
++                            t.HasCheckConstraint("CK_ArppEntries_RequiredText", "length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
+ 
+                             t.HasCheckConstraint("CK_ArppEntries_SortOrder", "\"SortOrder\" >= 0");
+                         });
+@@ -4833,10 +4838,13 @@ namespace ProjectManagement.Migrations
+                         .HasColumnType("character varying(300)");
+ 
+                     b.Property<string>("SerialNumber")
+-                        .IsRequired()
+                         .HasMaxLength(64)
+                         .HasColumnType("character varying(64)");
+ 
++                    b.Property<string>("PppNumber")
++                        .HasMaxLength(160)
++                        .HasColumnType("character varying(160)");
++
+                     b.Property<long>("SourceEntryId")
+                         .HasColumnType("bigint");
+ 
+@@ -4863,7 +4871,9 @@ namespace ProjectManagement.Migrations
+ 
+                             t.HasCheckConstraint("CK_ArppPublishedEntries_IpaCost", "\"IpaCost\" >= 0");
+ 
+-                            t.HasCheckConstraint("CK_ArppPublishedEntries_RequiredText", "length(btrim(\"SerialNumber\")) > 0 AND length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
++                            t.HasCheckConstraint("CK_ArppPublishedEntries_IssuedIdentifiers", "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR (\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND (\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
++
++                            t.HasCheckConstraint("CK_ArppPublishedEntries_RequiredText", "length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
+ 
+                             t.HasCheckConstraint("CK_ArppPublishedEntries_SortOrder", "\"SortOrder\" >= 0");
+ 
+diff --git a/Migrations/immutable-migration-ids.txt b/Migrations/immutable-migration-ids.txt
+index 9eefd6d..3d230fe 100644
+--- a/Migrations/immutable-migration-ids.txt
++++ b/Migrations/immutable-migration-ids.txt
+@@ -84,3 +84,4 @@
+ 20261207130000_AddArppPublishedSnapshots
+ 20261207140000_AddProjectContent
+ 20261207150000_AddProjectBriefingUpdateSheetLayout
++20261207160000_AddArppPppNumberAndCategoryIdentifiers
+diff --git a/Models/Arpp/ArppEntry.cs b/Models/Arpp/ArppEntry.cs
+index ca465c0..c705d75 100644
+--- a/Models/Arpp/ArppEntry.cs
++++ b/Models/Arpp/ArppEntry.cs
+@@ -11,9 +11,11 @@ public sealed class ArppEntry
+ 
+     public int SortOrder { get; set; }
+ 
+-    [Required]
+     [MaxLength(64)]
+-    public string SerialNumber { get; set; } = string.Empty;
++    public string? SerialNumber { get; set; }
++
++    [MaxLength(160)]
++    public string? PppNumber { get; set; }
+ 
+     [Required]
+     [MaxLength(300)]
+diff --git a/Models/Arpp/ArppPublishedEntry.cs b/Models/Arpp/ArppPublishedEntry.cs
+index 3506e90..b71701e 100644
+--- a/Models/Arpp/ArppPublishedEntry.cs
++++ b/Models/Arpp/ArppPublishedEntry.cs
+@@ -20,9 +20,11 @@ public sealed class ArppPublishedEntry
+ 
+     public int SortOrder { get; set; }
+ 
+-    [Required]
+     [MaxLength(64)]
+-    public string SerialNumber { get; set; } = string.Empty;
++    public string? SerialNumber { get; set; }
++
++    [MaxLength(160)]
++    public string? PppNumber { get; set; }
+ 
+     [Required]
+     [MaxLength(300)]
+diff --git a/Pages/Projects/Arpp/History.cshtml b/Pages/Projects/Arpp/History.cshtml
+index 3362493..5dd6958 100644
+--- a/Pages/Projects/Arpp/History.cshtml
++++ b/Pages/Projects/Arpp/History.cshtml
+@@ -56,7 +56,7 @@
+         <div>
+             <span>Current IPA cost</span>
+             <strong class="@(current.Category == ArppCategory.Delisted ? "project-arpp-money--delisted" : "text-success")">@IndianCurrencyFormatter.FormatCompact(current.IpaCost)</strong>
+-            <small>Serial @current.SerialNumber</small>
++            <small>@(current.Category == ArppCategory.Delisted ? "Issued identifiers not applicable" : $"Serial {current.SerialNumber} · PPP {current.PppNumber}")</small>
+         </div>
+         <div>
+             <span>Published entries</span>
+@@ -68,7 +68,7 @@
+     <section class="project-arpp-table-card project-arpp-history-card">
+         <div class="project-arpp-table-card__head">
+             <h2>Published ARPP history</h2>
+-            <p>Latest published entry is shown first. Serial numbers and wording are preserved from each issued document.</p>
++            <p>Latest published entry is shown first. Serial numbers, PPP numbers and wording are preserved from each issued document. Delisted positions have no issued identifiers.</p>
+         </div>
+         <div class="project-arpp-table-wrap">
+             <table class="project-arpp-table project-arpp-table--history">
+@@ -78,6 +78,7 @@
+                         <th>Financial year</th>
+                         <th>Source document</th>
+                         <th>Serial</th>
++                        <th>PPP No.</th>
+                         <th>Project reference as issued</th>
+                         <th>Category</th>
+                         <th class="text-end">IPA cost (₹)</th>
+@@ -104,7 +105,8 @@
+                                    asp-route-query="@Model.Query">@row.SourceIssueName</a>
+                                 <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                             </td>
+-                            <td class="project-arpp-table__serial">@row.SerialNumber</td>
++                            <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
++                            <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>
+                             <td><div class="project-arpp-table__project">@row.ProjectReference</div></td>
+                             <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                             <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+diff --git a/Pages/Projects/Arpp/Index.cshtml b/Pages/Projects/Arpp/Index.cshtml
+index 0c4f2c7..2865530 100644
+--- a/Pages/Projects/Arpp/Index.cshtml
++++ b/Pages/Projects/Arpp/Index.cshtml
+@@ -90,7 +90,7 @@
+                       class="project-arpp-search"
+                       role="search"
+                       data-arpp-library-search-form>
+-                    <label class="visually-hidden" for="arppLibrarySearch">Search projects, documents or serial numbers</label>
++                    <label class="visually-hidden" for="arppLibrarySearch">Search projects, documents, PPP or serial numbers</label>
+                     <div class="project-arpp-search__control">
+                         <i class="bi bi-search" aria-hidden="true"></i>
+                         <input id="arppLibrarySearch"
+@@ -99,7 +99,7 @@
+                                type="search"
+                                autocomplete="off"
+                                placeholder="Projects, documents or serials"
+-                               title="Search document names, project references, serial numbers, categories, CFA, Fund and DFPDS" />
++                               title="Search document names, project references, PPP numbers, serial numbers, categories, CFA, Fund and DFPDS" />
+                         @if (Model.Document is not null)
+                         {
+                             <input type="hidden" name="IssueId" value="@Model.Document.IssueId" />
+diff --git a/Pages/Projects/Arpp/Index.cshtml.cs b/Pages/Projects/Arpp/Index.cshtml.cs
+index f4e2bcf..44d9d63 100644
+--- a/Pages/Projects/Arpp/Index.cshtml.cs
++++ b/Pages/Projects/Arpp/Index.cshtml.cs
+@@ -163,6 +163,7 @@ public sealed class IndexModel : PageModel
+                 row.EntryId,
+                 row.SortOrder,
+                 row.SerialNumber,
++                row.PppNumber,
+                 row.ProjectReference,
+                 row.ProjectId,
+                 row.ProjectName,
+diff --git a/Pages/Projects/Arpp/Print.cshtml b/Pages/Projects/Arpp/Print.cshtml
+index 0fc4cd3..f12aa92 100644
+--- a/Pages/Projects/Arpp/Print.cshtml
++++ b/Pages/Projects/Arpp/Print.cshtml
+@@ -42,6 +42,7 @@
+                 <tr>
+                     <th class="number">#</th>
+                     <th>Serial</th>
++                    <th>PPP No.</th>
+                     <th>Project reference as issued</th>
+                     <th>Category</th>
+                     <th class="money">IPA cost (₹)</th>
+@@ -55,7 +56,8 @@
+                 {
+                     <tr class="@(row.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
+                         <td class="number">@row.SortOrder</td>
+-                        <td>@row.SerialNumber</td>
++                        <td>@(row.Category == ArppCategory.Delisted ? string.Empty : row.SerialNumber)</td>
++                        <td>@(row.Category == ArppCategory.Delisted ? string.Empty : row.PppNumber)</td>
+                         <td>@row.ProjectReference</td>
+                         <td>@ArppDisplayNames.For(row.Category)</td>
+                         <td class="money">@IndianCurrencyFormatter.FormatRupees(row.IpaCost).TrimStart('₹')</td>
+diff --git a/Pages/Projects/Arpp/_CurrentPositionTable.cshtml b/Pages/Projects/Arpp/_CurrentPositionTable.cshtml
+index db76c91..f2523d8 100644
+--- a/Pages/Projects/Arpp/_CurrentPositionTable.cshtml
++++ b/Pages/Projects/Arpp/_CurrentPositionTable.cshtml
+@@ -5,6 +5,7 @@
+ @model IReadOnlyList<ArppLibraryCurrentRow>
+ @{
+     var libraryQuery = Context.Request.Query["Query"].ToString();
++    var showIssuedIdentifiers = Model.Any(row => row.Category != ArppCategory.Delisted);
+ 
+     static bool IsSameReference(string issuedReference, string projectName)
+         => string.Equals(
+@@ -25,7 +26,11 @@ else
+                 <tr>
+                     <th>Project</th>
+                     <th>Latest source</th>
+-                    <th>Serial</th>
++                    @if (showIssuedIdentifiers)
++                    {
++                        <th>Serial</th>
++                        <th>PPP No.</th>
++                    }
+                     <th>Category</th>
+                     <th class="text-end">IPA cost (₹)</th>
+                     <th>CFA</th>
+@@ -75,7 +80,11 @@ else
+                             </a>
+                             <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                         </td>
+-                        <td class="project-arpp-table__serial">@row.SerialNumber</td>
++                        @if (showIssuedIdentifiers)
++                        {
++                            <td class="project-arpp-table__serial">@row.SerialNumber</td>
++                            <td class="project-arpp-table__ppp">@row.PppNumber</td>
++                        }
+                         <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                         <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+                         <td>@row.Cfa</td>
+diff --git a/Pages/Projects/Arpp/_DocumentTable.cshtml b/Pages/Projects/Arpp/_DocumentTable.cshtml
+index 94be4a1..254be2b 100644
+--- a/Pages/Projects/Arpp/_DocumentTable.cshtml
++++ b/Pages/Projects/Arpp/_DocumentTable.cshtml
+@@ -18,6 +18,7 @@
+             <tr>
+                 <th class="project-arpp-table__order">#</th>
+                 <th class="project-arpp-table__serial">Serial</th>
++                <th class="project-arpp-table__ppp">PPP No.</th>
+                 <th>Project reference</th>
+                 <th>Category</th>
+                 <th class="text-end">IPA cost (₹)</th>
+@@ -31,7 +32,8 @@
+             {
+                 <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
+                     <td class="project-arpp-table__order">@row.SortOrder</td>
+-                    <td class="project-arpp-table__serial">@row.SerialNumber</td>
++                    <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
++                    <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>
+                     <td>
+                         @if (row.ProjectId.HasValue)
+                         {
+diff --git a/Pages/Projects/Arpp/_UnlinkedPositionTable.cshtml b/Pages/Projects/Arpp/_UnlinkedPositionTable.cshtml
+index 7e5cceb..fa9b8ec 100644
+--- a/Pages/Projects/Arpp/_UnlinkedPositionTable.cshtml
++++ b/Pages/Projects/Arpp/_UnlinkedPositionTable.cshtml
+@@ -17,6 +17,7 @@ else
+                     <th>Project reference</th>
+                     <th>Source document</th>
+                     <th>Serial</th>
++                    <th>PPP No.</th>
+                     <th>Category</th>
+                     <th class="text-end">IPA cost (₹)</th>
+                     <th>CFA</th>
+@@ -39,7 +40,8 @@ else
+                             <a asp-page="./Index" asp-route-issueId="@row.SourceIssueId">@row.SourceIssueName</a>
+                             <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
+                         </td>
+-                        <td class="project-arpp-table__serial">@row.SerialNumber</td>
++                        <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
++                        <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>
+                         <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
+                         <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>
+                         <td>@row.Cfa</td>
+diff --git a/Pages/Projects/Overview.cshtml.cs b/Pages/Projects/Overview.cshtml.cs
+index 320360f..54ec24f 100644
+--- a/Pages/Projects/Overview.cshtml.cs
++++ b/Pages/Projects/Overview.cshtml.cs
+@@ -2830,6 +2830,11 @@ namespace ProjectManagement.Pages.Projects
+                 parts.Add($"Ser No. {position.SerialNumber.Trim()}");
+             }
+ 
++            if (!string.IsNullOrWhiteSpace(position.PppNumber))
++            {
++                parts.Add($"PPP No. {position.PppNumber.Trim()}");
++            }
++
+             if (position.Category.HasValue)
+             {
+                 parts.Add(ArppDisplayNames.For(position.Category.Value));
+diff --git a/Pages/Shared/_ProjectProcurementAtAGlance.cshtml b/Pages/Shared/_ProjectProcurementAtAGlance.cshtml
+index 5cf5641..199bdb1 100644
+--- a/Pages/Shared/_ProjectProcurementAtAGlance.cshtml
++++ b/Pages/Shared/_ProjectProcurementAtAGlance.cshtml
+@@ -56,6 +56,11 @@
+         {
+             ipaSourceParts.Add($"Ser No. {ipaPosition.SerialNumber}");
+         }
++
++        if (!string.IsNullOrWhiteSpace(ipaPosition.PppNumber))
++        {
++            ipaSourceParts.Add($"PPP No. {ipaPosition.PppNumber}");
++        }
+     }
+ 
+     var ipaSourceText = string.Join(" · ", ipaSourceParts);
+diff --git a/Pages/Shared/_ProjectTimeline.cshtml b/Pages/Shared/_ProjectTimeline.cshtml
+index d80bb76..04cd600 100644
+--- a/Pages/Shared/_ProjectTimeline.cshtml
++++ b/Pages/Shared/_ProjectTimeline.cshtml
+@@ -476,6 +476,10 @@
+                   {
+                     <span class="text-muted"> · Ser No. @s.ArppSourceSerialNumber</span>
+                   }
++                  @if (!string.IsNullOrWhiteSpace(s.ArppSourcePppNumber))
++                  {
++                    <span class="text-muted"> · PPP No. @s.ArppSourcePppNumber</span>
++                  }
+                 </div>
+                 <span class="d-inline-flex flex-wrap align-items-center gap-2">
+                   @if (canViewArpp && s.ArppSourceIssueId.HasValue)
+diff --git a/ProjectManagement.Tests/Arpp/ArppAttachmentServiceTests.cs b/ProjectManagement.Tests/Arpp/ArppAttachmentServiceTests.cs
+index f1fcbf8..d6c172c 100644
+--- a/ProjectManagement.Tests/Arpp/ArppAttachmentServiceTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppAttachmentServiceTests.cs
+@@ -288,7 +288,8 @@ public sealed class ArppAttachmentServiceTests
+         => new()
+         {
+             SortOrder = 1,
+-            SerialNumber = "1",
++            SerialNumber = null,
++            PppNumber = null,
+             ProjectReference = "Project",
+             Category = ArppCategory.Delisted,
+             IpaCost = 5_000_000m,
+diff --git a/ProjectManagement.Tests/Arpp/ArppCommandServiceTests.cs b/ProjectManagement.Tests/Arpp/ArppCommandServiceTests.cs
+index ec7d198..5a97e6b 100644
+--- a/ProjectManagement.Tests/Arpp/ArppCommandServiceTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppCommandServiceTests.cs
+@@ -63,7 +63,8 @@ public sealed class ArppCommandServiceTests
+                 new ArppEntryInput(
+                     null,
+                     null,
+-                    "17",
++                    null,
++                    null,
+                     "Project Astra as issued",
+                     1,
+                     ArppCategory.Delisted,
+@@ -81,6 +82,8 @@ public sealed class ArppCommandServiceTests
+         Assert.True(save.Success);
+         var entry = await db.ArppEntries.SingleAsync();
+         Assert.Equal(ArppCategory.Delisted, entry.Category);
++        Assert.Null(entry.SerialNumber);
++        Assert.Null(entry.PppNumber);
+         Assert.Equal(25_000_000m, entry.IpaCost);
+         Assert.Equal("Project Astra as issued", entry.ProjectReference);
+         Assert.Equal(1, entry.ProjectId);
+@@ -113,6 +116,7 @@ public sealed class ArppCommandServiceTests
+                     null,
+                     null,
+                     "1",
++                    "ARPP/IR&D/N/2026-27/1",
+                     "Project One",
+                     null,
+                     ArppCategory.New,
+@@ -137,6 +141,48 @@ public sealed class ArppCommandServiceTests
+         Assert.Equal("9.3", saved.DfpdsSchedule);
+     }
+ 
++
++    [Fact]
++    public async Task SaveWorkspace_ApprovedRowRequiresSerialAndPppNumber()
++    {
++        await using var db = CreateContext();
++        var issue = CreateIssue();
++        db.ArppIssues.Add(issue);
++        await db.SaveChangesAsync();
++
++        var result = await CreateService(db).SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
++            issue.Id,
++            Convert.ToBase64String(issue.RowVersion),
++            issue.FinancialYearStart,
++            issue.Kind,
++            issue.IssueSequence,
++            issue.Name,
++            issue.IssueDate,
++            [
++                new ArppEntryInput(
++                    null,
++                    null,
++                    "1",
++                    null,
++                    "Approved project",
++                    null,
++                    ArppCategory.New,
++                    1_000_000m,
++                    null,
++                    "Comdt SDD",
++                    null,
++                    "IR&D",
++                    null,
++                    "9.3")
++            ],
++            "user-1",
++            "User One"));
++
++        Assert.False(result.Success);
++        Assert.Contains("Entries[0].PppNumber", result.FieldErrors.Keys);
++        Assert.Empty(await db.ArppEntries.ToListAsync());
++    }
++
+     [Fact]
+     public async Task SaveWorkspace_DuplicateLinkedProject_IsRejectedBeforePersistence()
+     {
+@@ -188,7 +234,8 @@ public sealed class ArppCommandServiceTests
+                 new ArppEntryInput(
+                     null,
+                     null,
+-                    "1",
++                    null,
++                    null,
+                     "Delisted project",
+                     null,
+                     ArppCategory.Delisted,
+@@ -241,6 +288,7 @@ public sealed class ArppCommandServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "1",
++            PppNumber = "ARPP/IR&D/N/2026-27/1",
+             ProjectReference = "Project 1",
+             Category = ArppCategory.New,
+             IpaCost = 1_000_000m,
+@@ -283,6 +331,7 @@ public sealed class ArppCommandServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "1",
++            PppNumber = "ARPP/IR&D/N/2026-27/1",
+             ProjectReference = "Project 1",
+             Category = ArppCategory.New,
+             IpaCost = 1_000_000m,
+@@ -336,6 +385,8 @@ public sealed class ArppCommandServiceTests
+         Assert.Equal("ARPP.pdf", published.AttachmentOriginalFileName);
+         Assert.Single(published.Entries);
+         Assert.Equal("Project 1", published.Entries.Single().ProjectReference);
++        Assert.Equal("1", published.Entries.Single().SerialNumber);
++        Assert.Equal("ARPP/IR&D/N/2026-27/1", published.Entries.Single().PppNumber);
+ 
+         var blockedSave = await service.SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
+             verified.Id,
+@@ -403,6 +454,7 @@ public sealed class ArppCommandServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "1",
++            PppNumber = "ARPP/IR&D/N/2026-27/1",
+             ProjectReference = "Project One as issued",
+             ProjectId = 1,
+             Category = ArppCategory.New,
+@@ -473,6 +525,58 @@ public sealed class ArppCommandServiceTests
+     }
+ 
+ 
++    [Fact]
++    public async Task Verify_BlocksLegacyApprovedRowUntilPppNumberIsBackfilled()
++    {
++        await using var db = CreateContext();
++        db.ArppCfaOptions.Add(CreateCfaOption());
++        db.ArppFundOptions.Add(CreateFundOption());
++        db.ArppDfpdsSchedules.Add(CreateDfpdsSchedule());
++        var issue = CreateIssue();
++        issue.Entries.Add(new ArppEntry
++        {
++            SortOrder = 1,
++            SerialNumber = "1",
++            PppNumber = null,
++            ProjectReference = "Legacy approved row",
++            Category = ArppCategory.New,
++            IpaCost = 1_000_000m,
++            CfaOptionId = 1,
++            Cfa = "Comdt SDD",
++            FundOptionId = 1,
++            Fund = "IR&D",
++            DfpdsScheduleId = 1,
++            DfpdsSchedule = "9.3",
++            CreatedAtUtc = DateTimeOffset.UtcNow,
++            UpdatedAtUtc = DateTimeOffset.UtcNow,
++            CreatedByUserId = "seed",
++            UpdatedByUserId = "seed"
++        });
++        issue.Attachment = new ArppAttachment
++        {
++            StorageKey = "arpp/test.pdf",
++            OriginalFileName = "ARPP.pdf",
++            ContentType = "application/pdf",
++            SizeBytes = 123,
++            Sha256 = new string('a', 64),
++            UploadedByUserId = "seed",
++            UploadedAtUtc = DateTimeOffset.UtcNow
++        };
++        db.ArppIssues.Add(issue);
++        await db.SaveChangesAsync();
++
++        var result = await CreateService(db).VerifyAsync(new ArppVerifyCommand(
++            issue.Id,
++            Convert.ToBase64String(issue.RowVersion),
++            null,
++            "verifier-1",
++            "Verifier One"));
++
++        Assert.False(result.Success);
++        Assert.Contains("IssuedIdentifiers", result.FieldErrors.Keys);
++        Assert.False((await db.ArppIssues.SingleAsync()).IsVerified);
++    }
++
+     [Fact]
+     public async Task Verify_BlocksRowsWithUnmappedControlledReferenceValues()
+     {
+@@ -482,6 +586,7 @@ public sealed class ArppCommandServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "1",
++            PppNumber = "ARPP/IR&D/N/2026-27/1",
+             ProjectReference = "Project One",
+             Category = ArppCategory.New,
+             IpaCost = 1_000_000m,
+@@ -555,6 +660,7 @@ public sealed class ArppCommandServiceTests
+             null,
+             null,
+             serialNumber,
++            $"ARPP/IR&D/N/2026-27/{serialNumber}",
+             $"Project {serialNumber}",
+             projectId,
+             ArppCategory.New,
+diff --git a/ProjectManagement.Tests/Arpp/ArppExcelWorkbookBuilderTests.cs b/ProjectManagement.Tests/Arpp/ArppExcelWorkbookBuilderTests.cs
+index fecaef6..987d673 100644
+--- a/ProjectManagement.Tests/Arpp/ArppExcelWorkbookBuilderTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppExcelWorkbookBuilderTests.cs
+@@ -28,7 +28,8 @@ public sealed class ArppExcelWorkbookBuilderTests
+         issue.Entries.Add(new ArppEntry
+         {
+             SortOrder = 1,
+-            SerialNumber = "17",
++            SerialNumber = null,
++            PppNumber = null,
+             ProjectReference = "Project Astra",
+             Category = ArppCategory.Delisted,
+             IpaCost = 47_500_000m,
+@@ -53,9 +54,11 @@ public sealed class ArppExcelWorkbookBuilderTests
+         using var stream = new MemoryStream(bytes);
+         using var workbook = new XLWorkbook(stream);
+         var sheet = workbook.Worksheet("ARPP");
+-        Assert.Equal("Delisted", sheet.Cell(9, 6).GetString());
+-        Assert.Equal(47_500_000m, sheet.Cell(9, 7).GetValue<decimal>());
+-        Assert.Contains("₹", sheet.Cell(9, 7).Style.NumberFormat.Format);
++        Assert.Equal(string.Empty, sheet.Cell(9, 2).GetString());
++        Assert.Equal(string.Empty, sheet.Cell(9, 3).GetString());
++        Assert.Equal("Delisted", sheet.Cell(9, 7).GetString());
++        Assert.Equal(47_500_000m, sheet.Cell(9, 8).GetValue<decimal>());
++        Assert.Contains("₹", sheet.Cell(9, 8).Style.NumberFormat.Format);
+         Assert.Contains("03:30 PM IST", sheet.Cell(3, 1).GetString());
+         Assert.False(sheet.Cell(3, 1).GetString().Contains(" UTC", StringComparison.Ordinal));
+     }
+@@ -78,6 +81,7 @@ public sealed class ArppExcelWorkbookBuilderTests
+                     10,
+                     1,
+                     "12",
++                    "ARPP/IR&D/CF/2026-27/12",
+                     "Project reference as issued",
+                     7,
+                     "Linked PRISM name",
+@@ -136,17 +140,19 @@ public sealed class ArppExcelWorkbookBuilderTests
+         Assert.DoesNotContain("Colonel Verifier", metadata, StringComparison.OrdinalIgnoreCase);
+ 
+         var sheet = workbook.Worksheet("ARPP");
+-        Assert.Equal("Project reference as issued", sheet.Cell(8, 3).GetString());
+-        Assert.Equal("Category", sheet.Cell(8, 4).GetString());
+-        Assert.Equal("DFPDS schedule", sheet.Cell(8, 8).GetString());
+-        Assert.Equal(string.Empty, sheet.Cell(8, 9).GetString());
++        Assert.Equal("PPP No.", sheet.Cell(8, 3).GetString());
++        Assert.Equal("Project reference as issued", sheet.Cell(8, 4).GetString());
++        Assert.Equal("Category", sheet.Cell(8, 5).GetString());
++        Assert.Equal("DFPDS schedule", sheet.Cell(8, 9).GetString());
++        Assert.Equal(string.Empty, sheet.Cell(8, 10).GetString());
+         Assert.DoesNotContain(
+             sheet.Row(8).CellsUsed().Select(cell => cell.GetString()),
+             heading => heading.Contains("PRISM", StringComparison.OrdinalIgnoreCase) ||
+                        heading.Contains("Link status", StringComparison.OrdinalIgnoreCase));
+-        Assert.Equal("Project reference as issued", sheet.Cell(9, 3).GetString());
+-        Assert.Equal("New", sheet.Cell(9, 4).GetString());
+-        Assert.Equal(10_000_000m, sheet.Cell(9, 5).GetValue<decimal>());
++        Assert.Equal("ARPP/IR&D/CF/2026-27/12", sheet.Cell(9, 3).GetString());
++        Assert.Equal("Project reference as issued", sheet.Cell(9, 4).GetString());
++        Assert.Equal("New", sheet.Cell(9, 5).GetString());
++        Assert.Equal(10_000_000m, sheet.Cell(9, 6).GetValue<decimal>());
+     }
+ 
+     private static ApplicationDbContext CreateContext()
+diff --git a/ProjectManagement.Tests/Arpp/ArppIpaIntegrationPresentationContractTests.cs b/ProjectManagement.Tests/Arpp/ArppIpaIntegrationPresentationContractTests.cs
+index b474229..5e91c0f 100644
+--- a/ProjectManagement.Tests/Arpp/ArppIpaIntegrationPresentationContractTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppIpaIntegrationPresentationContractTests.cs
+@@ -14,6 +14,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
+         Assert.Contains("Addendum No.", markup, StringComparison.Ordinal);
+         Assert.Contains("IssueDate.Value.ToString", markup, StringComparison.Ordinal);
+         Assert.Contains("Ser No.", markup, StringComparison.Ordinal);
++        Assert.Contains("PPP No.", markup, StringComparison.Ordinal);
+         Assert.Contains("/Projects/Arpp/History", markup, StringComparison.Ordinal);
+     }
+ 
+@@ -27,6 +28,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
+         Assert.Contains("Addendum No.", pageModel, StringComparison.Ordinal);
+         Assert.Contains("position.IssueDate.Value.ToString", pageModel, StringComparison.Ordinal);
+         Assert.Contains("Ser No.", pageModel, StringComparison.Ordinal);
++        Assert.Contains("PPP No.", pageModel, StringComparison.Ordinal);
+         Assert.Contains("Update the authoritative value in the ARPP register", pageModel, StringComparison.Ordinal);
+     }
+ 
+@@ -81,6 +83,7 @@ public sealed class ArppIpaIntegrationPresentationContractTests
+         Assert.Contains("Unavailable", markup, StringComparison.Ordinal);
+         Assert.Contains("Actual start needs correction", markup, StringComparison.Ordinal);
+         Assert.Contains("View ARPP issue", markup, StringComparison.Ordinal);
++        Assert.Contains("PPP No.", markup, StringComparison.Ordinal);
+         Assert.Contains("Record actual start", markup, StringComparison.Ordinal);
+         Assert.Contains("Correct actual start", markup, StringComparison.Ordinal);
+         Assert.Contains("data-actuals-focus-stage", markup, StringComparison.Ordinal);
+diff --git a/ProjectManagement.Tests/Arpp/ArppIpaIntegrationTests.cs b/ProjectManagement.Tests/Arpp/ArppIpaIntegrationTests.cs
+index 3d77f93..2514c2f 100644
+--- a/ProjectManagement.Tests/Arpp/ArppIpaIntegrationTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppIpaIntegrationTests.cs
+@@ -45,7 +45,8 @@ public sealed class ArppIpaIntegrationTests
+         issue.Entries.Add(new ArppEntry
+         {
+             SortOrder = 1,
+-            SerialNumber = "7",
++            SerialNumber = null,
++            PppNumber = null,
+             ProjectReference = "Project",
+             ProjectId = 1,
+             Category = ArppCategory.Delisted,
+@@ -85,6 +86,7 @@ public sealed class ArppIpaIntegrationTests
+                     SourceEntryId = sourceEntry.Id,
+                     SortOrder = sourceEntry.SortOrder,
+                     SerialNumber = sourceEntry.SerialNumber,
++                    PppNumber = sourceEntry.PppNumber,
+                     ProjectReference = sourceEntry.ProjectReference,
+                     ProjectId = sourceEntry.ProjectId,
+                     Category = sourceEntry.Category,
+diff --git a/ProjectManagement.Tests/Arpp/ArppIpaStageSynchronizerTests.cs b/ProjectManagement.Tests/Arpp/ArppIpaStageSynchronizerTests.cs
+index 5c190a3..93a1d58 100644
+--- a/ProjectManagement.Tests/Arpp/ArppIpaStageSynchronizerTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppIpaStageSynchronizerTests.cs
+@@ -256,6 +256,7 @@ public sealed class ArppIpaStageSynchronizerTests
+                 {
+                     SortOrder = 1,
+                     SerialNumber = "1",
++                    PppNumber = "ARPP/IR&D/N/2026-27/1",
+                     ProjectReference = "Project One",
+                     ProjectId = 1,
+                     Category = ArppCategory.New,
+@@ -348,7 +349,8 @@ public sealed class ArppIpaStageSynchronizerTests
+                     ArppIssueId = issueId,
+                     SourceEntryId = issueId,
+                     SortOrder = 1,
+-                    SerialNumber = "33",
++                    SerialNumber = category == ArppCategory.Delisted ? null : "33",
++                    PppNumber = category == ArppCategory.Delisted ? null : "ARPP/IR&D/2026-27/33",
+                     ProjectReference = $"Project {projectId}",
+                     ProjectId = projectId,
+                     Category = category,
+diff --git a/ProjectManagement.Tests/Arpp/ArppLibraryServiceTests.cs b/ProjectManagement.Tests/Arpp/ArppLibraryServiceTests.cs
+index 02a2ea7..12e1d16 100644
+--- a/ProjectManagement.Tests/Arpp/ArppLibraryServiceTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppLibraryServiceTests.cs
+@@ -29,6 +29,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 101,
+                 SortOrder = 1,
+                 SerialNumber = "10",
++                PppNumber = "ARPP/IR&D/2026-27/10",
+                 ProjectReference = "Project Astra",
+                 ProjectId = 1,
+                 Category = ArppCategory.New,
+@@ -46,7 +47,8 @@ public sealed class ArppLibraryServiceTests
+             {
+                 SourceEntryId = 201,
+                 SortOrder = 1,
+-                SerialNumber = "4",
++                SerialNumber = null,
++                PppNumber = null,
+                 ProjectReference = "Project Astra revised",
+                 ProjectId = 1,
+                 Category = ArppCategory.Delisted,
+@@ -61,6 +63,7 @@ public sealed class ArppLibraryServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "99",
++            PppNumber = "ARPP/IR&D/N/2026-27/99",
+             ProjectReference = "Unverified working value",
+             ProjectId = 1,
+             Category = ArppCategory.New,
+@@ -86,6 +89,8 @@ public sealed class ArppLibraryServiceTests
+         Assert.Equal(12_000_000m, delisted.IpaCost);
+         Assert.Equal("Project Astra revised", delisted.ProjectReference);
+         Assert.Equal(2, delisted.SourceIssueId);
++        Assert.Null(delisted.SerialNumber);
++        Assert.Null(delisted.PppNumber);
+         Assert.Equal(0, current.TotalUnlinkedDocumentRows);
+ 
+         var history = await service.GetProjectHistoryAsync(1);
+@@ -116,6 +121,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 401,
+                 SortOrder = 1,
+                 SerialNumber = "1",
++                PppNumber = "ARPP/IR&D/2026-27/1",
+                 ProjectReference = "Linked project",
+                 ProjectId = 1,
+                 Category = ArppCategory.New,
+@@ -129,6 +135,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 402,
+                 SortOrder = 2,
+                 SerialNumber = "2",
++                PppNumber = "ARPP/IR&D/2026-27/2",
+                 ProjectReference = "Issued project not yet created in PRISM",
+                 ProjectId = null,
+                 Category = ArppCategory.CarryForward,
+@@ -170,6 +177,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 301,
+                 SortOrder = 1,
+                 SerialNumber = "1",
++                PppNumber = "ARPP/IR&D/2026-27/1",
+                 ProjectReference = "Published project",
+                 Category = ArppCategory.New,
+                 IpaCost = 5_000_000m,
+@@ -200,6 +208,7 @@ public sealed class ArppLibraryServiceTests
+     [InlineData("9.2")]
+     [InlineData("CF")]
+     [InlineData("carry forward")]
++    [InlineData("ARPP/IR&D/2026-27/27")]
+     public async Task LibrarySearch_UsesSameControlledFieldsAcrossNavigationAndCurrentPosition(string query)
+     {
+         await using var db = CreateContext();
+@@ -226,6 +235,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 701,
+                 SortOrder = 1,
+                 SerialNumber = "27",
++                PppNumber = "ARPP/IR&D/2026-27/27",
+                 ProjectReference = "Project Trident as issued",
+                 ProjectId = 7,
+                 Category = ArppCategory.CarryForward,
+@@ -248,6 +258,8 @@ public sealed class ArppLibraryServiceTests
+         var row = Assert.Single(current!.ApprovedRows);
+         Assert.Equal(7, row.ProjectId);
+         Assert.Equal(ArppCategory.CarryForward, row.Category);
++        Assert.Equal("27", row.SerialNumber);
++        Assert.Equal("ARPP/IR&D/2026-27/27", row.PppNumber);
+     }
+ 
+     [Fact]
+@@ -270,6 +282,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 1101,
+                 SortOrder = 1,
+                 SerialNumber = "91",
++                PppNumber = "ARPP/IR&D/2026-27/91",
+                 ProjectReference = "Project Orion older",
+                 ProjectId = 9,
+                 Category = ArppCategory.CarryForward,
+@@ -288,6 +301,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 1201,
+                 SortOrder = 1,
+                 SerialNumber = "12",
++                PppNumber = "ARPP/IR&D/2026-27/12",
+                 ProjectReference = "Project Orion current",
+                 ProjectId = 9,
+                 Category = ArppCategory.New,
+@@ -306,6 +320,7 @@ public sealed class ArppLibraryServiceTests
+                 SourceEntryId = 1301,
+                 SortOrder = 1,
+                 SerialNumber = "3",
++                PppNumber = "ARPP/IR&D/2026-27/3",
+                 ProjectReference = "Project Orion latest",
+                 ProjectId = 9,
+                 Category = ArppCategory.CommittedLiability,
+diff --git a/ProjectManagement.Tests/Arpp/ArppPppIdentifierContractTests.cs b/ProjectManagement.Tests/Arpp/ArppPppIdentifierContractTests.cs
+new file mode 100644
+index 0000000..07e79ed
+--- /dev/null
++++ b/ProjectManagement.Tests/Arpp/ArppPppIdentifierContractTests.cs
+@@ -0,0 +1,62 @@
++using Xunit;
++
++namespace ProjectManagement.Tests.Arpp;
++
++public sealed class ArppPppIdentifierContractTests
++{
++    [Fact]
++    public void DomainAndMigration_PreservePppNumberAndCategorySpecificIdentifiers()
++    {
++        var workingEntry = ReadRepoFile("Models", "Arpp", "ArppEntry.cs");
++        var publishedEntry = ReadRepoFile("Models", "Arpp", "ArppPublishedEntry.cs");
++        var migration = ReadRepoFile("Migrations", "20261207160000_AddArppPppNumberAndCategoryIdentifiers.cs");
++        var commandService = ReadRepoFile("Services", "Arpp", "ArppCommandService.cs");
++
++        Assert.Contains("string? PppNumber", workingEntry, StringComparison.Ordinal);
++        Assert.Contains("string? PppNumber", publishedEntry, StringComparison.Ordinal);
++        Assert.Contains("AddColumn<string>", migration, StringComparison.Ordinal);
++        Assert.Contains("name: \"PppNumber\"", migration, StringComparison.Ordinal);
++        Assert.Contains("WHERE \"Category\" = 4", migration, StringComparison.Ordinal);
++        Assert.Contains("entity.PppNumber = entity.Category == ArppCategory.Delisted", commandService, StringComparison.Ordinal);
++        Assert.Contains("ValidateRequiredText(errors, index, nameof(entry.PppNumber)", commandService, StringComparison.Ordinal);
++        Assert.Contains("PppNumber = entry.PppNumber", commandService, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void ManagementAndPublishedViews_TreatDelistedIdentifiersAsNotApplicable()
++    {
++        var manageMarkup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
++        var manageScript = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++        var currentPosition = ReadRepoFile("Pages", "Projects", "Arpp", "_CurrentPositionTable.cshtml");
++        var briefing = ReadRepoFile("Services", "ProjectBriefings", "Presentation", "ProjectBriefingSlideComposer.UpdateSheet.cs");
++
++        Assert.Contains("PPP no.", manageMarkup, StringComparison.OrdinalIgnoreCase);
++        Assert.Contains("Serial No. and PPP No. do not apply", manageMarkup, StringComparison.Ordinal);
++        Assert.Contains("input.required = !delisted", manageScript, StringComparison.Ordinal);
++        Assert.Contains("input.readOnly = delisted", manageScript, StringComparison.Ordinal);
++        Assert.Contains("showIssuedIdentifiers", currentPosition, StringComparison.Ordinal);
++        Assert.Contains("ArppPppNumberApplicable", briefing, StringComparison.Ordinal);
++    }
++
++    private static string ReadRepoFile(params string[] segments)
++    {
++        var root = ResolveRepoRoot();
++        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
++    }
++
++    private static string ResolveRepoRoot()
++    {
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
++    }
++}
+diff --git a/ProjectManagement.Tests/Arpp/ArppReadServiceTests.cs b/ProjectManagement.Tests/Arpp/ArppReadServiceTests.cs
+index 259f31b..1142414 100644
+--- a/ProjectManagement.Tests/Arpp/ArppReadServiceTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppReadServiceTests.cs
+@@ -74,6 +74,7 @@ public sealed class ArppReadServiceTests
+         {
+             SortOrder = 2,
+             SerialNumber = "2",
++            PppNumber = "ARPP/IR&D/N/2026-27/2",
+             ProjectReference = "Unlinked project",
+             Category = ArppCategory.New,
+             IpaCost = 2_000_000m,
+@@ -226,7 +227,8 @@ public sealed class ArppReadServiceTests
+         => new()
+         {
+             SortOrder = 1,
+-            SerialNumber = serial,
++            SerialNumber = category == ArppCategory.Delisted ? null : serial,
++            PppNumber = category == ArppCategory.Delisted ? null : $"ARPP/IR&D/2026-27/{serial}",
+             ProjectReference = "Project",
+             ProjectId = projectId,
+             Category = category,
+diff --git a/ProjectManagement.Tests/Arpp/ArppReconciliationServiceTests.cs b/ProjectManagement.Tests/Arpp/ArppReconciliationServiceTests.cs
+index 3426940..3df7c86 100644
+--- a/ProjectManagement.Tests/Arpp/ArppReconciliationServiceTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppReconciliationServiceTests.cs
+@@ -56,6 +56,7 @@ public sealed class ArppReconciliationServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "12",
++            PppNumber = "ARPP/IR&D/N/2026-27/12",
+             ProjectReference = "Indigenous swarm drones Algorithm",
+             Category = ArppCategory.New,
+             IpaCost = 10_000_000m,
+@@ -123,6 +124,7 @@ public sealed class ArppReconciliationServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "12",
++            PppNumber = "ARPP/IR&D/N/2026-27/12",
+             ProjectReference = "Published project as issued",
+             Category = ArppCategory.New,
+             IpaCost = 10_000_000m,
+@@ -161,6 +163,7 @@ public sealed class ArppReconciliationServiceTests
+                     SourceEntryId = workingEntry.Id,
+                     SortOrder = workingEntry.SortOrder,
+                     SerialNumber = workingEntry.SerialNumber,
++                    PppNumber = workingEntry.PppNumber,
+                     ProjectReference = workingEntry.ProjectReference,
+                     Category = workingEntry.Category,
+                     IpaCost = workingEntry.IpaCost,
+diff --git a/ProjectManagement.Tests/Arpp/ArppReferenceDataServiceTests.cs b/ProjectManagement.Tests/Arpp/ArppReferenceDataServiceTests.cs
+index 2b49a39..c6dd9c2 100644
+--- a/ProjectManagement.Tests/Arpp/ArppReferenceDataServiceTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppReferenceDataServiceTests.cs
+@@ -67,6 +67,7 @@ public sealed class ArppReferenceDataServiceTests
+         {
+             SortOrder = 1,
+             SerialNumber = "1",
++            PppNumber = "ARPP/IR&D/N/2026-27/1",
+             ProjectReference = "Project One",
+             Category = ArppCategory.New,
+             IpaCost = 1_000_000m,
+diff --git a/ProjectManagement.Tests/Arpp/AuthoritativeIpaPositionResolverTests.cs b/ProjectManagement.Tests/Arpp/AuthoritativeIpaPositionResolverTests.cs
+index cd9e5b5..a7b2e0a 100644
+--- a/ProjectManagement.Tests/Arpp/AuthoritativeIpaPositionResolverTests.cs
++++ b/ProjectManagement.Tests/Arpp/AuthoritativeIpaPositionResolverTests.cs
+@@ -42,7 +42,8 @@ public sealed class AuthoritativeIpaPositionResolverTests
+         Assert.True(result.IsDelisted);
+         Assert.Equal(2026, result.FinancialYearStart);
+         Assert.Equal(2, result.IssueSequence);
+-        Assert.Equal("17", result.SerialNumber);
++        Assert.Null(result.SerialNumber);
++        Assert.Null(result.PppNumber);
+     }
+ 
+     [Fact]
+@@ -126,6 +127,7 @@ public sealed class AuthoritativeIpaPositionResolverTests
+         Assert.Equal(7_000_000m, result!.AmountInRupees);
+         Assert.Equal(ArppCategory.New, result.Category);
+         Assert.Equal("3", result.SerialNumber);
++        Assert.Equal("ARPP/IR&D/2026-27/3", result.PppNumber);
+     }
+ 
+     private static ApplicationDbContext CreateContext()
+@@ -204,7 +206,8 @@ public sealed class AuthoritativeIpaPositionResolverTests
+         {
+             SourceEntryId = projectId * 1_000L + long.Parse(serialNumber),
+             SortOrder = 1,
+-            SerialNumber = serialNumber,
++            SerialNumber = category == ArppCategory.Delisted ? null : serialNumber,
++            PppNumber = category == ArppCategory.Delisted ? null : $"ARPP/IR&D/2026-27/{serialNumber}",
+             ProjectReference = $"Project {projectId}",
+             ProjectId = projectId,
+             Category = category,
+@@ -222,7 +225,8 @@ public sealed class AuthoritativeIpaPositionResolverTests
+         => new()
+         {
+             SortOrder = 1,
+-            SerialNumber = serialNumber,
++            SerialNumber = category == ArppCategory.Delisted ? null : serialNumber,
++            PppNumber = category == ArppCategory.Delisted ? null : $"ARPP/IR&D/2026-27/{serialNumber}",
+             ProjectReference = $"Project {projectId}",
+             ProjectId = projectId,
+             Category = category,
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+index 3f669cd..76130f9 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -546,6 +546,56 @@ public sealed class ProjectBriefingSlideComposerTests
+         Assert.Single(slide.Slide.Descendants<A.Table>());
+     }
+ 
++    [Fact]
++    public void Compose_ProjectUpdateSheet_LeavesPppCellBlankForDelistedPosition()
++    {
++        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
++        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
++        var project = new ProjectBriefingPresentationProject
++        {
++            ProjectId = 702,
++            ProjectName = "Delisted Project",
++            LifecycleStatus = ProjectLifecycleStatus.Cancelled,
++            LifecycleDisplay = "Cancelled",
++            PresentStageCode = "CANCELLED",
++            PresentStage = "Cancelled",
++            PresentStageOrder = 1,
++            CostRd = new ProjectBriefingCostValue(5_000_000m, ProjectBriefingCostBasis.IPA, "₹50 Lakh", "IPA"),
++            ArppPppNumberApplicable = false,
++            Fund = "IR&D",
++            DfpdsSchedule = "9.3",
++            Cfa = "Comdt SDD",
++            ProjectBrief = "Delisted position retained for historical and financial reference.",
++            SortOrder = 1
++        };
++        var data = new ProjectBriefingPresentationData
++        {
++            DeckId = 702,
++            DeckName = "Delisted Position",
++            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
++            BrandingScope = ProjectBriefingBrandingScope.None,
++            IncludeCoverSlide = false,
++            IncludePortfolioSummarySlide = false,
++            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
++            Projects = new[] { project },
++            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1 }
++        };
++
++        var (content, slideCount) = composer.Compose(data);
++
++        Assert.Equal(1, slideCount);
++        using var stream = new MemoryStream(content, writable: false);
++        using var document = PresentationDocument.Open(stream, false);
++        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
++        var table = Assert.Single(slide.Slide.Descendants<A.Table>());
++        var arppRow = table.Elements<A.TableRow>()
++            .Single(row => row.Descendants<A.Text>().Any(text => text.Text == "ARPP/PPP Number"));
++        var cells = arppRow.Elements<A.TableCell>().ToArray();
++
++        Assert.Equal(3, cells.Length);
++        Assert.Equal(string.Empty, string.Concat(cells[2].Descendants<A.Text>().Select(text => text.Text)));
++    }
++
+     [Fact]
+     public void Compose_ProjectUpdateSheet_LeavesPdcBlankOutsideDevelopmentStage()
+     {
+diff --git a/Services/Arpp/ArppCommandService.cs b/Services/Arpp/ArppCommandService.cs
+index 3159d4f..e0113e9 100644
+--- a/Services/Arpp/ArppCommandService.cs
++++ b/Services/Arpp/ArppCommandService.cs
+@@ -417,6 +417,17 @@ public sealed class ArppCommandService : IArppCommandService
+                 $"Map CFA, Fund and DFPDS values for {unresolvedReferenceRows} {Pluralize(unresolvedReferenceRows, "row", "rows")} before verification.");
+         }
+ 
++        var incompleteApprovedIdentifiers = issue.Entries.Count(entry =>
++            entry.Category != ArppCategory.Delisted &&
++            (string.IsNullOrWhiteSpace(entry.SerialNumber) || string.IsNullOrWhiteSpace(entry.PppNumber)));
++        if (incompleteApprovedIdentifiers > 0)
++        {
++            AddError(
++                errors,
++                "IssuedIdentifiers",
++                $"Enter Serial No. and PPP No. for {incompleteApprovedIdentifiers} approved {Pluralize(incompleteApprovedIdentifiers, "row", "rows")} before verification.");
++        }
++
+         if (errors.Count > 0)
+         {
+             return ArppCommandResult.Failed("Complete the issued record before verification.", errors);
+@@ -492,6 +503,7 @@ public sealed class ArppCommandService : IArppCommandService
+                     SourceEntryId = entry.Id,
+                     SortOrder = entry.SortOrder,
+                     SerialNumber = entry.SerialNumber,
++                    PppNumber = entry.PppNumber,
+                     ProjectReference = entry.ProjectReference,
+                     ProjectId = entry.ProjectId,
+                     Category = entry.Category,
+@@ -731,17 +743,27 @@ public sealed class ArppCommandService : IArppCommandService
+                 AddError(errors, $"Entries[{index}].RowVersion", "The saved row version is missing. Reload the page.");
+             }
+ 
+-            ValidateRequiredText(errors, index, nameof(entry.SerialNumber), entry.SerialNumber, 64, "serial number");
++            var categoryIsValid = entry.Category.HasValue && Enum.IsDefined(entry.Category.Value);
++            if (!categoryIsValid)
++            {
++                AddError(errors, $"Entries[{index}].Category", "Select an ARPP category.");
++            }
++            else if (entry.Category != ArppCategory.Delisted)
++            {
++                ValidateRequiredText(errors, index, nameof(entry.SerialNumber), entry.SerialNumber, 64, "serial number");
++                ValidateRequiredText(errors, index, nameof(entry.PppNumber), entry.PppNumber, 160, "PPP number");
++            }
++            else
++            {
++                ValidateOptionalText(errors, index, nameof(entry.SerialNumber), entry.SerialNumber, 64, "serial number");
++                ValidateOptionalText(errors, index, nameof(entry.PppNumber), entry.PppNumber, 160, "PPP number");
++            }
++
+             ValidateRequiredText(errors, index, nameof(entry.ProjectReference), entry.ProjectReference, 300, "project reference");
+             ValidateRequiredText(errors, index, nameof(entry.Cfa), entry.Cfa, 200, "CFA");
+             ValidateRequiredText(errors, index, nameof(entry.Fund), entry.Fund, 120, "fund");
+             ValidateRequiredText(errors, index, nameof(entry.DfpdsSchedule), entry.DfpdsSchedule, 120, "DFPDS schedule");
+ 
+-            if (!entry.Category.HasValue || !Enum.IsDefined(entry.Category.Value))
+-            {
+-                AddError(errors, $"Entries[{index}].Category", "Select an ARPP category.");
+-            }
+-
+             if (!entry.IpaCost.HasValue)
+             {
+                 AddError(errors, $"Entries[{index}].IpaCost", "Enter the IPA cost.");
+@@ -772,6 +794,21 @@ public sealed class ArppCommandService : IArppCommandService
+         }
+     }
+ 
++    private static void ValidateOptionalText(
++        IDictionary<string, IReadOnlyList<string>> errors,
++        int index,
++        string property,
++        string? value,
++        int maximumLength,
++        string displayName)
++    {
++        var normalized = value?.Trim() ?? string.Empty;
++        if (normalized.Length > maximumLength)
++        {
++            AddError(errors, $"Entries[{index}].{property}", $"The {displayName} cannot exceed {maximumLength} characters.");
++        }
++    }
++
+     private async Task<IReadOnlyList<string>> BuildWorkspaceWarningsAsync(
+         ArppWorkspaceSaveCommand command,
+         CancellationToken cancellationToken)
+@@ -807,15 +844,27 @@ public sealed class ArppCommandService : IArppCommandService
+         }
+ 
+         var duplicateSerials = command.Entries
++            .Where(entry => entry.Category != ArppCategory.Delisted)
+             .GroupBy(entry => Normalize(entry.SerialNumber), StringComparer.OrdinalIgnoreCase)
+             .Where(group => group.Key.Length > 0 && group.Count() > 1)
+-            .Select(group => group.First().SerialNumber.Trim())
++            .Select(group => group.First().SerialNumber!.Trim())
+             .ToArray();
+         if (duplicateSerials.Length > 0)
+         {
+             warnings.Add($"Duplicate serial number(s) detected: {string.Join(", ", duplicateSerials)}. Verify these against the issued document.");
+         }
+ 
++        var duplicatePppNumbers = command.Entries
++            .Where(entry => entry.Category != ArppCategory.Delisted)
++            .GroupBy(entry => Normalize(entry.PppNumber), StringComparer.OrdinalIgnoreCase)
++            .Where(group => group.Key.Length > 0 && group.Count() > 1)
++            .Select(group => group.First().PppNumber!.Trim())
++            .ToArray();
++        if (duplicatePppNumbers.Length > 0)
++        {
++            warnings.Add($"Duplicate PPP number(s) detected: {string.Join(", ", duplicatePppNumbers)}. Verify these against the issued document.");
++        }
++
+         var duplicateUnlinkedReferences = command.Entries
+             .Where(entry => !entry.ProjectId.HasValue)
+             .GroupBy(entry => Normalize(entry.ProjectReference), StringComparer.OrdinalIgnoreCase)
+@@ -999,10 +1048,15 @@ public sealed class ArppCommandService : IArppCommandService
+         ResolvedReferenceData referenceData)
+     {
+         entity.SortOrder = sortOrder;
+-        entity.SerialNumber = input.SerialNumber.Trim();
++        entity.Category = input.Category!.Value;
++        entity.SerialNumber = entity.Category == ArppCategory.Delisted
++            ? null
++            : NormalizeNullable(input.SerialNumber);
++        entity.PppNumber = entity.Category == ArppCategory.Delisted
++            ? null
++            : NormalizeNullable(input.PppNumber);
+         entity.ProjectReference = input.ProjectReference.Trim();
+         entity.ProjectId = input.ProjectId;
+-        entity.Category = input.Category!.Value;
+         entity.IpaCost = input.IpaCost!.Value;
+ 
+         ApplyReferenceSnapshot(
+@@ -1153,6 +1207,11 @@ public sealed class ArppCommandService : IArppCommandService
+             .Trim()
+             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+ 
++    private static string? NormalizeNullable(string? value)
++        => string.IsNullOrWhiteSpace(value)
++            ? null
++            : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
++
+     private static string Pluralize(int count, string singular, string plural)
+         => count == 1 ? singular : plural;
+ 
+diff --git a/Services/Arpp/ArppContracts.cs b/Services/Arpp/ArppContracts.cs
+index a16a51a..b7bfdc0 100644
+--- a/Services/Arpp/ArppContracts.cs
++++ b/Services/Arpp/ArppContracts.cs
+@@ -14,7 +14,8 @@ public sealed record ArppIssueCreateCommand(
+ public sealed record ArppEntryInput(
+     long? Id,
+     string? RowVersion,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     string ProjectReference,
+     int? ProjectId,
+     ArppCategory? Category,
+@@ -177,7 +178,8 @@ public sealed record ArppIssueDetails(
+ public sealed record ArppEntryDetails(
+     long Id,
+     int SortOrder,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     string ProjectReference,
+     int? ProjectId,
+     string? ProjectName,
+@@ -216,7 +218,8 @@ public sealed record ArppProjectHistoryItem(
+     int IssueSequence,
+     string IssueName,
+     DateOnly IssueDate,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     ArppCategory Category,
+     decimal IpaCost,
+     string Cfa,
+diff --git a/Services/Arpp/ArppExcelWorkbookBuilder.cs b/Services/Arpp/ArppExcelWorkbookBuilder.cs
+index 640e384..8db107d 100644
+--- a/Services/Arpp/ArppExcelWorkbookBuilder.cs
++++ b/Services/Arpp/ArppExcelWorkbookBuilder.cs
+@@ -7,8 +7,8 @@ namespace ProjectManagement.Services.Arpp;
+ 
+ public sealed class ArppExcelWorkbookBuilder
+ {
+-    private const int FullColumnCount = 11;
+-    private const int PublishedColumnCount = 8;
++    private const int FullColumnCount = 12;
++    private const int PublishedColumnCount = 9;
+     private const int HeaderRow = 8;
+ 
+     public byte[] Build(
+@@ -186,6 +186,7 @@ public sealed class ArppExcelWorkbookBuilder
+             {
+                 "Order",
+                 "Serial No.",
++                "PPP No.",
+                 "Project reference as issued",
+                 "Linked PRISM project",
+                 "Case file",
+@@ -200,6 +201,7 @@ public sealed class ArppExcelWorkbookBuilder
+             {
+                 "Order",
+                 "Serial No.",
++                "PPP No.",
+                 "Project reference as issued",
+                 "Category",
+                 "IPA cost (₹)",
+@@ -228,29 +230,30 @@ public sealed class ArppExcelWorkbookBuilder
+         foreach (var entry in issue.Entries.OrderBy(entry => entry.SortOrder).ThenBy(entry => entry.Id))
+         {
+             worksheet.Cell(rowNumber, 1).Value = entry.SortOrder;
+-            worksheet.Cell(rowNumber, 2).Value = entry.SerialNumber;
+-            worksheet.Cell(rowNumber, 3).Value = entry.ProjectReference;
++            worksheet.Cell(rowNumber, 2).Value = entry.Category == ArppCategory.Delisted ? string.Empty : entry.SerialNumber ?? string.Empty;
++            worksheet.Cell(rowNumber, 3).Value = entry.Category == ArppCategory.Delisted ? string.Empty : entry.PppNumber ?? string.Empty;
++            worksheet.Cell(rowNumber, 4).Value = entry.ProjectReference;
+ 
+             if (includePrismLinkageColumns)
+             {
+-                worksheet.Cell(rowNumber, 4).Value = entry.ProjectName ?? string.Empty;
+-                worksheet.Cell(rowNumber, 5).Value = entry.ProjectCaseFileNumber ?? string.Empty;
+-                worksheet.Cell(rowNumber, 6).Value = ArppDisplayNames.For(entry.Category);
+-                worksheet.Cell(rowNumber, 7).Value = entry.IpaCost;
+-                worksheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
+-                worksheet.Cell(rowNumber, 8).Value = entry.Cfa;
+-                worksheet.Cell(rowNumber, 9).Value = entry.Fund;
+-                worksheet.Cell(rowNumber, 10).Value = entry.DfpdsSchedule;
+-                worksheet.Cell(rowNumber, 11).Value = entry.ProjectId.HasValue ? "Linked" : "Linkage pending";
++                worksheet.Cell(rowNumber, 5).Value = entry.ProjectName ?? string.Empty;
++                worksheet.Cell(rowNumber, 6).Value = entry.ProjectCaseFileNumber ?? string.Empty;
++                worksheet.Cell(rowNumber, 7).Value = ArppDisplayNames.For(entry.Category);
++                worksheet.Cell(rowNumber, 8).Value = entry.IpaCost;
++                worksheet.Cell(rowNumber, 8).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
++                worksheet.Cell(rowNumber, 9).Value = entry.Cfa;
++                worksheet.Cell(rowNumber, 10).Value = entry.Fund;
++                worksheet.Cell(rowNumber, 11).Value = entry.DfpdsSchedule;
++                worksheet.Cell(rowNumber, 12).Value = entry.ProjectId.HasValue ? "Linked" : "Linkage pending";
+             }
+             else
+             {
+-                worksheet.Cell(rowNumber, 4).Value = ArppDisplayNames.For(entry.Category);
+-                worksheet.Cell(rowNumber, 5).Value = entry.IpaCost;
+-                worksheet.Cell(rowNumber, 5).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
+-                worksheet.Cell(rowNumber, 6).Value = entry.Cfa;
+-                worksheet.Cell(rowNumber, 7).Value = entry.Fund;
+-                worksheet.Cell(rowNumber, 8).Value = entry.DfpdsSchedule;
++                worksheet.Cell(rowNumber, 5).Value = ArppDisplayNames.For(entry.Category);
++                worksheet.Cell(rowNumber, 6).Value = entry.IpaCost;
++                worksheet.Cell(rowNumber, 6).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
++                worksheet.Cell(rowNumber, 7).Value = entry.Cfa;
++                worksheet.Cell(rowNumber, 8).Value = entry.Fund;
++                worksheet.Cell(rowNumber, 9).Value = entry.DfpdsSchedule;
+             }
+ 
+             if (entry.Category == ArppCategory.Delisted)
+@@ -272,8 +275,8 @@ public sealed class ArppExcelWorkbookBuilder
+             data.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+             worksheet.Range(HeaderRow + 1, 1, lastRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+ 
+-            var categoryColumn = includePrismLinkageColumns ? 6 : 4;
+-            var moneyColumn = includePrismLinkageColumns ? 7 : 5;
++            var categoryColumn = includePrismLinkageColumns ? 7 : 5;
++            var moneyColumn = includePrismLinkageColumns ? 8 : 6;
+             worksheet.Range(HeaderRow + 1, categoryColumn, lastRow, categoryColumn)
+                 .Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+             worksheet.Range(HeaderRow + 1, moneyColumn, lastRow, moneyColumn)
+@@ -293,27 +296,28 @@ public sealed class ArppExcelWorkbookBuilder
+         worksheet.SheetView.FreezeColumns(2);
+ 
+         worksheet.Column(1).Width = 8;
+-        worksheet.Column(2).Width = 13;
+-        worksheet.Column(3).Width = includePrismLinkageColumns ? 42 : 54;
++        worksheet.Column(2).Width = 12;
++        worksheet.Column(3).Width = 28;
++        worksheet.Column(4).Width = includePrismLinkageColumns ? 38 : 50;
+ 
+         if (includePrismLinkageColumns)
+         {
+-            worksheet.Column(4).Width = 28;
+-            worksheet.Column(5).Width = 18;
+-            worksheet.Column(6).Width = 15;
+-            worksheet.Column(7).Width = 18;
+-            worksheet.Column(8).Width = 24;
+-            worksheet.Column(9).Width = 16;
+-            worksheet.Column(10).Width = 18;
+-            worksheet.Column(11).Width = 16;
++            worksheet.Column(5).Width = 28;
++            worksheet.Column(6).Width = 18;
++            worksheet.Column(7).Width = 15;
++            worksheet.Column(8).Width = 18;
++            worksheet.Column(9).Width = 24;
++            worksheet.Column(10).Width = 16;
++            worksheet.Column(11).Width = 18;
++            worksheet.Column(12).Width = 16;
+         }
+         else
+         {
+-            worksheet.Column(4).Width = 16;
+-            worksheet.Column(5).Width = 18;
+-            worksheet.Column(6).Width = 24;
+-            worksheet.Column(7).Width = 16;
+-            worksheet.Column(8).Width = 18;
++            worksheet.Column(5).Width = 16;
++            worksheet.Column(6).Width = 18;
++            worksheet.Column(7).Width = 24;
++            worksheet.Column(8).Width = 16;
++            worksheet.Column(9).Width = 18;
+         }
+ 
+         worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+diff --git a/Services/Arpp/ArppIpaStageAuthorityService.cs b/Services/Arpp/ArppIpaStageAuthorityService.cs
+index 826c45a..8f6e27c 100644
+--- a/Services/Arpp/ArppIpaStageAuthorityService.cs
++++ b/Services/Arpp/ArppIpaStageAuthorityService.cs
+@@ -55,6 +55,7 @@ public sealed class ArppIpaStageAuthorityService : IArppIpaStageAuthorityService
+                 ProjectId = entry.ProjectId!.Value,
+                 EntryId = entry.Id,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 IssueId = entry.ArppIssueId,
+                 entry.PublishedIssue.FinancialYearStart,
+                 IssueKind = entry.PublishedIssue.Kind,
+@@ -84,7 +85,8 @@ public sealed class ArppIpaStageAuthorityService : IArppIpaStageAuthorityService
+                     row.IssueName,
+                     row.IssueDate,
+                     row.EntryId,
+-                    row.SerialNumber));
++                    row.SerialNumber,
++                    row.PppNumber));
+     }
+ 
+     public Task<bool> IsManagedAsync(
+diff --git a/Services/Arpp/ArppLibraryContracts.cs b/Services/Arpp/ArppLibraryContracts.cs
+index efeeac0..8c82914 100644
+--- a/Services/Arpp/ArppLibraryContracts.cs
++++ b/Services/Arpp/ArppLibraryContracts.cs
+@@ -59,7 +59,8 @@ public sealed record ArppLibraryCurrentPosition(
+ public sealed record ArppLibraryRow(
+     long EntryId,
+     int SortOrder,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     string ProjectReference,
+     int? ProjectId,
+     string? ProjectName,
+@@ -76,7 +77,8 @@ public sealed record ArppLibraryCurrentRow(
+     string ProjectReference,
+     string ProjectName,
+     string ProjectStatus,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     ArppCategory Category,
+     decimal IpaCost,
+     string Cfa,
+@@ -92,7 +94,8 @@ public sealed record ArppLibraryCurrentRow(
+ public sealed record ArppLibraryUnlinkedRow(
+     long EntryId,
+     string ProjectReference,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     ArppCategory Category,
+     decimal IpaCost,
+     string Cfa,
+@@ -120,7 +123,8 @@ public sealed record ArppLibraryProjectHistoryRow(
+     ArppIssueKind SourceKind,
+     int SourceSequence,
+     DateOnly SourceIssueDate,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     string ProjectReference,
+     ArppCategory Category,
+     decimal IpaCost,
+diff --git a/Services/Arpp/ArppLibrarySearch.cs b/Services/Arpp/ArppLibrarySearch.cs
+index c8139ab..d19cc13 100644
+--- a/Services/Arpp/ArppLibrarySearch.cs
++++ b/Services/Arpp/ArppLibrarySearch.cs
+@@ -41,6 +41,7 @@ public static class ArppLibrarySearch
+         => MatchesValues(
+                query,
+                row.SerialNumber,
++               row.PppNumber,
+                row.ProjectReference,
+                row.ProjectName,
+                row.Cfa,
+@@ -52,6 +53,7 @@ public static class ArppLibrarySearch
+         => MatchesValues(
+                query,
+                row.SerialNumber,
++               row.PppNumber,
+                row.ProjectReference,
+                row.ProjectName,
+                row.SourceIssueName,
+@@ -64,6 +66,7 @@ public static class ArppLibrarySearch
+         => MatchesValues(
+                query,
+                row.SerialNumber,
++               row.PppNumber,
+                row.ProjectReference,
+                row.SourceIssueName,
+                row.Cfa,
+diff --git a/Services/Arpp/ArppLibraryService.cs b/Services/Arpp/ArppLibraryService.cs
+index 07adc88..01b5ee3 100644
+--- a/Services/Arpp/ArppLibraryService.cs
++++ b/Services/Arpp/ArppLibraryService.cs
+@@ -33,7 +33,8 @@ public sealed class ArppLibraryService : IArppLibraryService
+             snapshots = snapshots.Where(snapshot =>
+                 snapshot.Name.ToLower().Contains(search) ||
+                 snapshot.Entries.Any(entry =>
+-                    entry.SerialNumber.ToLower().Contains(search) ||
++                    (entry.SerialNumber != null && entry.SerialNumber.ToLower().Contains(search)) ||
++                    (entry.PppNumber != null && entry.PppNumber.ToLower().Contains(search)) ||
+                     entry.ProjectReference.ToLower().Contains(search) ||
+                     entry.Cfa.ToLower().Contains(search) ||
+                     entry.Fund.ToLower().Contains(search) ||
+@@ -103,6 +104,7 @@ public sealed class ArppLibraryService : IArppLibraryService
+                 entry.Id,
+                 entry.SortOrder,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.ProjectReference,
+                 entry.ProjectId,
+                 entry.Project?.Name,
+@@ -170,6 +172,7 @@ public sealed class ArppLibraryService : IArppLibraryService
+                 entry.Project!.Name,
+                 GetProjectStatus(entry.Project),
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.Category,
+                 entry.IpaCost,
+                 entry.Cfa,
+@@ -195,6 +198,7 @@ public sealed class ArppLibraryService : IArppLibraryService
+                 entry.Id,
+                 entry.ProjectReference,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.Category,
+                 entry.IpaCost,
+                 entry.Cfa,
+@@ -276,6 +280,7 @@ public sealed class ArppLibraryService : IArppLibraryService
+                 entry.PublishedIssue.IssueSequence,
+                 entry.PublishedIssue.IssueDate,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.ProjectReference,
+                 entry.Category,
+                 entry.IpaCost,
+diff --git a/Services/Arpp/ArppReadService.cs b/Services/Arpp/ArppReadService.cs
+index 203b4e8..a791ad8 100644
+--- a/Services/Arpp/ArppReadService.cs
++++ b/Services/Arpp/ArppReadService.cs
+@@ -35,7 +35,8 @@ public sealed class ArppReadService : IArppReadService
+                 issue.Name.ToLower().Contains(searchText) ||
+                 issue.Entries.Any(entry =>
+                     entry.ProjectReference.ToLower().Contains(searchText) ||
+-                    entry.SerialNumber.ToLower().Contains(searchText) ||
++                    (entry.SerialNumber != null && entry.SerialNumber.ToLower().Contains(searchText)) ||
++                    (entry.PppNumber != null && entry.PppNumber.ToLower().Contains(searchText)) ||
+                     (entry.Project != null &&
+                         (entry.Project.Name.ToLower().Contains(searchText) ||
+                          (entry.Project.CaseFileNumber != null && entry.Project.CaseFileNumber.ToLower().Contains(searchText))))));
+@@ -235,6 +236,7 @@ public sealed class ArppReadService : IArppReadService
+                 entry.Id,
+                 entry.SortOrder,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.ProjectReference,
+                 entry.ProjectId,
+                 entry.Project?.Name,
+@@ -373,6 +375,7 @@ public sealed class ArppReadService : IArppReadService
+                 IssueName = entry.Issue.Name,
+                 entry.Issue.IssueDate,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.Category,
+                 entry.IpaCost,
+                 entry.Cfa,
+@@ -391,6 +394,7 @@ public sealed class ArppReadService : IArppReadService
+                 row.IssueName,
+                 row.IssueDate,
+                 row.SerialNumber,
++                row.PppNumber,
+                 row.Category,
+                 row.IpaCost,
+                 row.Cfa,
+diff --git a/Services/Arpp/ArppReconciliationContracts.cs b/Services/Arpp/ArppReconciliationContracts.cs
+index 96d8929..004be46 100644
+--- a/Services/Arpp/ArppReconciliationContracts.cs
++++ b/Services/Arpp/ArppReconciliationContracts.cs
+@@ -13,7 +13,8 @@ public sealed record ArppReconciliationItem(
+     string IssueName,
+     int IssueSequence,
+     DateOnly IssueDate,
+-    string SerialNumber,
++    string? SerialNumber,
++    string? PppNumber,
+     string ProjectReference,
+     decimal IpaCost,
+     string CategoryLabel,
+diff --git a/Services/Arpp/ArppReconciliationService.cs b/Services/Arpp/ArppReconciliationService.cs
+index e0d89aa..815765d 100644
+--- a/Services/Arpp/ArppReconciliationService.cs
++++ b/Services/Arpp/ArppReconciliationService.cs
+@@ -59,7 +59,8 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
+             var pattern = $"%{normalizedQuery}%";
+             unlinked = unlinked.Where(entry =>
+                 EF.Functions.ILike(entry.ProjectReference, pattern) ||
+-                EF.Functions.ILike(entry.SerialNumber, pattern) ||
++                (entry.SerialNumber != null && EF.Functions.ILike(entry.SerialNumber, pattern)) ||
++                (entry.PppNumber != null && EF.Functions.ILike(entry.PppNumber, pattern)) ||
+                 EF.Functions.ILike(entry.Issue.Name, pattern));
+         }
+ 
+@@ -80,6 +81,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
+                 entry.Issue.IssueDate,
+                 entry.Issue.IsVerified,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 entry.ProjectReference,
+                 entry.IpaCost,
+                 entry.Category
+@@ -162,6 +164,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
+                 row.IssueSequence,
+                 row.IssueDate,
+                 row.SerialNumber,
++                row.PppNumber,
+                 row.ProjectReference,
+                 row.IpaCost,
+                 ProjectManagement.Models.Arpp.ArppDisplayNames.For(row.Category),
+diff --git a/Services/Arpp/AuthoritativeIpaPosition.cs b/Services/Arpp/AuthoritativeIpaPosition.cs
+index 5d74eed..af31e06 100644
+--- a/Services/Arpp/AuthoritativeIpaPosition.cs
++++ b/Services/Arpp/AuthoritativeIpaPosition.cs
+@@ -19,7 +19,8 @@ public sealed record AuthoritativeIpaPosition(
+     DateOnly? IssueDate,
+     int? IssueSequence,
+     long? EntryId,
+-    string? SerialNumber)
++    string? SerialNumber,
++    string? PppNumber)
+ {
+     public bool IsManagedByArpp => Source == IpaPositionSource.Arpp;
+ 
+diff --git a/Services/Arpp/AuthoritativeIpaPositionResolver.cs b/Services/Arpp/AuthoritativeIpaPositionResolver.cs
+index f489a8d..4a97851 100644
+--- a/Services/Arpp/AuthoritativeIpaPositionResolver.cs
++++ b/Services/Arpp/AuthoritativeIpaPositionResolver.cs
+@@ -53,6 +53,7 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
+                 entry.IpaCost,
+                 entry.Category,
+                 entry.SerialNumber,
++                entry.PppNumber,
+                 EntryId = entry.Id,
+                 IssueId = entry.ArppIssueId,
+                 entry.PublishedIssue.FinancialYearStart,
+@@ -84,7 +85,8 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
+                     row.IssueDate,
+                     row.IssueSequence,
+                     row.EntryId,
+-                    row.SerialNumber));
++                    row.SerialNumber,
++                    row.PppNumber));
+ 
+         var unresolvedIds = ids
+             .Where(projectId => !result.ContainsKey(projectId))
+@@ -127,7 +129,8 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
+                 IssueDate: null,
+                 IssueSequence: null,
+                 EntryId: null,
+-                SerialNumber: null);
++                SerialNumber: null,
++                PppNumber: null);
+         }
+ 
+         return result;
+diff --git a/Services/Arpp/IArppIpaStageAuthorityService.cs b/Services/Arpp/IArppIpaStageAuthorityService.cs
+index cb0adb3..585ad26 100644
+--- a/Services/Arpp/IArppIpaStageAuthorityService.cs
++++ b/Services/Arpp/IArppIpaStageAuthorityService.cs
+@@ -35,7 +35,8 @@ public sealed record ArppIpaStageAuthority(
+     string IssueName,
+     DateOnly IssueDate,
+     long EntryId,
+-    string? SerialNumber)
++    string? SerialNumber,
++    string? PppNumber)
+ {
+     public string DocumentLabel => IssueKind == ArppIssueKind.Original
+         ? "Original ARPP"
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+index e17dc0a..c1c16b2 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+@@ -193,7 +193,7 @@ public sealed partial class ProjectBriefingSlideComposer
+         {
+             ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2, text),
+             ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2, project.CostRd.IsAvailable ? text : muted),
+-            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8, IsRecorded(project.ArppReference) ? text : muted),
++            ("ARPP/PPP Number", project.ArppPppNumberApplicable ? DisplayOrNotRecorded(project.ArppReference) : string.Empty, 8.8, IsRecorded(project.ArppReference) ? text : muted),
+             ("Fund, DFPDS Sch and CFA", arppDetails, 8.0, HasAnyArppDetail(project) ? text : muted),
+             ("AoN Date", FormatDate(project.AonDate), 9.0, project.AonDate.HasValue ? text : muted),
+             ("SO Date and Name of Firm", supplyOrder, 8.1, HasAnySupplyOrderDetail(project.SupplyOrderDate, project.JdpNames) ? text : muted),
+diff --git a/Services/ProjectBriefings/ProjectBriefingContracts.cs b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+index ce47be2..0c948f3 100644
+--- a/Services/ProjectBriefings/ProjectBriefingContracts.cs
++++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+@@ -103,6 +103,7 @@ public sealed class ProjectBriefingProjectVm
+     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
+     public string? BriefDescriptionOverride { get; init; }
+     public string? ArppReference { get; init; }
++    public bool ArppPppNumberApplicable { get; init; } = true;
+     public string? Fund { get; init; }
+     public string? DfpdsSchedule { get; init; }
+     public string? Cfa { get; init; }
+@@ -284,6 +285,7 @@ public sealed class ProjectBriefingPresentationProject
+     public string ProjectBrief { get; init; } = string.Empty;
+     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
+     public string? ArppReference { get; init; }
++    public bool ArppPppNumberApplicable { get; init; } = true;
+     public string? Fund { get; init; }
+     public string? DfpdsSchedule { get; init; }
+     public string? Cfa { get; init; }
+diff --git a/Services/ProjectBriefings/ProjectBriefingDataService.cs b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+index 3cb9232..0832d1d 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDataService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+@@ -124,6 +124,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+                 ProjectBrief = project.ProjectBrief,
+                 CapabilityStatements = project.CapabilityStatements,
+                 ArppReference = project.ArppReference,
++                ArppPppNumberApplicable = project.ArppPppNumberApplicable,
+                 Fund = project.Fund,
+                 DfpdsSchedule = project.DfpdsSchedule,
+                 Cfa = project.Cfa,
+@@ -449,6 +450,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+                     CapabilityStatements = item.CapabilityStatements,
+                     BriefDescriptionOverride = item.BriefDescriptionOverride,
+                     ArppReference = updateFacts?.ArppReference,
++                    ArppPppNumberApplicable = updateFacts?.IsDelistedArppPosition != true,
+                     Fund = updateFacts?.Fund,
+                     DfpdsSchedule = updateFacts?.DfpdsSchedule,
+                     Cfa = updateFacts?.Cfa,
+diff --git a/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs b/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
+index 9a1a02b..6e474bb 100644
+--- a/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
++++ b/Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
+@@ -1,5 +1,6 @@
+ using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Data;
++using ProjectManagement.Models.Arpp;
+ using ProjectManagement.Models.Stages;
+ 
+ namespace ProjectManagement.Services.ProjectBriefings;
+@@ -22,10 +23,11 @@ public sealed record ProjectBriefingUpdateSheetFacts(
+     IReadOnlyList<string> JdpNames,
+     string? ProjectOfficer,
+     bool ProjectOfficerIsComplete,
+-    string? LineDirectorate)
++    string? LineDirectorate,
++    bool IsDelistedArppPosition)
+ {
+     public bool HasCompleteArppDetails =>
+-        !string.IsNullOrWhiteSpace(ArppReference)
++        (IsDelistedArppPosition || !string.IsNullOrWhiteSpace(ArppReference))
+         && !string.IsNullOrWhiteSpace(Fund)
+         && !string.IsNullOrWhiteSpace(DfpdsSchedule)
+         && !string.IsNullOrWhiteSpace(Cfa);
+@@ -159,7 +161,8 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
+                 entry.Fund,
+                 entry.DfpdsSchedule,
+                 entry.Cfa,
+-                IssueName = entry.PublishedIssue.Name,
++                entry.PppNumber,
++                entry.Category,
+                 entry.PublishedIssue.FinancialYearStart,
+                 entry.PublishedIssue.IssueSequence,
+                 entry.PublishedIssue.IssueDate,
+@@ -185,7 +188,7 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
+                 arppByProject.TryGetValue(row.Id, out var arpp);
+                 var officer = FormatOfficer(row.OfficerRank, row.OfficerFullName);
+                 return new ProjectBriefingUpdateSheetFacts(
+-                    NormalizeNullable(arpp?.IssueName),
++                    arpp?.Category == ArppCategory.Delisted ? null : NormalizeNullable(arpp?.PppNumber),
+                     NormalizeNullable(arpp?.Fund),
+                     NormalizeNullable(arpp?.DfpdsSchedule),
+                     NormalizeNullable(arpp?.Cfa),
+@@ -195,7 +198,8 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
+                     jdpsByProject.GetValueOrDefault(row.Id) ?? Array.Empty<string>(),
+                     officer.Display,
+                     officer.IsComplete,
+-                    NormalizeNullable(row.LineDirectorate));
++                    NormalizeNullable(row.LineDirectorate),
++                    arpp?.Category == ArppCategory.Delisted);
+             });
+     }
+ 
+diff --git a/Services/Projects/ProjectTimelineReadService.cs b/Services/Projects/ProjectTimelineReadService.cs
+index 7807142..b31cc35 100644
+--- a/Services/Projects/ProjectTimelineReadService.cs
++++ b/Services/Projects/ProjectTimelineReadService.cs
+@@ -313,6 +313,7 @@ public sealed class ProjectTimelineReadService
+                 ArppSourceIssueName = isArppManaged ? ipaAuthority!.IssueName : null,
+                 ArppSourceIssueDate = isArppManaged ? ipaAuthority!.IssueDate : null,
+                 ArppSourceSerialNumber = isArppManaged ? ipaAuthority!.SerialNumber : null,
++                ArppSourcePppNumber = isArppManaged ? ipaAuthority!.PppNumber : null,
+                 SortOrder = index++,
+                 Today = today,
+                 HasPendingRequest = pendingRequest is not null,
+diff --git a/ViewModels/TimelineVm.cs b/ViewModels/TimelineVm.cs
+index 64df551..654102b 100644
+--- a/ViewModels/TimelineVm.cs
++++ b/ViewModels/TimelineVm.cs
+@@ -59,6 +59,7 @@ public sealed class TimelineItemVm
+     public string? ArppSourceIssueName { get; init; }
+     public DateOnly? ArppSourceIssueDate { get; init; }
+     public string? ArppSourceSerialNumber { get; init; }
++    public string? ArppSourcePppNumber { get; init; }
+     public bool HasActualStartDataQualityIssue =>
+         IsArppManaged &&
+         ActualStart.HasValue &&
+diff --git a/wwwroot/css/project-office-reports/arpp.css b/wwwroot/css/project-office-reports/arpp.css
+index 61542bd..bbbee2e 100644
+--- a/wwwroot/css/project-office-reports/arpp.css
++++ b/wwwroot/css/project-office-reports/arpp.css
+@@ -457,6 +457,7 @@
+ 
+ .arpp-col-order { width: 2.5rem; }
+ .arpp-col-serial { min-width: 6rem; }
++.arpp-col-ppp { min-width: 13rem; }
+ .arpp-col-reference { min-width: 17rem; }
+ .arpp-col-project { min-width: 16rem; }
+ .arpp-col-category { min-width: 7rem; }
+@@ -1027,12 +1028,13 @@
+ }
+ 
+ .arpp-entry-table {
+-    min-width: 1260px;
++    min-width: 1480px;
+     table-layout: fixed;
+ }
+ 
+ .arpp-col-order { width: 2.5rem; min-width: 2.5rem; }
+ .arpp-col-serial { width: 6.25rem; min-width: 6.25rem; }
++.arpp-col-ppp { width: 13rem; min-width: 13rem; }
+ .arpp-col-reference { width: 17rem; min-width: 17rem; }
+ .arpp-col-project { width: 15.5rem; min-width: 15.5rem; }
+ .arpp-col-category { width: 7rem; min-width: 7rem; }
+@@ -1057,8 +1059,9 @@
+ 
+ .arpp-sticky-left--order { left: 0; }
+ .arpp-sticky-left--serial { left: 2.5rem; }
++.arpp-sticky-left--ppp { left: 8.75rem; }
+ .arpp-sticky-left--reference {
+-    left: 8.75rem;
++    left: 21.75rem;
+     box-shadow: .45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
+ }
+ 
+@@ -1067,6 +1070,14 @@
+     box-shadow: -.45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
+ }
+ 
++
++.arpp-issued-identifier--not-applicable {
++    background: var(--arpp-soft);
++    color: var(--arpp-muted);
++    font-style: italic;
++    cursor: default;
++}
++
+ .arpp-reference-input {
+     min-height: 2rem;
+     max-height: 6rem;
+diff --git a/wwwroot/css/projects/arpp-library.css b/wwwroot/css/projects/arpp-library.css
+index 89621e0..c993eae 100644
+--- a/wwwroot/css/projects/arpp-library.css
++++ b/wwwroot/css/projects/arpp-library.css
+@@ -345,6 +345,13 @@
+     font-weight: 700;
+ }
+ 
++.project-arpp-table__ppp {
++    min-width: 180px;
++    max-width: 240px;
++    font-weight: 600;
++    overflow-wrap: anywhere;
++}
++
+ .project-arpp-table__project {
+     color: #101d33;
+     font-weight: 700;
+diff --git a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+index 9903b9c..624a437 100644
+--- a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
++++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+@@ -12,6 +12,24 @@
+ 
+     const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
+     const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
++    const isDelisted = row => getField(row, "Category")?.value === "4";
++
++    const syncIssuedIdentifiers = row => {
++        const delisted = isDelisted(row);
++        row.querySelectorAll("[data-arpp-issued-identifier]").forEach(input => {
++            if (delisted) input.value = "";
++            input.readOnly = delisted;
++            input.required = !delisted;
++            input.setAttribute("aria-readonly", delisted ? "true" : "false");
++            input.setAttribute("aria-required", delisted ? "false" : "true");
++            input.placeholder = delisted
++                ? "Not applicable"
++                : input.dataset.arppIdentifierKind === "ppp"
++                    ? "PPP No. as issued"
++                    : "Serial No.";
++            input.classList.toggle("arpp-issued-identifier--not-applicable", delisted);
++        });
++    };
+ 
+     const markDirty = () => {
+         dirty = true;
+@@ -78,20 +96,30 @@
+ 
+     const refreshRowWarnings = () => {
+         const serialCounts = new Map();
++        const pppCounts = new Map();
+         rows().forEach(row => {
++            if (isDelisted(row)) return;
+             const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
++            const pppNumber = (getField(row, "PppNumber")?.value || "").trim().toLowerCase();
+             if (serial) serialCounts.set(serial, (serialCounts.get(serial) || 0) + 1);
++            if (pppNumber) pppCounts.set(pppNumber, (pppCounts.get(pppNumber) || 0) + 1);
+         });
+ 
+         rows().forEach(row => {
++            syncIssuedIdentifiers(row);
+             const messages = [];
++            const delisted = isDelisted(row);
+             const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
++            const pppNumber = (getField(row, "PppNumber")?.value || "").trim().toLowerCase();
+             const projectId = Number(getField(row, "ProjectId")?.value || 0);
+             const projectReference = (getField(row, "ProjectReference")?.value || "").trim();
+             const costValue = getField(row, "IpaCost")?.value || "";
+             const cost = parseMoney(costValue);
+ 
++            if (!delisted && !serial) messages.push("Serial No. is required for approved rows.");
++            if (!delisted && !pppNumber) messages.push("PPP No. is required for approved rows.");
+             if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued document.");
++            if (pppNumber && pppCounts.get(pppNumber) > 1) messages.push("Duplicate PPP number — verify against the issued document.");
+             if (projectReference && !projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
+             const unresolvedReferences = Array.from(row.querySelectorAll("[data-arpp-reference-select]"))
+                 .some(select => select.value === "-1");
+@@ -243,6 +271,7 @@
+     const setRowValues = (row, values) => {
+         const mapping = {
+             SerialNumber: values.serialNumber,
++            PppNumber: values.pppNumber,
+             ProjectReference: values.projectReference,
+             Category: values.category,
+             IpaCost: values.ipaCost
+@@ -259,6 +288,7 @@
+         if (reference) autosizeReference(reference);
+         const money = getField(row, "IpaCost");
+         if (money) updateMoneyHelper(money);
++        syncIssuedIdentifiers(row);
+     };
+ 
+     const initialiseRow = row => {
+@@ -294,6 +324,16 @@
+             updateMoneyHelper(money);
+         }
+ 
++        const category = row.querySelector("[data-arpp-category]");
++        if (category) {
++            category.addEventListener("change", () => {
++                syncIssuedIdentifiers(row);
++                refreshRowWarnings();
++                markDirty();
++            });
++            syncIssuedIdentifiers(row);
++        }
++
+         row.querySelectorAll("[data-arpp-reference-select]").forEach(select => {
+             select.addEventListener("change", () => {
+                 syncReferenceSelect(select, true, true);
+@@ -369,8 +409,8 @@
+     const categoryLabel = value => ({ "1": "New", "2": "CL", "3": "CF", "4": "Delisted" })[value] || "";
+ 
+     const looksLikeHeader = columns => {
+-        const joined = columns.slice(0, 4).join(" ").toLowerCase();
+-        return joined.includes("serial") && joined.includes("project") && joined.includes("category");
++        const joined = columns.slice(0, 5).join(" ").toLowerCase();
++        return joined.includes("serial") && joined.includes("ppp") && joined.includes("project") && joined.includes("category");
+     };
+ 
+     const parsePastedRows = text => {
+@@ -380,26 +420,29 @@
+             const columns = line.split("\t");
+             const errors = [];
+             const warnings = [];
+-            if (columns.length < 7) errors.push(`Only ${columns.length} columns found; seven are required.`);
+-            const values = [...columns, "", "", "", "", "", "", ""].slice(0, 7).map(value => value.trim());
+-            const category = categoryValue(values[2]);
+-            const cost = parseMoney(values[3]);
+-            if (!values[0]) errors.push("Serial number is blank.");
+-            if (!values[1]) errors.push("Project reference is blank.");
+-            if (!category) errors.push(`Category “${values[2] || "blank"}” is not recognised.`);
++            if (columns.length < 8) errors.push(`Only ${columns.length} columns found; eight are required.`);
++            const values = [...columns, "", "", "", "", "", "", "", ""].slice(0, 8).map(value => value.trim());
++            const category = categoryValue(values[3]);
++            const cost = parseMoney(values[4]);
++            const delisted = category === "4";
++            if (!delisted && !values[0]) errors.push("Serial number is blank.");
++            if (!delisted && !values[1]) errors.push("PPP number is blank.");
++            if (!values[2]) errors.push("Project reference is blank.");
++            if (!category) errors.push(`Category “${values[3] || "blank"}” is not recognised.`);
+             if (cost === null) errors.push("IPA cost is invalid.");
+-            if (!values[4]) errors.push("CFA is blank.");
+-            if (!values[5]) errors.push("Fund is blank.");
+-            if (!values[6]) errors.push("DFPDS is blank.");
++            if (!values[5]) errors.push("CFA is blank.");
++            if (!values[6]) errors.push("Fund is blank.");
++            if (!values[7]) errors.push("DFPDS is blank.");
+             return {
+                 sourceRow: index + 1,
+-                serialNumber: values[0],
+-                projectReference: values[1],
++                serialNumber: delisted ? "" : values[0],
++                pppNumber: delisted ? "" : values[1],
++                projectReference: values[2],
+                 category,
+-                ipaCost: cost === null ? values[3] : cost.toFixed(2),
+-                cfa: values[4],
+-                fund: values[5],
+-                dfpdsSchedule: values[6],
++                ipaCost: cost === null ? values[4] : cost.toFixed(2),
++                cfa: values[5],
++                fund: values[6],
++                dfpdsSchedule: values[7],
+                 errors,
+                 warnings,
+                 project: null,
+@@ -408,12 +451,16 @@
+         });
+ 
+         const serialCounts = new Map();
+-        parsed.forEach(row => {
+-            const key = row.serialNumber.toLowerCase();
+-            if (key) serialCounts.set(key, (serialCounts.get(key) || 0) + 1);
++        const pppCounts = new Map();
++        parsed.filter(row => row.category !== "4").forEach(row => {
++            const serialKey = row.serialNumber.toLowerCase();
++            const pppKey = row.pppNumber.toLowerCase();
++            if (serialKey) serialCounts.set(serialKey, (serialCounts.get(serialKey) || 0) + 1);
++            if (pppKey) pppCounts.set(pppKey, (pppCounts.get(pppKey) || 0) + 1);
+         });
+         parsed.forEach(row => {
+-            if (serialCounts.get(row.serialNumber.toLowerCase()) > 1) row.warnings.push("Duplicate serial number in pasted rows.");
++            if (row.serialNumber && serialCounts.get(row.serialNumber.toLowerCase()) > 1) row.warnings.push("Duplicate serial number in pasted rows.");
++            if (row.pppNumber && pppCounts.get(row.pppNumber.toLowerCase()) > 1) row.warnings.push("Duplicate PPP number in pasted rows.");
+         });
+         return parsed;
+     };
+@@ -459,7 +506,7 @@
+                 td.textContent = value;
+                 return td;
+             };
+-            tr.append(cell(String(row.sourceRow)), cell(row.serialNumber), cell(row.projectReference), cell(categoryLabel(row.category)), cell(row.ipaCost));
++            tr.append(cell(String(row.sourceRow)), cell(row.serialNumber || "—"), cell(row.pppNumber || "—"), cell(row.projectReference), cell(categoryLabel(row.category)), cell(row.ipaCost));
+ 
+             const suggestionCell = document.createElement("td");
+             if (row.project) {

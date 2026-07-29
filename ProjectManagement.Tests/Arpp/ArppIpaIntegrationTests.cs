@@ -45,7 +45,8 @@ public sealed class ArppIpaIntegrationTests
         issue.Entries.Add(new ArppEntry
         {
             SortOrder = 1,
-            SerialNumber = "7",
+            SerialNumber = null,
+            PppNumber = null,
             ProjectReference = "Project",
             ProjectId = 1,
             Category = ArppCategory.Delisted,
@@ -85,6 +86,7 @@ public sealed class ArppIpaIntegrationTests
                     SourceEntryId = sourceEntry.Id,
                     SortOrder = sourceEntry.SortOrder,
                     SerialNumber = sourceEntry.SerialNumber,
+                    PppNumber = sourceEntry.PppNumber,
                     ProjectReference = sourceEntry.ProjectReference,
                     ProjectId = sourceEntry.ProjectId,
                     Category = sourceEntry.Category,

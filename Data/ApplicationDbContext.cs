@@ -1980,17 +1980,22 @@ namespace ProjectManagement.Data
                         "\"Category\" IN (1, 2, 3, 4)");
                     table.HasCheckConstraint(
                         "CK_ArppEntries_RequiredText",
-                        "length(btrim(\"SerialNumber\")) > 0 AND " +
                         "length(btrim(\"ProjectReference\")) > 0 AND " +
                         "length(btrim(\"Cfa\")) > 0 AND " +
                         "length(btrim(\"Fund\")) > 0 AND " +
                         "length(btrim(\"DfpdsSchedule\")) > 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppEntries_IssuedIdentifiers",
+                        "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR " +
+                        "(\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND " +
+                        "(\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
                 });
 
                 ConfigureRowVersion(entity);
                 entity.HasKey(x => x.Id);
                 entity.Property(x => x.SortOrder).IsRequired();
-                entity.Property(x => x.SerialNumber).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.SerialNumber).HasMaxLength(64);
+                entity.Property(x => x.PppNumber).HasMaxLength(160);
                 entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
                 entity.Property(x => x.Category).HasConversion<int>().IsRequired();
                 entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();
@@ -2169,17 +2174,22 @@ namespace ProjectManagement.Data
                     table.HasCheckConstraint("CK_ArppPublishedEntries_Category", "\"Category\" IN (1, 2, 3, 4)");
                     table.HasCheckConstraint(
                         "CK_ArppPublishedEntries_RequiredText",
-                        "length(btrim(\"SerialNumber\")) > 0 AND " +
                         "length(btrim(\"ProjectReference\")) > 0 AND " +
                         "length(btrim(\"Cfa\")) > 0 AND " +
                         "length(btrim(\"Fund\")) > 0 AND " +
                         "length(btrim(\"DfpdsSchedule\")) > 0");
+                    table.HasCheckConstraint(
+                        "CK_ArppPublishedEntries_IssuedIdentifiers",
+                        "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR " +
+                        "(\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND " +
+                        "(\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
                 });
 
                 entity.HasKey(x => x.Id);
                 entity.Property(x => x.SourceEntryId).IsRequired();
                 entity.Property(x => x.SortOrder).IsRequired();
-                entity.Property(x => x.SerialNumber).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.SerialNumber).HasMaxLength(64);
+                entity.Property(x => x.PppNumber).HasMaxLength(160);
                 entity.Property(x => x.ProjectReference).HasMaxLength(300).IsRequired();
                 entity.Property(x => x.Category).HasConversion<int>().IsRequired();
                 entity.Property(x => x.IpaCost).HasColumnType("numeric(18,2)").IsRequired();

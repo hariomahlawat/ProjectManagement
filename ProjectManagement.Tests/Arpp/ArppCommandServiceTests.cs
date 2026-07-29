@@ -63,7 +63,8 @@ public sealed class ArppCommandServiceTests
                 new ArppEntryInput(
                     null,
                     null,
-                    "17",
+                    null,
+                    null,
                     "Project Astra as issued",
                     1,
                     ArppCategory.Delisted,
@@ -81,6 +82,8 @@ public sealed class ArppCommandServiceTests
         Assert.True(save.Success);
         var entry = await db.ArppEntries.SingleAsync();
         Assert.Equal(ArppCategory.Delisted, entry.Category);
+        Assert.Null(entry.SerialNumber);
+        Assert.Null(entry.PppNumber);
         Assert.Equal(25_000_000m, entry.IpaCost);
         Assert.Equal("Project Astra as issued", entry.ProjectReference);
         Assert.Equal(1, entry.ProjectId);
@@ -113,6 +116,7 @@ public sealed class ArppCommandServiceTests
                     null,
                     null,
                     "1",
+                    "ARPP/IR&D/N/2026-27/1",
                     "Project One",
                     null,
                     ArppCategory.New,
@@ -135,6 +139,48 @@ public sealed class ArppCommandServiceTests
         Assert.Equal("IR&D", saved.Fund);
         Assert.Equal(1, saved.DfpdsScheduleId);
         Assert.Equal("9.3", saved.DfpdsSchedule);
+    }
+
+
+    [Fact]
+    public async Task SaveWorkspace_ApprovedRowRequiresSerialAndPppNumber()
+    {
+        await using var db = CreateContext();
+        var issue = CreateIssue();
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            issue.FinancialYearStart,
+            issue.Kind,
+            issue.IssueSequence,
+            issue.Name,
+            issue.IssueDate,
+            [
+                new ArppEntryInput(
+                    null,
+                    null,
+                    "1",
+                    null,
+                    "Approved project",
+                    null,
+                    ArppCategory.New,
+                    1_000_000m,
+                    null,
+                    "Comdt SDD",
+                    null,
+                    "IR&D",
+                    null,
+                    "9.3")
+            ],
+            "user-1",
+            "User One"));
+
+        Assert.False(result.Success);
+        Assert.Contains("Entries[0].PppNumber", result.FieldErrors.Keys);
+        Assert.Empty(await db.ArppEntries.ToListAsync());
     }
 
     [Fact]
@@ -188,7 +234,8 @@ public sealed class ArppCommandServiceTests
                 new ArppEntryInput(
                     null,
                     null,
-                    "1",
+                    null,
+                    null,
                     "Delisted project",
                     null,
                     ArppCategory.Delisted,
@@ -241,6 +288,7 @@ public sealed class ArppCommandServiceTests
         {
             SortOrder = 1,
             SerialNumber = "1",
+            PppNumber = "ARPP/IR&D/N/2026-27/1",
             ProjectReference = "Project 1",
             Category = ArppCategory.New,
             IpaCost = 1_000_000m,
@@ -283,6 +331,7 @@ public sealed class ArppCommandServiceTests
         {
             SortOrder = 1,
             SerialNumber = "1",
+            PppNumber = "ARPP/IR&D/N/2026-27/1",
             ProjectReference = "Project 1",
             Category = ArppCategory.New,
             IpaCost = 1_000_000m,
@@ -336,6 +385,8 @@ public sealed class ArppCommandServiceTests
         Assert.Equal("ARPP.pdf", published.AttachmentOriginalFileName);
         Assert.Single(published.Entries);
         Assert.Equal("Project 1", published.Entries.Single().ProjectReference);
+        Assert.Equal("1", published.Entries.Single().SerialNumber);
+        Assert.Equal("ARPP/IR&D/N/2026-27/1", published.Entries.Single().PppNumber);
 
         var blockedSave = await service.SaveWorkspaceAsync(new ArppWorkspaceSaveCommand(
             verified.Id,
@@ -403,6 +454,7 @@ public sealed class ArppCommandServiceTests
         {
             SortOrder = 1,
             SerialNumber = "1",
+            PppNumber = "ARPP/IR&D/N/2026-27/1",
             ProjectReference = "Project One as issued",
             ProjectId = 1,
             Category = ArppCategory.New,
@@ -474,6 +526,58 @@ public sealed class ArppCommandServiceTests
 
 
     [Fact]
+    public async Task Verify_BlocksLegacyApprovedRowUntilPppNumberIsBackfilled()
+    {
+        await using var db = CreateContext();
+        db.ArppCfaOptions.Add(CreateCfaOption());
+        db.ArppFundOptions.Add(CreateFundOption());
+        db.ArppDfpdsSchedules.Add(CreateDfpdsSchedule());
+        var issue = CreateIssue();
+        issue.Entries.Add(new ArppEntry
+        {
+            SortOrder = 1,
+            SerialNumber = "1",
+            PppNumber = null,
+            ProjectReference = "Legacy approved row",
+            Category = ArppCategory.New,
+            IpaCost = 1_000_000m,
+            CfaOptionId = 1,
+            Cfa = "Comdt SDD",
+            FundOptionId = 1,
+            Fund = "IR&D",
+            DfpdsScheduleId = 1,
+            DfpdsSchedule = "9.3",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByUserId = "seed",
+            UpdatedByUserId = "seed"
+        });
+        issue.Attachment = new ArppAttachment
+        {
+            StorageKey = "arpp/test.pdf",
+            OriginalFileName = "ARPP.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 123,
+            Sha256 = new string('a', 64),
+            UploadedByUserId = "seed",
+            UploadedAtUtc = DateTimeOffset.UtcNow
+        };
+        db.ArppIssues.Add(issue);
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db).VerifyAsync(new ArppVerifyCommand(
+            issue.Id,
+            Convert.ToBase64String(issue.RowVersion),
+            null,
+            "verifier-1",
+            "Verifier One"));
+
+        Assert.False(result.Success);
+        Assert.Contains("IssuedIdentifiers", result.FieldErrors.Keys);
+        Assert.False((await db.ArppIssues.SingleAsync()).IsVerified);
+    }
+
+    [Fact]
     public async Task Verify_BlocksRowsWithUnmappedControlledReferenceValues()
     {
         await using var db = CreateContext();
@@ -482,6 +586,7 @@ public sealed class ArppCommandServiceTests
         {
             SortOrder = 1,
             SerialNumber = "1",
+            PppNumber = "ARPP/IR&D/N/2026-27/1",
             ProjectReference = "Project One",
             Category = ArppCategory.New,
             IpaCost = 1_000_000m,
@@ -555,6 +660,7 @@ public sealed class ArppCommandServiceTests
             null,
             null,
             serialNumber,
+            $"ARPP/IR&D/N/2026-27/{serialNumber}",
             $"Project {serialNumber}",
             projectId,
             ArppCategory.New,

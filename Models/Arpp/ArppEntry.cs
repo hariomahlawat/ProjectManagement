@@ -11,9 +11,11 @@ public sealed class ArppEntry
 
     public int SortOrder { get; set; }
 
-    [Required]
     [MaxLength(64)]
-    public string SerialNumber { get; set; } = string.Empty;
+    public string? SerialNumber { get; set; }
+
+    [MaxLength(160)]
+    public string? PppNumber { get; set; }
 
     [Required]
     [MaxLength(300)]

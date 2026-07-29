@@ -35,7 +35,8 @@ public sealed class ArppReadService : IArppReadService
                 issue.Name.ToLower().Contains(searchText) ||
                 issue.Entries.Any(entry =>
                     entry.ProjectReference.ToLower().Contains(searchText) ||
-                    entry.SerialNumber.ToLower().Contains(searchText) ||
+                    (entry.SerialNumber != null && entry.SerialNumber.ToLower().Contains(searchText)) ||
+                    (entry.PppNumber != null && entry.PppNumber.ToLower().Contains(searchText)) ||
                     (entry.Project != null &&
                         (entry.Project.Name.ToLower().Contains(searchText) ||
                          (entry.Project.CaseFileNumber != null && entry.Project.CaseFileNumber.ToLower().Contains(searchText))))));
@@ -235,6 +236,7 @@ public sealed class ArppReadService : IArppReadService
                 entry.Id,
                 entry.SortOrder,
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.ProjectReference,
                 entry.ProjectId,
                 entry.Project?.Name,
@@ -373,6 +375,7 @@ public sealed class ArppReadService : IArppReadService
                 IssueName = entry.Issue.Name,
                 entry.Issue.IssueDate,
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.Category,
                 entry.IpaCost,
                 entry.Cfa,
@@ -391,6 +394,7 @@ public sealed class ArppReadService : IArppReadService
                 row.IssueName,
                 row.IssueDate,
                 row.SerialNumber,
+                row.PppNumber,
                 row.Category,
                 row.IpaCost,
                 row.Cfa,

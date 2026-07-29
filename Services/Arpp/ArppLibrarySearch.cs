@@ -41,6 +41,7 @@ public static class ArppLibrarySearch
         => MatchesValues(
                query,
                row.SerialNumber,
+               row.PppNumber,
                row.ProjectReference,
                row.ProjectName,
                row.Cfa,
@@ -52,6 +53,7 @@ public static class ArppLibrarySearch
         => MatchesValues(
                query,
                row.SerialNumber,
+               row.PppNumber,
                row.ProjectReference,
                row.ProjectName,
                row.SourceIssueName,
@@ -64,6 +66,7 @@ public static class ArppLibrarySearch
         => MatchesValues(
                query,
                row.SerialNumber,
+               row.PppNumber,
                row.ProjectReference,
                row.SourceIssueName,
                row.Cfa,

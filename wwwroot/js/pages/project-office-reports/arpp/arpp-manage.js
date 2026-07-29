@@ -12,6 +12,24 @@
 
     const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
     const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
+    const isDelisted = row => getField(row, "Category")?.value === "4";
+
+    const syncIssuedIdentifiers = row => {
+        const delisted = isDelisted(row);
+        row.querySelectorAll("[data-arpp-issued-identifier]").forEach(input => {
+            if (delisted) input.value = "";
+            input.readOnly = delisted;
+            input.required = !delisted;
+            input.setAttribute("aria-readonly", delisted ? "true" : "false");
+            input.setAttribute("aria-required", delisted ? "false" : "true");
+            input.placeholder = delisted
+                ? "Not applicable"
+                : input.dataset.arppIdentifierKind === "ppp"
+                    ? "PPP No. as issued"
+                    : "Serial No.";
+            input.classList.toggle("arpp-issued-identifier--not-applicable", delisted);
+        });
+    };
 
     const markDirty = () => {
         dirty = true;
@@ -78,20 +96,30 @@
 
     const refreshRowWarnings = () => {
         const serialCounts = new Map();
+        const pppCounts = new Map();
         rows().forEach(row => {
+            if (isDelisted(row)) return;
             const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
+            const pppNumber = (getField(row, "PppNumber")?.value || "").trim().toLowerCase();
             if (serial) serialCounts.set(serial, (serialCounts.get(serial) || 0) + 1);
+            if (pppNumber) pppCounts.set(pppNumber, (pppCounts.get(pppNumber) || 0) + 1);
         });
 
         rows().forEach(row => {
+            syncIssuedIdentifiers(row);
             const messages = [];
+            const delisted = isDelisted(row);
             const serial = (getField(row, "SerialNumber")?.value || "").trim().toLowerCase();
+            const pppNumber = (getField(row, "PppNumber")?.value || "").trim().toLowerCase();
             const projectId = Number(getField(row, "ProjectId")?.value || 0);
             const projectReference = (getField(row, "ProjectReference")?.value || "").trim();
             const costValue = getField(row, "IpaCost")?.value || "";
             const cost = parseMoney(costValue);
 
+            if (!delisted && !serial) messages.push("Serial No. is required for approved rows.");
+            if (!delisted && !pppNumber) messages.push("PPP No. is required for approved rows.");
             if (serial && serialCounts.get(serial) > 1) messages.push("Duplicate serial number — verify against the issued document.");
+            if (pppNumber && pppCounts.get(pppNumber) > 1) messages.push("Duplicate PPP number — verify against the issued document.");
             if (projectReference && !projectId) messages.push("PRISM linkage pending; this may be reconciled later.");
             const unresolvedReferences = Array.from(row.querySelectorAll("[data-arpp-reference-select]"))
                 .some(select => select.value === "-1");
@@ -243,6 +271,7 @@
     const setRowValues = (row, values) => {
         const mapping = {
             SerialNumber: values.serialNumber,
+            PppNumber: values.pppNumber,
             ProjectReference: values.projectReference,
             Category: values.category,
             IpaCost: values.ipaCost
@@ -259,6 +288,7 @@
         if (reference) autosizeReference(reference);
         const money = getField(row, "IpaCost");
         if (money) updateMoneyHelper(money);
+        syncIssuedIdentifiers(row);
     };
 
     const initialiseRow = row => {
@@ -292,6 +322,16 @@
             });
             money.addEventListener("blur", () => normaliseMoneyInput(money));
             updateMoneyHelper(money);
+        }
+
+        const category = row.querySelector("[data-arpp-category]");
+        if (category) {
+            category.addEventListener("change", () => {
+                syncIssuedIdentifiers(row);
+                refreshRowWarnings();
+                markDirty();
+            });
+            syncIssuedIdentifiers(row);
         }
 
         row.querySelectorAll("[data-arpp-reference-select]").forEach(select => {
@@ -369,8 +409,8 @@
     const categoryLabel = value => ({ "1": "New", "2": "CL", "3": "CF", "4": "Delisted" })[value] || "";
 
     const looksLikeHeader = columns => {
-        const joined = columns.slice(0, 4).join(" ").toLowerCase();
-        return joined.includes("serial") && joined.includes("project") && joined.includes("category");
+        const joined = columns.slice(0, 5).join(" ").toLowerCase();
+        return joined.includes("serial") && joined.includes("ppp") && joined.includes("project") && joined.includes("category");
     };
 
     const parsePastedRows = text => {
@@ -380,26 +420,29 @@
             const columns = line.split("\t");
             const errors = [];
             const warnings = [];
-            if (columns.length < 7) errors.push(`Only ${columns.length} columns found; seven are required.`);
-            const values = [...columns, "", "", "", "", "", "", ""].slice(0, 7).map(value => value.trim());
-            const category = categoryValue(values[2]);
-            const cost = parseMoney(values[3]);
-            if (!values[0]) errors.push("Serial number is blank.");
-            if (!values[1]) errors.push("Project reference is blank.");
-            if (!category) errors.push(`Category “${values[2] || "blank"}” is not recognised.`);
+            if (columns.length < 8) errors.push(`Only ${columns.length} columns found; eight are required.`);
+            const values = [...columns, "", "", "", "", "", "", "", ""].slice(0, 8).map(value => value.trim());
+            const category = categoryValue(values[3]);
+            const cost = parseMoney(values[4]);
+            const delisted = category === "4";
+            if (!delisted && !values[0]) errors.push("Serial number is blank.");
+            if (!delisted && !values[1]) errors.push("PPP number is blank.");
+            if (!values[2]) errors.push("Project reference is blank.");
+            if (!category) errors.push(`Category “${values[3] || "blank"}” is not recognised.`);
             if (cost === null) errors.push("IPA cost is invalid.");
-            if (!values[4]) errors.push("CFA is blank.");
-            if (!values[5]) errors.push("Fund is blank.");
-            if (!values[6]) errors.push("DFPDS is blank.");
+            if (!values[5]) errors.push("CFA is blank.");
+            if (!values[6]) errors.push("Fund is blank.");
+            if (!values[7]) errors.push("DFPDS is blank.");
             return {
                 sourceRow: index + 1,
-                serialNumber: values[0],
-                projectReference: values[1],
+                serialNumber: delisted ? "" : values[0],
+                pppNumber: delisted ? "" : values[1],
+                projectReference: values[2],
                 category,
-                ipaCost: cost === null ? values[3] : cost.toFixed(2),
-                cfa: values[4],
-                fund: values[5],
-                dfpdsSchedule: values[6],
+                ipaCost: cost === null ? values[4] : cost.toFixed(2),
+                cfa: values[5],
+                fund: values[6],
+                dfpdsSchedule: values[7],
                 errors,
                 warnings,
                 project: null,
@@ -408,12 +451,16 @@
         });
 
         const serialCounts = new Map();
-        parsed.forEach(row => {
-            const key = row.serialNumber.toLowerCase();
-            if (key) serialCounts.set(key, (serialCounts.get(key) || 0) + 1);
+        const pppCounts = new Map();
+        parsed.filter(row => row.category !== "4").forEach(row => {
+            const serialKey = row.serialNumber.toLowerCase();
+            const pppKey = row.pppNumber.toLowerCase();
+            if (serialKey) serialCounts.set(serialKey, (serialCounts.get(serialKey) || 0) + 1);
+            if (pppKey) pppCounts.set(pppKey, (pppCounts.get(pppKey) || 0) + 1);
         });
         parsed.forEach(row => {
-            if (serialCounts.get(row.serialNumber.toLowerCase()) > 1) row.warnings.push("Duplicate serial number in pasted rows.");
+            if (row.serialNumber && serialCounts.get(row.serialNumber.toLowerCase()) > 1) row.warnings.push("Duplicate serial number in pasted rows.");
+            if (row.pppNumber && pppCounts.get(row.pppNumber.toLowerCase()) > 1) row.warnings.push("Duplicate PPP number in pasted rows.");
         });
         return parsed;
     };
@@ -459,7 +506,7 @@
                 td.textContent = value;
                 return td;
             };
-            tr.append(cell(String(row.sourceRow)), cell(row.serialNumber), cell(row.projectReference), cell(categoryLabel(row.category)), cell(row.ipaCost));
+            tr.append(cell(String(row.sourceRow)), cell(row.serialNumber || "—"), cell(row.pppNumber || "—"), cell(row.projectReference), cell(categoryLabel(row.category)), cell(row.ipaCost));
 
             const suggestionCell = document.createElement("td");
             if (row.project) {

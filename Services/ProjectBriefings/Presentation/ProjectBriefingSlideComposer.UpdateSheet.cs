@@ -193,7 +193,7 @@ public sealed partial class ProjectBriefingSlideComposer
         {
             ("Name of Project", DisplayOrNotRecorded(project.ProjectName), 9.2, text),
             ("Project Cost", project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded", 9.2, project.CostRd.IsAvailable ? text : muted),
-            ("ARPP/PPP Number", DisplayOrNotRecorded(project.ArppReference), 8.8, IsRecorded(project.ArppReference) ? text : muted),
+            ("ARPP/PPP Number", project.ArppPppNumberApplicable ? DisplayOrNotRecorded(project.ArppReference) : string.Empty, 8.8, IsRecorded(project.ArppReference) ? text : muted),
             ("Fund, DFPDS Sch and CFA", arppDetails, 8.0, HasAnyArppDetail(project) ? text : muted),
             ("AoN Date", FormatDate(project.AonDate), 9.0, project.AonDate.HasValue ? text : muted),
             ("SO Date and Name of Firm", supplyOrder, 8.1, HasAnySupplyOrderDetail(project.SupplyOrderDate, project.JdpNames) ? text : muted),

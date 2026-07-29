@@ -98,7 +98,7 @@
             <div class="arpp-panel__heading arpp-panel__heading--workspace">
                 <div>
                     <h2>Issued rows</h2>
-                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. All fields remain required for Delisted entries.</p>
+                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. Project reference, IPA cost, CFA, Fund and DFPDS remain required for Delisted entries. Serial No. and PPP No. do not apply.</p>
                 </div>
                 <div class="arpp-entry-toolbar">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
@@ -153,6 +153,7 @@
                         <tr>
                             <th class="arpp-col-order arpp-sticky-left arpp-sticky-left--order">#</th>
                             <th class="arpp-col-serial arpp-sticky-left arpp-sticky-left--serial">Serial no.</th>
+                            <th class="arpp-col-ppp arpp-sticky-left arpp-sticky-left--ppp">PPP no.</th>
                             <th class="arpp-col-reference arpp-sticky-left arpp-sticky-left--reference">Project reference as issued</th>
                             <th class="arpp-col-project">PRISM project <span class="arpp-optional">optional</span></th>
                             <th class="arpp-col-category">Category</th>
@@ -171,8 +172,12 @@
                                 <td class="arpp-sticky-left arpp-sticky-left--serial">
                                     <input type="hidden" asp-for="Input.Entries[index].Id" />
                                     <input type="hidden" asp-for="Input.Entries[index].RowVersion" />
-                                    <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" />
+                                    <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
                                     <span asp-validation-for="Input.Entries[index].SerialNumber" class="text-danger small"></span>
+                                </td>
+                                <td class="arpp-sticky-left arpp-sticky-left--ppp">
+                                    <input asp-for="Input.Entries[index].PppNumber" class="form-control form-control-sm" maxlength="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
+                                    <span asp-validation-for="Input.Entries[index].PppNumber" class="text-danger small"></span>
                                 </td>
                                 <td class="arpp-sticky-left arpp-sticky-left--reference">
                                     <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" data-arpp-project-reference></textarea>
@@ -198,7 +203,7 @@
                                     <span asp-validation-for="Input.Entries[index].ProjectId" class="text-danger small"></span>
                                 </td>
                                 <td>
-                                    <select asp-for="Input.Entries[index].Category" class="form-select form-select-sm">
+                                    <select asp-for="Input.Entries[index].Category" class="form-select form-select-sm" data-arpp-category>
                                         <option value="">Select</option>
                                         @foreach (var category in Model.Categories)
                                         {
@@ -310,8 +315,12 @@
                     <td class="arpp-sticky-left arpp-sticky-left--serial">
                         <input type="hidden" name="Input.Entries[__INDEX__].Id" id="Input_Entries___INDEX____Id" />
                         <input type="hidden" name="Input.Entries[__INDEX__].RowVersion" id="Input_Entries___INDEX____RowVersion" />
-                        <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" required data-val="true" data-val-required="Enter the serial number." data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" />
+                        <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" data-val="true" data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].SerialNumber" data-valmsg-replace="true"></span>
+                    </td>
+                    <td class="arpp-sticky-left arpp-sticky-left--ppp">
+                        <input name="Input.Entries[__INDEX__].PppNumber" id="Input_Entries___INDEX____PppNumber" class="form-control form-control-sm" maxlength="160" data-val="true" data-val-length="The PPP number cannot exceed 160 characters." data-val-length-max="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
+                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].PppNumber" data-valmsg-replace="true"></span>
                     </td>
                     <td class="arpp-sticky-left arpp-sticky-left--reference">
                         <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300" data-arpp-project-reference></textarea>
@@ -333,7 +342,7 @@
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectId" data-valmsg-replace="true"></span>
                     </td>
                     <td>
-                        <select name="Input.Entries[__INDEX__].Category" id="Input_Entries___INDEX____Category" class="form-select form-select-sm" required data-val="true" data-val-required="Select an ARPP category.">
+                        <select name="Input.Entries[__INDEX__].Category" id="Input_Entries___INDEX____Category" class="form-select form-select-sm" required data-val="true" data-val-required="Select an ARPP category." data-arpp-category>
                             <option value="">Select</option><option value="1">New</option><option value="2">CL</option><option value="3">CF</option><option value="4">Delisted</option>
                         </select>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].Category" data-valmsg-replace="true"></span>
@@ -409,14 +418,14 @@
             <div class="modal-header">
                 <div>
                     <h2 class="modal-title fs-5" id="arppPasteModalLabel">Paste rows from Excel</h2>
-                    <p class="mb-0 small text-body-secondary">Paste seven tab-separated columns: Serial, Project reference, Category, IPA cost, CFA, Fund and DFPDS.</p>
+                    <p class="mb-0 small text-body-secondary">Paste eight tab-separated columns: Serial, PPP No., Project reference, Category, IPA cost, CFA, Fund and DFPDS. For Delisted rows, leave Serial and PPP No. blank.</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div data-arpp-paste-entry>
                     <label for="arpp-paste-text" class="form-label">Excel rows</label>
-                    <textarea id="arpp-paste-text" class="form-control font-monospace" rows="10" data-arpp-paste-text placeholder="1&#9;Project name&#9;New&#9;12500000&#9;Comdt SDD&#9;IR&amp;D&#9;9.3"></textarea>
+                    <textarea id="arpp-paste-text" class="form-control font-monospace" rows="10" data-arpp-paste-text placeholder="1&#9;ARPP/IR&amp;D/N/2026-27/15&#9;Project name&#9;New&#9;12500000&#9;Comdt SDD&#9;IR&amp;D&#9;9.3"></textarea>
                     <div class="form-text">A header row is accepted. Comma-formatted and ₹-prefixed costs are recognised.</div>
                 </div>
                 <div class="alert alert-danger d-none mt-3 mb-0" role="alert" data-arpp-paste-error></div>
@@ -430,7 +439,7 @@
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm arpp-paste-preview-table">
-                            <thead><tr><th>Row</th><th>Serial</th><th>Project reference</th><th>Category</th><th>IPA cost</th><th>Suggested project</th><th>Review</th></tr></thead>
+                            <thead><tr><th>Row</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th>IPA cost</th><th>Suggested project</th><th>Review</th></tr></thead>
                             <tbody data-arpp-paste-preview-body></tbody>
                         </table>
                     </div>

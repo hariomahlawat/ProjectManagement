@@ -37,9 +37,11 @@ public sealed class ArppEntryInputModel
 
     public string? RowVersion { get; set; }
 
-    [Required]
     [StringLength(64)]
-    public string SerialNumber { get; set; } = string.Empty;
+    public string? SerialNumber { get; set; }
+
+    [StringLength(160)]
+    public string? PppNumber { get; set; }
 
     [Required]
     [StringLength(300)]

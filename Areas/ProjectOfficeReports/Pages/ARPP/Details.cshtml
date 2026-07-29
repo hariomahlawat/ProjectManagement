@@ -270,13 +270,14 @@
             <div class="arpp-panel__heading"><div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div></div>
             <div class="arpp-table-wrap arpp-table-wrap--details">
                 <table class="table arpp-details-table align-middle">
-                    <thead><tr><th>#</th><th>Serial</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
+                    <thead><tr><th>#</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
                     <tbody>
                         @foreach (var entry in Model.Issue.Entries)
                         {
                             <tr class="@(entry.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
                                 <td class="text-body-secondary">@entry.SortOrder</td>
-                                <td><span class="arpp-serial">@entry.SerialNumber</span></td>
+                                <td><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</span></td>
+                                <td><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</span></td>
                                 <td>
                                     <div class="arpp-project-reference">@entry.ProjectReference</div>
                                     @if (entry.ProjectId.HasValue)

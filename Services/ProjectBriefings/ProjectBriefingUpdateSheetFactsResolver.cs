@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Arpp;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.ProjectBriefings;
@@ -22,10 +23,11 @@ public sealed record ProjectBriefingUpdateSheetFacts(
     IReadOnlyList<string> JdpNames,
     string? ProjectOfficer,
     bool ProjectOfficerIsComplete,
-    string? LineDirectorate)
+    string? LineDirectorate,
+    bool IsDelistedArppPosition)
 {
     public bool HasCompleteArppDetails =>
-        !string.IsNullOrWhiteSpace(ArppReference)
+        (IsDelistedArppPosition || !string.IsNullOrWhiteSpace(ArppReference))
         && !string.IsNullOrWhiteSpace(Fund)
         && !string.IsNullOrWhiteSpace(DfpdsSchedule)
         && !string.IsNullOrWhiteSpace(Cfa);
@@ -159,7 +161,8 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
                 entry.Fund,
                 entry.DfpdsSchedule,
                 entry.Cfa,
-                IssueName = entry.PublishedIssue.Name,
+                entry.PppNumber,
+                entry.Category,
                 entry.PublishedIssue.FinancialYearStart,
                 entry.PublishedIssue.IssueSequence,
                 entry.PublishedIssue.IssueDate,
@@ -185,7 +188,7 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
                 arppByProject.TryGetValue(row.Id, out var arpp);
                 var officer = FormatOfficer(row.OfficerRank, row.OfficerFullName);
                 return new ProjectBriefingUpdateSheetFacts(
-                    NormalizeNullable(arpp?.IssueName),
+                    arpp?.Category == ArppCategory.Delisted ? null : NormalizeNullable(arpp?.PppNumber),
                     NormalizeNullable(arpp?.Fund),
                     NormalizeNullable(arpp?.DfpdsSchedule),
                     NormalizeNullable(arpp?.Cfa),
@@ -195,7 +198,8 @@ public sealed class ProjectBriefingUpdateSheetFactsResolver : IProjectBriefingUp
                     jdpsByProject.GetValueOrDefault(row.Id) ?? Array.Empty<string>(),
                     officer.Display,
                     officer.IsComplete,
-                    NormalizeNullable(row.LineDirectorate));
+                    NormalizeNullable(row.LineDirectorate),
+                    arpp?.Category == ArppCategory.Delisted);
             });
     }
 

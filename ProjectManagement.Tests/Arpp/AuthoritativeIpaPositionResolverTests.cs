@@ -42,7 +42,8 @@ public sealed class AuthoritativeIpaPositionResolverTests
         Assert.True(result.IsDelisted);
         Assert.Equal(2026, result.FinancialYearStart);
         Assert.Equal(2, result.IssueSequence);
-        Assert.Equal("17", result.SerialNumber);
+        Assert.Null(result.SerialNumber);
+        Assert.Null(result.PppNumber);
     }
 
     [Fact]
@@ -126,6 +127,7 @@ public sealed class AuthoritativeIpaPositionResolverTests
         Assert.Equal(7_000_000m, result!.AmountInRupees);
         Assert.Equal(ArppCategory.New, result.Category);
         Assert.Equal("3", result.SerialNumber);
+        Assert.Equal("ARPP/IR&D/2026-27/3", result.PppNumber);
     }
 
     private static ApplicationDbContext CreateContext()
@@ -204,7 +206,8 @@ public sealed class AuthoritativeIpaPositionResolverTests
         {
             SourceEntryId = projectId * 1_000L + long.Parse(serialNumber),
             SortOrder = 1,
-            SerialNumber = serialNumber,
+            SerialNumber = category == ArppCategory.Delisted ? null : serialNumber,
+            PppNumber = category == ArppCategory.Delisted ? null : $"ARPP/IR&D/2026-27/{serialNumber}",
             ProjectReference = $"Project {projectId}",
             ProjectId = projectId,
             Category = category,
@@ -222,7 +225,8 @@ public sealed class AuthoritativeIpaPositionResolverTests
         => new()
         {
             SortOrder = 1,
-            SerialNumber = serialNumber,
+            SerialNumber = category == ArppCategory.Delisted ? null : serialNumber,
+            PppNumber = category == ArppCategory.Delisted ? null : $"ARPP/IR&D/2026-27/{serialNumber}",
             ProjectReference = $"Project {projectId}",
             ProjectId = projectId,
             Category = category,

@@ -440,7 +440,7 @@ public sealed class ProjectPhotoPageTests
         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
         var industryPartners = new IndustryPartnerService(db);
-        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
+        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners, new ThrowingProjectContentService());
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)

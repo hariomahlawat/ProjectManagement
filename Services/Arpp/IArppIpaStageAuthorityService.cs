@@ -35,7 +35,8 @@ public sealed record ArppIpaStageAuthority(
     string IssueName,
     DateOnly IssueDate,
     long EntryId,
-    string? SerialNumber)
+    string? SerialNumber,
+    string? PppNumber)
 {
     public string DocumentLabel => IssueKind == ArppIssueKind.Original
         ? "Original ARPP"

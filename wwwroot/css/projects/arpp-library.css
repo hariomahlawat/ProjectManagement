@@ -345,6 +345,13 @@
     font-weight: 700;
 }
 
+.project-arpp-table__ppp {
+    min-width: 180px;
+    max-width: 240px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
 .project-arpp-table__project {
     color: #101d33;
     font-weight: 700;

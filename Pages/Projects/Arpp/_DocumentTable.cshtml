@@ -18,6 +18,7 @@
             <tr>
                 <th class="project-arpp-table__order">#</th>
                 <th class="project-arpp-table__serial">Serial</th>
+                <th class="project-arpp-table__ppp">PPP No.</th>
                 <th>Project reference</th>
                 <th>Category</th>
                 <th class="text-end">IPA cost (₹)</th>
@@ -31,7 +32,8 @@
             {
                 <tr class="@(row.Category == ArppCategory.Delisted ? "is-delisted" : string.Empty)">
                     <td class="project-arpp-table__order">@row.SortOrder</td>
-                    <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                    <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
+                    <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>
                     <td>
                         @if (row.ProjectId.HasValue)
                         {

@@ -56,6 +56,11 @@
         {
             ipaSourceParts.Add($"Ser No. {ipaPosition.SerialNumber}");
         }
+
+        if (!string.IsNullOrWhiteSpace(ipaPosition.PppNumber))
+        {
+            ipaSourceParts.Add($"PPP No. {ipaPosition.PppNumber}");
+        }
     }
 
     var ipaSourceText = string.Join(" · ", ipaSourceParts);

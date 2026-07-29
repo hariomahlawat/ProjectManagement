@@ -90,7 +90,7 @@
                       class="project-arpp-search"
                       role="search"
                       data-arpp-library-search-form>
-                    <label class="visually-hidden" for="arppLibrarySearch">Search projects, documents or serial numbers</label>
+                    <label class="visually-hidden" for="arppLibrarySearch">Search projects, documents, PPP or serial numbers</label>
                     <div class="project-arpp-search__control">
                         <i class="bi bi-search" aria-hidden="true"></i>
                         <input id="arppLibrarySearch"
@@ -99,7 +99,7 @@
                                type="search"
                                autocomplete="off"
                                placeholder="Projects, documents or serials"
-                               title="Search document names, project references, serial numbers, categories, CFA, Fund and DFPDS" />
+                               title="Search document names, project references, PPP numbers, serial numbers, categories, CFA, Fund and DFPDS" />
                         @if (Model.Document is not null)
                         {
                             <input type="hidden" name="IssueId" value="@Model.Document.IssueId" />

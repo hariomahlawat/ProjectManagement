@@ -457,6 +457,7 @@
 
 .arpp-col-order { width: 2.5rem; }
 .arpp-col-serial { min-width: 6rem; }
+.arpp-col-ppp { min-width: 13rem; }
 .arpp-col-reference { min-width: 17rem; }
 .arpp-col-project { min-width: 16rem; }
 .arpp-col-category { min-width: 7rem; }
@@ -1027,12 +1028,13 @@
 }
 
 .arpp-entry-table {
-    min-width: 1260px;
+    min-width: 1480px;
     table-layout: fixed;
 }
 
 .arpp-col-order { width: 2.5rem; min-width: 2.5rem; }
 .arpp-col-serial { width: 6.25rem; min-width: 6.25rem; }
+.arpp-col-ppp { width: 13rem; min-width: 13rem; }
 .arpp-col-reference { width: 17rem; min-width: 17rem; }
 .arpp-col-project { width: 15.5rem; min-width: 15.5rem; }
 .arpp-col-category { width: 7rem; min-width: 7rem; }
@@ -1057,14 +1059,23 @@
 
 .arpp-sticky-left--order { left: 0; }
 .arpp-sticky-left--serial { left: 2.5rem; }
+.arpp-sticky-left--ppp { left: 8.75rem; }
 .arpp-sticky-left--reference {
-    left: 8.75rem;
+    left: 21.75rem;
     box-shadow: .45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
 }
 
 .arpp-sticky-right {
     right: 0;
     box-shadow: -.45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
+}
+
+
+.arpp-issued-identifier--not-applicable {
+    background: var(--arpp-soft);
+    color: var(--arpp-muted);
+    font-style: italic;
+    cursor: default;
 }
 
 .arpp-reference-input {

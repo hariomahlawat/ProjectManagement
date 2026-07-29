@@ -2830,6 +2830,11 @@ namespace ProjectManagement.Pages.Projects
                 parts.Add($"Ser No. {position.SerialNumber.Trim()}");
             }
 
+            if (!string.IsNullOrWhiteSpace(position.PppNumber))
+            {
+                parts.Add($"PPP No. {position.PppNumber.Trim()}");
+            }
+
             if (position.Category.HasValue)
             {
                 parts.Add(ArppDisplayNames.For(position.Category.Value));

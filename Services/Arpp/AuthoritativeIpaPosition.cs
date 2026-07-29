@@ -19,7 +19,8 @@ public sealed record AuthoritativeIpaPosition(
     DateOnly? IssueDate,
     int? IssueSequence,
     long? EntryId,
-    string? SerialNumber)
+    string? SerialNumber,
+    string? PppNumber)
 {
     public bool IsManagedByArpp => Source == IpaPositionSource.Arpp;
 

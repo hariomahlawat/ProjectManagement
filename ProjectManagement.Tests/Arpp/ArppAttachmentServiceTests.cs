@@ -288,7 +288,8 @@ public sealed class ArppAttachmentServiceTests
         => new()
         {
             SortOrder = 1,
-            SerialNumber = "1",
+            SerialNumber = null,
+            PppNumber = null,
             ProjectReference = "Project",
             Category = ArppCategory.Delisted,
             IpaCost = 5_000_000m,

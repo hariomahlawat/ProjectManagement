@@ -17,6 +17,7 @@ using ProjectManagement.Pages.Projects.Meta;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Text;
+using ProjectManagement.Tests.Fakes;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -454,7 +455,12 @@ public sealed class ProjectMetaEditPageTests
 
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
     {
-        var page = new EditModel(db, userContext, new FakeAudit(), new PassThroughMarkdownRenderer())
+        var page = new EditModel(
+            db,
+            userContext,
+            new FakeAudit(),
+            new PassThroughMarkdownRenderer(),
+            FakeClock.AtUtc(new DateTimeOffset(2026, 7, 29, 0, 0, 0, TimeSpan.Zero)))
         {
             PageContext = new PageContext
             {

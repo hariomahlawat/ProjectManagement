@@ -56,7 +56,7 @@
         <div>
             <span>Current IPA cost</span>
             <strong class="@(current.Category == ArppCategory.Delisted ? "project-arpp-money--delisted" : "text-success")">@IndianCurrencyFormatter.FormatCompact(current.IpaCost)</strong>
-            <small>Serial @current.SerialNumber</small>
+            <small>@(current.Category == ArppCategory.Delisted ? "Issued identifiers not applicable" : $"Serial {current.SerialNumber} · PPP {current.PppNumber}")</small>
         </div>
         <div>
             <span>Published entries</span>
@@ -68,7 +68,7 @@
     <section class="project-arpp-table-card project-arpp-history-card">
         <div class="project-arpp-table-card__head">
             <h2>Published ARPP history</h2>
-            <p>Latest published entry is shown first. Serial numbers and wording are preserved from each issued document.</p>
+            <p>Latest published entry is shown first. Serial numbers, PPP numbers and wording are preserved from each issued document. Delisted positions have no issued identifiers.</p>
         </div>
         <div class="project-arpp-table-wrap">
             <table class="project-arpp-table project-arpp-table--history">
@@ -78,6 +78,7 @@
                         <th>Financial year</th>
                         <th>Source document</th>
                         <th>Serial</th>
+                        <th>PPP No.</th>
                         <th>Project reference as issued</th>
                         <th>Category</th>
                         <th class="text-end">IPA cost (₹)</th>
@@ -104,7 +105,8 @@
                                    asp-route-query="@Model.Query">@row.SourceIssueName</a>
                                 <small>@(row.SourceKind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum No. {row.SourceSequence}") · @row.SourceIssueDate.ToString("dd MMM yyyy")</small>
                             </td>
-                            <td class="project-arpp-table__serial">@row.SerialNumber</td>
+                            <td class="project-arpp-table__serial">@(row.Category == ArppCategory.Delisted ? "—" : row.SerialNumber)</td>
+                            <td class="project-arpp-table__ppp">@(row.Category == ArppCategory.Delisted ? "—" : row.PppNumber)</td>
                             <td><div class="project-arpp-table__project">@row.ProjectReference</div></td>
                             <td><span class="arpp-badge arpp-badge--@(row.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(row.Category)</span></td>
                             <td class="text-end text-nowrap fw-semibold" title="@IndianCurrencyFormatter.FormatRupees(row.IpaCost)">@IndianCurrencyFormatter.FormatCompact(row.IpaCost)</td>

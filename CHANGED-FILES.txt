@@ -1,2 +1,5 @@
-Program.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs
+ProjectManagement.Tests/ProjectPhotoPageTests.cs
+ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
+ProjectManagement.Tests/ProjectMetaEditPageTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/Fakes/ThrowingProjectContentService.cs

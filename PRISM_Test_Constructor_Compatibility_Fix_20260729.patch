@@ -1,0 +1,108 @@
+--- a/ProjectManagement.Tests/ProjectPhotoPageTests.cs
++++ b/ProjectManagement.Tests/ProjectPhotoPageTests.cs
+@@ -440,7 +440,7 @@
+         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
+         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
+         var industryPartners = new IndustryPartnerService(db);
+-        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
++        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners, new ThrowingProjectContentService());
+     }
+ 
+     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
+--- a/ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
++++ b/ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
+@@ -27,6 +27,7 @@
+ using ProjectManagement.Services.Projects;
+ using ProjectManagement.Services.Stages;
+ using ProjectManagement.Services.Text;
++using ProjectManagement.Tests.Fakes;
+ using ProjectManagement.ViewModels;
+ using Xunit;
+ using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
+@@ -431,7 +432,7 @@
+         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
+         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
+         var industryPartners = new IndustryPartnerService(db);
+-        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
++        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners, new ThrowingProjectContentService());
+     }
+ 
+     private sealed class PassThroughMarkdownRenderer : IMarkdownRenderer
+--- a/ProjectManagement.Tests/ProjectMetaEditPageTests.cs
++++ b/ProjectManagement.Tests/ProjectMetaEditPageTests.cs
+@@ -17,6 +17,7 @@
+ using ProjectManagement.Services;
+ using ProjectManagement.Services.Projects;
+ using ProjectManagement.Services.Text;
++using ProjectManagement.Tests.Fakes;
+ using Xunit;
+ 
+ namespace ProjectManagement.Tests;
+@@ -454,7 +455,12 @@
+ 
+     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
+     {
+-        var page = new EditModel(db, userContext, new FakeAudit(), new PassThroughMarkdownRenderer())
++        var page = new EditModel(
++            db,
++            userContext,
++            new FakeAudit(),
++            new PassThroughMarkdownRenderer(),
++            FakeClock.AtUtc(new DateTimeOffset(2026, 7, 29, 0, 0, 0, TimeSpan.Zero)))
+         {
+             PageContext = new PageContext
+             {
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -610,7 +610,7 @@
+             PresentStageCode = StageCodes.AON,
+             PresentStage = "Acceptance of Necessity",
+             PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+-            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.Aon, "₹1.00 Cr", "AoN"),
++            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.AoN, "₹1.00 Cr", "AoN"),
+             DevelopmentPdcDate = new DateOnly(2030, 1, 15),
+             ProjectBrief = "Concise project brief.",
+             SortOrder = 1
+--- /dev/null
++++ b/ProjectManagement.Tests/Fakes/ThrowingProjectContentService.cs
+@@ -0,0 +1,40 @@
++using ProjectManagement.Services.Projects;
++
++namespace ProjectManagement.Tests.Fakes;
++
++/// <summary>
++/// Test double used by page-model tests that do not exercise project-content commands.
++/// Any unexpected content save fails immediately so the tests cannot silently bypass behavior.
++/// </summary>
++public sealed class ThrowingProjectContentService : IProjectContentService
++{
++    private const string UnexpectedCallMessage =
++        "Project content commands are outside the scope of this test.";
++
++    public Task<ProjectContentSaveResult> SaveBriefAsync(
++        int projectId,
++        string? brief,
++        string rowVersion,
++        string userId,
++        string userDisplay,
++        CancellationToken cancellationToken = default)
++        => throw new InvalidOperationException(UnexpectedCallMessage);
++
++    public Task<ProjectContentSaveResult> SaveCapabilitiesAsync(
++        int projectId,
++        IReadOnlyList<string?> statements,
++        string rowVersion,
++        string userId,
++        string userDisplay,
++        CancellationToken cancellationToken = default)
++        => throw new InvalidOperationException(UnexpectedCallMessage);
++
++    public Task<ProjectContentSaveResult> SaveDescriptionAsync(
++        int projectId,
++        string? description,
++        string rowVersion,
++        string userId,
++        string userDisplay,
++        CancellationToken cancellationToken = default)
++        => throw new InvalidOperationException(UnexpectedCallMessage);
++}

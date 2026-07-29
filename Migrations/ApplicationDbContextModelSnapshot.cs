@@ -4664,9 +4664,12 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("bytea");
 
                     b.Property<string>("SerialNumber")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PppNumber")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
@@ -4702,7 +4705,9 @@ namespace ProjectManagement.Migrations
 
                             t.HasCheckConstraint("CK_ArppEntries_IpaCost", "\"IpaCost\" >= 0");
 
-                            t.HasCheckConstraint("CK_ArppEntries_RequiredText", "length(btrim(\"SerialNumber\")) > 0 AND length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
+                            t.HasCheckConstraint("CK_ArppEntries_IssuedIdentifiers", "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR (\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND (\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
+
+                            t.HasCheckConstraint("CK_ArppEntries_RequiredText", "length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
 
                             t.HasCheckConstraint("CK_ArppEntries_SortOrder", "\"SortOrder\" >= 0");
                         });
@@ -4833,9 +4838,12 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(300)");
 
                     b.Property<string>("SerialNumber")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PppNumber")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
 
                     b.Property<long>("SourceEntryId")
                         .HasColumnType("bigint");
@@ -4863,7 +4871,9 @@ namespace ProjectManagement.Migrations
 
                             t.HasCheckConstraint("CK_ArppPublishedEntries_IpaCost", "\"IpaCost\" >= 0");
 
-                            t.HasCheckConstraint("CK_ArppPublishedEntries_RequiredText", "length(btrim(\"SerialNumber\")) > 0 AND length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_IssuedIdentifiers", "(\"Category\" = 4 AND \"SerialNumber\" IS NULL AND \"PppNumber\" IS NULL) OR (\"Category\" IN (1, 2, 3) AND \"SerialNumber\" IS NOT NULL AND length(btrim(\"SerialNumber\")) > 0 AND (\"PppNumber\" IS NULL OR length(btrim(\"PppNumber\")) > 0))");
+
+                            t.HasCheckConstraint("CK_ArppPublishedEntries_RequiredText", "length(btrim(\"ProjectReference\")) > 0 AND length(btrim(\"Cfa\")) > 0 AND length(btrim(\"Fund\")) > 0 AND length(btrim(\"DfpdsSchedule\")) > 0");
 
                             t.HasCheckConstraint("CK_ArppPublishedEntries_SortOrder", "\"SortOrder\" >= 0");
 

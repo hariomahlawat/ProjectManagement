@@ -7,8 +7,8 @@ namespace ProjectManagement.Services.Arpp;
 
 public sealed class ArppExcelWorkbookBuilder
 {
-    private const int FullColumnCount = 11;
-    private const int PublishedColumnCount = 8;
+    private const int FullColumnCount = 12;
+    private const int PublishedColumnCount = 9;
     private const int HeaderRow = 8;
 
     public byte[] Build(
@@ -186,6 +186,7 @@ public sealed class ArppExcelWorkbookBuilder
             {
                 "Order",
                 "Serial No.",
+                "PPP No.",
                 "Project reference as issued",
                 "Linked PRISM project",
                 "Case file",
@@ -200,6 +201,7 @@ public sealed class ArppExcelWorkbookBuilder
             {
                 "Order",
                 "Serial No.",
+                "PPP No.",
                 "Project reference as issued",
                 "Category",
                 "IPA cost (₹)",
@@ -228,29 +230,30 @@ public sealed class ArppExcelWorkbookBuilder
         foreach (var entry in issue.Entries.OrderBy(entry => entry.SortOrder).ThenBy(entry => entry.Id))
         {
             worksheet.Cell(rowNumber, 1).Value = entry.SortOrder;
-            worksheet.Cell(rowNumber, 2).Value = entry.SerialNumber;
-            worksheet.Cell(rowNumber, 3).Value = entry.ProjectReference;
+            worksheet.Cell(rowNumber, 2).Value = entry.Category == ArppCategory.Delisted ? string.Empty : entry.SerialNumber ?? string.Empty;
+            worksheet.Cell(rowNumber, 3).Value = entry.Category == ArppCategory.Delisted ? string.Empty : entry.PppNumber ?? string.Empty;
+            worksheet.Cell(rowNumber, 4).Value = entry.ProjectReference;
 
             if (includePrismLinkageColumns)
             {
-                worksheet.Cell(rowNumber, 4).Value = entry.ProjectName ?? string.Empty;
-                worksheet.Cell(rowNumber, 5).Value = entry.ProjectCaseFileNumber ?? string.Empty;
-                worksheet.Cell(rowNumber, 6).Value = ArppDisplayNames.For(entry.Category);
-                worksheet.Cell(rowNumber, 7).Value = entry.IpaCost;
-                worksheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
-                worksheet.Cell(rowNumber, 8).Value = entry.Cfa;
-                worksheet.Cell(rowNumber, 9).Value = entry.Fund;
-                worksheet.Cell(rowNumber, 10).Value = entry.DfpdsSchedule;
-                worksheet.Cell(rowNumber, 11).Value = entry.ProjectId.HasValue ? "Linked" : "Linkage pending";
+                worksheet.Cell(rowNumber, 5).Value = entry.ProjectName ?? string.Empty;
+                worksheet.Cell(rowNumber, 6).Value = entry.ProjectCaseFileNumber ?? string.Empty;
+                worksheet.Cell(rowNumber, 7).Value = ArppDisplayNames.For(entry.Category);
+                worksheet.Cell(rowNumber, 8).Value = entry.IpaCost;
+                worksheet.Cell(rowNumber, 8).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
+                worksheet.Cell(rowNumber, 9).Value = entry.Cfa;
+                worksheet.Cell(rowNumber, 10).Value = entry.Fund;
+                worksheet.Cell(rowNumber, 11).Value = entry.DfpdsSchedule;
+                worksheet.Cell(rowNumber, 12).Value = entry.ProjectId.HasValue ? "Linked" : "Linkage pending";
             }
             else
             {
-                worksheet.Cell(rowNumber, 4).Value = ArppDisplayNames.For(entry.Category);
-                worksheet.Cell(rowNumber, 5).Value = entry.IpaCost;
-                worksheet.Cell(rowNumber, 5).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
-                worksheet.Cell(rowNumber, 6).Value = entry.Cfa;
-                worksheet.Cell(rowNumber, 7).Value = entry.Fund;
-                worksheet.Cell(rowNumber, 8).Value = entry.DfpdsSchedule;
+                worksheet.Cell(rowNumber, 5).Value = ArppDisplayNames.For(entry.Category);
+                worksheet.Cell(rowNumber, 6).Value = entry.IpaCost;
+                worksheet.Cell(rowNumber, 6).Style.NumberFormat.Format = "[$₹-en-IN] #,##,##0.00";
+                worksheet.Cell(rowNumber, 7).Value = entry.Cfa;
+                worksheet.Cell(rowNumber, 8).Value = entry.Fund;
+                worksheet.Cell(rowNumber, 9).Value = entry.DfpdsSchedule;
             }
 
             if (entry.Category == ArppCategory.Delisted)
@@ -272,8 +275,8 @@ public sealed class ArppExcelWorkbookBuilder
             data.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
             worksheet.Range(HeaderRow + 1, 1, lastRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-            var categoryColumn = includePrismLinkageColumns ? 6 : 4;
-            var moneyColumn = includePrismLinkageColumns ? 7 : 5;
+            var categoryColumn = includePrismLinkageColumns ? 7 : 5;
+            var moneyColumn = includePrismLinkageColumns ? 8 : 6;
             worksheet.Range(HeaderRow + 1, categoryColumn, lastRow, categoryColumn)
                 .Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             worksheet.Range(HeaderRow + 1, moneyColumn, lastRow, moneyColumn)
@@ -293,27 +296,28 @@ public sealed class ArppExcelWorkbookBuilder
         worksheet.SheetView.FreezeColumns(2);
 
         worksheet.Column(1).Width = 8;
-        worksheet.Column(2).Width = 13;
-        worksheet.Column(3).Width = includePrismLinkageColumns ? 42 : 54;
+        worksheet.Column(2).Width = 12;
+        worksheet.Column(3).Width = 28;
+        worksheet.Column(4).Width = includePrismLinkageColumns ? 38 : 50;
 
         if (includePrismLinkageColumns)
         {
-            worksheet.Column(4).Width = 28;
-            worksheet.Column(5).Width = 18;
-            worksheet.Column(6).Width = 15;
-            worksheet.Column(7).Width = 18;
-            worksheet.Column(8).Width = 24;
-            worksheet.Column(9).Width = 16;
-            worksheet.Column(10).Width = 18;
-            worksheet.Column(11).Width = 16;
+            worksheet.Column(5).Width = 28;
+            worksheet.Column(6).Width = 18;
+            worksheet.Column(7).Width = 15;
+            worksheet.Column(8).Width = 18;
+            worksheet.Column(9).Width = 24;
+            worksheet.Column(10).Width = 16;
+            worksheet.Column(11).Width = 18;
+            worksheet.Column(12).Width = 16;
         }
         else
         {
-            worksheet.Column(4).Width = 16;
-            worksheet.Column(5).Width = 18;
-            worksheet.Column(6).Width = 24;
-            worksheet.Column(7).Width = 16;
-            worksheet.Column(8).Width = 18;
+            worksheet.Column(5).Width = 16;
+            worksheet.Column(6).Width = 18;
+            worksheet.Column(7).Width = 24;
+            worksheet.Column(8).Width = 16;
+            worksheet.Column(9).Width = 18;
         }
 
         worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;

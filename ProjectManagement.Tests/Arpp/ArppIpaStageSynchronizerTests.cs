@@ -256,6 +256,7 @@ public sealed class ArppIpaStageSynchronizerTests
                 {
                     SortOrder = 1,
                     SerialNumber = "1",
+                    PppNumber = "ARPP/IR&D/N/2026-27/1",
                     ProjectReference = "Project One",
                     ProjectId = 1,
                     Category = ArppCategory.New,
@@ -348,7 +349,8 @@ public sealed class ArppIpaStageSynchronizerTests
                     ArppIssueId = issueId,
                     SourceEntryId = issueId,
                     SortOrder = 1,
-                    SerialNumber = "33",
+                    SerialNumber = category == ArppCategory.Delisted ? null : "33",
+                    PppNumber = category == ArppCategory.Delisted ? null : "ARPP/IR&D/2026-27/33",
                     ProjectReference = $"Project {projectId}",
                     ProjectId = projectId,
                     Category = category,

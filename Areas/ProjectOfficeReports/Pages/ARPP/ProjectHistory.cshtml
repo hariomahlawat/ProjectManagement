@@ -59,6 +59,7 @@
                             <th>Document</th>
                             <th>Issue date</th>
                             <th>Serial</th>
+                            <th>PPP No.</th>
                             <th>Category</th>
                             <th class="text-end">IPA cost (₹)</th>
                             <th>CFA</th>
@@ -86,7 +87,8 @@
                                     <div class="small text-body-secondary">@(item.Kind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum {item.IssueSequence}")</div>
                                 </td>
                                 <td class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
-                                <td><span class="arpp-serial">@item.SerialNumber</span></td>
+                                <td><span class="arpp-serial">@(item.Category == ArppCategory.Delisted ? "—" : item.SerialNumber)</span></td>
+                                <td><span class="arpp-ppp">@(item.Category == ArppCategory.Delisted ? "—" : item.PppNumber)</span></td>
                                 <td><span class="arpp-badge arpp-badge--@(item.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(item.Category)</span></td>
                                 <td class="text-end text-nowrap fw-semibold">@IndianCurrencyFormatter.FormatRupees(item.IpaCost)</td>
                                 <td>@item.Cfa</td>

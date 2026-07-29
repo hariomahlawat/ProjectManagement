@@ -103,6 +103,7 @@ public sealed class ProjectBriefingProjectVm
     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
     public string? BriefDescriptionOverride { get; init; }
     public string? ArppReference { get; init; }
+    public bool ArppPppNumberApplicable { get; init; } = true;
     public string? Fund { get; init; }
     public string? DfpdsSchedule { get; init; }
     public string? Cfa { get; init; }
@@ -284,6 +285,7 @@ public sealed class ProjectBriefingPresentationProject
     public string ProjectBrief { get; init; } = string.Empty;
     public IReadOnlyList<string> CapabilityStatements { get; init; } = Array.Empty<string>();
     public string? ArppReference { get; init; }
+    public bool ArppPppNumberApplicable { get; init; } = true;
     public string? Fund { get; init; }
     public string? DfpdsSchedule { get; init; }
     public string? Cfa { get; init; }

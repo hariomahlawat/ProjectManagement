@@ -85,6 +85,7 @@
                 <tr>
                     <th class="number">#</th>
                     <th>Serial</th>
+                    <th>PPP No.</th>
                     <th>Project reference as issued</th>
                     <th>PRISM project</th>
                     <th>Category</th>
@@ -99,7 +100,8 @@
                 {
                     <tr class="@(entry.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
                         <td class="number">@entry.SortOrder</td>
-                        <td>@entry.SerialNumber</td>
+                        <td>@(entry.Category == ArppCategory.Delisted ? string.Empty : entry.SerialNumber)</td>
+                        <td>@(entry.Category == ArppCategory.Delisted ? string.Empty : entry.PppNumber)</td>
                         <td>@entry.ProjectReference</td>
                         <td>
                             @if (entry.ProjectId.HasValue)

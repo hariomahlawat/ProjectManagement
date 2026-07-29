@@ -59,7 +59,8 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
             var pattern = $"%{normalizedQuery}%";
             unlinked = unlinked.Where(entry =>
                 EF.Functions.ILike(entry.ProjectReference, pattern) ||
-                EF.Functions.ILike(entry.SerialNumber, pattern) ||
+                (entry.SerialNumber != null && EF.Functions.ILike(entry.SerialNumber, pattern)) ||
+                (entry.PppNumber != null && EF.Functions.ILike(entry.PppNumber, pattern)) ||
                 EF.Functions.ILike(entry.Issue.Name, pattern));
         }
 
@@ -80,6 +81,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
                 entry.Issue.IssueDate,
                 entry.Issue.IsVerified,
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.ProjectReference,
                 entry.IpaCost,
                 entry.Category
@@ -162,6 +164,7 @@ public sealed partial class ArppReconciliationService : IArppReconciliationServi
                 row.IssueSequence,
                 row.IssueDate,
                 row.SerialNumber,
+                row.PppNumber,
                 row.ProjectReference,
                 row.IpaCost,
                 ProjectManagement.Models.Arpp.ArppDisplayNames.For(row.Category),

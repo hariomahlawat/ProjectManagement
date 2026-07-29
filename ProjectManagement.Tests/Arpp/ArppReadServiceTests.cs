@@ -74,6 +74,7 @@ public sealed class ArppReadServiceTests
         {
             SortOrder = 2,
             SerialNumber = "2",
+            PppNumber = "ARPP/IR&D/N/2026-27/2",
             ProjectReference = "Unlinked project",
             Category = ArppCategory.New,
             IpaCost = 2_000_000m,
@@ -226,7 +227,8 @@ public sealed class ArppReadServiceTests
         => new()
         {
             SortOrder = 1,
-            SerialNumber = serial,
+            SerialNumber = category == ArppCategory.Delisted ? null : serial,
+            PppNumber = category == ArppCategory.Delisted ? null : $"ARPP/IR&D/2026-27/{serial}",
             ProjectReference = "Project",
             ProjectId = projectId,
             Category = category,

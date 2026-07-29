@@ -417,6 +417,17 @@ public sealed class ArppCommandService : IArppCommandService
                 $"Map CFA, Fund and DFPDS values for {unresolvedReferenceRows} {Pluralize(unresolvedReferenceRows, "row", "rows")} before verification.");
         }
 
+        var incompleteApprovedIdentifiers = issue.Entries.Count(entry =>
+            entry.Category != ArppCategory.Delisted &&
+            (string.IsNullOrWhiteSpace(entry.SerialNumber) || string.IsNullOrWhiteSpace(entry.PppNumber)));
+        if (incompleteApprovedIdentifiers > 0)
+        {
+            AddError(
+                errors,
+                "IssuedIdentifiers",
+                $"Enter Serial No. and PPP No. for {incompleteApprovedIdentifiers} approved {Pluralize(incompleteApprovedIdentifiers, "row", "rows")} before verification.");
+        }
+
         if (errors.Count > 0)
         {
             return ArppCommandResult.Failed("Complete the issued record before verification.", errors);
@@ -492,6 +503,7 @@ public sealed class ArppCommandService : IArppCommandService
                     SourceEntryId = entry.Id,
                     SortOrder = entry.SortOrder,
                     SerialNumber = entry.SerialNumber,
+                    PppNumber = entry.PppNumber,
                     ProjectReference = entry.ProjectReference,
                     ProjectId = entry.ProjectId,
                     Category = entry.Category,
@@ -731,16 +743,26 @@ public sealed class ArppCommandService : IArppCommandService
                 AddError(errors, $"Entries[{index}].RowVersion", "The saved row version is missing. Reload the page.");
             }
 
-            ValidateRequiredText(errors, index, nameof(entry.SerialNumber), entry.SerialNumber, 64, "serial number");
+            var categoryIsValid = entry.Category.HasValue && Enum.IsDefined(entry.Category.Value);
+            if (!categoryIsValid)
+            {
+                AddError(errors, $"Entries[{index}].Category", "Select an ARPP category.");
+            }
+            else if (entry.Category != ArppCategory.Delisted)
+            {
+                ValidateRequiredText(errors, index, nameof(entry.SerialNumber), entry.SerialNumber, 64, "serial number");
+                ValidateRequiredText(errors, index, nameof(entry.PppNumber), entry.PppNumber, 160, "PPP number");
+            }
+            else
+            {
+                ValidateOptionalText(errors, index, nameof(entry.SerialNumber), entry.SerialNumber, 64, "serial number");
+                ValidateOptionalText(errors, index, nameof(entry.PppNumber), entry.PppNumber, 160, "PPP number");
+            }
+
             ValidateRequiredText(errors, index, nameof(entry.ProjectReference), entry.ProjectReference, 300, "project reference");
             ValidateRequiredText(errors, index, nameof(entry.Cfa), entry.Cfa, 200, "CFA");
             ValidateRequiredText(errors, index, nameof(entry.Fund), entry.Fund, 120, "fund");
             ValidateRequiredText(errors, index, nameof(entry.DfpdsSchedule), entry.DfpdsSchedule, 120, "DFPDS schedule");
-
-            if (!entry.Category.HasValue || !Enum.IsDefined(entry.Category.Value))
-            {
-                AddError(errors, $"Entries[{index}].Category", "Select an ARPP category.");
-            }
 
             if (!entry.IpaCost.HasValue)
             {
@@ -767,6 +789,21 @@ public sealed class ArppCommandService : IArppCommandService
             AddError(errors, $"Entries[{index}].{property}", $"Enter the {displayName}.");
         }
         else if (normalized.Length > maximumLength)
+        {
+            AddError(errors, $"Entries[{index}].{property}", $"The {displayName} cannot exceed {maximumLength} characters.");
+        }
+    }
+
+    private static void ValidateOptionalText(
+        IDictionary<string, IReadOnlyList<string>> errors,
+        int index,
+        string property,
+        string? value,
+        int maximumLength,
+        string displayName)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length > maximumLength)
         {
             AddError(errors, $"Entries[{index}].{property}", $"The {displayName} cannot exceed {maximumLength} characters.");
         }
@@ -807,13 +844,25 @@ public sealed class ArppCommandService : IArppCommandService
         }
 
         var duplicateSerials = command.Entries
+            .Where(entry => entry.Category != ArppCategory.Delisted)
             .GroupBy(entry => Normalize(entry.SerialNumber), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Key.Length > 0 && group.Count() > 1)
-            .Select(group => group.First().SerialNumber.Trim())
+            .Select(group => group.First().SerialNumber!.Trim())
             .ToArray();
         if (duplicateSerials.Length > 0)
         {
             warnings.Add($"Duplicate serial number(s) detected: {string.Join(", ", duplicateSerials)}. Verify these against the issued document.");
+        }
+
+        var duplicatePppNumbers = command.Entries
+            .Where(entry => entry.Category != ArppCategory.Delisted)
+            .GroupBy(entry => Normalize(entry.PppNumber), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Key.Length > 0 && group.Count() > 1)
+            .Select(group => group.First().PppNumber!.Trim())
+            .ToArray();
+        if (duplicatePppNumbers.Length > 0)
+        {
+            warnings.Add($"Duplicate PPP number(s) detected: {string.Join(", ", duplicatePppNumbers)}. Verify these against the issued document.");
         }
 
         var duplicateUnlinkedReferences = command.Entries
@@ -999,10 +1048,15 @@ public sealed class ArppCommandService : IArppCommandService
         ResolvedReferenceData referenceData)
     {
         entity.SortOrder = sortOrder;
-        entity.SerialNumber = input.SerialNumber.Trim();
+        entity.Category = input.Category!.Value;
+        entity.SerialNumber = entity.Category == ArppCategory.Delisted
+            ? null
+            : NormalizeNullable(input.SerialNumber);
+        entity.PppNumber = entity.Category == ArppCategory.Delisted
+            ? null
+            : NormalizeNullable(input.PppNumber);
         entity.ProjectReference = input.ProjectReference.Trim();
         entity.ProjectId = input.ProjectId;
-        entity.Category = input.Category!.Value;
         entity.IpaCost = input.IpaCost!.Value;
 
         ApplyReferenceSnapshot(
@@ -1152,6 +1206,11 @@ public sealed class ArppCommandService : IArppCommandService
         => string.Join(' ', (value ?? string.Empty)
             .Trim()
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static string? NormalizeNullable(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? null
+            : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static string Pluralize(int count, string singular, string plural)
         => count == 1 ? singular : plural;

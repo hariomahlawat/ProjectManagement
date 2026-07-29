@@ -33,7 +33,8 @@ public sealed class ArppLibraryService : IArppLibraryService
             snapshots = snapshots.Where(snapshot =>
                 snapshot.Name.ToLower().Contains(search) ||
                 snapshot.Entries.Any(entry =>
-                    entry.SerialNumber.ToLower().Contains(search) ||
+                    (entry.SerialNumber != null && entry.SerialNumber.ToLower().Contains(search)) ||
+                    (entry.PppNumber != null && entry.PppNumber.ToLower().Contains(search)) ||
                     entry.ProjectReference.ToLower().Contains(search) ||
                     entry.Cfa.ToLower().Contains(search) ||
                     entry.Fund.ToLower().Contains(search) ||
@@ -103,6 +104,7 @@ public sealed class ArppLibraryService : IArppLibraryService
                 entry.Id,
                 entry.SortOrder,
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.ProjectReference,
                 entry.ProjectId,
                 entry.Project?.Name,
@@ -170,6 +172,7 @@ public sealed class ArppLibraryService : IArppLibraryService
                 entry.Project!.Name,
                 GetProjectStatus(entry.Project),
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.Category,
                 entry.IpaCost,
                 entry.Cfa,
@@ -195,6 +198,7 @@ public sealed class ArppLibraryService : IArppLibraryService
                 entry.Id,
                 entry.ProjectReference,
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.Category,
                 entry.IpaCost,
                 entry.Cfa,
@@ -276,6 +280,7 @@ public sealed class ArppLibraryService : IArppLibraryService
                 entry.PublishedIssue.IssueSequence,
                 entry.PublishedIssue.IssueDate,
                 entry.SerialNumber,
+                entry.PppNumber,
                 entry.ProjectReference,
                 entry.Category,
                 entry.IpaCost,

@@ -29,6 +29,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 101,
                 SortOrder = 1,
                 SerialNumber = "10",
+                PppNumber = "ARPP/IR&D/2026-27/10",
                 ProjectReference = "Project Astra",
                 ProjectId = 1,
                 Category = ArppCategory.New,
@@ -46,7 +47,8 @@ public sealed class ArppLibraryServiceTests
             {
                 SourceEntryId = 201,
                 SortOrder = 1,
-                SerialNumber = "4",
+                SerialNumber = null,
+                PppNumber = null,
                 ProjectReference = "Project Astra revised",
                 ProjectId = 1,
                 Category = ArppCategory.Delisted,
@@ -61,6 +63,7 @@ public sealed class ArppLibraryServiceTests
         {
             SortOrder = 1,
             SerialNumber = "99",
+            PppNumber = "ARPP/IR&D/N/2026-27/99",
             ProjectReference = "Unverified working value",
             ProjectId = 1,
             Category = ArppCategory.New,
@@ -86,6 +89,8 @@ public sealed class ArppLibraryServiceTests
         Assert.Equal(12_000_000m, delisted.IpaCost);
         Assert.Equal("Project Astra revised", delisted.ProjectReference);
         Assert.Equal(2, delisted.SourceIssueId);
+        Assert.Null(delisted.SerialNumber);
+        Assert.Null(delisted.PppNumber);
         Assert.Equal(0, current.TotalUnlinkedDocumentRows);
 
         var history = await service.GetProjectHistoryAsync(1);
@@ -116,6 +121,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 401,
                 SortOrder = 1,
                 SerialNumber = "1",
+                PppNumber = "ARPP/IR&D/2026-27/1",
                 ProjectReference = "Linked project",
                 ProjectId = 1,
                 Category = ArppCategory.New,
@@ -129,6 +135,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 402,
                 SortOrder = 2,
                 SerialNumber = "2",
+                PppNumber = "ARPP/IR&D/2026-27/2",
                 ProjectReference = "Issued project not yet created in PRISM",
                 ProjectId = null,
                 Category = ArppCategory.CarryForward,
@@ -170,6 +177,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 301,
                 SortOrder = 1,
                 SerialNumber = "1",
+                PppNumber = "ARPP/IR&D/2026-27/1",
                 ProjectReference = "Published project",
                 Category = ArppCategory.New,
                 IpaCost = 5_000_000m,
@@ -200,6 +208,7 @@ public sealed class ArppLibraryServiceTests
     [InlineData("9.2")]
     [InlineData("CF")]
     [InlineData("carry forward")]
+    [InlineData("ARPP/IR&D/2026-27/27")]
     public async Task LibrarySearch_UsesSameControlledFieldsAcrossNavigationAndCurrentPosition(string query)
     {
         await using var db = CreateContext();
@@ -226,6 +235,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 701,
                 SortOrder = 1,
                 SerialNumber = "27",
+                PppNumber = "ARPP/IR&D/2026-27/27",
                 ProjectReference = "Project Trident as issued",
                 ProjectId = 7,
                 Category = ArppCategory.CarryForward,
@@ -248,6 +258,8 @@ public sealed class ArppLibraryServiceTests
         var row = Assert.Single(current!.ApprovedRows);
         Assert.Equal(7, row.ProjectId);
         Assert.Equal(ArppCategory.CarryForward, row.Category);
+        Assert.Equal("27", row.SerialNumber);
+        Assert.Equal("ARPP/IR&D/2026-27/27", row.PppNumber);
     }
 
     [Fact]
@@ -270,6 +282,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 1101,
                 SortOrder = 1,
                 SerialNumber = "91",
+                PppNumber = "ARPP/IR&D/2026-27/91",
                 ProjectReference = "Project Orion older",
                 ProjectId = 9,
                 Category = ArppCategory.CarryForward,
@@ -288,6 +301,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 1201,
                 SortOrder = 1,
                 SerialNumber = "12",
+                PppNumber = "ARPP/IR&D/2026-27/12",
                 ProjectReference = "Project Orion current",
                 ProjectId = 9,
                 Category = ArppCategory.New,
@@ -306,6 +320,7 @@ public sealed class ArppLibraryServiceTests
                 SourceEntryId = 1301,
                 SortOrder = 1,
                 SerialNumber = "3",
+                PppNumber = "ARPP/IR&D/2026-27/3",
                 ProjectReference = "Project Orion latest",
                 ProjectId = 9,
                 Category = ArppCategory.CommittedLiability,

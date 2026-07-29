@@ -27,6 +27,7 @@ using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
+using ProjectManagement.Tests.Fakes;
 using ProjectManagement.ViewModels;
 using Xunit;
 using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
@@ -431,7 +432,7 @@ public sealed class ProjectOverviewLifecycleTests
         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
         var industryPartners = new IndustryPartnerService(db);
-        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
+        return new ProjectsOverviewModel(db, procure, timeline, historicalStages, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners, new ThrowingProjectContentService());
     }
 
     private sealed class PassThroughMarkdownRenderer : IMarkdownRenderer

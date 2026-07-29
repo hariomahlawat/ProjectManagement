@@ -28,7 +28,8 @@ public sealed class ArppExcelWorkbookBuilderTests
         issue.Entries.Add(new ArppEntry
         {
             SortOrder = 1,
-            SerialNumber = "17",
+            SerialNumber = null,
+            PppNumber = null,
             ProjectReference = "Project Astra",
             Category = ArppCategory.Delisted,
             IpaCost = 47_500_000m,
@@ -53,9 +54,11 @@ public sealed class ArppExcelWorkbookBuilderTests
         using var stream = new MemoryStream(bytes);
         using var workbook = new XLWorkbook(stream);
         var sheet = workbook.Worksheet("ARPP");
-        Assert.Equal("Delisted", sheet.Cell(9, 6).GetString());
-        Assert.Equal(47_500_000m, sheet.Cell(9, 7).GetValue<decimal>());
-        Assert.Contains("₹", sheet.Cell(9, 7).Style.NumberFormat.Format);
+        Assert.Equal(string.Empty, sheet.Cell(9, 2).GetString());
+        Assert.Equal(string.Empty, sheet.Cell(9, 3).GetString());
+        Assert.Equal("Delisted", sheet.Cell(9, 7).GetString());
+        Assert.Equal(47_500_000m, sheet.Cell(9, 8).GetValue<decimal>());
+        Assert.Contains("₹", sheet.Cell(9, 8).Style.NumberFormat.Format);
         Assert.Contains("03:30 PM IST", sheet.Cell(3, 1).GetString());
         Assert.False(sheet.Cell(3, 1).GetString().Contains(" UTC", StringComparison.Ordinal));
     }
@@ -78,6 +81,7 @@ public sealed class ArppExcelWorkbookBuilderTests
                     10,
                     1,
                     "12",
+                    "ARPP/IR&D/CF/2026-27/12",
                     "Project reference as issued",
                     7,
                     "Linked PRISM name",
@@ -136,17 +140,19 @@ public sealed class ArppExcelWorkbookBuilderTests
         Assert.DoesNotContain("Colonel Verifier", metadata, StringComparison.OrdinalIgnoreCase);
 
         var sheet = workbook.Worksheet("ARPP");
-        Assert.Equal("Project reference as issued", sheet.Cell(8, 3).GetString());
-        Assert.Equal("Category", sheet.Cell(8, 4).GetString());
-        Assert.Equal("DFPDS schedule", sheet.Cell(8, 8).GetString());
-        Assert.Equal(string.Empty, sheet.Cell(8, 9).GetString());
+        Assert.Equal("PPP No.", sheet.Cell(8, 3).GetString());
+        Assert.Equal("Project reference as issued", sheet.Cell(8, 4).GetString());
+        Assert.Equal("Category", sheet.Cell(8, 5).GetString());
+        Assert.Equal("DFPDS schedule", sheet.Cell(8, 9).GetString());
+        Assert.Equal(string.Empty, sheet.Cell(8, 10).GetString());
         Assert.DoesNotContain(
             sheet.Row(8).CellsUsed().Select(cell => cell.GetString()),
             heading => heading.Contains("PRISM", StringComparison.OrdinalIgnoreCase) ||
                        heading.Contains("Link status", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal("Project reference as issued", sheet.Cell(9, 3).GetString());
-        Assert.Equal("New", sheet.Cell(9, 4).GetString());
-        Assert.Equal(10_000_000m, sheet.Cell(9, 5).GetValue<decimal>());
+        Assert.Equal("ARPP/IR&D/CF/2026-27/12", sheet.Cell(9, 3).GetString());
+        Assert.Equal("Project reference as issued", sheet.Cell(9, 4).GetString());
+        Assert.Equal("New", sheet.Cell(9, 5).GetString());
+        Assert.Equal(10_000_000m, sheet.Cell(9, 6).GetValue<decimal>());
     }
 
     private static ApplicationDbContext CreateContext()

@@ -55,6 +55,7 @@ public sealed class ArppIpaStageAuthorityService : IArppIpaStageAuthorityService
                 ProjectId = entry.ProjectId!.Value,
                 EntryId = entry.Id,
                 entry.SerialNumber,
+                entry.PppNumber,
                 IssueId = entry.ArppIssueId,
                 entry.PublishedIssue.FinancialYearStart,
                 IssueKind = entry.PublishedIssue.Kind,
@@ -84,7 +85,8 @@ public sealed class ArppIpaStageAuthorityService : IArppIpaStageAuthorityService
                     row.IssueName,
                     row.IssueDate,
                     row.EntryId,
-                    row.SerialNumber));
+                    row.SerialNumber,
+                    row.PppNumber));
     }
 
     public Task<bool> IsManagedAsync(

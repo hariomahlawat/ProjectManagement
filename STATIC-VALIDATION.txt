@@ -1,10 +1,13 @@
-STATIC VALIDATION
-=================
-PASS - dedicated variant declared
-PASS - update sheet uses dedicated variant
-PASS - right insignia enlarged
-PASS - standard variant retained
-PASS - contract updated
-PASS - optical footprint regression test
+Static validation completed in the packaging environment:
+- git diff whitespace validation: passed
+- ARPP management JavaScript syntax (node --check): passed
+- Project and test .csproj XML parsing: passed
+- changed C# delimiter-balance scan: passed
+- positional record-constructor argument scan for modified ARPP contracts: passed
+- package source-file existence and path validation: passed
+- unified patch clean-application check against the reconstructed current baseline: passed
+- ZIP CRC/integrity test: passed
 
-Full .NET compilation/tests not run: dotnet SDK unavailable in packaging environment.
+The .NET SDK is not installed in the packaging environment, so dotnet build,
+EF migration execution and the automated test suite were not run here. Run the
+commands in README-APPLY.txt in the development environment before deployment.

@@ -547,6 +547,56 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void Compose_ProjectUpdateSheet_LeavesPppCellBlankForDelistedPosition()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 702,
+            ProjectName = "Delisted Project",
+            LifecycleStatus = ProjectLifecycleStatus.Cancelled,
+            LifecycleDisplay = "Cancelled",
+            PresentStageCode = "CANCELLED",
+            PresentStage = "Cancelled",
+            PresentStageOrder = 1,
+            CostRd = new ProjectBriefingCostValue(5_000_000m, ProjectBriefingCostBasis.IPA, "₹50 Lakh", "IPA"),
+            ArppPppNumberApplicable = false,
+            Fund = "IR&D",
+            DfpdsSchedule = "9.3",
+            Cfa = "Comdt SDD",
+            ProjectBrief = "Delisted position retained for historical and financial reference.",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 702,
+            DeckName = "Delisted Position",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(1, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var table = Assert.Single(slide.Slide.Descendants<A.Table>());
+        var arppRow = table.Elements<A.TableRow>()
+            .Single(row => row.Descendants<A.Text>().Any(text => text.Text == "ARPP/PPP Number"));
+        var cells = arppRow.Elements<A.TableCell>().ToArray();
+
+        Assert.Equal(3, cells.Length);
+        Assert.Equal(string.Empty, string.Concat(cells[2].Descendants<A.Text>().Select(text => text.Text)));
+    }
+
+    [Fact]
     public void Compose_ProjectUpdateSheet_LeavesPdcBlankOutsideDevelopmentStage()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
@@ -560,7 +610,7 @@ public sealed class ProjectBriefingSlideComposerTests
             PresentStageCode = StageCodes.AON,
             PresentStage = "Acceptance of Necessity",
             PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
-            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.Aon, "₹1.00 Cr", "AoN"),
+            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.AoN, "₹1.00 Cr", "AoN"),
             DevelopmentPdcDate = new DateOnly(2030, 1, 15),
             ProjectBrief = "Concise project brief.",
             SortOrder = 1

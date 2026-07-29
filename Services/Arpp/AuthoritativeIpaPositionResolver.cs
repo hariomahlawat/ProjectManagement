@@ -53,6 +53,7 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
                 entry.IpaCost,
                 entry.Category,
                 entry.SerialNumber,
+                entry.PppNumber,
                 EntryId = entry.Id,
                 IssueId = entry.ArppIssueId,
                 entry.PublishedIssue.FinancialYearStart,
@@ -84,7 +85,8 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
                     row.IssueDate,
                     row.IssueSequence,
                     row.EntryId,
-                    row.SerialNumber));
+                    row.SerialNumber,
+                    row.PppNumber));
 
         var unresolvedIds = ids
             .Where(projectId => !result.ContainsKey(projectId))
@@ -127,7 +129,8 @@ public sealed class AuthoritativeIpaPositionResolver : IAuthoritativeIpaPosition
                 IssueDate: null,
                 IssueSequence: null,
                 EntryId: null,
-                SerialNumber: null);
+                SerialNumber: null,
+                PppNumber: null);
         }
 
         return result;
