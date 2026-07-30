@@ -22,6 +22,24 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.DoesNotContain("STAGE_PURPOSES", script, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void ProcessJourney_UsesProgressiveDisclosureAndSemanticMapZoom()
+    {
+        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
+
+        Assert.Contains("data-fullscreen-exit", page, StringComparison.Ordinal);
+        Assert.Contains("Search or jump to a stage", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-stage-jump", page, StringComparison.Ordinal);
+        Assert.Contains("function journeyTier", script, StringComparison.Ordinal);
+        Assert.Contains("function branchClusterFor", script, StringComparison.Ordinal);
+        Assert.Contains("data-map-density", styles, StringComparison.Ordinal);
+        Assert.Contains("processRouteFlow", styles, StringComparison.Ordinal);
+        Assert.Contains("prism.process.hero.seen.v2", script, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ProcessFlow_TecAndBenchmarkingRunInParallelBeforeCommercialOpening()
     {

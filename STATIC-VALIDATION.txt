@@ -1,19 +1,14 @@
-STATIC VALIDATION COMPLETED
+Static validation completed
 ===========================
 
-Passed:
-- JavaScript syntax: node --check wwwroot/js/process-flow.js
-- CSS/JavaScript/Razor gross delimiter balance
-- Local SortableJS asset exists
-- No CDN or external network dependency in the Process page implementation
-- Unified patch applies cleanly to the supplied pre-change source
-- Workflow regression contract covers TEC/BM parallel convergence
-- Purpose authorization/API tests added
-- Migration ID registered in immutable-migration-ids.txt
-- Journey and Complete Map views preview-rendered in Chromium
+- JavaScript syntax: node --check passed.
+- CSS parsing: tinycss2 parsed the complete stylesheet with zero errors.
+- CSS braces and parentheses are balanced.
+- Removed obsolete stage dropdown references from page, script and stylesheet.
+- No external URL, CDN, remote font, remote image or internet API was introduced.
+- Full-screen exit, progressive disclosure, graph-derived branch handling, semantic zoom,
+  compact hero memory and empty-checklist action are covered by presentation contract checks.
+- No database model or migration is changed.
 
-Not executed in this environment:
-- dotnet build
-- dotnet test
-
-Reason: the .NET SDK is not installed in the artifact-generation environment.
+The .NET SDK is not installed in the packaging environment; run the build and test commands
+on the normal Visual Studio/build workstation before publishing.

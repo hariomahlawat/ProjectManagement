@@ -13,7 +13,7 @@
          data-can-edit-checklist="@(Model.CanEditChecklist ? "true" : "false")"
          data-can-edit-purpose="@(Model.CanEditPurpose ? "true" : "false")">
 
-    <header class="process-hero">
+    <header class="process-hero" data-process-hero>
         <div class="process-hero__glow process-hero__glow--one" aria-hidden="true"></div>
         <div class="process-hero__glow process-hero__glow--two" aria-hidden="true"></div>
         <div class="process-hero__grid" aria-hidden="true"></div>
@@ -61,23 +61,20 @@
             <i class="bi bi-search" aria-hidden="true"></i>
             <input type="search"
                    class="form-control"
-                   placeholder="Search stage or code…"
+                   placeholder="Search or jump to a stage…"
                    data-stage-search
-                   aria-label="Search procurement stages" />
+                   aria-label="Search or jump to a procurement stage" />
             <button type="button" class="btn process-search-clear" data-search-clear aria-label="Clear search" hidden>
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
             <div class="process-search-results" data-search-results hidden></div>
         </div>
 
-        <div class="process-jump-wrap">
-            <label for="processStageJump" class="visually-hidden">Jump to stage</label>
-            <select id="processStageJump" class="form-select" data-stage-jump>
-                <option value="">Jump to stage…</option>
-            </select>
-        </div>
-
         <div class="process-command-actions">
+            <button type="button" class="btn process-command-button process-intro-button" data-action="show-introduction" title="Show introduction">
+                <i class="bi bi-stars" aria-hidden="true"></i>
+                <span class="d-none d-xxl-inline">Introduction</span>
+            </button>
             <button type="button" class="btn process-command-button" data-action="toggle-fullscreen" title="Open the journey in full screen">
                 <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
                 <span class="d-none d-xxl-inline">Full screen</span>
@@ -111,11 +108,17 @@
                     <span>PROCUREMENT JOURNEY</span>
                     <strong data-scene-stage-label>Loading workflow…</strong>
                 </div>
-                <div class="process-map-tools" data-map-tools hidden>
-                    <button type="button" data-action="zoom-out" aria-label="Zoom out"><i class="bi bi-dash-lg"></i></button>
-                    <span data-map-zoom>100%</span>
-                    <button type="button" data-action="zoom-in" aria-label="Zoom in"><i class="bi bi-plus-lg"></i></button>
-                    <button type="button" data-action="reset-map" aria-label="Reset map"><i class="bi bi-bullseye"></i></button>
+                <div class="process-scene__tools">
+                    <div class="process-map-tools" data-map-tools hidden>
+                        <button type="button" data-action="zoom-out" aria-label="Zoom out"><i class="bi bi-dash-lg"></i></button>
+                        <span data-map-zoom>100%</span>
+                        <button type="button" data-action="zoom-in" aria-label="Zoom in"><i class="bi bi-plus-lg"></i></button>
+                        <button type="button" data-action="reset-map" aria-label="Reset map"><i class="bi bi-bullseye"></i></button>
+                    </div>
+                    <button type="button" class="process-fullscreen-exit" data-action="toggle-fullscreen" data-fullscreen-exit aria-label="Exit full screen" hidden>
+                        <i class="bi bi-fullscreen-exit" aria-hidden="true"></i>
+                        <span>Exit full screen</span>
+                    </button>
                 </div>
             </div>
 

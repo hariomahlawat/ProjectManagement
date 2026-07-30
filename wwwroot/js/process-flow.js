@@ -11,6 +11,7 @@ if (root) {
     stageByCode: new Map(),
     incoming: new Map(),
     outgoing: new Map(),
+    branchClusters: [],
     activeIndex: 0,
     selectedCode: null,
     currentChecklist: null,
@@ -30,9 +31,12 @@ if (root) {
     pointer: null,
     wheelAccumulator: 0,
     wheelLockedUntil: 0,
+    transitionTimer: null,
+    guideTimer: null,
     authenticationRecoveryStarted: false
   };
 
+  const hero = root.querySelector('[data-process-hero]');
   const experience = root.querySelector('[data-process-experience]');
   const scene = root.querySelector('[data-process-scene]');
   const worldViewport = root.querySelector('[data-world-viewport]');
@@ -40,7 +44,6 @@ if (root) {
   const svg = root.querySelector('[data-process-svg]');
   const nodeLayer = root.querySelector('[data-process-nodes]');
   const placeholder = root.querySelector('[data-flow-placeholder]');
-  const stageJump = root.querySelector('[data-stage-jump]');
   const stageSearch = root.querySelector('[data-stage-search]');
   const searchClear = root.querySelector('[data-search-clear]');
   const searchResults = root.querySelector('[data-search-results]');
@@ -57,6 +60,8 @@ if (root) {
   const checklistAdd = root.querySelector('[data-checklist-add]');
   const manageLabel = root.querySelector('[data-manage-label]');
   const purposeEdit = root.querySelector('[data-purpose-edit]');
+  const stageGuide = root.querySelector('[data-stage-guide]');
+  const fullscreenExit = root.querySelector('[data-fullscreen-exit]');
 
   const purposeModalElement = document.getElementById('stagePurposeModal');
   const itemModalElement = document.getElementById('checklistItemModal');
@@ -71,6 +76,33 @@ if (root) {
   const itemText = itemForm?.querySelector('textarea[name="text"]');
   const itemCharacterCount = itemForm?.querySelector('[data-character-count]');
   const deleteForm = deleteModalElement?.querySelector('[data-checklist-delete-form]');
+  const heroStorageKey = 'prism.process.hero.seen.v2';
+
+  function hasSeenIntroduction() {
+    try { return window.localStorage.getItem(heroStorageKey) === '1'; }
+    catch { return false; }
+  }
+
+  function setIntroductionSeen() {
+    try { window.localStorage.setItem(heroStorageKey, '1'); }
+    catch { /* Storage may be disabled; the experience still works. */ }
+  }
+
+  function collapseIntroduction({ remember = true } = {}) {
+    if (!hero) return;
+    hero.classList.add('is-compact');
+    if (remember) setIntroductionSeen();
+  }
+
+  function showIntroduction() {
+    if (!hero) return;
+    hero.classList.remove('is-compact');
+    hero.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  if (hero && (hasSeenIntroduction() || Boolean(location.hash))) {
+    hero.classList.add('is-compact');
+  }
 
   class HttpError extends Error {
     constructor(response, data) {
@@ -215,6 +247,33 @@ if (root) {
       state.outgoing.get(edge.source).push(edge.target);
       state.incoming.get(edge.target).push(edge.source);
     });
+
+    state.branchClusters = [];
+    state.nodes.forEach(source => {
+      const branches = state.outgoing.get(source.code) || [];
+      if (branches.length < 2) return;
+
+      const downstreamSets = branches.map(code => new Set(state.outgoing.get(code) || []));
+      const convergenceCandidates = [...(downstreamSets[0] || [])]
+        .filter(code => downstreamSets.every(set => set.has(code)))
+        .map(code => state.stageByCode.get(code))
+        .filter(Boolean)
+        .sort((a, b) => a.displayIndex - b.displayIndex);
+
+      const convergence = convergenceCandidates[0];
+      if (!convergence) return;
+
+      state.branchClusters.push({
+        source: source.code,
+        branches: [...branches],
+        convergence: convergence.code,
+        codes: new Set([source.code, ...branches, convergence.code])
+      });
+    });
+  }
+
+  function branchClusterFor(code) {
+    return state.branchClusters.find(cluster => cluster.codes.has(code)) || null;
   }
 
   function calculateLayout() {
@@ -345,7 +404,7 @@ if (root) {
         <span class="process-node__index">${String(node.displayIndex).padStart(2, '0')}</span>
         <span class="process-node__body">
           <strong>${escapeHtml(node.name)}</strong>
-          <small>${escapeHtml(node.code)}${node.optional ? ' · Conditional' : ''}</small>
+          <small><span class="process-node__code">${escapeHtml(node.code)}</span>${node.optional ? '<span class="process-node__conditional-copy"> · Conditional</span>' : ''}</small>
         </span>`;
       nodeLayer.appendChild(button);
     });
@@ -357,6 +416,11 @@ if (root) {
 
   function renderProgressTrack() {
     progressTrack.innerHTML = '';
+    const branchPositions = new Map();
+    state.branchClusters.forEach(cluster => {
+      cluster.branches.forEach((code, index) => branchPositions.set(code, index));
+    });
+
     state.nodes.forEach(node => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -364,19 +428,14 @@ if (root) {
       button.dataset.progressCode = node.code;
       button.title = `${node.displayIndex}. ${node.name}`;
       button.setAttribute('aria-label', `Open ${node.name}`);
+      if (node.optional) button.classList.add('is-conditional');
+      if (branchPositions.has(node.code)) {
+        button.classList.add('is-parallel', branchPositions.get(node.code) === 0 ? 'is-parallel-up' : 'is-parallel-down');
+      }
+      button.innerHTML = `<span class="process-progress__code">${escapeHtml(node.code)}</span>`;
       progressTrack.appendChild(button);
     });
     progressTotal.textContent = String(state.nodes.length).padStart(2, '0');
-  }
-
-  function populateJump() {
-    stageJump.innerHTML = '<option value="">Jump to stage…</option>';
-    state.nodes.forEach(node => {
-      const option = document.createElement('option');
-      option.value = node.code;
-      option.textContent = `${String(node.displayIndex).padStart(2, '0')} · ${node.name}`;
-      stageJump.appendChild(option);
-    });
   }
 
   function setMode(mode, { preserveCamera = false } = {}) {
@@ -395,8 +454,10 @@ if (root) {
 
     if (nextMode === 'map') {
       if (!preserveCamera) resetMapCamera();
+      updateSelection();
       applyWorldTransform(false);
     } else {
+      updateSelection();
       focusActiveStage(false);
     }
   }
@@ -406,19 +467,45 @@ if (root) {
     return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
   }
 
+  function journeyContext(active) {
+    const cluster = branchClusterFor(active?.code);
+    if (!cluster) return null;
+    const nodes = [...cluster.codes].map(code => state.stageByCode.get(code)).filter(Boolean);
+    return { cluster, nodes };
+  }
+
   function focusActiveStage(animate = true) {
     const node = state.nodes[state.activeIndex];
     if (!node) return;
+
     const viewport = viewportSize();
-    const scale = clamp(viewport.width / 1120, 0.82, 1.08);
-    const visualCenterX = viewport.width * (viewport.width > 1000 ? 0.47 : 0.5);
-    const visualCenterY = viewport.height * 0.51;
-    const depthPeers = state.nodes.filter(candidate => candidate.depth === node.depth);
-    const focusY = depthPeers.length > 1
-      ? depthPeers.reduce((sum, candidate) => sum + candidate.y, 0) / depthPeers.length
-      : node.y;
+    const context = journeyContext(node);
+    let focusX = node.x;
+    let focusY = node.y;
+    let scale;
+
+    if (context) {
+      const xs = context.nodes.map(candidate => candidate.x);
+      const ys = context.nodes.map(candidate => candidate.y);
+      const minX = Math.min(...xs) - 150;
+      const maxX = Math.max(...xs) + 150;
+      const minY = Math.min(...ys) - 120;
+      const maxY = Math.max(...ys) + 120;
+      focusX = (minX + maxX) / 2;
+      focusY = (minY + maxY) / 2;
+      scale = Math.min(
+        (viewport.width * .83) / Math.max(1, maxX - minX),
+        (viewport.height * .76) / Math.max(1, maxY - minY)
+      );
+      scale = clamp(scale, .78, 1.02);
+    } else {
+      scale = clamp(viewport.width / 900, .94, 1.24);
+    }
+
+    const visualCenterX = viewport.width * (viewport.width > 1000 ? .48 : .5);
+    const visualCenterY = viewport.height * .50;
     state.worldScale = scale;
-    state.worldX = visualCenterX - (node.x * scale);
+    state.worldX = visualCenterX - (focusX * scale);
     state.worldY = visualCenterY - (focusY * scale);
     applyWorldTransform(animate);
   }
@@ -429,7 +516,7 @@ if (root) {
       (viewport.width - 70) / state.worldWidth,
       (viewport.height - 80) / state.worldHeight
     );
-    state.mapScale = clamp(fitScale, 0.46, 0.72);
+    state.mapScale = clamp(fitScale, .40, .76);
     state.mapX = (viewport.width - (state.worldWidth * state.mapScale)) / 2;
     state.mapY = (viewport.height - (state.worldHeight * state.mapScale)) / 2;
     updateMapZoom();
@@ -441,19 +528,25 @@ if (root) {
     const scale = state.mode === 'map' ? state.mapScale : state.worldScale;
     world.classList.toggle('is-moving', animate && !prefersReducedMotion());
     world.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
-    if (animate) window.setTimeout(() => world.classList.remove('is-moving'), 900);
+    if (animate) window.setTimeout(() => world.classList.remove('is-moving'), 780);
   }
 
   function updateMapZoom() {
     if (mapZoom) mapZoom.textContent = `${Math.round(state.mapScale * 100)}%`;
+    const density = state.mapScale < .58 ? 'compact' : state.mapScale < .86 ? 'medium' : 'full';
+    experience.dataset.mapDensity = density;
+    scene.dataset.mapDensity = density;
+    const semanticScale = clamp(.67 / Math.max(.01, state.mapScale), .92, 1.38);
+    scene.style.setProperty('--map-node-scale', semanticScale.toFixed(3));
+    if (state.mode === 'map') updateSelection();
   }
 
   function zoomMap(delta) {
     if (state.mode !== 'map') return;
     const viewport = viewportSize();
     const oldScale = state.mapScale;
-    const newScale = clamp(oldScale + delta, 0.42, 1.15);
-    if (Math.abs(newScale - oldScale) < 0.001) return;
+    const newScale = clamp(oldScale + delta, .40, 1.18);
+    if (Math.abs(newScale - oldScale) < .001) return;
     const centerWorldX = (viewport.width / 2 - state.mapX) / oldScale;
     const centerWorldY = (viewport.height / 2 - state.mapY) / oldScale;
     state.mapScale = newScale;
@@ -463,32 +556,105 @@ if (root) {
     applyWorldTransform(true);
   }
 
+  function journeyTier(node, active) {
+    if (!node || !active) return 'hidden';
+    if (node.code === active.code) return 'active';
+
+    const cluster = branchClusterFor(active.code);
+    if (cluster) {
+      if (cluster.codes.has(node.code)) return cluster.branches.includes(node.code) ? 'near' : 'context';
+      const source = state.stageByCode.get(cluster.source);
+      const convergence = state.stageByCode.get(cluster.convergence);
+      if (active.code === cluster.source && source && node.displayIndex === source.displayIndex - 1) return 'context';
+      if (active.code === cluster.convergence && convergence && node.displayIndex === convergence.displayIndex + 1) return 'context';
+      return 'hidden';
+    }
+
+    const upcomingCluster = state.branchClusters.find(candidate => {
+      const source = state.stageByCode.get(candidate.source);
+      return source && active.displayIndex < source.displayIndex && candidate.codes.has(node.code);
+    });
+    if (upcomingCluster && node.code !== upcomingCluster.source) return 'hidden';
+
+    const distance = Math.abs(node.displayIndex - active.displayIndex);
+    if (distance === 1) return 'near';
+    if (distance === 2) return 'context';
+    return 'hidden';
+  }
+
+  function nodeScaleForTier(tier) {
+    if (tier === 'active') return 1.42;
+    if (tier === 'near') return 1;
+    if (tier === 'context') return .76;
+    return .56;
+  }
   async function selectStage(code, { updateHash = true, animate = true } = {}) {
     const node = state.stageByCode.get(String(code || '').toUpperCase());
     if (!node) return;
-    state.activeIndex = node.displayIndex - 1;
+
+    const previousIndex = state.activeIndex;
+    const nextIndex = node.displayIndex - 1;
+    const changed = state.selectedCode !== node.code;
+    state.activeIndex = nextIndex;
     state.selectedCode = node.code;
     state.checklistManageMode = false;
+
+    if (changed && animate && !prefersReducedMotion()) {
+      window.clearTimeout(state.transitionTimer);
+      window.clearTimeout(state.guideTimer);
+      scene.classList.remove('is-moving-forward', 'is-moving-backward');
+      scene.classList.add(nextIndex >= previousIndex ? 'is-moving-forward' : 'is-moving-backward', 'is-stage-transitioning');
+      stageGuide?.classList.add('is-updating');
+      state.transitionTimer = window.setTimeout(() => {
+        scene.classList.remove('is-stage-transitioning', 'is-moving-forward', 'is-moving-backward');
+      }, 780);
+      state.guideTimer = window.setTimeout(() => stageGuide?.classList.remove('is-updating'), 210);
+    } else {
+      stageGuide?.classList.remove('is-updating');
+    }
+
     updateSelection();
     renderStageHeader(node);
     if (state.mode === 'journey') focusActiveStage(animate);
-    stageJump.value = node.code;
     if (updateHash) history.replaceState(null, '', `#stage-${node.code.toLowerCase()}`);
     await loadChecklist(node.code);
   }
 
   function updateSelection() {
     const active = state.nodes[state.activeIndex];
-    const activeCode = active?.code;
-    const activeDepth = active?.depth ?? -1;
+    if (!active) return;
+
+    const activeCode = active.code;
+    const activeDepth = active.depth ?? -1;
+    const tiers = new Map();
+    scene.dataset.activeCode = activeCode.toLowerCase();
 
     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
       const node = state.stageByCode.get(button.dataset.stageCode);
       const selected = node?.code === activeCode;
       const past = node && (node.depth < activeDepth || (node.depth === activeDepth && node.displayIndex < active.displayIndex));
+      const tier = state.mode === 'map' ? 'map' : journeyTier(node, active);
+      tiers.set(node?.code, tier);
+
       button.classList.toggle('is-active', selected);
       button.classList.toggle('is-past', Boolean(past));
+      button.classList.toggle('is-near', tier === 'near');
+      button.classList.toggle('is-context', tier === 'context');
+      button.classList.toggle('is-distant', tier === 'hidden');
+      button.dataset.journeyTier = tier;
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      button.setAttribute('aria-hidden', state.mode === 'journey' && tier === 'hidden' ? 'true' : 'false');
+      button.tabIndex = state.mode === 'journey' && tier === 'hidden' ? -1 : 0;
+
+      if (state.mode === 'map') {
+        button.style.setProperty('--node-scale', 'var(--map-node-scale, 1)');
+        button.style.setProperty('--node-opacity', selected ? '1' : '.92');
+        button.style.setProperty('--node-blur', '0px');
+      } else {
+        button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
+        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.92' : tier === 'context' ? '.42' : '0');
+        button.style.setProperty('--node-blur', tier === 'context' ? '1.4px' : tier === 'hidden' ? '7px' : '0px');
+      }
     });
 
     root.querySelectorAll('.process-connection').forEach(path => {
@@ -496,9 +662,15 @@ if (root) {
       const target = path.dataset.edgeTarget;
       const selected = target === activeCode || source === activeCode;
       const targetNode = state.stageByCode.get(target);
-      const traversed = targetNode && targetNode.depth <= activeDepth;
+      const traversed = targetNode && targetNode.displayIndex <= active.displayIndex;
+      const sourceTier = tiers.get(source) || 'hidden';
+      const targetTier = tiers.get(target) || 'hidden';
+      const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
+
       path.classList.toggle('is-active', selected);
       path.classList.toggle('is-traversed', Boolean(traversed));
+      path.classList.toggle('is-story-hidden', !storyVisible);
+      path.classList.toggle('is-story-context', storyVisible && !selected);
       path.setAttribute('marker-end', selected ? 'url(#processArrowActive)' : 'url(#processArrow)');
     });
 
@@ -506,10 +678,11 @@ if (root) {
       const node = state.stageByCode.get(dot.dataset.progressCode);
       dot.classList.toggle('is-active', node?.code === activeCode);
       dot.classList.toggle('is-past', Boolean(node && node.displayIndex < active.displayIndex));
+      dot.setAttribute('aria-current', node?.code === activeCode ? 'step' : 'false');
     });
 
-    progressCurrent.textContent = String(active?.displayIndex || 0).padStart(2, '0');
-    sceneStageLabel.textContent = active ? `${String(active.displayIndex).padStart(2, '0')} · ${active.name}` : 'Process overview';
+    progressCurrent.textContent = String(active.displayIndex).padStart(2, '0');
+    sceneStageLabel.textContent = `${String(active.displayIndex).padStart(2, '0')} · ${active.name}`;
 
     root.querySelectorAll('[data-action="previous-stage"]').forEach(button => {
       button.disabled = state.activeIndex <= 0;
@@ -576,7 +749,10 @@ if (root) {
 
   function renderChecklistLoading() {
     destroySortable();
+    stageGuide?.classList.remove('has-empty-checklist');
+    checklistList.classList.remove('is-empty');
     checklistCount.textContent = '0';
+    checklistManage.hidden = !state.canEditChecklist;
     checklistList.setAttribute('aria-busy', 'true');
     checklistList.innerHTML = `
       <li class="stage-checklist__state">
@@ -587,6 +763,8 @@ if (root) {
 
   function renderChecklistError() {
     destroySortable();
+    stageGuide?.classList.remove('has-empty-checklist');
+    checklistList.classList.remove('is-empty');
     checklistList.setAttribute('aria-busy', 'false');
     checklistList.innerHTML = `
       <li class="stage-checklist__state stage-checklist__state--error">
@@ -599,17 +777,27 @@ if (root) {
   function renderChecklist(checklist) {
     destroySortable();
     const items = checklist?.items || [];
+    const empty = items.length === 0;
     checklistCount.textContent = String(items.length);
     checklistList.setAttribute('aria-busy', 'false');
-    checklistAdd.hidden = !(state.canEditChecklist && state.checklistManageMode);
+    checklistList.classList.toggle('is-empty', empty);
+    stageGuide?.classList.toggle('has-empty-checklist', empty);
+    checklistAdd.hidden = !(state.canEditChecklist && state.checklistManageMode && !empty);
+    checklistManage.hidden = !state.canEditChecklist || empty;
     manageLabel.textContent = state.checklistManageMode ? 'Done' : 'Manage';
     checklistManage.classList.toggle('is-active', state.checklistManageMode);
 
-    if (!items.length) {
+    if (empty) {
       checklistList.innerHTML = `
-        <li class="stage-checklist__state">
-          <i class="bi bi-list-check" aria-hidden="true"></i>
-          <span>No checklist items are defined for this stage.</span>
+        <li class="stage-checklist__state stage-checklist__state--empty">
+          <span class="stage-checklist__state-icon"><i class="bi bi-list-check" aria-hidden="true"></i></span>
+          <strong>No reference checks recorded</strong>
+          <span>This stage currently has no processing checklist.</span>
+          ${state.canEditChecklist ? `
+            <button type="button" class="stage-checklist__first-action" data-action="add-item">
+              <i class="bi bi-plus-lg" aria-hidden="true"></i>
+              Add first checklist item
+            </button>` : ''}
         </li>`;
       return;
     }
@@ -804,19 +992,22 @@ if (root) {
     selectStage(state.nodes[nextIndex].code);
   }
 
-  function applySearch() {
+  function applySearch({ forceOpen = false } = {}) {
     const term = stageSearch.value.trim().toLowerCase();
     searchClear.hidden = !term;
-    if (!term) {
+    const shouldOpen = forceOpen || Boolean(term) || document.activeElement === stageSearch;
+    if (!shouldOpen) {
       searchResults.hidden = true;
       searchResults.innerHTML = '';
       return;
     }
 
-    const matches = state.nodes.filter(node => node.searchText.includes(term)).slice(0, 8);
+    const matches = (term
+      ? state.nodes.filter(node => node.searchText.includes(term))
+      : state.nodes).slice(0, 15);
     searchResults.innerHTML = matches.length
       ? matches.map(node => `
-          <button type="button" data-search-stage="${node.code}">
+          <button type="button" data-search-stage="${node.code}"${node.code === state.selectedCode ? ' class="is-current"' : ''}>
             <span>${String(node.displayIndex).padStart(2, '0')}</span>
             <strong>${escapeHtml(node.name)}</strong>
             <small>${escapeHtml(node.code)}</small>
@@ -840,7 +1031,6 @@ if (root) {
       buildGraph();
       calculateLayout();
       renderWorld();
-      populateJump();
       setText('[data-stage-count]', String(state.nodes.length));
       const initialCode = initialCodeFromHash();
       const initial = initialCode && state.stageByCode.has(initialCode) ? initialCode : state.nodes[0]?.code;
@@ -1002,12 +1192,16 @@ if (root) {
     if (!actionButton) return;
     const action = actionButton.dataset.action;
     if (action === 'begin-journey') {
+      collapseIntroduction();
       setMode('journey');
       selectStage(state.nodes[0]?.code, { animate: false });
       experience.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
     } else if (action === 'show-map') {
+      collapseIntroduction();
       setMode('map');
       experience.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    } else if (action === 'show-introduction') {
+      showIntroduction();
     } else if (action === 'previous-stage') goRelative(-1);
     else if (action === 'next-stage') goRelative(1);
     else if (action === 'toggle-fullscreen') {
@@ -1032,7 +1226,8 @@ if (root) {
     }
   });
 
-  stageSearch.addEventListener('input', applySearch);
+  stageSearch.addEventListener('input', () => applySearch({ forceOpen: true }));
+  stageSearch.addEventListener('focus', () => applySearch({ forceOpen: true }));
   stageSearch.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       const match = state.nodes.find(node => node.searchText.includes(stageSearch.value.trim().toLowerCase()));
@@ -1051,10 +1246,6 @@ if (root) {
   document.addEventListener('click', event => {
     if (!event.target.closest('.process-search-wrap')) searchResults.hidden = true;
   });
-  stageJump.addEventListener('change', () => {
-    if (stageJump.value) selectStage(stageJump.value);
-  });
-
   scene.addEventListener('wheel', handleSceneWheel, { passive: false });
   worldViewport.addEventListener('pointerdown', beginMapDrag);
   worldViewport.addEventListener('pointermove', moveMapDrag);
@@ -1083,7 +1274,9 @@ if (root) {
   });
 
   document.addEventListener('fullscreenchange', () => {
-    experience.classList.toggle('is-fullscreen', document.fullscreenElement === experience);
+    const active = document.fullscreenElement === experience;
+    experience.classList.toggle('is-fullscreen', active);
+    if (fullscreenExit) fullscreenExit.hidden = !active;
     window.setTimeout(() => {
       if (state.mode === 'map') resetMapCamera();
       else focusActiveStage(false);
