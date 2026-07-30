@@ -1954,3 +1954,241 @@
     filter: none;
   }
 }
+
+/* Final procurement-journey polish ----------------------------------------- */
+.process-hero.is-compact {
+  min-height: 108px;
+  padding: .8rem 1.45rem;
+  border-radius: 1.15rem;
+}
+
+.process-hero.is-compact .process-eyebrow {
+  font-size: .56rem;
+  letter-spacing: .16em;
+}
+
+.process-hero.is-compact h1 {
+  margin: .18rem 0 0;
+  font-size: clamp(1.55rem, 2.35vw, 2rem);
+  line-height: 1;
+}
+
+.process-hero.is-compact .process-hero__actions {
+  display: none;
+}
+
+.process-hero.is-compact .process-hero__meta {
+  gap: .85rem;
+}
+
+.process-hero.is-compact .process-hero__meta > div {
+  min-width: 104px;
+  padding: .18rem 0 .18rem .8rem;
+}
+
+.process-hero.is-compact .process-hero__meta strong {
+  font-size: .95rem;
+}
+
+.process-hero.is-compact .process-hero__meta span {
+  font-size: .61rem;
+}
+
+.process-connection {
+  stroke-width: 4.25;
+}
+
+.process-connection.is-bypass {
+  opacity: .68;
+}
+
+.process-connection.is-conditional {
+  stroke: url(#processConditionalGradient);
+  stroke-width: 3.75;
+  stroke-dasharray: 8 9;
+  opacity: .58;
+}
+
+.process-connection.is-active {
+  stroke: url(#processActiveGradient);
+  stroke-width: 5.75;
+  stroke-dasharray: none;
+  opacity: 1;
+  filter: url(#processGlow);
+  animation: none;
+}
+
+.process-connection.is-conditional.is-active {
+  stroke: url(#processConditionalGradient);
+  stroke-width: 5.25;
+  stroke-dasharray: 8 7;
+}
+
+.process-route-signal {
+  fill: none;
+  stroke: #a4e8ff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 2 23;
+  opacity: 0;
+  pointer-events: none;
+  filter: url(#processGlow);
+  transition: opacity .28s ease;
+}
+
+.process-route-signal.is-conditional {
+  stroke: #ffd184;
+}
+
+.process-route-signal.is-active {
+  opacity: .94;
+  animation: processRouteSignal 1.15s linear infinite;
+}
+
+.process-route-signal.is-story-hidden {
+  opacity: 0;
+}
+
+.process-node.is-active {
+  box-shadow:
+    0 34px 82px rgba(0, 7, 18, .58),
+    0 0 0 1px rgba(124, 219, 255, .2),
+    0 0 52px rgba(62, 169, 255, .3),
+    inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+.process-node.is-active .process-node__halo {
+  inset: -24px;
+  opacity: .82;
+}
+
+.process-node.is-context {
+  pointer-events: auto;
+}
+
+.process-endpoint {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .48rem;
+  width: 112px;
+  transform: translate(-50%, -50%) scale(.78);
+  opacity: 0;
+  visibility: hidden;
+  color: #9eb8d6;
+  text-align: center;
+  transition: opacity .4s ease, transform .5s cubic-bezier(.19, .8, .18, 1), filter .4s ease;
+}
+
+.process-endpoint.is-visible {
+  opacity: .88;
+  visibility: visible;
+}
+
+.process-endpoint.is-near {
+  transform: translate(-50%, -50%) scale(1);
+  color: #dcecff;
+}
+
+.process-endpoint.is-context {
+  transform: translate(-50%, -50%) scale(.72);
+  opacity: .34;
+  filter: blur(1px);
+}
+
+.process-endpoint__ring {
+  width: 2.7rem;
+  height: 2.7rem;
+  border: 1px solid rgba(116, 216, 255, .68);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(116, 216, 255, .28) 0 14%, transparent 16%),
+    rgba(31, 78, 126, .18);
+  box-shadow: 0 0 28px rgba(68, 174, 255, .22);
+}
+
+.process-endpoint__copy {
+  font-size: .66rem;
+  font-weight: 760;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.process-experience[data-mode="map"] .process-endpoint {
+  transform: translate(-50%, -50%) scale(var(--map-node-scale, 1));
+  opacity: .82;
+  visibility: visible;
+  filter: none;
+}
+
+.process-experience[data-mode="map"][data-map-density="compact"] .process-endpoint__copy {
+  font-size: .56rem;
+}
+
+.process-progress__dot.is-conditional {
+  transform: translateY(4px);
+}
+
+.process-progress__dot.is-conditional.is-active {
+  transform: translateY(4px) scaleY(1.12);
+}
+
+.process-progress__dot.is-parallel-up {
+  transform: translateY(-4px);
+}
+
+.process-progress__dot.is-parallel-down {
+  transform: translateY(4px);
+}
+
+.process-experience[data-mode="map"] .process-scene::before {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(72, 174, 255, .12), transparent 32%),
+    radial-gradient(ellipse at 50% 58%, rgba(45, 103, 177, .08), transparent 58%);
+}
+
+.process-experience[data-mode="map"][data-map-density="compact"] .process-node {
+  width: 112px;
+  min-height: 66px;
+}
+
+.process-experience[data-mode="map"][data-map-density="compact"] .process-node__body small {
+  font-size: .9rem;
+}
+
+@keyframes processRouteSignal {
+  to { stroke-dashoffset: -25; }
+}
+
+@media (max-width: 991.98px) {
+  .process-hero.is-compact {
+    min-height: 122px;
+    padding: .9rem 1rem;
+  }
+
+  .process-hero.is-compact .process-hero__meta {
+    gap: .45rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .process-route-signal.is-active {
+    animation: none;
+    stroke-dasharray: none;
+    opacity: .72;
+  }
+}
+
+@media print {
+  .process-route-signal {
+    display: none !important;
+  }
+
+  .process-endpoint {
+    opacity: 1 !important;
+    visibility: visible !important;
+    filter: none !important;
+  }
+}

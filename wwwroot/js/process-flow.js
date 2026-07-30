@@ -8,9 +8,14 @@ if (root) {
     flow: null,
     nodes: [],
     edges: [],
+    visualEdges: [],
+    optionalDetours: [],
+    endpoint: null,
     stageByCode: new Map(),
     incoming: new Map(),
     outgoing: new Map(),
+    structuralIncoming: new Map(),
+    structuralOutgoing: new Map(),
     branchClusters: [],
     activeIndex: 0,
     selectedCode: null,
@@ -249,11 +254,13 @@ if (root) {
     });
 
     state.branchClusters = [];
-    state.nodes.forEach(source => {
-      const branches = state.outgoing.get(source.code) || [];
+    state.nodes.filter(node => !node.optional).forEach(source => {
+      const branches = (state.outgoing.get(source.code) || [])
+        .filter(code => !state.stageByCode.get(code)?.optional);
       if (branches.length < 2) return;
 
-      const downstreamSets = branches.map(code => new Set(state.outgoing.get(code) || []));
+      const downstreamSets = branches.map(code => new Set(
+        (state.outgoing.get(code) || []).filter(next => !state.stageByCode.get(next)?.optional)));
       const convergenceCandidates = [...(downstreamSets[0] || [])]
         .filter(code => downstreamSets.every(set => set.has(code)))
         .map(code => state.stageByCode.get(code))
@@ -270,21 +277,108 @@ if (root) {
         codes: new Set([source.code, ...branches, convergence.code])
       });
     });
+
+    buildPresentationTopology();
+  }
+
+  function buildPresentationTopology() {
+    const optionalCodes = new Set(state.nodes.filter(node => node.optional).map(node => node.code));
+    const structuralEdges = state.edges
+      .filter(edge => !optionalCodes.has(edge.source) && !optionalCodes.has(edge.target))
+      .map(edge => ({ ...edge, kind: 'structural', conditional: false, synthetic: false }));
+
+    state.optionalDetours = state.nodes
+      .filter(node => node.optional)
+      .map(node => {
+        const sourceCode = (state.incoming.get(node.code) || [])
+          .map(code => state.stageByCode.get(code))
+          .filter(candidate => candidate && !candidate.optional)
+          .sort((a, b) => b.displayIndex - a.displayIndex)[0]?.code || null;
+        const explicitSuccessor = (state.outgoing.get(node.code) || [])
+          .map(code => state.stageByCode.get(code))
+          .filter(candidate => candidate && !candidate.optional)
+          .sort((a, b) => a.displayIndex - b.displayIndex)[0]?.code || null;
+        const inferredSuccessor = state.nodes.find(candidate =>
+          !candidate.optional && candidate.displayIndex > node.displayIndex)?.code || null;
+        return {
+          code: node.code,
+          source: sourceCode,
+          successor: explicitSuccessor || inferredSuccessor
+        };
+      })
+      .filter(detour => detour.source);
+
+    state.endpoint = {
+      code: '__END__',
+      name: 'Capability complete',
+      x: 0,
+      y: 450
+    };
+
+    const visualEdges = [...structuralEdges];
+    state.optionalDetours.forEach(detour => {
+      const targetCode = detour.successor || state.endpoint.code;
+      if (detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === detour.successor)) {
+        visualEdges.push({
+          source: detour.source,
+          target: detour.successor,
+          kind: 'bypass',
+          conditional: false,
+          synthetic: true
+        });
+      }
+      if (!detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === state.endpoint.code)) {
+        visualEdges.push({
+          source: detour.source,
+          target: state.endpoint.code,
+          kind: 'terminal-main',
+          conditional: false,
+          synthetic: true
+        });
+      }
+      visualEdges.push({
+        source: detour.source,
+        target: detour.code,
+        kind: 'conditional-entry',
+        conditional: true,
+        synthetic: true
+      });
+      visualEdges.push({
+        source: detour.code,
+        target: targetCode,
+        kind: 'conditional-return',
+        conditional: true,
+        synthetic: true
+      });
+    });
+
+    state.visualEdges = visualEdges;
+    state.structuralIncoming = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
+    state.structuralOutgoing = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
+    structuralEdges.forEach(edge => {
+      state.structuralOutgoing.get(edge.source)?.push(edge.target);
+      state.structuralIncoming.get(edge.target)?.push(edge.source);
+    });
   }
 
   function branchClusterFor(code) {
     return state.branchClusters.find(cluster => cluster.codes.has(code)) || null;
   }
 
+  function entityForCode(code) {
+    return code === state.endpoint?.code ? state.endpoint : state.stageByCode.get(code);
+  }
+
   function calculateLayout() {
+    const mandatoryNodes = state.nodes.filter(node => !node.optional);
     const depths = new Map();
-    const unresolved = new Set(state.nodes.map(node => node.code));
-    let guard = state.nodes.length * 4;
+    const unresolved = new Set(mandatoryNodes.map(node => node.code));
+    let guard = mandatoryNodes.length * 4;
 
     while (unresolved.size && guard-- > 0) {
       let progressed = false;
       [...unresolved].forEach(code => {
-        const prerequisites = state.incoming.get(code) || [];
+        const prerequisites = state.structuralIncoming.get(code) || [];
         if (prerequisites.every(dep => depths.has(dep))) {
           const depth = prerequisites.length
             ? Math.max(...prerequisites.map(dep => depths.get(dep))) + 1
@@ -303,12 +397,12 @@ if (root) {
     });
 
     const maxDepth = Math.max(0, ...depths.values());
-    const xGap = 205;
-    const startX = 190;
+    const xGap = 190;
+    const startX = 175;
     const centerY = 450;
     const groups = new Map();
 
-    state.nodes.forEach(node => {
+    mandatoryNodes.forEach(node => {
       node.depth = depths.get(node.code) || 0;
       if (!groups.has(node.depth)) groups.set(node.depth, []);
       groups.get(node.depth).push(node);
@@ -320,15 +414,33 @@ if (root) {
       nodesAtDepth.forEach((node, index) => {
         node.x = startX + (node.depth * xGap);
         if (count === 1) node.y = centerY;
-        else if (count === 2) node.y = index === 0 ? 290 : 610;
+        else if (count === 2) node.y = index === 0 ? 215 : 685;
         else {
-          const spread = 520;
+          const spread = 560;
           node.y = centerY - (spread / 2) + ((spread / Math.max(1, count - 1)) * index);
         }
       });
     });
 
-    state.worldWidth = startX + (maxDepth * xGap) + 230;
+    state.optionalDetours.forEach((detour, index) => {
+      const node = state.stageByCode.get(detour.code);
+      const source = state.stageByCode.get(detour.source);
+      const successor = detour.successor ? state.stageByCode.get(detour.successor) : null;
+      if (!node || !source) return;
+      node.depth = source.depth + .5;
+      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * .55);
+      node.y = centerY + 210 + (index * 18);
+    });
+
+    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
+    const terminalSource = terminalDetour ? state.stageByCode.get(terminalDetour.source) : mandatoryNodes.at(-1);
+    state.endpoint.x = (terminalSource?.x || (startX + maxDepth * xGap)) + xGap;
+    state.endpoint.y = centerY;
+
+    const maxEntityX = Math.max(
+      state.endpoint.x,
+      ...state.nodes.map(node => Number(node.x) || 0));
+    state.worldWidth = maxEntityX + 190;
     state.worldHeight = 900;
     world.style.width = `${state.worldWidth}px`;
     world.style.height = `${state.worldHeight}px`;
@@ -337,13 +449,23 @@ if (root) {
     svg.setAttribute('height', String(state.worldHeight));
   }
 
-  function pathForEdge(source, target) {
-    const startX = source.x + 78;
-    const endX = target.x - 78;
+  function pathForEdge(source, target, edge) {
+    const sourceHalf = source.code === state.endpoint.code ? 22 : 82;
+    const targetHalf = target.code === state.endpoint.code ? 22 : 82;
+    const startX = source.x + sourceHalf;
+    const endX = target.x - targetHalf;
     const startY = source.y;
     const endY = target.y;
-    const distance = Math.max(70, endX - startX);
-    const curve = Math.min(140, Math.max(60, distance * 0.44));
+    const distance = Math.max(48, endX - startX);
+    const verticalDistance = Math.abs(endY - startY);
+    const curve = Math.min(130, Math.max(45, distance * .42));
+
+    if (edge?.kind === 'conditional-entry' || edge?.kind === 'conditional-return') {
+      const direction = endY > startY ? 1 : -1;
+      const verticalControl = Math.min(120, Math.max(64, verticalDistance * .55));
+      return `M ${startX} ${startY} C ${startX + curve * .58} ${startY}, ${endX - curve * .35} ${endY - direction * verticalControl}, ${endX} ${endY}`;
+    }
+
     return `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
   }
 
@@ -359,34 +481,58 @@ if (root) {
           <stop offset="0%" stop-color="#4aa6ff" />
           <stop offset="100%" stop-color="#7bdcff" />
         </linearGradient>
+        <linearGradient id="processConditionalGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#b77b2c" />
+          <stop offset="100%" stop-color="#ffd184" />
+        </linearGradient>
         <filter id="processGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feGaussianBlur stdDeviation="4.5" result="blur" />
           <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
-        <marker id="processArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <marker id="processArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7896bd"></path>
         </marker>
-        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.8" markerHeight="4.8" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7bdcff"></path>
+        </marker>
+        <marker id="processArrowConditional" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e6ac52"></path>
         </marker>
       </defs>
       <g class="process-path-grid" aria-hidden="true">
         <line x1="0" y1="450" x2="${state.worldWidth}" y2="450"></line>
       </g>`;
 
-    state.edges.forEach((edge, index) => {
-      const source = state.stageByCode.get(edge.source);
-      const target = state.stageByCode.get(edge.target);
+    state.visualEdges.forEach((edge, index) => {
+      const source = entityForCode(edge.source);
+      const target = entityForCode(edge.target);
       if (!source || !target) return;
+      const d = pathForEdge(source, target, edge);
+      const edgeId = `${edge.source}-${edge.target}-${edge.kind || 'structural'}`;
+
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', pathForEdge(source, target));
-      path.setAttribute('data-edge-source', source.code);
-      path.setAttribute('data-edge-target', target.code);
-      path.setAttribute('marker-end', 'url(#processArrow)');
+      path.setAttribute('d', d);
+      path.setAttribute('data-edge-id', edgeId);
+      path.setAttribute('data-edge-source', edge.source);
+      path.setAttribute('data-edge-target', edge.target);
+      path.setAttribute('data-edge-kind', edge.kind || 'structural');
+      path.setAttribute('marker-end', edge.conditional ? 'url(#processArrowConditional)' : 'url(#processArrow)');
       path.classList.add('process-connection');
-      if (target.optional || (source.optional && target.code !== source.code)) path.classList.add('is-conditional');
-      path.style.setProperty('--edge-delay', `${index * 28}ms`);
+      if (edge.conditional) path.classList.add('is-conditional');
+      if (edge.kind === 'bypass' || edge.kind === 'terminal-main') path.classList.add('is-bypass');
+      if ((state.structuralOutgoing.get(edge.source) || []).length > 1) path.classList.add('is-branch');
+      path.style.setProperty('--edge-delay', `${index * 24}ms`);
       svg.appendChild(path);
+
+      const signal = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      signal.setAttribute('d', d);
+      signal.setAttribute('data-signal-id', edgeId);
+      signal.setAttribute('data-edge-source', edge.source);
+      signal.setAttribute('data-edge-target', edge.target);
+      signal.setAttribute('data-edge-kind', edge.kind || 'structural');
+      signal.classList.add('process-route-signal');
+      if (edge.conditional) signal.classList.add('is-conditional');
+      svg.appendChild(signal);
     });
 
     state.nodes.forEach(node => {
@@ -408,6 +554,16 @@ if (root) {
         </span>`;
       nodeLayer.appendChild(button);
     });
+
+    const endpoint = document.createElement('div');
+    endpoint.className = 'process-endpoint';
+    endpoint.dataset.processEndpoint = 'true';
+    endpoint.style.left = `${state.endpoint.x}px`;
+    endpoint.style.top = `${state.endpoint.y}px`;
+    endpoint.innerHTML = `
+      <span class="process-endpoint__ring" aria-hidden="true"></span>
+      <span class="process-endpoint__copy">Capability complete</span>`;
+    nodeLayer.appendChild(endpoint);
 
     renderProgressTrack();
     placeholder.hidden = true;
@@ -467,11 +623,74 @@ if (root) {
     return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
   }
 
-  function journeyContext(active) {
-    const cluster = branchClusterFor(active?.code);
-    if (!cluster) return null;
-    const nodes = [...cluster.codes].map(code => state.stageByCode.get(code)).filter(Boolean);
-    return { cluster, nodes };
+  function journeyTiersFor(active) {
+    const tiers = new Map(state.nodes.map(node => [node.code, 'hidden']));
+    if (!active) return tiers;
+    tiers.set(active.code, 'active');
+
+    const cluster = branchClusterFor(active.code);
+    if (cluster) {
+      if (active.code === cluster.source) {
+        cluster.branches.forEach(code => tiers.set(code, 'near'));
+        tiers.set(cluster.convergence, 'context');
+        (state.structuralIncoming.get(cluster.source) || []).forEach(code => tiers.set(code, 'context'));
+      } else if (cluster.branches.includes(active.code)) {
+        tiers.set(cluster.source, 'near');
+        cluster.branches.filter(code => code !== active.code).forEach(code => tiers.set(code, 'near'));
+        tiers.set(cluster.convergence, 'near');
+      } else if (active.code === cluster.convergence) {
+        cluster.branches.forEach(code => tiers.set(code, 'near'));
+        tiers.set(cluster.source, 'context');
+        (state.structuralOutgoing.get(cluster.convergence) || []).forEach(code => tiers.set(code, 'near'));
+        state.optionalDetours
+          .filter(detour => detour.source === cluster.convergence)
+          .forEach(detour => tiers.set(detour.code, 'context'));
+      }
+      return tiers;
+    }
+
+    const activeDetour = state.optionalDetours.find(detour => detour.code === active.code);
+    if (activeDetour) {
+      tiers.set(activeDetour.source, 'near');
+      if (activeDetour.successor) tiers.set(activeDetour.successor, 'near');
+      return tiers;
+    }
+
+    const predecessors = state.structuralIncoming.get(active.code) || [];
+    const successors = state.structuralOutgoing.get(active.code) || [];
+    predecessors.forEach(code => tiers.set(code, 'near'));
+    successors.forEach(code => tiers.set(code, 'near'));
+
+    predecessors.forEach(code => {
+      const predecessorCluster = branchClusterFor(code);
+      if (predecessorCluster?.convergence === code) return;
+      (state.structuralIncoming.get(code) || []).forEach(next => {
+        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
+      });
+    });
+    successors.forEach(code => {
+      const successorCluster = branchClusterFor(code);
+      if (successorCluster?.source === code) return;
+      (state.structuralOutgoing.get(code) || []).forEach(next => {
+        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
+      });
+    });
+
+    state.optionalDetours
+      .filter(detour => detour.source === active.code)
+      .forEach(detour => tiers.set(detour.code, 'context'));
+
+    return tiers;
+  }
+
+  function endpointTierFor(active) {
+    if (!active || !state.endpoint) return 'hidden';
+    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
+    if (!terminalDetour) return 'hidden';
+    if (active.code === terminalDetour.code || active.code === terminalDetour.source) return 'near';
+    const source = state.stageByCode.get(terminalDetour.source);
+    if (source && active.displayIndex === source.displayIndex - 1) return 'context';
+    return 'hidden';
   }
 
   function focusActiveStage(animate = true) {
@@ -479,30 +698,27 @@ if (root) {
     if (!node) return;
 
     const viewport = viewportSize();
-    const context = journeyContext(node);
-    let focusX = node.x;
-    let focusY = node.y;
-    let scale;
+    const tiers = journeyTiersFor(node);
+    const visible = state.nodes.filter(candidate => tiers.get(candidate.code) !== 'hidden');
+    if (endpointTierFor(node) !== 'hidden') visible.push(state.endpoint);
 
-    if (context) {
-      const xs = context.nodes.map(candidate => candidate.x);
-      const ys = context.nodes.map(candidate => candidate.y);
-      const minX = Math.min(...xs) - 150;
-      const maxX = Math.max(...xs) + 150;
-      const minY = Math.min(...ys) - 120;
-      const maxY = Math.max(...ys) + 120;
-      focusX = (minX + maxX) / 2;
-      focusY = (minY + maxY) / 2;
-      scale = Math.min(
-        (viewport.width * .83) / Math.max(1, maxX - minX),
-        (viewport.height * .76) / Math.max(1, maxY - minY)
-      );
-      scale = clamp(scale, .78, 1.02);
-    } else {
-      scale = clamp(viewport.width / 900, .94, 1.24);
-    }
+    const minX = Math.min(...visible.map(candidate => candidate.x)) - 125;
+    const maxX = Math.max(...visible.map(candidate => candidate.x)) + 125;
+    const minY = Math.min(...visible.map(candidate => candidate.y)) - 120;
+    const maxY = Math.max(...visible.map(candidate => candidate.y)) + 120;
+    const rangeX = Math.max(380, maxX - minX);
+    const rangeY = Math.max(320, maxY - minY);
+    let scale = Math.min(
+      (viewport.width * .84) / rangeX,
+      (viewport.height * .76) / rangeY
+    );
+    scale = clamp(scale, .78, 1.22);
 
-    const visualCenterX = viewport.width * (viewport.width > 1000 ? .48 : .5);
+    const boundsCenterX = (minX + maxX) / 2;
+    const boundsCenterY = (minY + maxY) / 2;
+    const focusX = (boundsCenterX * .44) + (node.x * .56);
+    const focusY = (boundsCenterY * .52) + (node.y * .48);
+    const visualCenterX = viewport.width * .5;
     const visualCenterY = viewport.height * .50;
     state.worldScale = scale;
     state.worldX = visualCenterX - (focusX * scale);
@@ -512,11 +728,10 @@ if (root) {
 
   function resetMapCamera() {
     const viewport = viewportSize();
-    const fitScale = Math.min(
-      (viewport.width - 70) / state.worldWidth,
-      (viewport.height - 80) / state.worldHeight
-    );
-    state.mapScale = clamp(fitScale, .40, .76);
+    const horizontalFit = (viewport.width - 54) / state.worldWidth;
+    const verticalFit = (viewport.height - 64) / state.worldHeight;
+    const fitScale = Math.min(horizontalFit, verticalFit);
+    state.mapScale = clamp(fitScale, .30, .82);
     state.mapX = (viewport.width - (state.worldWidth * state.mapScale)) / 2;
     state.mapY = (viewport.height - (state.worldHeight * state.mapScale)) / 2;
     updateMapZoom();
@@ -533,10 +748,10 @@ if (root) {
 
   function updateMapZoom() {
     if (mapZoom) mapZoom.textContent = `${Math.round(state.mapScale * 100)}%`;
-    const density = state.mapScale < .58 ? 'compact' : state.mapScale < .86 ? 'medium' : 'full';
+    const density = state.mapScale < .52 ? 'compact' : state.mapScale < .80 ? 'medium' : 'full';
     experience.dataset.mapDensity = density;
     scene.dataset.mapDensity = density;
-    const semanticScale = clamp(.67 / Math.max(.01, state.mapScale), .92, 1.38);
+    const semanticScale = clamp(.75 / Math.max(.01, state.mapScale), 1, 1.55);
     scene.style.setProperty('--map-node-scale', semanticScale.toFixed(3));
     if (state.mode === 'map') updateSelection();
   }
@@ -556,37 +771,11 @@ if (root) {
     applyWorldTransform(true);
   }
 
-  function journeyTier(node, active) {
-    if (!node || !active) return 'hidden';
-    if (node.code === active.code) return 'active';
-
-    const cluster = branchClusterFor(active.code);
-    if (cluster) {
-      if (cluster.codes.has(node.code)) return cluster.branches.includes(node.code) ? 'near' : 'context';
-      const source = state.stageByCode.get(cluster.source);
-      const convergence = state.stageByCode.get(cluster.convergence);
-      if (active.code === cluster.source && source && node.displayIndex === source.displayIndex - 1) return 'context';
-      if (active.code === cluster.convergence && convergence && node.displayIndex === convergence.displayIndex + 1) return 'context';
-      return 'hidden';
-    }
-
-    const upcomingCluster = state.branchClusters.find(candidate => {
-      const source = state.stageByCode.get(candidate.source);
-      return source && active.displayIndex < source.displayIndex && candidate.codes.has(node.code);
-    });
-    if (upcomingCluster && node.code !== upcomingCluster.source) return 'hidden';
-
-    const distance = Math.abs(node.displayIndex - active.displayIndex);
-    if (distance === 1) return 'near';
-    if (distance === 2) return 'context';
-    return 'hidden';
-  }
-
   function nodeScaleForTier(tier) {
-    if (tier === 'active') return 1.42;
+    if (tier === 'active') return 1.38;
     if (tier === 'near') return 1;
-    if (tier === 'context') return .76;
-    return .56;
+    if (tier === 'context') return .72;
+    return .52;
   }
   async function selectStage(code, { updateHash = true, animate = true } = {}) {
     const node = state.stageByCode.get(String(code || '').toUpperCase());
@@ -626,15 +815,17 @@ if (root) {
 
     const activeCode = active.code;
     const activeDepth = active.depth ?? -1;
-    const tiers = new Map();
+    const tiers = state.mode === 'map'
+      ? new Map(state.nodes.map(node => [node.code, 'map']))
+      : journeyTiersFor(active);
+    const endpointTier = state.mode === 'map' ? 'map' : endpointTierFor(active);
     scene.dataset.activeCode = activeCode.toLowerCase();
 
     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
       const node = state.stageByCode.get(button.dataset.stageCode);
       const selected = node?.code === activeCode;
       const past = node && (node.depth < activeDepth || (node.depth === activeDepth && node.displayIndex < active.displayIndex));
-      const tier = state.mode === 'map' ? 'map' : journeyTier(node, active);
-      tiers.set(node?.code, tier);
+      const tier = tiers.get(node?.code) || 'hidden';
 
       button.classList.toggle('is-active', selected);
       button.classList.toggle('is-past', Boolean(past));
@@ -648,30 +839,59 @@ if (root) {
 
       if (state.mode === 'map') {
         button.style.setProperty('--node-scale', 'var(--map-node-scale, 1)');
-        button.style.setProperty('--node-opacity', selected ? '1' : '.92');
+        button.style.setProperty('--node-opacity', selected ? '1' : '.94');
         button.style.setProperty('--node-blur', '0px');
       } else {
         button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
-        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.92' : tier === 'context' ? '.42' : '0');
-        button.style.setProperty('--node-blur', tier === 'context' ? '1.4px' : tier === 'hidden' ? '7px' : '0px');
+        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
+        button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
       }
     });
 
+    const endpointElement = root.querySelector('[data-process-endpoint]');
+    if (endpointElement) {
+      endpointElement.dataset.journeyTier = endpointTier;
+      endpointElement.classList.toggle('is-visible', state.mode === 'map' || endpointTier !== 'hidden');
+      endpointElement.classList.toggle('is-near', endpointTier === 'near');
+      endpointElement.classList.toggle('is-context', endpointTier === 'context');
+    }
+
+    const activeDetour = state.optionalDetours.find(detour => detour.code === activeCode);
     root.querySelectorAll('.process-connection').forEach(path => {
       const source = path.dataset.edgeSource;
       const target = path.dataset.edgeTarget;
-      const selected = target === activeCode || source === activeCode;
-      const targetNode = state.stageByCode.get(target);
-      const traversed = targetNode && targetNode.displayIndex <= active.displayIndex;
-      const sourceTier = tiers.get(source) || 'hidden';
-      const targetTier = tiers.get(target) || 'hidden';
+      const kind = path.dataset.edgeKind;
+      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
+      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
       const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
+      const conditional = path.classList.contains('is-conditional');
+      const connected = source === activeCode || target === activeCode;
+      const detourActive = Boolean(activeDetour && conditional && (source === activeCode || target === activeCode));
+      const bypassActive = !activeDetour && !conditional && connected;
+      const activePath = detourActive || bypassActive;
+      const targetNode = state.stageByCode.get(target);
+      const traversed = !conditional && targetNode && targetNode.displayIndex <= active.displayIndex;
 
-      path.classList.toggle('is-active', selected);
+      path.classList.toggle('is-active', activePath);
       path.classList.toggle('is-traversed', Boolean(traversed));
       path.classList.toggle('is-story-hidden', !storyVisible);
-      path.classList.toggle('is-story-context', storyVisible && !selected);
-      path.setAttribute('marker-end', selected ? 'url(#processArrowActive)' : 'url(#processArrow)');
+      path.classList.toggle('is-story-context', storyVisible && !activePath);
+      path.setAttribute('marker-end', conditional
+        ? 'url(#processArrowConditional)'
+        : activePath ? 'url(#processArrowActive)' : 'url(#processArrow)');
+    });
+
+    root.querySelectorAll('.process-route-signal').forEach(path => {
+      const source = path.dataset.edgeSource;
+      const target = path.dataset.edgeTarget;
+      const conditional = path.classList.contains('is-conditional');
+      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
+      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
+      const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
+      const connected = source === activeCode || target === activeCode;
+      const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
+      path.classList.toggle('is-active', activeSignal);
+      path.classList.toggle('is-story-hidden', !storyVisible);
     });
 
     root.querySelectorAll('[data-progress-code]').forEach(dot => {

@@ -33,10 +33,13 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("data-fullscreen-exit", page, StringComparison.Ordinal);
         Assert.Contains("Search or jump to a stage", page, StringComparison.Ordinal);
         Assert.DoesNotContain("data-stage-jump", page, StringComparison.Ordinal);
-        Assert.Contains("function journeyTier", script, StringComparison.Ordinal);
+        Assert.Contains("function journeyTiersFor", script, StringComparison.Ordinal);
         Assert.Contains("function branchClusterFor", script, StringComparison.Ordinal);
         Assert.Contains("data-map-density", styles, StringComparison.Ordinal);
-        Assert.Contains("processRouteFlow", styles, StringComparison.Ordinal);
+        Assert.Contains("process-route-signal", styles, StringComparison.Ordinal);
+        Assert.Contains("process-endpoint", styles, StringComparison.Ordinal);
+        Assert.Contains("conditional-entry", script, StringComparison.Ordinal);
+        Assert.Contains("terminal-main", script, StringComparison.Ordinal);
         Assert.Contains("prism.process.hero.seen.v2", script, StringComparison.Ordinal);
     }
 
@@ -66,6 +69,26 @@ public sealed class ProcessJourneyPresentationContractTests
             seeder,
             StringComparison.Ordinal);
 
+        Assert.Contains(
+            "D(StageCodes.EAS, StageCodes.COB, version)",
+            seeder,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "D(StageCodes.EAS, StageCodes.PNC, version)",
+            seeder,
+            StringComparison.Ordinal);
+
+        var topologyMigration = ReadRepoFile(
+            "Migrations",
+            "20261207180000_RefineProcurementJourneyTopology.cs");
+        Assert.Contains("EAS", topologyMigration, StringComparison.Ordinal);
+        Assert.Contains("PNC", topologyMigration, StringComparison.Ordinal);
+
+        var migrationIds = ReadRepoFile("Migrations", "immutable-migration-ids.txt");
+        Assert.Contains(
+            "20261207180000_RefineProcurementJourneyTopology",
+            migrationIds,
+            StringComparison.Ordinal);
         var migration = ReadRepoFile(
             "Migrations",
             "20261207170000_RedesignProcurementJourney.cs");

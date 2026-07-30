@@ -1,14 +1,24 @@
-Static validation completed
-===========================
+PRISM PROCUREMENT JOURNEY FINAL POLISH — STATIC VALIDATION
+==========================================================
 
-- JavaScript syntax: node --check passed.
-- CSS parsing: tinycss2 parsed the complete stylesheet with zero errors.
-- CSS braces and parentheses are balanced.
-- Removed obsolete stage dropdown references from page, script and stylesheet.
-- No external URL, CDN, remote font, remote image or internet API was introduced.
-- Full-screen exit, progressive disclosure, graph-derived branch handling, semantic zoom,
-  compact hero memory and empty-checklist action are covered by presentation contract checks.
-- No database model or migration is changed.
+PASSED
+------
+- JavaScript syntax: node --check wwwroot/js/process-flow.js
+- CSS delimiter balance: 346 opening and 346 closing braces after comment removal
+- Unified patch whitespace check: git diff --check
+- New migration registered in Migrations/immutable-migration-ids.txt
+- StageFlowSeeder no longer contains EAS depending on PNC
+- StageFlowSeeder retains EAS depending on COB
+- TEC and Benchmarking parallel dependencies remain unchanged
+- Package uses no CDN, online font, remote image, or internet API
+- SVG namespace strings are local DOM namespace identifiers, not network calls
+- Incremental patch generated against the previously supplied cinematic package
 
-The .NET SDK is not installed in the packaging environment; run the build and test commands
-on the normal Visual Studio/build workstation before publishing.
+NOT EXECUTED IN THIS ENVIRONMENT
+--------------------------------
+- dotnet build
+- Entity Framework migration execution
+- xUnit test execution
+
+Reason: the .NET SDK is not installed in the packaging environment.
+Run the commands in README-APPLY.txt on the development machine.

@@ -1,454 +1,1006 @@
---- a/Pages/Projects/CompletedSummary/Index.cshtml
-+++ b/Pages/Projects/CompletedSummary/Index.cshtml
-@@ -3,7 +3,6 @@
- @using ProjectManagement.Models
- @using ProjectManagement.Models.Projects
- @using ProjectManagement.Services.Projects
--@using System.Globalization
- @{
-     ViewData["Title"] = "Completed projects";
-     ViewData["UseFullWidth"] = true;
-@@ -33,7 +32,7 @@
-         .ToList();
- 
-     var nameSort = (Aria: Model.GetSortAria("name"), Direction: Model.NextSortDirection("name"), Indicator: Model.GetSortIndicator("name"));
--    var yearSort = (Aria: Model.GetSortAria("year"), Direction: Model.NextSortDirection("year"), Indicator: Model.GetSortIndicator("year"));
-+    var completionSort = (Aria: Model.GetSortAria("completed"), Direction: Model.NextSortDirection("completed"), Indicator: Model.GetSortIndicator("completed"));
-     var categorySort = (Aria: Model.GetSortAria("category"), Direction: Model.NextSortDirection("category"), Indicator: Model.GetSortIndicator("category"));
-     var buildSort = (Aria: Model.GetSortAria("build"), Direction: Model.NextSortDirection("build"), Indicator: Model.GetSortIndicator("build"));
-     var rdSort = (Aria: Model.GetSortAria("rd"), Direction: Model.NextSortDirection("rd"), Indicator: Model.GetSortIndicator("rd"));
-@@ -297,11 +296,11 @@
-                                             Build <span aria-hidden="true">@buildSort.Indicator</span>
-                                         </a>
-                                     </th>
--                                    <th class="cpw-cell-year" aria-sort="@yearSort.Aria">
-+                                    <th class="cpw-cell-year" aria-sort="@completionSort.Aria">
-                                         <a asp-page="./Index"
--                                           asp-all-route-data='Model.GetRoutesForSort("year", yearSort.Direction)'
--                                           title="Sort by completion year">
--                                            Completed <span aria-hidden="true">@yearSort.Indicator</span>
-+                                           asp-all-route-data='Model.GetRoutesForSort("completed", completionSort.Direction)'
-+                                           title="Sort by completion date">
-+                                            Completed <span aria-hidden="true">@completionSort.Indicator</span>
-                                         </a>
-                                     </th>
-                                     <th class="cpw-cell-money" aria-sort="@rdSort.Aria">
-@@ -380,7 +379,7 @@
-                                         @(item.TechnicalCategoryName ?? "—")
-                                     </td>
-                                     <td class="cpw-cell-build cpw-ultrawide-column">@item.BuildType</td>
--                                    <td class="cpw-cell-year">@(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
-+                                    <td class="cpw-cell-year">@(item.FormatCompletion())</td>
-                                     <td class="cpw-cell-money cpw-num">@FormatMoney(item.RdCostLakhs)</td>
-                                     <td class="cpw-cell-money cpw-cell-proliferation-cost cpw-num cpw-secondary-column">@FormatMoney(item.ProliferationCostLakhs)</td>
-                                     <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
-@@ -482,7 +481,7 @@
-                         <article class="cpw-overview-card">
-                             <div class="cpw-section-heading">
-                                 <div><span>Available portfolio</span><h2>Recently completed projects available for proliferation</h2></div>
--                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "year", "desc")'>View in register</a>
-+                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "completed", "desc")'>View in register</a>
-                             </div>
-                             <div class="cpw-queue-list">
-                                 @if (overview.AvailableProjects.Count == 0)
-@@ -499,7 +498,7 @@
-                                                 title="@item.Name">
-                                             <span>
-                                                 <strong>@item.Name</strong>
--                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded") · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
-+                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.FormatCompletion("date not recorded")) · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
-                                             </span>
-                                             @if (item.RdCostLakhs.HasValue)
-                                             {
-@@ -527,11 +526,11 @@
-                                 {
-                                     @foreach (var item in overview.AvailabilityPendingProjects)
-                                     {
--                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
-+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.FormatCompletion("date not recorded"))</small></button>
-                                     }
-                                 }
-                             </div>
--                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "year", "desc")'>Open filtered register →</a>
-+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "completed", "desc")'>Open filtered register →</a>
-                         </article>
- 
-                         <article class="cpw-action-card danger">
-@@ -548,11 +547,11 @@
-                                 {
-                                     @foreach (var item in overview.TechnologyActionProjects)
-                                     {
--                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
-+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · Completed @(item.FormatCompletion("date not recorded"))</small></button>
-                                     }
-                                 }
-                             </div>
--                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "year", "desc")'>Open filtered register →</a>
-+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "completed", "desc")'>Open filtered register →</a>
-                         </article>
- 
-                         <article class="cpw-action-card info">
-@@ -573,7 +572,7 @@
-                                     }
-                                 }
-                             </div>
--                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "year", "desc")'>Open filtered register →</a>
-+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "completed", "desc")'>Open filtered register →</a>
-                         </article>
-                     </section>
- 
-@@ -678,7 +677,7 @@
-         <template id="cpw-project-@item.ProjectId">
-             <div class="cpw-drawer-scroll">
-                 <div class="cpw-drawer-identity">
--                    <div class="cpw-drawer-kicker">Completed project · @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "Year not recorded")</div>
-+                    <div class="cpw-drawer-kicker">Completed project · @(item.FormatCompletion("Completion date not recorded"))</div>
-                     <h2>@item.Name</h2>
-                 </div>
- 
---- a/Pages/Projects/CompletedSummary/Index.cshtml.cs
-+++ b/Pages/Projects/CompletedSummary/Index.cshtml.cs
-@@ -160,7 +160,7 @@
-                 : "asc";
-         }
- 
--        return sortKey is "year" or "rd" or "prod" or "lpp" or "quality"
-+        return sortKey is "completed" or "year" or "rd" or "prod" or "lpp" or "quality"
-             ? "desc"
-             : "asc";
-     }
-@@ -228,13 +228,34 @@
-         var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
-         var dir = (Dir ?? string.Empty).Trim().ToLowerInvariant();
- 
--        Sort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp" or "tech" or "avail" or "tot" or "year" or "quality"
--            ? sort
--            : "name";
-+        // Preserve compatibility with previously generated URLs while exposing
-+        // the business meaning of the column as completion chronology.
-+        if (string.Equals(sort, "year", StringComparison.Ordinal))
-+        {
-+            sort = "completed";
-+        }
-+
-+        var isValidSort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp"
-+            or "tech" or "avail" or "tot" or "completed" or "quality";
- 
--        Dir = dir is "asc" or "desc" ? dir : "asc";
-+        if (!isValidSort)
-+        {
-+            Sort = "completed";
-+            Dir = "desc";
-+            return;
-+        }
-+
-+        Sort = sort;
-+        Dir = dir is "asc" or "desc"
-+            ? dir
-+            : GetDefaultSortDirection(sort);
-     }
- 
-+    private static string GetDefaultSortDirection(string sortKey) =>
-+        sortKey is "completed" or "rd" or "prod" or "lpp" or "quality"
-+            ? "desc"
-+            : "asc";
-+
-     private void UpdateActiveFilterCount()
-     {
-         ActiveFilterCount = 0;
---- a/Services/Projects/CompletedProjectsSummaryService.cs
-+++ b/Services/Projects/CompletedProjectsSummaryService.cs
-@@ -23,17 +23,27 @@
-     public async Task<IReadOnlyList<int>> GetCompletionYearsAsync(
-         CancellationToken cancellationToken = default)
-     {
--        return await _db.Projects
-+        var completionValues = await _db.Projects
-             .AsNoTracking()
-             .Where(p =>
-                 p.LifecycleStatus == ProjectLifecycleStatus.Completed
-                 && !p.IsDeleted
-                 && !p.IsArchived
--                && p.CompletedYear.HasValue)
--            .Select(p => p.CompletedYear.GetValueOrDefault())
-+                && (p.CompletedOn.HasValue || p.CompletedYear.HasValue))
-+            .Select(p => new
-+            {
-+                p.CompletedOn,
-+                p.CompletedYear
-+            })
-+            .ToListAsync(cancellationToken);
-+
-+        return completionValues
-+            .Select(x => x.CompletedOn?.Year ?? x.CompletedYear)
-+            .Where(year => year.HasValue)
-+            .Select(year => year.GetValueOrDefault())
-             .Distinct()
-             .OrderByDescending(year => year)
--            .ToListAsync(cancellationToken);
-+            .ToList();
-     }
- 
-     public async Task<IReadOnlyList<CompletedProjectSummaryDto>> GetAsync(
-@@ -178,7 +188,9 @@
-                 NotAvailableReason = notAvailableReason,
-                 ProliferationCostRemarks = proliferationCostRemarks,
-                 Remarks = remarks,
--                CompletedYear = p.CompletedYear,
-+                CompletedOn = p.CompletedOn,
-+                CompletedYear = p.CompletedOn?.Year ?? p.CompletedYear,
-+                CompletedMonth = p.CompletedMonth,
-                 TotStatus = totStatus,
-                 LatestLppDate = latestLpp?.LppDate,
-                 LatestLpp = latestLpp != null
-@@ -289,7 +301,7 @@
- 
-             "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-             "prod" => ApplyNullableSort(source, x => x.ProliferationCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
--            "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-+            "completed" or "year" => CompletedProjectCompletionOrdering.Apply(source, desc),
-             "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-             "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-             "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-@@ -308,7 +320,7 @@
-                     .ThenBy(CompletedProjectPortfolioPolicy.GetSupplementaryMissingCount)
-                     .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
- 
--            _ => source.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId)
-+            _ => CompletedProjectCompletionOrdering.Apply(source, descending: true)
+diff --git a/Data/StageFlowSeeder.cs b/Data/StageFlowSeeder.cs
+index c30d2b6..eeff7df 100644
+--- a/Data/StageFlowSeeder.cs
++++ b/Data/StageFlowSeeder.cs
+@@ -161,7 +161,7 @@ public static class StageFlowSeeder
+             D(StageCodes.TEC, StageCodes.BID, version), D(StageCodes.BM, StageCodes.BID, version),
+             D(StageCodes.COB, StageCodes.TEC, version), D(StageCodes.COB, StageCodes.BM, version),
+             D(StageCodes.PNC, StageCodes.COB, version),
+-            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
++            D(StageCodes.EAS, StageCodes.COB, version),
+             D(StageCodes.SO, StageCodes.EAS, version), D(StageCodes.DEVP, StageCodes.SO, version), D(StageCodes.ATP, StageCodes.DEVP, version), D(StageCodes.PAYMENT, StageCodes.ATP, version),
+             D(StageCodes.TOT, StageCodes.PAYMENT, version)
          };
-     }
- 
-@@ -356,10 +368,68 @@
-     public string? NotAvailableReason { get; set; }
-     public string? ProliferationCostRemarks { get; set; }
-     public string? Remarks { get; set; }
-+    public DateOnly? CompletedOn { get; set; }
-     public int? CompletedYear { get; set; }
-+    public short? CompletedMonth { get; set; }
-     public ProjectTotStatus? TotStatus { get; set; }
-     public DateOnly? LatestLppDate { get; set; }
-     public LatestLppViewModel? LatestLpp { get; set; }
-+
-+    public string FormatCompletion(string unknownText = "—") =>
-+        ProjectCompletionFormatter.Format(CompletedOn, CompletedYear, CompletedMonth, unknownText);
-+}
-+
-+// SECTION: Completion chronology
-+// Partial dates are compared only by components that are actually recorded.
-+// More precise values are placed before less precise values within the same
-+// year/month, and records without any completion date always remain last.
-+public static class CompletedProjectCompletionOrdering
-+{
-+    public static IOrderedEnumerable<CompletedProjectSummaryDto> Apply(
-+        IEnumerable<CompletedProjectSummaryDto> source,
-+        bool descending)
-+    {
-+        ArgumentNullException.ThrowIfNull(source);
-+
-+        IOrderedEnumerable<CompletedProjectSummaryDto> ordered = source
-+            .OrderBy(item => GetYear(item).HasValue ? 0 : 1);
-+
-+        ordered = descending
-+            ? ordered.ThenByDescending(GetYear)
-+            : ordered.ThenBy(GetYear);
-+
-+        ordered = ordered.ThenBy(item => GetMonth(item).HasValue ? 0 : 1);
-+        ordered = descending
-+            ? ordered.ThenByDescending(GetMonth)
-+            : ordered.ThenBy(GetMonth);
-+
-+        ordered = ordered.ThenBy(item => GetDay(item).HasValue ? 0 : 1);
-+        ordered = descending
-+            ? ordered.ThenByDescending(GetDay)
-+            : ordered.ThenBy(GetDay);
-+
-+        return ordered
-+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-+            .ThenBy(item => item.ProjectId);
-+    }
-+
-+    private static int? GetYear(CompletedProjectSummaryDto item) =>
-+        item.CompletedOn?.Year ?? item.CompletedYear;
-+
-+    private static int? GetMonth(CompletedProjectSummaryDto item)
-+    {
-+        if (item.CompletedOn.HasValue)
-+        {
-+            return item.CompletedOn.Value.Month;
-+        }
-+
-+        return item.CompletedMonth is >= 1 and <= 12
-+            ? item.CompletedMonth.Value
-+            : null;
-+    }
-+
-+    private static int? GetDay(CompletedProjectSummaryDto item) =>
-+        item.CompletedOn?.Day;
- }
- 
- public sealed class LatestLppViewModel
---- a/Services/Projects/CompletedProjectsPortfolioOverview.cs
-+++ b/Services/Projects/CompletedProjectsPortfolioOverview.cs
-@@ -107,9 +107,8 @@
-     private static IReadOnlyList<CompletedProjectSummaryDto> Prioritise(
-         IEnumerable<CompletedProjectSummaryDto> items,
-         int queueSize) =>
--        items.OrderByDescending(x => x.CompletedYear ?? int.MinValue)
--            .ThenByDescending(x => x.RdCostLakhs ?? decimal.MinValue)
--            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-+        CompletedProjectCompletionOrdering
-+            .Apply(items, descending: true)
-             .Take(queueSize)
-             .ToList();
- 
---- a/Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
-+++ b/Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
-@@ -59,7 +59,7 @@
-             "Project",
-             "Technical category",
-             "Build type",
--            "Completed year",
-+            "Completed",
-             "Development / L1 cost (lakh)",
-             "Proliferation cost (lakh)",
-             "Latest LPP (lakh)",
-@@ -100,9 +100,10 @@
-             worksheet.Cell(rowNumber, 3).Value = item.TechnicalCategoryName ?? string.Empty;
-             worksheet.Cell(rowNumber, 4).Value = item.BuildType;
- 
--            if (item.CompletedYear.HasValue)
-+            var completion = item.FormatCompletion(string.Empty);
-+            if (!string.IsNullOrWhiteSpace(completion))
-             {
--                worksheet.Cell(rowNumber, 5).Value = item.CompletedYear.Value;
-+                worksheet.Cell(rowNumber, 5).Value = completion;
-             }
- 
-             WriteDecimal(worksheet.Cell(rowNumber, 6), item.RdCostLakhs);
-@@ -142,7 +143,7 @@
-         worksheet.Column(2).Width = Math.Clamp(worksheet.Column(2).Width, 28, 46);
-         worksheet.Column(3).Width = Math.Clamp(worksheet.Column(3).Width, 18, 30);
-         worksheet.Column(4).Width = 12;
--        worksheet.Column(5).Width = 13;
-+        worksheet.Column(5).Width = 16;
-         worksheet.Column(6).Width = 18;
-         worksheet.Column(7).Width = 21;
-         worksheet.Column(8).Width = 18;
---- a/wwwroot/css/pages/projects-completed-summary.css
-+++ b/wwwroot/css/pages/projects-completed-summary.css
-@@ -1423,7 +1423,7 @@
-   max-width: none;
- }
- 
--.cpw-cell-year { width: 6.4rem; }
-+.cpw-cell-year { width: 8.4rem; }
- .cpw-cell-money { width: 7.5rem; }
- .cpw-cell-status { width: 8rem; }
- .cpw-cell-proliferation { width: 8.8rem; }
---- a/ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
-+++ b/ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
-@@ -188,6 +188,27 @@
-         Assert.Contains("private const int ColumnCount = 15", export, StringComparison.Ordinal);
-     }
- 
-+    [Fact]
-+    public void Register_DefaultsToLatestCompletionAndExportsTheSameChronology()
-+    {
-+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
-+        var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
-+        var service = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");
-+        var overview = ReadRepoFile("Services", "Projects", "CompletedProjectsPortfolioOverview.cs");
-+        var export = ReadRepoFile("Utilities", "Reporting", "CompletedProjectsSummaryExcelBuilder.cs");
-+
-+        Assert.Contains("Sort = \"completed\";", model, StringComparison.Ordinal);
-+        Assert.Contains("Dir = \"desc\";", model, StringComparison.Ordinal);
-+        Assert.Contains("GetSortAria(\"completed\")", view, StringComparison.Ordinal);
-+        Assert.Contains("GetRoutesForSort(\"completed\"", view, StringComparison.Ordinal);
-+        Assert.Contains("CompletedOn = p.CompletedOn", service, StringComparison.Ordinal);
-+        Assert.Contains("CompletedMonth = p.CompletedMonth", service, StringComparison.Ordinal);
-+        Assert.Contains("CompletedProjectCompletionOrdering.Apply(source, desc)", service, StringComparison.Ordinal);
-+        Assert.Contains("CompletedProjectCompletionOrdering", overview, StringComparison.Ordinal);
-+        Assert.Contains("\"Completed\"", export, StringComparison.Ordinal);
-+        Assert.Contains("item.FormatCompletion(string.Empty)", export, StringComparison.Ordinal);
-+    }
-+
- 
-     private static int CountOccurrences(string source, string value)
-     {
+@@ -182,7 +182,7 @@ public static class StageFlowSeeder
+             D(StageCodes.COB, StageCodes.TEC, version),
+             D(StageCodes.COB, StageCodes.BM, version),
+             D(StageCodes.PNC, StageCodes.COB, version),
+-            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
++            D(StageCodes.EAS, StageCodes.COB, version),
+             D(StageCodes.SO, StageCodes.EAS, version),
+             D(StageCodes.DEVP, StageCodes.SO, version),
+             D(StageCodes.ATP, StageCodes.DEVP, version),
+diff --git a/Migrations/20261207180000_RefineProcurementJourneyTopology.cs b/Migrations/20261207180000_RefineProcurementJourneyTopology.cs
+new file mode 100644
+index 0000000..45aa7b8
 --- /dev/null
-+++ b/ProjectManagement.Tests/CompletedProjectCompletionOrderingTests.cs
-@@ -0,0 +1,73 @@
-+using System;
-+using System.Linq;
-+using ProjectManagement.Services.Projects;
-+using Xunit;
++++ b/Migrations/20261207180000_RefineProcurementJourneyTopology.cs
+@@ -0,0 +1,65 @@
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using ProjectManagement.Data;
 +
-+namespace ProjectManagement.Tests;
++#nullable disable
 +
-+public sealed class CompletedProjectCompletionOrderingTests
++namespace ProjectManagement.Migrations;
++
++[DbContext(typeof(ApplicationDbContext))]
++[Migration("20261207180000_RefineProcurementJourneyTopology")]
++public partial class RefineProcurementJourneyTopology : Migration
 +{
-+    [Fact]
-+    public void DescendingOrder_UsesRecordedCompletionComponentsAndKeepsUnknownLast()
++    protected override void Up(MigrationBuilder migrationBuilder)
 +    {
-+        var items = new[]
-+        {
-+            Item(1, "Unknown"),
-+            Item(2, "Year only 2026", completedYear: 2026),
-+            Item(3, "March 2026", completedYear: 2026, completedMonth: 3),
-+            Item(4, "05 March 2026", completedOn: new DateOnly(2026, 3, 5)),
-+            Item(5, "20 March 2026", completedOn: new DateOnly(2026, 3, 20)),
-+            Item(6, "December 2025", completedYear: 2025, completedMonth: 12)
-+        };
++        // Price Negotiation is conditional. Commercial Opening remains the
++        // mandatory prerequisite for EAS, while PNC is an optional detour.
++        migrationBuilder.Sql(
++            """
++            DELETE FROM "StageDependencyTemplates"
++            WHERE "Version" IN ('SDD-1.0', 'SDD-2.0')
++              AND UPPER("FromStageCode") = 'EAS'
++              AND UPPER("DependsOnStageCode") = 'PNC';
 +
-+        var ordered = CompletedProjectCompletionOrdering
-+            .Apply(items, descending: true)
-+            .Select(item => item.Name)
-+            .ToArray();
-+
-+        Assert.Equal(
-+            new[]
-+            {
-+                "20 March 2026",
-+                "05 March 2026",
-+                "March 2026",
-+                "Year only 2026",
-+                "December 2025",
-+                "Unknown"
-+            },
-+            ordered);
++            INSERT INTO "StageDependencyTemplates" ("Version", "FromStageCode", "DependsOnStageCode")
++            SELECT versions."Version", 'EAS', 'COB'
++            FROM (VALUES ('SDD-1.0'), ('SDD-2.0')) AS versions("Version")
++            WHERE EXISTS (
++                SELECT 1
++                FROM "StageTemplates"
++                WHERE "Version" = versions."Version"
++                  AND UPPER("Code") = 'EAS'
++            )
++              AND NOT EXISTS (
++                SELECT 1
++                FROM "StageDependencyTemplates"
++                WHERE "Version" = versions."Version"
++                  AND UPPER("FromStageCode") = 'EAS'
++                  AND UPPER("DependsOnStageCode") = 'COB'
++            );
++            """);
 +    }
 +
-+    [Fact]
-+    public void CompletionDisplay_PreservesAvailablePrecisionWithoutInventingADate()
++    protected override void Down(MigrationBuilder migrationBuilder)
 +    {
-+        Assert.Equal(
-+            "20 Mar 2026",
-+            Item(1, "Exact", completedOn: new DateOnly(2026, 3, 20)).FormatCompletion());
-+
-+        Assert.Equal(
-+            "Mar 2026",
-+            Item(2, "Month", completedYear: 2026, completedMonth: 3).FormatCompletion());
-+
-+        Assert.Equal(
-+            "2026",
-+            Item(3, "Year", completedYear: 2026).FormatCompletion());
-+
-+        Assert.Equal("—", Item(4, "Unknown").FormatCompletion());
++        migrationBuilder.Sql(
++            """
++            INSERT INTO "StageDependencyTemplates" ("Version", "FromStageCode", "DependsOnStageCode")
++            SELECT versions."Version", 'EAS', 'PNC'
++            FROM (VALUES ('SDD-1.0'), ('SDD-2.0')) AS versions("Version")
++            WHERE EXISTS (
++                SELECT 1
++                FROM "StageTemplates"
++                WHERE "Version" = versions."Version"
++                  AND UPPER("Code") = 'EAS'
++            )
++              AND NOT EXISTS (
++                SELECT 1
++                FROM "StageDependencyTemplates"
++                WHERE "Version" = versions."Version"
++                  AND UPPER("FromStageCode") = 'EAS'
++                  AND UPPER("DependsOnStageCode") = 'PNC'
++            );
++            """);
 +    }
-+
-+    private static CompletedProjectSummaryDto Item(
-+        int id,
-+        string name,
-+        DateOnly? completedOn = null,
-+        int? completedYear = null,
-+        short? completedMonth = null) =>
-+        new()
-+        {
-+            ProjectId = id,
-+            Name = name,
-+            CompletedOn = completedOn,
-+            CompletedYear = completedOn?.Year ?? completedYear,
-+            CompletedMonth = completedMonth
-+        };
 +}
+diff --git a/Migrations/immutable-migration-ids.txt b/Migrations/immutable-migration-ids.txt
+index ad140e1..d85f29a 100644
+--- a/Migrations/immutable-migration-ids.txt
++++ b/Migrations/immutable-migration-ids.txt
+@@ -86,3 +86,4 @@
+ 20261207150000_AddProjectBriefingUpdateSheetLayout
+ 20261207160000_AddArppPppNumberAndCategoryIdentifiers
+ 20261207170000_RedesignProcurementJourney
++20261207180000_RefineProcurementJourneyTopology
+diff --git a/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs b/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
+index 876b775..5b73fa7 100644
+--- a/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
++++ b/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
+@@ -33,10 +33,13 @@ public sealed class ProcessJourneyPresentationContractTests
+         Assert.Contains("data-fullscreen-exit", page, StringComparison.Ordinal);
+         Assert.Contains("Search or jump to a stage", page, StringComparison.Ordinal);
+         Assert.DoesNotContain("data-stage-jump", page, StringComparison.Ordinal);
+-        Assert.Contains("function journeyTier", script, StringComparison.Ordinal);
++        Assert.Contains("function journeyTiersFor", script, StringComparison.Ordinal);
+         Assert.Contains("function branchClusterFor", script, StringComparison.Ordinal);
+         Assert.Contains("data-map-density", styles, StringComparison.Ordinal);
+-        Assert.Contains("processRouteFlow", styles, StringComparison.Ordinal);
++        Assert.Contains("process-route-signal", styles, StringComparison.Ordinal);
++        Assert.Contains("process-endpoint", styles, StringComparison.Ordinal);
++        Assert.Contains("conditional-entry", script, StringComparison.Ordinal);
++        Assert.Contains("terminal-main", script, StringComparison.Ordinal);
+         Assert.Contains("prism.process.hero.seen.v2", script, StringComparison.Ordinal);
+     }
+ 
+@@ -66,6 +69,26 @@ public sealed class ProcessJourneyPresentationContractTests
+             seeder,
+             StringComparison.Ordinal);
+ 
++        Assert.Contains(
++            "D(StageCodes.EAS, StageCodes.COB, version)",
++            seeder,
++            StringComparison.Ordinal);
++        Assert.DoesNotContain(
++            "D(StageCodes.EAS, StageCodes.PNC, version)",
++            seeder,
++            StringComparison.Ordinal);
++
++        var topologyMigration = ReadRepoFile(
++            "Migrations",
++            "20261207180000_RefineProcurementJourneyTopology.cs");
++        Assert.Contains("EAS", topologyMigration, StringComparison.Ordinal);
++        Assert.Contains("PNC", topologyMigration, StringComparison.Ordinal);
++
++        var migrationIds = ReadRepoFile("Migrations", "immutable-migration-ids.txt");
++        Assert.Contains(
++            "20261207180000_RefineProcurementJourneyTopology",
++            migrationIds,
++            StringComparison.Ordinal);
+         var migration = ReadRepoFile(
+             "Migrations",
+             "20261207170000_RedesignProcurementJourney.cs");
+diff --git a/wwwroot/css/process-flow.css b/wwwroot/css/process-flow.css
+index 4ec99e1..8f1ccbb 100644
+--- a/wwwroot/css/process-flow.css
++++ b/wwwroot/css/process-flow.css
+@@ -1954,3 +1954,241 @@
+     filter: none;
+   }
+ }
++
++/* Final procurement-journey polish ----------------------------------------- */
++.process-hero.is-compact {
++  min-height: 108px;
++  padding: .8rem 1.45rem;
++  border-radius: 1.15rem;
++}
++
++.process-hero.is-compact .process-eyebrow {
++  font-size: .56rem;
++  letter-spacing: .16em;
++}
++
++.process-hero.is-compact h1 {
++  margin: .18rem 0 0;
++  font-size: clamp(1.55rem, 2.35vw, 2rem);
++  line-height: 1;
++}
++
++.process-hero.is-compact .process-hero__actions {
++  display: none;
++}
++
++.process-hero.is-compact .process-hero__meta {
++  gap: .85rem;
++}
++
++.process-hero.is-compact .process-hero__meta > div {
++  min-width: 104px;
++  padding: .18rem 0 .18rem .8rem;
++}
++
++.process-hero.is-compact .process-hero__meta strong {
++  font-size: .95rem;
++}
++
++.process-hero.is-compact .process-hero__meta span {
++  font-size: .61rem;
++}
++
++.process-connection {
++  stroke-width: 4.25;
++}
++
++.process-connection.is-bypass {
++  opacity: .68;
++}
++
++.process-connection.is-conditional {
++  stroke: url(#processConditionalGradient);
++  stroke-width: 3.75;
++  stroke-dasharray: 8 9;
++  opacity: .58;
++}
++
++.process-connection.is-active {
++  stroke: url(#processActiveGradient);
++  stroke-width: 5.75;
++  stroke-dasharray: none;
++  opacity: 1;
++  filter: url(#processGlow);
++  animation: none;
++}
++
++.process-connection.is-conditional.is-active {
++  stroke: url(#processConditionalGradient);
++  stroke-width: 5.25;
++  stroke-dasharray: 8 7;
++}
++
++.process-route-signal {
++  fill: none;
++  stroke: #a4e8ff;
++  stroke-width: 3;
++  stroke-linecap: round;
++  stroke-dasharray: 2 23;
++  opacity: 0;
++  pointer-events: none;
++  filter: url(#processGlow);
++  transition: opacity .28s ease;
++}
++
++.process-route-signal.is-conditional {
++  stroke: #ffd184;
++}
++
++.process-route-signal.is-active {
++  opacity: .94;
++  animation: processRouteSignal 1.15s linear infinite;
++}
++
++.process-route-signal.is-story-hidden {
++  opacity: 0;
++}
++
++.process-node.is-active {
++  box-shadow:
++    0 34px 82px rgba(0, 7, 18, .58),
++    0 0 0 1px rgba(124, 219, 255, .2),
++    0 0 52px rgba(62, 169, 255, .3),
++    inset 0 1px 0 rgba(255, 255, 255, .14);
++}
++
++.process-node.is-active .process-node__halo {
++  inset: -24px;
++  opacity: .82;
++}
++
++.process-node.is-context {
++  pointer-events: auto;
++}
++
++.process-endpoint {
++  position: absolute;
++  z-index: 3;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: .48rem;
++  width: 112px;
++  transform: translate(-50%, -50%) scale(.78);
++  opacity: 0;
++  visibility: hidden;
++  color: #9eb8d6;
++  text-align: center;
++  transition: opacity .4s ease, transform .5s cubic-bezier(.19, .8, .18, 1), filter .4s ease;
++}
++
++.process-endpoint.is-visible {
++  opacity: .88;
++  visibility: visible;
++}
++
++.process-endpoint.is-near {
++  transform: translate(-50%, -50%) scale(1);
++  color: #dcecff;
++}
++
++.process-endpoint.is-context {
++  transform: translate(-50%, -50%) scale(.72);
++  opacity: .34;
++  filter: blur(1px);
++}
++
++.process-endpoint__ring {
++  width: 2.7rem;
++  height: 2.7rem;
++  border: 1px solid rgba(116, 216, 255, .68);
++  border-radius: 50%;
++  background:
++    radial-gradient(circle, rgba(116, 216, 255, .28) 0 14%, transparent 16%),
++    rgba(31, 78, 126, .18);
++  box-shadow: 0 0 28px rgba(68, 174, 255, .22);
++}
++
++.process-endpoint__copy {
++  font-size: .66rem;
++  font-weight: 760;
++  letter-spacing: .04em;
++  text-transform: uppercase;
++}
++
++.process-experience[data-mode="map"] .process-endpoint {
++  transform: translate(-50%, -50%) scale(var(--map-node-scale, 1));
++  opacity: .82;
++  visibility: visible;
++  filter: none;
++}
++
++.process-experience[data-mode="map"][data-map-density="compact"] .process-endpoint__copy {
++  font-size: .56rem;
++}
++
++.process-progress__dot.is-conditional {
++  transform: translateY(4px);
++}
++
++.process-progress__dot.is-conditional.is-active {
++  transform: translateY(4px) scaleY(1.12);
++}
++
++.process-progress__dot.is-parallel-up {
++  transform: translateY(-4px);
++}
++
++.process-progress__dot.is-parallel-down {
++  transform: translateY(4px);
++}
++
++.process-experience[data-mode="map"] .process-scene::before {
++  background:
++    radial-gradient(ellipse at 50% 50%, rgba(72, 174, 255, .12), transparent 32%),
++    radial-gradient(ellipse at 50% 58%, rgba(45, 103, 177, .08), transparent 58%);
++}
++
++.process-experience[data-mode="map"][data-map-density="compact"] .process-node {
++  width: 112px;
++  min-height: 66px;
++}
++
++.process-experience[data-mode="map"][data-map-density="compact"] .process-node__body small {
++  font-size: .9rem;
++}
++
++@keyframes processRouteSignal {
++  to { stroke-dashoffset: -25; }
++}
++
++@media (max-width: 991.98px) {
++  .process-hero.is-compact {
++    min-height: 122px;
++    padding: .9rem 1rem;
++  }
++
++  .process-hero.is-compact .process-hero__meta {
++    gap: .45rem;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .process-route-signal.is-active {
++    animation: none;
++    stroke-dasharray: none;
++    opacity: .72;
++  }
++}
++
++@media print {
++  .process-route-signal {
++    display: none !important;
++  }
++
++  .process-endpoint {
++    opacity: 1 !important;
++    visibility: visible !important;
++    filter: none !important;
++  }
++}
+diff --git a/wwwroot/js/process-flow.js b/wwwroot/js/process-flow.js
+index 686ec97..6e48aad 100644
+--- a/wwwroot/js/process-flow.js
++++ b/wwwroot/js/process-flow.js
+@@ -8,9 +8,14 @@ if (root) {
+     flow: null,
+     nodes: [],
+     edges: [],
++    visualEdges: [],
++    optionalDetours: [],
++    endpoint: null,
+     stageByCode: new Map(),
+     incoming: new Map(),
+     outgoing: new Map(),
++    structuralIncoming: new Map(),
++    structuralOutgoing: new Map(),
+     branchClusters: [],
+     activeIndex: 0,
+     selectedCode: null,
+@@ -249,11 +254,13 @@ if (root) {
+     });
+ 
+     state.branchClusters = [];
+-    state.nodes.forEach(source => {
+-      const branches = state.outgoing.get(source.code) || [];
++    state.nodes.filter(node => !node.optional).forEach(source => {
++      const branches = (state.outgoing.get(source.code) || [])
++        .filter(code => !state.stageByCode.get(code)?.optional);
+       if (branches.length < 2) return;
+ 
+-      const downstreamSets = branches.map(code => new Set(state.outgoing.get(code) || []));
++      const downstreamSets = branches.map(code => new Set(
++        (state.outgoing.get(code) || []).filter(next => !state.stageByCode.get(next)?.optional)));
+       const convergenceCandidates = [...(downstreamSets[0] || [])]
+         .filter(code => downstreamSets.every(set => set.has(code)))
+         .map(code => state.stageByCode.get(code))
+@@ -270,21 +277,108 @@ if (root) {
+         codes: new Set([source.code, ...branches, convergence.code])
+       });
+     });
++
++    buildPresentationTopology();
++  }
++
++  function buildPresentationTopology() {
++    const optionalCodes = new Set(state.nodes.filter(node => node.optional).map(node => node.code));
++    const structuralEdges = state.edges
++      .filter(edge => !optionalCodes.has(edge.source) && !optionalCodes.has(edge.target))
++      .map(edge => ({ ...edge, kind: 'structural', conditional: false, synthetic: false }));
++
++    state.optionalDetours = state.nodes
++      .filter(node => node.optional)
++      .map(node => {
++        const sourceCode = (state.incoming.get(node.code) || [])
++          .map(code => state.stageByCode.get(code))
++          .filter(candidate => candidate && !candidate.optional)
++          .sort((a, b) => b.displayIndex - a.displayIndex)[0]?.code || null;
++        const explicitSuccessor = (state.outgoing.get(node.code) || [])
++          .map(code => state.stageByCode.get(code))
++          .filter(candidate => candidate && !candidate.optional)
++          .sort((a, b) => a.displayIndex - b.displayIndex)[0]?.code || null;
++        const inferredSuccessor = state.nodes.find(candidate =>
++          !candidate.optional && candidate.displayIndex > node.displayIndex)?.code || null;
++        return {
++          code: node.code,
++          source: sourceCode,
++          successor: explicitSuccessor || inferredSuccessor
++        };
++      })
++      .filter(detour => detour.source);
++
++    state.endpoint = {
++      code: '__END__',
++      name: 'Capability complete',
++      x: 0,
++      y: 450
++    };
++
++    const visualEdges = [...structuralEdges];
++    state.optionalDetours.forEach(detour => {
++      const targetCode = detour.successor || state.endpoint.code;
++      if (detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === detour.successor)) {
++        visualEdges.push({
++          source: detour.source,
++          target: detour.successor,
++          kind: 'bypass',
++          conditional: false,
++          synthetic: true
++        });
++      }
++      if (!detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === state.endpoint.code)) {
++        visualEdges.push({
++          source: detour.source,
++          target: state.endpoint.code,
++          kind: 'terminal-main',
++          conditional: false,
++          synthetic: true
++        });
++      }
++      visualEdges.push({
++        source: detour.source,
++        target: detour.code,
++        kind: 'conditional-entry',
++        conditional: true,
++        synthetic: true
++      });
++      visualEdges.push({
++        source: detour.code,
++        target: targetCode,
++        kind: 'conditional-return',
++        conditional: true,
++        synthetic: true
++      });
++    });
++
++    state.visualEdges = visualEdges;
++    state.structuralIncoming = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
++    state.structuralOutgoing = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
++    structuralEdges.forEach(edge => {
++      state.structuralOutgoing.get(edge.source)?.push(edge.target);
++      state.structuralIncoming.get(edge.target)?.push(edge.source);
++    });
+   }
+ 
+   function branchClusterFor(code) {
+     return state.branchClusters.find(cluster => cluster.codes.has(code)) || null;
+   }
+ 
++  function entityForCode(code) {
++    return code === state.endpoint?.code ? state.endpoint : state.stageByCode.get(code);
++  }
++
+   function calculateLayout() {
++    const mandatoryNodes = state.nodes.filter(node => !node.optional);
+     const depths = new Map();
+-    const unresolved = new Set(state.nodes.map(node => node.code));
+-    let guard = state.nodes.length * 4;
++    const unresolved = new Set(mandatoryNodes.map(node => node.code));
++    let guard = mandatoryNodes.length * 4;
+ 
+     while (unresolved.size && guard-- > 0) {
+       let progressed = false;
+       [...unresolved].forEach(code => {
+-        const prerequisites = state.incoming.get(code) || [];
++        const prerequisites = state.structuralIncoming.get(code) || [];
+         if (prerequisites.every(dep => depths.has(dep))) {
+           const depth = prerequisites.length
+             ? Math.max(...prerequisites.map(dep => depths.get(dep))) + 1
+@@ -303,12 +397,12 @@ if (root) {
+     });
+ 
+     const maxDepth = Math.max(0, ...depths.values());
+-    const xGap = 205;
+-    const startX = 190;
++    const xGap = 190;
++    const startX = 175;
+     const centerY = 450;
+     const groups = new Map();
+ 
+-    state.nodes.forEach(node => {
++    mandatoryNodes.forEach(node => {
+       node.depth = depths.get(node.code) || 0;
+       if (!groups.has(node.depth)) groups.set(node.depth, []);
+       groups.get(node.depth).push(node);
+@@ -320,15 +414,33 @@ if (root) {
+       nodesAtDepth.forEach((node, index) => {
+         node.x = startX + (node.depth * xGap);
+         if (count === 1) node.y = centerY;
+-        else if (count === 2) node.y = index === 0 ? 290 : 610;
++        else if (count === 2) node.y = index === 0 ? 215 : 685;
+         else {
+-          const spread = 520;
++          const spread = 560;
+           node.y = centerY - (spread / 2) + ((spread / Math.max(1, count - 1)) * index);
+         }
+       });
+     });
+ 
+-    state.worldWidth = startX + (maxDepth * xGap) + 230;
++    state.optionalDetours.forEach((detour, index) => {
++      const node = state.stageByCode.get(detour.code);
++      const source = state.stageByCode.get(detour.source);
++      const successor = detour.successor ? state.stageByCode.get(detour.successor) : null;
++      if (!node || !source) return;
++      node.depth = source.depth + .5;
++      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * .55);
++      node.y = centerY + 210 + (index * 18);
++    });
++
++    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
++    const terminalSource = terminalDetour ? state.stageByCode.get(terminalDetour.source) : mandatoryNodes.at(-1);
++    state.endpoint.x = (terminalSource?.x || (startX + maxDepth * xGap)) + xGap;
++    state.endpoint.y = centerY;
++
++    const maxEntityX = Math.max(
++      state.endpoint.x,
++      ...state.nodes.map(node => Number(node.x) || 0));
++    state.worldWidth = maxEntityX + 190;
+     state.worldHeight = 900;
+     world.style.width = `${state.worldWidth}px`;
+     world.style.height = `${state.worldHeight}px`;
+@@ -337,13 +449,23 @@ if (root) {
+     svg.setAttribute('height', String(state.worldHeight));
+   }
+ 
+-  function pathForEdge(source, target) {
+-    const startX = source.x + 78;
+-    const endX = target.x - 78;
++  function pathForEdge(source, target, edge) {
++    const sourceHalf = source.code === state.endpoint.code ? 22 : 82;
++    const targetHalf = target.code === state.endpoint.code ? 22 : 82;
++    const startX = source.x + sourceHalf;
++    const endX = target.x - targetHalf;
+     const startY = source.y;
+     const endY = target.y;
+-    const distance = Math.max(70, endX - startX);
+-    const curve = Math.min(140, Math.max(60, distance * 0.44));
++    const distance = Math.max(48, endX - startX);
++    const verticalDistance = Math.abs(endY - startY);
++    const curve = Math.min(130, Math.max(45, distance * .42));
++
++    if (edge?.kind === 'conditional-entry' || edge?.kind === 'conditional-return') {
++      const direction = endY > startY ? 1 : -1;
++      const verticalControl = Math.min(120, Math.max(64, verticalDistance * .55));
++      return `M ${startX} ${startY} C ${startX + curve * .58} ${startY}, ${endX - curve * .35} ${endY - direction * verticalControl}, ${endX} ${endY}`;
++    }
++
+     return `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
+   }
+ 
+@@ -359,34 +481,58 @@ if (root) {
+           <stop offset="0%" stop-color="#4aa6ff" />
+           <stop offset="100%" stop-color="#7bdcff" />
+         </linearGradient>
++        <linearGradient id="processConditionalGradient" x1="0" y1="0" x2="1" y2="0">
++          <stop offset="0%" stop-color="#b77b2c" />
++          <stop offset="100%" stop-color="#ffd184" />
++        </linearGradient>
+         <filter id="processGlow" x="-50%" y="-50%" width="200%" height="200%">
+-          <feGaussianBlur stdDeviation="6" result="blur" />
++          <feGaussianBlur stdDeviation="4.5" result="blur" />
+           <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+         </filter>
+-        <marker id="processArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
++        <marker id="processArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
+           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7896bd"></path>
+         </marker>
+-        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
++        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.8" markerHeight="4.8" orient="auto-start-reverse">
+           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7bdcff"></path>
+         </marker>
++        <marker id="processArrowConditional" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
++          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e6ac52"></path>
++        </marker>
+       </defs>
+       <g class="process-path-grid" aria-hidden="true">
+         <line x1="0" y1="450" x2="${state.worldWidth}" y2="450"></line>
+       </g>`;
+ 
+-    state.edges.forEach((edge, index) => {
+-      const source = state.stageByCode.get(edge.source);
+-      const target = state.stageByCode.get(edge.target);
++    state.visualEdges.forEach((edge, index) => {
++      const source = entityForCode(edge.source);
++      const target = entityForCode(edge.target);
+       if (!source || !target) return;
++      const d = pathForEdge(source, target, edge);
++      const edgeId = `${edge.source}-${edge.target}-${edge.kind || 'structural'}`;
++
+       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+-      path.setAttribute('d', pathForEdge(source, target));
+-      path.setAttribute('data-edge-source', source.code);
+-      path.setAttribute('data-edge-target', target.code);
+-      path.setAttribute('marker-end', 'url(#processArrow)');
++      path.setAttribute('d', d);
++      path.setAttribute('data-edge-id', edgeId);
++      path.setAttribute('data-edge-source', edge.source);
++      path.setAttribute('data-edge-target', edge.target);
++      path.setAttribute('data-edge-kind', edge.kind || 'structural');
++      path.setAttribute('marker-end', edge.conditional ? 'url(#processArrowConditional)' : 'url(#processArrow)');
+       path.classList.add('process-connection');
+-      if (target.optional || (source.optional && target.code !== source.code)) path.classList.add('is-conditional');
+-      path.style.setProperty('--edge-delay', `${index * 28}ms`);
++      if (edge.conditional) path.classList.add('is-conditional');
++      if (edge.kind === 'bypass' || edge.kind === 'terminal-main') path.classList.add('is-bypass');
++      if ((state.structuralOutgoing.get(edge.source) || []).length > 1) path.classList.add('is-branch');
++      path.style.setProperty('--edge-delay', `${index * 24}ms`);
+       svg.appendChild(path);
++
++      const signal = document.createElementNS('http://www.w3.org/2000/svg', 'path');
++      signal.setAttribute('d', d);
++      signal.setAttribute('data-signal-id', edgeId);
++      signal.setAttribute('data-edge-source', edge.source);
++      signal.setAttribute('data-edge-target', edge.target);
++      signal.setAttribute('data-edge-kind', edge.kind || 'structural');
++      signal.classList.add('process-route-signal');
++      if (edge.conditional) signal.classList.add('is-conditional');
++      svg.appendChild(signal);
+     });
+ 
+     state.nodes.forEach(node => {
+@@ -409,6 +555,16 @@ if (root) {
+       nodeLayer.appendChild(button);
+     });
+ 
++    const endpoint = document.createElement('div');
++    endpoint.className = 'process-endpoint';
++    endpoint.dataset.processEndpoint = 'true';
++    endpoint.style.left = `${state.endpoint.x}px`;
++    endpoint.style.top = `${state.endpoint.y}px`;
++    endpoint.innerHTML = `
++      <span class="process-endpoint__ring" aria-hidden="true"></span>
++      <span class="process-endpoint__copy">Capability complete</span>`;
++    nodeLayer.appendChild(endpoint);
++
+     renderProgressTrack();
+     placeholder.hidden = true;
+     world.setAttribute('aria-busy', 'false');
+@@ -467,11 +623,74 @@ if (root) {
+     return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+   }
+ 
+-  function journeyContext(active) {
+-    const cluster = branchClusterFor(active?.code);
+-    if (!cluster) return null;
+-    const nodes = [...cluster.codes].map(code => state.stageByCode.get(code)).filter(Boolean);
+-    return { cluster, nodes };
++  function journeyTiersFor(active) {
++    const tiers = new Map(state.nodes.map(node => [node.code, 'hidden']));
++    if (!active) return tiers;
++    tiers.set(active.code, 'active');
++
++    const cluster = branchClusterFor(active.code);
++    if (cluster) {
++      if (active.code === cluster.source) {
++        cluster.branches.forEach(code => tiers.set(code, 'near'));
++        tiers.set(cluster.convergence, 'context');
++        (state.structuralIncoming.get(cluster.source) || []).forEach(code => tiers.set(code, 'context'));
++      } else if (cluster.branches.includes(active.code)) {
++        tiers.set(cluster.source, 'near');
++        cluster.branches.filter(code => code !== active.code).forEach(code => tiers.set(code, 'near'));
++        tiers.set(cluster.convergence, 'near');
++      } else if (active.code === cluster.convergence) {
++        cluster.branches.forEach(code => tiers.set(code, 'near'));
++        tiers.set(cluster.source, 'context');
++        (state.structuralOutgoing.get(cluster.convergence) || []).forEach(code => tiers.set(code, 'near'));
++        state.optionalDetours
++          .filter(detour => detour.source === cluster.convergence)
++          .forEach(detour => tiers.set(detour.code, 'context'));
++      }
++      return tiers;
++    }
++
++    const activeDetour = state.optionalDetours.find(detour => detour.code === active.code);
++    if (activeDetour) {
++      tiers.set(activeDetour.source, 'near');
++      if (activeDetour.successor) tiers.set(activeDetour.successor, 'near');
++      return tiers;
++    }
++
++    const predecessors = state.structuralIncoming.get(active.code) || [];
++    const successors = state.structuralOutgoing.get(active.code) || [];
++    predecessors.forEach(code => tiers.set(code, 'near'));
++    successors.forEach(code => tiers.set(code, 'near'));
++
++    predecessors.forEach(code => {
++      const predecessorCluster = branchClusterFor(code);
++      if (predecessorCluster?.convergence === code) return;
++      (state.structuralIncoming.get(code) || []).forEach(next => {
++        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
++      });
++    });
++    successors.forEach(code => {
++      const successorCluster = branchClusterFor(code);
++      if (successorCluster?.source === code) return;
++      (state.structuralOutgoing.get(code) || []).forEach(next => {
++        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
++      });
++    });
++
++    state.optionalDetours
++      .filter(detour => detour.source === active.code)
++      .forEach(detour => tiers.set(detour.code, 'context'));
++
++    return tiers;
++  }
++
++  function endpointTierFor(active) {
++    if (!active || !state.endpoint) return 'hidden';
++    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
++    if (!terminalDetour) return 'hidden';
++    if (active.code === terminalDetour.code || active.code === terminalDetour.source) return 'near';
++    const source = state.stageByCode.get(terminalDetour.source);
++    if (source && active.displayIndex === source.displayIndex - 1) return 'context';
++    return 'hidden';
+   }
+ 
+   function focusActiveStage(animate = true) {
+@@ -479,30 +698,27 @@ if (root) {
+     if (!node) return;
+ 
+     const viewport = viewportSize();
+-    const context = journeyContext(node);
+-    let focusX = node.x;
+-    let focusY = node.y;
+-    let scale;
+-
+-    if (context) {
+-      const xs = context.nodes.map(candidate => candidate.x);
+-      const ys = context.nodes.map(candidate => candidate.y);
+-      const minX = Math.min(...xs) - 150;
+-      const maxX = Math.max(...xs) + 150;
+-      const minY = Math.min(...ys) - 120;
+-      const maxY = Math.max(...ys) + 120;
+-      focusX = (minX + maxX) / 2;
+-      focusY = (minY + maxY) / 2;
+-      scale = Math.min(
+-        (viewport.width * .83) / Math.max(1, maxX - minX),
+-        (viewport.height * .76) / Math.max(1, maxY - minY)
+-      );
+-      scale = clamp(scale, .78, 1.02);
+-    } else {
+-      scale = clamp(viewport.width / 900, .94, 1.24);
+-    }
++    const tiers = journeyTiersFor(node);
++    const visible = state.nodes.filter(candidate => tiers.get(candidate.code) !== 'hidden');
++    if (endpointTierFor(node) !== 'hidden') visible.push(state.endpoint);
++
++    const minX = Math.min(...visible.map(candidate => candidate.x)) - 125;
++    const maxX = Math.max(...visible.map(candidate => candidate.x)) + 125;
++    const minY = Math.min(...visible.map(candidate => candidate.y)) - 120;
++    const maxY = Math.max(...visible.map(candidate => candidate.y)) + 120;
++    const rangeX = Math.max(380, maxX - minX);
++    const rangeY = Math.max(320, maxY - minY);
++    let scale = Math.min(
++      (viewport.width * .84) / rangeX,
++      (viewport.height * .76) / rangeY
++    );
++    scale = clamp(scale, .78, 1.22);
+ 
+-    const visualCenterX = viewport.width * (viewport.width > 1000 ? .48 : .5);
++    const boundsCenterX = (minX + maxX) / 2;
++    const boundsCenterY = (minY + maxY) / 2;
++    const focusX = (boundsCenterX * .44) + (node.x * .56);
++    const focusY = (boundsCenterY * .52) + (node.y * .48);
++    const visualCenterX = viewport.width * .5;
+     const visualCenterY = viewport.height * .50;
+     state.worldScale = scale;
+     state.worldX = visualCenterX - (focusX * scale);
+@@ -512,11 +728,10 @@ if (root) {
+ 
+   function resetMapCamera() {
+     const viewport = viewportSize();
+-    const fitScale = Math.min(
+-      (viewport.width - 70) / state.worldWidth,
+-      (viewport.height - 80) / state.worldHeight
+-    );
+-    state.mapScale = clamp(fitScale, .40, .76);
++    const horizontalFit = (viewport.width - 54) / state.worldWidth;
++    const verticalFit = (viewport.height - 64) / state.worldHeight;
++    const fitScale = Math.min(horizontalFit, verticalFit);
++    state.mapScale = clamp(fitScale, .30, .82);
+     state.mapX = (viewport.width - (state.worldWidth * state.mapScale)) / 2;
+     state.mapY = (viewport.height - (state.worldHeight * state.mapScale)) / 2;
+     updateMapZoom();
+@@ -533,10 +748,10 @@ if (root) {
+ 
+   function updateMapZoom() {
+     if (mapZoom) mapZoom.textContent = `${Math.round(state.mapScale * 100)}%`;
+-    const density = state.mapScale < .58 ? 'compact' : state.mapScale < .86 ? 'medium' : 'full';
++    const density = state.mapScale < .52 ? 'compact' : state.mapScale < .80 ? 'medium' : 'full';
+     experience.dataset.mapDensity = density;
+     scene.dataset.mapDensity = density;
+-    const semanticScale = clamp(.67 / Math.max(.01, state.mapScale), .92, 1.38);
++    const semanticScale = clamp(.75 / Math.max(.01, state.mapScale), 1, 1.55);
+     scene.style.setProperty('--map-node-scale', semanticScale.toFixed(3));
+     if (state.mode === 'map') updateSelection();
+   }
+@@ -556,37 +771,11 @@ if (root) {
+     applyWorldTransform(true);
+   }
+ 
+-  function journeyTier(node, active) {
+-    if (!node || !active) return 'hidden';
+-    if (node.code === active.code) return 'active';
+-
+-    const cluster = branchClusterFor(active.code);
+-    if (cluster) {
+-      if (cluster.codes.has(node.code)) return cluster.branches.includes(node.code) ? 'near' : 'context';
+-      const source = state.stageByCode.get(cluster.source);
+-      const convergence = state.stageByCode.get(cluster.convergence);
+-      if (active.code === cluster.source && source && node.displayIndex === source.displayIndex - 1) return 'context';
+-      if (active.code === cluster.convergence && convergence && node.displayIndex === convergence.displayIndex + 1) return 'context';
+-      return 'hidden';
+-    }
+-
+-    const upcomingCluster = state.branchClusters.find(candidate => {
+-      const source = state.stageByCode.get(candidate.source);
+-      return source && active.displayIndex < source.displayIndex && candidate.codes.has(node.code);
+-    });
+-    if (upcomingCluster && node.code !== upcomingCluster.source) return 'hidden';
+-
+-    const distance = Math.abs(node.displayIndex - active.displayIndex);
+-    if (distance === 1) return 'near';
+-    if (distance === 2) return 'context';
+-    return 'hidden';
+-  }
+-
+   function nodeScaleForTier(tier) {
+-    if (tier === 'active') return 1.42;
++    if (tier === 'active') return 1.38;
+     if (tier === 'near') return 1;
+-    if (tier === 'context') return .76;
+-    return .56;
++    if (tier === 'context') return .72;
++    return .52;
+   }
+   async function selectStage(code, { updateHash = true, animate = true } = {}) {
+     const node = state.stageByCode.get(String(code || '').toUpperCase());
+@@ -626,15 +815,17 @@ if (root) {
+ 
+     const activeCode = active.code;
+     const activeDepth = active.depth ?? -1;
+-    const tiers = new Map();
++    const tiers = state.mode === 'map'
++      ? new Map(state.nodes.map(node => [node.code, 'map']))
++      : journeyTiersFor(active);
++    const endpointTier = state.mode === 'map' ? 'map' : endpointTierFor(active);
+     scene.dataset.activeCode = activeCode.toLowerCase();
+ 
+     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
+       const node = state.stageByCode.get(button.dataset.stageCode);
+       const selected = node?.code === activeCode;
+       const past = node && (node.depth < activeDepth || (node.depth === activeDepth && node.displayIndex < active.displayIndex));
+-      const tier = state.mode === 'map' ? 'map' : journeyTier(node, active);
+-      tiers.set(node?.code, tier);
++      const tier = tiers.get(node?.code) || 'hidden';
+ 
+       button.classList.toggle('is-active', selected);
+       button.classList.toggle('is-past', Boolean(past));
+@@ -648,30 +839,59 @@ if (root) {
+ 
+       if (state.mode === 'map') {
+         button.style.setProperty('--node-scale', 'var(--map-node-scale, 1)');
+-        button.style.setProperty('--node-opacity', selected ? '1' : '.92');
++        button.style.setProperty('--node-opacity', selected ? '1' : '.94');
+         button.style.setProperty('--node-blur', '0px');
+       } else {
+         button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
+-        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.92' : tier === 'context' ? '.42' : '0');
+-        button.style.setProperty('--node-blur', tier === 'context' ? '1.4px' : tier === 'hidden' ? '7px' : '0px');
++        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
++        button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
+       }
+     });
+ 
++    const endpointElement = root.querySelector('[data-process-endpoint]');
++    if (endpointElement) {
++      endpointElement.dataset.journeyTier = endpointTier;
++      endpointElement.classList.toggle('is-visible', state.mode === 'map' || endpointTier !== 'hidden');
++      endpointElement.classList.toggle('is-near', endpointTier === 'near');
++      endpointElement.classList.toggle('is-context', endpointTier === 'context');
++    }
++
++    const activeDetour = state.optionalDetours.find(detour => detour.code === activeCode);
+     root.querySelectorAll('.process-connection').forEach(path => {
+       const source = path.dataset.edgeSource;
+       const target = path.dataset.edgeTarget;
+-      const selected = target === activeCode || source === activeCode;
+-      const targetNode = state.stageByCode.get(target);
+-      const traversed = targetNode && targetNode.displayIndex <= active.displayIndex;
+-      const sourceTier = tiers.get(source) || 'hidden';
+-      const targetTier = tiers.get(target) || 'hidden';
++      const kind = path.dataset.edgeKind;
++      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
++      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
+       const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
++      const conditional = path.classList.contains('is-conditional');
++      const connected = source === activeCode || target === activeCode;
++      const detourActive = Boolean(activeDetour && conditional && (source === activeCode || target === activeCode));
++      const bypassActive = !activeDetour && !conditional && connected;
++      const activePath = detourActive || bypassActive;
++      const targetNode = state.stageByCode.get(target);
++      const traversed = !conditional && targetNode && targetNode.displayIndex <= active.displayIndex;
+ 
+-      path.classList.toggle('is-active', selected);
++      path.classList.toggle('is-active', activePath);
+       path.classList.toggle('is-traversed', Boolean(traversed));
+       path.classList.toggle('is-story-hidden', !storyVisible);
+-      path.classList.toggle('is-story-context', storyVisible && !selected);
+-      path.setAttribute('marker-end', selected ? 'url(#processArrowActive)' : 'url(#processArrow)');
++      path.classList.toggle('is-story-context', storyVisible && !activePath);
++      path.setAttribute('marker-end', conditional
++        ? 'url(#processArrowConditional)'
++        : activePath ? 'url(#processArrowActive)' : 'url(#processArrow)');
++    });
++
++    root.querySelectorAll('.process-route-signal').forEach(path => {
++      const source = path.dataset.edgeSource;
++      const target = path.dataset.edgeTarget;
++      const conditional = path.classList.contains('is-conditional');
++      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
++      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
++      const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
++      const connected = source === activeCode || target === activeCode;
++      const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
++      path.classList.toggle('is-active', activeSignal);
++      path.classList.toggle('is-story-hidden', !storyVisible);
+     });
+ 
+     root.querySelectorAll('[data-progress-code]').forEach(dot => {

@@ -161,7 +161,7 @@ public static class StageFlowSeeder
             D(StageCodes.TEC, StageCodes.BID, version), D(StageCodes.BM, StageCodes.BID, version),
             D(StageCodes.COB, StageCodes.TEC, version), D(StageCodes.COB, StageCodes.BM, version),
             D(StageCodes.PNC, StageCodes.COB, version),
-            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
+            D(StageCodes.EAS, StageCodes.COB, version),
             D(StageCodes.SO, StageCodes.EAS, version), D(StageCodes.DEVP, StageCodes.SO, version), D(StageCodes.ATP, StageCodes.DEVP, version), D(StageCodes.PAYMENT, StageCodes.ATP, version),
             D(StageCodes.TOT, StageCodes.PAYMENT, version)
         };
@@ -182,7 +182,7 @@ public static class StageFlowSeeder
             D(StageCodes.COB, StageCodes.TEC, version),
             D(StageCodes.COB, StageCodes.BM, version),
             D(StageCodes.PNC, StageCodes.COB, version),
-            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
+            D(StageCodes.EAS, StageCodes.COB, version),
             D(StageCodes.SO, StageCodes.EAS, version),
             D(StageCodes.DEVP, StageCodes.SO, version),
             D(StageCodes.ATP, StageCodes.DEVP, version),
