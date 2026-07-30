@@ -4,19 +4,23 @@
 @{
     ViewData["Title"] = "ARPP reconciliation";
     ViewData["UseFullWidth"] = true;
+    ViewData["ArppSection"] = "reconciliation";
+    ViewData["CanManageArpp"] = true;
     var lookupUrl = Url.Content("~/api/arpp/projects");
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
      data-arpp-project-lookup-url="@lookupUrl"
      data-arpp-reconcile>
-    <header class="arpp-header">
+    <partial name="_ModuleNav" />
+    <header class="arpp-v2-page-header">
         <div>
-            <div class="arpp-eyebrow">ARPP / PPP</div>
+            <span class="arpp-v2-page-header__eyebrow">Reconciliation</span>
             <h1>Project reconciliation</h1>
             <p>Link issued ARPP rows to existing PRISM projects without changing the project reference recorded in the HQ document.</p>
         </div>
@@ -28,25 +32,30 @@
 
     <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
-    <section class="arpp-kpis arpp-kpis--reconcile" aria-label="Reconciliation summary">
-        <article class="arpp-kpi">
+    <section class="arpp-v2-summary" aria-label="Reconciliation summary">
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile">
             <span>Unlinked rows</span>
             <strong>@Model.Queue.TotalUnlinkedEntries</strong>
         </article>
-        <article class="arpp-kpi">
+        <article class="arpp-v2-summary__item">
             <span>Shown</span>
             <strong>@Model.Queue.Items.Count</strong>
             <small>Maximum 100 per view</small>
         </article>
-        <article class="arpp-kpi arpp-kpi--wide">
+        <article class="arpp-v2-summary__item">
+            <span>Financial years</span>
+            <strong>@Model.Queue.AvailableFinancialYears.Count</strong>
+            <small>Available in the reconciliation queue</small>
+        </article>
+        <article class="arpp-v2-summary__item">
             <span>Linking rule</span>
             <strong class="fs-6">Confirmed by user</strong>
             <small>Suggestions never link automatically.</small>
         </article>
     </section>
 
-    <form method="get" class="arpp-filterbar arpp-filterbar--reconcile" role="search">
-        <div class="arpp-search">
+    <form method="get" class="arpp-v2-filterbar" role="search">
+        <div class="arpp-v2-search">
             <span class="bi bi-search" aria-hidden="true"></span>
             <label class="visually-hidden" asp-for="Query">Search unlinked rows</label>
             <input asp-for="Query" type="search" class="form-control" placeholder="Search project reference, PPP number, serial number or issue" />

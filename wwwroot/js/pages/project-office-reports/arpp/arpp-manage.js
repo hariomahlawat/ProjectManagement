@@ -13,6 +13,9 @@
     const topScrollbarSpacer = root?.querySelector("[data-arpp-table-scrollbar-spacer]");
     if (!root || !form || !body || !template) return;
 
+    document.body.classList.add("arpp-workspace-active");
+    window.addEventListener("pagehide", () => document.body.classList.remove("arpp-workspace-active"), { once: true });
+
     let dirty = false;
     let saving = false;
     let validationIssueCount = 0;
@@ -23,8 +26,8 @@
     let pasteRows = [];
     let jumpMatches = [];
     let jumpMatchIndex = -1;
-    let fullscreenScrollY = 0;
     let scrollSyncInProgress = false;
+    let activeRowFilter = "all";
 
     const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
     const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
@@ -102,6 +105,9 @@
         commandbar?.classList.toggle("is-dirty", dirty);
         commandbar?.classList.toggle("has-validation", validationIssueCount > 0);
         commandbar?.classList.toggle("is-saving", saving);
+        root.classList.toggle("is-dirty", dirty);
+        root.classList.toggle("has-validation", validationIssueCount > 0);
+        root.classList.toggle("is-saving", saving);
     };
 
     const setDirty = value => {
@@ -119,28 +125,6 @@
         baselineSnapshot = createFormSnapshot();
         serverRejectedChanges = false;
         setDirty(false);
-    };
-
-    const measureApplicationChrome = () => {
-        if (document.body.classList.contains("arpp-workspace-fullscreen")) return 0;
-
-        const elements = [document.querySelector(".pm-topbar"), document.querySelector(".pm-module-subnav-wrap")]
-            .filter(element => element instanceof HTMLElement && getComputedStyle(element).display !== "none");
-        if (!elements.length) return 0;
-
-        return Math.max(...elements.map(element => {
-            const rect = element.getBoundingClientRect();
-            return Math.max(0, Math.ceil(rect.bottom));
-        }));
-    };
-
-    const updateStickyMetrics = () => {
-        const appChromeHeight = measureApplicationChrome();
-        const commandbarHeight = commandbar instanceof HTMLElement
-            ? Math.ceil(commandbar.getBoundingClientRect().height)
-            : 0;
-        root.style.setProperty("--arpp-app-chrome-height", `${appChromeHeight}px`);
-        root.style.setProperty("--arpp-commandbar-height", `${commandbarHeight}px`);
     };
 
     const updateScrollEdgeState = () => {
@@ -168,12 +152,32 @@
         if (!(row instanceof HTMLElement)) return;
         rows().forEach(candidate => candidate.classList.remove("arpp-row--jump-target", "is-validation-target"));
         row.classList.add(target ? "is-validation-target" : "arpp-row--jump-target");
-        row.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+
+        if (row.hidden) {
+            activeRowFilter = "all";
+            applyRowFilter();
+        }
+
+        if (tableWrap instanceof HTMLElement) {
+            const wrapRect = tableWrap.getBoundingClientRect();
+            const rowRect = row.getBoundingClientRect();
+            const desiredTop = tableWrap.scrollTop + rowRect.top - wrapRect.top - Math.max(0, (wrapRect.height - rowRect.height) / 2);
+            tableWrap.scrollTo({ top: Math.max(0, desiredTop), behavior: "smooth" });
+        } else {
+            row.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        }
+
         if (target instanceof HTMLElement) {
             window.setTimeout(() => {
-                target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+                if (tableWrap instanceof HTMLElement) {
+                    const targetRect = target.getBoundingClientRect();
+                    const wrapRect = tableWrap.getBoundingClientRect();
+                    if (targetRect.left < wrapRect.left || targetRect.right > wrapRect.right) {
+                        tableWrap.scrollLeft += targetRect.left - wrapRect.left - 24;
+                    }
+                }
                 target.focus({ preventScroll: true });
-            }, 180);
+            }, 220);
         }
     };
 
@@ -279,6 +283,72 @@
         });
     };
 
+    const rowHasValidationIssue = row => collectValidationIssues().some(issue => issue.row === row);
+
+    const updateRowNavigator = () => {
+        const currentRows = rows();
+        const counts = {
+            all: currentRows.length,
+            issues: currentRows.filter(rowHasValidationIssue).length,
+            unlinked: currentRows.filter(row => !Number(getField(row, "ProjectId")?.value || 0)).length,
+            delisted: currentRows.filter(isDelisted).length
+        };
+
+        Object.entries(counts).forEach(([key, value]) => {
+            root.querySelectorAll(`[data-arpp-filter-count="${key}"]`).forEach(element => {
+                element.textContent = String(value);
+            });
+        });
+        applyRowFilter(false);
+    };
+
+    function applyRowFilter(closeNavigator = false) {
+        const labels = {
+            all: "All rows",
+            issues: "Needs attention",
+            unlinked: "Unlinked rows",
+            delisted: "Delisted rows"
+        };
+        let visible = 0;
+        rows().forEach(row => {
+            const matches = activeRowFilter === "all"
+                || (activeRowFilter === "issues" && rowHasValidationIssue(row))
+                || (activeRowFilter === "unlinked" && !Number(getField(row, "ProjectId")?.value || 0))
+                || (activeRowFilter === "delisted" && isDelisted(row));
+            const keepActiveEditorVisible = activeRowFilter !== "all" && row.contains(document.activeElement);
+            const show = matches || keepActiveEditorVisible;
+            row.hidden = !show;
+            if (matches) visible += 1;
+        });
+
+        root.querySelectorAll("[data-arpp-row-filter]").forEach(button => {
+            const selected = button.dataset.arppRowFilter === activeRowFilter;
+            button.classList.toggle("is-active", selected);
+            button.setAttribute("aria-pressed", selected ? "true" : "false");
+        });
+
+        const status = root.querySelector("[data-arpp-visible-row-status]");
+        if (status) status.textContent = `${labels[activeRowFilter] || "Rows"} · ${visible}`;
+        if (closeNavigator && window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
+    }
+
+    const setNavigatorOpen = open => {
+        const navigator = root.querySelector("[data-arpp-navigator]");
+        const enabled = Boolean(open);
+        navigator?.classList.toggle("is-open", enabled);
+        root.classList.toggle("has-navigator-open", enabled);
+        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", enabled ? "true" : "false");
+    };
+
+    const setDetailsOpen = open => {
+        const drawer = root.querySelector("[data-arpp-details-drawer]");
+        const enabled = Boolean(open);
+        drawer?.classList.toggle("is-open", enabled);
+        drawer?.setAttribute("aria-hidden", enabled ? "false" : "true");
+        root.classList.toggle("has-details-open", enabled);
+        if (enabled) window.setTimeout(() => drawer?.querySelector("input, select, textarea, button")?.focus(), 160);
+    };
+
     const setValidationTrayOpen = open => {
         const navigator = root.querySelector("[data-arpp-validation-navigator]");
         validationTrayOpen = Boolean(open && validationIssueCount > 0);
@@ -309,6 +379,7 @@
             validationExpanded = false;
             validationTrayOpen = false;
             moreButton?.classList.add("d-none");
+            updateRowNavigator();
             syncWorkspaceStatus();
             return issues;
         }
@@ -346,7 +417,7 @@
                 const first = group.issues[0];
                 if (first.row) scrollRowIntoWorkspace(first.row, first.control);
                 else {
-                    root.querySelector(".arpp-panel--identity")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    setDetailsOpen(true);
                     window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
                 }
                 setValidationTrayOpen(false);
@@ -373,32 +444,9 @@
         }
         if (focusFirst) firstButton?.focus({ preventScroll: true });
         setValidationTrayOpen(validationTrayOpen);
+        updateRowNavigator();
         syncWorkspaceStatus();
         return issues;
-    };
-
-    const setFullscreen = enabled => {
-        if (document.body.classList.contains("arpp-workspace-fullscreen") === enabled) return;
-        const activeRow = document.activeElement?.closest?.("[data-arpp-entry-row]");
-        if (enabled) fullscreenScrollY = window.scrollY;
-        document.body.classList.toggle("arpp-workspace-fullscreen", enabled);
-        root.querySelectorAll("[data-arpp-fullscreen-toggle]").forEach(button => {
-            button.setAttribute("aria-pressed", enabled ? "true" : "false");
-            button.title = enabled ? "Exit full-screen workspace" : "Open full-screen workspace";
-        });
-        root.querySelectorAll("[data-arpp-fullscreen-icon]").forEach(icon => {
-            icon.classList.toggle("bi-arrows-fullscreen", !enabled);
-            icon.classList.toggle("bi-fullscreen-exit", enabled);
-        });
-        root.querySelectorAll("[data-arpp-fullscreen-label]").forEach(label => {
-            label.textContent = enabled ? "Exit full screen" : "Full screen";
-        });
-        window.requestAnimationFrame(() => {
-            updateStickyMetrics();
-            syncTableScrollbars();
-            if (enabled && activeRow instanceof HTMLElement) activeRow.scrollIntoView({ block: "center" });
-            if (!enabled) window.scrollTo({ top: fullscreenScrollY, behavior: "auto" });
-        });
     };
 
     const updateIssueSequence = () => {
@@ -506,6 +554,7 @@
         updateEmptyState();
         refreshRowWarnings();
         refreshUnobtrusiveValidation();
+        window.requestAnimationFrame(updateRowNavigator);
     };
 
     const parseMoney = value => {
@@ -682,6 +731,7 @@
             category.addEventListener("change", () => {
                 syncIssuedIdentifiers(row);
                 refreshRowWarnings();
+                updateRowNavigator();
                 markDirty();
             });
             syncIssuedIdentifiers(row);
@@ -708,10 +758,12 @@
                     autosizeReference(projectReference);
                 }
                 refreshRowWarnings();
+                updateRowNavigator();
                 markDirty();
             });
             picker.addEventListener("arpp:project-cleared", () => {
                 refreshRowWarnings();
+                updateRowNavigator();
                 markDirty();
             });
         }
@@ -1009,6 +1061,9 @@
     form.addEventListener("invalid", () => {
         window.setTimeout(() => updateValidationNavigator(false), 0);
     }, true);
+    form.addEventListener("focusout", () => {
+        window.setTimeout(() => applyRowFilter(false), 0);
+    });
     form.addEventListener("submit", event => {
         root.querySelectorAll("[data-arpp-money]").forEach(normaliseMoneyInput);
         const jqueryValid = window.jQuery?.fn?.valid ? window.jQuery(form).valid() : true;
@@ -1067,13 +1122,20 @@
         jumpToMatch(true);
     });
     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
-    root.querySelectorAll("[data-arpp-fullscreen-toggle]").forEach(button => {
+    root.querySelector("[data-arpp-navigator-toggle]")?.addEventListener("click", () => setNavigatorOpen(true));
+    root.querySelector("[data-arpp-navigator-close]")?.addEventListener("click", () => setNavigatorOpen(false));
+    root.querySelector("[data-arpp-navigator-backdrop]")?.addEventListener("click", () => setNavigatorOpen(false));
+    root.querySelectorAll("[data-arpp-details-toggle]").forEach(button => button.addEventListener("click", () => setDetailsOpen(true)));
+    root.querySelectorAll("[data-arpp-details-close], [data-arpp-details-backdrop]").forEach(button => button.addEventListener("click", () => setDetailsOpen(false)));
+    root.querySelectorAll("[data-arpp-row-filter]").forEach(button => {
         button.addEventListener("click", () => {
-            setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
+            activeRowFilter = button.dataset.arppRowFilter || "all";
+            applyRowFilter(true);
         });
     });
 
     root.querySelector("[data-arpp-validation-toggle]")?.addEventListener("click", () => {
+        setNavigatorOpen(true);
         setValidationTrayOpen(!validationTrayOpen);
         if (validationTrayOpen) root.querySelector("[data-arpp-validation-navigator]")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -1111,19 +1173,25 @@
             addManualRow();
             return;
         }
-        if (event.key === "Escape" && document.body.classList.contains("arpp-workspace-fullscreen") && !document.querySelector(".modal.show")) {
-            setFullscreen(false);
+        if (event.key === "Escape" && !document.querySelector(".modal.show")) {
+            if (root.classList.contains("has-details-open")) {
+                setDetailsOpen(false);
+                return;
+            }
+            if (root.classList.contains("has-navigator-open")) {
+                setNavigatorOpen(false);
+                return;
+            }
         }
     });
 
     window.addEventListener("resize", () => {
-        updateStickyMetrics();
         syncTableScrollbars();
+        if (!window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
     }, { passive: true });
 
     if (window.ResizeObserver) {
         const resizeObserver = new ResizeObserver(() => {
-            updateStickyMetrics();
             syncTableScrollbars();
         });
         if (entryTable) resizeObserver.observe(entryTable);
@@ -1152,8 +1220,8 @@
 
     updateIssueSequence();
     reindexRows();
-    updateStickyMetrics();
     syncTableScrollbars();
+    updateRowNavigator();
     baselineSnapshot = createFormSnapshot();
     updateValidationNavigator(false);
     if (serverRejectedChanges) setDirty(true);

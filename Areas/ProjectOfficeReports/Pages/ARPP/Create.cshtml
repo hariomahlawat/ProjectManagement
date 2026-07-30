@@ -5,18 +5,23 @@
 @{
     ViewData["Title"] = "New ARPP issue";
     ViewData["UseFullWidth"] = true;
+    ViewData["ArppSection"] = "administration";
+    ViewData["CanManageArpp"] = true;
     var suggestedAddendumSequence = ViewData["SuggestedAddendumSequence"] as int? ?? 1;
     var suggestionUrl = Url.Page("/ARPP/Create", "Suggestion", new { area = "ProjectOfficeReports" });
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
-    <header class="arpp-header">
+    <partial name="_ModuleNav" />
+    <div class="arpp-v2-form-shell">
+    <header class="arpp-v2-page-header">
         <div>
-            <div class="arpp-eyebrow">ARPP / PPP</div>
+            <span class="arpp-v2-page-header__eyebrow">Administration</span>
             <h1>Create issued document</h1>
             <p>Create the original ARPP or an addendum, then enter its rows in the document workspace.</p>
         </div>
@@ -27,14 +32,14 @@
     </header>
 
     <form method="post"
-          class="arpp-editor"
+          class="arpp-v2-form-panel"
           data-arpp-issue-form
           data-suggested-addendum-sequence="@suggestedAddendumSequence"
           data-arpp-suggestion-url="@suggestionUrl">
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-        <section class="arpp-panel">
-            <div class="arpp-panel__heading">
+        <section>
+            <div class="arpp-v2-form-panel__header">
                 <div>
                     <h2>Document identity</h2>
                     <p>Enter the identity exactly as shown on the issued HQ document.</p>
@@ -80,11 +85,12 @@
             </div>
         </section>
 
-        <div class="arpp-editor__actions">
+        <div class="arpp-v2-form-actions p-3 pt-0">
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary">Cancel</a>
             <button type="submit" class="btn btn-primary">Create and enter rows</button>
         </div>
     </form>
+    </div>
 </div>
 
 @section Scripts {

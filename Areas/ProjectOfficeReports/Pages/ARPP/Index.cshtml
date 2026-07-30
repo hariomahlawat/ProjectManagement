@@ -3,8 +3,10 @@
 @using ProjectManagement.Utilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.IndexModel
 @{
-    ViewData["Title"] = "ARPP / PPP";
+    ViewData["Title"] = "ARPP administration";
     ViewData["UseFullWidth"] = true;
+    ViewData["ArppSection"] = "administration";
+    ViewData["CanManageArpp"] = Model.CanManage;
     var allIssues = Model.Register.FinancialYears.SelectMany(group => group.Issues).ToArray();
     var publishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
     var workingRecordCount = allIssues.Count(issue => !issue.IsVerified);
@@ -12,30 +14,26 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
-    <header class="arpp-header">
-        <div>
-            <div class="arpp-eyebrow">Project Office Reports</div>
-            <h1>ARPP / PPP Register</h1>
-            <p>Maintain HQ-issued annual procurement plans and addenda as the authoritative IPA source.</p>
+    <partial name="_ModuleNav" />
+
+    <header class="arpp-v2-page-header">
+        <div class="arpp-v2-page-header__identity">
+            <span class="arpp-v2-page-header__eyebrow">Administration</span>
+            <h1>ARPP administration</h1>
+            <p>Create, correct, verify and publish HQ-issued annual procurement plans and addenda.</p>
         </div>
         @if (Model.CanManage)
         {
-            <div class="d-flex flex-wrap gap-2">
-                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
-                    <span class="bi bi-link-45deg" aria-hidden="true"></span>
-                    <span>Reconcile</span>
-                    @if (Model.Register.UnlinkedEntries > 0)
-                    {
-                        <span>(@Model.Register.UnlinkedEntries)</span>
-                    }
+            <div class="arpp-v2-page-header__actions">
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" class="btn btn-outline-primary btn-sm">
+                    <span class="bi bi-link-45deg" aria-hidden="true"></span> Reconciliation
+                    @if (Model.Register.UnlinkedEntries > 0) { <span class="badge text-bg-primary">@Model.Register.UnlinkedEntries</span> }
                 </a>
-                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Create" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2">
-                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                    New issue
-                </a>
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Create" class="btn btn-primary btn-sm"><span class="bi bi-plus-lg" aria-hidden="true"></span> New ARPP / Addendum</a>
             </div>
         }
     </header>
@@ -43,210 +41,83 @@
     <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
     @if (TempData["ArppWarningMessage"] is string warningMessage)
     {
-        <div class="alert alert-warning arpp-alert" role="alert">
-            <span class="bi bi-exclamation-triangle" aria-hidden="true"></span>
-            <span>@warningMessage</span>
-        </div>
+        <div class="alert alert-warning arpp-alert" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span><span>@warningMessage</span></div>
     }
 
-    <section class="arpp-kpis" aria-label="ARPP register summary">
-        <article class="arpp-kpi">
-            <span>ARPP records</span>
-            <strong>@Model.Register.TotalIssues</strong>
-            <small>@publishedRecordCount published · @workingRecordCount working · @Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small>
-        </article>
-        <article class="arpp-kpi arpp-kpi--approved">
-            <span>Approved projects IPA</span>
-            <strong>@IndianCurrencyFormatter.FormatCompact(Model.Register.ApprovedLinkedIpaCost)</strong>
-            <small>@Model.Register.ApprovedLinkedProjects @(Model.Register.ApprovedLinkedProjects == 1 ? "project" : "projects") · New, CL and CF</small>
-        </article>
-        <article class="arpp-kpi arpp-kpi--delisted">
-            <span>Delisted projects IPA</span>
-            <strong>@IndianCurrencyFormatter.FormatCompact(Model.Register.DelistedLinkedIpaCost)</strong>
-            <small>@Model.Register.DelistedLinkedProjects @(Model.Register.DelistedLinkedProjects == 1 ? "project" : "projects") in latest Delisted position</small>
-        </article>
-        <article class="arpp-kpi">
-            <span>Reconciliation pending</span>
-            <strong>@Model.Register.UnlinkedEntries</strong>
-            <small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small>
-        </article>
+    <section class="arpp-v2-summary" aria-label="Administration summary">
+        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small></article>
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Published positions</span><strong>@publishedRecordCount</strong><small>Verified records and active published revisions</small></article>
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Working copies</span><strong>@workingRecordCount</strong><small>Setup, correction or verification in progress</small></article>
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>
     </section>
 
-    <form method="get" class="arpp-filterbar" role="search">
-        <div class="arpp-search">
-            <span class="bi bi-search" aria-hidden="true"></span>
-            <label class="visually-hidden" asp-for="Query">Search ARPP register</label>
-            <input asp-for="Query" type="search" class="form-control" placeholder="Search issue, project, PPP number, case file or serial number" />
-        </div>
-        <div>
-            <label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label>
-            <select asp-for="FinancialYearStart" class="form-select">
-                <option value="">All financial years</option>
-                @foreach (var year in Model.Register.AvailableFinancialYears)
-                {
-                    <option value="@year">@FinancialYearHelper.Format(year)</option>
-                }
-            </select>
-        </div>
+    <form method="get" class="arpp-v2-filterbar" role="search">
+        <div class="arpp-v2-search"><span class="bi bi-search" aria-hidden="true"></span><label class="visually-hidden" asp-for="Query">Search ARPP records</label><input asp-for="Query" type="search" class="form-control" placeholder="Search records, projects, PPP or serial" /></div>
+        <div><label class="visually-hidden" asp-for="FinancialYearStart">Financial year</label><select asp-for="FinancialYearStart" class="form-select"><option value="">All financial years</option>@foreach (var year in Model.Register.AvailableFinancialYears) { <option value="@year">@FinancialYearHelper.Format(year)</option> }</select></div>
         <button type="submit" class="btn btn-outline-primary">Apply</button>
-        @if (Model.FinancialYearStart.HasValue || !string.IsNullOrWhiteSpace(Model.Query))
-        {
-            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-link">Clear</a>
-        }
+        @if (Model.FinancialYearStart.HasValue || !string.IsNullOrWhiteSpace(Model.Query)) { <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-link">Clear</a> }
     </form>
 
     @if (Model.Register.FinancialYears.Count == 0)
     {
-        <section class="arpp-empty">
-            <span class="bi bi-journal-text" aria-hidden="true"></span>
-            <h2>No ARPP issues found</h2>
-            <p>Create the original ARPP or change the current search and financial-year filter.</p>
-        </section>
+        <section class="arpp-empty"><span class="bi bi-journal-text" aria-hidden="true"></span><h2>No ARPP records found</h2><p>Create the original ARPP or change the current filters.</p></section>
     }
     else
     {
-        <div class="arpp-year-groups">
-            @foreach (var group in Model.Register.FinancialYears)
-            {
-                <section class="arpp-year-group" aria-labelledby="arpp-year-@group.FinancialYearStart">
-                    <header class="arpp-year-group__header">
-                        <div>
-                            <div class="arpp-eyebrow">Financial year</div>
-                            <h2 id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</h2>
-                        </div>
-                        <div class="arpp-year-group__summary">
-                            <span class="arpp-year-group__rows">@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
-                            <span class="arpp-year-position arpp-year-position--approved" title="Latest New, CL or CF entry for each linked project in this financial year">
-                                <span>Approved</span>
-                                <strong>@IndianCurrencyFormatter.FormatCompact(group.ApprovedLinkedIpaCost)</strong>
-                                <small>@group.ApprovedLinkedProjectCount @(group.ApprovedLinkedProjectCount == 1 ? "project" : "projects")</small>
-                            </span>
-                            <span class="arpp-year-position arpp-year-position--delisted" title="Latest Delisted entry for each linked project in this financial year">
-                                <span>Delisted</span>
-                                <strong>@IndianCurrencyFormatter.FormatCompact(group.DelistedLinkedIpaCost)</strong>
-                                <small>@group.DelistedLinkedProjectCount @(group.DelistedLinkedProjectCount == 1 ? "project" : "projects")</small>
-                            </span>
-                            @if (group.UnlinkedEntryCount > 0)
-                            {
-                                <span class="text-warning-emphasis">@group.UnlinkedEntryCount unlinked</span>
-                            }
-                        </div>
-                    </header>
-
-                    <div class="arpp-issue-list">
-                        @foreach (var issue in group.Issues)
-                        {
-                            var isCorrection = !issue.IsVerified && issue.HasPublishedSnapshot;
-                            var isSetupIncomplete = !issue.IsVerified && issue.EntryCount == 0 && !issue.HasAttachment;
-                            var needsReferenceReview = !issue.IsVerified && issue.HasUnresolvedReferenceData;
-                            var isReadyForVerification = !issue.IsVerified && issue.EntryCount > 0 && issue.HasAttachment && !needsReferenceReview;
-                            var stateLabel = issue.IsVerified
-                                ? "Verified and published"
-                                : isCorrection
-                                    ? "Unlocked for correction"
-                                    : isSetupIncomplete
-                                        ? "Setup incomplete"
-                                        : needsReferenceReview
-                                            ? "Reference review required"
-                                            : isReadyForVerification
-                                                ? "Ready for verification"
-                                                : "Working copy";
-                            var stateBadgeClass = issue.IsVerified
-                                ? "arpp-badge--verified"
-                                : isCorrection
-                                    ? "arpp-badge--correction"
-                                    : isSetupIncomplete
-                                        ? "arpp-badge--incomplete"
-                                        : needsReferenceReview
-                                            ? "arpp-badge--reference-review"
-                                            : isReadyForVerification
-                                                ? "arpp-badge--ready"
-                                                : "arpp-badge--unverified";
-                            var stateIcon = issue.IsVerified
-                                ? "bi-lock-fill"
-                                : isCorrection
-                                    ? "bi-pencil-square"
-                                    : isSetupIncomplete
-                                        ? "bi-exclamation-circle"
-                                        : needsReferenceReview
-                                            ? "bi-list-check"
-                                            : isReadyForVerification
-                                                ? "bi-shield-check"
-                                                : "bi-hourglass-split";
-
-                            <article class="arpp-issue-card">
-                                <div class="arpp-issue-card__main">
-                                    <div class="arpp-issue-card__titleline">
-                                        <span class="arpp-badge arpp-badge--issue">@ArppDisplayNames.For(issue.Kind)</span>
-                                        @if (issue.Kind == ArppIssueKind.Addendum)
-                                        {
-                                            <span class="arpp-sequence">Addendum @issue.IssueSequence</span>
-                                        }
-                                        <span class="arpp-badge @stateBadgeClass"><span class="bi @stateIcon" aria-hidden="true"></span> @stateLabel</span>
-                                        @if (isCorrection && issue.PublishedRevisionNumber.HasValue)
-                                        {
-                                            <span class="arpp-issue-state-note">Revision @issue.PublishedRevisionNumber remains published</span>
-                                        }
-                                        else if (isSetupIncomplete)
-                                        {
-                                            <span class="arpp-issue-state-note">Rows and HQ PDF required</span>
-                                        }
-                                        else if (!issue.IsVerified && !issue.HasAttachment)
-                                        {
-                                            <span class="arpp-issue-state-note">HQ PDF required before verification</span>
-                                        }
-                                        else if (needsReferenceReview)
-                                        {
-                                            <span class="arpp-issue-state-note">Map CFA, Fund and DFPDS values</span>
-                                        }
-                                    </div>
-                                    <h3><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id">@issue.Name</a></h3>
-                                    <div class="arpp-issue-card__meta">
-                                        <span><i class="bi bi-calendar3" aria-hidden="true"></i> @issue.IssueDate.ToString("dd MMM yyyy")</span>
-                                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount @(issue.EntryCount == 1 ? "row" : "rows")</span>
-                                        <span><i class="bi bi-link-45deg" aria-hidden="true"></i> @issue.LinkedCount linked</span>
-                                        @if (issue.HasAttachment)
-                                        {
-                                            <span class="text-success-emphasis"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> HQ PDF attached</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-warning-emphasis"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> HQ PDF pending</span>
-                                        }
-                                        @if (issue.UnlinkedCount > 0)
-                                        {
-                                            <span class="text-warning-emphasis"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> @issue.UnlinkedCount unlinked</span>
-                                        }
-                                    </div>
-                                    <div class="arpp-category-chips" aria-label="Category counts">
-                                        <span>New @issue.NewCount</span>
-                                        <span>CL @issue.CommittedLiabilityCount</span>
-                                        <span>CF @issue.CarryForwardCount</span>
-                                        <span class="arpp-category-chip--delisted">Delisted @issue.DelistedCount</span>
-                                    </div>
-                                </div>
-                                <div class="arpp-issue-card__value">
-                                    <div class="arpp-issue-card__value-line arpp-issue-card__value-line--approved">
-                                        <span>@(issue.IsVerified ? "Published approved value" : "Working approved value")</span>
-                                        <strong>@IndianCurrencyFormatter.FormatCompact(issue.ApprovedRowValue)</strong>
-                                    </div>
-                                    <div class="arpp-issue-card__value-line arpp-issue-card__value-line--delisted">
-                                        <span>@(issue.IsVerified ? "Published delisted value" : "Working delisted value")</span>
-                                        <strong>@IndianCurrencyFormatter.FormatCompact(issue.DelistedRowValue)</strong>
-                                    </div>
-                                    <div class="arpp-card-actions">
-                                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View record</a>
-                                        @if (Model.CanManage && !issue.IsVerified)
-                                        {
-                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-outline-primary btn-sm">Edit working copy</a>
-                                        }
-                                    </div>
-                                </div>
-                            </article>
-                        }
+        @foreach (var group in Model.Register.FinancialYears)
+        {
+            <section class="arpp-v2-year" aria-labelledby="arpp-year-@group.FinancialYearStart">
+                <header class="arpp-v2-year__header">
+                    <div class="arpp-v2-year__title"><span>Financial year</span><strong id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</strong></div>
+                    <div class="arpp-v2-year__position">
+                        <span>@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
+                        <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(group.ApprovedLinkedIpaCost)</strong> approved · @group.ApprovedLinkedProjectCount @(group.ApprovedLinkedProjectCount == 1 ? "project" : "projects")</span>
+                        <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(group.DelistedLinkedIpaCost)</strong> delisted · @group.DelistedLinkedProjectCount @(group.DelistedLinkedProjectCount == 1 ? "project" : "projects")</span>
                     </div>
-                </section>
-            }
-        </div>
+                </header>
+
+                <div>
+                    @foreach (var issue in group.Issues)
+                    {
+                        var isCorrection = !issue.IsVerified && issue.HasPublishedSnapshot;
+                        var isSetupIncomplete = !issue.IsVerified && issue.EntryCount == 0 && !issue.HasAttachment;
+                        var needsReferenceReview = !issue.IsVerified && issue.HasUnresolvedReferenceData;
+                        var isReadyForVerification = !issue.IsVerified && issue.EntryCount > 0 && issue.HasAttachment && !needsReferenceReview;
+                        var stateLabel = issue.IsVerified ? "Verified and published" : isCorrection ? "Unlocked for correction" : isSetupIncomplete ? "Setup incomplete" : needsReferenceReview ? "Reference review required" : isReadyForVerification ? "Ready for verification" : "Working copy";
+                        var stateBadgeClass = issue.IsVerified ? "arpp-badge--verified" : isCorrection ? "arpp-badge--correction" : isSetupIncomplete ? "arpp-badge--incomplete" : needsReferenceReview ? "arpp-badge--reference-review" : isReadyForVerification ? "arpp-badge--ready" : "arpp-badge--unverified";
+                        var stateIcon = issue.IsVerified ? "bi-lock-fill" : isCorrection ? "bi-pencil-square" : isSetupIncomplete ? "bi-exclamation-circle" : needsReferenceReview ? "bi-list-check" : isReadyForVerification ? "bi-shield-check" : "bi-hourglass-split";
+                        var continuity = isCorrection && issue.PublishedRevisionNumber.HasValue ? $"Revision {issue.PublishedRevisionNumber} remains published" : isSetupIncomplete ? "Rows and HQ PDF required" : !issue.IsVerified && !issue.HasAttachment ? "HQ PDF required before verification" : needsReferenceReview ? "Map CFA, Fund and DFPDS values" : null;
+
+                        <article class="arpp-v2-record">
+                            <div class="arpp-v2-record__main">
+                                <div class="arpp-v2-record__badges">
+                                    <span class="arpp-badge arpp-badge--issue">@ArppDisplayNames.For(issue.Kind)</span>
+                                    @if (issue.Kind == ArppIssueKind.Addendum) { <span class="arpp-sequence">Addendum @issue.IssueSequence</span> }
+                                    <span class="arpp-badge @stateBadgeClass"><span class="bi @stateIcon" aria-hidden="true"></span> @stateLabel</span>
+                                    @if (!string.IsNullOrWhiteSpace(continuity)) { <span class="arpp-v2-record__continuity">@continuity</span> }
+                                </div>
+                                <h3><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id">@issue.Name</a></h3>
+                                <div class="arpp-v2-record__meta">
+                                    <span><i class="bi bi-calendar3" aria-hidden="true"></i> @issue.IssueDate.ToString("dd MMM yyyy")</span>
+                                    <span><i class="bi bi-list-ol" aria-hidden="true"></i> @issue.EntryCount @(issue.EntryCount == 1 ? "row" : "rows")</span>
+                                    <span><i class="bi bi-link-45deg" aria-hidden="true"></i> @issue.LinkedCount linked</span>
+                                    <span class="@(issue.HasAttachment ? "text-success-emphasis" : "text-warning-emphasis")"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> @(issue.HasAttachment ? "HQ PDF attached" : "HQ PDF pending")</span>
+                                    @if (issue.UnlinkedCount > 0) { <span class="text-warning-emphasis"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> @issue.UnlinkedCount unlinked</span> }
+                                </div>
+                                <div class="arpp-v2-record__categories"><span>New @issue.NewCount</span><span>CL @issue.CommittedLiabilityCount</span><span>CF @issue.CarryForwardCount</span><span class="arpp-category-chip--delisted">Delisted @issue.DelistedCount</span></div>
+                            </div>
+                            <div class="arpp-v2-record__values">
+                                <div class="arpp-v2-record__value arpp-v2-record__value--approved"><span>@(issue.IsVerified ? "Published approved" : "Working approved")</span><strong>@IndianCurrencyFormatter.FormatCompact(issue.ApprovedRowValue)</strong></div>
+                                <div class="arpp-v2-record__value arpp-v2-record__value--delisted"><span>@(issue.IsVerified ? "Published delisted" : "Working delisted")</span><strong>@IndianCurrencyFormatter.FormatCompact(issue.DelistedRowValue)</strong></div>
+                            </div>
+                            <div class="arpp-v2-record__actions">
+                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">Open record</a>
+                                @if (Model.CanManage && !issue.IsVerified) { <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-primary btn-sm">Edit working copy</a> }
+                            </div>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
     }
 </div>

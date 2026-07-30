@@ -1,0 +1,37 @@
+@{
+    var section = (ViewData["ArppSection"] as string ?? "published").Trim().ToLowerInvariant();
+    var canManage = ViewData["CanManageArpp"] is bool allowed && allowed;
+}
+
+<nav class="arpp-module-nav" aria-label="ARPP / PPP sections">
+    <div class="arpp-module-nav__identity">
+        <span class="bi bi-journal-check" aria-hidden="true"></span>
+        <span>ARPP / PPP</span>
+    </div>
+    <div class="arpp-module-nav__links">
+        <a asp-area=""
+           asp-page="/Projects/Arpp/Index"
+           class="arpp-module-nav__link @(section == "published" ? "is-active" : string.Empty)"
+           aria-current="@(section == "published" ? "page" : null)">
+            <span class="bi bi-book" aria-hidden="true"></span>
+            Published
+        </a>
+        @if (canManage)
+        {
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/Index"
+               class="arpp-module-nav__link @(section == "administration" ? "is-active" : string.Empty)"
+               aria-current="@(section == "administration" ? "page" : null)">
+                <span class="bi bi-sliders" aria-hidden="true"></span>
+                Administration
+            </a>
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/ARPP/Reconcile"
+               class="arpp-module-nav__link @(section == "reconciliation" ? "is-active" : string.Empty)"
+               aria-current="@(section == "reconciliation" ? "page" : null)">
+                <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                Reconciliation
+            </a>
+        }
+    </div>
+</nav>

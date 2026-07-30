@@ -8,6 +8,8 @@
     ViewData["Title"] = "ARPP / PPP library";
     ViewData["UseFullWidth"] = true;
     ViewData["PageShell"] = "wide";
+    ViewData["ArppSection"] = "published";
+    ViewData["CanManageArpp"] = Model.CanManageArpp;
 
     static string IssueLabel(ArppLibraryDocumentLink document)
         => document.Kind == ArppIssueKind.Original
@@ -19,9 +21,11 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/projects/arpp-library.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
 <div class="project-arpp-page" data-arpp-library>
+    <partial name="~/Areas/ProjectOfficeReports/Pages/ARPP/_ModuleNav.cshtml" />
     <header class="project-arpp-page__header">
         <div class="project-arpp-page__identity">
             <span class="project-arpp-page__eyebrow">Projects · Published reference</span>
@@ -31,15 +35,6 @@
             </div>
         </div>
         <div class="project-arpp-page__actions">
-            @if (Model.CanManageArpp)
-            {
-                <a class="btn btn-outline-primary btn-sm"
-                   asp-area="ProjectOfficeReports"
-                   asp-page="/ARPP/Index">
-                    <i class="bi bi-sliders" aria-hidden="true"></i>
-                    Manage ARPP
-                </a>
-            }
             <button class="btn btn-outline-secondary btn-sm d-lg-none"
                     type="button"
                     data-arpp-library-rail-toggle
@@ -98,7 +93,7 @@
                                value="@Model.Query"
                                type="search"
                                autocomplete="off"
-                               placeholder="Search ARPP records"
+                               placeholder="Projects, documents or serials"
                                title="Search document names, project references, PPP numbers, serial numbers, categories, CFA, Fund and DFPDS" />
                         @if (Model.Document is not null)
                         {
@@ -123,7 +118,7 @@
                                 class="project-arpp-search__submit"
                                 aria-label="Search ARPP library"
                                 title="Search">
-                            <i class="bi bi-search" aria-hidden="true"></i>
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
                         </button>
                     </div>
                     <small>Projects, issued wording, serial, category, CFA, Fund or DFPDS</small>

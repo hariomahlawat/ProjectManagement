@@ -5,16 +5,20 @@
 @{
     ViewData["Title"] = $"ARPP history – {Model.History.ProjectName}";
     ViewData["UseFullWidth"] = true;
+    ViewData["ArppSection"] = "administration";
+    ViewData["CanManageArpp"] = true;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
-    <header class="arpp-header">
+    <partial name="_ModuleNav" />
+    <header class="arpp-v2-page-header">
         <div>
-            <div class="arpp-eyebrow">Project ARPP history</div>
+            <span class="arpp-v2-page-header__eyebrow">Project ARPP history</span>
             <h1>@Model.History.ProjectName</h1>
             <p>
                 @if (!string.IsNullOrWhiteSpace(Model.History.CaseFileNumber))
@@ -43,15 +47,15 @@
     }
     else
     {
-        <section class="arpp-panel arpp-panel--entries">
-            <div class="arpp-panel__heading">
+        <section class="arpp-record-v2__panel">
+            <div class="arpp-record-v2__panel-header">
                 <div>
                     <h2>Document history</h2>
                     <p>No previous-serial relationship is stored; history is derived from the linked project and issue order.</p>
                 </div>
             </div>
-            <div class="arpp-table-wrap">
-                <table class="table arpp-details-table align-middle">
+            <div class="arpp-v2-table-wrap">
+                <table class="table arpp-v2-table align-middle">
                     <thead>
                         <tr>
                             <th>Position</th>
@@ -71,7 +75,7 @@
                         @foreach (var item in Model.History.Items)
                         {
                             <tr class="@(item.IsAuthoritative ? "arpp-row--authoritative" : string.Empty) @(item.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
-                                <td>
+                                <td data-label="Position">
                                     @if (item.IsAuthoritative)
                                     {
                                         <span class="arpp-badge arpp-badge--authoritative">Authoritative</span>
@@ -81,19 +85,19 @@
                                         <span class="text-body-secondary">Historical</span>
                                     }
                                 </td>
-                                <td class="text-nowrap">@FinancialYearHelper.Format(item.FinancialYearStart)</td>
-                                <td>
+                                <td data-label="FY" class="text-nowrap">@FinancialYearHelper.Format(item.FinancialYearStart)</td>
+                                <td data-label="Document">
                                     <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@item.IssueId">@item.IssueName</a>
                                     <div class="small text-body-secondary">@(item.Kind == ArppIssueKind.Original ? "Original ARPP" : $"Addendum {item.IssueSequence}")</div>
                                 </td>
-                                <td class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
-                                <td><span class="arpp-serial">@(item.Category == ArppCategory.Delisted ? "—" : item.SerialNumber)</span></td>
-                                <td><span class="arpp-ppp">@(item.Category == ArppCategory.Delisted ? "—" : item.PppNumber)</span></td>
-                                <td><span class="arpp-badge arpp-badge--@(item.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(item.Category)</span></td>
-                                <td class="text-end text-nowrap fw-semibold">@IndianCurrencyFormatter.FormatRupees(item.IpaCost)</td>
-                                <td>@item.Cfa</td>
-                                <td>@item.Fund</td>
-                                <td>@item.DfpdsSchedule</td>
+                                <td data-label="Issue date" class="text-nowrap">@item.IssueDate.ToString("dd MMM yyyy")</td>
+                                <td data-label="Serial"><span class="arpp-serial">@(item.Category == ArppCategory.Delisted ? "—" : item.SerialNumber)</span></td>
+                                <td data-label="PPP No."><span class="arpp-ppp">@(item.Category == ArppCategory.Delisted ? "—" : item.PppNumber)</span></td>
+                                <td data-label="Category"><span class="arpp-badge arpp-badge--@(item.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(item.Category)</span></td>
+                                <td data-label="IPA cost" class="text-end text-nowrap fw-semibold">@IndianCurrencyFormatter.FormatRupees(item.IpaCost)</td>
+                                <td data-label="CFA">@item.Cfa</td>
+                                <td data-label="Fund">@item.Fund</td>
+                                <td data-label="DFPDS">@item.DfpdsSchedule</td>
                             </tr>
                         }
                     </tbody>

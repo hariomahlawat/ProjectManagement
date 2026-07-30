@@ -1,686 +1,926 @@
 /* ============================================================
-   ARPP/PPP production workspace — stable, high-volume entry UX
+   ARPP / PPP dedicated document workspace
+   One controlled viewport; deterministic toolbar and grid.
    ============================================================ */
-.arpp-page--workspace {
-    --arpp-app-chrome-height: 0px;
-    --arpp-commandbar-height: 4.25rem;
-    width: 100%;
-    max-width: none;
-}
 
-.arpp-page--workspace .arpp-workspace-form {
-    padding-bottom: 1rem;
-}
-
-.arpp-workspace-commandbar {
-    position: sticky;
-    top: var(--arpp-app-chrome-height);
-    z-index: 30;
-    display: grid;
-    grid-template-areas:
-        "identity jump actions"
-        "identity status actions";
-    grid-template-columns: minmax(13rem, 18rem) minmax(16rem, 1fr) auto;
-    align-items: center;
-    gap: .35rem .75rem;
-    min-height: var(--arpp-commandbar-height);
-    padding: .55rem .65rem;
-    margin-bottom: .75rem;
-    border: 1px solid color-mix(in srgb, var(--bs-primary) 18%, var(--arpp-border));
-    border-radius: .75rem;
-    background: var(--bs-body-bg);
-    box-shadow: 0 .45rem 1.1rem rgba(16, 24, 40, .12);
-    isolation: isolate;
-}
-
-.arpp-workspace-commandbar::after {
-    position: absolute;
-    right: 0;
-    bottom: -.5rem;
-    left: 0;
-    height: .5rem;
-    background: linear-gradient(to bottom, rgba(16, 24, 40, .06), transparent);
-    content: "";
-    pointer-events: none;
-}
-
-.arpp-workspace-commandbar__identity {
-    grid-area: identity;
-    display: grid;
-    min-width: 0;
-    line-height: 1.2;
-}
-
-.arpp-workspace-commandbar__identity strong {
+body.arpp-workspace-active {
     overflow: hidden;
-    font-size: .875rem;
+}
+
+.arpp-workspace-v2 {
+    --arpp-workspace-border: color-mix(in srgb, var(--bs-border-color) 88%, transparent);
+    --arpp-workspace-muted: var(--bs-secondary-color);
+    --arpp-workspace-soft: color-mix(in srgb, var(--bs-tertiary-bg) 74%, var(--bs-body-bg));
+    --arpp-workspace-sidebar: 15rem;
+    position: fixed;
+    inset: 0;
+    z-index: 1080;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+.arpp-workspace-v2__form {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Header ---------------------------------------------------------- */
+.arpp-workspace-v2__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 4.35rem;
+    padding: .65rem .9rem;
+    border-bottom: 1px solid var(--arpp-workspace-border);
+    background: var(--bs-body-bg);
+}
+
+.arpp-workspace-v2__document {
+    min-width: 0;
+}
+
+.arpp-workspace-v2__product {
+    display: block;
+    margin-bottom: .1rem;
+    color: var(--bs-primary);
+    font-size: .67rem;
+    font-weight: 700;
+    letter-spacing: .065em;
+    text-transform: uppercase;
+}
+
+.arpp-workspace-v2__title-line {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+}
+
+.arpp-workspace-v2__title-line h1 {
+    max-width: min(55vw, 52rem);
+    margin: 0;
+    overflow: hidden;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.arpp-workspace-commandbar__identity > span:last-child {
-    margin-top: .18rem;
-    color: var(--arpp-muted);
-    font-size: .75rem;
+.arpp-workspace-v2__document-type {
+    flex: 0 0 auto;
+    padding: .14rem .4rem;
+    border: 1px solid var(--arpp-workspace-border);
+    border-radius: 999px;
+    background: var(--arpp-workspace-soft);
+    color: var(--arpp-workspace-muted);
+    font-size: .68rem;
+    font-weight: 600;
 }
 
-.arpp-workspace-commandbar__eyebrow {
-    color: var(--arpp-navy);
-    font-size: .7rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-}
-
-.arpp-workspace-commandbar__actions {
-    grid-area: actions;
+.arpp-workspace-v2__document p {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    gap: .2rem .4rem;
+    margin: .18rem 0 0;
+    color: var(--arpp-workspace-muted);
+    font-size: .72rem;
+}
+
+.arpp-workspace-v2__header-status {
+    display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: .35rem;
+    gap: .45rem;
+    flex: 0 0 auto;
 }
 
-.arpp-workspace-commandbar__actions .btn {
-    min-height: 2rem;
+.arpp-workspace-v2__save-state {
+    max-width: 18rem;
+    overflow: hidden;
+    color: var(--arpp-workspace-muted);
+    font-size: .73rem;
+    text-align: right;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.arpp-commandbar-tools {
-    display: inline-flex;
-    gap: .35rem;
+.arpp-workspace-v2__toolbar.is-dirty ~ * .arpp-workspace-v2__save-state,
+.arpp-workspace-v2__toolbar.is-dirty .arpp-workspace-v2__save-state {
+    color: var(--bs-primary);
 }
 
-.arpp-commandbar-tools--menu {
+.arpp-workspace-v2__header .btn {
+    min-height: 2.35rem;
+    white-space: nowrap;
+}
+
+.arpp-workspace-v2__header .btn:disabled {
+    opacity: .5;
+    box-shadow: none;
+}
+
+/* Notices --------------------------------------------------------- */
+.arpp-workspace-v2__notices {
+    position: absolute;
+    top: 4.55rem;
+    right: 1rem;
+    z-index: 1095;
+    display: grid;
+    gap: .4rem;
+    width: min(36rem, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.arpp-workspace-v2__notices > .alert,
+.arpp-workspace-v2__notices > .pm-status-message {
+    margin: 0;
+    box-shadow: 0 .5rem 1.4rem rgba(15, 23, 42, .16);
+    pointer-events: auto;
+}
+
+.arpp-workspace-v2__notices .validation-summary-valid {
     display: none;
 }
 
-.arpp-commandbar-tools--menu .dropdown-item {
-    display: flex;
+/* Toolbar --------------------------------------------------------- */
+.arpp-workspace-v2__toolbar {
+    display: grid;
+    grid-template-columns: auto minmax(18rem, 1fr) auto auto auto;
     align-items: center;
-    gap: .55rem;
-    font-size: .82rem;
+    gap: .45rem;
+    min-height: 3.4rem;
+    padding: .48rem .75rem;
+    border-bottom: 1px solid var(--arpp-workspace-border);
+    background: var(--arpp-workspace-soft);
 }
 
-.arpp-commandbar-tools--menu .dropdown-item .bi {
-    width: 1rem;
-    color: var(--bs-secondary-color);
-    text-align: center;
+.arpp-workspace-v2__toolbar .btn {
+    min-height: 2.25rem;
+    white-space: nowrap;
 }
 
-.arpp-save-state {
-    grid-area: status;
-    min-height: 1rem;
-    color: var(--arpp-muted);
-    font-size: .75rem;
-    line-height: 1.2;
+.arpp-workspace-v2__navigator-toggle {
+    display: none;
 }
 
-.arpp-workspace-commandbar.is-dirty .arpp-save-state {
-    color: var(--bs-primary);
-    font-weight: 600;
-}
-
-.arpp-workspace-commandbar.has-validation:not(.is-dirty) .arpp-save-state {
-    color: var(--bs-danger-text-emphasis);
-    font-weight: 600;
-}
-
-.arpp-workspace-jump {
-    grid-area: jump;
+.arpp-workspace-v2__search {
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     min-width: 0;
 }
 
-.arpp-workspace-jump > .bi {
+.arpp-workspace-v2__search > .bi {
     position: absolute;
     top: 50%;
-    left: .6rem;
+    left: .72rem;
     z-index: 2;
     transform: translateY(-50%);
-    color: var(--arpp-muted);
+    color: var(--arpp-workspace-muted);
     pointer-events: none;
 }
 
-.arpp-workspace-jump .form-control {
+.arpp-workspace-v2__search .form-control {
     min-width: 0;
-    padding-left: 1.9rem;
-    border-radius: .45rem 0 0 .45rem;
+    min-height: 2.25rem;
+    padding-left: 2.15rem;
+    border-radius: .5rem 0 0 .5rem;
 }
 
-.arpp-workspace-jump .btn {
+.arpp-workspace-v2__search .btn {
     border-left: 0;
-    border-radius: 0 .45rem .45rem 0;
+    border-radius: 0 .5rem .5rem 0;
 }
 
-.arpp-workspace-jump__status {
+.arpp-workspace-v2__search-status {
     position: absolute;
-    right: 2.35rem;
-    bottom: -1.05rem;
-    color: var(--arpp-muted);
-    font-size: .7rem;
-    white-space: nowrap;
+    right: 2.55rem;
+    bottom: -1rem;
+    color: var(--arpp-workspace-muted);
+    font-size: .68rem;
 }
 
-.arpp-validation-navigator {
-    display: grid;
-    grid-template-columns: minmax(14rem, .8fr) minmax(20rem, 1.8fr) auto;
-    align-items: center;
-    gap: .65rem .8rem;
-    margin-bottom: .75rem;
-    padding: .65rem .75rem;
-    border: 1px solid color-mix(in srgb, var(--bs-danger) 35%, var(--arpp-border));
-    border-radius: .7rem;
-    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 65%, var(--bs-body-bg));
-}
-
-.arpp-validation-navigator__summary {
+.arpp-workspace-v2__toolbar .dropdown-item {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: .55rem;
+    font-size: .8rem;
 }
 
-.arpp-validation-navigator__summary > .bi {
-    margin-top: .08rem;
-    color: var(--bs-danger);
+.arpp-workspace-v2__toolbar .dropdown-item .bi {
+    width: 1rem;
+    color: var(--arpp-workspace-muted);
+    text-align: center;
 }
 
-.arpp-validation-navigator strong {
-    display: block;
-    font-size: .82rem;
-}
-
-.arpp-validation-navigator p {
-    margin: .08rem 0 0;
-    color: var(--bs-secondary-color);
-    font-size: .75rem;
-}
-
-.arpp-validation-navigator__items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .3rem;
-    min-width: 0;
-}
-
-.arpp-validation-navigator__items .btn {
-    max-width: 21rem;
+/* Main body ------------------------------------------------------- */
+.arpp-workspace-v2__body {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--arpp-workspace-sidebar) minmax(0, 1fr);
+    min-height: 0;
     overflow: hidden;
-    padding: .2rem .45rem;
-    font-size: .72rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.arpp-validation-navigator__actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: .3rem;
-    white-space: nowrap;
-}
-
-.arpp-table-viewport {
-    position: relative;
-    min-width: 0;
-}
-
-.arpp-table-scrollbar {
-    position: relative;
-    z-index: 4;
-    height: .9rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    margin: 0 .35rem .25rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--arpp-soft) 85%, var(--bs-body-bg));
-    scrollbar-color: color-mix(in srgb, var(--bs-secondary-color) 45%, transparent) transparent;
+/* Navigator ------------------------------------------------------- */
+.arpp-workspace-v2__navigator {
+    min-height: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--arpp-workspace-border);
+    background: var(--bs-body-bg);
     scrollbar-width: thin;
 }
 
-.arpp-table-scrollbar > div {
-    height: 1px;
+.arpp-workspace-v2__navigator-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .75rem .75rem .5rem;
 }
 
-.arpp-page--workspace .arpp-table-wrap {
-    max-height: clamp(25rem, calc(100dvh - var(--arpp-app-chrome-height) - var(--arpp-commandbar-height) - 8rem), 58rem);
-    overflow: auto;
-    border-top: 1px solid var(--arpp-border);
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
+.arpp-workspace-v2__navigator-header span {
+    display: block;
+    color: var(--arpp-workspace-muted);
+    font-size: .66rem;
+    font-weight: 700;
+    letter-spacing: .055em;
+    text-transform: uppercase;
 }
 
-.arpp-table-viewport::before,
-.arpp-table-viewport::after {
-    position: absolute;
-    top: 1.15rem;
-    bottom: 0;
-    z-index: 12;
-    width: .8rem;
-    content: "";
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .15s ease;
+.arpp-workspace-v2__navigator-header strong {
+    display: block;
+    margin-top: .08rem;
+    font-size: .82rem;
 }
 
-.arpp-table-viewport::before {
-    left: 0;
-    background: linear-gradient(90deg, rgba(16, 24, 40, .16), transparent);
-}
-
-.arpp-table-viewport::after {
-    right: 0;
-    background: linear-gradient(270deg, rgba(16, 24, 40, .16), transparent);
-}
-
-.arpp-table-viewport.is-scrolled-start::before,
-.arpp-table-viewport.is-scrolled-end::after {
-    opacity: 1;
-}
-
-.arpp-entry-table {
-    min-width: 82rem;
-    font-size: .8125rem;
-}
-
-.arpp-entry-table thead th {
-    top: 0;
-    z-index: 10;
-    padding: .58rem .5rem;
-    background: var(--arpp-soft);
-    font-size: .75rem;
-}
-
-.arpp-entry-table td {
-    padding: .48rem .42rem;
-}
-
-.arpp-entry-table tr,
-.arpp-entry-table [data-arpp-entry-row],
-.arpp-entry-table input,
-.arpp-entry-table select,
-.arpp-entry-table textarea {
-    scroll-margin-top: 3.25rem;
-}
-
-.arpp-entry-table .form-control,
-.arpp-entry-table .form-select {
-    min-height: 2rem;
-    font-size: .8125rem;
-}
-
-.arpp-col-order { width: 2.5rem; min-width: 2.5rem; }
-.arpp-col-issued { width: 22rem; min-width: 22rem; }
-.arpp-col-project { width: 15rem; min-width: 15rem; }
-.arpp-col-category { width: 6.5rem; min-width: 6.5rem; }
-.arpp-col-cost { width: 9rem; min-width: 9rem; }
-.arpp-col-cfa { width: 9rem; min-width: 9rem; }
-.arpp-col-fund { width: 7rem; min-width: 7rem; }
-.arpp-col-dfpds { width: 7rem; min-width: 7rem; }
-.arpp-col-actions { width: 4.5rem; min-width: 4.5rem; }
-
-.arpp-sticky-left--issued {
-    left: 2.5rem;
-    box-shadow: .45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
-}
-
-.arpp-entry-table thead .arpp-sticky-left,
-.arpp-entry-table thead .arpp-sticky-right {
-    z-index: 15;
-}
-
-.arpp-issued-identity {
-    display: grid;
-    gap: .35rem;
-}
-
-.arpp-issued-identity__identifiers {
-    display: grid;
-    grid-template-columns: minmax(5.25rem, .62fr) minmax(9rem, 1.38fr);
-    gap: .35rem;
-}
-
-.arpp-issued-identity__identifiers > div {
-    min-width: 0;
-}
-
-.arpp-issued-identity__identifiers .form-control {
-    width: 100%;
-}
-
-.arpp-field-hint,
-.arpp-money-helper,
-.arpp-row-warning,
-.arpp-project-picker__meta,
-.arpp-reference-pending {
-    font-size: .72rem;
-    line-height: 1.3;
-}
-
-.arpp-row--jump-target > td {
-    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 68%, var(--bs-body-bg));
-}
-
-.arpp-entry-table tr.is-validation-target > td {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bs-danger) 45%, transparent);
-}
-
-body.arpp-workspace-fullscreen {
-    overflow: hidden;
-}
-
-body.arpp-workspace-fullscreen .pm-topbar,
-body.arpp-workspace-fullscreen .pm-module-subnav-wrap,
-body.arpp-workspace-fullscreen .pm-footer {
-    visibility: hidden;
-}
-
-body.arpp-workspace-fullscreen [data-arpp-workspace] {
-    position: fixed;
-    inset: 0;
-    z-index: 1040;
-    width: 100%;
-    max-width: none;
-    height: 100dvh;
-    padding: .65rem !important;
-    overflow: auto;
-    background: var(--bs-body-bg);
-}
-
-body.arpp-workspace-fullscreen [data-arpp-workspace] > .arpp-header,
-body.arpp-workspace-fullscreen [data-arpp-form] > .arpp-panel--identity {
+.arpp-workspace-v2__navigator-header .btn {
     display: none;
 }
 
-body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
-    top: 0;
+.arpp-workspace-v2__filters {
+    display: grid;
+    gap: .18rem;
+    padding: 0 .5rem .7rem;
 }
 
-body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
-    max-height: calc(100dvh - var(--arpp-commandbar-height) - 8rem);
-}
-
-@media (max-width: 1499.98px) {
-    .arpp-workspace-commandbar {
-        grid-template-areas:
-            "identity jump"
-            "actions actions"
-            "status status";
-        grid-template-columns: minmax(13rem, .75fr) minmax(18rem, 1.25fr);
-    }
-
-    .arpp-workspace-commandbar__actions {
-        justify-content: flex-start;
-    }
-}
-
-@media (max-width: 1199.98px) {
-    .arpp-commandbar-tools--desktop {
-        display: none;
-    }
-
-    .arpp-commandbar-tools--menu {
-        display: inline-flex;
-    }
-
-    .arpp-validation-navigator {
-        grid-template-columns: minmax(14rem, 1fr) auto;
-    }
-
-    .arpp-validation-navigator__items {
-        grid-column: 1 / -1;
-        grid-row: 2;
-    }
-}
-
-@media (max-width: 767.98px) {
-    .arpp-workspace-commandbar {
-        position: relative;
-        top: auto;
-        grid-template-areas:
-            "identity"
-            "jump"
-            "actions"
-            "status";
-        grid-template-columns: 1fr;
-    }
-
-    .arpp-workspace-commandbar__actions {
-        overflow-x: auto;
-        justify-content: flex-start;
-        padding-bottom: .15rem;
-    }
-
-    .arpp-workspace-jump__status {
-        position: static;
-        grid-column: 1 / -1;
-        margin-top: .18rem;
-    }
-
-    .arpp-validation-navigator {
-        grid-template-columns: 1fr;
-    }
-
-    .arpp-validation-navigator__items,
-    .arpp-validation-navigator__actions {
-        grid-column: auto;
-        grid-row: auto;
-        justify-content: flex-start;
-    }
-
-    .arpp-page--workspace .arpp-table-wrap {
-        max-height: 70dvh;
-    }
-
-    .arpp-issued-identity__identifiers {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 575.98px) {
-    .arpp-workspace-commandbar__actions .arpp-discard-return .arpp-action-label {
-        display: none;
-    }
-
-    .arpp-workspace-commandbar__actions .arpp-discard-return {
-        min-width: 2.15rem;
-    }
-
-    .arpp-validation-navigator__items .btn {
-        max-width: 100%;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .arpp-table-viewport::before,
-    .arpp-table-viewport::after {
-        transition: none;
-    }
-}
-
-/* ============================================================
-   ARPP/PPP final workspace completion
-   One vertical scroll surface, compact issue review and truthful save state.
-   ============================================================ */
-.arpp-save-statusline {
-    grid-area: status;
+.arpp-workspace-v2__filters button {
     display: flex;
-    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    width: 100%;
+    min-height: 2.35rem;
+    padding: .42rem .55rem;
+    border: 1px solid transparent;
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--arpp-workspace-muted);
+    font-size: .77rem;
+    text-align: left;
+}
+
+.arpp-workspace-v2__filters button > span {
+    display: inline-flex;
     align-items: center;
     gap: .45rem;
 }
 
-.arpp-save-statusline .arpp-save-state {
-    min-width: 0;
+.arpp-workspace-v2__filters button strong {
+    min-width: 1.5rem;
+    padding: .08rem .35rem;
+    border-radius: 999px;
+    background: var(--arpp-workspace-soft);
+    color: var(--bs-emphasis-color);
+    font-size: .68rem;
+    text-align: center;
 }
 
-.arpp-validation-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    min-height: 1.6rem;
-    padding: .05rem .2rem;
-    font-size: .73rem;
-    font-weight: 700;
-    text-decoration: none;
+.arpp-workspace-v2__filters button:hover {
+    background: var(--arpp-workspace-soft);
+    color: var(--bs-emphasis-color);
+}
+
+.arpp-workspace-v2__filters button.is-active {
+    border-color: color-mix(in srgb, var(--bs-primary) 25%, var(--arpp-workspace-border));
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 60%, var(--bs-body-bg));
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.arpp-workspace-v2__issues {
+    margin: 0 .5rem .7rem;
+    padding: .6rem;
+    border: 1px solid color-mix(in srgb, var(--bs-danger) 28%, var(--arpp-workspace-border));
+    border-radius: .6rem;
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 42%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2__issues-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .45rem;
+}
+
+.arpp-workspace-v2__issues-header strong {
+    display: block;
+    font-size: .77rem;
+}
+
+.arpp-workspace-v2__issues-header span {
+    display: block;
+    margin-top: .1rem;
+    color: var(--arpp-workspace-muted);
+    font-size: .69rem;
+}
+
+.arpp-workspace-v2__issue-list {
+    display: grid;
+    gap: .3rem;
+    margin-top: .5rem;
+}
+
+.arpp-workspace-v2__issue-list .btn {
+    width: 100%;
+    overflow: hidden;
+    padding: .35rem .45rem;
+    border-color: color-mix(in srgb, var(--bs-danger) 30%, var(--arpp-workspace-border));
+    background: var(--bs-body-bg);
+    color: var(--bs-danger-text-emphasis);
+    font-size: .7rem;
+    text-align: left;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.arpp-validation-toggle .badge {
-    min-width: 1.35rem;
-    font-size: .62rem;
-    font-variant-numeric: tabular-nums;
+.arpp-workspace-v2__issue-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .35rem;
+    margin-top: .5rem;
 }
 
-.arpp-workspace-commandbar [data-arpp-save-button]:disabled {
-    border-color: color-mix(in srgb, var(--bs-primary) 28%, var(--arpp-border));
-    background: color-mix(in srgb, var(--bs-primary) 18%, var(--bs-body-bg));
-    box-shadow: none;
-    color: color-mix(in srgb, var(--bs-primary) 48%, var(--bs-secondary-color));
-    cursor: not-allowed;
-    opacity: 1;
+.arpp-workspace-v2__guidance {
+    margin: 0 .5rem .75rem;
+    border-top: 1px solid var(--arpp-workspace-border);
 }
 
-.arpp-validation-navigator {
-    grid-template-columns: minmax(14rem, .7fr) minmax(22rem, 1.8fr) auto;
-    margin: -.2rem 0 .65rem;
-    padding: .52rem .65rem;
-    box-shadow: 0 .2rem .7rem rgba(127, 29, 29, .06);
+.arpp-workspace-v2__guidance summary {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .6rem .25rem .35rem;
+    color: var(--arpp-workspace-muted);
+    font-size: .75rem;
+    font-weight: 600;
+    cursor: pointer;
 }
 
-.arpp-validation-navigator__items .btn {
-    max-width: 18rem;
+.arpp-workspace-v2__guidance > div {
+    padding: 0 .25rem;
+    color: var(--arpp-workspace-muted);
+    font-size: .7rem;
+    line-height: 1.45;
 }
 
-/* Normal mode uses the page as the sole vertical scroll surface. */
-.arpp-page--workspace .arpp-table-wrap {
-    max-height: none;
+.arpp-workspace-v2__guidance p {
+    margin: 0 0 .45rem;
+}
+
+.arpp-workspace-v2__navigator-backdrop,
+.arpp-workspace-v2__drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1086;
+    display: none;
+    border: 0;
+    background: rgba(15, 23, 42, .42);
+}
+
+/* Grid ------------------------------------------------------------ */
+.arpp-workspace-v2__grid-shell {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--arpp-workspace-soft);
+}
+
+.arpp-workspace-v2__empty {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    padding: 2rem;
+    text-align: center;
+}
+
+.arpp-workspace-v2__empty > .bi {
+    margin-bottom: .65rem;
+    color: var(--bs-primary);
+    font-size: 2rem;
+}
+
+.arpp-workspace-v2__empty h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.arpp-workspace-v2__empty p {
+    margin: .35rem 0 .8rem;
+    color: var(--arpp-workspace-muted);
+    font-size: .8rem;
+}
+
+.arpp-workspace-v2__empty > div {
+    display: flex;
+    gap: .45rem;
+}
+
+.arpp-workspace-v2__table-viewport {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+}
+
+.arpp-workspace-v2__top-scrollbar {
+    height: .82rem;
     overflow-x: auto;
-    overflow-y: visible;
-    overscroll-behavior-x: contain;
-    overscroll-behavior-y: auto;
-    scrollbar-gutter: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid var(--arpp-workspace-border);
+    background: var(--bs-body-bg);
+    scrollbar-color: color-mix(in srgb, var(--bs-secondary-color) 45%, transparent) transparent;
+    scrollbar-width: thin;
 }
 
-.arpp-page--workspace .arpp-entry-table thead th {
-    top: calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height) + .45rem);
-    z-index: 22;
-    box-shadow: inset 0 -1px 0 var(--arpp-border), 0 .2rem .35rem rgba(16, 24, 40, .05);
+.arpp-workspace-v2__top-scrollbar > div {
+    height: 1px;
 }
 
-.arpp-page--workspace .arpp-entry-table thead .arpp-sticky-left,
-.arpp-page--workspace .arpp-entry-table thead .arpp-sticky-right {
-    z-index: 25;
-}
-
-.arpp-entry-table tr,
-.arpp-entry-table [data-arpp-entry-row],
-.arpp-entry-table input,
-.arpp-entry-table select,
-.arpp-entry-table textarea {
-    scroll-margin-top: calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height) + 3.6rem);
-}
-
-body.arpp-workspace-fullscreen [data-arpp-workspace] {
-    overflow-x: hidden;
-    overflow-y: auto;
+.arpp-workspace-v2__table-wrap {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    background: var(--bs-body-bg);
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
 }
 
-body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
-    max-height: none;
-    overflow-x: auto;
-    overflow-y: visible;
+.arpp-workspace-v2__table {
+    min-width: 83rem;
+    margin: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: .8rem;
 }
 
-body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-entry-table thead th {
-    top: calc(var(--arpp-commandbar-height) + .45rem);
+.arpp-workspace-v2__table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    padding: .58rem .48rem;
+    border-bottom: 1px solid var(--arpp-workspace-border);
+    background: color-mix(in srgb, var(--bs-tertiary-bg) 88%, var(--bs-body-bg));
+    color: var(--arpp-workspace-muted);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
-body.arpp-workspace-fullscreen .arpp-entry-table tr,
-body.arpp-workspace-fullscreen .arpp-entry-table [data-arpp-entry-row],
-body.arpp-workspace-fullscreen .arpp-entry-table input,
-body.arpp-workspace-fullscreen .arpp-entry-table select,
-body.arpp-workspace-fullscreen .arpp-entry-table textarea {
-    scroll-margin-top: calc(var(--arpp-commandbar-height) + 3.6rem);
+.arpp-workspace-v2__table tbody td {
+    padding: .5rem .4rem;
+    border-bottom: 1px solid var(--arpp-workspace-border);
+    background: var(--bs-body-bg);
+    vertical-align: top;
 }
 
+.arpp-workspace-v2__table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.arpp-workspace-v2__table tbody tr:hover td {
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 18%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2__table tbody tr[hidden] {
+    display: none;
+}
+
+.arpp-workspace-v2__table .form-control,
+.arpp-workspace-v2__table .form-select {
+    min-height: 2.05rem;
+    font-size: .79rem;
+}
+
+.arpp-workspace-v2__table textarea.form-control {
+    min-height: 2.15rem;
+    resize: vertical;
+}
+
+.arpp-workspace-v2__table .text-danger.small,
+.arpp-workspace-v2__table .arpp-field-hint,
+.arpp-workspace-v2__table .arpp-money-helper,
+.arpp-workspace-v2__table .arpp-row-warning,
+.arpp-workspace-v2__table .arpp-project-picker__meta,
+.arpp-workspace-v2__table .arpp-reference-pending,
+.arpp-workspace-v2__table .arpp-historical-snapshot {
+    display: block;
+    margin-top: .18rem;
+    font-size: .68rem;
+    line-height: 1.3;
+}
+
+.arpp-workspace-v2__table .arpp-col-order { width: 2.5rem; min-width: 2.5rem; }
+.arpp-workspace-v2__table .arpp-col-issued { width: 22rem; min-width: 22rem; }
+.arpp-workspace-v2__table .arpp-col-project { width: 16rem; min-width: 16rem; }
+.arpp-workspace-v2__table .arpp-col-category { width: 7rem; min-width: 7rem; }
+.arpp-workspace-v2__table .arpp-col-cost { width: 9rem; min-width: 9rem; }
+.arpp-workspace-v2__table .arpp-col-cfa { width: 9rem; min-width: 9rem; }
+.arpp-workspace-v2__table .arpp-col-fund { width: 7.5rem; min-width: 7.5rem; }
+.arpp-workspace-v2__table .arpp-col-dfpds { width: 7.5rem; min-width: 7.5rem; }
+.arpp-workspace-v2__table .arpp-col-actions { width: 4.5rem; min-width: 4.5rem; }
+
+.arpp-workspace-v2__table .arpp-issued-identity {
+    display: grid;
+    gap: .35rem;
+}
+
+.arpp-workspace-v2__table .arpp-issued-identity__identifiers {
+    display: grid;
+    grid-template-columns: minmax(5rem, .6fr) minmax(9rem, 1.4fr);
+    gap: .35rem;
+}
+
+.arpp-workspace-v2__table .arpp-issued-identifier--not-applicable {
+    background: var(--arpp-workspace-soft);
+    color: var(--arpp-workspace-muted);
+    font-style: italic;
+}
+
+.arpp-workspace-v2__table .arpp-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .2rem;
+}
+
+.arpp-workspace-v2__table .arpp-row-actions .btn {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    min-height: 2rem;
+    padding: 0;
+    place-items: center;
+}
+
+.arpp-workspace-v2__table .arpp-row--jump-target td {
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 62%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2__table tr.is-validation-target td {
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 34%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2__table tr.is-validation-target {
+    scroll-margin-top: 3rem;
+}
+
+/* Document details drawer ---------------------------------------- */
+.arpp-workspace-v2__drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1090;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(27rem, 92vw);
+    transform: translateX(102%);
+    border-left: 1px solid var(--arpp-workspace-border);
+    background: var(--bs-body-bg);
+    box-shadow: -1rem 0 2.4rem rgba(15, 23, 42, .18);
+    transition: transform .2s ease;
+}
+
+.arpp-workspace-v2__drawer.is-open {
+    transform: translateX(0);
+}
+
+.arpp-workspace-v2__drawer-header,
+.arpp-workspace-v2__drawer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .75rem .9rem;
+    border-bottom: 1px solid var(--arpp-workspace-border);
+}
+
+.arpp-workspace-v2__drawer-footer {
+    justify-content: flex-end;
+    border-top: 1px solid var(--arpp-workspace-border);
+    border-bottom: 0;
+}
+
+.arpp-workspace-v2__drawer-header span {
+    display: block;
+    color: var(--arpp-workspace-muted);
+    font-size: .67rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.arpp-workspace-v2__drawer-header h2 {
+    margin: .1rem 0 0;
+    font-size: 1.05rem;
+}
+
+.arpp-workspace-v2__drawer-body {
+    display: grid;
+    align-content: start;
+    gap: .85rem;
+    min-height: 0;
+    overflow-y: auto;
+    padding: .9rem;
+}
+
+.arpp-workspace-v2__drawer-intro {
+    margin: 0;
+    color: var(--arpp-workspace-muted);
+    font-size: .78rem;
+}
+
+.arpp-workspace-v2.has-details-open .arpp-workspace-v2__drawer-backdrop,
+.arpp-workspace-v2.has-navigator-open .arpp-workspace-v2__navigator-backdrop {
+    display: block;
+}
+
+/* Paste modal remains above the workspace. */
+#arppPasteModal {
+    z-index: 1100;
+}
+
+.modal-backdrop {
+    z-index: 1098;
+}
+
+.arpp-paste-preview-table {
+    min-width: 70rem;
+}
+
+/* Responsive ------------------------------------------------------ */
 @media (max-width: 1199.98px) {
-    .arpp-workspace-commandbar {
-        grid-template-areas:
-            "identity jump"
-            "status status"
-            "actions actions";
+    .arpp-workspace-v2__toolbar {
+        grid-template-columns: auto minmax(14rem, 1fr) auto auto auto;
     }
 
-    .arpp-save-statusline {
-        min-height: 1.35rem;
+    .arpp-workspace-v2__header-status .btn span:not(.bi) {
+        display: none;
     }
 
-    .arpp-workspace-commandbar__actions {
-        width: 100%;
-    }
-
-    .arpp-workspace-commandbar__actions [data-arpp-save-button] {
-        margin-left: auto;
-    }
-
-    .arpp-validation-navigator {
-        grid-template-columns: minmax(13rem, 1fr) auto;
+    .arpp-workspace-v2__header-status .btn {
+        min-width: 2.5rem;
+        padding-inline: .7rem;
     }
 }
 
-@media (max-width: 991.98px) {
-    .arpp-workspace-commandbar {
-        grid-template-areas:
-            "identity status"
-            "jump jump"
-            "actions actions";
-        grid-template-columns: minmax(12rem, 1fr) auto;
+@media (max-width: 1023.98px) {
+    .arpp-workspace-v2__body {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    .arpp-save-statusline {
-        justify-content: flex-end;
-        text-align: right;
+    .arpp-workspace-v2__navigator-toggle {
+        display: inline-flex;
+    }
+
+    .arpp-workspace-v2__navigator {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1090;
+        width: min(19rem, 88vw);
+        transform: translateX(-102%);
+        border-right: 1px solid var(--arpp-workspace-border);
+        box-shadow: 1rem 0 2.4rem rgba(15, 23, 42, .18);
+        transition: transform .2s ease;
+    }
+
+    .arpp-workspace-v2__navigator.is-open {
+        transform: translateX(0);
+    }
+
+    .arpp-workspace-v2__navigator-header .btn {
+        display: inline-grid;
     }
 }
 
 @media (max-width: 767.98px) {
-    .arpp-workspace-commandbar {
-        grid-template-areas:
-            "identity"
-            "status"
-            "jump"
-            "actions";
-        grid-template-columns: 1fr;
+    .arpp-workspace-v2__form {
+        grid-template-rows: auto auto minmax(0, 1fr);
     }
 
-    .arpp-save-statusline {
-        justify-content: flex-start;
-        text-align: left;
+    .arpp-workspace-v2__header {
+        align-items: flex-start;
+        min-height: 4.7rem;
+        padding: .55rem .65rem;
     }
 
-    .arpp-workspace-commandbar__actions {
-        display: grid;
-        grid-template-columns: auto auto minmax(8rem, 1fr);
-        overflow: visible;
+    .arpp-workspace-v2__product,
+    .arpp-workspace-v2__document-type,
+    .arpp-workspace-v2__document p span[aria-hidden="true"] {
+        display: none;
     }
 
-    .arpp-workspace-commandbar__actions .arpp-discard-return {
-        grid-column: 1 / 3;
+    .arpp-workspace-v2__title-line h1 {
+        max-width: 56vw;
+        font-size: .92rem;
     }
 
-    .arpp-workspace-commandbar__actions [data-arpp-save-button] {
+    .arpp-workspace-v2__document p {
+        max-width: 58vw;
+        font-size: .67rem;
+    }
+
+    .arpp-workspace-v2__save-state {
+        position: absolute;
+        top: 3.55rem;
+        right: .7rem;
+        max-width: 45vw;
+        font-size: .64rem;
+    }
+
+    .arpp-workspace-v2__toolbar {
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
+        gap: .35rem;
+        padding: .42rem .5rem;
+    }
+
+    .arpp-workspace-v2__toolbar > .dropdown {
+        grid-column: 4;
+    }
+
+    .arpp-workspace-v2__toolbar > [data-arpp-validation-toggle] {
         grid-column: 3;
-        grid-row: 1 / 3;
-        width: 100%;
-        margin-left: 0;
+        grid-row: 1;
+        padding-inline: .6rem;
     }
 
-    .arpp-validation-navigator {
+    .arpp-workspace-v2__toolbar > [data-arpp-add-row] {
+        grid-column: 3;
+        grid-row: 2;
+    }
+
+    .arpp-workspace-v2__toolbar {
+        grid-template-rows: auto auto;
+    }
+
+    .arpp-workspace-v2__navigator-toggle {
+        grid-row: 1 / span 2;
+    }
+
+    .arpp-workspace-v2__search {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+
+    .arpp-workspace-v2__toolbar .btn {
+        font-size: .75rem;
+    }
+
+    .arpp-workspace-v2__table-wrap {
+        padding: .55rem;
+    }
+
+    .arpp-workspace-v2__top-scrollbar {
+        display: none !important;
+    }
+
+    .arpp-workspace-v2__table {
+        display: block;
+        min-width: 0;
+    }
+
+    .arpp-workspace-v2__table thead {
+        display: none;
+    }
+
+    .arpp-workspace-v2__table tbody {
+        display: grid;
+        gap: .65rem;
+    }
+
+    .arpp-workspace-v2__table tbody,
+    .arpp-workspace-v2__table tr,
+    .arpp-workspace-v2__table td {
+        width: 100%;
+    }
+
+    .arpp-workspace-v2__table tr {
+        display: grid;
+        grid-template-columns: 1fr;
+        overflow: hidden;
+        border: 1px solid var(--arpp-workspace-border);
+        border-radius: .7rem;
+        background: var(--bs-body-bg);
+    }
+
+    .arpp-workspace-v2__table tbody td {
+        display: grid;
+        grid-template-columns: 7.5rem minmax(0, 1fr);
+        gap: .55rem;
+        padding: .55rem .65rem;
+        border-bottom: 1px solid var(--arpp-workspace-border);
+    }
+
+    .arpp-workspace-v2__table tbody td:last-child {
+        border-bottom: 0;
+    }
+
+    .arpp-workspace-v2__table tbody td::before {
+        align-self: start;
+        color: var(--arpp-workspace-muted);
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .035em;
+        text-transform: uppercase;
+    }
+
+    .arpp-workspace-v2__table tbody td:nth-child(1)::before { content: "Row"; }
+    .arpp-workspace-v2__table tbody td:nth-child(2)::before { content: "Issued identity"; }
+    .arpp-workspace-v2__table tbody td:nth-child(3)::before { content: "PRISM project"; }
+    .arpp-workspace-v2__table tbody td:nth-child(4)::before { content: "Category"; }
+    .arpp-workspace-v2__table tbody td:nth-child(5)::before { content: "IPA cost"; }
+    .arpp-workspace-v2__table tbody td:nth-child(6)::before { content: "CFA"; }
+    .arpp-workspace-v2__table tbody td:nth-child(7)::before { content: "Fund"; }
+    .arpp-workspace-v2__table tbody td:nth-child(8)::before { content: "DFPDS"; }
+    .arpp-workspace-v2__table tbody td:nth-child(9)::before { content: "Actions"; }
+
+    .arpp-workspace-v2__table .arpp-issued-identity__identifiers {
         grid-template-columns: 1fr;
     }
+
+    .arpp-workspace-v2__table .arpp-row-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .arpp-workspace-v2__header .btn-primary span:not(.bi),
+    .arpp-workspace-v2__exit span:not(.bi) {
+        display: none;
+    }
+
+    .arpp-workspace-v2__toolbar > [data-arpp-validation-toggle] {
+        font-size: 0;
+    }
+
+    .arpp-workspace-v2__toolbar > [data-arpp-validation-toggle] .bi,
+    .arpp-workspace-v2__toolbar > [data-arpp-validation-toggle] .badge {
+        font-size: .75rem;
+    }
+
+    .arpp-workspace-v2__toolbar > [data-arpp-add-row] {
+        font-size: 0;
+    }
+
+    .arpp-workspace-v2__toolbar > [data-arpp-add-row] .bi {
+        font-size: .85rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .arpp-workspace-v2__drawer,
+    .arpp-workspace-v2__navigator {
+        transition: none;
+    }
+}
+
+/* State emphasis is applied at the workspace root so the header remains
+   independent from the toolbar DOM order. */
+.arpp-workspace-v2.is-dirty .arpp-workspace-v2__save-state {
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
+    color: var(--bs-warning-text-emphasis);
 }

@@ -1,18 +1,32 @@
-PRISM ARPP/PPP FINAL UI/UX COMPLETION — VALIDATION
+PRISM ARPP/PPP Fresh Experience Redesign - Validation
+=====================================================
 
-Completed:
-- Patch generated from the latest staged ARPP UI/UX baseline.
-- Patch applied successfully to a clean copy of that baseline.
-- git diff --check passed.
-- JavaScript syntax passed with Node.js --check.
-- CSS brace-balance checks passed.
-- Replacement manifest paths verified.
-- No files under Data/Migrations or Models were changed.
-- No database schema or entity changes are included.
+Scope checks
+------------
+PASS  No database migration included.
+PASS  No model/entity replacement included.
+PASS  No service, resolver or IPA synchronisation replacement included.
+PASS  Package contains only Razor presentation, CSS, JavaScript and UI contract tests.
 
-Not executed in this environment:
-- dotnet build
-- dotnet test
+Static validation
+-----------------
+PASS  arpp-manage.js parsed successfully with Node.js 22 (`node --check`).
+PASS  Existing ARPP page scripts parsed successfully with Node.js 22.
+PASS  CSS brace balance passed for arpp-redesign.css and arpp-workspace.css.
+PASS  Razor structural tag counts passed for all changed views.
+PASS  Dedicated workspace contains no legacy sticky-left or sticky-right columns.
+PASS  Workspace uses one fixed viewport and one controlled grid scroll container.
+PASS  Record reader uses a conventional non-sticky read-only table.
+PASS  Module navigation is present across Published, Administration and Reconciliation.
+PASS  Working/published status wording is consistent across register and record pages.
+PASS  Dirty state remains independent of validation state.
 
-Reason: the .NET SDK is not installed in the execution environment.
-Run the commands in README-APPLY-FIRST.md after copying the files.
+Patch validation
+----------------
+PASS  IMPLEMENTATION.patch was generated against the latest supplied UI/UX baseline.
+PASS  Patch application and file comparison were verified against a clean baseline copy.
+
+Environment limitation
+----------------------
+The .NET SDK is not installed in this execution environment. A Release build and xUnit run
+must therefore be completed in the development environment using the commands in the README.

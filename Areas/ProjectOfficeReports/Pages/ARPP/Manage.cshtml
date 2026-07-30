@@ -4,9 +4,12 @@
 @using ProjectManagement.Utilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.ManageModel
 @{
-    ViewData["Title"] = $"Manage {Model.Issue.Name}";
+    ViewData["Title"] = $"Edit {Model.Issue.Name}";
     ViewData["PageShell"] = "workspace";
     var lookupUrl = Url.Content("~/api/arpp/projects");
+    var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
+        ? "Original ARPP"
+        : $"Addendum No. {Model.Issue.IssueSequence}";
 }
 
 @section Styles {
@@ -15,250 +18,218 @@
     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
 }
 
-<div class="arpp-page arpp-page--workspace py-2"
+<div class="arpp-workspace-v2"
      data-arpp-workspace
      data-arpp-project-lookup-url="@lookupUrl"
      data-arpp-has-server-errors="@(!ViewData.ModelState.IsValid ? "true" : "false")">
-    <header class="arpp-header arpp-header--workspace">
-        <div>
-            <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
-            <h1>Document workspace</h1>
-            <p>Enter the rows exactly as issued. PRISM project linking is optional and never changes the recorded project reference.</p>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">
-                <span class="bi bi-eye" aria-hidden="true"></span>
-                View record
-            </a>
-            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
-                <span class="bi bi-arrow-left" aria-hidden="true"></span>
-                Back to register
-            </a>
-        </div>
-    </header>
-
-    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
-    @if (TempData["ArppWarningMessage"] is string warningMessage)
-    {
-        <div class="alert alert-warning arpp-alert" role="alert">
-            <span class="bi bi-exclamation-triangle" aria-hidden="true"></span>
-            <span>@warningMessage</span>
-        </div>
-    }
-
-    <form method="post" class="arpp-workspace-form" data-arpp-form>
+    <form method="post" class="arpp-workspace-v2__form" data-arpp-form>
         <input type="hidden" asp-for="Id" />
         <input type="hidden" asp-for="Input.IssueRowVersion" />
 
-        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-        <section class="arpp-panel arpp-panel--identity">
-            <div class="arpp-panel__heading">
-                <div>
-                    <h2>Document identity</h2>
-                    <p>Corrections are audited and protected by optimistic concurrency.</p>
+        <header class="arpp-workspace-v2__header">
+            <div class="arpp-workspace-v2__document">
+                <span class="arpp-workspace-v2__product">ARPP / PPP working copy</span>
+                <div class="arpp-workspace-v2__title-line">
+                    <h1 title="@Model.Issue.Name">@Model.Issue.Name</h1>
+                    <span class="arpp-workspace-v2__document-type">@issueTypeLabel</span>
                 </div>
+                <p>
+                    FY @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)
+                    <span aria-hidden="true">·</span>
+                    Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")
+                    <span aria-hidden="true">·</span>
+                    <span data-arpp-row-count>@Model.Input.Entries.Count</span>
+                    <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>
+                </p>
             </div>
-            <div class="row g-3 p-3 pt-2">
-                <div class="col-md-3 col-xl-2">
-                    <label asp-for="Input.FinancialYearStart" class="form-label">Financial year</label>
-                    <select asp-for="Input.FinancialYearStart" class="form-select" data-arpp-financial-year>
-                        @foreach (var year in Model.FinancialYearOptions)
-                        {
-                            <option value="@year">@FinancialYearHelper.Format(year)</option>
-                        }
-                    </select>
-                    <span asp-validation-for="Input.FinancialYearStart" class="text-danger small"></span>
-                </div>
-                <div class="col-md-3 col-xl-2">
-                    <label asp-for="Input.Kind" class="form-label">Issue type</label>
-                    <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
-                        <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
-                        <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
-                    </select>
-                    <span asp-validation-for="Input.Kind" class="text-danger small"></span>
-                </div>
-                <div class="col-md-3 col-xl-2 @(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
-                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
-                    <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
-                    <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
-                    <span asp-validation-for="Input.IssueSequence" class="text-danger small"></span>
-                </div>
-                <div class="col-md-3 col-xl-2">
-                    <label asp-for="Input.IssueDate" class="form-label">Issue date</label>
-                    <input asp-for="Input.IssueDate" class="form-control" type="date" />
-                    <span asp-validation-for="Input.IssueDate" class="text-danger small"></span>
-                </div>
-                <div class="col-xl-4">
-                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
-                    <input asp-for="Input.Name" class="form-control" maxlength="300" />
-                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
-                </div>
-            </div>
-        </section>
-
-        <div class="arpp-workspace-commandbar" data-arpp-commandbar>
-            <div class="arpp-workspace-commandbar__identity">
-                <span class="arpp-workspace-commandbar__eyebrow">Issued rows</span>
-                <strong title="@Model.Issue.Name">@Model.Issue.Name</strong>
-                <span><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span> · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</span>
-            </div>
-            <div class="arpp-workspace-jump" role="search">
-                <label class="visually-hidden" for="arpp-workspace-jump">Jump to a row or project</label>
-                <span class="bi bi-search" aria-hidden="true"></span>
-                <input id="arpp-workspace-jump"
-                       type="search"
-                       class="form-control form-control-sm"
-                       autocomplete="off"
-                       placeholder="Jump to row or project"
-                       data-arpp-jump-input
-                       data-arpp-ui-only />
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-jump-next title="Find next matching row" aria-label="Find next matching row">
-                    <span class="bi bi-arrow-return-right" aria-hidden="true"></span>
-                </button>
-                <span class="arpp-workspace-jump__status" data-arpp-jump-status aria-live="polite"></span>
-            </div>
-            <div class="arpp-workspace-commandbar__actions">
-                <div class="arpp-commandbar-tools arpp-commandbar-tools--desktop" aria-label="Entry tools">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
-                        <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
-                        <span>Fill common fields</span>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
-                        <span class="bi bi-clipboard" aria-hidden="true"></span>
-                        <span>Paste rows</span>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-fullscreen-toggle aria-pressed="false" title="Open full-screen workspace">
-                        <span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span>
-                        <span data-arpp-fullscreen-label>Full screen</span>
-                    </button>
-                </div>
-                <div class="dropdown arpp-commandbar-tools arpp-commandbar-tools--menu">
-                    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span class="bi bi-tools" aria-hidden="true"></span>
-                        Entry tools
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><button type="button" class="dropdown-item" data-arpp-apply-common><span class="bi bi-arrow-down-square" aria-hidden="true"></span> Fill common fields</button></li>
-                        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#arppPasteModal"><span class="bi bi-clipboard" aria-hidden="true"></span> Paste rows</button></li>
-                        <li><button type="button" class="dropdown-item" data-arpp-fullscreen-toggle aria-pressed="false"><span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span> <span data-arpp-fullscreen-label>Full screen</span></button></li>
-                        @if (Model.CanManageReferenceData)
-                        {
-                            <li><hr class="dropdown-divider" /></li>
-                            <li><a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="dropdown-item"><span class="bi bi-list-check" aria-hidden="true"></span> Manage controlled lists</a></li>
-                        }
-                    </ul>
-                </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" data-arpp-add-row title="Add row (Alt+A)">
-                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                    <span class="arpp-action-label">Add row</span>
+            <div class="arpp-workspace-v2__header-status">
+                <span class="arpp-workspace-v2__save-state" data-arpp-save-state aria-live="polite">No unsaved changes</span>
+                <button type="submit" class="btn btn-primary" data-arpp-save-button title="Save working copy (Ctrl+S)">
+                    <span class="bi bi-check2" aria-hidden="true"></span>
+                    <span data-arpp-save-button-label>Save working copy</span>
                 </button>
                 <a asp-area="ProjectOfficeReports"
                    asp-page="/ARPP/Details"
                    asp-route-id="@Model.Id"
-                   class="btn btn-outline-secondary btn-sm arpp-discard-return"
+                   class="btn btn-outline-secondary arpp-workspace-v2__exit"
                    data-arpp-discard-return>
-                    <span class="bi bi-arrow-left" aria-hidden="true"></span>
-                    <span class="arpp-action-label">Discard and return</span>
+                    <span class="bi bi-x-lg" aria-hidden="true"></span>
+                    <span>Exit</span>
                 </a>
-                <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="No changes to save" disabled aria-disabled="true">
-                    <span class="bi bi-check2" aria-hidden="true"></span>
-                    <span data-arpp-save-button-label>Save issue</span>
-                </button>
             </div>
-            <div class="arpp-save-statusline">
-                <span class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</span>
-                <button type="button"
-                        class="btn btn-link btn-sm arpp-validation-toggle d-none"
-                        data-arpp-validation-toggle
-                        aria-controls="arppValidationTray"
-                        aria-expanded="false">
-                    Review issues
-                    <span class="badge rounded-pill text-bg-danger" data-arpp-validation-count>0</span>
+        </header>
+
+        <div class="arpp-workspace-v2__notices">
+            <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+            @if (TempData["ArppWarningMessage"] is string warningMessage)
+            {
+                <div class="alert alert-warning arpp-alert" role="alert">
+                    <span class="bi bi-exclamation-triangle" aria-hidden="true"></span>
+                    <span>@warningMessage</span>
+                </div>
+            }
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        </div>
+
+        <div class="arpp-workspace-v2__toolbar" data-arpp-commandbar>
+            <button type="button"
+                    class="btn btn-outline-secondary arpp-workspace-v2__navigator-toggle"
+                    data-arpp-navigator-toggle
+                    aria-controls="arppWorkspaceNavigator"
+                    aria-expanded="false">
+                <span class="bi bi-layout-sidebar" aria-hidden="true"></span>
+                Navigator
+            </button>
+
+            <div class="arpp-workspace-v2__search" role="search">
+                <label class="visually-hidden" for="arpp-workspace-jump">Find a row or project</label>
+                <span class="bi bi-search" aria-hidden="true"></span>
+                <input id="arpp-workspace-jump"
+                       type="search"
+                       class="form-control"
+                       autocomplete="off"
+                       placeholder="Find row, project, PPP or serial"
+                       data-arpp-jump-input
+                       data-arpp-ui-only />
+                <button type="button" class="btn btn-outline-secondary" data-arpp-jump-next title="Find next match" aria-label="Find next matching row">
+                    <span class="bi bi-arrow-return-right" aria-hidden="true"></span>
                 </button>
+                <span class="arpp-workspace-v2__search-status" data-arpp-jump-status aria-live="polite"></span>
+            </div>
+
+            <button type="button"
+                    class="btn btn-outline-danger d-none"
+                    data-arpp-validation-toggle
+                    aria-expanded="false"
+                    aria-controls="arppWorkspaceIssues">
+                <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                Issues
+                <span class="badge text-bg-danger" data-arpp-validation-count>0</span>
+            </button>
+
+            <button type="button" class="btn btn-primary" data-arpp-add-row title="Add row (Alt+A)">
+                <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                Add row
+            </button>
+
+            <div class="dropdown">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="bi bi-tools" aria-hidden="true"></span>
+                    Tools
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#arppPasteModal"><span class="bi bi-clipboard" aria-hidden="true"></span> Paste rows from Excel</button></li>
+                    <li><button type="button" class="dropdown-item" data-arpp-apply-common><span class="bi bi-arrow-down-square" aria-hidden="true"></span> Fill common fields</button></li>
+                    <li><button type="button" class="dropdown-item" data-arpp-details-toggle><span class="bi bi-file-earmark-text" aria-hidden="true"></span> Edit document details</button></li>
+                    @if (Model.CanManageReferenceData)
+                    {
+                        <li><hr class="dropdown-divider" /></li>
+                        <li><a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="dropdown-item"><span class="bi bi-list-check" aria-hidden="true"></span> Manage controlled lists</a></li>
+                    }
+                    <li><hr class="dropdown-divider" /></li>
+                    <li><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="dropdown-item" data-arpp-discard-return><span class="bi bi-arrow-left" aria-hidden="true"></span> Discard and return</a></li>
+                </ul>
             </div>
         </div>
 
-        <section id="arppValidationTray" class="arpp-validation-navigator d-none" data-arpp-validation-navigator aria-label="Validation issues">
-            <div class="arpp-validation-navigator__summary">
-                <span class="bi bi-exclamation-octagon" aria-hidden="true"></span>
-                <div>
-                    <strong data-arpp-validation-heading>Review the highlighted fields</strong>
-                    <p data-arpp-validation-copy>Correct the listed fields before saving.</p>
-                </div>
-            </div>
-            <div class="arpp-validation-navigator__items" data-arpp-validation-items></div>
-            <div class="arpp-validation-navigator__actions">
-                <button type="button" class="btn btn-sm btn-link text-danger d-none" data-arpp-validation-more>View all</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
-                <button type="button" class="btn btn-sm btn-link text-secondary" data-arpp-validation-close>Close</button>
-            </div>
-        </section>
-
-        <section class="arpp-panel arpp-panel--entries">
-            <div class="arpp-panel__heading arpp-panel__heading--workspace">
-                <div>
-                    <h2>Issued rows</h2>
-                    <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. Project reference, IPA cost, CFA, Fund and DFPDS remain required for Delisted entries. Serial No. and PPP No. do not apply.</p>
-                </div>
-            </div>
-
-            <details class="arpp-reference-guidance" open data-arpp-entry-guidance>
-                <summary>
-                    <span class="bi bi-lightning-charge" aria-hidden="true"></span>
-                    <span class="arpp-reference-guidance__summary-text">
-                        <strong>Faster, consistent entry</strong>
-                        <small>Controlled CFA, Fund and DFPDS lists</small>
-                    </span>
-                    <span class="bi bi-chevron-down arpp-reference-guidance__chevron" aria-hidden="true"></span>
-                </summary>
-                <div class="arpp-reference-guidance__body">
+        <div class="arpp-workspace-v2__body">
+            <aside class="arpp-workspace-v2__navigator" id="arppWorkspaceNavigator" data-arpp-navigator aria-label="Row navigator">
+                <div class="arpp-workspace-v2__navigator-header">
                     <div>
-                        <p>Choose CFA, Fund and DFPDS from the approved lists. New rows copy these values from the preceding row, and “Fill common fields” completes blanks in one action.</p>
-                        <p>When a value is missing, select <em>Not listed — enter as issued</em>. The row can be saved, but Admin mapping is required before verification.</p>
+                        <span>Row navigator</span>
+                        <strong data-arpp-visible-row-status>All rows</strong>
                     </div>
-                    @if (Model.CanManageReferenceData)
-                    {
-                        <a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="btn btn-outline-secondary btn-sm">Manage lists</a>
-                    }
+                    <button type="button" class="btn btn-sm btn-light" data-arpp-navigator-close aria-label="Close row navigator">
+                        <span class="bi bi-x-lg" aria-hidden="true"></span>
+                    </button>
                 </div>
-            </details>
 
-            <div class="arpp-empty arpp-empty--rows @(Model.Input.Entries.Count == 0 ? string.Empty : "d-none")" data-arpp-empty-rows>
-                <span class="bi bi-list-check" aria-hidden="true"></span>
-                <h3>No issued rows entered</h3>
-                <p>Add the first row or paste rows copied from Excel.</p>
-                <div class="d-flex justify-content-center gap-2">
-                    <button type="button" class="btn btn-primary btn-sm" data-arpp-add-first-row>Add first row</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">Paste rows</button>
-                </div>
-            </div>
+                <nav class="arpp-workspace-v2__filters" aria-label="Filter rows">
+                    <button type="button" class="is-active" data-arpp-row-filter="all" aria-pressed="true">
+                        <span><span class="bi bi-list-ul" aria-hidden="true"></span> All rows</span>
+                        <strong data-arpp-filter-count="all">@Model.Input.Entries.Count</strong>
+                    </button>
+                    <button type="button" data-arpp-row-filter="issues" aria-pressed="false">
+                        <span><span class="bi bi-exclamation-circle" aria-hidden="true"></span> Needs attention</span>
+                        <strong data-arpp-filter-count="issues">0</strong>
+                    </button>
+                    <button type="button" data-arpp-row-filter="unlinked" aria-pressed="false">
+                        <span><span class="bi bi-link-45deg" aria-hidden="true"></span> Unlinked</span>
+                        <strong data-arpp-filter-count="unlinked">0</strong>
+                    </button>
+                    <button type="button" data-arpp-row-filter="delisted" aria-pressed="false">
+                        <span><span class="bi bi-archive" aria-hidden="true"></span> Delisted</span>
+                        <strong data-arpp-filter-count="delisted">0</strong>
+                    </button>
+                </nav>
 
-            <div class="arpp-table-viewport @(Model.Input.Entries.Count == 0 ? "d-none" : string.Empty)" data-arpp-table-viewport>
-                <div class="arpp-table-scrollbar d-none" data-arpp-table-scrollbar role="region" aria-label="Horizontal table scrollbar" tabindex="0">
-                    <div data-arpp-table-scrollbar-spacer></div>
+                <section class="arpp-workspace-v2__issues d-none"
+                         id="arppWorkspaceIssues"
+                         data-arpp-validation-navigator
+                         aria-label="Validation issues"
+                         aria-live="polite">
+                    <div class="arpp-workspace-v2__issues-header">
+                        <div>
+                            <strong data-arpp-validation-heading>Review issues</strong>
+                            <span data-arpp-validation-copy></span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-light" data-arpp-validation-close aria-label="Close issues">
+                            <span class="bi bi-x-lg" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="arpp-workspace-v2__issue-list" data-arpp-validation-items></div>
+                    <div class="arpp-workspace-v2__issue-actions">
+                        <button type="button" class="btn btn-link btn-sm d-none" data-arpp-validation-more>View all</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-arpp-validation-first>Go to first issue</button>
+                    </div>
+                </section>
+
+                <details class="arpp-workspace-v2__guidance" data-arpp-entry-guidance>
+                    <summary><span class="bi bi-lightning-charge" aria-hidden="true"></span> Entry guidance</summary>
+                    <div>
+                        <p>Record the wording exactly as issued. Project linking is optional and does not alter the issued reference.</p>
+                        <p>For values outside controlled lists, use <em>Not listed — enter as issued</em>. Mapping can be completed before verification.</p>
+                    </div>
+                </details>
+            </aside>
+            <button type="button" class="arpp-workspace-v2__navigator-backdrop" data-arpp-navigator-backdrop aria-label="Close row navigator" tabindex="-1"></button>
+
+            <main class="arpp-workspace-v2__grid-shell" aria-label="Issued row editor">
+                <div class="arpp-workspace-v2__empty @(Model.Input.Entries.Count == 0 ? string.Empty : "d-none")" data-arpp-empty-rows>
+                    <span class="bi bi-table" aria-hidden="true"></span>
+                    <h2>No issued rows entered</h2>
+                    <p>Add the first row manually or paste rows copied from Excel.</p>
+                    <div>
+                        <button type="button" class="btn btn-primary" data-arpp-add-first-row>Add first row</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#arppPasteModal">Paste rows</button>
+                    </div>
                 </div>
-                <div class="arpp-table-wrap" data-arpp-table-wrap>
-                    <table class="table arpp-entry-table align-middle" data-arpp-entry-table>
-                    <thead>
-                        <tr>
-                            <th class="arpp-col-order arpp-sticky-left arpp-sticky-left--order">#</th>
-                            <th class="arpp-col-issued arpp-sticky-left arpp-sticky-left--issued">Issued identity</th>
-                            <th class="arpp-col-project">PRISM project <span class="arpp-optional">optional</span></th>
-                            <th class="arpp-col-category">Category</th>
-                            <th class="arpp-col-cost text-end">IPA cost (₹)</th>
-                            <th class="arpp-col-cfa">CFA</th>
-                            <th class="arpp-col-fund">Fund</th>
-                            <th class="arpp-col-dfpds">DFPDS</th>
-                            <th class="arpp-col-actions arpp-sticky-right">Actions</th>
-                        </tr>
-                    </thead>
+
+                <div class="arpp-workspace-v2__table-viewport @(Model.Input.Entries.Count == 0 ? "d-none" : string.Empty)" data-arpp-table-viewport>
+                    <div class="arpp-workspace-v2__top-scrollbar d-none" data-arpp-table-scrollbar role="region" aria-label="Horizontal table scrollbar" tabindex="0">
+                        <div data-arpp-table-scrollbar-spacer></div>
+                    </div>
+                    <div class="arpp-workspace-v2__table-wrap" data-arpp-table-wrap>
+                        <table class="table arpp-entry-table arpp-workspace-v2__table align-middle" data-arpp-entry-table>
+                            <thead>
+                                <tr>
+                                    <th class="arpp-col-order">#</th>
+                                    <th class="arpp-col-issued">Issued identity</th>
+                                    <th class="arpp-col-project">PRISM project <span class="arpp-optional">optional</span></th>
+                                    <th class="arpp-col-category">Category</th>
+                                    <th class="arpp-col-cost text-end">IPA cost (₹)</th>
+                                    <th class="arpp-col-cfa">CFA</th>
+                                    <th class="arpp-col-fund">Fund</th>
+                                    <th class="arpp-col-dfpds">DFPDS</th>
+                                    <th class="arpp-col-actions">Actions</th>
+                                </tr>
+                            </thead>
                     <tbody data-arpp-entry-body>
                         @for (var index = 0; index < Model.Input.Entries.Count; index++)
                         {
                             <tr data-arpp-entry-row>
-                                <td class="arpp-row-order arpp-sticky-left arpp-sticky-left--order" data-arpp-row-number>@(index + 1)</td>
-                                <td class="arpp-sticky-left arpp-sticky-left--issued">
+                                <td class="arpp-row-order" data-arpp-row-number>@(index + 1)</td>
+                                <td class="arpp-issued-cell">
                                     <input type="hidden" asp-for="Input.Entries[index].Id" />
                                     <input type="hidden" asp-for="Input.Entries[index].RowVersion" />
                                     <div class="arpp-issued-identity">
@@ -393,7 +364,7 @@
                                     <span asp-validation-for="Input.Entries[index].DfpdsScheduleId" class="text-danger small"></span>
                                     <span asp-validation-for="Input.Entries[index].DfpdsSchedule" class="text-danger small"></span>
                                 </td>
-                                <td class="arpp-sticky-right">
+                                <td class="arpp-actions-cell">
                                     <div class="arpp-row-actions">
                                         <button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button>
                                         <button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button>
@@ -402,14 +373,69 @@
                             </tr>
                         }
                     </tbody>
-                    </table>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <aside class="arpp-workspace-v2__drawer" data-arpp-details-drawer aria-hidden="true" aria-labelledby="arppDocumentDetailsTitle">
+            <div class="arpp-workspace-v2__drawer-header">
+                <div>
+                    <span>Working copy</span>
+                    <h2 id="arppDocumentDetailsTitle">Document details</h2>
+                </div>
+                <button type="button" class="btn btn-sm btn-light" data-arpp-details-close aria-label="Close document details">
+                    <span class="bi bi-x-lg" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="arpp-workspace-v2__drawer-body">
+                <p class="arpp-workspace-v2__drawer-intro">Enter the identity exactly as shown on the issued HQ document.</p>
+                <div>
+                    <label asp-for="Input.FinancialYearStart" class="form-label">Financial year</label>
+                    <select asp-for="Input.FinancialYearStart" class="form-select" data-arpp-financial-year>
+                        @foreach (var year in Model.FinancialYearOptions)
+                        {
+                            <option value="@year">@FinancialYearHelper.Format(year)</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Input.FinancialYearStart" class="text-danger small"></span>
+                </div>
+                <div>
+                    <label asp-for="Input.Kind" class="form-label">Issue type</label>
+                    <select asp-for="Input.Kind" class="form-select" data-arpp-issue-kind>
+                        <option value="@((int)ArppIssueKind.Original)">Original ARPP</option>
+                        <option value="@((int)ArppIssueKind.Addendum)">Addendum</option>
+                    </select>
+                    <span asp-validation-for="Input.Kind" class="text-danger small"></span>
+                </div>
+                <div class="@(Model.Input.Kind == ArppIssueKind.Original ? "d-none" : string.Empty)" data-arpp-addendum-number-field>
+                    <label asp-for="Input.IssueSequence" class="form-label">Addendum number</label>
+                    <input asp-for="Input.IssueSequence" class="form-control" type="number" min="0" data-arpp-issue-sequence />
+                    <div class="form-text" data-arpp-sequence-help>Original ARPP uses internal sequence 0.</div>
+                    <span asp-validation-for="Input.IssueSequence" class="text-danger small"></span>
+                </div>
+                <div>
+                    <label asp-for="Input.IssueDate" class="form-label">Issue date</label>
+                    <input asp-for="Input.IssueDate" class="form-control" type="date" />
+                    <span asp-validation-for="Input.IssueDate" class="text-danger small"></span>
+                </div>
+                <div>
+                    <label asp-for="Input.Name" class="form-label">Document name / letter description</label>
+                    <textarea asp-for="Input.Name" class="form-control" rows="3" maxlength="300"></textarea>
+                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
                 </div>
             </div>
+            <div class="arpp-workspace-v2__drawer-footer">
+                <button type="button" class="btn btn-primary" data-arpp-details-close>Done</button>
+            </div>
+        </aside>
+        <button type="button" class="arpp-workspace-v2__drawer-backdrop" data-arpp-details-backdrop aria-label="Close document details" tabindex="-1"></button>
 
             <template data-arpp-row-template>
                 <tr data-arpp-entry-row>
-                    <td class="arpp-row-order arpp-sticky-left arpp-sticky-left--order" data-arpp-row-number>__ROW__</td>
-                    <td class="arpp-sticky-left arpp-sticky-left--issued">
+                    <td class="arpp-row-order" data-arpp-row-number>__ROW__</td>
+                    <td class="arpp-issued-cell">
                         <input type="hidden" name="Input.Entries[__INDEX__].Id" id="Input_Entries___INDEX____Id" />
                         <input type="hidden" name="Input.Entries[__INDEX__].RowVersion" id="Input_Entries___INDEX____RowVersion" />
                         <div class="arpp-issued-identity">
@@ -498,11 +524,9 @@
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsScheduleId" data-valmsg-replace="true"></span>
                         <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].DfpdsSchedule" data-valmsg-replace="true"></span>
                     </td>
-                    <td class="arpp-sticky-right"><div class="arpp-row-actions"><button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button><button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button></div></td>
+                    <td class="arpp-actions-cell"><div class="arpp-row-actions"><button type="button" class="btn btn-light btn-sm" data-arpp-copy-previous title="Copy CFA, Fund and DFPDS from previous row" aria-label="Copy common fields from previous row"><span class="bi bi-copy" aria-hidden="true"></span></button><button type="button" class="btn btn-light btn-sm text-danger" data-arpp-remove-row title="Remove row" aria-label="Remove row"><span class="bi bi-trash" aria-hidden="true"></span></button></div></td>
                 </tr>
             </template>
-        </section>
-
     </form>
 </div>
 
