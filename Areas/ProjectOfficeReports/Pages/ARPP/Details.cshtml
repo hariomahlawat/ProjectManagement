@@ -10,17 +10,58 @@
         ? "Original ARPP"
         : $"Addendum No. {Model.Issue.IssueSequence}";
     var isCorrection = !Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot;
+    var isSetupIncomplete = !Model.Issue.IsVerified && Model.Issue.Entries.Count == 0 && Model.Issue.Attachment is null;
+    var needsReferenceReview = !Model.Issue.IsVerified && !Model.ReferenceDataReady;
+    var isReadyForVerification = !Model.Issue.IsVerified && Model.IsVerificationReady;
     var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
     var statusLabel = Model.Issue.IsVerified
         ? "Verified and published"
         : isCorrection
             ? "Unlocked for correction"
-            : "Verification pending";
+            : isSetupIncomplete
+                ? "Setup incomplete"
+                : needsReferenceReview
+                    ? "Reference review required"
+                    : isReadyForVerification
+                        ? "Ready for verification"
+                        : "Working copy";
     var statusBadgeClass = Model.Issue.IsVerified
         ? "arpp-badge--verified"
         : isCorrection
             ? "arpp-badge--correction"
-            : "arpp-badge--unverified";
+            : isSetupIncomplete
+                ? "arpp-badge--incomplete"
+                : needsReferenceReview
+                    ? "arpp-badge--reference-review"
+                    : isReadyForVerification
+                        ? "arpp-badge--ready"
+                        : "arpp-badge--unverified";
+    var documentStateClass = Model.Issue.IsVerified
+        ? "arpp-document-state--published"
+        : isCorrection
+            ? "arpp-document-state--correction"
+            : isSetupIncomplete
+                ? "arpp-document-state--incomplete"
+                : needsReferenceReview
+                    ? "arpp-document-state--reference-review"
+                    : isReadyForVerification
+                        ? "arpp-document-state--ready"
+                        : "arpp-document-state--pending";
+    var statusIcon = Model.Issue.IsVerified
+        ? "bi-lock-fill"
+        : isCorrection
+            ? "bi-pencil-square"
+            : isSetupIncomplete
+                ? "bi-exclamation-circle"
+                : needsReferenceReview
+                    ? "bi-list-check"
+                    : isReadyForVerification
+                        ? "bi-shield-check"
+                        : "bi-hourglass-split";
+
+    static bool IsSameProjectReference(string issuedReference, string? linkedProjectName)
+        => !string.IsNullOrWhiteSpace(linkedProjectName)
+           && string.Equals(issuedReference.Trim(), linkedProjectName.Trim(), StringComparison.OrdinalIgnoreCase);
 }
 
 @section Styles {
@@ -36,7 +77,7 @@
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
                 <span class="arpp-badge @statusBadgeClass">
-                    <span class="bi @(Model.Issue.IsVerified ? "bi-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-hourglass-split")" aria-hidden="true"></span>
+                    <span class="bi @statusIcon" aria-hidden="true"></span>
                     @statusLabel
                 </span>
             </div>
@@ -78,10 +119,10 @@
         <div class="alert alert-warning arpp-alert" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span><span>@warningMessage</span></div>
     }
 
-    <section class="arpp-document-state @(Model.Issue.IsVerified ? "arpp-document-state--published" : isCorrection ? "arpp-document-state--correction" : "arpp-document-state--pending")"
+    <section class="arpp-document-state @documentStateClass"
              aria-label="Document state">
         <div class="arpp-document-state__identity">
-            <span class="bi @(Model.Issue.IsVerified ? "bi-shield-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-shield-exclamation")" aria-hidden="true"></span>
+            <span class="bi @(Model.Issue.IsVerified ? "bi-shield-lock-fill" : statusIcon)" aria-hidden="true"></span>
             <div>
                 <div class="arpp-document-state__titleline">
                     <strong>@statusLabel</strong>
@@ -121,9 +162,21 @@
                             until this working copy is verified again.
                         </p>
                     }
+                    else if (isSetupIncomplete)
+                    {
+                        <p>Add the issued rows and attach the HQ PDF before this record can be verified for the first time.</p>
+                    }
+                    else if (needsReferenceReview)
+                    {
+                        <p>Map all CFA, Fund and DFPDS values to the controlled lists before verification.</p>
+                    }
+                    else if (isReadyForVerification)
+                    {
+                        <p>All verification prerequisites are complete. Check the structured rows against the issued HQ PDF and publish the record.</p>
+                    }
                     else
                     {
-                        <p>Check the structured rows against the issued HQ PDF before publishing this record for the first time.</p>
+                        <p>Complete the remaining verification prerequisites shown below.</p>
                     }
                     <ul class="arpp-readiness-strip" aria-label="Verification readiness">
                         <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
@@ -231,13 +284,20 @@
         <section class="arpp-panel arpp-panel--entries arpp-details-rows">
             <div class="arpp-panel__heading">
                 <div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div>
-                @if (Model.CanManage && !Model.Issue.IsVerified)
-                {
-                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-pencil-square" aria-hidden="true"></span> Edit rows</a>
-                }
             </div>
             <div class="arpp-table-wrap arpp-table-wrap--details">
                 <table class="table arpp-details-table align-middle">
+                    <colgroup>
+                        <col class="arpp-details-col-order" />
+                        <col class="arpp-details-col-serial" />
+                        <col class="arpp-details-col-ppp" />
+                        <col class="arpp-details-col-project" />
+                        <col class="arpp-details-col-category" />
+                        <col class="arpp-details-col-cost" />
+                        <col class="arpp-details-col-cfa" />
+                        <col class="arpp-details-col-fund" />
+                        <col class="arpp-details-col-dfpds" />
+                    </colgroup>
                     <thead><tr><th>#</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
                     <tbody>
                         @foreach (var entry in Model.Issue.Entries)
@@ -246,27 +306,70 @@
                                 <td class="text-body-secondary">@entry.SortOrder</td>
                                 <td><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</span></td>
                                 <td><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</span></td>
-                                <td>
-                                    <div class="arpp-project-reference">@entry.ProjectReference</div>
-                                    @if (entry.ProjectId.HasValue)
+                                <td class="arpp-details-project-cell">
+                                    @if (entry.ProjectId.HasValue && IsSameProjectReference(entry.ProjectReference, entry.ProjectName))
                                     {
-                                        <div class="arpp-linked-project">
-                                            <span class="bi bi-link-45deg" aria-hidden="true"></span>
-                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="_blank" rel="noopener">@entry.ProjectName</a>
+                                        <a class="arpp-details-project-link"
+                                           asp-area=""
+                                           asp-page="/Projects/Overview"
+                                           asp-route-id="@entry.ProjectId"
+                                           target="_blank"
+                                           rel="noopener"
+                                           title="Open linked PRISM project in a new tab">
+                                            <span>@entry.ProjectReference</span>
+                                            <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                                            <span class="visually-hidden">(opens in a new tab)</span>
+                                        </a>
+                                        <div class="arpp-details-project-meta">
+                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
+                                            {
+                                                <span>@entry.ProjectStatus</span>
+                                            }
                                             @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
                                             {
                                                 <span>@entry.ProjectCaseFileNumber</span>
                                             }
-                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
-                                            {
-                                                <span>PRISM status: @entry.ProjectStatus</span>
-                                            }
-                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId" class="arpp-history-link">History</a>
+                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId">History</a>
                                         </div>
                                     }
                                     else
                                     {
-                                        <div class="arpp-unlinked"><span class="bi bi-exclamation-circle" aria-hidden="true"></span> PRISM linkage pending</div>
+                                        <div class="arpp-details-project-line">
+                                            <span class="arpp-details-project-label">Issued</span>
+                                            <strong title="@entry.ProjectReference">@entry.ProjectReference</strong>
+                                        </div>
+                                        @if (entry.ProjectId.HasValue)
+                                        {
+                                            <div class="arpp-details-project-line arpp-details-project-line--linked">
+                                                <span class="arpp-details-project-label">Linked</span>
+                                                <a class="arpp-details-project-link"
+                                                   asp-area=""
+                                                   asp-page="/Projects/Overview"
+                                                   asp-route-id="@entry.ProjectId"
+                                                   target="_blank"
+                                                   rel="noopener"
+                                                   title="Open linked PRISM project in a new tab">
+                                                    <span>@entry.ProjectName</span>
+                                                    <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                                                    <span class="visually-hidden">(opens in a new tab)</span>
+                                                </a>
+                                            </div>
+                                            <div class="arpp-details-project-meta arpp-details-project-meta--indented">
+                                                @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
+                                                {
+                                                    <span>@entry.ProjectStatus</span>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
+                                                {
+                                                    <span>@entry.ProjectCaseFileNumber</span>
+                                                }
+                                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId">History</a>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="arpp-unlinked"><span class="bi bi-exclamation-circle" aria-hidden="true"></span> PRISM linkage pending</div>
+                                        }
                                     }
                                 </td>
                                 <td><span class="arpp-badge arpp-badge--@(entry.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(entry.Category)</span></td>

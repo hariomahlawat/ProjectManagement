@@ -19,6 +19,7 @@
     let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
     let baselineSnapshot = "";
     let validationExpanded = false;
+    let validationTrayOpen = false;
     let pasteRows = [];
     let jumpMatches = [];
     let jumpMatchIndex = -1;
@@ -48,7 +49,16 @@
 
     const setSaveButtonsDisabled = disabled => {
         root.querySelectorAll("[data-arpp-save-button]").forEach(button => {
-            if (button instanceof HTMLButtonElement) button.disabled = disabled;
+            if (!(button instanceof HTMLButtonElement)) return;
+            button.disabled = disabled;
+            button.setAttribute("aria-disabled", disabled ? "true" : "false");
+            button.title = saving
+                ? "Saving the working copy"
+                : disabled
+                    ? "No changes to save"
+                    : validationIssueCount > 0
+                        ? "Save the working copy with the highlighted issues"
+                        : "Save issue (Ctrl+S)";
         });
     };
 
@@ -75,6 +85,17 @@
             else if (dirty) state.textContent = "Unsaved changes";
             else if (validationIssueCount > 0) state.textContent = `No unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
             else state.textContent = "No unsaved changes";
+        }
+
+        const validationToggle = root.querySelector("[data-arpp-validation-toggle]");
+        const validationCount = root.querySelector("[data-arpp-validation-count]");
+        if (validationCount) validationCount.textContent = String(validationIssueCount);
+        if (validationToggle instanceof HTMLButtonElement) {
+            validationToggle.classList.toggle("d-none", validationIssueCount === 0);
+            validationToggle.setAttribute("aria-expanded", validationTrayOpen ? "true" : "false");
+            validationToggle.title = validationIssueCount > 0
+                ? `Review ${validationIssueCount} validation ${validationIssueCount === 1 ? "issue" : "issues"}`
+                : "No validation issues";
         }
 
         setSaveButtonsDisabled(saving || !dirty);
@@ -258,6 +279,15 @@
         });
     };
 
+    const setValidationTrayOpen = open => {
+        const navigator = root.querySelector("[data-arpp-validation-navigator]");
+        validationTrayOpen = Boolean(open && validationIssueCount > 0);
+        navigator?.classList.toggle("d-none", !validationTrayOpen);
+        root.querySelector("[data-arpp-validation-toggle]")?.setAttribute(
+            "aria-expanded",
+            validationTrayOpen ? "true" : "false");
+    };
+
     const updateValidationNavigator = (focusFirst = false) => {
         const navigator = root.querySelector("[data-arpp-validation-navigator]");
         const heading = root.querySelector("[data-arpp-validation-heading]");
@@ -269,12 +299,15 @@
 
         const issues = collectValidationIssues();
         validationIssueCount = issues.length;
-        navigator.classList.toggle("d-none", issues.length === 0);
+        if (focusFirst && issues.length > 0) validationTrayOpen = true;
+        if (issues.length === 0) validationTrayOpen = false;
+        navigator.classList.toggle("d-none", issues.length === 0 || !validationTrayOpen);
         items.replaceChildren();
         rows().forEach(row => row.classList.remove("is-validation-target"));
 
         if (!issues.length) {
             validationExpanded = false;
+            validationTrayOpen = false;
             moreButton?.classList.add("d-none");
             syncWorkspaceStatus();
             return issues;
@@ -316,6 +349,7 @@
                     root.querySelector(".arpp-panel--identity")?.scrollIntoView({ behavior: "smooth", block: "center" });
                     window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
                 }
+                setValidationTrayOpen(false);
             });
             items.appendChild(button);
         });
@@ -334,9 +368,11 @@
                 const first = issues[0];
                 if (first.row) scrollRowIntoWorkspace(first.row, first.control);
                 else first.control.focus();
+                setValidationTrayOpen(false);
             };
         }
         if (focusFirst) firstButton?.focus({ preventScroll: true });
+        setValidationTrayOpen(validationTrayOpen);
         syncWorkspaceStatus();
         return issues;
     };
@@ -1036,6 +1072,12 @@
             setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
         });
     });
+
+    root.querySelector("[data-arpp-validation-toggle]")?.addEventListener("click", () => {
+        setValidationTrayOpen(!validationTrayOpen);
+        if (validationTrayOpen) root.querySelector("[data-arpp-validation-navigator]")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    root.querySelector("[data-arpp-validation-close]")?.addEventListener("click", () => setValidationTrayOpen(false));
 
     root.querySelector("[data-arpp-discard-return]")?.addEventListener("click", async event => {
         if (!dirty) return;

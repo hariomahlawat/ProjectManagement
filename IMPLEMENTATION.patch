@@ -1,1719 +1,940 @@
 diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
-index 9604b36..048a502 100644
+index 048a502..1dfab4b 100644
 --- a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
-@@ -9,6 +9,18 @@
-     var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
+@@ -10,17 +10,58 @@
          ? "Original ARPP"
          : $"Addendum No. {Model.Issue.IssueSequence}";
-+    var isCorrection = !Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot;
-+    var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
-+    var statusLabel = Model.Issue.IsVerified
-+        ? "Verified and published"
+     var isCorrection = !Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot;
++    var isSetupIncomplete = !Model.Issue.IsVerified && Model.Issue.Entries.Count == 0 && Model.Issue.Attachment is null;
++    var needsReferenceReview = !Model.Issue.IsVerified && !Model.ReferenceDataReady;
++    var isReadyForVerification = !Model.Issue.IsVerified && Model.IsVerificationReady;
+     var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
+     var statusLabel = Model.Issue.IsVerified
+         ? "Verified and published"
+         : isCorrection
+             ? "Unlocked for correction"
+-            : "Verification pending";
++            : isSetupIncomplete
++                ? "Setup incomplete"
++                : needsReferenceReview
++                    ? "Reference review required"
++                    : isReadyForVerification
++                        ? "Ready for verification"
++                        : "Working copy";
+     var statusBadgeClass = Model.Issue.IsVerified
+         ? "arpp-badge--verified"
+         : isCorrection
+             ? "arpp-badge--correction"
+-            : "arpp-badge--unverified";
++            : isSetupIncomplete
++                ? "arpp-badge--incomplete"
++                : needsReferenceReview
++                    ? "arpp-badge--reference-review"
++                    : isReadyForVerification
++                        ? "arpp-badge--ready"
++                        : "arpp-badge--unverified";
++    var documentStateClass = Model.Issue.IsVerified
++        ? "arpp-document-state--published"
 +        : isCorrection
-+            ? "Unlocked for correction"
-+            : "Verification pending";
-+    var statusBadgeClass = Model.Issue.IsVerified
-+        ? "arpp-badge--verified"
++            ? "arpp-document-state--correction"
++            : isSetupIncomplete
++                ? "arpp-document-state--incomplete"
++                : needsReferenceReview
++                    ? "arpp-document-state--reference-review"
++                    : isReadyForVerification
++                        ? "arpp-document-state--ready"
++                        : "arpp-document-state--pending";
++    var statusIcon = Model.Issue.IsVerified
++        ? "bi-lock-fill"
 +        : isCorrection
-+            ? "arpp-badge--correction"
-+            : "arpp-badge--unverified";
++            ? "bi-pencil-square"
++            : isSetupIncomplete
++                ? "bi-exclamation-circle"
++                : needsReferenceReview
++                    ? "bi-list-check"
++                    : isReadyForVerification
++                        ? "bi-shield-check"
++                        : "bi-hourglass-split";
++
++    static bool IsSameProjectReference(string issuedReference, string? linkedProjectName)
++        => !string.IsNullOrWhiteSpace(linkedProjectName)
++           && string.Equals(issuedReference.Trim(), linkedProjectName.Trim(), StringComparison.OrdinalIgnoreCase);
  }
  
  @section Styles {
-@@ -19,18 +31,14 @@
- <div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
-      data-arpp-details
-      data-arpp-reopen-unlock-modal="@(Model.ReopenUnlockModal ? "true" : "false")">
--    <header class="arpp-header">
-+    <header class="arpp-header arpp-header--compact">
-         <div>
+@@ -36,7 +77,7 @@
              <div class="d-flex flex-wrap align-items-center gap-2">
                  <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
--                @if (Model.Issue.IsVerified)
--                {
--                    <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>
--                }
--                else
--                {
--                    <span class="arpp-badge arpp-badge--unverified">Unverified</span>
--                }
-+                <span class="arpp-badge @statusBadgeClass">
-+                    <span class="bi @(Model.Issue.IsVerified ? "bi-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-hourglass-split")" aria-hidden="true"></span>
-+                    @statusLabel
-+                </span>
+                 <span class="arpp-badge @statusBadgeClass">
+-                    <span class="bi @(Model.Issue.IsVerified ? "bi-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-hourglass-split")" aria-hidden="true"></span>
++                    <span class="bi @statusIcon" aria-hidden="true"></span>
+                     @statusLabel
+                 </span>
              </div>
-             <h1>@Model.Issue.Name</h1>
-             <p>@issueTypeLabel · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")</p>
-@@ -39,7 +47,7 @@
-             @if (Model.Issue.Attachment is not null)
-             {
-                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-secondary btn-sm">
--                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Open issued PDF
-+                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Issued PDF
-                 </a>
-             }
-             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Excel" asp-route-id="@Model.Issue.Id" class="btn btn-outline-success btn-sm">
-@@ -70,34 +78,22 @@
+@@ -78,10 +119,10 @@
          <div class="alert alert-warning arpp-alert" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span><span>@warningMessage</span></div>
      }
  
--    @if (!Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot)
--    {
--        <section class="arpp-publication-continuity" role="status" aria-label="Published revision status">
--            <span class="bi bi-broadcast-pin" aria-hidden="true"></span>
-+    <section class="arpp-document-state @(Model.Issue.IsVerified ? "arpp-document-state--published" : isCorrection ? "arpp-document-state--correction" : "arpp-document-state--pending")"
-+             aria-label="Document state">
-+        <div class="arpp-document-state__identity">
-+            <span class="bi @(Model.Issue.IsVerified ? "bi-shield-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-shield-exclamation")" aria-hidden="true"></span>
+-    <section class="arpp-document-state @(Model.Issue.IsVerified ? "arpp-document-state--published" : isCorrection ? "arpp-document-state--correction" : "arpp-document-state--pending")"
++    <section class="arpp-document-state @documentStateClass"
+              aria-label="Document state">
+         <div class="arpp-document-state__identity">
+-            <span class="bi @(Model.Issue.IsVerified ? "bi-shield-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-shield-exclamation")" aria-hidden="true"></span>
++            <span class="bi @(Model.Issue.IsVerified ? "bi-shield-lock-fill" : statusIcon)" aria-hidden="true"></span>
              <div>
--                <strong>Last verified revision remains published</strong>
--                <p>
--                    Corrections are being made in the management workspace. PRISM users continue to see
--                    revision @Model.Issue.PublishedRevisionNumber
--                    @if (Model.Issue.PublishedAtUtc.HasValue)
-+                <div class="arpp-document-state__titleline">
-+                    <strong>@statusLabel</strong>
-+                    @if (Model.Issue.HasPublishedSnapshot && Model.Issue.PublishedRevisionNumber.HasValue)
-                     {
--                        <text>published @Model.FormatIst(Model.Issue.PublishedAtUtc.Value)</text>
-+                        <span class="arpp-document-state__revision">Revision @Model.Issue.PublishedRevisionNumber</span>
+                 <div class="arpp-document-state__titleline">
+                     <strong>@statusLabel</strong>
+@@ -121,9 +162,21 @@
+                             until this working copy is verified again.
+                         </p>
                      }
--                    until this record is verified again.
--                </p>
--            </div>
--        </section>
--    }
--
--    @if (Model.Issue.IsVerified)
--    {
--        <section class="arpp-verification-banner arpp-verification-banner--locked" aria-label="Verification status">
--            <div class="arpp-verification-banner__identity">
--                <span class="bi bi-shield-lock-fill" aria-hidden="true"></span>
--                <div>
--                    <strong>Verified and locked</strong>
--                    <p>Issued rows, document identity and HQ PDF are protected from modification.</p>
--                    <dl class="arpp-verification-meta">
-+                </div>
-+                @if (Model.Issue.IsVerified)
-+                {
-+                    <p>Issued rows, document identity and the HQ PDF are protected from modification.</p>
-+                    <dl class="arpp-verification-meta arpp-verification-meta--inline">
-                         @if (!string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName) || !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByUserId))
-                         {
-                             <div><dt>Verified by</dt><dd>@(Model.Issue.VerifiedByDisplayName ?? Model.Issue.VerifiedByUserId)</dd></div>
-@@ -108,53 +104,64 @@
-                         }
-                         @if (!string.IsNullOrWhiteSpace(Model.Issue.VerificationNote))
-                         {
--                            <div><dt>Verification note</dt><dd>@Model.Issue.VerificationNote</dd></div>
-+                            <div><dt>Note</dt><dd>@Model.Issue.VerificationNote</dd></div>
-                         }
-                     </dl>
--                </div>
--            </div>
--            @if (Model.CanUnlock)
--            {
--                <button type="button"
--                        class="btn btn-outline-warning btn-sm"
--                        data-bs-toggle="modal"
--                        data-bs-target="#arppUnlockModal"
--                        data-arpp-unlock-trigger>
--                    <span class="bi bi-unlock" aria-hidden="true"></span> Unlock for correction
--                </button>
--            }
--        </section>
--    }
--    else
--    {
--        <section class="arpp-verification-banner" aria-label="Verification status">
--            <div class="arpp-verification-banner__identity">
--                <span class="bi bi-shield-exclamation" aria-hidden="true"></span>
--                <div>
--                    <strong>Verification pending</strong>
--                    <p>Verify after checking the structured rows against the issued HQ PDF.</p>
--                    <ul class="arpp-readiness-list" aria-label="Verification readiness">
-+                }
-+                else
-+                {
-+                    @if (isCorrection)
++                    else if (isSetupIncomplete)
 +                    {
-+                        <p>
-+                            Published revision @Model.Issue.PublishedRevisionNumber remains visible to PRISM users
-+                            @if (Model.Issue.PublishedAtUtc.HasValue)
-+                            {
-+                                <text>from @Model.FormatIst(Model.Issue.PublishedAtUtc.Value)</text>
-+                            }
-+                            until this working copy is verified again.
-+                        </p>
++                        <p>Add the issued rows and attach the HQ PDF before this record can be verified for the first time.</p>
 +                    }
-+                    else
++                    else if (needsReferenceReview)
 +                    {
-+                        <p>Check the structured rows against the issued HQ PDF before publishing this record for the first time.</p>
++                        <p>Map all CFA, Fund and DFPDS values to the controlled lists before verification.</p>
 +                    }
-+                    <ul class="arpp-readiness-strip" aria-label="Verification readiness">
++                    else if (isReadyForVerification)
++                    {
++                        <p>All verification prerequisites are complete. Check the structured rows against the issued HQ PDF and publish the record.</p>
++                    }
+                     else
+                     {
+-                        <p>Check the structured rows against the issued HQ PDF before publishing this record for the first time.</p>
++                        <p>Complete the remaining verification prerequisites shown below.</p>
+                     }
+                     <ul class="arpp-readiness-strip" aria-label="Verification readiness">
                          <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
-                             <span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
--                            At least one complete issued row
-+                            Rows recorded
-                         </li>
-                         <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")">
-                             <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
--                            Issued HQ PDF attached
-+                            HQ PDF attached
-                         </li>
-                         <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")">
-                             <span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
--                            CFA, Fund and DFPDS values mapped to controlled lists
-+                            Reference values mapped
-                         </li>
-                     </ul>
--                </div>
-+                }
+@@ -231,13 +284,20 @@
+         <section class="arpp-panel arpp-panel--entries arpp-details-rows">
+             <div class="arpp-panel__heading">
+                 <div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div>
+-                @if (Model.CanManage && !Model.Issue.IsVerified)
+-                {
+-                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-pencil-square" aria-hidden="true"></span> Edit rows</a>
+-                }
              </div>
--            @if (Model.CanVerify)
-+        </div>
-+        <div class="arpp-document-state__action">
-+            @if (Model.Issue.IsVerified && Model.CanUnlock)
-+            {
-+                <button type="button"
-+                        class="btn btn-outline-warning btn-sm"
-+                        data-bs-toggle="modal"
-+                        data-bs-target="#arppUnlockModal"
-+                        data-arpp-unlock-trigger>
-+                    <span class="bi bi-unlock" aria-hidden="true"></span> Unlock for correction
-+                </button>
-+            }
-+            else if (!Model.Issue.IsVerified && Model.CanVerify)
-             {
-                 @if (Model.IsVerificationReady)
-                 {
--                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#arppVerifyModal">
--                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
-+                    <button type="button"
-+                            class="btn btn-primary btn-sm"
-+                            data-bs-toggle="modal"
-+                            data-bs-target="#arppVerifyModal">
-+                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and publish
-                     </button>
-                 }
-                 else
-@@ -164,25 +171,31 @@
-                             disabled
-                             aria-disabled="true"
-                             title="Enter at least one row, attach the issued HQ PDF and resolve all CFA, Fund and DFPDS values before verification.">
--                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
-+                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and publish
-                     </button>
-                 }
-             }
--        </section>
--    }
-+        </div>
-+    </section>
- 
-     <section class="arpp-kpis arpp-kpis--details" aria-label="Issue summary">
--        <article class="arpp-kpi">
-+        <article class="arpp-kpi arpp-kpi--rows">
-             <span>Rows</span>
-             <strong>@Model.Issue.Entries.Count</strong>
-+            <small class="arpp-kpi__category-line">
-+                New @Model.Issue.CategorySummary[ArppCategory.New].Count ·
-+                CL @Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count ·
-+                CF @Model.Issue.CategorySummary[ArppCategory.CarryForward].Count ·
-+                Delisted @Model.Issue.CategorySummary[ArppCategory.Delisted].Count
-+            </small>
-         </article>
-         <article class="arpp-kpi arpp-kpi--approved">
--            <span>This document — approved</span>
-+            <span>@valueStateLabel approved value</span>
-             <strong>@IndianCurrencyFormatter.FormatCompact(Model.ApprovedRowValue)</strong>
-             <small>New, CL and CF</small>
-         </article>
-         <article class="arpp-kpi arpp-kpi--delisted">
--            <span>This document — delisted</span>
-+            <span>@valueStateLabel delisted value</span>
-             <strong>@IndianCurrencyFormatter.FormatCompact(Model.DelistedRowValue)</strong>
-             <small>Recorded separately</small>
-         </article>
-@@ -191,83 +204,38 @@
-             <strong>@Model.Issue.LinkedCount linked</strong>
-             <small>@Model.Issue.UnlinkedCount pending</small>
-         </article>
--        <article class="arpp-kpi arpp-kpi--categories">
--            <span class="arpp-kpi__label">Category breakdown</span>
--            <div class="arpp-category-breakdown">
--                <span>New <strong>@Model.Issue.CategorySummary[ArppCategory.New].Count</strong></span>
--                <span>CL <strong>@Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count</strong></span>
--                <span>CF <strong>@Model.Issue.CategorySummary[ArppCategory.CarryForward].Count</strong></span>
--                <span>Delisted <strong>@Model.Issue.CategorySummary[ArppCategory.Delisted].Count</strong></span>
--            </div>
--        </article>
-     </section>
- 
-     @if (Model.Issue.UnlinkedCount > 0 && Model.CanManage)
-     {
-         <div class="arpp-reconcile-callout">
--            <div><span class="bi bi-link-45deg" aria-hidden="true"></span><span><strong>@Model.Issue.UnlinkedCount @(Model.Issue.UnlinkedCount == 1 ? "row is" : "rows are") unlinked.</strong> Linking can continue even after verification because it does not change the issued document.</span></div>
-+            <div><span class="bi bi-link-45deg" aria-hidden="true"></span><span><strong>@Model.Issue.UnlinkedCount @(Model.Issue.UnlinkedCount == 1 ? "row is" : "rows are") unlinked.</strong> Linking can continue after verification because it does not change the issued document.</span></div>
-             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" asp-route-fy="@Model.Issue.FinancialYearStart" class="btn btn-outline-primary btn-sm">Open reconciliation</a>
-         </div>
-     }
- 
--    <section class="arpp-panel arpp-document-panel" aria-labelledby="arpp-issued-document-heading">
--        <div class="arpp-panel__heading">
--            <div><h2 id="arpp-issued-document-heading">Issued HQ document</h2><p>The attached PDF is the evidentiary source for this structured ARPP record.</p></div>
--            <span class="arpp-document-status @(Model.Issue.Attachment is null ? "arpp-document-status--pending" : string.Empty)">
--                <span class="bi @(Model.Issue.Attachment is null ? "bi-exclamation-circle" : "bi-shield-check")" aria-hidden="true"></span>
--                @(Model.Issue.Attachment is null ? "Pending" : "Attached")
--            </span>
--        </div>
--        <div class="arpp-document-panel__body">
--            @if (Model.Issue.Attachment is not null)
--            {
--                var attachment = Model.Issue.Attachment;
--                <div class="arpp-document-file">
--                    <div class="arpp-document-file__icon" aria-hidden="true"><span class="bi bi-file-earmark-pdf"></span></div>
--                    <div class="arpp-document-file__identity">
--                        <strong>@attachment.OriginalFileName</strong>
--                        <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes) · Uploaded @Model.FormatIst(attachment.UploadedAtUtc)</span>
--                        <small>SHA-256 @(attachment.Sha256[..Math.Min(12, attachment.Sha256.Length)])…</small>
--                    </div>
--                    <div class="arpp-document-file__actions">
--                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-download" aria-hidden="true"></span> Download</a>
--                        @if (Model.CanManage && !Model.Issue.IsVerified)
--                        {
--                            <form method="post" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="DeletePdf" asp-route-id="@Model.Issue.Id" asp-route-attachmentId="@attachment.Id" data-arpp-delete-pdf-form>
--                                <button type="submit" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash3" aria-hidden="true"></span> Remove</button>
--                            </form>
--                        }
--                    </div>
--                </div>
--            }
--            else
--            {
--                <div class="arpp-document-empty"><span class="bi bi-file-earmark-arrow-up" aria-hidden="true"></span><div><strong>No HQ PDF attached</strong><p>Attach the issued source document before verification.</p></div></div>
--            }
--
-+    @if (Model.Issue.Entries.Count == 0)
-+    {
-+        <section class="arpp-empty">
-+            <span class="bi bi-list-check" aria-hidden="true"></span>
-+            <h2>No issued rows entered</h2>
-+            <p>The document identity exists, but its structured rows have not yet been entered.</p>
-             @if (Model.CanManage && !Model.Issue.IsVerified)
-             {
--                <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload">
--                    <div class="arpp-document-upload__field">
--                        <label asp-for="UploadFile" class="form-label">@(Model.Issue.Attachment is null ? "Attach issued PDF" : "Replace issued PDF")</label>
--                        <input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input />
--                        <span asp-validation-for="UploadFile" class="text-danger small"></span>
--                        <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div>
--                    </div>
--                    <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> @(Model.Issue.Attachment is null ? "Attach PDF" : "Replace PDF")</button>
--                </form>
-+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary">Enter rows</a>
-             }
--        </div>
--    </section>
--
--    @if (Model.Issue.Entries.Count == 0)
--    {
--        <section class="arpp-empty"><span class="bi bi-list-check" aria-hidden="true"></span><h2>No issued rows entered</h2><p>The document identity exists, but its structured rows have not yet been entered.</p>@if (Model.CanManage && !Model.Issue.IsVerified) { <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary">Enter rows</a> }</section>
-+        </section>
-     }
-     else
-     {
--        <section class="arpp-panel arpp-panel--entries">
--            <div class="arpp-panel__heading"><div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div></div>
-+        <section class="arpp-panel arpp-panel--entries arpp-details-rows">
-+            <div class="arpp-panel__heading">
-+                <div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div>
-+                @if (Model.CanManage && !Model.Issue.IsVerified)
-+                {
-+                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-pencil-square" aria-hidden="true"></span> Edit rows</a>
-+                }
-+            </div>
              <div class="arpp-table-wrap arpp-table-wrap--details">
                  <table class="table arpp-details-table align-middle">
++                    <colgroup>
++                        <col class="arpp-details-col-order" />
++                        <col class="arpp-details-col-serial" />
++                        <col class="arpp-details-col-ppp" />
++                        <col class="arpp-details-col-project" />
++                        <col class="arpp-details-col-category" />
++                        <col class="arpp-details-col-cost" />
++                        <col class="arpp-details-col-cfa" />
++                        <col class="arpp-details-col-fund" />
++                        <col class="arpp-details-col-dfpds" />
++                    </colgroup>
                      <thead><tr><th>#</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
-@@ -284,7 +252,7 @@
+                     <tbody>
+                         @foreach (var entry in Model.Issue.Entries)
+@@ -246,27 +306,70 @@
+                                 <td class="text-body-secondary">@entry.SortOrder</td>
+                                 <td><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</span></td>
+                                 <td><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</span></td>
+-                                <td>
+-                                    <div class="arpp-project-reference">@entry.ProjectReference</div>
+-                                    @if (entry.ProjectId.HasValue)
++                                <td class="arpp-details-project-cell">
++                                    @if (entry.ProjectId.HasValue && IsSameProjectReference(entry.ProjectReference, entry.ProjectName))
                                      {
-                                         <div class="arpp-linked-project">
-                                             <span class="bi bi-link-45deg" aria-hidden="true"></span>
--                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId">@entry.ProjectName</a>
-+                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="_blank" rel="noopener">@entry.ProjectName</a>
-                                             @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
+-                                        <div class="arpp-linked-project">
+-                                            <span class="bi bi-link-45deg" aria-hidden="true"></span>
+-                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="_blank" rel="noopener">@entry.ProjectName</a>
+-                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
++                                        <a class="arpp-details-project-link"
++                                           asp-area=""
++                                           asp-page="/Projects/Overview"
++                                           asp-route-id="@entry.ProjectId"
++                                           target="_blank"
++                                           rel="noopener"
++                                           title="Open linked PRISM project in a new tab">
++                                            <span>@entry.ProjectReference</span>
++                                            <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
++                                            <span class="visually-hidden">(opens in a new tab)</span>
++                                        </a>
++                                        <div class="arpp-details-project-meta">
++                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
                                              {
-                                                 <span>@entry.ProjectCaseFileNumber</span>
-@@ -312,6 +280,69 @@
-         </section>
-     }
- 
-+    <section class="arpp-panel arpp-evidence-panel" aria-labelledby="arpp-issued-document-heading">
-+        <div class="arpp-panel__heading arpp-panel__heading--compact">
-+            <div><h2 id="arpp-issued-document-heading">Issued HQ PDF</h2><p>Evidentiary source for the structured record.</p></div>
-+            <span class="arpp-document-status @(Model.Issue.Attachment is null ? "arpp-document-status--pending" : string.Empty)">
-+                <span class="bi @(Model.Issue.Attachment is null ? "bi-exclamation-circle" : "bi-shield-check")" aria-hidden="true"></span>
-+                @(Model.Issue.Attachment is null ? "Pending" : "Attached")
-+            </span>
-+        </div>
-+        <div class="arpp-evidence-panel__body">
-+            @if (Model.Issue.Attachment is not null)
-+            {
-+                var attachment = Model.Issue.Attachment;
-+                <div class="arpp-document-file arpp-document-file--compact">
-+                    <div class="arpp-document-file__icon" aria-hidden="true"><span class="bi bi-file-earmark-pdf"></span></div>
-+                    <div class="arpp-document-file__identity">
-+                        <strong>@attachment.OriginalFileName</strong>
-+                        <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes) · Uploaded @Model.FormatIst(attachment.UploadedAtUtc) · SHA-256 @(attachment.Sha256[..Math.Min(12, attachment.Sha256.Length)])…</span>
-+                    </div>
-+                    <div class="arpp-document-file__actions">
-+                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-download" aria-hidden="true"></span> Download</a>
-+                    </div>
-+                </div>
-+
-+                @if (Model.CanManage && !Model.Issue.IsVerified)
-+                {
-+                    <details class="arpp-document-management" data-arpp-document-management open="@(!ViewData.ModelState.IsValid ? "open" : null)">
-+                        <summary><span class="bi bi-gear" aria-hidden="true"></span> Manage issued PDF <span class="bi bi-chevron-down" aria-hidden="true"></span></summary>
-+                        <div class="arpp-document-management__body">
-+                            <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload arpp-document-upload--compact">
-+                                <div class="arpp-document-upload__field">
-+                                    <label asp-for="UploadFile" class="form-label">Replace issued PDF</label>
-+                                    <input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input />
-+                                    <span asp-validation-for="UploadFile" class="text-danger small"></span>
-+                                    <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div>
-+                                </div>
-+                                <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Replace PDF</button>
-+                            </form>
-+                            <form method="post" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="DeletePdf" asp-route-id="@Model.Issue.Id" asp-route-attachmentId="@attachment.Id" data-arpp-delete-pdf-form class="arpp-document-remove">
-+                                <button type="submit" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash3" aria-hidden="true"></span> Remove PDF</button>
-+                            </form>
-+                        </div>
-+                    </details>
-+                }
-+            }
-+            else
-+            {
-+                <div class="arpp-document-empty"><span class="bi bi-file-earmark-arrow-up" aria-hidden="true"></span><div><strong>No HQ PDF attached</strong><p>Attach the issued source document before verification.</p></div></div>
-+                @if (Model.CanManage && !Model.Issue.IsVerified)
-+                {
-+                    <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload">
-+                        <div class="arpp-document-upload__field">
-+                            <label asp-for="UploadFile" class="form-label">Attach issued PDF</label>
-+                            <input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input />
-+                            <span asp-validation-for="UploadFile" class="text-danger small"></span>
-+                            <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div>
-+                        </div>
-+                        <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Attach PDF</button>
-+                    </form>
-+                }
-+            }
-+        </div>
-+    </section>
-+
-     <footer class="arpp-record-footer"><span>Created @Model.FormatIst(Model.Issue.CreatedAtUtc)</span><span>Last updated @Model.FormatIst(Model.Issue.UpdatedAtUtc)</span></footer>
- </div>
- 
-@@ -323,17 +354,17 @@
-                 <form method="post" asp-page-handler="Verify" asp-route-id="@Model.Issue.Id">
-                     <input type="hidden" name="issueRowVersion" value="@Model.Issue.RowVersion" />
-                     <div class="modal-header">
--                        <h2 class="modal-title fs-5" id="arppVerifyModalLabel">Verify and lock issue</h2>
-+                        <h2 class="modal-title fs-5" id="arppVerifyModalLabel">Verify and publish issue</h2>
-                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                     </div>
-                     <div class="modal-body">
--                        <p>Confirm that the structured rows have been checked against the attached HQ PDF. Issued data and the PDF will be locked.</p>
-+                        <p>Confirm that the structured rows have been checked against the attached HQ PDF. This working copy will become the published position and will be locked.</p>
-                         <label asp-for="VerificationNote" class="form-label">Verification note <span class="text-body-secondary">optional</span></label>
-                         <textarea asp-for="VerificationNote" class="form-control" rows="3" maxlength="500"></textarea>
-                     </div>
-                     <div class="modal-footer">
-                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
--                        <button type="submit" class="btn btn-primary"><span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock</button>
-+                        <button type="submit" class="btn btn-primary"><span class="bi bi-shield-check" aria-hidden="true"></span> Verify and publish</button>
-                     </div>
-                 </form>
-             </div>
+-                                                <span>@entry.ProjectCaseFileNumber</span>
++                                                <span>@entry.ProjectStatus</span>
+                                             }
+-                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
++                                            @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
+                                             {
+-                                                <span>PRISM status: @entry.ProjectStatus</span>
++                                                <span>@entry.ProjectCaseFileNumber</span>
+                                             }
+-                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId" class="arpp-history-link">History</a>
++                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId">History</a>
+                                         </div>
+                                     }
+                                     else
+                                     {
+-                                        <div class="arpp-unlinked"><span class="bi bi-exclamation-circle" aria-hidden="true"></span> PRISM linkage pending</div>
++                                        <div class="arpp-details-project-line">
++                                            <span class="arpp-details-project-label">Issued</span>
++                                            <strong title="@entry.ProjectReference">@entry.ProjectReference</strong>
++                                        </div>
++                                        @if (entry.ProjectId.HasValue)
++                                        {
++                                            <div class="arpp-details-project-line arpp-details-project-line--linked">
++                                                <span class="arpp-details-project-label">Linked</span>
++                                                <a class="arpp-details-project-link"
++                                                   asp-area=""
++                                                   asp-page="/Projects/Overview"
++                                                   asp-route-id="@entry.ProjectId"
++                                                   target="_blank"
++                                                   rel="noopener"
++                                                   title="Open linked PRISM project in a new tab">
++                                                    <span>@entry.ProjectName</span>
++                                                    <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
++                                                    <span class="visually-hidden">(opens in a new tab)</span>
++                                                </a>
++                                            </div>
++                                            <div class="arpp-details-project-meta arpp-details-project-meta--indented">
++                                                @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
++                                                {
++                                                    <span>@entry.ProjectStatus</span>
++                                                }
++                                                @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
++                                                {
++                                                    <span>@entry.ProjectCaseFileNumber</span>
++                                                }
++                                                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/ProjectHistory" asp-route-projectId="@entry.ProjectId">History</a>
++                                            </div>
++                                        }
++                                        else
++                                        {
++                                            <div class="arpp-unlinked"><span class="bi bi-exclamation-circle" aria-hidden="true"></span> PRISM linkage pending</div>
++                                        }
+                                     }
+                                 </td>
+                                 <td><span class="arpp-badge arpp-badge--@(entry.Category.ToString().ToLowerInvariant())">@ArppDisplayNames.For(entry.Category)</span></td>
 diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
-index 26fed6c..05fcf10 100644
+index 05fcf10..854dee6 100644
 --- a/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
-@@ -143,11 +143,11 @@
-                                         }
-                                         @if (issue.IsVerified)
+@@ -5,6 +5,9 @@
+ @{
+     ViewData["Title"] = "ARPP / PPP";
+     ViewData["UseFullWidth"] = true;
++    var allIssues = Model.Register.FinancialYears.SelectMany(group => group.Issues).ToArray();
++    var publishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
++    var workingRecordCount = allIssues.Count(issue => !issue.IsVerified);
+ }
+ 
+ @section Styles {
+@@ -48,9 +51,9 @@
+ 
+     <section class="arpp-kpis" aria-label="ARPP register summary">
+         <article class="arpp-kpi">
+-            <span>Issued documents</span>
++            <span>ARPP records</span>
+             <strong>@Model.Register.TotalIssues</strong>
+-            <small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "document row" : "document rows") · @Model.Register.VerifiedIssues verified</small>
++            <small>@publishedRecordCount published · @workingRecordCount working · @Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small>
+         </article>
+         <article class="arpp-kpi arpp-kpi--approved">
+             <span>Approved projects IPA</span>
+@@ -133,6 +136,44 @@
+                     <div class="arpp-issue-list">
+                         @foreach (var issue in group.Issues)
+                         {
++                            var isCorrection = !issue.IsVerified && issue.HasPublishedSnapshot;
++                            var isSetupIncomplete = !issue.IsVerified && issue.EntryCount == 0 && !issue.HasAttachment;
++                            var needsReferenceReview = !issue.IsVerified && issue.HasUnresolvedReferenceData;
++                            var isReadyForVerification = !issue.IsVerified && issue.EntryCount > 0 && issue.HasAttachment && !needsReferenceReview;
++                            var stateLabel = issue.IsVerified
++                                ? "Verified and published"
++                                : isCorrection
++                                    ? "Unlocked for correction"
++                                    : isSetupIncomplete
++                                        ? "Setup incomplete"
++                                        : needsReferenceReview
++                                            ? "Reference review required"
++                                            : isReadyForVerification
++                                                ? "Ready for verification"
++                                                : "Working copy";
++                            var stateBadgeClass = issue.IsVerified
++                                ? "arpp-badge--verified"
++                                : isCorrection
++                                    ? "arpp-badge--correction"
++                                    : isSetupIncomplete
++                                        ? "arpp-badge--incomplete"
++                                        : needsReferenceReview
++                                            ? "arpp-badge--reference-review"
++                                            : isReadyForVerification
++                                                ? "arpp-badge--ready"
++                                                : "arpp-badge--unverified";
++                            var stateIcon = issue.IsVerified
++                                ? "bi-lock-fill"
++                                : isCorrection
++                                    ? "bi-pencil-square"
++                                    : isSetupIncomplete
++                                        ? "bi-exclamation-circle"
++                                        : needsReferenceReview
++                                            ? "bi-list-check"
++                                            : isReadyForVerification
++                                                ? "bi-shield-check"
++                                                : "bi-hourglass-split";
++
+                             <article class="arpp-issue-card">
+                                 <div class="arpp-issue-card__main">
+                                     <div class="arpp-issue-card__titleline">
+@@ -141,13 +182,22 @@
                                          {
--                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>
-+                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified and published</span>
+                                             <span class="arpp-sequence">Addendum @issue.IssueSequence</span>
                                          }
-                                         else
+-                                        @if (issue.IsVerified)
++                                        <span class="arpp-badge @stateBadgeClass"><span class="bi @stateIcon" aria-hidden="true"></span> @stateLabel</span>
++                                        @if (isCorrection && issue.PublishedRevisionNumber.HasValue)
                                          {
--                                            <span class="arpp-badge arpp-badge--unverified">Unverified</span>
-+                                            <span class="arpp-badge arpp-badge--unverified"><span class="bi bi-pencil-square" aria-hidden="true"></span> Verification pending</span>
+-                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified and published</span>
++                                            <span class="arpp-issue-state-note">Revision @issue.PublishedRevisionNumber remains published</span>
+                                         }
+-                                        else
++                                        else if (isSetupIncomplete)
++                                        {
++                                            <span class="arpp-issue-state-note">Rows and HQ PDF required</span>
++                                        }
++                                        else if (!issue.IsVerified && !issue.HasAttachment)
++                                        {
++                                            <span class="arpp-issue-state-note">HQ PDF required before verification</span>
++                                        }
++                                        else if (needsReferenceReview)
+                                         {
+-                                            <span class="arpp-badge arpp-badge--unverified"><span class="bi bi-pencil-square" aria-hidden="true"></span> Verification pending</span>
++                                            <span class="arpp-issue-state-note">Map CFA, Fund and DFPDS values</span>
                                          }
                                      </div>
                                      <h3><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id">@issue.Name</a></h3>
-@@ -177,18 +177,18 @@
-                                 </div>
-                                 <div class="arpp-issue-card__value">
-                                     <div class="arpp-issue-card__value-line arpp-issue-card__value-line--approved">
--                                        <span>Approved row value</span>
-+                                        <span>@(issue.IsVerified ? "Published approved value" : "Working approved value")</span>
-                                         <strong>@IndianCurrencyFormatter.FormatCompact(issue.ApprovedRowValue)</strong>
-                                     </div>
-                                     <div class="arpp-issue-card__value-line arpp-issue-card__value-line--delisted">
--                                        <span>Delisted row value</span>
-+                                        <span>@(issue.IsVerified ? "Published delisted value" : "Working delisted value")</span>
-                                         <strong>@IndianCurrencyFormatter.FormatCompact(issue.DelistedRowValue)</strong>
-                                     </div>
-                                     <div class="arpp-card-actions">
--                                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View</a>
-+                                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View record</a>
-                                         @if (Model.CanManage && !issue.IsVerified)
-                                         {
--                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-outline-primary btn-sm">Manage</a>
-+                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-outline-primary btn-sm">Edit working copy</a>
-                                         }
-                                     </div>
-                                 </div>
 diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-index 60cac9a..81d73b0 100644
+index 81d73b0..4f08182 100644
 --- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-@@ -12,11 +12,13 @@
- @section Styles {
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-workspace.css" asp-append-version="true" />
-+    <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
- }
- 
- <div class="arpp-page arpp-page--workspace py-2"
-      data-arpp-workspace
--     data-arpp-project-lookup-url="@lookupUrl">
-+     data-arpp-project-lookup-url="@lookupUrl"
-+     data-arpp-has-server-errors="@(!ViewData.ModelState.IsValid ? "true" : "false")">
-     <header class="arpp-header arpp-header--workspace">
-         <div>
-             <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
-@@ -117,23 +119,48 @@
-                 <span class="arpp-workspace-jump__status" data-arpp-jump-status aria-live="polite"></span>
-             </div>
-             <div class="arpp-workspace-commandbar__actions">
--                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
--                    <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
--                    <span class="arpp-action-label">Fill common fields</span>
--                </button>
--                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
--                    <span class="bi bi-clipboard" aria-hidden="true"></span>
--                    <span class="arpp-action-label">Paste rows</span>
--                </button>
-+                <div class="arpp-commandbar-tools arpp-commandbar-tools--desktop" aria-label="Entry tools">
-+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
-+                        <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
-+                        <span>Fill common fields</span>
-+                    </button>
-+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
-+                        <span class="bi bi-clipboard" aria-hidden="true"></span>
-+                        <span>Paste rows</span>
-+                    </button>
-+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-fullscreen-toggle aria-pressed="false" title="Open full-screen workspace">
-+                        <span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span>
-+                        <span data-arpp-fullscreen-label>Full screen</span>
-+                    </button>
-+                </div>
-+                <div class="dropdown arpp-commandbar-tools arpp-commandbar-tools--menu">
-+                    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-+                        <span class="bi bi-tools" aria-hidden="true"></span>
-+                        Entry tools
-+                    </button>
-+                    <ul class="dropdown-menu dropdown-menu-end">
-+                        <li><button type="button" class="dropdown-item" data-arpp-apply-common><span class="bi bi-arrow-down-square" aria-hidden="true"></span> Fill common fields</button></li>
-+                        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#arppPasteModal"><span class="bi bi-clipboard" aria-hidden="true"></span> Paste rows</button></li>
-+                        <li><button type="button" class="dropdown-item" data-arpp-fullscreen-toggle aria-pressed="false"><span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span> <span data-arpp-fullscreen-label>Full screen</span></button></li>
-+                        @if (Model.CanManageReferenceData)
-+                        {
-+                            <li><hr class="dropdown-divider" /></li>
-+                            <li><a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="dropdown-item"><span class="bi bi-list-check" aria-hidden="true"></span> Manage controlled lists</a></li>
-+                        }
-+                    </ul>
-+                </div>
-                 <button type="button" class="btn btn-outline-primary btn-sm" data-arpp-add-row title="Add row (Alt+A)">
-                     <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                     <span class="arpp-action-label">Add row</span>
-                 </button>
--                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-fullscreen-toggle aria-pressed="false" title="Open full-screen workspace">
--                    <span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span>
--                    <span class="arpp-action-label" data-arpp-fullscreen-label>Full screen</span>
--                </button>
--                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Cancel</a>
-+                <a asp-area="ProjectOfficeReports"
-+                   asp-page="/ARPP/Details"
-+                   asp-route-id="@Model.Id"
-+                   class="btn btn-outline-secondary btn-sm arpp-discard-return"
-+                   data-arpp-discard-return>
-+                    <span class="bi bi-arrow-left" aria-hidden="true"></span>
-+                    <span class="arpp-action-label">Discard and return</span>
-+                </a>
-                 <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="Save issue (Ctrl+S)">
+@@ -161,15 +161,25 @@
+                     <span class="bi bi-arrow-left" aria-hidden="true"></span>
+                     <span class="arpp-action-label">Discard and return</span>
+                 </a>
+-                <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="Save issue (Ctrl+S)">
++                <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="No changes to save" disabled aria-disabled="true">
                      <span class="bi bi-check2" aria-hidden="true"></span>
                      <span data-arpp-save-button-label>Save issue</span>
-@@ -142,8 +169,8 @@
-             <div class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</div>
+                 </button>
+             </div>
+-            <div class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</div>
++            <div class="arpp-save-statusline">
++                <span class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</span>
++                <button type="button"
++                        class="btn btn-link btn-sm arpp-validation-toggle d-none"
++                        data-arpp-validation-toggle
++                        aria-controls="arppValidationTray"
++                        aria-expanded="false">
++                    Review issues
++                    <span class="badge rounded-pill text-bg-danger" data-arpp-validation-count>0</span>
++                </button>
++            </div>
          </div>
  
--        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="alert" aria-live="assertive" aria-atomic="true">
--            <div>
-+        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="status" aria-live="polite" aria-atomic="true">
-+            <div class="arpp-validation-navigator__summary">
+-        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="status" aria-live="polite" aria-atomic="true">
++        <section id="arppValidationTray" class="arpp-validation-navigator d-none" data-arpp-validation-navigator aria-label="Validation issues">
+             <div class="arpp-validation-navigator__summary">
                  <span class="bi bi-exclamation-octagon" aria-hidden="true"></span>
                  <div>
-                     <strong data-arpp-validation-heading>Review the highlighted fields</strong>
-@@ -151,7 +178,10 @@
-                 </div>
+@@ -181,6 +191,7 @@
+             <div class="arpp-validation-navigator__actions">
+                 <button type="button" class="btn btn-sm btn-link text-danger d-none" data-arpp-validation-more>View all</button>
+                 <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
++                <button type="button" class="btn btn-sm btn-link text-secondary" data-arpp-validation-close>Close</button>
              </div>
-             <div class="arpp-validation-navigator__items" data-arpp-validation-items></div>
--            <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
-+            <div class="arpp-validation-navigator__actions">
-+                <button type="button" class="btn btn-sm btn-link text-danger d-none" data-arpp-validation-more>View all</button>
-+                <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
-+            </div>
          </section>
  
-         <section class="arpp-panel arpp-panel--entries">
-@@ -507,8 +537,11 @@
-     </div>
- </div>
- 
-+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
-+
- @section Scripts {
-     <partial name="_ValidationScriptsPartial" />
-+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true" defer></script>
-     <script src="~/js/pages/project-office-reports/arpp/arpp-project-picker.js" asp-append-version="true" defer></script>
-     <script src="~/js/pages/project-office-reports/arpp/arpp-manage.js" asp-append-version="true" defer></script>
- }
-diff --git a/Pages/Projects/Arpp/Index.cshtml b/Pages/Projects/Arpp/Index.cshtml
-index 2865530..a2d27aa 100644
---- a/Pages/Projects/Arpp/Index.cshtml
-+++ b/Pages/Projects/Arpp/Index.cshtml
-@@ -98,7 +98,7 @@
-                                value="@Model.Query"
-                                type="search"
-                                autocomplete="off"
--                               placeholder="Projects, documents or serials"
-+                               placeholder="Search ARPP records"
-                                title="Search document names, project references, PPP numbers, serial numbers, categories, CFA, Fund and DFPDS" />
-                         @if (Model.Document is not null)
-                         {
-@@ -123,7 +123,7 @@
-                                 class="project-arpp-search__submit"
-                                 aria-label="Search ARPP library"
-                                 title="Search">
--                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
-+                            <i class="bi bi-search" aria-hidden="true"></i>
-                         </button>
-                     </div>
-                     <small>Projects, issued wording, serial, category, CFA, Fund or DFPDS</small>
 diff --git a/ProjectManagement.Tests/Arpp/ArppUiUxStabilisationContractTests.cs b/ProjectManagement.Tests/Arpp/ArppUiUxStabilisationContractTests.cs
-new file mode 100644
-index 0000000..4a1cc36
---- /dev/null
+index 4a1cc36..bb9c0f3 100644
+--- a/ProjectManagement.Tests/Arpp/ArppUiUxStabilisationContractTests.cs
 +++ b/ProjectManagement.Tests/Arpp/ArppUiUxStabilisationContractTests.cs
-@@ -0,0 +1,108 @@
-+using Xunit;
-+
-+namespace ProjectManagement.Tests.Arpp;
-+
-+public sealed class ArppUiUxStabilisationContractTests
-+{
-+    [Fact]
-+    public void ManageWorkspace_SeparatesValidationFromUnsavedChanges()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+
-+        Assert.Contains("data-arpp-has-server-errors", markup, StringComparison.Ordinal);
-+        Assert.Contains("baselineSnapshot = createFormSnapshot()", script, StringComparison.Ordinal);
-+        Assert.Contains("No unsaved changes ·", script, StringComparison.Ordinal);
-+        Assert.Contains("serverRejectedChanges", script, StringComparison.Ordinal);
-+        Assert.DoesNotContain("if (initialIssues.length || hasServerValidationErrors) markDirty()", script, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void ManageWorkspace_UsesStableTableViewportAndProfessionalDiscardFlow()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+
-+        Assert.Contains("data-arpp-discard-return", markup, StringComparison.Ordinal);
-+        Assert.Contains("Discard and return", markup, StringComparison.Ordinal);
-+        Assert.Contains("data-arpp-validation-more", markup, StringComparison.Ordinal);
-+        Assert.Contains("role=\"status\" aria-live=\"polite\"", markup, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-page--workspace .arpp-table-wrap", css, StringComparison.Ordinal);
-+        Assert.Contains("overflow: auto;", css, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-entry-table thead th {\n    top: 0;", css, StringComparison.Ordinal);
-+        Assert.Contains("background: var(--bs-body-bg);", css, StringComparison.Ordinal);
-+        Assert.DoesNotContain("window.addEventListener(\"scroll\", updateStickyMetrics", script, StringComparison.Ordinal);
-+        Assert.Contains("Discard unsaved changes?", script, StringComparison.Ordinal);
-+        Assert.Contains("validationExpanded", script, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void DetailsPage_UsesOneStatePanelAndPlacesRowsBeforeAttachmentManagement()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Details.cshtml");
-+
-+        Assert.Contains("arpp-document-state", markup, StringComparison.Ordinal);
-+        Assert.Contains("Unlocked for correction", markup, StringComparison.Ordinal);
-+        Assert.Contains("Verify and publish", markup, StringComparison.Ordinal);
-+        Assert.DoesNotContain("arpp-publication-continuity", markup, StringComparison.Ordinal);
-+        Assert.DoesNotContain("arpp-verification-banner", markup, StringComparison.Ordinal);
-+        Assert.Equal(4, CountOccurrences(markup, "<article class=\"arpp-kpi"));
-+        Assert.True(
-+            markup.IndexOf("<h2>Issued rows</h2>", StringComparison.Ordinal) <
-+            markup.IndexOf("id=\"arpp-issued-document-heading\"", StringComparison.Ordinal));
-+        Assert.Contains("arpp-document-file--compact", markup, StringComparison.Ordinal);
-+        Assert.Contains("data-arpp-document-management", markup, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void RegisterAndPublishedLibrary_UseClearWorkingAndSearchLanguage()
-+    {
-+        var register = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml");
-+        var library = ReadRepoFile("Pages", "Projects", "Arpp", "Index.cshtml");
-+
-+        Assert.Contains("Verified and published", register, StringComparison.Ordinal);
-+        Assert.Contains("Verification pending", register, StringComparison.Ordinal);
-+        Assert.Contains("Working approved value", register, StringComparison.Ordinal);
-+        Assert.Contains("Working delisted value", register, StringComparison.Ordinal);
-+        Assert.Contains("Edit working copy", register, StringComparison.Ordinal);
-+        Assert.Contains("placeholder=\"Search ARPP records\"", library, StringComparison.Ordinal);
-+        Assert.Contains("bi bi-search", library, StringComparison.Ordinal);
-+    }
-+
-+    private static int CountOccurrences(string value, string fragment)
-+    {
-+        var count = 0;
-+        var index = 0;
-+        while ((index = value.IndexOf(fragment, index, StringComparison.Ordinal)) >= 0)
-+        {
-+            count++;
-+            index += fragment.Length;
-+        }
-+
-+        return count;
-+    }
-+
-+    private static string ReadRepoFile(params string[] segments)
-+    {
-+        var root = ResolveRepoRoot();
-+        var path = Path.Combine(new[] { root }.Concat(segments).ToArray());
-+        return File.ReadAllText(path);
-+    }
-+
-+    private static string ResolveRepoRoot()
-+    {
-+        var current = new DirectoryInfo(AppContext.BaseDirectory);
-+        while (current is not null)
-+        {
-+            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
-+            {
-+                return current.FullName;
-+            }
-+
-+            current = current.Parent;
-+        }
-+
-+        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
-+    }
-+}
+@@ -29,8 +29,10 @@ public sealed class ArppUiUxStabilisationContractTests
+         Assert.Contains("data-arpp-validation-more", markup, StringComparison.Ordinal);
+         Assert.Contains("role=\"status\" aria-live=\"polite\"", markup, StringComparison.Ordinal);
+         Assert.Contains(".arpp-page--workspace .arpp-table-wrap", css, StringComparison.Ordinal);
+-        Assert.Contains("overflow: auto;", css, StringComparison.Ordinal);
+-        Assert.Contains(".arpp-entry-table thead th {\n    top: 0;", css, StringComparison.Ordinal);
++        Assert.Contains("max-height: none;", css, StringComparison.Ordinal);
++        Assert.Contains("overflow-x: auto;", css, StringComparison.Ordinal);
++        Assert.Contains("overflow-y: visible;", css, StringComparison.Ordinal);
++        Assert.Contains("calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height)", css, StringComparison.Ordinal);
+         Assert.Contains("background: var(--bs-body-bg);", css, StringComparison.Ordinal);
+         Assert.DoesNotContain("window.addEventListener(\"scroll\", updateStickyMetrics", script, StringComparison.Ordinal);
+         Assert.Contains("Discard unsaved changes?", script, StringComparison.Ordinal);
+@@ -62,7 +64,9 @@ public sealed class ArppUiUxStabilisationContractTests
+         var library = ReadRepoFile("Pages", "Projects", "Arpp", "Index.cshtml");
+ 
+         Assert.Contains("Verified and published", register, StringComparison.Ordinal);
+-        Assert.Contains("Verification pending", register, StringComparison.Ordinal);
++        Assert.Contains("Unlocked for correction", register, StringComparison.Ordinal);
++        Assert.Contains("Setup incomplete", register, StringComparison.Ordinal);
++        Assert.Contains("Ready for verification", register, StringComparison.Ordinal);
+         Assert.Contains("Working approved value", register, StringComparison.Ordinal);
+         Assert.Contains("Working delisted value", register, StringComparison.Ordinal);
+         Assert.Contains("Edit working copy", register, StringComparison.Ordinal);
+diff --git a/Services/Arpp/ArppContracts.cs b/Services/Arpp/ArppContracts.cs
+index b7bfdc0..fa78cb7 100644
+--- a/Services/Arpp/ArppContracts.cs
++++ b/Services/Arpp/ArppContracts.cs
+@@ -139,7 +139,10 @@ public sealed record ArppIssueListItem(
+     DateTimeOffset UpdatedAtUtc,
+     bool HasAttachment,
+     bool IsVerified,
+-    DateTimeOffset? VerifiedAtUtc);
++    DateTimeOffset? VerifiedAtUtc,
++    bool HasPublishedSnapshot,
++    int? PublishedRevisionNumber,
++    bool HasUnresolvedReferenceData);
+ 
+ public sealed record ArppIssueDetails(
+     long Id,
+diff --git a/Services/Arpp/ArppReadService.cs b/Services/Arpp/ArppReadService.cs
+index a791ad8..a82cf97 100644
+--- a/Services/Arpp/ArppReadService.cs
++++ b/Services/Arpp/ArppReadService.cs
+@@ -73,7 +73,13 @@ public sealed class ArppReadService : IArppReadService
+                 issue.UpdatedAtUtc,
+                 issue.Attachment != null,
+                 issue.IsVerified,
+-                issue.VerifiedAtUtc))
++                issue.VerifiedAtUtc,
++                issue.PublishedSnapshot != null,
++                issue.PublishedSnapshot != null ? issue.PublishedSnapshot.RevisionNumber : null,
++                issue.Entries.Any(entry =>
++                    entry.CfaOptionId == null ||
++                    entry.FundOptionId == null ||
++                    entry.DfpdsScheduleId == null)))
+             .ToListAsync(cancellationToken);
+ 
+         var visibleIssueIds = rows.Select(row => row.Id).ToArray();
 diff --git a/wwwroot/css/project-office-reports/arpp-workspace.css b/wwwroot/css/project-office-reports/arpp-workspace.css
-index c1fe7bd..c2d2858 100644
+index c2d2858..2a183b8 100644
 --- a/wwwroot/css/project-office-reports/arpp-workspace.css
 +++ b/wwwroot/css/project-office-reports/arpp-workspace.css
-@@ -1,10 +1,9 @@
- /* ============================================================
--   Production UX phase: high-volume ARPP document workspace
-+   ARPP/PPP production workspace — stable, high-volume entry UX
-    ============================================================ */
- .arpp-page--workspace {
--    --arpp-sticky-offset: 0px;
-+    --arpp-app-chrome-height: 0px;
-     --arpp-commandbar-height: 4.25rem;
--    --arpp-table-sticky-top: calc(var(--arpp-sticky-offset) + var(--arpp-commandbar-height) + .5rem);
-     width: 100%;
-     max-width: none;
+@@ -499,3 +499,188 @@ body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
+         transition: none;
+     }
  }
-@@ -15,13 +14,13 @@
- 
- .arpp-workspace-commandbar {
-     position: sticky;
--    top: var(--arpp-sticky-offset);
--    z-index: 18;
-+    top: var(--arpp-app-chrome-height);
-+    z-index: 30;
-     display: grid;
-     grid-template-areas:
-         "identity jump actions"
-         "identity status actions";
--    grid-template-columns: minmax(13rem, 18rem) minmax(15rem, 1fr) auto;
-+    grid-template-columns: minmax(13rem, 18rem) minmax(16rem, 1fr) auto;
-     align-items: center;
-     gap: .35rem .75rem;
-     min-height: var(--arpp-commandbar-height);
-@@ -29,9 +28,20 @@
-     margin-bottom: .75rem;
-     border: 1px solid color-mix(in srgb, var(--bs-primary) 18%, var(--arpp-border));
-     border-radius: .75rem;
--    background: color-mix(in srgb, var(--bs-body-bg) 96%, transparent);
--    box-shadow: 0 .35rem 1rem rgba(16, 24, 40, .08);
--    backdrop-filter: blur(12px);
-+    background: var(--bs-body-bg);
-+    box-shadow: 0 .45rem 1.1rem rgba(16, 24, 40, .12);
-+    isolation: isolate;
++
++/* ============================================================
++   ARPP/PPP final workspace completion
++   One vertical scroll surface, compact issue review and truthful save state.
++   ============================================================ */
++.arpp-save-statusline {
++    grid-area: status;
++    display: flex;
++    min-width: 0;
++    align-items: center;
++    gap: .45rem;
 +}
 +
-+.arpp-workspace-commandbar::after {
-+    position: absolute;
-+    right: 0;
-+    bottom: -.5rem;
-+    left: 0;
-+    height: .5rem;
-+    background: linear-gradient(to bottom, rgba(16, 24, 40, .06), transparent);
-+    content: "";
-+    pointer-events: none;
- }
- 
- .arpp-workspace-commandbar__identity {
-@@ -65,7 +75,8 @@
- .arpp-workspace-commandbar__actions {
-     grid-area: actions;
-     display: flex;
--    flex-wrap: wrap;
-+    flex-wrap: nowrap;
-+    align-items: center;
-     justify-content: flex-end;
-     gap: .35rem;
- }
-@@ -75,9 +86,32 @@
-     white-space: nowrap;
- }
- 
-+.arpp-commandbar-tools {
++.arpp-save-statusline .arpp-save-state {
++    min-width: 0;
++}
++
++.arpp-validation-toggle {
 +    display: inline-flex;
++    align-items: center;
 +    gap: .35rem;
-+}
-+
-+.arpp-commandbar-tools--menu {
-+    display: none;
-+}
-+
-+.arpp-commandbar-tools--menu .dropdown-item {
-+    display: flex;
-+    align-items: center;
-+    gap: .55rem;
-+    font-size: .82rem;
-+}
-+
-+.arpp-commandbar-tools--menu .dropdown-item .bi {
-+    width: 1rem;
-+    color: var(--bs-secondary-color);
-+    text-align: center;
-+}
-+
- .arpp-save-state {
-     grid-area: status;
-     min-height: 1rem;
-+    color: var(--arpp-muted);
-     font-size: .75rem;
-     line-height: 1.2;
- }
-@@ -87,6 +121,11 @@
-     font-weight: 600;
- }
- 
-+.arpp-workspace-commandbar.has-validation:not(.is-dirty) .arpp-save-state {
-+    color: var(--bs-danger-text-emphasis);
-+    font-weight: 600;
-+}
-+
- .arpp-workspace-jump {
-     grid-area: jump;
-     position: relative;
-@@ -127,23 +166,23 @@
- 
- .arpp-validation-navigator {
-     display: grid;
--    grid-template-columns: minmax(15rem, 1fr) minmax(18rem, 2fr) auto;
-+    grid-template-columns: minmax(14rem, .8fr) minmax(20rem, 1.8fr) auto;
-     align-items: center;
--    gap: .75rem;
-+    gap: .65rem .8rem;
-     margin-bottom: .75rem;
--    padding: .7rem .8rem;
-+    padding: .65rem .75rem;
-     border: 1px solid color-mix(in srgb, var(--bs-danger) 35%, var(--arpp-border));
-     border-radius: .7rem;
-     background: color-mix(in srgb, var(--bs-danger-bg-subtle) 65%, var(--bs-body-bg));
- }
- 
--.arpp-validation-navigator > div:first-child {
-+.arpp-validation-navigator__summary {
-     display: flex;
-     align-items: flex-start;
-     gap: .55rem;
- }
- 
--.arpp-validation-navigator > div:first-child > .bi {
-+.arpp-validation-navigator__summary > .bi {
-     margin-top: .08rem;
-     color: var(--bs-danger);
- }
-@@ -167,7 +206,7 @@
- }
- 
- .arpp-validation-navigator__items .btn {
--    max-width: 18rem;
-+    max-width: 21rem;
-     overflow: hidden;
-     padding: .2rem .45rem;
-     font-size: .72rem;
-@@ -175,15 +214,22 @@
-     white-space: nowrap;
- }
- 
-+.arpp-validation-navigator__actions {
-+    display: flex;
-+    align-items: center;
-+    justify-content: flex-end;
-+    gap: .3rem;
++    min-height: 1.6rem;
++    padding: .05rem .2rem;
++    font-size: .73rem;
++    font-weight: 700;
++    text-decoration: none;
 +    white-space: nowrap;
 +}
 +
- .arpp-table-viewport {
-     position: relative;
-     min-width: 0;
- }
- 
- .arpp-table-scrollbar {
--    position: sticky;
--    top: var(--arpp-table-sticky-top);
--    z-index: 13;
-+    position: relative;
-+    z-index: 4;
-     height: .9rem;
-     overflow-x: auto;
-     overflow-y: hidden;
-@@ -198,8 +244,12 @@
-     height: 1px;
- }
- 
--.arpp-table-wrap {
++.arpp-validation-toggle .badge {
++    min-width: 1.35rem;
++    font-size: .62rem;
++    font-variant-numeric: tabular-nums;
++}
++
++.arpp-workspace-commandbar [data-arpp-save-button]:disabled {
++    border-color: color-mix(in srgb, var(--bs-primary) 28%, var(--arpp-border));
++    background: color-mix(in srgb, var(--bs-primary) 18%, var(--bs-body-bg));
++    box-shadow: none;
++    color: color-mix(in srgb, var(--bs-primary) 48%, var(--bs-secondary-color));
++    cursor: not-allowed;
++    opacity: 1;
++}
++
++.arpp-validation-navigator {
++    grid-template-columns: minmax(14rem, .7fr) minmax(22rem, 1.8fr) auto;
++    margin: -.2rem 0 .65rem;
++    padding: .52rem .65rem;
++    box-shadow: 0 .2rem .7rem rgba(127, 29, 29, .06);
++}
++
++.arpp-validation-navigator__items .btn {
++    max-width: 18rem;
++}
++
++/* Normal mode uses the page as the sole vertical scroll surface. */
 +.arpp-page--workspace .arpp-table-wrap {
-+    max-height: clamp(25rem, calc(100dvh - var(--arpp-app-chrome-height) - var(--arpp-commandbar-height) - 8rem), 58rem);
-+    overflow: auto;
-     border-top: 1px solid var(--arpp-border);
-+    overscroll-behavior: contain;
-+    scrollbar-gutter: stable;
- }
- 
- .arpp-table-viewport::before,
-@@ -236,9 +286,10 @@
- }
- 
- .arpp-entry-table thead th {
--    top: calc(var(--arpp-table-sticky-top) + 1.15rem);
-+    top: 0;
-     z-index: 10;
-     padding: .58rem .5rem;
-+    background: var(--arpp-soft);
-     font-size: .75rem;
- }
- 
-@@ -246,6 +297,14 @@
-     padding: .48rem .42rem;
- }
- 
++    max-height: none;
++    overflow-x: auto;
++    overflow-y: visible;
++    overscroll-behavior-x: contain;
++    overscroll-behavior-y: auto;
++    scrollbar-gutter: auto;
++}
++
++.arpp-page--workspace .arpp-entry-table thead th {
++    top: calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height) + .45rem);
++    z-index: 22;
++    box-shadow: inset 0 -1px 0 var(--arpp-border), 0 .2rem .35rem rgba(16, 24, 40, .05);
++}
++
++.arpp-page--workspace .arpp-entry-table thead .arpp-sticky-left,
++.arpp-page--workspace .arpp-entry-table thead .arpp-sticky-right {
++    z-index: 25;
++}
++
 +.arpp-entry-table tr,
 +.arpp-entry-table [data-arpp-entry-row],
 +.arpp-entry-table input,
 +.arpp-entry-table select,
 +.arpp-entry-table textarea {
-+    scroll-margin-top: 3.25rem;
++    scroll-margin-top: calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height) + 3.6rem);
 +}
 +
- .arpp-entry-table .form-control,
- .arpp-entry-table .form-select {
-     min-height: 2rem;
-@@ -339,13 +398,17 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
-     top: 0;
- }
- 
--@media (max-width: 1399.98px) {
++body.arpp-workspace-fullscreen [data-arpp-workspace] {
++    overflow-x: hidden;
++    overflow-y: auto;
++    overscroll-behavior: contain;
++    scrollbar-gutter: stable;
++}
++
 +body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
-+    max-height: calc(100dvh - var(--arpp-commandbar-height) - 8rem);
++    max-height: none;
++    overflow-x: auto;
++    overflow-y: visible;
 +}
 +
-+@media (max-width: 1499.98px) {
-     .arpp-workspace-commandbar {
-         grid-template-areas:
-             "identity jump"
-             "actions actions"
-             "status status";
--        grid-template-columns: minmax(13rem, .8fr) minmax(16rem, 1.2fr);
-+        grid-template-columns: minmax(13rem, .75fr) minmax(18rem, 1.25fr);
-     }
- 
-     .arpp-workspace-commandbar__actions {
-@@ -354,16 +417,16 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
- }
- 
- @media (max-width: 1199.98px) {
--    .arpp-workspace-commandbar__actions .arpp-action-label {
-+    .arpp-commandbar-tools--desktop {
-         display: none;
-     }
- 
--    .arpp-workspace-commandbar__actions .btn {
--        min-width: 2.1rem;
-+    .arpp-commandbar-tools--menu {
-+        display: inline-flex;
-     }
- 
-     .arpp-validation-navigator {
--        grid-template-columns: 1fr auto;
-+        grid-template-columns: minmax(14rem, 1fr) auto;
-     }
- 
-     .arpp-validation-navigator__items {
-@@ -373,10 +436,6 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
- }
- 
- @media (max-width: 767.98px) {
--    .arpp-page--workspace {
--        --arpp-commandbar-height: 10.5rem;
--    }
--
-     .arpp-workspace-commandbar {
-         position: relative;
-         top: auto;
-@@ -390,7 +449,7 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
- 
-     .arpp-workspace-commandbar__actions {
-         overflow-x: auto;
--        flex-wrap: nowrap;
-+        justify-content: flex-start;
-         padding-bottom: .15rem;
-     }
- 
-@@ -404,18 +463,15 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
-         grid-template-columns: 1fr;
-     }
- 
--    .arpp-validation-navigator__items {
-+    .arpp-validation-navigator__items,
-+    .arpp-validation-navigator__actions {
-         grid-column: auto;
-         grid-row: auto;
-+        justify-content: flex-start;
-     }
- 
--    .arpp-entry-table thead th {
--        top: 0;
--    }
--
--    .arpp-table-scrollbar {
--        position: relative;
--        top: auto;
-+    .arpp-page--workspace .arpp-table-wrap {
-+        max-height: 70dvh;
-     }
- 
-     .arpp-issued-identity__identifiers {
-@@ -423,6 +479,20 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
-     }
- }
- 
-+@media (max-width: 575.98px) {
-+    .arpp-workspace-commandbar__actions .arpp-discard-return .arpp-action-label {
-+        display: none;
-+    }
-+
-+    .arpp-workspace-commandbar__actions .arpp-discard-return {
-+        min-width: 2.15rem;
-+    }
-+
-+    .arpp-validation-navigator__items .btn {
-+        max-width: 100%;
-+    }
++body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-entry-table thead th {
++    top: calc(var(--arpp-commandbar-height) + .45rem);
 +}
 +
- @media (prefers-reduced-motion: reduce) {
-     .arpp-table-viewport::before,
-     .arpp-table-viewport::after {
-diff --git a/wwwroot/css/project-office-reports/arpp.css b/wwwroot/css/project-office-reports/arpp.css
-index de605b9..36db1d6 100644
---- a/wwwroot/css/project-office-reports/arpp.css
-+++ b/wwwroot/css/project-office-reports/arpp.css
-@@ -1712,3 +1712,312 @@ details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
-         gap: .2rem;
-     }
- }
-+
-+/* ============================================================
-+   ARPP/PPP production UI stabilisation
-+   ============================================================ */
-+.arpp-header--compact {
-+    margin-bottom: .75rem;
-+    padding-bottom: .75rem;
-+}
-+
-+.arpp-badge--correction {
-+    gap: .28rem;
-+    border: 1px solid color-mix(in srgb, var(--bs-warning) 32%, transparent);
-+    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 72%, var(--bs-body-bg));
-+    color: var(--bs-warning-text-emphasis);
-+}
-+
-+.arpp-document-state {
-+    display: flex;
-+    align-items: flex-start;
-+    justify-content: space-between;
-+    gap: 1rem;
-+    margin-bottom: .75rem;
-+    padding: .8rem .95rem;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: .8rem;
-+    background: var(--bs-body-bg);
-+    box-shadow: 0 1px 3px rgba(16, 24, 40, .04);
-+}
-+
-+.arpp-document-state--published {
-+    border-color: color-mix(in srgb, var(--bs-success) 26%, var(--arpp-border));
-+    background: color-mix(in srgb, var(--bs-success-bg-subtle) 34%, var(--bs-body-bg));
-+}
-+
-+.arpp-document-state--correction {
-+    border-color: color-mix(in srgb, var(--bs-warning) 32%, var(--arpp-border));
-+    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 40%, var(--bs-body-bg));
-+}
-+
-+.arpp-document-state--pending {
-+    border-color: color-mix(in srgb, var(--bs-primary) 22%, var(--arpp-border));
-+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 34%, var(--bs-body-bg));
-+}
-+
-+.arpp-document-state__identity {
-+    display: flex;
-+    min-width: 0;
-+    align-items: flex-start;
-+    gap: .7rem;
-+}
-+
-+.arpp-document-state__identity > .bi {
-+    flex: 0 0 auto;
-+    margin-top: .08rem;
-+    font-size: 1.05rem;
-+}
-+
-+.arpp-document-state--published .arpp-document-state__identity > .bi {
-+    color: var(--bs-success-text-emphasis);
-+}
-+
-+.arpp-document-state--correction .arpp-document-state__identity > .bi {
-+    color: var(--bs-warning-text-emphasis);
-+}
-+
-+.arpp-document-state--pending .arpp-document-state__identity > .bi {
-+    color: var(--bs-primary);
-+}
-+
-+.arpp-document-state__titleline {
-+    display: flex;
-+    flex-wrap: wrap;
-+    align-items: center;
-+    gap: .45rem;
-+}
-+
-+.arpp-document-state__titleline strong {
-+    font-size: .9rem;
-+}
-+
-+.arpp-document-state__revision {
-+    display: inline-flex;
-+    align-items: center;
-+    min-height: 1.35rem;
-+    padding: .08rem .4rem;
-+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-+    border-radius: 999px;
-+    color: var(--bs-secondary-color);
-+    font-size: .68rem;
-+    font-weight: 700;
-+}
-+
-+.arpp-document-state p {
-+    max-width: 78rem;
-+    margin: .12rem 0 0;
-+    color: var(--bs-secondary-color);
-+    font-size: .78rem;
-+    line-height: 1.42;
-+}
-+
-+.arpp-document-state__action {
-+    flex: 0 0 auto;
-+}
-+
-+.arpp-verification-meta--inline {
-+    display: flex;
-+    flex-wrap: wrap;
-+    gap: .25rem 1.25rem;
-+    margin-top: .45rem;
-+}
-+
-+.arpp-verification-meta--inline > div {
-+    display: grid;
-+    grid-template-columns: auto minmax(0, auto);
-+    gap: .35rem;
-+}
-+
-+.arpp-verification-meta--inline dt,
-+.arpp-verification-meta--inline dd {
-+    font-size: .72rem;
-+}
-+
-+.arpp-readiness-strip {
-+    display: flex;
-+    flex-wrap: wrap;
-+    gap: .35rem .85rem;
-+    padding: 0;
-+    margin: .45rem 0 0;
-+    list-style: none;
-+    font-size: .73rem;
-+}
-+
-+.arpp-readiness-strip li {
-+    display: inline-flex;
-+    align-items: center;
-+    gap: .32rem;
-+}
-+
-+.arpp-readiness-strip .is-ready {
-+    color: var(--bs-success-text-emphasis);
-+}
-+
-+.arpp-readiness-strip .is-pending {
-+    color: var(--bs-secondary-color);
-+}
-+
-+.arpp-kpis--details {
-+    grid-template-columns: repeat(4, minmax(0, 1fr));
-+    margin-bottom: .75rem;
-+}
-+
-+.arpp-kpi--rows {
-+    min-width: 0;
-+}
-+
-+.arpp-kpi__category-line {
-+    overflow: hidden;
-+    text-overflow: ellipsis;
-+    white-space: nowrap;
-+}
-+
-+.arpp-reconcile-callout {
-+    margin-bottom: .75rem;
-+}
-+
-+.arpp-details-rows {
-+    margin-bottom: .75rem;
-+}
-+
-+.arpp-panel__heading--compact {
-+    align-items: center;
-+    padding-block: .65rem;
-+}
-+
-+.arpp-evidence-panel {
-+    margin-bottom: .75rem;
-+}
-+
-+.arpp-evidence-panel__body {
-+    display: grid;
-+    gap: .65rem;
-+    padding: .75rem;
-+}
-+
-+.arpp-document-file--compact {
-+    padding: .65rem .75rem;
-+}
-+
-+.arpp-document-file--compact .arpp-document-file__icon {
-+    width: 2.35rem;
-+    height: 2.35rem;
-+    font-size: 1.1rem;
-+}
-+
-+.arpp-document-file--compact .arpp-document-file__identity span {
-+    overflow: hidden;
-+    text-overflow: ellipsis;
-+    white-space: nowrap;
-+}
-+
-+.arpp-document-management {
-+    overflow: hidden;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: .65rem;
-+    background: color-mix(in srgb, var(--arpp-soft) 60%, var(--bs-body-bg));
-+}
-+
-+.arpp-document-management > summary {
-+    display: flex;
-+    align-items: center;
-+    gap: .45rem;
-+    padding: .55rem .7rem;
-+    color: var(--bs-secondary-color);
-+    cursor: pointer;
-+    font-size: .78rem;
-+    font-weight: 700;
-+    list-style: none;
-+}
-+
-+.arpp-document-management > summary::-webkit-details-marker {
-+    display: none;
-+}
-+
-+.arpp-document-management > summary .bi-chevron-down {
-+    margin-left: auto;
-+    transition: transform .16s ease;
-+}
-+
-+.arpp-document-management[open] > summary .bi-chevron-down {
-+    transform: rotate(180deg);
-+}
-+
-+.arpp-document-management__body {
-+    display: grid;
-+    grid-template-columns: minmax(0, 1fr) auto;
-+    align-items: end;
-+    gap: .75rem;
-+    padding: .7rem;
-+    border-top: 1px solid var(--arpp-border);
-+}
-+
-+.arpp-document-upload--compact {
-+    padding-top: 0;
-+    border-top: 0;
-+}
-+
-+.arpp-document-remove {
-+    margin: 0;
++body.arpp-workspace-fullscreen .arpp-entry-table tr,
++body.arpp-workspace-fullscreen .arpp-entry-table [data-arpp-entry-row],
++body.arpp-workspace-fullscreen .arpp-entry-table input,
++body.arpp-workspace-fullscreen .arpp-entry-table select,
++body.arpp-workspace-fullscreen .arpp-entry-table textarea {
++    scroll-margin-top: calc(var(--arpp-commandbar-height) + 3.6rem);
 +}
 +
 +@media (max-width: 1199.98px) {
-+    .arpp-kpis--details {
-+        grid-template-columns: repeat(2, minmax(0, 1fr));
++    .arpp-workspace-commandbar {
++        grid-template-areas:
++            "identity jump"
++            "status status"
++            "actions actions";
++    }
++
++    .arpp-save-statusline {
++        min-height: 1.35rem;
++    }
++
++    .arpp-workspace-commandbar__actions {
++        width: 100%;
++    }
++
++    .arpp-workspace-commandbar__actions [data-arpp-save-button] {
++        margin-left: auto;
++    }
++
++    .arpp-validation-navigator {
++        grid-template-columns: minmax(13rem, 1fr) auto;
++    }
++}
++
++@media (max-width: 991.98px) {
++    .arpp-workspace-commandbar {
++        grid-template-areas:
++            "identity status"
++            "jump jump"
++            "actions actions";
++        grid-template-columns: minmax(12rem, 1fr) auto;
++    }
++
++    .arpp-save-statusline {
++        justify-content: flex-end;
++        text-align: right;
 +    }
 +}
 +
 +@media (max-width: 767.98px) {
-+    .arpp-document-state {
-+        flex-direction: column;
-+    }
-+
-+    .arpp-document-state__action {
-+        align-self: stretch;
-+    }
-+
-+    .arpp-document-state__action .btn {
-+        width: 100%;
-+    }
-+
-+    .arpp-verification-meta--inline {
-+        display: grid;
-+        gap: .25rem;
-+    }
-+
-+    .arpp-document-management__body {
++    .arpp-workspace-commandbar {
++        grid-template-areas:
++            "identity"
++            "status"
++            "jump"
++            "actions";
 +        grid-template-columns: 1fr;
-+        align-items: stretch;
 +    }
 +
-+    .arpp-document-remove .btn {
++    .arpp-save-statusline {
++        justify-content: flex-start;
++        text-align: left;
++    }
++
++    .arpp-workspace-commandbar__actions {
++        display: grid;
++        grid-template-columns: auto auto minmax(8rem, 1fr);
++        overflow: visible;
++    }
++
++    .arpp-workspace-commandbar__actions .arpp-discard-return {
++        grid-column: 1 / 3;
++    }
++
++    .arpp-workspace-commandbar__actions [data-arpp-save-button] {
++        grid-column: 3;
++        grid-row: 1 / 3;
 +        width: 100%;
++        margin-left: 0;
++    }
++
++    .arpp-validation-navigator {
++        grid-template-columns: 1fr;
++    }
++}
+diff --git a/wwwroot/css/project-office-reports/arpp.css b/wwwroot/css/project-office-reports/arpp.css
+index 36db1d6..0c162b5 100644
+--- a/wwwroot/css/project-office-reports/arpp.css
++++ b/wwwroot/css/project-office-reports/arpp.css
+@@ -2021,3 +2021,208 @@ details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
+         display: none !important;
+     }
+ }
++
++/* ============================================================
++   ARPP/PPP final read and register refinement
++   Compact issued rows, sticky headings and precise record states.
++   ============================================================ */
++.arpp-badge--incomplete {
++    border: 1px solid color-mix(in srgb, var(--bs-secondary) 24%, transparent);
++    background: color-mix(in srgb, var(--bs-secondary-bg-subtle) 74%, var(--bs-body-bg));
++    color: var(--bs-secondary-text-emphasis);
++}
++
++.arpp-badge--reference-review {
++    border: 1px solid color-mix(in srgb, var(--bs-danger) 20%, transparent);
++    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 58%, var(--bs-body-bg));
++    color: var(--bs-danger-text-emphasis);
++}
++
++.arpp-badge--ready {
++    border: 1px solid color-mix(in srgb, var(--bs-primary) 22%, transparent);
++    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 68%, var(--bs-body-bg));
++    color: var(--bs-primary-text-emphasis);
++}
++
++.arpp-issue-state-note {
++    color: var(--bs-secondary-color);
++    font-size: .7rem;
++    font-weight: 600;
++    white-space: nowrap;
++}
++
++.arpp-document-state--incomplete {
++    border-color: color-mix(in srgb, var(--bs-secondary) 26%, var(--arpp-border));
++    background: color-mix(in srgb, var(--bs-secondary-bg-subtle) 42%, var(--bs-body-bg));
++}
++
++.arpp-document-state--reference-review {
++    border-color: color-mix(in srgb, var(--bs-danger) 24%, var(--arpp-border));
++    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 31%, var(--bs-body-bg));
++}
++
++.arpp-document-state--ready {
++    border-color: color-mix(in srgb, var(--bs-primary) 25%, var(--arpp-border));
++    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 38%, var(--bs-body-bg));
++}
++
++.arpp-document-state--incomplete .arpp-document-state__identity > .bi {
++    color: var(--bs-secondary-text-emphasis);
++}
++
++.arpp-document-state--reference-review .arpp-document-state__identity > .bi {
++    color: var(--bs-danger-text-emphasis);
++}
++
++.arpp-document-state--ready .arpp-document-state__identity > .bi {
++    color: var(--bs-primary);
++}
++
++.arpp-table-wrap--details {
++    position: relative;
++    overflow-x: auto;
++    overscroll-behavior-inline: contain;
++}
++
++.arpp-table-wrap--details .arpp-details-table {
++    width: 100%;
++    min-width: 1080px;
++    table-layout: fixed;
++    font-size: .8125rem;
++}
++
++.arpp-details-col-order { width: 3%; }
++.arpp-details-col-serial { width: 6%; }
++.arpp-details-col-ppp { width: 10%; }
++.arpp-details-col-project { width: 39%; }
++.arpp-details-col-category { width: 8%; }
++.arpp-details-col-cost { width: 10%; }
++.arpp-details-col-cfa { width: 10%; }
++.arpp-details-col-fund { width: 7%; }
++.arpp-details-col-dfpds { width: 7%; }
++
++.arpp-details-table thead th {
++    top: 52px;
++    z-index: 8;
++    padding: .55rem .5rem;
++    background: var(--arpp-soft);
++    box-shadow: inset 0 -1px 0 var(--arpp-border), 0 .18rem .32rem rgba(16, 24, 40, .045);
++}
++
++.arpp-details-table td {
++    padding: .55rem .5rem;
++    line-height: 1.32;
++    vertical-align: top;
++}
++
++.arpp-details-table tbody tr {
++    scroll-margin-top: 6.75rem;
++}
++
++.arpp-details-project-cell {
++    min-width: 0;
++}
++
++.arpp-details-project-link {
++    display: inline-flex;
++    max-width: 100%;
++    align-items: baseline;
++    gap: .3rem;
++    color: var(--bs-link-color);
++    font-weight: 700;
++    line-height: 1.32;
++    text-decoration: underline;
++    text-decoration-color: color-mix(in srgb, var(--bs-link-color) 35%, transparent);
++    text-underline-offset: 2px;
++}
++
++.arpp-details-project-link > span:first-child {
++    min-width: 0;
++    overflow-wrap: anywhere;
++}
++
++.arpp-details-project-link > .bi {
++    flex: 0 0 auto;
++    font-size: .68rem;
++    opacity: .72;
++}
++
++.arpp-details-project-line {
++    display: grid;
++    grid-template-columns: 3.35rem minmax(0, 1fr);
++    align-items: baseline;
++    gap: .35rem;
++}
++
++.arpp-details-project-line + .arpp-details-project-line {
++    margin-top: .22rem;
++}
++
++.arpp-details-project-line strong {
++    min-width: 0;
++    overflow-wrap: anywhere;
++    font-size: .8rem;
++}
++
++.arpp-details-project-label {
++    color: var(--bs-secondary-color);
++    font-size: .67rem;
++    font-weight: 750;
++    letter-spacing: .025em;
++    text-transform: uppercase;
++}
++
++.arpp-details-project-meta {
++    display: flex;
++    flex-wrap: wrap;
++    align-items: center;
++    gap: .12rem .38rem;
++    margin-top: .22rem;
++    color: var(--bs-secondary-color);
++    font-size: .7rem;
++    line-height: 1.3;
++}
++
++.arpp-details-project-meta--indented {
++    margin-left: 3.7rem;
++}
++
++.arpp-details-project-meta > * + *::before {
++    margin-right: .38rem;
++    color: color-mix(in srgb, var(--bs-secondary-color) 55%, transparent);
++    content: "·";
++}
++
++.arpp-details-project-meta a {
++    font-weight: 700;
++    white-space: nowrap;
++}
++
++.arpp-details-project-cell .arpp-unlinked {
++    margin-top: .24rem;
++    font-size: .7rem;
++}
++
++@media (max-width: 1199.98px) {
++    .arpp-table-wrap--details .arpp-details-table {
++        min-width: 1040px;
++    }
++
++    .arpp-issue-state-note {
++        white-space: normal;
 +    }
 +}
 +
-+@media (max-width: 575.98px) {
-+    .arpp-kpis--details {
-+        grid-template-columns: 1fr;
-+    }
-+
-+    .arpp-readiness-strip {
-+        display: grid;
-+    }
-+
-+    .arpp-document-file--compact {
-+        grid-template-columns: minmax(0, 1fr);
-+    }
-+
-+    .arpp-document-file--compact .arpp-document-file__actions {
-+        justify-content: flex-start;
++@media (max-width: 767.98px) {
++    .arpp-details-table thead th {
++        top: 52px;
 +    }
 +}
 +
 +@media print {
-+    .arpp-document-state__action,
-+    .arpp-document-management,
-+    .arpp-details-rows .arpp-panel__heading .btn {
-+        display: none !important;
++    .arpp-details-table thead th {
++        position: static;
++        top: auto;
++        box-shadow: none;
 +    }
 +}
-diff --git a/wwwroot/css/projects/arpp-library.css b/wwwroot/css/projects/arpp-library.css
-index c993eae..d2eb55d 100644
---- a/wwwroot/css/projects/arpp-library.css
-+++ b/wwwroot/css/projects/arpp-library.css
-@@ -841,3 +841,12 @@
-         font-size: .7rem;
-     }
- }
-+
-+/* ARPP library production search refinement */
-+.project-arpp-search > small {
-+    font-size: .72rem;
-+}
-+
-+.project-arpp-search__submit .bi {
-+    font-size: .82rem;
-+}
 diff --git a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-index e557ba0..5ca958c 100644
+index 5ca958c..368e770 100644
 --- a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
 +++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-@@ -14,6 +14,11 @@
-     if (!root || !form || !body || !template) return;
- 
-     let dirty = false;
-+    let saving = false;
-+    let validationIssueCount = 0;
-+    let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
-+    let baselineSnapshot = "";
-+    let validationExpanded = false;
+@@ -19,6 +19,7 @@
+     let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
+     let baselineSnapshot = "";
+     let validationExpanded = false;
++    let validationTrayOpen = false;
      let pasteRows = [];
      let jumpMatches = [];
      let jumpMatchIndex = -1;
-@@ -47,40 +52,74 @@
+@@ -48,7 +49,16 @@
+ 
+     const setSaveButtonsDisabled = disabled => {
+         root.querySelectorAll("[data-arpp-save-button]").forEach(button => {
+-            if (button instanceof HTMLButtonElement) button.disabled = disabled;
++            if (!(button instanceof HTMLButtonElement)) return;
++            button.disabled = disabled;
++            button.setAttribute("aria-disabled", disabled ? "true" : "false");
++            button.title = saving
++                ? "Saving the working copy"
++                : disabled
++                    ? "No changes to save"
++                    : validationIssueCount > 0
++                        ? "Save the working copy with the highlighted issues"
++                        : "Save issue (Ctrl+S)";
          });
      };
  
--    const markDirty = () => {
--        dirty = true;
-+    const createFormSnapshot = () => {
-+        const parts = [];
-+        Array.from(form.elements).forEach((control, index) => {
-+            if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
-+            if (!control.name || control.disabled || control.closest("[data-arpp-ui-only]") || control.name === "__RequestVerificationToken") return;
-+            if ((control.type === "checkbox" || control.type === "radio") && !control.checked) return;
-+
-+            const value = control instanceof HTMLSelectElement && control.multiple
-+                ? Array.from(control.selectedOptions).map(option => option.value).join("\u001D")
-+                : control.value;
-+            parts.push(`${index}\u001F${control.name}\u001F${value}`);
-+        });
-+        return parts.join("\u001E");
-+    };
-+
-+    const syncWorkspaceStatus = () => {
-         const state = root.querySelector("[data-arpp-save-state]");
--        if (state) state.textContent = "Unsaved changes";
--        setSaveButtonsDisabled(false);
--        commandbar?.classList.add("is-dirty");
-+        if (state) {
-+            if (saving) state.textContent = "Saving…";
-+            else if (dirty && validationIssueCount > 0) state.textContent = `Unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
-+            else if (dirty) state.textContent = "Unsaved changes";
-+            else if (validationIssueCount > 0) state.textContent = `No unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
-+            else state.textContent = "No unsaved changes";
+@@ -77,6 +87,17 @@
+             else state.textContent = "No unsaved changes";
+         }
+ 
++        const validationToggle = root.querySelector("[data-arpp-validation-toggle]");
++        const validationCount = root.querySelector("[data-arpp-validation-count]");
++        if (validationCount) validationCount.textContent = String(validationIssueCount);
++        if (validationToggle instanceof HTMLButtonElement) {
++            validationToggle.classList.toggle("d-none", validationIssueCount === 0);
++            validationToggle.setAttribute("aria-expanded", validationTrayOpen ? "true" : "false");
++            validationToggle.title = validationIssueCount > 0
++                ? `Review ${validationIssueCount} validation ${validationIssueCount === 1 ? "issue" : "issues"}`
++                : "No validation issues";
 +        }
 +
-+        setSaveButtonsDisabled(saving || !dirty);
-+        commandbar?.classList.toggle("is-dirty", dirty);
-+        commandbar?.classList.toggle("has-validation", validationIssueCount > 0);
-+        commandbar?.classList.toggle("is-saving", saving);
+         setSaveButtonsDisabled(saving || !dirty);
+         commandbar?.classList.toggle("is-dirty", dirty);
+         commandbar?.classList.toggle("has-validation", validationIssueCount > 0);
+@@ -258,6 +279,15 @@
+         });
      };
  
-+    const setDirty = value => {
-+        dirty = Boolean(value);
-+        syncWorkspaceStatus();
++    const setValidationTrayOpen = open => {
++        const navigator = root.querySelector("[data-arpp-validation-navigator]");
++        validationTrayOpen = Boolean(open && validationIssueCount > 0);
++        navigator?.classList.toggle("d-none", !validationTrayOpen);
++        root.querySelector("[data-arpp-validation-toggle]")?.setAttribute(
++            "aria-expanded",
++            validationTrayOpen ? "true" : "false");
 +    };
 +
-+    const refreshDirtyState = () => {
-+        setDirty(serverRejectedChanges || createFormSnapshot() !== baselineSnapshot);
-+    };
-+
-+    const markDirty = () => refreshDirtyState();
-+
-     const markClean = () => {
--        dirty = false;
--        const state = root.querySelector("[data-arpp-save-state]");
--        if (state) state.textContent = "No unsaved changes";
--        setSaveButtonsDisabled(true);
--        commandbar?.classList.remove("is-dirty");
-+        baselineSnapshot = createFormSnapshot();
-+        serverRejectedChanges = false;
-+        setDirty(false);
-     };
- 
--    const updateStickyMetrics = () => {
--        const fullscreen = document.body.classList.contains("arpp-workspace-fullscreen");
--        let offset = 0;
--        if (!fullscreen) {
--            [document.querySelector(".pm-topbar"), document.querySelector(".pm-module-subnav-wrap")]
--                .filter(element => element instanceof HTMLElement)
--                .forEach(element => {
--                    const rect = element.getBoundingClientRect();
--                    if (rect.bottom > 0) offset = Math.max(offset, rect.bottom);
--                });
--        }
-+    const measureApplicationChrome = () => {
-+        if (document.body.classList.contains("arpp-workspace-fullscreen")) return 0;
-+
-+        const elements = [document.querySelector(".pm-topbar"), document.querySelector(".pm-module-subnav-wrap")]
-+            .filter(element => element instanceof HTMLElement && getComputedStyle(element).display !== "none");
-+        if (!elements.length) return 0;
- 
-+        return Math.max(...elements.map(element => {
-+            const rect = element.getBoundingClientRect();
-+            return Math.max(0, Math.ceil(rect.bottom));
-+        }));
-+    };
-+
-+    const updateStickyMetrics = () => {
-+        const appChromeHeight = measureApplicationChrome();
-         const commandbarHeight = commandbar instanceof HTMLElement
-             ? Math.ceil(commandbar.getBoundingClientRect().height)
-             : 0;
--        root.style.setProperty("--arpp-sticky-offset", `${Math.max(0, Math.ceil(offset))}px`);
-+        root.style.setProperty("--arpp-app-chrome-height", `${appChromeHeight}px`);
-         root.style.setProperty("--arpp-commandbar-height", `${commandbarHeight}px`);
--        root.style.setProperty("--arpp-table-sticky-top", `${Math.max(0, Math.ceil(offset + commandbarHeight + 8))}px`);
-     };
- 
-     const updateScrollEdgeState = () => {
-@@ -225,38 +264,69 @@
-         const copy = root.querySelector("[data-arpp-validation-copy]");
-         const items = root.querySelector("[data-arpp-validation-items]");
-         const firstButton = root.querySelector("[data-arpp-validation-first]");
-+        const moreButton = root.querySelector("[data-arpp-validation-more]");
-         if (!(navigator instanceof HTMLElement) || !(items instanceof HTMLElement)) return [];
+     const updateValidationNavigator = (focusFirst = false) => {
+         const navigator = root.querySelector("[data-arpp-validation-navigator]");
+         const heading = root.querySelector("[data-arpp-validation-heading]");
+@@ -269,12 +299,15 @@
  
          const issues = collectValidationIssues();
-+        validationIssueCount = issues.length;
-         navigator.classList.toggle("d-none", issues.length === 0);
+         validationIssueCount = issues.length;
+-        navigator.classList.toggle("d-none", issues.length === 0);
++        if (focusFirst && issues.length > 0) validationTrayOpen = true;
++        if (issues.length === 0) validationTrayOpen = false;
++        navigator.classList.toggle("d-none", issues.length === 0 || !validationTrayOpen);
          items.replaceChildren();
          rows().forEach(row => row.classList.remove("is-validation-target"));
  
--        if (!issues.length) return issues;
--        const affectedRows = new Set(issues.map(issue => issue.row).filter(Boolean)).size;
-+        if (!issues.length) {
-+            validationExpanded = false;
-+            moreButton?.classList.add("d-none");
-+            syncWorkspaceStatus();
-+            return issues;
-+        }
-+
-+        const groups = [];
-+        const groupsByKey = new Map();
-+        issues.forEach(issue => {
-+            const rowNumber = issue.row?.querySelector("[data-arpp-row-number]")?.textContent?.trim();
-+            const key = rowNumber ? `row:${rowNumber}` : "document";
-+            let group = groupsByKey.get(key);
-+            if (!group) {
-+                group = {
-+                    label: rowNumber ? `Row ${rowNumber}` : "Document identity",
-+                    row: issue.row,
-+                    issues: []
-+                };
-+                groupsByKey.set(key, group);
-+                groups.push(group);
-+            }
-+            group.issues.push(issue);
-+        });
-+
-         if (heading) heading.textContent = `${issues.length} ${issues.length === 1 ? "field requires" : "fields require"} attention`;
--        if (copy) copy.textContent = affectedRows ? `Found in ${affectedRows} ${affectedRows === 1 ? "row" : "rows"}.` : "Review the document identity fields.";
-+        if (copy) copy.textContent = groups.length === 1 ? `Found in ${groups[0].label.toLocaleLowerCase("en-IN")}.` : `Found across ${groups.length} rows or sections.`;
- 
--        issues.slice(0, 8).forEach(issue => {
-+        const visibleGroups = validationExpanded ? groups : groups.slice(0, 5);
-+        visibleGroups.forEach(group => {
-+            const fields = Array.from(new Set(group.issues.map(issue => fieldDisplayName(issue.control))));
-             const button = document.createElement("button");
-             button.type = "button";
-             button.className = "btn btn-sm btn-outline-danger";
--            button.textContent = issue.label;
--            button.title = issue.message;
-+            button.textContent = `${group.label} — ${fields.join(", ")}`;
-+            button.title = group.issues.map(issue => `${fieldDisplayName(issue.control)}: ${issue.message}`).join("\n");
-             button.addEventListener("click", () => {
--                if (issue.row) scrollRowIntoWorkspace(issue.row, issue.control);
-+                const first = group.issues[0];
-+                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
-                 else {
+         if (!issues.length) {
+             validationExpanded = false;
++            validationTrayOpen = false;
+             moreButton?.classList.add("d-none");
+             syncWorkspaceStatus();
+             return issues;
+@@ -316,6 +349,7 @@
                      root.querySelector(".arpp-panel--identity")?.scrollIntoView({ behavior: "smooth", block: "center" });
--                    window.setTimeout(() => issue.control.focus({ preventScroll: true }), 180);
-+                    window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
+                     window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
                  }
++                setValidationTrayOpen(false);
              });
              items.appendChild(button);
          });
--        if (issues.length > 8) {
--            const remaining = document.createElement("span");
--            remaining.className = "small text-body-secondary align-self-center";
--            remaining.textContent = `+${issues.length - 8} more`;
--            items.appendChild(remaining);
-+
-+        if (moreButton instanceof HTMLButtonElement) {
-+            moreButton.classList.toggle("d-none", groups.length <= 5);
-+            moreButton.textContent = validationExpanded ? "Show fewer" : `View all ${groups.length}`;
-+            moreButton.onclick = () => {
-+                validationExpanded = !validationExpanded;
-+                updateValidationNavigator(false);
-+            };
-         }
- 
-         if (firstButton instanceof HTMLButtonElement) {
-@@ -267,6 +337,7 @@
+@@ -334,9 +368,11 @@
+                 const first = issues[0];
+                 if (first.row) scrollRowIntoWorkspace(first.row, first.control);
+                 else first.control.focus();
++                setValidationTrayOpen(false);
              };
          }
          if (focusFirst) firstButton?.focus({ preventScroll: true });
-+        syncWorkspaceStatus();
++        setValidationTrayOpen(validationTrayOpen);
+         syncWorkspaceStatus();
          return issues;
      };
- 
-@@ -857,7 +928,7 @@
-         bootstrap.Modal.getInstance(document.getElementById("arppPasteModal"))?.hide();
-     });
- 
--    root.querySelector("[data-arpp-apply-common]")?.addEventListener("click", () => {
-+    const applyCommonFields = () => {
-         const currentRows = rows();
-         const source = currentRows.find(row =>
-             ["cfa", "fund", "dfpds"].every(kind => {
-@@ -875,7 +946,8 @@
+@@ -1037,6 +1073,12 @@
          });
-         refreshRowWarnings();
-         markDirty();
--    });
-+    };
-+    root.querySelectorAll("[data-arpp-apply-common]").forEach(button => button.addEventListener("click", applyCommonFields));
+     });
  
-     root.querySelector("[data-arpp-add-row]")?.addEventListener("click", addManualRow);
-     root.querySelector("[data-arpp-add-first-row]")?.addEventListener("click", addManualRow);
-@@ -889,15 +961,13 @@
-     form.addEventListener("input", event => {
-         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
-         refreshRowWarnings();
--        markDirty();
--        if (!root.querySelector("[data-arpp-validation-navigator]")?.classList.contains("d-none")) {
--            window.setTimeout(() => updateValidationNavigator(false), 0);
--        }
-+        refreshDirtyState();
-+        window.setTimeout(() => updateValidationNavigator(false), 0);
-     });
-     form.addEventListener("change", event => {
-         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
-         refreshRowWarnings();
--        markDirty();
-+        refreshDirtyState();
-         window.setTimeout(() => updateValidationNavigator(false), 0);
-     });
-     form.addEventListener("invalid", () => {
-@@ -913,10 +983,9 @@
-             return;
-         }
- 
-+        saving = true;
-         dirty = false;
--        const state = root.querySelector("[data-arpp-save-state]");
--        if (state) state.textContent = "Saving…";
--        setSaveButtonsDisabled(true);
-+        syncWorkspaceStatus();
-         root.querySelectorAll("[data-arpp-save-button-label]").forEach(label => {
-             label.textContent = "Saving…";
-         });
-@@ -962,8 +1031,30 @@
-         jumpToMatch(true);
-     });
-     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
--    root.querySelector("[data-arpp-fullscreen-toggle]")?.addEventListener("click", () => {
--        setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
-+    root.querySelectorAll("[data-arpp-fullscreen-toggle]").forEach(button => {
-+        button.addEventListener("click", () => {
-+            setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
-+        });
++    root.querySelector("[data-arpp-validation-toggle]")?.addEventListener("click", () => {
++        setValidationTrayOpen(!validationTrayOpen);
++        if (validationTrayOpen) root.querySelector("[data-arpp-validation-navigator]")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 +    });
++    root.querySelector("[data-arpp-validation-close]")?.addEventListener("click", () => setValidationTrayOpen(false));
 +
-+    root.querySelector("[data-arpp-discard-return]")?.addEventListener("click", async event => {
-+        if (!dirty) return;
-+        event.preventDefault();
-+        const link = event.currentTarget;
-+        const accepted = window.PrismConfirm?.show
-+            ? await window.PrismConfirm.show({
-+                title: "Discard unsaved changes?",
-+                message: "Your changes to the ARPP working copy have not been saved.",
-+                detail: "The last saved document remains unchanged.",
-+                confirmText: "Discard and return",
-+                cancelText: "Continue editing",
-+                tone: "warning"
-+            })
-+            : window.confirm("Discard your unsaved changes and return to the record?");
-+        if (accepted && link instanceof HTMLAnchorElement) {
-+            dirty = false;
-+            window.location.assign(link.href);
-+        }
-     });
- 
-     document.addEventListener("keydown", event => {
-@@ -987,7 +1078,6 @@
-         updateStickyMetrics();
-         syncTableScrollbars();
-     }, { passive: true });
--    window.addEventListener("scroll", updateStickyMetrics, { passive: true });
- 
-     if (window.ResizeObserver) {
-         const resizeObserver = new ResizeObserver(() => {
-@@ -1003,16 +1093,15 @@
-     if (entryGuidance) {
-         const storageKey = "prism.arpp.entryGuidance.open";
-         try {
--            if (window.localStorage.getItem(storageKey) === "false") {
--                entryGuidance.removeAttribute("open");
--            }
-+            const stored = window.localStorage.getItem(storageKey);
-+            if (stored === "false" || stored === "seen") entryGuidance.removeAttribute("open");
-         } catch {
-             // Storage can be unavailable in hardened or private browser contexts.
-         }
- 
-         entryGuidance.addEventListener("toggle", () => {
-             try {
--                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "false");
-+                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "seen");
-             } catch {
-                 // Guidance remains fully functional without persistence.
-             }
-@@ -1023,8 +1112,8 @@
-     reindexRows();
-     updateStickyMetrics();
-     syncTableScrollbars();
--    const initialIssues = updateValidationNavigator(false);
--    const hasServerValidationErrors = Boolean(form.querySelector(".validation-summary-errors, .field-validation-error"));
--    if (initialIssues.length || hasServerValidationErrors) markDirty();
-+    baselineSnapshot = createFormSnapshot();
-+    updateValidationNavigator(false);
-+    if (serverRejectedChanges) setDirty(true);
-     else markClean();
- })();
+     root.querySelector("[data-arpp-discard-return]")?.addEventListener("click", async event => {
+         if (!dirty) return;
+         event.preventDefault();

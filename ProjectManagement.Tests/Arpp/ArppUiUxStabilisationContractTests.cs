@@ -29,8 +29,10 @@ public sealed class ArppUiUxStabilisationContractTests
         Assert.Contains("data-arpp-validation-more", markup, StringComparison.Ordinal);
         Assert.Contains("role=\"status\" aria-live=\"polite\"", markup, StringComparison.Ordinal);
         Assert.Contains(".arpp-page--workspace .arpp-table-wrap", css, StringComparison.Ordinal);
-        Assert.Contains("overflow: auto;", css, StringComparison.Ordinal);
-        Assert.Contains(".arpp-entry-table thead th {\n    top: 0;", css, StringComparison.Ordinal);
+        Assert.Contains("max-height: none;", css, StringComparison.Ordinal);
+        Assert.Contains("overflow-x: auto;", css, StringComparison.Ordinal);
+        Assert.Contains("overflow-y: visible;", css, StringComparison.Ordinal);
+        Assert.Contains("calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height)", css, StringComparison.Ordinal);
         Assert.Contains("background: var(--bs-body-bg);", css, StringComparison.Ordinal);
         Assert.DoesNotContain("window.addEventListener(\"scroll\", updateStickyMetrics", script, StringComparison.Ordinal);
         Assert.Contains("Discard unsaved changes?", script, StringComparison.Ordinal);
@@ -62,7 +64,9 @@ public sealed class ArppUiUxStabilisationContractTests
         var library = ReadRepoFile("Pages", "Projects", "Arpp", "Index.cshtml");
 
         Assert.Contains("Verified and published", register, StringComparison.Ordinal);
-        Assert.Contains("Verification pending", register, StringComparison.Ordinal);
+        Assert.Contains("Unlocked for correction", register, StringComparison.Ordinal);
+        Assert.Contains("Setup incomplete", register, StringComparison.Ordinal);
+        Assert.Contains("Ready for verification", register, StringComparison.Ordinal);
         Assert.Contains("Working approved value", register, StringComparison.Ordinal);
         Assert.Contains("Working delisted value", register, StringComparison.Ordinal);
         Assert.Contains("Edit working copy", register, StringComparison.Ordinal);

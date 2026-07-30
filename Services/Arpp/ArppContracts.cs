@@ -139,7 +139,10 @@ public sealed record ArppIssueListItem(
     DateTimeOffset UpdatedAtUtc,
     bool HasAttachment,
     bool IsVerified,
-    DateTimeOffset? VerifiedAtUtc);
+    DateTimeOffset? VerifiedAtUtc,
+    bool HasPublishedSnapshot,
+    int? PublishedRevisionNumber,
+    bool HasUnresolvedReferenceData);
 
 public sealed record ArppIssueDetails(
     long Id,

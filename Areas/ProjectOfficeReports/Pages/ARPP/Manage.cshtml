@@ -161,15 +161,25 @@
                     <span class="bi bi-arrow-left" aria-hidden="true"></span>
                     <span class="arpp-action-label">Discard and return</span>
                 </a>
-                <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="Save issue (Ctrl+S)">
+                <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="No changes to save" disabled aria-disabled="true">
                     <span class="bi bi-check2" aria-hidden="true"></span>
                     <span data-arpp-save-button-label>Save issue</span>
                 </button>
             </div>
-            <div class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</div>
+            <div class="arpp-save-statusline">
+                <span class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</span>
+                <button type="button"
+                        class="btn btn-link btn-sm arpp-validation-toggle d-none"
+                        data-arpp-validation-toggle
+                        aria-controls="arppValidationTray"
+                        aria-expanded="false">
+                    Review issues
+                    <span class="badge rounded-pill text-bg-danger" data-arpp-validation-count>0</span>
+                </button>
+            </div>
         </div>
 
-        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="status" aria-live="polite" aria-atomic="true">
+        <section id="arppValidationTray" class="arpp-validation-navigator d-none" data-arpp-validation-navigator aria-label="Validation issues">
             <div class="arpp-validation-navigator__summary">
                 <span class="bi bi-exclamation-octagon" aria-hidden="true"></span>
                 <div>
@@ -181,6 +191,7 @@
             <div class="arpp-validation-navigator__actions">
                 <button type="button" class="btn btn-sm btn-link text-danger d-none" data-arpp-validation-more>View all</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
+                <button type="button" class="btn btn-sm btn-link text-secondary" data-arpp-validation-close>Close</button>
             </div>
         </section>
 

@@ -499,3 +499,188 @@ body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
         transition: none;
     }
 }
+
+/* ============================================================
+   ARPP/PPP final workspace completion
+   One vertical scroll surface, compact issue review and truthful save state.
+   ============================================================ */
+.arpp-save-statusline {
+    grid-area: status;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: .45rem;
+}
+
+.arpp-save-statusline .arpp-save-state {
+    min-width: 0;
+}
+
+.arpp-validation-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 1.6rem;
+    padding: .05rem .2rem;
+    font-size: .73rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.arpp-validation-toggle .badge {
+    min-width: 1.35rem;
+    font-size: .62rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.arpp-workspace-commandbar [data-arpp-save-button]:disabled {
+    border-color: color-mix(in srgb, var(--bs-primary) 28%, var(--arpp-border));
+    background: color-mix(in srgb, var(--bs-primary) 18%, var(--bs-body-bg));
+    box-shadow: none;
+    color: color-mix(in srgb, var(--bs-primary) 48%, var(--bs-secondary-color));
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+.arpp-validation-navigator {
+    grid-template-columns: minmax(14rem, .7fr) minmax(22rem, 1.8fr) auto;
+    margin: -.2rem 0 .65rem;
+    padding: .52rem .65rem;
+    box-shadow: 0 .2rem .7rem rgba(127, 29, 29, .06);
+}
+
+.arpp-validation-navigator__items .btn {
+    max-width: 18rem;
+}
+
+/* Normal mode uses the page as the sole vertical scroll surface. */
+.arpp-page--workspace .arpp-table-wrap {
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: auto;
+}
+
+.arpp-page--workspace .arpp-entry-table thead th {
+    top: calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height) + .45rem);
+    z-index: 22;
+    box-shadow: inset 0 -1px 0 var(--arpp-border), 0 .2rem .35rem rgba(16, 24, 40, .05);
+}
+
+.arpp-page--workspace .arpp-entry-table thead .arpp-sticky-left,
+.arpp-page--workspace .arpp-entry-table thead .arpp-sticky-right {
+    z-index: 25;
+}
+
+.arpp-entry-table tr,
+.arpp-entry-table [data-arpp-entry-row],
+.arpp-entry-table input,
+.arpp-entry-table select,
+.arpp-entry-table textarea {
+    scroll-margin-top: calc(var(--arpp-app-chrome-height) + var(--arpp-commandbar-height) + 3.6rem);
+}
+
+body.arpp-workspace-fullscreen [data-arpp-workspace] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-entry-table thead th {
+    top: calc(var(--arpp-commandbar-height) + .45rem);
+}
+
+body.arpp-workspace-fullscreen .arpp-entry-table tr,
+body.arpp-workspace-fullscreen .arpp-entry-table [data-arpp-entry-row],
+body.arpp-workspace-fullscreen .arpp-entry-table input,
+body.arpp-workspace-fullscreen .arpp-entry-table select,
+body.arpp-workspace-fullscreen .arpp-entry-table textarea {
+    scroll-margin-top: calc(var(--arpp-commandbar-height) + 3.6rem);
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-workspace-commandbar {
+        grid-template-areas:
+            "identity jump"
+            "status status"
+            "actions actions";
+    }
+
+    .arpp-save-statusline {
+        min-height: 1.35rem;
+    }
+
+    .arpp-workspace-commandbar__actions {
+        width: 100%;
+    }
+
+    .arpp-workspace-commandbar__actions [data-arpp-save-button] {
+        margin-left: auto;
+    }
+
+    .arpp-validation-navigator {
+        grid-template-columns: minmax(13rem, 1fr) auto;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .arpp-workspace-commandbar {
+        grid-template-areas:
+            "identity status"
+            "jump jump"
+            "actions actions";
+        grid-template-columns: minmax(12rem, 1fr) auto;
+    }
+
+    .arpp-save-statusline {
+        justify-content: flex-end;
+        text-align: right;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-workspace-commandbar {
+        grid-template-areas:
+            "identity"
+            "status"
+            "jump"
+            "actions";
+        grid-template-columns: 1fr;
+    }
+
+    .arpp-save-statusline {
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .arpp-workspace-commandbar__actions {
+        display: grid;
+        grid-template-columns: auto auto minmax(8rem, 1fr);
+        overflow: visible;
+    }
+
+    .arpp-workspace-commandbar__actions .arpp-discard-return {
+        grid-column: 1 / 3;
+    }
+
+    .arpp-workspace-commandbar__actions [data-arpp-save-button] {
+        grid-column: 3;
+        grid-row: 1 / 3;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .arpp-validation-navigator {
+        grid-template-columns: 1fr;
+    }
+}

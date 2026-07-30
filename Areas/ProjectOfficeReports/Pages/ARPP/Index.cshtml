@@ -5,6 +5,9 @@
 @{
     ViewData["Title"] = "ARPP / PPP";
     ViewData["UseFullWidth"] = true;
+    var allIssues = Model.Register.FinancialYears.SelectMany(group => group.Issues).ToArray();
+    var publishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
+    var workingRecordCount = allIssues.Count(issue => !issue.IsVerified);
 }
 
 @section Styles {
@@ -48,9 +51,9 @@
 
     <section class="arpp-kpis" aria-label="ARPP register summary">
         <article class="arpp-kpi">
-            <span>Issued documents</span>
+            <span>ARPP records</span>
             <strong>@Model.Register.TotalIssues</strong>
-            <small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "document row" : "document rows") · @Model.Register.VerifiedIssues verified</small>
+            <small>@publishedRecordCount published · @workingRecordCount working · @Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small>
         </article>
         <article class="arpp-kpi arpp-kpi--approved">
             <span>Approved projects IPA</span>
@@ -133,6 +136,44 @@
                     <div class="arpp-issue-list">
                         @foreach (var issue in group.Issues)
                         {
+                            var isCorrection = !issue.IsVerified && issue.HasPublishedSnapshot;
+                            var isSetupIncomplete = !issue.IsVerified && issue.EntryCount == 0 && !issue.HasAttachment;
+                            var needsReferenceReview = !issue.IsVerified && issue.HasUnresolvedReferenceData;
+                            var isReadyForVerification = !issue.IsVerified && issue.EntryCount > 0 && issue.HasAttachment && !needsReferenceReview;
+                            var stateLabel = issue.IsVerified
+                                ? "Verified and published"
+                                : isCorrection
+                                    ? "Unlocked for correction"
+                                    : isSetupIncomplete
+                                        ? "Setup incomplete"
+                                        : needsReferenceReview
+                                            ? "Reference review required"
+                                            : isReadyForVerification
+                                                ? "Ready for verification"
+                                                : "Working copy";
+                            var stateBadgeClass = issue.IsVerified
+                                ? "arpp-badge--verified"
+                                : isCorrection
+                                    ? "arpp-badge--correction"
+                                    : isSetupIncomplete
+                                        ? "arpp-badge--incomplete"
+                                        : needsReferenceReview
+                                            ? "arpp-badge--reference-review"
+                                            : isReadyForVerification
+                                                ? "arpp-badge--ready"
+                                                : "arpp-badge--unverified";
+                            var stateIcon = issue.IsVerified
+                                ? "bi-lock-fill"
+                                : isCorrection
+                                    ? "bi-pencil-square"
+                                    : isSetupIncomplete
+                                        ? "bi-exclamation-circle"
+                                        : needsReferenceReview
+                                            ? "bi-list-check"
+                                            : isReadyForVerification
+                                                ? "bi-shield-check"
+                                                : "bi-hourglass-split";
+
                             <article class="arpp-issue-card">
                                 <div class="arpp-issue-card__main">
                                     <div class="arpp-issue-card__titleline">
@@ -141,13 +182,22 @@
                                         {
                                             <span class="arpp-sequence">Addendum @issue.IssueSequence</span>
                                         }
-                                        @if (issue.IsVerified)
+                                        <span class="arpp-badge @stateBadgeClass"><span class="bi @stateIcon" aria-hidden="true"></span> @stateLabel</span>
+                                        @if (isCorrection && issue.PublishedRevisionNumber.HasValue)
                                         {
-                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified and published</span>
+                                            <span class="arpp-issue-state-note">Revision @issue.PublishedRevisionNumber remains published</span>
                                         }
-                                        else
+                                        else if (isSetupIncomplete)
                                         {
-                                            <span class="arpp-badge arpp-badge--unverified"><span class="bi bi-pencil-square" aria-hidden="true"></span> Verification pending</span>
+                                            <span class="arpp-issue-state-note">Rows and HQ PDF required</span>
+                                        }
+                                        else if (!issue.IsVerified && !issue.HasAttachment)
+                                        {
+                                            <span class="arpp-issue-state-note">HQ PDF required before verification</span>
+                                        }
+                                        else if (needsReferenceReview)
+                                        {
+                                            <span class="arpp-issue-state-note">Map CFA, Fund and DFPDS values</span>
                                         }
                                     </div>
                                     <h3><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id">@issue.Name</a></h3>

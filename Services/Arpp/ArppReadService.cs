@@ -73,7 +73,13 @@ public sealed class ArppReadService : IArppReadService
                 issue.UpdatedAtUtc,
                 issue.Attachment != null,
                 issue.IsVerified,
-                issue.VerifiedAtUtc))
+                issue.VerifiedAtUtc,
+                issue.PublishedSnapshot != null,
+                issue.PublishedSnapshot != null ? issue.PublishedSnapshot.RevisionNumber : null,
+                issue.Entries.Any(entry =>
+                    entry.CfaOptionId == null ||
+                    entry.FundOptionId == null ||
+                    entry.DfpdsScheduleId == null)))
             .ToListAsync(cancellationToken);
 
         var visibleIssueIds = rows.Select(row => row.Id).ToArray();
