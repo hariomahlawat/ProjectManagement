@@ -7,44 +7,61 @@ namespace ProjectManagement.Tests;
 public sealed class ProcessJourneyPresentationContractTests
 {
     [Fact]
-    public void ProcessPage_UsesSingleJourneyWithoutInventedPhases()
+    public void ProcessPage_UsesJourneyOnlyWithoutPermanentHeaderChrome()
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
 
         Assert.Contains("data-process-world", page, StringComparison.Ordinal);
-        Assert.Contains("data-mode-button=\"journey\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-mode-button=\"map\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-mode=\"journey\"", page, StringComparison.Ordinal);
         Assert.Contains("data-process-workspace", page, StringComparison.Ordinal);
-        Assert.Contains("Procurement process", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-process-hero", page, StringComparison.Ordinal);
+        Assert.Contains("data-process-theme=\"light\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mode-button", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Complete map", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("process-commandbar", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("process-workspace__identity", page, StringComparison.Ordinal);
         Assert.DoesNotContain("six governance phases", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("process-phase-strip", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("const PHASES", script, StringComparison.Ordinal);
         Assert.DoesNotContain("STAGE_PURPOSES", script, StringComparison.Ordinal);
     }
 
-
     [Fact]
-    public void ProcessJourney_UsesProgressiveDisclosureAndSemanticMapZoom()
+    public void ProcessJourney_ProvidesFloatingUtilitiesAndLightDefaultTheme()
     {
         var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
         var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
         var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
 
+        Assert.Contains("process-utility-dock", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"open-stage-search\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"toggle-theme\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-action=\"toggle-fullscreen\"", page, StringComparison.Ordinal);
         Assert.Contains("data-fullscreen-exit", page, StringComparison.Ordinal);
-        Assert.Contains("Search or jump to a stage", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-stage-jump", page, StringComparison.Ordinal);
+        Assert.Contains("data-stage-search-dialog", page, StringComparison.Ordinal);
+        Assert.Contains("data-process-introduction", page, StringComparison.Ordinal);
+        Assert.Contains("function applyTheme", script, StringComparison.Ordinal);
+        Assert.Contains("prism.process.theme", script, StringComparison.Ordinal);
+        Assert.Contains("function syncWorkspaceHeight", script, StringComparison.Ordinal);
+        Assert.Contains("--process-guide-width: clamp(350px, 22vw, 455px)", styles, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) var(--process-guide-width)", styles, StringComparison.Ordinal);
+        Assert.Contains("process-page[data-process-theme=\"dark\"]", styles, StringComparison.Ordinal);
+        Assert.Contains("process-stage-search-dialog", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProcessJourney_RetainsProgressiveDisclosureAndWideMonitorContext()
+    {
+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
+
         Assert.Contains("function journeyTiersFor", script, StringComparison.Ordinal);
         Assert.Contains("function branchClusterFor", script, StringComparison.Ordinal);
-        Assert.Contains("data-map-density", styles, StringComparison.Ordinal);
+        Assert.Contains("function expandJourneyContextForWideViewport", script, StringComparison.Ordinal);
         Assert.Contains("process-route-signal", styles, StringComparison.Ordinal);
-        Assert.Contains("process-endpoint", styles, StringComparison.Ordinal);
-        Assert.Contains("conditional-entry", script, StringComparison.Ordinal);
-        Assert.Contains("terminal-main", script, StringComparison.Ordinal);
-        Assert.Contains("data-process-introduction", page, StringComparison.Ordinal);
-        Assert.Contains("showModal", script, StringComparison.Ordinal);
-        Assert.Contains("expandJourneyContextForWideViewport", script, StringComparison.Ordinal);
+        Assert.Contains("@media (min-width: 1800px)", styles, StringComparison.Ordinal);
+        Assert.Contains("@media (min-width: 2400px)", styles, StringComparison.Ordinal);
+        Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -55,11 +72,10 @@ public sealed class ProcessJourneyPresentationContractTests
 
         Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", page, StringComparison.Ordinal);
         Assert.Contains("ViewData[\"UseFullWidth\"] = true", page, StringComparison.Ordinal);
-        Assert.Contains("process-workspace__identity", page, StringComparison.Ordinal);
-        Assert.Contains("--process-guide-width: clamp(360px, 20vw, 480px)", styles, StringComparison.Ordinal);
-        Assert.Contains("grid-template-columns: minmax(0, 1fr) var(--process-guide-width)", styles, StringComparison.Ordinal);
+        Assert.Contains("process-experience", page, StringComparison.Ordinal);
         Assert.Contains("gap: 0", styles, StringComparison.Ordinal);
-        Assert.Contains("border-left: 1px solid rgba(145, 178, 218, .16)", styles, StringComparison.Ordinal);
+        Assert.Contains("border-left: 1px solid #d8e1ec", styles, StringComparison.Ordinal);
+        Assert.Contains("height: var(--process-available-height", styles, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,17 +1,20 @@
-Static validation completed
-===========================
+STATIC VALIDATION
+=================
 
-PASS  JavaScript syntax: node --check wwwroot/js/process-flow.js
-PASS  CSS parse: tinycss2 reported zero stylesheet parse errors
-PASS  Razor structural balance: section/header/aside/dialog tags balanced
-PASS  Persistent hero markup removed from Pages/Process/Index.cshtml
-PASS  Full-width workspace shell requested through ViewData
-PASS  Unified workspace, zero-gap canvas/guidance grid and responsive guide width present
-PASS  Native optional introduction dialog present
-PASS  Legacy hero local-storage lifecycle removed
-PASS  Wide-viewport context expansion present
-PASS  Patch whitespace validation: git diff --check
-PASS  Patch application checked against the prior Final Polish package baseline
+PASS  Razor uses workspace/full-width shell
+PASS  Journey is the sole user-facing view
+PASS  Permanent command bar removed
+PASS  Light theme is the markup default
+PASS  Floating utility dock present
+PASS  Theme toggle present
+PASS  Search command palette present
+PASS  Fullscreen remains available
+PASS  Introduction remains optional
+PASS  JavaScript theme persistence present
+PASS  JavaScript viewport-height synchronisation present
+PASS  No JavaScript map-mode interaction remains
+PASS  CSS braces balanced
+PASS  Light and dark theme CSS present
+PASS  Contract tests updated
 
-The .NET SDK is not installed in the packaging environment, so dotnet build and
-the xUnit suite could not be executed here.
+Result: 15/15 checks passed

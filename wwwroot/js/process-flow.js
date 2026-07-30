@@ -30,20 +30,18 @@ if (root) {
     worldScale: 1,
     worldX: 0,
     worldY: 0,
-    mapScale: 0.62,
-    mapX: 0,
-    mapY: 0,
-    pointer: null,
     wheelAccumulator: 0,
     wheelLockedUntil: 0,
     transitionTimer: null,
     guideTimer: null,
-    authenticationRecoveryStarted: false
+    authenticationRecoveryStarted: false,
+    theme: 'light'
   };
 
   const workspace = root.querySelector('[data-process-workspace]');
   const experience = root.querySelector('[data-process-experience]');
   const introduction = root.querySelector('[data-process-introduction]');
+  const stageSearchDialog = root.querySelector('[data-stage-search-dialog]');
   const scene = root.querySelector('[data-process-scene]');
   const worldViewport = root.querySelector('[data-world-viewport]');
   const world = root.querySelector('[data-process-world]');
@@ -53,8 +51,8 @@ if (root) {
   const stageSearch = root.querySelector('[data-stage-search]');
   const searchClear = root.querySelector('[data-search-clear]');
   const searchResults = root.querySelector('[data-search-results]');
-  const mapTools = root.querySelector('[data-map-tools]');
-  const mapZoom = root.querySelector('[data-map-zoom]');
+  const themeToggle = root.querySelector('[data-theme-toggle]');
+  const themeIcon = root.querySelector('[data-theme-icon]');
   const wheelCue = root.querySelector('[data-wheel-cue]');
   const progressTrack = root.querySelector('[data-progress-track]');
   const progressCurrent = root.querySelector('[data-progress-current]');
@@ -95,6 +93,51 @@ if (root) {
     window.requestAnimationFrame(() => {
       introduction.querySelector('[data-action="begin-journey"]')?.focus();
     });
+  }
+
+
+  function closeStageSearch() {
+    if (!stageSearchDialog?.open) return;
+    if (typeof stageSearchDialog.close === 'function') stageSearchDialog.close();
+    else stageSearchDialog.removeAttribute('open');
+  }
+
+  function showStageSearch() {
+    if (!stageSearchDialog || stageSearchDialog.open) return;
+    if (typeof stageSearchDialog.showModal === 'function') stageSearchDialog.showModal();
+    else stageSearchDialog.setAttribute('open', '');
+    window.requestAnimationFrame(() => {
+      stageSearch.value = '';
+      applySearch({ forceOpen: true });
+      stageSearch.focus();
+    });
+  }
+
+  function applyTheme(theme, { persist = true } = {}) {
+    const normalized = theme === 'dark' ? 'dark' : 'light';
+    state.theme = normalized;
+    root.dataset.processTheme = normalized;
+    const dark = normalized === 'dark';
+    if (themeToggle) {
+      themeToggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
+      themeToggle.setAttribute('aria-label', dark ? 'Use light theme' : 'Use dark theme');
+      themeToggle.title = dark ? 'Use light theme' : 'Use dark theme';
+    }
+    if (themeIcon) {
+      themeIcon.className = dark ? 'bi bi-sun' : 'bi bi-moon-stars';
+    }
+    if (persist) {
+      try { localStorage.setItem('prism.process.theme', normalized); } catch { /* storage is optional */ }
+    }
+  }
+
+  function loadPreferredTheme() {
+    let preferred = 'light';
+    try {
+      const stored = localStorage.getItem('prism.process.theme');
+      if (stored === 'dark' || stored === 'light') preferred = stored;
+    } catch { /* storage is optional */ }
+    applyTheme(preferred, { persist: false });
   }
 
   class HttpError extends Error {
@@ -462,29 +505,29 @@ if (root) {
     svg.innerHTML = `
       <defs>
         <linearGradient id="processPathGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#2d4e78" />
-          <stop offset="100%" stop-color="#5f86bb" />
+          <stop offset="0%" stop-color="var(--process-path-start)" />
+          <stop offset="100%" stop-color="var(--process-path-end)" />
         </linearGradient>
         <linearGradient id="processActiveGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#4aa6ff" />
-          <stop offset="100%" stop-color="#7bdcff" />
+          <stop offset="0%" stop-color="var(--process-active-start)" />
+          <stop offset="100%" stop-color="var(--process-active-end)" />
         </linearGradient>
         <linearGradient id="processConditionalGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#b77b2c" />
-          <stop offset="100%" stop-color="#ffd184" />
+          <stop offset="0%" stop-color="var(--process-conditional-start)" />
+          <stop offset="100%" stop-color="var(--process-conditional-end)" />
         </linearGradient>
         <filter id="processGlow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="4.5" result="blur" />
           <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
         <marker id="processArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7896bd"></path>
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--process-arrow)"></path>
         </marker>
         <marker id="processArrowActive" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.8" markerHeight="4.8" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7bdcff"></path>
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--process-arrow-active)"></path>
         </marker>
         <marker id="processArrowConditional" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e6ac52"></path>
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--process-arrow-conditional)"></path>
         </marker>
       </defs>
       <g class="process-path-grid" aria-hidden="true">
@@ -582,28 +625,14 @@ if (root) {
     progressTotal.textContent = String(state.nodes.length).padStart(2, '0');
   }
 
-  function setMode(mode, { preserveCamera = false } = {}) {
-    const nextMode = mode === 'map' ? 'map' : 'journey';
-    state.mode = nextMode;
-    experience.dataset.mode = nextMode;
-    root.querySelectorAll('[data-mode-button]').forEach(button => {
-      const active = button.dataset.modeButton === nextMode;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-    mapTools.hidden = nextMode !== 'map';
-    wheelCue.hidden = nextMode !== 'journey';
-    scene.classList.toggle('is-map-mode', nextMode === 'map');
-    scene.classList.toggle('is-journey-mode', nextMode === 'journey');
-
-    if (nextMode === 'map') {
-      if (!preserveCamera) resetMapCamera();
-      updateSelection();
-      applyWorldTransform(false);
-    } else {
-      updateSelection();
-      focusActiveStage(false);
-    }
+  function setMode() {
+    state.mode = 'journey';
+    experience.dataset.mode = 'journey';
+    if (wheelCue) wheelCue.hidden = false;
+    scene.classList.remove('is-map-mode', 'is-panning');
+    scene.classList.add('is-journey-mode');
+    updateSelection();
+    focusActiveStage(false);
   }
 
   function viewportSize() {
@@ -731,49 +760,10 @@ if (root) {
     applyWorldTransform(animate);
   }
 
-  function resetMapCamera() {
-    const viewport = viewportSize();
-    const horizontalFit = (viewport.width - 54) / state.worldWidth;
-    const verticalFit = (viewport.height - 64) / state.worldHeight;
-    const fitScale = Math.min(horizontalFit, verticalFit);
-    state.mapScale = clamp(fitScale, .30, .82);
-    state.mapX = (viewport.width - (state.worldWidth * state.mapScale)) / 2;
-    state.mapY = (viewport.height - (state.worldHeight * state.mapScale)) / 2;
-    updateMapZoom();
-  }
-
   function applyWorldTransform(animate = true) {
-    const x = state.mode === 'map' ? state.mapX : state.worldX;
-    const y = state.mode === 'map' ? state.mapY : state.worldY;
-    const scale = state.mode === 'map' ? state.mapScale : state.worldScale;
     world.classList.toggle('is-moving', animate && !prefersReducedMotion());
-    world.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+    world.style.transform = `translate3d(${state.worldX}px, ${state.worldY}px, 0) scale(${state.worldScale})`;
     if (animate) window.setTimeout(() => world.classList.remove('is-moving'), 780);
-  }
-
-  function updateMapZoom() {
-    if (mapZoom) mapZoom.textContent = `${Math.round(state.mapScale * 100)}%`;
-    const density = state.mapScale < .52 ? 'compact' : state.mapScale < .80 ? 'medium' : 'full';
-    experience.dataset.mapDensity = density;
-    scene.dataset.mapDensity = density;
-    const semanticScale = clamp(.75 / Math.max(.01, state.mapScale), 1, 1.55);
-    scene.style.setProperty('--map-node-scale', semanticScale.toFixed(3));
-    if (state.mode === 'map') updateSelection();
-  }
-
-  function zoomMap(delta) {
-    if (state.mode !== 'map') return;
-    const viewport = viewportSize();
-    const oldScale = state.mapScale;
-    const newScale = clamp(oldScale + delta, .40, 1.18);
-    if (Math.abs(newScale - oldScale) < .001) return;
-    const centerWorldX = (viewport.width / 2 - state.mapX) / oldScale;
-    const centerWorldY = (viewport.height / 2 - state.mapY) / oldScale;
-    state.mapScale = newScale;
-    state.mapX = viewport.width / 2 - centerWorldX * newScale;
-    state.mapY = viewport.height / 2 - centerWorldY * newScale;
-    updateMapZoom();
-    applyWorldTransform(true);
   }
 
   function nodeScaleForTier(tier) {
@@ -820,10 +810,8 @@ if (root) {
 
     const activeCode = active.code;
     const activeDepth = active.depth ?? -1;
-    const tiers = state.mode === 'map'
-      ? new Map(state.nodes.map(node => [node.code, 'map']))
-      : journeyTiersFor(active);
-    const endpointTier = state.mode === 'map' ? 'map' : endpointTierFor(active);
+    const tiers = journeyTiersFor(active);
+    const endpointTier = endpointTierFor(active);
     scene.dataset.activeCode = activeCode.toLowerCase();
 
     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
@@ -842,21 +830,15 @@ if (root) {
       button.setAttribute('aria-hidden', state.mode === 'journey' && tier === 'hidden' ? 'true' : 'false');
       button.tabIndex = state.mode === 'journey' && tier === 'hidden' ? -1 : 0;
 
-      if (state.mode === 'map') {
-        button.style.setProperty('--node-scale', 'var(--map-node-scale, 1)');
-        button.style.setProperty('--node-opacity', selected ? '1' : '.94');
-        button.style.setProperty('--node-blur', '0px');
-      } else {
-        button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
-        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
-        button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
-      }
+      button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
+      button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
+      button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
     });
 
     const endpointElement = root.querySelector('[data-process-endpoint]');
     if (endpointElement) {
       endpointElement.dataset.journeyTier = endpointTier;
-      endpointElement.classList.toggle('is-visible', state.mode === 'map' || endpointTier !== 'hidden');
+      endpointElement.classList.toggle('is-visible', endpointTier !== 'hidden');
       endpointElement.classList.toggle('is-near', endpointTier === 'near');
       endpointElement.classList.toggle('is-context', endpointTier === 'context');
     }
@@ -868,7 +850,7 @@ if (root) {
       const kind = path.dataset.edgeKind;
       const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
       const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
-      const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
+      const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
       const conditional = path.classList.contains('is-conditional');
       const connected = source === activeCode || target === activeCode;
       const detourActive = Boolean(activeDetour && conditional && (source === activeCode || target === activeCode));
@@ -892,7 +874,7 @@ if (root) {
       const conditional = path.classList.contains('is-conditional');
       const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
       const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
-      const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
+      const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
       const connected = source === activeCode || target === activeCode;
       const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
       path.classList.toggle('is-active', activeSignal);
@@ -1260,7 +1242,7 @@ if (root) {
       const initialCode = initialCodeFromHash();
       const initial = initialCode && state.stageByCode.has(initialCode) ? initialCode : state.nodes[0]?.code;
       if (initial) await selectStage(initial, { updateHash: Boolean(initialCode), animate: false });
-      setMode('journey');
+      setMode();
     } catch (error) {
       console.error(error);
       placeholder.innerHTML = `
@@ -1293,32 +1275,6 @@ if (root) {
     goRelative(direction);
   }
 
-  function beginMapDrag(event) {
-    if (state.mode !== 'map' || event.button !== 0) return;
-    state.pointer = {
-      id: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      mapX: state.mapX,
-      mapY: state.mapY
-    };
-    worldViewport.setPointerCapture?.(event.pointerId);
-    scene.classList.add('is-panning');
-  }
-
-  function moveMapDrag(event) {
-    if (!state.pointer || state.pointer.id !== event.pointerId || state.mode !== 'map') return;
-    state.mapX = state.pointer.mapX + (event.clientX - state.pointer.startX);
-    state.mapY = state.pointer.mapY + (event.clientY - state.pointer.startY);
-    applyWorldTransform(false);
-  }
-
-  function endMapDrag(event) {
-    if (!state.pointer || state.pointer.id !== event.pointerId) return;
-    state.pointer = null;
-    scene.classList.remove('is-panning');
-    worldViewport.releasePointerCapture?.(event.pointerId);
-  }
 
   function setFormBusy(form, busy) {
     if (!form) return;
@@ -1404,40 +1360,41 @@ if (root) {
       selectStage(searchButton.dataset.searchStage);
       stageSearch.value = '';
       applySearch();
+      closeStageSearch();
+      scene.focus({ preventScroll: true });
       return;
     }
 
-    const modeButton = event.target.closest('[data-mode-button]');
-    if (modeButton) {
-      setMode(modeButton.dataset.modeButton);
-      return;
-    }
 
     const actionButton = event.target.closest('[data-action]');
     if (!actionButton) return;
     const action = actionButton.dataset.action;
     if (action === 'begin-journey') {
       closeIntroduction();
-      setMode('journey');
+      setMode();
       selectStage(state.nodes[0]?.code, { animate: false });
       scene.focus({ preventScroll: true });
-    } else if (action === 'show-map') {
+    } else if (action === 'begin-fullscreen') {
       closeIntroduction();
-      setMode('map');
-      scene.focus({ preventScroll: true });
+      setMode();
+      selectStage(state.nodes[0]?.code, { animate: false });
+      experience.requestFullscreen?.();
     } else if (action === 'show-introduction') {
       showIntroduction();
     } else if (action === 'close-introduction') {
       closeIntroduction();
+    } else if (action === 'open-stage-search') {
+      showStageSearch();
+    } else if (action === 'close-stage-search') {
+      closeStageSearch();
+    } else if (action === 'toggle-theme') {
+      applyTheme(state.theme === 'dark' ? 'light' : 'dark');
     } else if (action === 'previous-stage') goRelative(-1);
     else if (action === 'next-stage') goRelative(1);
     else if (action === 'toggle-fullscreen') {
       if (!document.fullscreenElement) experience.requestFullscreen?.();
       else document.exitFullscreen?.();
     } else if (action === 'print-process') window.print();
-    else if (action === 'zoom-in') zoomMap(0.1);
-    else if (action === 'zoom-out') zoomMap(-0.1);
-    else if (action === 'reset-map') { resetMapCamera(); applyWorldTransform(true); }
     else if (action === 'edit-purpose') openPurposeModal();
     else if (action === 'toggle-checklist-edit') toggleChecklistManageMode();
     else if (action === 'add-item') openItemModal('create');
@@ -1458,7 +1415,11 @@ if (root) {
   stageSearch.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       const match = state.nodes.find(node => node.searchText.includes(stageSearch.value.trim().toLowerCase()));
-      if (match) selectStage(match.code);
+      if (match) {
+        selectStage(match.code);
+        closeStageSearch();
+        scene.focus({ preventScroll: true });
+      }
     }
     if (event.key === 'Escape') {
       stageSearch.value = '';
@@ -1471,16 +1432,15 @@ if (root) {
     stageSearch.focus();
   });
   document.addEventListener('click', event => {
-    if (!event.target.closest('.process-search-wrap')) searchResults.hidden = true;
+    if (stageSearchDialog?.open && !event.target.closest('.process-search-wrap')) searchResults.hidden = true;
+  });
+  stageSearchDialog?.addEventListener('click', event => {
+    if (event.target === stageSearchDialog) closeStageSearch();
   });
   introduction?.addEventListener('click', event => {
     if (event.target === introduction) closeIntroduction();
   });
   scene.addEventListener('wheel', handleSceneWheel, { passive: false });
-  worldViewport.addEventListener('pointerdown', beginMapDrag);
-  worldViewport.addEventListener('pointermove', moveMapDrag);
-  worldViewport.addEventListener('pointerup', endMapDrag);
-  worldViewport.addEventListener('pointercancel', endMapDrag);
 
   purposeForm?.addEventListener('submit', submitPurpose);
   purposeText?.addEventListener('input', updatePurposeCharacterCount);
@@ -1490,23 +1450,31 @@ if (root) {
 
   document.addEventListener('keydown', event => {
     if (event.target?.matches?.('input, textarea, select, button') || event.target?.isContentEditable) return;
-    if (event.key === 'ArrowLeft') { event.preventDefault(); goRelative(-1); }
+    if (event.key === '/') { event.preventDefault(); showStageSearch(); }
+    else if (event.key === 'ArrowLeft') { event.preventDefault(); goRelative(-1); }
     else if (event.key === 'ArrowRight') { event.preventDefault(); goRelative(1); }
     else if (event.key === 'Escape' && document.fullscreenElement) document.exitFullscreen?.();
-    else if (event.key.toLowerCase() === 'm') setMode(state.mode === 'map' ? 'journey' : 'map');
   });
+
+  function syncWorkspaceHeight() {
+    if (!workspace || document.fullscreenElement === experience) return;
+    const top = workspace.getBoundingClientRect().top;
+    const footerReserve = 10;
+    const available = Math.max(560, window.innerHeight - top - footerReserve);
+    workspace.style.setProperty('--process-available-height', `${available}px`);
+  }
 
   let cameraRefreshFrame = 0;
 
   function refreshCameraForAvailableSpace() {
     cameraRefreshFrame = 0;
     if (!state.nodes.length) return;
-    if (state.mode === 'map') resetMapCamera();
-    else focusActiveStage(false);
+    focusActiveStage(false);
     applyWorldTransform(false);
   }
 
   function scheduleCameraRefresh() {
+    syncWorkspaceHeight();
     if (cameraRefreshFrame) return;
     cameraRefreshFrame = window.requestAnimationFrame(refreshCameraForAvailableSpace);
   }
@@ -1522,12 +1490,14 @@ if (root) {
     const active = document.fullscreenElement === experience;
     experience.classList.toggle('is-fullscreen', active);
     if (fullscreenExit) fullscreenExit.hidden = !active;
+    if (!active) syncWorkspaceHeight();
     window.setTimeout(() => {
-      if (state.mode === 'map') resetMapCamera();
-      else focusActiveStage(false);
+      focusActiveStage(false);
       applyWorldTransform(false);
     }, 80);
   });
 
+  loadPreferredTheme();
+  syncWorkspaceHeight();
   loadFlow();
 }

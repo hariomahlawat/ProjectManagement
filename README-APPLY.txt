@@ -1,49 +1,43 @@
-PRISM Procurement Journey — Unified Full-Width Workspace
-========================================================
+PRISM PROCUREMENT JOURNEY — LIGHT, JOURNEY-ONLY WORKSPACE
+=========================================================
 
-This package is incremental and should be applied after the Procurement Journey
-Final Polish package already in use.
+BASELINE
+--------
+Apply this package after PRISM_Procurement_Journey_Unified_Workspace_20260730.
 
-Replace these four files in the ProjectManagement project root while preserving
-the folder structure:
+REPLACEMENT
+-----------
+Copy the four project files into the ProjectManagement project root while
+preserving the included folder structure.
 
-1. Pages/Process/Index.cshtml
-2. wwwroot/css/process-flow.css
-3. wwwroot/js/process-flow.js
-4. ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
+IMPLEMENTED
+-----------
+1. Removed the permanent white command/header area.
+2. Removed the user-facing Complete Map mode; Journey is now the sole process view.
+3. Added a light operational theme as the default.
+4. Preserved the dark immersive theme as a user-selectable option.
+5. Added a compact floating utility dock inside the journey canvas:
+   - Search/jump
+   - Light/dark theme
+   - Introduction
+   - Full screen
+   - Print
+6. Search/jump now opens as a command-palette dialog; press / to open it.
+7. Theme choice is remembered locally and requires no internet connection.
+8. The unified journey/checklist workspace calculates and uses the available
+   viewport height instead of leaving a large unused header area.
+9. Wide-monitor behaviour remains responsive; additional width is assigned
+   primarily to the process canvas while the checklist retains a bounded width.
+10. Existing purpose/checklist APIs, permissions, audit and concurrency logic
+    are unchanged.
 
-What changes
-------------
-- Removes the permanent hero header from normal use.
-- Keeps the cinematic introduction as an optional accessible dialog.
-- Requests the PRISM workspace/full-width page shell.
-- Merges the toolbar, process canvas and stage guidance into one outer workspace.
-- Removes the visual gap, duplicate rounded corners and duplicate card shadows
-  between the process and checklist regions.
-- Uses a responsive stage-guidance width so ultrawide monitors give most extra
-  space to the process canvas.
-- Shows an additional contextual stage hop when the actual process viewport is
-  at least 1480px wide.
-- Recalculates the process camera when the unified workspace changes size.
-- Keeps full-screen, Journey, Complete Map, purpose editing and checklist
-  management behaviour intact.
-
+DATABASE
+--------
 No database migration is required.
 
-Verification
-------------
-1. Stop the running application.
-2. Replace the four files.
-3. Run:
+VERIFY
+------
+dotnet build
+dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-   dotnet build
-   dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
-
-4. Start the application and hard-refresh /Process using Ctrl+F5.
-5. Verify at normal desktop and ultrawide resolutions:
-   - no permanent hero banner;
-   - the process workspace begins directly below the Projects sub-navigation;
-   - canvas and guidance share one continuous surface;
-   - the guidance panel remains readable while extra width goes to the canvas;
-   - Introduction opens the optional cinematic overlay;
-   - Full screen remains edge-to-edge.
+After replacement, hard-refresh /Process once with Ctrl+F5.
