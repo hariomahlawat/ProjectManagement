@@ -3,7 +3,6 @@
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Projects
 @using ProjectManagement.Services.Projects
-@using System.Globalization
 @{
     ViewData["Title"] = "Completed projects";
     ViewData["UseFullWidth"] = true;
@@ -33,7 +32,7 @@
         .ToList();
 
     var nameSort = (Aria: Model.GetSortAria("name"), Direction: Model.NextSortDirection("name"), Indicator: Model.GetSortIndicator("name"));
-    var yearSort = (Aria: Model.GetSortAria("year"), Direction: Model.NextSortDirection("year"), Indicator: Model.GetSortIndicator("year"));
+    var completionSort = (Aria: Model.GetSortAria("completed"), Direction: Model.NextSortDirection("completed"), Indicator: Model.GetSortIndicator("completed"));
     var categorySort = (Aria: Model.GetSortAria("category"), Direction: Model.NextSortDirection("category"), Indicator: Model.GetSortIndicator("category"));
     var buildSort = (Aria: Model.GetSortAria("build"), Direction: Model.NextSortDirection("build"), Indicator: Model.GetSortIndicator("build"));
     var rdSort = (Aria: Model.GetSortAria("rd"), Direction: Model.NextSortDirection("rd"), Indicator: Model.GetSortIndicator("rd"));
@@ -297,11 +296,11 @@
                                             Build <span aria-hidden="true">@buildSort.Indicator</span>
                                         </a>
                                     </th>
-                                    <th class="cpw-cell-year" aria-sort="@yearSort.Aria">
+                                    <th class="cpw-cell-year" aria-sort="@completionSort.Aria">
                                         <a asp-page="./Index"
-                                           asp-all-route-data='Model.GetRoutesForSort("year", yearSort.Direction)'
-                                           title="Sort by completion year">
-                                            Completed <span aria-hidden="true">@yearSort.Indicator</span>
+                                           asp-all-route-data='Model.GetRoutesForSort("completed", completionSort.Direction)'
+                                           title="Sort by completion date">
+                                            Completed <span aria-hidden="true">@completionSort.Indicator</span>
                                         </a>
                                     </th>
                                     <th class="cpw-cell-money" aria-sort="@rdSort.Aria">
@@ -380,7 +379,7 @@
                                         @(item.TechnicalCategoryName ?? "—")
                                     </td>
                                     <td class="cpw-cell-build cpw-ultrawide-column">@item.BuildType</td>
-                                    <td class="cpw-cell-year">@(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                                    <td class="cpw-cell-year">@(item.FormatCompletion())</td>
                                     <td class="cpw-cell-money cpw-num">@FormatMoney(item.RdCostLakhs)</td>
                                     <td class="cpw-cell-money cpw-cell-proliferation-cost cpw-num cpw-secondary-column">@FormatMoney(item.ProliferationCostLakhs)</td>
                                     <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
@@ -482,7 +481,7 @@
                         <article class="cpw-overview-card">
                             <div class="cpw-section-heading">
                                 <div><span>Available portfolio</span><h2>Recently completed projects available for proliferation</h2></div>
-                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "year", "desc")'>View in register</a>
+                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "completed", "desc")'>View in register</a>
                             </div>
                             <div class="cpw-queue-list">
                                 @if (overview.AvailableProjects.Count == 0)
@@ -499,7 +498,7 @@
                                                 title="@item.Name">
                                             <span>
                                                 <strong>@item.Name</strong>
-                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded") · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
+                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.FormatCompletion("date not recorded")) · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
                                             </span>
                                             @if (item.RdCostLakhs.HasValue)
                                             {
@@ -527,11 +526,11 @@
                                 {
                                     @foreach (var item in overview.AvailabilityPendingProjects)
                                     {
-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.FormatCompletion("date not recorded"))</small></button>
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "year", "desc")'>Open filtered register →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "completed", "desc")'>Open filtered register →</a>
                         </article>
 
                         <article class="cpw-action-card danger">
@@ -548,11 +547,11 @@
                                 {
                                     @foreach (var item in overview.TechnologyActionProjects)
                                     {
-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
+                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · Completed @(item.FormatCompletion("date not recorded"))</small></button>
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "year", "desc")'>Open filtered register →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "completed", "desc")'>Open filtered register →</a>
                         </article>
 
                         <article class="cpw-action-card info">
@@ -573,7 +572,7 @@
                                     }
                                 }
                             </div>
-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "year", "desc")'>Open filtered register →</a>
+                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "completed", "desc")'>Open filtered register →</a>
                         </article>
                     </section>
 
@@ -678,7 +677,7 @@
         <template id="cpw-project-@item.ProjectId">
             <div class="cpw-drawer-scroll">
                 <div class="cpw-drawer-identity">
-                    <div class="cpw-drawer-kicker">Completed project · @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "Year not recorded")</div>
+                    <div class="cpw-drawer-kicker">Completed project · @(item.FormatCompletion("Completion date not recorded"))</div>
                     <h2>@item.Name</h2>
                 </div>
 

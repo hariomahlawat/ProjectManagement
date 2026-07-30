@@ -1423,7 +1423,7 @@ body.cpw-drawer-open { overflow: hidden; }
   max-width: none;
 }
 
-.cpw-cell-year { width: 6.4rem; }
+.cpw-cell-year { width: 8.4rem; }
 .cpw-cell-money { width: 7.5rem; }
 .cpw-cell-status { width: 8rem; }
 .cpw-cell-proliferation { width: 8.8rem; }

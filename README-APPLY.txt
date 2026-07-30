@@ -1,23 +1,32 @@
-PRISM test-constructor compatibility fix
-========================================
+PRISM — Completed Projects latest-completion ordering
+Generated: 29 Jul 2026
 
-Copy the ProjectManagement.Tests folder from this package into the ProjectManagement project root and allow the five files to be added/replaced.
+PURPOSE
+The Completed Projects workspace now opens in completion chronology, latest first,
+instead of alphabetical project-name order.
 
-Changed files:
-1. ProjectManagement.Tests/ProjectPhotoPageTests.cs
-2. ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
-3. ProjectManagement.Tests/ProjectMetaEditPageTests.cs
-4. ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-5. ProjectManagement.Tests/Fakes/ThrowingProjectContentService.cs
+APPLY
+1. Extract this ZIP into the ProjectManagement project root.
+2. Preserve the folder structure and replace the existing files when prompted.
+3. Build and test:
 
-Corrections:
-- Supplies the new IProjectContentService dependency to OverviewModel test constructors.
-- Supplies the new IClock dependency to the project metadata EditModel test constructor.
-- Corrects ProjectBriefingCostBasis.Aon to the authoritative enum member ProjectBriefingCostBasis.AoN.
-- Uses a fail-fast shared project-content test double so unrelated page tests do not silently execute content commands.
+   dotnet build
+   dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-No application code or database migration is changed.
+IMPLEMENTED RULES
+- Default sort: Completed, descending.
+- Exact dates are ordered by year, month and day.
+- Month-and-year records are ordered by recorded year and month.
+- Year-only records are ordered by recorded year.
+- Within the same year/month, more precise records appear before less precise records.
+- Projects with no completion information remain at the end.
+- Project name and Project ID provide deterministic final tie-breakers.
+- Existing URLs using Sort=year remain supported and are normalised to Sort=completed.
+- The register, overview queues and Excel export use the same completion chronology.
+- The Completed column now shows the recorded precision: dd MMM yyyy, MMM yyyy or yyyy.
 
-Verify:
-  dotnet build
-  dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+DATABASE
+No migration is required.
+
+FILES
+Eight project/test files are included. See CHANGED-FILES.txt.

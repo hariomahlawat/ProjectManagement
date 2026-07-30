@@ -1,13 +1,12 @@
-Static validation completed in the packaging environment:
-- git diff whitespace validation: passed
-- ARPP management JavaScript syntax (node --check): passed
-- Project and test .csproj XML parsing: passed
-- changed C# delimiter-balance scan: passed
-- positional record-constructor argument scan for modified ARPP contracts: passed
-- package source-file existence and path validation: passed
-- unified patch clean-application check against the reconstructed current baseline: passed
-- ZIP CRC/integrity test: passed
+Static validation completed:
+- Replacement-file paths verified.
+- Default sort markers verified: completed / desc.
+- Legacy Sort=year compatibility verified.
+- Completion chronology helper and partial-date display verified.
+- Register, overview queues and Excel export integration markers verified.
+- Behavioral and source-contract tests included.
+- Unified patch dry-run applied successfully against the current relevant source files.
+- ZIP integrity verified after packaging.
 
-The .NET SDK is not installed in the packaging environment, so dotnet build,
-EF migration execution and the automated test suite were not run here. Run the
-commands in README-APPLY.txt in the development environment before deployment.
+The .NET SDK is not installed in the packaging environment, so dotnet build and
+dotnet test could not be executed here.

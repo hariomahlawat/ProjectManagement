@@ -160,7 +160,7 @@ public sealed class IndexModel : PageModel
                 : "asc";
         }
 
-        return sortKey is "year" or "rd" or "prod" or "lpp" or "quality"
+        return sortKey is "completed" or "year" or "rd" or "prod" or "lpp" or "quality"
             ? "desc"
             : "asc";
     }
@@ -228,12 +228,33 @@ public sealed class IndexModel : PageModel
         var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
         var dir = (Dir ?? string.Empty).Trim().ToLowerInvariant();
 
-        Sort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp" or "tech" or "avail" or "tot" or "year" or "quality"
-            ? sort
-            : "name";
+        // Preserve compatibility with previously generated URLs while exposing
+        // the business meaning of the column as completion chronology.
+        if (string.Equals(sort, "year", StringComparison.Ordinal))
+        {
+            sort = "completed";
+        }
 
-        Dir = dir is "asc" or "desc" ? dir : "asc";
+        var isValidSort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp"
+            or "tech" or "avail" or "tot" or "completed" or "quality";
+
+        if (!isValidSort)
+        {
+            Sort = "completed";
+            Dir = "desc";
+            return;
+        }
+
+        Sort = sort;
+        Dir = dir is "asc" or "desc"
+            ? dir
+            : GetDefaultSortDirection(sort);
     }
+
+    private static string GetDefaultSortDirection(string sortKey) =>
+        sortKey is "completed" or "rd" or "prod" or "lpp" or "quality"
+            ? "desc"
+            : "asc";
 
     private void UpdateActiveFilterCount()
     {

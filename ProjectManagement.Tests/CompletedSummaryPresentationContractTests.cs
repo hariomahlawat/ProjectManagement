@@ -188,6 +188,27 @@ public sealed class CompletedSummaryPresentationContractTests
         Assert.Contains("private const int ColumnCount = 15", export, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Register_DefaultsToLatestCompletionAndExportsTheSameChronology()
+    {
+        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
+        var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
+        var service = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");
+        var overview = ReadRepoFile("Services", "Projects", "CompletedProjectsPortfolioOverview.cs");
+        var export = ReadRepoFile("Utilities", "Reporting", "CompletedProjectsSummaryExcelBuilder.cs");
+
+        Assert.Contains("Sort = \"completed\";", model, StringComparison.Ordinal);
+        Assert.Contains("Dir = \"desc\";", model, StringComparison.Ordinal);
+        Assert.Contains("GetSortAria(\"completed\")", view, StringComparison.Ordinal);
+        Assert.Contains("GetRoutesForSort(\"completed\"", view, StringComparison.Ordinal);
+        Assert.Contains("CompletedOn = p.CompletedOn", service, StringComparison.Ordinal);
+        Assert.Contains("CompletedMonth = p.CompletedMonth", service, StringComparison.Ordinal);
+        Assert.Contains("CompletedProjectCompletionOrdering.Apply(source, desc)", service, StringComparison.Ordinal);
+        Assert.Contains("CompletedProjectCompletionOrdering", overview, StringComparison.Ordinal);
+        Assert.Contains("\"Completed\"", export, StringComparison.Ordinal);
+        Assert.Contains("item.FormatCompletion(string.Empty)", export, StringComparison.Ordinal);
+    }
+
 
     private static int CountOccurrences(string source, string value)
     {

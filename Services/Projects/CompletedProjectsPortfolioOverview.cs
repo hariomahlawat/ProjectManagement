@@ -107,9 +107,8 @@ public sealed class CompletedProjectsPortfolioOverview
     private static IReadOnlyList<CompletedProjectSummaryDto> Prioritise(
         IEnumerable<CompletedProjectSummaryDto> items,
         int queueSize) =>
-        items.OrderByDescending(x => x.CompletedYear ?? int.MinValue)
-            .ThenByDescending(x => x.RdCostLakhs ?? decimal.MinValue)
-            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+        CompletedProjectCompletionOrdering
+            .Apply(items, descending: true)
             .Take(queueSize)
             .ToList();
 

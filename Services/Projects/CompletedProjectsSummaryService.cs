@@ -23,17 +23,27 @@ public sealed class CompletedProjectsSummaryService
     public async Task<IReadOnlyList<int>> GetCompletionYearsAsync(
         CancellationToken cancellationToken = default)
     {
-        return await _db.Projects
+        var completionValues = await _db.Projects
             .AsNoTracking()
             .Where(p =>
                 p.LifecycleStatus == ProjectLifecycleStatus.Completed
                 && !p.IsDeleted
                 && !p.IsArchived
-                && p.CompletedYear.HasValue)
-            .Select(p => p.CompletedYear.GetValueOrDefault())
+                && (p.CompletedOn.HasValue || p.CompletedYear.HasValue))
+            .Select(p => new
+            {
+                p.CompletedOn,
+                p.CompletedYear
+            })
+            .ToListAsync(cancellationToken);
+
+        return completionValues
+            .Select(x => x.CompletedOn?.Year ?? x.CompletedYear)
+            .Where(year => year.HasValue)
+            .Select(year => year.GetValueOrDefault())
             .Distinct()
             .OrderByDescending(year => year)
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 
     public async Task<IReadOnlyList<CompletedProjectSummaryDto>> GetAsync(
@@ -178,7 +188,9 @@ public sealed class CompletedProjectsSummaryService
                 NotAvailableReason = notAvailableReason,
                 ProliferationCostRemarks = proliferationCostRemarks,
                 Remarks = remarks,
-                CompletedYear = p.CompletedYear,
+                CompletedOn = p.CompletedOn,
+                CompletedYear = p.CompletedOn?.Year ?? p.CompletedYear,
+                CompletedMonth = p.CompletedMonth,
                 TotStatus = totStatus,
                 LatestLppDate = latestLpp?.LppDate,
                 LatestLpp = latestLpp != null
@@ -289,7 +301,7 @@ public sealed class CompletedProjectsSummaryService
 
             "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "prod" => ApplyNullableSort(source, x => x.ProliferationCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-            "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "completed" or "year" => CompletedProjectCompletionOrdering.Apply(source, desc),
             "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
@@ -308,7 +320,7 @@ public sealed class CompletedProjectsSummaryService
                     .ThenBy(CompletedProjectPortfolioPolicy.GetSupplementaryMissingCount)
                     .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
 
-            _ => source.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId)
+            _ => CompletedProjectCompletionOrdering.Apply(source, descending: true)
         };
     }
 
@@ -356,10 +368,68 @@ public sealed class CompletedProjectSummaryDto
     public string? NotAvailableReason { get; set; }
     public string? ProliferationCostRemarks { get; set; }
     public string? Remarks { get; set; }
+    public DateOnly? CompletedOn { get; set; }
     public int? CompletedYear { get; set; }
+    public short? CompletedMonth { get; set; }
     public ProjectTotStatus? TotStatus { get; set; }
     public DateOnly? LatestLppDate { get; set; }
     public LatestLppViewModel? LatestLpp { get; set; }
+
+    public string FormatCompletion(string unknownText = "—") =>
+        ProjectCompletionFormatter.Format(CompletedOn, CompletedYear, CompletedMonth, unknownText);
+}
+
+// SECTION: Completion chronology
+// Partial dates are compared only by components that are actually recorded.
+// More precise values are placed before less precise values within the same
+// year/month, and records without any completion date always remain last.
+public static class CompletedProjectCompletionOrdering
+{
+    public static IOrderedEnumerable<CompletedProjectSummaryDto> Apply(
+        IEnumerable<CompletedProjectSummaryDto> source,
+        bool descending)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        IOrderedEnumerable<CompletedProjectSummaryDto> ordered = source
+            .OrderBy(item => GetYear(item).HasValue ? 0 : 1);
+
+        ordered = descending
+            ? ordered.ThenByDescending(GetYear)
+            : ordered.ThenBy(GetYear);
+
+        ordered = ordered.ThenBy(item => GetMonth(item).HasValue ? 0 : 1);
+        ordered = descending
+            ? ordered.ThenByDescending(GetMonth)
+            : ordered.ThenBy(GetMonth);
+
+        ordered = ordered.ThenBy(item => GetDay(item).HasValue ? 0 : 1);
+        ordered = descending
+            ? ordered.ThenByDescending(GetDay)
+            : ordered.ThenBy(GetDay);
+
+        return ordered
+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.ProjectId);
+    }
+
+    private static int? GetYear(CompletedProjectSummaryDto item) =>
+        item.CompletedOn?.Year ?? item.CompletedYear;
+
+    private static int? GetMonth(CompletedProjectSummaryDto item)
+    {
+        if (item.CompletedOn.HasValue)
+        {
+            return item.CompletedOn.Value.Month;
+        }
+
+        return item.CompletedMonth is >= 1 and <= 12
+            ? item.CompletedMonth.Value
+            : null;
+    }
+
+    private static int? GetDay(CompletedProjectSummaryDto item) =>
+        item.CompletedOn?.Day;
 }
 
 public sealed class LatestLppViewModel

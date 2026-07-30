@@ -59,7 +59,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             "Project",
             "Technical category",
             "Build type",
-            "Completed year",
+            "Completed",
             "Development / L1 cost (lakh)",
             "Proliferation cost (lakh)",
             "Latest LPP (lakh)",
@@ -100,9 +100,10 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             worksheet.Cell(rowNumber, 3).Value = item.TechnicalCategoryName ?? string.Empty;
             worksheet.Cell(rowNumber, 4).Value = item.BuildType;
 
-            if (item.CompletedYear.HasValue)
+            var completion = item.FormatCompletion(string.Empty);
+            if (!string.IsNullOrWhiteSpace(completion))
             {
-                worksheet.Cell(rowNumber, 5).Value = item.CompletedYear.Value;
+                worksheet.Cell(rowNumber, 5).Value = completion;
             }
 
             WriteDecimal(worksheet.Cell(rowNumber, 6), item.RdCostLakhs);
@@ -142,7 +143,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         worksheet.Column(2).Width = Math.Clamp(worksheet.Column(2).Width, 28, 46);
         worksheet.Column(3).Width = Math.Clamp(worksheet.Column(3).Width, 18, 30);
         worksheet.Column(4).Width = 12;
-        worksheet.Column(5).Width = 13;
+        worksheet.Column(5).Width = 16;
         worksheet.Column(6).Width = 18;
         worksheet.Column(7).Width = 21;
         worksheet.Column(8).Width = 18;

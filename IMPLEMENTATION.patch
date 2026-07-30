@@ -1,84 +1,454 @@
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-@@ -45,7 +45,7 @@
+--- a/Pages/Projects/CompletedSummary/Index.cshtml
++++ b/Pages/Projects/CompletedSummary/Index.cshtml
+@@ -3,7 +3,6 @@
+ @using ProjectManagement.Models
+ @using ProjectManagement.Models.Projects
+ @using ProjectManagement.Services.Projects
+-@using System.Globalization
+ @{
+     ViewData["Title"] = "Completed projects";
+     ViewData["UseFullWidth"] = true;
+@@ -33,7 +32,7 @@
+         .ToList();
  
-         canvas.AddRect(0, 0, SlideWidth, SlideHeight, white);
-         canvas.AddRect(0, 0, SlideWidth, .065, UpdateSheetAccent, name: "Project sheet top accent");
--        canvas.AddBrandingImages(HeaderVariant.Standard);
-+        canvas.AddBrandingImages(HeaderVariant.ProjectUpdateSheet);
+     var nameSort = (Aria: Model.GetSortAria("name"), Direction: Model.NextSortDirection("name"), Indicator: Model.GetSortIndicator("name"));
+-    var yearSort = (Aria: Model.GetSortAria("year"), Direction: Model.NextSortDirection("year"), Indicator: Model.GetSortIndicator("year"));
++    var completionSort = (Aria: Model.GetSortAria("completed"), Direction: Model.NextSortDirection("completed"), Indicator: Model.GetSortIndicator("completed"));
+     var categorySort = (Aria: Model.GetSortAria("category"), Direction: Model.NextSortDirection("category"), Indicator: Model.GetSortIndicator("category"));
+     var buildSort = (Aria: Model.GetSortAria("build"), Direction: Model.NextSortDirection("build"), Indicator: Model.GetSortIndicator("build"));
+     var rdSort = (Aria: Model.GetSortAria("rd"), Direction: Model.NextSortDirection("rd"), Indicator: Model.GetSortIndicator("rd"));
+@@ -297,11 +296,11 @@
+                                             Build <span aria-hidden="true">@buildSort.Indicator</span>
+                                         </a>
+                                     </th>
+-                                    <th class="cpw-cell-year" aria-sort="@yearSort.Aria">
++                                    <th class="cpw-cell-year" aria-sort="@completionSort.Aria">
+                                         <a asp-page="./Index"
+-                                           asp-all-route-data='Model.GetRoutesForSort("year", yearSort.Direction)'
+-                                           title="Sort by completion year">
+-                                            Completed <span aria-hidden="true">@yearSort.Indicator</span>
++                                           asp-all-route-data='Model.GetRoutesForSort("completed", completionSort.Direction)'
++                                           title="Sort by completion date">
++                                            Completed <span aria-hidden="true">@completionSort.Indicator</span>
+                                         </a>
+                                     </th>
+                                     <th class="cpw-cell-money" aria-sort="@rdSort.Aria">
+@@ -380,7 +379,7 @@
+                                         @(item.TechnicalCategoryName ?? "—")
+                                     </td>
+                                     <td class="cpw-cell-build cpw-ultrawide-column">@item.BuildType</td>
+-                                    <td class="cpw-cell-year">@(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
++                                    <td class="cpw-cell-year">@(item.FormatCompletion())</td>
+                                     <td class="cpw-cell-money cpw-num">@FormatMoney(item.RdCostLakhs)</td>
+                                     <td class="cpw-cell-money cpw-cell-proliferation-cost cpw-num cpw-secondary-column">@FormatMoney(item.ProliferationCostLakhs)</td>
+                                     <td class="cpw-cell-money cpw-num cpw-secondary-column">@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
+@@ -482,7 +481,7 @@
+                         <article class="cpw-overview-card">
+                             <div class="cpw-section-heading">
+                                 <div><span>Available portfolio</span><h2>Recently completed projects available for proliferation</h2></div>
+-                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "year", "desc")'>View in register</a>
++                                <a asp-page="./Index" asp-all-route-data='Model.GetRoutesForAvailability(true, "completed", "desc")'>View in register</a>
+                             </div>
+                             <div class="cpw-queue-list">
+                                 @if (overview.AvailableProjects.Count == 0)
+@@ -499,7 +498,7 @@
+                                                 title="@item.Name">
+                                             <span>
+                                                 <strong>@item.Name</strong>
+-                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded") · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
++                                                <small>@(item.TechnicalCategoryName ?? "Category not recorded") · Completed @(item.FormatCompletion("date not recorded")) · Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · ToT: @CompletedProjectPortfolioPolicy.GetTotLabel(item.TotStatus)</small>
+                                             </span>
+                                             @if (item.RdCostLakhs.HasValue)
+                                             {
+@@ -527,11 +526,11 @@
+                                 {
+                                     @foreach (var item in overview.AvailabilityPendingProjects)
+                                     {
+-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
++                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Proliferation decision not recorded · Completed @(item.FormatCompletion("date not recorded"))</small></button>
+                                     }
+                                 }
+                             </div>
+-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "year", "desc")'>Open filtered register →</a>
++                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.ProliferationAssessmentPending, "completed", "desc")'>Open filtered register →</a>
+                         </article>
  
-         var titleX = canvas.ShowBranding ? 1.16 : .62;
-         var titleWidth = canvas.ShowBranding ? 11.01 : 12.09;
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-@@ -1652,7 +1652,8 @@
-     private enum HeaderVariant
-     {
-         Cover,
--        Standard
-+        Standard,
-+        ProjectUpdateSheet
+                         <article class="cpw-action-card danger">
+@@ -548,11 +547,11 @@
+                                 {
+                                     @foreach (var item in overview.TechnologyActionProjects)
+                                     {
+-                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · Completed @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "year not recorded")</small></button>
++                                        <button type="button" data-open-project="@item.ProjectId" title="@item.Name"><span>@item.Name</span><small>Technology: @CompletedProjectPortfolioPolicy.GetTechnologyLabel(item.TechStatus) · Completed @(item.FormatCompletion("date not recorded"))</small></button>
+                                     }
+                                 }
+                             </div>
+-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "year", "desc")'>Open filtered register →</a>
++                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TechnologyAction, "completed", "desc")'>Open filtered register →</a>
+                         </article>
+ 
+                         <article class="cpw-action-card info">
+@@ -573,7 +572,7 @@
+                                     }
+                                 }
+                             </div>
+-                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "year", "desc")'>Open filtered register →</a>
++                            <a class="cpw-action-link" asp-page="./Index" asp-all-route-data='Model.GetRoutesForPortfolioStatus(CompletedProjectPortfolioStatusCodes.TotAction, "completed", "desc")'>Open filtered register →</a>
+                         </article>
+                     </section>
+ 
+@@ -678,7 +677,7 @@
+         <template id="cpw-project-@item.ProjectId">
+             <div class="cpw-drawer-scroll">
+                 <div class="cpw-drawer-identity">
+-                    <div class="cpw-drawer-kicker">Completed project · @(item.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "Year not recorded")</div>
++                    <div class="cpw-drawer-kicker">Completed project · @(item.FormatCompletion("Completion date not recorded"))</div>
+                     <h2>@item.Name</h2>
+                 </div>
+ 
+--- a/Pages/Projects/CompletedSummary/Index.cshtml.cs
++++ b/Pages/Projects/CompletedSummary/Index.cshtml.cs
+@@ -160,7 +160,7 @@
+                 : "asc";
+         }
+ 
+-        return sortKey is "year" or "rd" or "prod" or "lpp" or "quality"
++        return sortKey is "completed" or "year" or "rd" or "prod" or "lpp" or "quality"
+             ? "desc"
+             : "asc";
+     }
+@@ -228,13 +228,34 @@
+         var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
+         var dir = (Dir ?? string.Empty).Trim().ToLowerInvariant();
+ 
+-        Sort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp" or "tech" or "avail" or "tot" or "year" or "quality"
+-            ? sort
+-            : "name";
++        // Preserve compatibility with previously generated URLs while exposing
++        // the business meaning of the column as completion chronology.
++        if (string.Equals(sort, "year", StringComparison.Ordinal))
++        {
++            sort = "completed";
++        }
++
++        var isValidSort = sort is "name" or "category" or "build" or "rd" or "prod" or "lpp"
++            or "tech" or "avail" or "tot" or "completed" or "quality";
+ 
+-        Dir = dir is "asc" or "desc" ? dir : "asc";
++        if (!isValidSort)
++        {
++            Sort = "completed";
++            Dir = "desc";
++            return;
++        }
++
++        Sort = sort;
++        Dir = dir is "asc" or "desc"
++            ? dir
++            : GetDefaultSortDirection(sort);
      }
  
-     private sealed record DetailedSlideLayout(double PhotoHeight);
-@@ -1771,6 +1772,23 @@
-                 return;
++    private static string GetDefaultSortDirection(string sortKey) =>
++        sortKey is "completed" or "rd" or "prod" or "lpp" or "quality"
++            ? "desc"
++            : "asc";
++
+     private void UpdateActiveFilterCount()
+     {
+         ActiveFilterCount = 0;
+--- a/Services/Projects/CompletedProjectsSummaryService.cs
++++ b/Services/Projects/CompletedProjectsSummaryService.cs
+@@ -23,17 +23,27 @@
+     public async Task<IReadOnlyList<int>> GetCompletionYearsAsync(
+         CancellationToken cancellationToken = default)
+     {
+-        return await _db.Projects
++        var completionValues = await _db.Projects
+             .AsNoTracking()
+             .Where(p =>
+                 p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                 && !p.IsDeleted
+                 && !p.IsArchived
+-                && p.CompletedYear.HasValue)
+-            .Select(p => p.CompletedYear.GetValueOrDefault())
++                && (p.CompletedOn.HasValue || p.CompletedYear.HasValue))
++            .Select(p => new
++            {
++                p.CompletedOn,
++                p.CompletedYear
++            })
++            .ToListAsync(cancellationToken);
++
++        return completionValues
++            .Select(x => x.CompletedOn?.Year ?? x.CompletedYear)
++            .Where(year => year.HasValue)
++            .Select(year => year.GetValueOrDefault())
+             .Distinct()
+             .OrderByDescending(year => year)
+-            .ToListAsync(cancellationToken);
++            .ToList();
+     }
+ 
+     public async Task<IReadOnlyList<CompletedProjectSummaryDto>> GetAsync(
+@@ -178,7 +188,9 @@
+                 NotAvailableReason = notAvailableReason,
+                 ProliferationCostRemarks = proliferationCostRemarks,
+                 Remarks = remarks,
+-                CompletedYear = p.CompletedYear,
++                CompletedOn = p.CompletedOn,
++                CompletedYear = p.CompletedOn?.Year ?? p.CompletedYear,
++                CompletedMonth = p.CompletedMonth,
+                 TotStatus = totStatus,
+                 LatestLppDate = latestLpp?.LppDate,
+                 LatestLpp = latestLpp != null
+@@ -289,7 +301,7 @@
+ 
+             "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+             "prod" => ApplyNullableSort(source, x => x.ProliferationCostLakhs, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+-            "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
++            "completed" or "year" => CompletedProjectCompletionOrdering.Apply(source, desc),
+             "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+             "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+             "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+@@ -308,7 +320,7 @@
+                     .ThenBy(CompletedProjectPortfolioPolicy.GetSupplementaryMissingCount)
+                     .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+ 
+-            _ => source.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProjectId)
++            _ => CompletedProjectCompletionOrdering.Apply(source, descending: true)
+         };
+     }
+ 
+@@ -356,10 +368,68 @@
+     public string? NotAvailableReason { get; set; }
+     public string? ProliferationCostRemarks { get; set; }
+     public string? Remarks { get; set; }
++    public DateOnly? CompletedOn { get; set; }
+     public int? CompletedYear { get; set; }
++    public short? CompletedMonth { get; set; }
+     public ProjectTotStatus? TotStatus { get; set; }
+     public DateOnly? LatestLppDate { get; set; }
+     public LatestLppViewModel? LatestLpp { get; set; }
++
++    public string FormatCompletion(string unknownText = "—") =>
++        ProjectCompletionFormatter.Format(CompletedOn, CompletedYear, CompletedMonth, unknownText);
++}
++
++// SECTION: Completion chronology
++// Partial dates are compared only by components that are actually recorded.
++// More precise values are placed before less precise values within the same
++// year/month, and records without any completion date always remain last.
++public static class CompletedProjectCompletionOrdering
++{
++    public static IOrderedEnumerable<CompletedProjectSummaryDto> Apply(
++        IEnumerable<CompletedProjectSummaryDto> source,
++        bool descending)
++    {
++        ArgumentNullException.ThrowIfNull(source);
++
++        IOrderedEnumerable<CompletedProjectSummaryDto> ordered = source
++            .OrderBy(item => GetYear(item).HasValue ? 0 : 1);
++
++        ordered = descending
++            ? ordered.ThenByDescending(GetYear)
++            : ordered.ThenBy(GetYear);
++
++        ordered = ordered.ThenBy(item => GetMonth(item).HasValue ? 0 : 1);
++        ordered = descending
++            ? ordered.ThenByDescending(GetMonth)
++            : ordered.ThenBy(GetMonth);
++
++        ordered = ordered.ThenBy(item => GetDay(item).HasValue ? 0 : 1);
++        ordered = descending
++            ? ordered.ThenByDescending(GetDay)
++            : ordered.ThenBy(GetDay);
++
++        return ordered
++            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
++            .ThenBy(item => item.ProjectId);
++    }
++
++    private static int? GetYear(CompletedProjectSummaryDto item) =>
++        item.CompletedOn?.Year ?? item.CompletedYear;
++
++    private static int? GetMonth(CompletedProjectSummaryDto item)
++    {
++        if (item.CompletedOn.HasValue)
++        {
++            return item.CompletedOn.Value.Month;
++        }
++
++        return item.CompletedMonth is >= 1 and <= 12
++            ? item.CompletedMonth.Value
++            : null;
++    }
++
++    private static int? GetDay(CompletedProjectSummaryDto item) =>
++        item.CompletedOn?.Day;
+ }
+ 
+ public sealed class LatestLppViewModel
+--- a/Services/Projects/CompletedProjectsPortfolioOverview.cs
++++ b/Services/Projects/CompletedProjectsPortfolioOverview.cs
+@@ -107,9 +107,8 @@
+     private static IReadOnlyList<CompletedProjectSummaryDto> Prioritise(
+         IEnumerable<CompletedProjectSummaryDto> items,
+         int queueSize) =>
+-        items.OrderByDescending(x => x.CompletedYear ?? int.MinValue)
+-            .ThenByDescending(x => x.RdCostLakhs ?? decimal.MinValue)
+-            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
++        CompletedProjectCompletionOrdering
++            .Apply(items, descending: true)
+             .Take(queueSize)
+             .ToList();
+ 
+--- a/Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
++++ b/Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
+@@ -59,7 +59,7 @@
+             "Project",
+             "Technical category",
+             "Build type",
+-            "Completed year",
++            "Completed",
+             "Development / L1 cost (lakh)",
+             "Proliferation cost (lakh)",
+             "Latest LPP (lakh)",
+@@ -100,9 +100,10 @@
+             worksheet.Cell(rowNumber, 3).Value = item.TechnicalCategoryName ?? string.Empty;
+             worksheet.Cell(rowNumber, 4).Value = item.BuildType;
+ 
+-            if (item.CompletedYear.HasValue)
++            var completion = item.FormatCompletion(string.Empty);
++            if (!string.IsNullOrWhiteSpace(completion))
+             {
+-                worksheet.Cell(rowNumber, 5).Value = item.CompletedYear.Value;
++                worksheet.Cell(rowNumber, 5).Value = completion;
              }
  
-+            if (variant == HeaderVariant.ProjectUpdateSheet)
+             WriteDecimal(worksheet.Cell(rowNumber, 6), item.RdCostLakhs);
+@@ -142,7 +143,7 @@
+         worksheet.Column(2).Width = Math.Clamp(worksheet.Column(2).Width, 28, 46);
+         worksheet.Column(3).Width = Math.Clamp(worksheet.Column(3).Width, 18, 30);
+         worksheet.Column(4).Width = 12;
+-        worksheet.Column(5).Width = 13;
++        worksheet.Column(5).Width = 16;
+         worksheet.Column(6).Width = 18;
+         worksheet.Column(7).Width = 21;
+         worksheet.Column(8).Width = 18;
+--- a/wwwroot/css/pages/projects-completed-summary.css
++++ b/wwwroot/css/pages/projects-completed-summary.css
+@@ -1423,7 +1423,7 @@
+   max-width: none;
+ }
+ 
+-.cpw-cell-year { width: 6.4rem; }
++.cpw-cell-year { width: 8.4rem; }
+ .cpw-cell-money { width: 7.5rem; }
+ .cpw-cell-status { width: 8rem; }
+ .cpw-cell-proliferation { width: 8.8rem; }
+--- a/ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
++++ b/ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
+@@ -188,6 +188,27 @@
+         Assert.Contains("private const int ColumnCount = 15", export, StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void Register_DefaultsToLatestCompletionAndExportsTheSameChronology()
++    {
++        var view = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml");
++        var model = ReadRepoFile("Pages", "Projects", "CompletedSummary", "Index.cshtml.cs");
++        var service = ReadRepoFile("Services", "Projects", "CompletedProjectsSummaryService.cs");
++        var overview = ReadRepoFile("Services", "Projects", "CompletedProjectsPortfolioOverview.cs");
++        var export = ReadRepoFile("Utilities", "Reporting", "CompletedProjectsSummaryExcelBuilder.cs");
++
++        Assert.Contains("Sort = \"completed\";", model, StringComparison.Ordinal);
++        Assert.Contains("Dir = \"desc\";", model, StringComparison.Ordinal);
++        Assert.Contains("GetSortAria(\"completed\")", view, StringComparison.Ordinal);
++        Assert.Contains("GetRoutesForSort(\"completed\"", view, StringComparison.Ordinal);
++        Assert.Contains("CompletedOn = p.CompletedOn", service, StringComparison.Ordinal);
++        Assert.Contains("CompletedMonth = p.CompletedMonth", service, StringComparison.Ordinal);
++        Assert.Contains("CompletedProjectCompletionOrdering.Apply(source, desc)", service, StringComparison.Ordinal);
++        Assert.Contains("CompletedProjectCompletionOrdering", overview, StringComparison.Ordinal);
++        Assert.Contains("\"Completed\"", export, StringComparison.Ordinal);
++        Assert.Contains("item.FormatCompletion(string.Empty)", export, StringComparison.Ordinal);
++    }
++
+ 
+     private static int CountOccurrences(string source, string value)
+     {
+--- /dev/null
++++ b/ProjectManagement.Tests/CompletedProjectCompletionOrderingTests.cs
+@@ -0,0 +1,73 @@
++using System;
++using System.Linq;
++using ProjectManagement.Services.Projects;
++using Xunit;
++
++namespace ProjectManagement.Tests;
++
++public sealed class CompletedProjectCompletionOrderingTests
++{
++    [Fact]
++    public void DescendingOrder_UsesRecordedCompletionComponentsAndKeepsUnknownLast()
++    {
++        var items = new[]
++        {
++            Item(1, "Unknown"),
++            Item(2, "Year only 2026", completedYear: 2026),
++            Item(3, "March 2026", completedYear: 2026, completedMonth: 3),
++            Item(4, "05 March 2026", completedOn: new DateOnly(2026, 3, 5)),
++            Item(5, "20 March 2026", completedOn: new DateOnly(2026, 3, 20)),
++            Item(6, "December 2025", completedYear: 2025, completedMonth: 12)
++        };
++
++        var ordered = CompletedProjectCompletionOrdering
++            .Apply(items, descending: true)
++            .Select(item => item.Name)
++            .ToArray();
++
++        Assert.Equal(
++            new[]
 +            {
-+                if (_branding.LeftLogo is { Length: > 0 })
-+                {
-+                    AddImageContained(_branding.LeftLogo, .32, .20, .48, .48, "Left formation insignia");
-+                }
++                "20 March 2026",
++                "05 March 2026",
++                "March 2026",
++                "Year only 2026",
++                "December 2025",
++                "Unknown"
++            },
++            ordered);
++    }
 +
-+                if (_branding.RightLogo is { Length: > 0 })
-+                {
-+                    // The SDD insignia is visually slender. A larger optical box balances it
-+                    // against the denser formation crest without changing the title safe area.
-+                    AddImageContained(_branding.RightLogo, 12.39, .10, .46, .68, "Right division insignia");
-+                }
++    [Fact]
++    public void CompletionDisplay_PreservesAvailablePrecisionWithoutInventingADate()
++    {
++        Assert.Equal(
++            "20 Mar 2026",
++            Item(1, "Exact", completedOn: new DateOnly(2026, 3, 20)).FormatCompletion());
 +
-+                return;
-+            }
++        Assert.Equal(
++            "Mar 2026",
++            Item(2, "Month", completedYear: 2026, completedMonth: 3).FormatCompletion());
 +
-             if (_branding.LeftLogo is { Length: > 0 })
-             {
-                 if (Theme.IsDark)
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-@@ -524,6 +524,23 @@
-         Assert.Contains("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-         Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
-         Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
++        Assert.Equal(
++            "2026",
++            Item(3, "Year", completedYear: 2026).FormatCompletion());
 +
-+        var leftInsignia = slide.Slide.Descendants<P.Picture>()
-+            .Single(picture => string.Equals(
-+                picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
-+                "Left formation insignia",
-+                StringComparison.Ordinal));
-+        var rightInsignia = slide.Slide.Descendants<P.Picture>()
-+            .Single(picture => string.Equals(
-+                picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
-+                "Right division insignia",
-+                StringComparison.Ordinal));
-+        var leftExtent = Assert.IsType<A.Extents>(leftInsignia.ShapeProperties?.Transform2D?.Extents);
-+        var rightExtent = Assert.IsType<A.Extents>(rightInsignia.ShapeProperties?.Transform2D?.Extents);
-+        Assert.True(rightExtent.Cy?.Value > leftExtent.Cy?.Value);
-+        Assert.True((rightExtent.Cx?.Value ?? 0L) * (rightExtent.Cy?.Value ?? 0L)
-+            > (leftExtent.Cx?.Value ?? 0L) * (leftExtent.Cy?.Value ?? 0L));
++        Assert.Equal("—", Item(4, "Unknown").FormatCompletion());
++    }
 +
-         Assert.DoesNotContain("Compact footer insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
-         Assert.Equal(2, slide.ImageParts.Count());
-         Assert.Single(slide.Slide.Descendants<A.Table>());
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-@@ -94,7 +94,7 @@
-         Assert.Contains("UpdateSheetStatus(project.ExternalStatus)", composer, StringComparison.Ordinal);
-         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
-         Assert.DoesNotContain("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
--        Assert.Contains("AddBrandingImages(HeaderVariant.Standard)", composer, StringComparison.Ordinal);
-+        Assert.Contains("AddBrandingImages(HeaderVariant.ProjectUpdateSheet)", composer, StringComparison.Ordinal);
-         Assert.Contains("Align: \"ctr\"", composer, StringComparison.Ordinal);
-         Assert.Contains("UpdateSheetAccent", composer, StringComparison.Ordinal);
-         Assert.Contains("SO Date:", composer, StringComparison.Ordinal);
++    private static CompletedProjectSummaryDto Item(
++        int id,
++        string name,
++        DateOnly? completedOn = null,
++        int? completedYear = null,
++        short? completedMonth = null) =>
++        new()
++        {
++            ProjectId = id,
++            Name = name,
++            CompletedOn = completedOn,
++            CompletedYear = completedOn?.Year ?? completedYear,
++            CompletedMonth = completedMonth
++        };
++}
