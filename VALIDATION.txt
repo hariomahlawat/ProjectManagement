@@ -1,31 +1,21 @@
-VALIDATION SUMMARY
-==================
+PRISM ARPP/PPP — Production UX Phase Validation
 
-Passed
-------
-- npm test
-  239 tests passed; 0 failed.
+Completed in the supplied source tree:
+- JavaScript syntax: PASSED
+  - node --check wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+  - node --check wwwroot/js/pages/project-office-reports/arpp/arpp-details.js
+- Git whitespace/diff validation: PASSED
+- CSS brace validation: PASSED
+- Razor structural source checks for form/section/table/template tags: PASSED
+- Static production UX contract assertions: PASSED
 
-- JavaScript syntax checks
-  overview.js
-  overview-multi-jdp.js
-  cover-photo-fallback.js
-  historical-stage-editor.js
+Not executed in this environment:
+- dotnet restore/build/test
 
-- Replacement-manifest existence check
-  Every path in REPLACEMENT-MANIFEST.txt exists.
+Reason:
+- The .NET SDK is not installed in the execution environment.
 
-Environment limitation
-----------------------
-The delivery workspace does not contain the .NET SDK, so dotnet build and
-dotnet test could not be executed here. Run both commands in the target
-development/build environment before deployment. The package includes focused
-.NET tests for lifecycle preservation, evidence-backed standard-stage writes,
-date precision, deleted-project rejection and transaction rollback.
-
-Existing repository lint debt
------------------------------
-npm run lint:views still reports pre-existing inline-style violations across
-unrelated views. None of the new historical-stage files introduced an inline
-style attribute. The repository-wide lint command therefore remains red for
-baseline reasons and should be remediated separately.
+Required final verification after pasting:
+- dotnet build ProjectManagement.sln -c Release
+- dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
+- Browser smoke test described in README-APPLY-FIRST.md

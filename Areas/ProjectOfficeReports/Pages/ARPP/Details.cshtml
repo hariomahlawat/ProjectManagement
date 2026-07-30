@@ -5,7 +5,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.DetailsModel
 @{
     ViewData["Title"] = Model.Issue.Name;
-    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "wide";
     var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
         ? "Original ARPP"
         : $"Addendum No. {Model.Issue.IssueSequence}";
@@ -51,11 +51,11 @@
             @if (Model.CanManage && !Model.Issue.IsVerified)
             {
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary btn-sm">
-                    <span class="bi bi-pencil-square" aria-hidden="true"></span> Manage rows
+                    <span class="bi bi-pencil-square" aria-hidden="true"></span> Edit issued rows
                 </a>
             }
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
-                <span class="bi bi-arrow-left" aria-hidden="true"></span> Register
+                <span class="bi bi-arrow-left" aria-hidden="true"></span> Back to register
             </a>
         </div>
     </header>
@@ -177,12 +177,12 @@
             <strong>@Model.Issue.Entries.Count</strong>
         </article>
         <article class="arpp-kpi arpp-kpi--approved">
-            <span>Approved row value</span>
+            <span>This document — approved</span>
             <strong>@IndianCurrencyFormatter.FormatCompact(Model.ApprovedRowValue)</strong>
             <small>New, CL and CF</small>
         </article>
         <article class="arpp-kpi arpp-kpi--delisted">
-            <span>Delisted row value</span>
+            <span>This document — delisted</span>
             <strong>@IndianCurrencyFormatter.FormatCompact(Model.DelistedRowValue)</strong>
             <small>Recorded separately</small>
         </article>
@@ -364,13 +364,16 @@
                                   required
                                   aria-describedby="unlockReasonHelp"
                                   data-arpp-unlock-reason></textarea>
-                        <div id="unlockReasonHelp" class="form-text">Describe the correction required. Minimum 10 characters. Example: Add newly received project row under Serial No. 48.</div>
+                        <div class="arpp-unlock-reason-meta" id="unlockReasonHelp">
+                            <span>Describe the correction required. Example: Add newly received project row under Serial No. 48.</span>
+                            <strong data-arpp-unlock-counter>0/10 minimum</strong>
+                        </div>
                         <span asp-validation-for="UnlockInput.Reason" class="text-danger small" data-arpp-unlock-validation></span>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-warning" data-arpp-unlock-submit>
-                            <span class="bi bi-unlock" aria-hidden="true"></span> <span data-arpp-unlock-submit-label>Unlock issue</span>
+                        <button type="submit" class="btn btn-warning" data-arpp-unlock-submit disabled aria-disabled="true">
+                            <span class="bi bi-unlock" aria-hidden="true"></span> <span data-arpp-unlock-submit-label>Unlock record</span>
                         </button>
                     </div>
                 </form>

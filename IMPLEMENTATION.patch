@@ -1,480 +1,1477 @@
---- a/Pages/Process/Index.cshtml
-+++ b/Pages/Process/Index.cshtml
-@@ -274,9 +274,16 @@
-             </div>
-             <div class="modal-body">
-                 <label for="checklistItemText" class="form-label fw-semibold">Action or verification required</label>
--                <textarea class="form-control" id="checklistItemText" name="text" rows="5" maxlength="512" required></textarea>
-+                <textarea class="form-control"
-+                          id="checklistItemText"
-+                          name="text"
-+                          rows="8"
-+                          maxlength="512"
-+                          spellcheck="true"
-+                          placeholder="Example:&#10;Documents required&#10;&#10;1. Drawings&#10;2. User manual&#10;3. Technical manual"
-+                          required></textarea>
-                 <div class="form-text d-flex justify-content-between">
--                    <span>Use clear, action-oriented language.</span>
-+                    <span>Use blank lines and start sub-items with <strong>1.</strong> or <strong>-</strong>. Formatting is applied automatically.</span>
-                     <span data-character-count>0 / 512</span>
-                 </div>
-                 <input type="hidden" name="itemId" />
---- a/wwwroot/css/process-flow.css
-+++ b/wwwroot/css/process-flow.css
-@@ -3524,3 +3524,119 @@
- .process-page[data-process-theme="dark"] .process-search-results button.is-current {
-   background: rgba(68, 133, 207, .14);
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
+index 18c2e51..9604b36 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
+@@ -5,7 +5,7 @@
+ @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.DetailsModel
+ @{
+     ViewData["Title"] = Model.Issue.Name;
+-    ViewData["UseFullWidth"] = true;
++    ViewData["PageShell"] = "wide";
+     var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
+         ? "Original ARPP"
+         : $"Addendum No. {Model.Issue.IssueSequence}";
+@@ -51,11 +51,11 @@
+             @if (Model.CanManage && !Model.Issue.IsVerified)
+             {
+                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary btn-sm">
+-                    <span class="bi bi-pencil-square" aria-hidden="true"></span> Manage rows
++                    <span class="bi bi-pencil-square" aria-hidden="true"></span> Edit issued rows
+                 </a>
+             }
+             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
+-                <span class="bi bi-arrow-left" aria-hidden="true"></span> Register
++                <span class="bi bi-arrow-left" aria-hidden="true"></span> Back to register
+             </a>
+         </div>
+     </header>
+@@ -177,12 +177,12 @@
+             <strong>@Model.Issue.Entries.Count</strong>
+         </article>
+         <article class="arpp-kpi arpp-kpi--approved">
+-            <span>Approved row value</span>
++            <span>This document — approved</span>
+             <strong>@IndianCurrencyFormatter.FormatCompact(Model.ApprovedRowValue)</strong>
+             <small>New, CL and CF</small>
+         </article>
+         <article class="arpp-kpi arpp-kpi--delisted">
+-            <span>Delisted row value</span>
++            <span>This document — delisted</span>
+             <strong>@IndianCurrencyFormatter.FormatCompact(Model.DelistedRowValue)</strong>
+             <small>Recorded separately</small>
+         </article>
+@@ -364,13 +364,16 @@
+                                   required
+                                   aria-describedby="unlockReasonHelp"
+                                   data-arpp-unlock-reason></textarea>
+-                        <div id="unlockReasonHelp" class="form-text">Describe the correction required. Minimum 10 characters. Example: Add newly received project row under Serial No. 48.</div>
++                        <div class="arpp-unlock-reason-meta" id="unlockReasonHelp">
++                            <span>Describe the correction required. Example: Add newly received project row under Serial No. 48.</span>
++                            <strong data-arpp-unlock-counter>0/10 minimum</strong>
++                        </div>
+                         <span asp-validation-for="UnlockInput.Reason" class="text-danger small" data-arpp-unlock-validation></span>
+                     </div>
+                     <div class="modal-footer">
+                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+-                        <button type="submit" class="btn btn-warning" data-arpp-unlock-submit>
+-                            <span class="bi bi-unlock" aria-hidden="true"></span> <span data-arpp-unlock-submit-label>Unlock issue</span>
++                        <button type="submit" class="btn btn-warning" data-arpp-unlock-submit disabled aria-disabled="true">
++                            <span class="bi bi-unlock" aria-hidden="true"></span> <span data-arpp-unlock-submit-label>Unlock record</span>
+                         </button>
+                     </div>
+                 </form>
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+index 0fe4ab8..60cac9a 100644
+--- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+@@ -5,15 +5,16 @@
+ @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ARPP.ManageModel
+ @{
+     ViewData["Title"] = $"Manage {Model.Issue.Name}";
+-    ViewData["UseFullWidth"] = true;
++    ViewData["PageShell"] = "workspace";
+     var lookupUrl = Url.Content("~/api/arpp/projects");
  }
-+
-+
-+/* Final operational refinement: calm light canvas, clearer context and structured checklist content. */
-+.process-page[data-process-theme="light"] .process-scene {
-+  background:
-+    radial-gradient(circle at 50% 48%, rgba(74, 139, 214, .075), transparent 43%),
-+    linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
-+}
-+
-+.process-page[data-process-theme="light"] .process-scene__atmosphere {
-+  background:
-+    radial-gradient(ellipse at 50% 100%, rgba(91, 145, 207, .075), transparent 62%),
-+    radial-gradient(circle at 84% 14%, rgba(68, 132, 207, .04), transparent 30%);
-+}
-+
-+.process-page[data-process-theme="light"] .process-scene__horizon {
-+  opacity: .17;
-+}
-+
-+.process-page[data-process-theme="light"] .process-scene__noise {
-+  opacity: .025;
-+}
-+
-+.process-page[data-process-theme="light"] .process-node.is-active {
-+  box-shadow:
-+    0 20px 46px rgba(46, 91, 145, .17),
-+    0 0 0 2px rgba(63, 140, 232, .1),
-+    0 0 22px rgba(63, 140, 232, .09),
-+    inset 0 1px 0 rgba(255, 255, 255, .95);
-+}
-+
-+.process-page[data-process-theme="light"] .process-node.is-active .process-node__halo {
-+  opacity: .34;
-+}
-+
-+.process-page[data-process-theme="light"] .process-node.is-context {
-+  filter: blur(var(--node-blur, .45px));
-+}
-+
-+/* Normal view keeps only a compact stage locator; full screen restores the full label. */
-+.process-experience:not(.is-fullscreen) .process-scene__identity {
-+  padding: .48rem .68rem;
-+}
-+
-+.process-experience:not(.is-fullscreen) .process-scene__identity > span {
-+  display: none;
-+}
-+
-+.process-experience:not(.is-fullscreen) .process-scene__identity strong {
-+  font-size: .75rem;
-+}
-+
-+.process-experience.is-fullscreen .process-scene__identity > span {
-+  display: block;
-+}
-+
-+/* Checklist entries support headings, paragraphs and numbered/bulleted sub-items. */
-+.stage-checklist__text {
-+  min-width: 0;
-+  padding-top: .08rem;
-+}
-+
-+.stage-checklist__content {
-+  display: flex;
-+  flex-direction: column;
-+  gap: .38rem;
-+  min-width: 0;
-+}
-+
-+.stage-checklist__content p {
-+  margin: 0;
-+  color: inherit;
-+  line-height: 1.55;
-+  white-space: normal;
-+}
-+
-+.stage-checklist__title {
-+  color: #20344f;
-+  font-size: .78rem;
-+  font-weight: 780;
-+  line-height: 1.35;
-+}
-+
-+.stage-checklist__sublist {
-+  display: grid;
-+  gap: .26rem;
-+  margin: .02rem 0 0;
-+  padding-left: 1.25rem;
-+  color: #405269;
-+}
-+
-+.stage-checklist__sublist li {
-+  padding-left: .12rem;
-+  line-height: 1.48;
-+}
-+
-+.stage-checklist__sublist--bulleted {
-+  list-style-type: disc;
-+}
-+
-+.process-page[data-process-theme="dark"] .stage-checklist__title {
-+  color: #edf5ff;
-+}
-+
-+.process-page[data-process-theme="dark"] .stage-checklist__sublist {
-+  color: #c9d5e5;
-+}
-+
-+#checklistItemModal .form-text {
-+  align-items: flex-start;
-+  gap: 1rem;
-+}
-+
-+#checklistItemModal .form-text > span:first-child {
-+  max-width: 78%;
-+}
---- a/wwwroot/js/process-flow.js
-+++ b/wwwroot/js/process-flow.js
-@@ -10,7 +10,6 @@
-     edges: [],
-     visualEdges: [],
-     optionalDetours: [],
--    endpoint: null,
-     stageByCode: new Map(),
-     incoming: new Map(),
-     outgoing: new Map(),
-@@ -339,16 +338,8 @@
-       })
-       .filter(detour => detour.source);
  
--    state.endpoint = {
--      code: '__END__',
--      name: 'Capability complete',
--      x: 0,
--      y: 450
--    };
--
-     const visualEdges = [...structuralEdges];
-     state.optionalDetours.forEach(detour => {
--      const targetCode = detour.successor || state.endpoint.code;
-       if (detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === detour.successor)) {
-         visualEdges.push({
-           source: detour.source,
-@@ -358,15 +349,7 @@
-           synthetic: true
-         });
-       }
--      if (!detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === state.endpoint.code)) {
--        visualEdges.push({
--          source: detour.source,
--          target: state.endpoint.code,
--          kind: 'terminal-main',
--          conditional: false,
--          synthetic: true
--        });
--      }
+ @section Styles {
+     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
++    <link rel="stylesheet" href="~/css/project-office-reports/arpp-workspace.css" asp-append-version="true" />
+ }
+ 
+-<div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
++<div class="arpp-page arpp-page--workspace py-2"
+      data-arpp-workspace
+      data-arpp-project-lookup-url="@lookupUrl">
+     <header class="arpp-header arpp-header--workspace">
+@@ -25,11 +26,11 @@
+         <div class="d-flex flex-wrap gap-2">
+             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">
+                 <span class="bi bi-eye" aria-hidden="true"></span>
+-                View issue
++                View record
+             </a>
+             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
+                 <span class="bi bi-arrow-left" aria-hidden="true"></span>
+-                Register
++                Back to register
+             </a>
+         </div>
+     </header>
+@@ -94,26 +95,71 @@
+             </div>
+         </section>
+ 
++        <div class="arpp-workspace-commandbar" data-arpp-commandbar>
++            <div class="arpp-workspace-commandbar__identity">
++                <span class="arpp-workspace-commandbar__eyebrow">Issued rows</span>
++                <strong title="@Model.Issue.Name">@Model.Issue.Name</strong>
++                <span><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span> · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</span>
++            </div>
++            <div class="arpp-workspace-jump" role="search">
++                <label class="visually-hidden" for="arpp-workspace-jump">Jump to a row or project</label>
++                <span class="bi bi-search" aria-hidden="true"></span>
++                <input id="arpp-workspace-jump"
++                       type="search"
++                       class="form-control form-control-sm"
++                       autocomplete="off"
++                       placeholder="Jump to row or project"
++                       data-arpp-jump-input
++                       data-arpp-ui-only />
++                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-jump-next title="Find next matching row" aria-label="Find next matching row">
++                    <span class="bi bi-arrow-return-right" aria-hidden="true"></span>
++                </button>
++                <span class="arpp-workspace-jump__status" data-arpp-jump-status aria-live="polite"></span>
++            </div>
++            <div class="arpp-workspace-commandbar__actions">
++                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
++                    <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
++                    <span class="arpp-action-label">Fill common fields</span>
++                </button>
++                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
++                    <span class="bi bi-clipboard" aria-hidden="true"></span>
++                    <span class="arpp-action-label">Paste rows</span>
++                </button>
++                <button type="button" class="btn btn-outline-primary btn-sm" data-arpp-add-row title="Add row (Alt+A)">
++                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
++                    <span class="arpp-action-label">Add row</span>
++                </button>
++                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-fullscreen-toggle aria-pressed="false" title="Open full-screen workspace">
++                    <span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span>
++                    <span class="arpp-action-label" data-arpp-fullscreen-label>Full screen</span>
++                </button>
++                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Cancel</a>
++                <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="Save issue (Ctrl+S)">
++                    <span class="bi bi-check2" aria-hidden="true"></span>
++                    <span data-arpp-save-button-label>Save issue</span>
++                </button>
++            </div>
++            <div class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</div>
++        </div>
 +
-       visualEdges.push({
-         source: detour.source,
-         target: detour.code,
-@@ -374,13 +357,19 @@
-         conditional: true,
-         synthetic: true
-       });
--      visualEdges.push({
--        source: detour.code,
--        target: targetCode,
--        kind: 'conditional-return',
--        conditional: true,
--        synthetic: true
--      });
++        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="alert" aria-live="assertive" aria-atomic="true">
++            <div>
++                <span class="bi bi-exclamation-octagon" aria-hidden="true"></span>
++                <div>
++                    <strong data-arpp-validation-heading>Review the highlighted fields</strong>
++                    <p data-arpp-validation-copy>Correct the listed fields before saving.</p>
++                </div>
++            </div>
++            <div class="arpp-validation-navigator__items" data-arpp-validation-items></div>
++            <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
++        </section>
 +
-+      // A conditional stage in the middle of the workflow rejoins the main route.
-+      // A terminal conditional stage (currently ToT) is a single optional continuation
-+      // from the last mandatory stage and therefore has no synthetic return path.
-+      if (detour.successor) {
-+        visualEdges.push({
-+          source: detour.code,
-+          target: detour.successor,
-+          kind: 'conditional-return',
-+          conditional: true,
-+          synthetic: true
-+        });
-+      }
-     });
+         <section class="arpp-panel arpp-panel--entries">
+             <div class="arpp-panel__heading arpp-panel__heading--workspace">
+                 <div>
+                     <h2>Issued rows</h2>
+                     <p><span data-arpp-row-count>@Model.Input.Entries.Count</span> <span data-arpp-row-count-label>@(Model.Input.Entries.Count == 1 ? "row" : "rows")</span>. Project reference, IPA cost, CFA, Fund and DFPDS remain required for Delisted entries. Serial No. and PPP No. do not apply.</p>
+                 </div>
+-                <div class="arpp-entry-toolbar">
+-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
+-                        <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
+-                        Fill common fields
+-                    </button>
+-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
+-                        <span class="bi bi-clipboard" aria-hidden="true"></span>
+-                        Paste rows
+-                    </button>
+-                    <button type="button" class="btn btn-outline-primary btn-sm" data-arpp-add-row>
+-                        <span class="bi bi-plus-lg" aria-hidden="true"></span>
+-                        Add row
+-                    </button>
+-                </div>
+             </div>
  
-     state.visualEdges = visualEdges;
-@@ -397,7 +386,7 @@
-   }
+             <details class="arpp-reference-guidance" open data-arpp-entry-guidance>
+@@ -147,14 +193,16 @@
+                 </div>
+             </div>
  
-   function entityForCode(code) {
--    return code === state.endpoint?.code ? state.endpoint : state.stageByCode.get(code);
-+    return state.stageByCode.get(code);
-   }
+-            <div class="arpp-table-wrap @(Model.Input.Entries.Count == 0 ? "d-none" : string.Empty)" data-arpp-table-wrap>
+-                <table class="table arpp-entry-table align-middle" data-arpp-entry-table>
++            <div class="arpp-table-viewport @(Model.Input.Entries.Count == 0 ? "d-none" : string.Empty)" data-arpp-table-viewport>
++                <div class="arpp-table-scrollbar d-none" data-arpp-table-scrollbar role="region" aria-label="Horizontal table scrollbar" tabindex="0">
++                    <div data-arpp-table-scrollbar-spacer></div>
++                </div>
++                <div class="arpp-table-wrap" data-arpp-table-wrap>
++                    <table class="table arpp-entry-table align-middle" data-arpp-entry-table>
+                     <thead>
+                         <tr>
+                             <th class="arpp-col-order arpp-sticky-left arpp-sticky-left--order">#</th>
+-                            <th class="arpp-col-serial arpp-sticky-left arpp-sticky-left--serial">Serial no.</th>
+-                            <th class="arpp-col-ppp arpp-sticky-left arpp-sticky-left--ppp">PPP no.</th>
+-                            <th class="arpp-col-reference arpp-sticky-left arpp-sticky-left--reference">Project reference as issued</th>
++                            <th class="arpp-col-issued arpp-sticky-left arpp-sticky-left--issued">Issued identity</th>
+                             <th class="arpp-col-project">PRISM project <span class="arpp-optional">optional</span></th>
+                             <th class="arpp-col-category">Category</th>
+                             <th class="arpp-col-cost text-end">IPA cost (₹)</th>
+@@ -169,21 +217,28 @@
+                         {
+                             <tr data-arpp-entry-row>
+                                 <td class="arpp-row-order arpp-sticky-left arpp-sticky-left--order" data-arpp-row-number>@(index + 1)</td>
+-                                <td class="arpp-sticky-left arpp-sticky-left--serial">
++                                <td class="arpp-sticky-left arpp-sticky-left--issued">
+                                     <input type="hidden" asp-for="Input.Entries[index].Id" />
+                                     <input type="hidden" asp-for="Input.Entries[index].RowVersion" />
+-                                    <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
+-                                    <span asp-validation-for="Input.Entries[index].SerialNumber" class="text-danger small"></span>
+-                                </td>
+-                                <td class="arpp-sticky-left arpp-sticky-left--ppp">
+-                                    <input asp-for="Input.Entries[index].PppNumber" class="form-control form-control-sm" maxlength="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
+-                                    <span asp-validation-for="Input.Entries[index].PppNumber" class="text-danger small"></span>
+-                                </td>
+-                                <td class="arpp-sticky-left arpp-sticky-left--reference">
+-                                    <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" data-arpp-project-reference></textarea>
+-                                    <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+-                                    <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
+-                                    <span asp-validation-for="Input.Entries[index].ProjectReference" class="text-danger small"></span>
++                                    <div class="arpp-issued-identity">
++                                        <div class="arpp-issued-identity__identifiers">
++                                            <div>
++                                                <label asp-for="Input.Entries[index].SerialNumber" class="visually-hidden">Serial number</label>
++                                                <input asp-for="Input.Entries[index].SerialNumber" class="form-control form-control-sm" maxlength="64" placeholder="Serial No." data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
++                                                <span asp-validation-for="Input.Entries[index].SerialNumber" class="text-danger small"></span>
++                                            </div>
++                                            <div>
++                                                <label asp-for="Input.Entries[index].PppNumber" class="visually-hidden">PPP number</label>
++                                                <input asp-for="Input.Entries[index].PppNumber" class="form-control form-control-sm" maxlength="160" placeholder="PPP No. as issued" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
++                                                <span asp-validation-for="Input.Entries[index].PppNumber" class="text-danger small"></span>
++                                            </div>
++                                        </div>
++                                        <label asp-for="Input.Entries[index].ProjectReference" class="visually-hidden">Project reference as issued</label>
++                                        <textarea asp-for="Input.Entries[index].ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" placeholder="Project reference as issued" data-arpp-project-reference></textarea>
++                                        <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
++                                        <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
++                                        <span asp-validation-for="Input.Entries[index].ProjectReference" class="text-danger small"></span>
++                                    </div>
+                                 </td>
+                                 <td>
+                                     <div class="arpp-project-picker" data-arpp-project-picker>
+@@ -306,27 +361,35 @@
+                             </tr>
+                         }
+                     </tbody>
+-                </table>
++                    </table>
++                </div>
+             </div>
  
-   function calculateLayout() {
-@@ -459,18 +448,11 @@
-       const successor = detour.successor ? state.stageByCode.get(detour.successor) : null;
-       if (!node || !source) return;
-       node.depth = source.depth + .5;
--      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * .55);
--      node.y = centerY + 210 + (index * 18);
-+      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * 1.25);
-+      node.y = centerY + 215 + (index * 18);
-     });
+             <template data-arpp-row-template>
+                 <tr data-arpp-entry-row>
+                     <td class="arpp-row-order arpp-sticky-left arpp-sticky-left--order" data-arpp-row-number>__ROW__</td>
+-                    <td class="arpp-sticky-left arpp-sticky-left--serial">
++                    <td class="arpp-sticky-left arpp-sticky-left--issued">
+                         <input type="hidden" name="Input.Entries[__INDEX__].Id" id="Input_Entries___INDEX____Id" />
+                         <input type="hidden" name="Input.Entries[__INDEX__].RowVersion" id="Input_Entries___INDEX____RowVersion" />
+-                        <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" data-val="true" data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
+-                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].SerialNumber" data-valmsg-replace="true"></span>
+-                    </td>
+-                    <td class="arpp-sticky-left arpp-sticky-left--ppp">
+-                        <input name="Input.Entries[__INDEX__].PppNumber" id="Input_Entries___INDEX____PppNumber" class="form-control form-control-sm" maxlength="160" data-val="true" data-val-length="The PPP number cannot exceed 160 characters." data-val-length-max="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
+-                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].PppNumber" data-valmsg-replace="true"></span>
+-                    </td>
+-                    <td class="arpp-sticky-left arpp-sticky-left--reference">
+-                        <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300" data-arpp-project-reference></textarea>
+-                        <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
+-                        <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
+-                        <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectReference" data-valmsg-replace="true"></span>
++                        <div class="arpp-issued-identity">
++                            <div class="arpp-issued-identity__identifiers">
++                                <div>
++                                    <label for="Input_Entries___INDEX____SerialNumber" class="visually-hidden">Serial number</label>
++                                    <input name="Input.Entries[__INDEX__].SerialNumber" id="Input_Entries___INDEX____SerialNumber" class="form-control form-control-sm" maxlength="64" placeholder="Serial No." data-val="true" data-val-length="The serial number cannot exceed 64 characters." data-val-length-max="64" data-arpp-issued-identifier data-arpp-identifier-kind="serial" />
++                                    <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].SerialNumber" data-valmsg-replace="true"></span>
++                                </div>
++                                <div>
++                                    <label for="Input_Entries___INDEX____PppNumber" class="visually-hidden">PPP number</label>
++                                    <input name="Input.Entries[__INDEX__].PppNumber" id="Input_Entries___INDEX____PppNumber" class="form-control form-control-sm" maxlength="160" placeholder="PPP No. as issued" data-val="true" data-val-length="The PPP number cannot exceed 160 characters." data-val-length-max="160" data-arpp-issued-identifier data-arpp-identifier-kind="ppp" />
++                                    <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].PppNumber" data-valmsg-replace="true"></span>
++                                </div>
++                            </div>
++                            <label for="Input_Entries___INDEX____ProjectReference" class="visually-hidden">Project reference as issued</label>
++                            <textarea name="Input.Entries[__INDEX__].ProjectReference" id="Input_Entries___INDEX____ProjectReference" class="form-control form-control-sm arpp-reference-input" rows="1" maxlength="300" placeholder="Project reference as issued" required data-val="true" data-val-required="Enter the project reference." data-val-length="The project reference cannot exceed 300 characters." data-val-length-max="300" data-arpp-project-reference></textarea>
++                            <div class="arpp-field-hint d-none" data-arpp-reference-prefill-hint>Prefilled from PRISM — verify against the issued document.</div>
++                            <div class="arpp-row-warning d-none" data-arpp-row-warning></div>
++                            <span class="text-danger small field-validation-valid" data-valmsg-for="Input.Entries[__INDEX__].ProjectReference" data-valmsg-replace="true"></span>
++                        </div>
+                     </td>
+                     <td>
+                         <div class="arpp-project-picker" data-arpp-project-picker>
+@@ -399,16 +462,6 @@
+             </template>
+         </section>
  
--    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
--    const terminalSource = terminalDetour ? state.stageByCode.get(terminalDetour.source) : mandatoryNodes.at(-1);
--    state.endpoint.x = (terminalSource?.x || (startX + maxDepth * xGap)) + xGap;
--    state.endpoint.y = centerY;
--
--    const maxEntityX = Math.max(
--      state.endpoint.x,
--      ...state.nodes.map(node => Number(node.x) || 0));
-+    const maxEntityX = Math.max(...state.nodes.map(node => Number(node.x) || 0));
-     state.worldWidth = maxEntityX + 190;
-     state.worldHeight = 900;
-     world.style.width = `${state.worldWidth}px`;
-@@ -481,8 +463,8 @@
-   }
+-        <div class="arpp-editor__actions arpp-editor__actions--sticky" data-arpp-sticky-actions>
+-            <div class="arpp-save-state" data-arpp-save-state>All changes saved.</div>
+-            <div class="d-flex gap-2">
+-                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancel</a>
+-                <button type="submit" class="btn btn-primary" data-arpp-save-button>
+-                    <span class="bi bi-check2" aria-hidden="true"></span>
+-                    Save issue
+-                </button>
+-            </div>
+-        </div>
+     </form>
+ </div>
  
-   function pathForEdge(source, target, edge) {
--    const sourceHalf = source.code === state.endpoint.code ? 22 : 82;
--    const targetHalf = target.code === state.endpoint.code ? 22 : 82;
-+    const sourceHalf = 82;
-+    const targetHalf = 82;
-     const startX = source.x + sourceHalf;
-     const endX = target.x - targetHalf;
-     const startY = source.y;
-@@ -586,16 +568,6 @@
-       nodeLayer.appendChild(button);
-     });
- 
--    const endpoint = document.createElement('div');
--    endpoint.className = 'process-endpoint';
--    endpoint.dataset.processEndpoint = 'true';
--    endpoint.style.left = `${state.endpoint.x}px`;
--    endpoint.style.top = `${state.endpoint.y}px`;
--    endpoint.innerHTML = `
--      <span class="process-endpoint__ring" aria-hidden="true"></span>
--      <span class="process-endpoint__copy">Capability complete</span>`;
--    nodeLayer.appendChild(endpoint);
--
-     renderProgressTrack();
-     placeholder.hidden = true;
-     world.setAttribute('aria-busy', 'false');
-@@ -717,15 +689,6 @@
-     return expandJourneyContextForWideViewport(tiers);
-   }
- 
--  function endpointTierFor(active) {
--    if (!active || !state.endpoint) return 'hidden';
--    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
--    if (!terminalDetour) return 'hidden';
--    if (active.code === terminalDetour.code || active.code === terminalDetour.source) return 'near';
--    const source = state.stageByCode.get(terminalDetour.source);
--    if (source && active.displayIndex === source.displayIndex - 1) return 'context';
--    return 'hidden';
--  }
- 
-   function focusActiveStage(animate = true) {
-     const node = state.nodes[state.activeIndex];
-@@ -734,7 +697,6 @@
-     const viewport = viewportSize();
-     const tiers = journeyTiersFor(node);
-     const visible = state.nodes.filter(candidate => tiers.get(candidate.code) !== 'hidden');
--    if (endpointTierFor(node) !== 'hidden') visible.push(state.endpoint);
- 
-     const minX = Math.min(...visible.map(candidate => candidate.x)) - 125;
-     const maxX = Math.max(...visible.map(candidate => candidate.x)) + 125;
-@@ -769,7 +731,7 @@
-   function nodeScaleForTier(tier) {
-     if (tier === 'active') return 1.38;
-     if (tier === 'near') return 1;
--    if (tier === 'context') return .72;
-+    if (tier === 'context') return .76;
-     return .52;
-   }
-   async function selectStage(code, { updateHash = true, animate = true } = {}) {
-@@ -811,7 +773,6 @@
-     const activeCode = active.code;
-     const activeDepth = active.depth ?? -1;
-     const tiers = journeyTiersFor(active);
--    const endpointTier = endpointTierFor(active);
-     scene.dataset.activeCode = activeCode.toLowerCase();
- 
-     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
-@@ -831,25 +792,17 @@
-       button.tabIndex = state.mode === 'journey' && tier === 'hidden' ? -1 : 0;
- 
-       button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
--      button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
--      button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
-+      button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.46' : '0');
-+      button.style.setProperty('--node-blur', tier === 'context' ? '.45px' : tier === 'hidden' ? '6px' : '0px');
-     });
- 
--    const endpointElement = root.querySelector('[data-process-endpoint]');
--    if (endpointElement) {
--      endpointElement.dataset.journeyTier = endpointTier;
--      endpointElement.classList.toggle('is-visible', endpointTier !== 'hidden');
--      endpointElement.classList.toggle('is-near', endpointTier === 'near');
--      endpointElement.classList.toggle('is-context', endpointTier === 'context');
--    }
--
-     const activeDetour = state.optionalDetours.find(detour => detour.code === activeCode);
-     root.querySelectorAll('.process-connection').forEach(path => {
-       const source = path.dataset.edgeSource;
-       const target = path.dataset.edgeTarget;
-       const kind = path.dataset.edgeKind;
--      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
--      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
-+      const sourceTier = tiers.get(source) || 'hidden';
-+      const targetTier = tiers.get(target) || 'hidden';
-       const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
-       const conditional = path.classList.contains('is-conditional');
-       const connected = source === activeCode || target === activeCode;
-@@ -872,8 +825,8 @@
-       const source = path.dataset.edgeSource;
-       const target = path.dataset.edgeTarget;
-       const conditional = path.classList.contains('is-conditional');
--      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
--      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
-+      const sourceTier = tiers.get(source) || 'hidden';
-+      const targetTier = tiers.get(target) || 'hidden';
-       const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
-       const connected = source === activeCode || target === activeCode;
-       const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
-@@ -981,6 +934,86 @@
-       </li>`;
-   }
- 
-+  function renderChecklistInline(value) {
-+    const escaped = escapeHtml(value);
-+    return escaped.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-+  }
+diff --git a/ProjectManagement.Tests/Arpp/ArppProductionUxContractTests.cs b/ProjectManagement.Tests/Arpp/ArppProductionUxContractTests.cs
+new file mode 100644
+index 0000000..e3f35c5
+--- /dev/null
++++ b/ProjectManagement.Tests/Arpp/ArppProductionUxContractTests.cs
+@@ -0,0 +1,97 @@
++using Xunit;
 +
-+  function splitInlineNumberedList(value) {
-+    const source = String(value || '').trim();
-+    if (!source || /[\r\n]/.test(source)) return null;
++namespace ProjectManagement.Tests.Arpp;
 +
-+    const markers = [...source.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g)];
-+    if (markers.length < 2) return null;
++public sealed class ArppProductionUxContractTests
++{
++    [Fact]
++    public void ManageWorkspace_UsesProductionShellAndPersistentCommands()
++    {
++        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
 +
-+    const firstMarker = markers[0];
-+    const heading = source.slice(0, firstMarker.index).trim().replace(/[:\-–—]\s*$/, '');
-+    const items = markers.map((match, index) => {
-+      const start = match.index + match[0].length;
-+      const end = index + 1 < markers.length ? markers[index + 1].index : source.length;
-+      return source.slice(start, end).trim();
-+    }).filter(Boolean);
-+
-+    return items.length >= 2 ? { heading, items } : null;
-+  }
-+
-+  function renderChecklistText(value) {
-+    const source = String(value || '').replace(/\r\n?/g, '\n').trim();
-+    if (!source) return '';
-+
-+    const inlineList = splitInlineNumberedList(source);
-+    if (inlineList) {
-+      return `
-+        <div class="stage-checklist__content">
-+          ${inlineList.heading ? `<div class="stage-checklist__title">${renderChecklistInline(inlineList.heading)}</div>` : ''}
-+          <ol class="stage-checklist__sublist">
-+            ${inlineList.items.map(item => `<li>${renderChecklistInline(item)}</li>`).join('')}
-+          </ol>
-+        </div>`;
++        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", markup, StringComparison.Ordinal);
++        Assert.DoesNotContain("ViewData[\"UseFullWidth\"]", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-commandbar", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-fullscreen-toggle", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-jump-input", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-validation-navigator", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-table-scrollbar", markup, StringComparison.Ordinal);
++        Assert.Contains("arpp-col-issued", markup, StringComparison.Ordinal);
++        Assert.DoesNotContain("arpp-sticky-left--ppp", markup, StringComparison.Ordinal);
++        Assert.DoesNotContain("arpp-sticky-left--reference", markup, StringComparison.Ordinal);
 +    }
-+
-+    const lines = source.split('\n');
-+    const hasList = lines.some(line => /^\s*(?:\d{1,2}[.)]|[-*•])\s+/.test(line));
-+    const blocks = [];
-+    let listType = null;
-+    let listItems = [];
-+
-+    const closeList = () => {
-+      if (!listType || !listItems.length) return;
-+      const tag = listType === 'numbered' ? 'ol' : 'ul';
-+      blocks.push(`<${tag} class="stage-checklist__sublist stage-checklist__sublist--${listType}">${listItems.map(item => `<li>${renderChecklistInline(item)}</li>`).join('')}</${tag}>`);
-+      listType = null;
-+      listItems = [];
-+    };
-+
-+    lines.forEach((rawLine, index) => {
-+      const line = rawLine.trim();
-+      if (!line) {
-+        closeList();
-+        return;
-+      }
-+
-+      const numbered = line.match(/^\d{1,2}[.)]\s+(.+)$/);
-+      const bulleted = line.match(/^[-*•]\s+(.+)$/);
-+      if (numbered || bulleted) {
-+        const nextType = numbered ? 'numbered' : 'bulleted';
-+        if (listType && listType !== nextType) closeList();
-+        listType = nextType;
-+        listItems.push((numbered || bulleted)[1].trim());
-+        return;
-+      }
-+
-+      closeList();
-+      const isHeading = (index === 0 && hasList) || /:$/.test(line);
-+      blocks.push(isHeading
-+        ? `<div class="stage-checklist__title">${renderChecklistInline(line.replace(/:$/, ''))}</div>`
-+        : `<p>${renderChecklistInline(line)}</p>`);
-+    });
-+    closeList();
-+
-+    return `<div class="stage-checklist__content">${blocks.join('')}</div>`;
-+  }
-+
-   function renderChecklist(checklist) {
-     destroySortable();
-     const items = checklist?.items || [];
-@@ -1015,7 +1048,7 @@
-           data-item-row-version="${escapeHtml(item.rowVersion)}">
-         <span class="stage-checklist__drag" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
-         <span class="stage-checklist__number">${String(index + 1).padStart(2, '0')}</span>
--        <span class="stage-checklist__text">${escapeHtml(item.text)}</span>
-+        <span class="stage-checklist__text">${renderChecklistText(item.text)}</span>
-         <span class="stage-checklist__item-actions">
-           <button type="button" data-action="edit-item" aria-label="Edit checklist item"><i class="bi bi-pencil"></i></button>
-           <button type="button" data-action="delete-item" aria-label="Delete checklist item"><i class="bi bi-trash3"></i></button>
---- a/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
-+++ b/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
-@@ -78,6 +78,26 @@
-         Assert.Contains("height: var(--process-available-height", styles, StringComparison.Ordinal);
-     }
- 
 +
 +    [Fact]
-+    public void ProcessJourney_UsesAuthoritativeTerminalTopologyAndStructuredChecklistRendering()
++    public void ManageWorkspaceScript_ProvidesNavigationValidationAndFullscreenControls()
 +    {
-+        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
-+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
-+        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
 +
-+        Assert.DoesNotContain("Capability complete", script, StringComparison.OrdinalIgnoreCase);
-+        Assert.DoesNotContain("state.endpoint", script, StringComparison.Ordinal);
-+        Assert.Contains("if (detour.successor)", script, StringComparison.Ordinal);
-+        Assert.Contains("single optional continuation", script, StringComparison.Ordinal);
-+        Assert.Contains("function renderChecklistText", script, StringComparison.Ordinal);
-+        Assert.Contains("function splitInlineNumberedList", script, StringComparison.Ordinal);
-+        Assert.Contains("stage-checklist__sublist", script, StringComparison.Ordinal);
-+        Assert.Contains("Formatting is applied automatically", page, StringComparison.Ordinal);
-+        Assert.Contains("stage-checklist__content", styles, StringComparison.Ordinal);
-+        Assert.Contains("stage-checklist__title", styles, StringComparison.Ordinal);
++        Assert.Contains("syncTableScrollbars", script, StringComparison.Ordinal);
++        Assert.Contains("updateStickyMetrics", script, StringComparison.Ordinal);
++        Assert.Contains("updateValidationNavigator", script, StringComparison.Ordinal);
++        Assert.Contains("jumpToMatch", script, StringComparison.Ordinal);
++        Assert.Contains("arpp-workspace-fullscreen", script, StringComparison.Ordinal);
++        Assert.Contains("ResizeObserver", script, StringComparison.Ordinal);
++        Assert.Contains("event.key.toLocaleLowerCase", script, StringComparison.Ordinal);
++        Assert.Contains("form.requestSubmit", script, StringComparison.Ordinal);
 +    }
 +
-     [Fact]
-     public void ProcessFlow_TecAndBenchmarkingRunInParallelBeforeCommercialOpening()
-     {
++    [Fact]
++    public void ResponsiveShell_UsesTheSelectedVariantAsTheActualWidthLimit()
++    {
++        var css = ReadRepoFile("wwwroot", "css", "site.css");
++
++        Assert.Contains("--pm-page-shell-max: var(--pm-shell-standard)", css, StringComparison.Ordinal);
++        Assert.Contains("var(--pm-page-shell-max)", css, StringComparison.Ordinal);
++        Assert.Contains(".pm-page-shell--wide { --pm-page-shell-max: var(--pm-shell-wide); }", css, StringComparison.Ordinal);
++        Assert.DoesNotContain(".pm-page-shell--wide { max-width: var(--pm-shell-wide); }", css, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void WorkspaceCss_ReducesFrozenWidthAndSupportsFullscreenMode()
++    {
++        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
++
++        Assert.Contains(".arpp-entry-table {\n    min-width: 82rem;", css, StringComparison.Ordinal);
++        Assert.Contains(".arpp-sticky-left--issued", css, StringComparison.Ordinal);
++        Assert.Contains("body.arpp-workspace-fullscreen [data-arpp-workspace]", css, StringComparison.Ordinal);
++        Assert.Contains(".arpp-table-scrollbar", css, StringComparison.Ordinal);
++        Assert.Contains(".arpp-validation-navigator", css, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void UnlockDialog_UsesControlledInlineValidationWithoutBrowserBubble()
++    {
++        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Details.cshtml");
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-details.js");
++
++        Assert.Contains("data-arpp-unlock-counter", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-unlock-submit disabled", markup, StringComparison.Ordinal);
++        Assert.Contains("syncUnlockReason", script, StringComparison.Ordinal);
++        Assert.DoesNotContain("reportValidity", script, StringComparison.Ordinal);
++        Assert.DoesNotContain("setCustomValidity", script, StringComparison.Ordinal);
++    }
++
++    private static string ReadRepoFile(params string[] segments)
++    {
++        var root = ResolveRepoRoot();
++        var path = Path.Combine(new[] { root }.Concat(segments).ToArray());
++        return File.ReadAllText(path);
++    }
++
++    private static string ResolveRepoRoot()
++    {
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
++    }
++}
+diff --git a/wwwroot/css/project-office-reports/arpp-workspace.css b/wwwroot/css/project-office-reports/arpp-workspace.css
+new file mode 100644
+index 0000000..c1fe7bd
+--- /dev/null
++++ b/wwwroot/css/project-office-reports/arpp-workspace.css
+@@ -0,0 +1,431 @@
++/* ============================================================
++   Production UX phase: high-volume ARPP document workspace
++   ============================================================ */
++.arpp-page--workspace {
++    --arpp-sticky-offset: 0px;
++    --arpp-commandbar-height: 4.25rem;
++    --arpp-table-sticky-top: calc(var(--arpp-sticky-offset) + var(--arpp-commandbar-height) + .5rem);
++    width: 100%;
++    max-width: none;
++}
++
++.arpp-page--workspace .arpp-workspace-form {
++    padding-bottom: 1rem;
++}
++
++.arpp-workspace-commandbar {
++    position: sticky;
++    top: var(--arpp-sticky-offset);
++    z-index: 18;
++    display: grid;
++    grid-template-areas:
++        "identity jump actions"
++        "identity status actions";
++    grid-template-columns: minmax(13rem, 18rem) minmax(15rem, 1fr) auto;
++    align-items: center;
++    gap: .35rem .75rem;
++    min-height: var(--arpp-commandbar-height);
++    padding: .55rem .65rem;
++    margin-bottom: .75rem;
++    border: 1px solid color-mix(in srgb, var(--bs-primary) 18%, var(--arpp-border));
++    border-radius: .75rem;
++    background: color-mix(in srgb, var(--bs-body-bg) 96%, transparent);
++    box-shadow: 0 .35rem 1rem rgba(16, 24, 40, .08);
++    backdrop-filter: blur(12px);
++}
++
++.arpp-workspace-commandbar__identity {
++    grid-area: identity;
++    display: grid;
++    min-width: 0;
++    line-height: 1.2;
++}
++
++.arpp-workspace-commandbar__identity strong {
++    overflow: hidden;
++    font-size: .875rem;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.arpp-workspace-commandbar__identity > span:last-child {
++    margin-top: .18rem;
++    color: var(--arpp-muted);
++    font-size: .75rem;
++}
++
++.arpp-workspace-commandbar__eyebrow {
++    color: var(--arpp-navy);
++    font-size: .7rem;
++    font-weight: 700;
++    letter-spacing: .06em;
++    text-transform: uppercase;
++}
++
++.arpp-workspace-commandbar__actions {
++    grid-area: actions;
++    display: flex;
++    flex-wrap: wrap;
++    justify-content: flex-end;
++    gap: .35rem;
++}
++
++.arpp-workspace-commandbar__actions .btn {
++    min-height: 2rem;
++    white-space: nowrap;
++}
++
++.arpp-save-state {
++    grid-area: status;
++    min-height: 1rem;
++    font-size: .75rem;
++    line-height: 1.2;
++}
++
++.arpp-workspace-commandbar.is-dirty .arpp-save-state {
++    color: var(--bs-primary);
++    font-weight: 600;
++}
++
++.arpp-workspace-jump {
++    grid-area: jump;
++    position: relative;
++    display: grid;
++    grid-template-columns: minmax(0, 1fr) auto;
++    min-width: 0;
++}
++
++.arpp-workspace-jump > .bi {
++    position: absolute;
++    top: 50%;
++    left: .6rem;
++    z-index: 2;
++    transform: translateY(-50%);
++    color: var(--arpp-muted);
++    pointer-events: none;
++}
++
++.arpp-workspace-jump .form-control {
++    min-width: 0;
++    padding-left: 1.9rem;
++    border-radius: .45rem 0 0 .45rem;
++}
++
++.arpp-workspace-jump .btn {
++    border-left: 0;
++    border-radius: 0 .45rem .45rem 0;
++}
++
++.arpp-workspace-jump__status {
++    position: absolute;
++    right: 2.35rem;
++    bottom: -1.05rem;
++    color: var(--arpp-muted);
++    font-size: .7rem;
++    white-space: nowrap;
++}
++
++.arpp-validation-navigator {
++    display: grid;
++    grid-template-columns: minmax(15rem, 1fr) minmax(18rem, 2fr) auto;
++    align-items: center;
++    gap: .75rem;
++    margin-bottom: .75rem;
++    padding: .7rem .8rem;
++    border: 1px solid color-mix(in srgb, var(--bs-danger) 35%, var(--arpp-border));
++    border-radius: .7rem;
++    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 65%, var(--bs-body-bg));
++}
++
++.arpp-validation-navigator > div:first-child {
++    display: flex;
++    align-items: flex-start;
++    gap: .55rem;
++}
++
++.arpp-validation-navigator > div:first-child > .bi {
++    margin-top: .08rem;
++    color: var(--bs-danger);
++}
++
++.arpp-validation-navigator strong {
++    display: block;
++    font-size: .82rem;
++}
++
++.arpp-validation-navigator p {
++    margin: .08rem 0 0;
++    color: var(--bs-secondary-color);
++    font-size: .75rem;
++}
++
++.arpp-validation-navigator__items {
++    display: flex;
++    flex-wrap: wrap;
++    gap: .3rem;
++    min-width: 0;
++}
++
++.arpp-validation-navigator__items .btn {
++    max-width: 18rem;
++    overflow: hidden;
++    padding: .2rem .45rem;
++    font-size: .72rem;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.arpp-table-viewport {
++    position: relative;
++    min-width: 0;
++}
++
++.arpp-table-scrollbar {
++    position: sticky;
++    top: var(--arpp-table-sticky-top);
++    z-index: 13;
++    height: .9rem;
++    overflow-x: auto;
++    overflow-y: hidden;
++    margin: 0 .35rem .25rem;
++    border-radius: 999px;
++    background: color-mix(in srgb, var(--arpp-soft) 85%, var(--bs-body-bg));
++    scrollbar-color: color-mix(in srgb, var(--bs-secondary-color) 45%, transparent) transparent;
++    scrollbar-width: thin;
++}
++
++.arpp-table-scrollbar > div {
++    height: 1px;
++}
++
++.arpp-table-wrap {
++    border-top: 1px solid var(--arpp-border);
++}
++
++.arpp-table-viewport::before,
++.arpp-table-viewport::after {
++    position: absolute;
++    top: 1.15rem;
++    bottom: 0;
++    z-index: 12;
++    width: .8rem;
++    content: "";
++    opacity: 0;
++    pointer-events: none;
++    transition: opacity .15s ease;
++}
++
++.arpp-table-viewport::before {
++    left: 0;
++    background: linear-gradient(90deg, rgba(16, 24, 40, .16), transparent);
++}
++
++.arpp-table-viewport::after {
++    right: 0;
++    background: linear-gradient(270deg, rgba(16, 24, 40, .16), transparent);
++}
++
++.arpp-table-viewport.is-scrolled-start::before,
++.arpp-table-viewport.is-scrolled-end::after {
++    opacity: 1;
++}
++
++.arpp-entry-table {
++    min-width: 82rem;
++    font-size: .8125rem;
++}
++
++.arpp-entry-table thead th {
++    top: calc(var(--arpp-table-sticky-top) + 1.15rem);
++    z-index: 10;
++    padding: .58rem .5rem;
++    font-size: .75rem;
++}
++
++.arpp-entry-table td {
++    padding: .48rem .42rem;
++}
++
++.arpp-entry-table .form-control,
++.arpp-entry-table .form-select {
++    min-height: 2rem;
++    font-size: .8125rem;
++}
++
++.arpp-col-order { width: 2.5rem; min-width: 2.5rem; }
++.arpp-col-issued { width: 22rem; min-width: 22rem; }
++.arpp-col-project { width: 15rem; min-width: 15rem; }
++.arpp-col-category { width: 6.5rem; min-width: 6.5rem; }
++.arpp-col-cost { width: 9rem; min-width: 9rem; }
++.arpp-col-cfa { width: 9rem; min-width: 9rem; }
++.arpp-col-fund { width: 7rem; min-width: 7rem; }
++.arpp-col-dfpds { width: 7rem; min-width: 7rem; }
++.arpp-col-actions { width: 4.5rem; min-width: 4.5rem; }
++
++.arpp-sticky-left--issued {
++    left: 2.5rem;
++    box-shadow: .45rem 0 .55rem -.55rem rgba(0, 0, 0, .45);
++}
++
++.arpp-entry-table thead .arpp-sticky-left,
++.arpp-entry-table thead .arpp-sticky-right {
++    z-index: 15;
++}
++
++.arpp-issued-identity {
++    display: grid;
++    gap: .35rem;
++}
++
++.arpp-issued-identity__identifiers {
++    display: grid;
++    grid-template-columns: minmax(5.25rem, .62fr) minmax(9rem, 1.38fr);
++    gap: .35rem;
++}
++
++.arpp-issued-identity__identifiers > div {
++    min-width: 0;
++}
++
++.arpp-issued-identity__identifiers .form-control {
++    width: 100%;
++}
++
++.arpp-field-hint,
++.arpp-money-helper,
++.arpp-row-warning,
++.arpp-project-picker__meta,
++.arpp-reference-pending {
++    font-size: .72rem;
++    line-height: 1.3;
++}
++
++.arpp-row--jump-target > td {
++    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 68%, var(--bs-body-bg));
++}
++
++.arpp-entry-table tr.is-validation-target > td {
++    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bs-danger) 45%, transparent);
++}
++
++body.arpp-workspace-fullscreen {
++    overflow: hidden;
++}
++
++body.arpp-workspace-fullscreen .pm-topbar,
++body.arpp-workspace-fullscreen .pm-module-subnav-wrap,
++body.arpp-workspace-fullscreen .pm-footer {
++    visibility: hidden;
++}
++
++body.arpp-workspace-fullscreen [data-arpp-workspace] {
++    position: fixed;
++    inset: 0;
++    z-index: 1040;
++    width: 100%;
++    max-width: none;
++    height: 100dvh;
++    padding: .65rem !important;
++    overflow: auto;
++    background: var(--bs-body-bg);
++}
++
++body.arpp-workspace-fullscreen [data-arpp-workspace] > .arpp-header,
++body.arpp-workspace-fullscreen [data-arpp-form] > .arpp-panel--identity {
++    display: none;
++}
++
++body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
++    top: 0;
++}
++
++@media (max-width: 1399.98px) {
++    .arpp-workspace-commandbar {
++        grid-template-areas:
++            "identity jump"
++            "actions actions"
++            "status status";
++        grid-template-columns: minmax(13rem, .8fr) minmax(16rem, 1.2fr);
++    }
++
++    .arpp-workspace-commandbar__actions {
++        justify-content: flex-start;
++    }
++}
++
++@media (max-width: 1199.98px) {
++    .arpp-workspace-commandbar__actions .arpp-action-label {
++        display: none;
++    }
++
++    .arpp-workspace-commandbar__actions .btn {
++        min-width: 2.1rem;
++    }
++
++    .arpp-validation-navigator {
++        grid-template-columns: 1fr auto;
++    }
++
++    .arpp-validation-navigator__items {
++        grid-column: 1 / -1;
++        grid-row: 2;
++    }
++}
++
++@media (max-width: 767.98px) {
++    .arpp-page--workspace {
++        --arpp-commandbar-height: 10.5rem;
++    }
++
++    .arpp-workspace-commandbar {
++        position: relative;
++        top: auto;
++        grid-template-areas:
++            "identity"
++            "jump"
++            "actions"
++            "status";
++        grid-template-columns: 1fr;
++    }
++
++    .arpp-workspace-commandbar__actions {
++        overflow-x: auto;
++        flex-wrap: nowrap;
++        padding-bottom: .15rem;
++    }
++
++    .arpp-workspace-jump__status {
++        position: static;
++        grid-column: 1 / -1;
++        margin-top: .18rem;
++    }
++
++    .arpp-validation-navigator {
++        grid-template-columns: 1fr;
++    }
++
++    .arpp-validation-navigator__items {
++        grid-column: auto;
++        grid-row: auto;
++    }
++
++    .arpp-entry-table thead th {
++        top: 0;
++    }
++
++    .arpp-table-scrollbar {
++        position: relative;
++        top: auto;
++    }
++
++    .arpp-issued-identity__identifiers {
++        grid-template-columns: 1fr;
++    }
++}
++
++@media (prefers-reduced-motion: reduce) {
++    .arpp-table-viewport::before,
++    .arpp-table-viewport::after {
++        transition: none;
++    }
++}
+diff --git a/wwwroot/css/project-office-reports/arpp.css b/wwwroot/css/project-office-reports/arpp.css
+index bbbee2e..de605b9 100644
+--- a/wwwroot/css/project-office-reports/arpp.css
++++ b/wwwroot/css/project-office-reports/arpp.css
+@@ -1687,3 +1687,28 @@ details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
+     }
+ }
+ 
++.arpp-unlock-reason-meta {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: .75rem;
++    margin-top: .35rem;
++    color: var(--bs-secondary-color);
++    font-size: .75rem;
++    line-height: 1.35;
++}
++
++.arpp-unlock-reason-meta strong {
++    flex: 0 0 auto;
++    color: var(--bs-secondary-color);
++    font-size: .72rem;
++    font-variant-numeric: tabular-nums;
++    white-space: nowrap;
++}
++
++@media (max-width: 575.98px) {
++    .arpp-unlock-reason-meta {
++        flex-direction: column;
++        gap: .2rem;
++    }
++}
+diff --git a/wwwroot/css/site.css b/wwwroot/css/site.css
+index 5213f0f..444ad96 100644
+--- a/wwwroot/css/site.css
++++ b/wwwroot/css/site.css
+@@ -9168,20 +9168,22 @@ body {
+ }
+ 
+ .pm-page-shell {
+-    width: min(calc(100% - (2 * var(--pm-shell-gutter))), var(--pm-shell-standard));
++    --pm-page-shell-max: var(--pm-shell-standard);
++    width: min(calc(100% - (2 * var(--pm-shell-gutter))), var(--pm-page-shell-max));
++    max-width: none;
+     margin-inline: auto;
+     padding-inline: 0;
+ }
+ 
+-.pm-page-shell--focused { max-width: var(--pm-shell-focused); }
+-.pm-page-shell--standard { max-width: var(--pm-shell-standard); }
+-.pm-page-shell--wide { max-width: var(--pm-shell-wide); }
+-.pm-page-shell--calendar { max-width: var(--pm-shell-calendar); }
++.pm-page-shell--focused { --pm-page-shell-max: var(--pm-shell-focused); }
++.pm-page-shell--standard { --pm-page-shell-max: var(--pm-shell-standard); }
++.pm-page-shell--wide { --pm-page-shell-max: var(--pm-shell-wide); }
++.pm-page-shell--calendar { --pm-page-shell-max: var(--pm-shell-calendar); }
+ .pm-page-shell--workspace {
+     width: calc(100% - (2 * clamp(.75rem, 1.2vw, 1.5rem)));
+     max-width: none;
+ }
+-.pm-page-shell--analytics { max-width: var(--pm-shell-analytics); }
++.pm-page-shell--analytics { --pm-page-shell-max: var(--pm-shell-analytics); }
+ .pm-page-shell--landing { max-width: none; width: 100%; }
+ 
+ main[role="main"].analytics-main {
+diff --git a/wwwroot/js/pages/project-office-reports/arpp/arpp-details.js b/wwwroot/js/pages/project-office-reports/arpp/arpp-details.js
+index 24506a6..268599c 100644
+--- a/wwwroot/js/pages/project-office-reports/arpp/arpp-details.js
++++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-details.js
+@@ -67,66 +67,71 @@
+     const unlockForm = unlockModal?.querySelector("[data-arpp-unlock-form]");
+     const unlockReason = unlockForm?.querySelector("[data-arpp-unlock-reason]");
+     const unlockValidation = unlockForm?.querySelector("[data-arpp-unlock-validation]");
++    const unlockCounter = unlockForm?.querySelector("[data-arpp-unlock-counter]");
+     const unlockSubmit = unlockForm?.querySelector("[data-arpp-unlock-submit]");
+     const unlockSubmitLabel = unlockForm?.querySelector("[data-arpp-unlock-submit-label]");
+ 
+     const unlockValidationMessage = "Enter a clear reason of at least 10 characters.";
+ 
+-    const validateUnlockReason = () => {
++    const syncUnlockReason = (showError = false) => {
+         if (!(unlockReason instanceof HTMLTextAreaElement)) return true;
+ 
+-        const isValid = unlockReason.value.trim().length >= 10;
+-        unlockReason.setCustomValidity(isValid ? "" : unlockValidationMessage);
+-        unlockReason.classList.toggle("is-invalid", !isValid);
++        const length = unlockReason.value.trim().length;
++        const isValid = length >= 10;
++        const displayLength = Math.min(length, 500);
++        if (unlockCounter) {
++            unlockCounter.textContent = isValid
++                ? `${displayLength}/500 characters`
++                : `${displayLength}/10 minimum`;
++            unlockCounter.classList.toggle("text-success", isValid);
++        }
++        if (unlockSubmit instanceof HTMLButtonElement) {
++            unlockSubmit.disabled = !isValid;
++            unlockSubmit.setAttribute("aria-disabled", isValid ? "false" : "true");
++        }
+ 
++        const showInvalidState = showError && !isValid;
++        unlockReason.classList.toggle("is-invalid", showInvalidState);
++        unlockReason.setAttribute("aria-invalid", showInvalidState ? "true" : "false");
+         if (unlockValidation) {
+-            unlockValidation.textContent = isValid ? "" : unlockValidationMessage;
+-            unlockValidation.classList.toggle("field-validation-error", !isValid);
+-            unlockValidation.classList.toggle("field-validation-valid", isValid);
++            unlockValidation.textContent = showInvalidState ? unlockValidationMessage : "";
++            unlockValidation.classList.toggle("field-validation-error", showInvalidState);
++            unlockValidation.classList.toggle("field-validation-valid", !showInvalidState);
+         }
+ 
+         return isValid;
+     };
+ 
+     if (unlockReason) {
+-        unlockReason.addEventListener("input", () => {
+-            if (unlockReason.value.trim().length >= 10) {
+-                validateUnlockReason();
+-            } else {
+-                unlockReason.setCustomValidity("");
+-                unlockReason.classList.remove("is-invalid");
+-                if (unlockValidation) unlockValidation.textContent = "";
+-            }
+-        });
+-
+-        unlockReason.addEventListener("invalid", () => {
+-            validateUnlockReason();
++        unlockReason.addEventListener("input", () => syncUnlockReason(false));
++        unlockReason.addEventListener("blur", () => {
++            if (unlockReason.value.trim().length > 0) syncUnlockReason(true);
+         });
+     }
+ 
+     if (unlockForm) {
+         unlockForm.addEventListener("submit", event => {
+-            if (!validateUnlockReason()) {
++            if (!syncUnlockReason(true)) {
+                 event.preventDefault();
+                 unlockReason?.focus();
+-                unlockReason?.reportValidity();
+                 return;
+             }
+ 
+-            if (unlockSubmit instanceof HTMLButtonElement) {
+-                unlockSubmit.disabled = true;
+-            }
+-            if (unlockSubmitLabel) {
+-                unlockSubmitLabel.textContent = "Unlocking…";
+-            }
++            if (unlockSubmit instanceof HTMLButtonElement) unlockSubmit.disabled = true;
++            if (unlockSubmitLabel) unlockSubmitLabel.textContent = "Unlocking…";
+         });
+     }
+ 
++    unlockModal?.addEventListener("shown.bs.modal", () => {
++        unlockReason?.focus();
++        syncUnlockReason(false);
++    });
++
+     if (root.dataset.arppReopenUnlockModal === "true" && unlockModal && window.bootstrap?.Modal) {
+         const modal = window.bootstrap.Modal.getOrCreateInstance(unlockModal);
+         unlockModal.addEventListener("shown.bs.modal", () => {
+             unlockReason?.focus();
+-            validateUnlockReason();
++            syncUnlockReason(true);
+         }, { once: true });
+         modal.show();
+     }
+diff --git a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+index 624a437..e557ba0 100644
+--- a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
++++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+@@ -5,10 +5,20 @@
+     const form = root?.querySelector("[data-arpp-form]");
+     const body = root?.querySelector("[data-arpp-entry-body]");
+     const template = root?.querySelector("[data-arpp-row-template]");
++    const commandbar = root?.querySelector("[data-arpp-commandbar]");
++    const tableViewport = root?.querySelector("[data-arpp-table-viewport]");
++    const tableWrap = root?.querySelector("[data-arpp-table-wrap]");
++    const entryTable = root?.querySelector("[data-arpp-entry-table]");
++    const topScrollbar = root?.querySelector("[data-arpp-table-scrollbar]");
++    const topScrollbarSpacer = root?.querySelector("[data-arpp-table-scrollbar-spacer]");
+     if (!root || !form || !body || !template) return;
+ 
+     let dirty = false;
+     let pasteRows = [];
++    let jumpMatches = [];
++    let jumpMatchIndex = -1;
++    let fullscreenScrollY = 0;
++    let scrollSyncInProgress = false;
+ 
+     const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
+     const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
+@@ -31,24 +41,257 @@
+         });
+     };
+ 
++    const setSaveButtonsDisabled = disabled => {
++        root.querySelectorAll("[data-arpp-save-button]").forEach(button => {
++            if (button instanceof HTMLButtonElement) button.disabled = disabled;
++        });
++    };
++
+     const markDirty = () => {
+         dirty = true;
+         const state = root.querySelector("[data-arpp-save-state]");
+-        const actions = root.querySelector("[data-arpp-sticky-actions]");
+-        const saveButton = root.querySelector("[data-arpp-save-button]");
+         if (state) state.textContent = "Unsaved changes";
+-        if (saveButton) saveButton.disabled = false;
+-        actions?.classList.add("arpp-editor__actions--dirty");
++        setSaveButtonsDisabled(false);
++        commandbar?.classList.add("is-dirty");
+     };
+ 
+     const markClean = () => {
+         dirty = false;
+         const state = root.querySelector("[data-arpp-save-state]");
+-        const actions = root.querySelector("[data-arpp-sticky-actions]");
+-        const saveButton = root.querySelector("[data-arpp-save-button]");
+-        if (state) state.textContent = "All changes saved.";
+-        if (saveButton) saveButton.disabled = true;
+-        actions?.classList.remove("arpp-editor__actions--dirty");
++        if (state) state.textContent = "No unsaved changes";
++        setSaveButtonsDisabled(true);
++        commandbar?.classList.remove("is-dirty");
++    };
++
++    const updateStickyMetrics = () => {
++        const fullscreen = document.body.classList.contains("arpp-workspace-fullscreen");
++        let offset = 0;
++        if (!fullscreen) {
++            [document.querySelector(".pm-topbar"), document.querySelector(".pm-module-subnav-wrap")]
++                .filter(element => element instanceof HTMLElement)
++                .forEach(element => {
++                    const rect = element.getBoundingClientRect();
++                    if (rect.bottom > 0) offset = Math.max(offset, rect.bottom);
++                });
++        }
++
++        const commandbarHeight = commandbar instanceof HTMLElement
++            ? Math.ceil(commandbar.getBoundingClientRect().height)
++            : 0;
++        root.style.setProperty("--arpp-sticky-offset", `${Math.max(0, Math.ceil(offset))}px`);
++        root.style.setProperty("--arpp-commandbar-height", `${commandbarHeight}px`);
++        root.style.setProperty("--arpp-table-sticky-top", `${Math.max(0, Math.ceil(offset + commandbarHeight + 8))}px`);
++    };
++
++    const updateScrollEdgeState = () => {
++        if (!(tableWrap instanceof HTMLElement) || !(tableViewport instanceof HTMLElement)) return;
++        const maxScroll = Math.max(0, tableWrap.scrollWidth - tableWrap.clientWidth);
++        tableViewport.classList.toggle("is-scrolled-start", tableWrap.scrollLeft > 2);
++        tableViewport.classList.toggle("is-scrolled-end", tableWrap.scrollLeft < maxScroll - 2);
++    };
++
++    function syncTableScrollbars() {
++        if (!(tableWrap instanceof HTMLElement) || !(entryTable instanceof HTMLElement) ||
++            !(topScrollbar instanceof HTMLElement) || !(topScrollbarSpacer instanceof HTMLElement)) return;
++
++        const scrollWidth = Math.max(entryTable.scrollWidth, tableWrap.scrollWidth);
++        topScrollbarSpacer.style.width = `${scrollWidth}px`;
++        const hasOverflow = scrollWidth > tableWrap.clientWidth + 2;
++        topScrollbar.classList.toggle("d-none", !hasOverflow);
++        if (hasOverflow && Math.abs(topScrollbar.scrollLeft - tableWrap.scrollLeft) > 1) {
++            topScrollbar.scrollLeft = tableWrap.scrollLeft;
++        }
++        updateScrollEdgeState();
++    }
++
++    const scrollRowIntoWorkspace = (row, target = null) => {
++        if (!(row instanceof HTMLElement)) return;
++        rows().forEach(candidate => candidate.classList.remove("arpp-row--jump-target", "is-validation-target"));
++        row.classList.add(target ? "is-validation-target" : "arpp-row--jump-target");
++        row.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
++        if (target instanceof HTMLElement) {
++            window.setTimeout(() => {
++                target.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
++                target.focus({ preventScroll: true });
++            }, 180);
++        }
++    };
++
++    const normaliseJumpText = value => String(value || "").trim().toLocaleLowerCase("en-IN");
++
++    const findJumpMatches = query => {
++        const normalized = normaliseJumpText(query);
++        if (!normalized) return [];
++        return rows().filter(row => {
++            const values = ["SerialNumber", "PppNumber", "ProjectReference", "LinkedProjectName", "LinkedProjectMeta"]
++                .map(suffix => getField(row, suffix)?.value || "");
++            return values.some(value => normaliseJumpText(value).includes(normalized));
++        });
++    };
++
++    const jumpToMatch = (advance = false) => {
++        const input = root.querySelector("[data-arpp-jump-input]");
++        const status = root.querySelector("[data-arpp-jump-status]");
++        if (!(input instanceof HTMLInputElement)) return;
++        const query = input.value.trim();
++        const refreshed = findJumpMatches(query);
++        const changed = refreshed.length !== jumpMatches.length || refreshed.some((row, index) => row !== jumpMatches[index]);
++        if (changed) {
++            jumpMatches = refreshed;
++            jumpMatchIndex = -1;
++        }
++
++        if (!jumpMatches.length) {
++            rows().forEach(row => row.classList.remove("arpp-row--jump-target"));
++            if (status) status.textContent = query ? "No matching row" : "";
++            return;
++        }
++
++        jumpMatchIndex = advance || jumpMatchIndex < 0
++            ? (jumpMatchIndex + 1) % jumpMatches.length
++            : jumpMatchIndex;
++        const row = jumpMatches[jumpMatchIndex];
++        scrollRowIntoWorkspace(row);
++        if (status) status.textContent = `${jumpMatchIndex + 1} of ${jumpMatches.length}`;
++    };
++
++    const fieldDisplayName = control => {
++        const name = control?.getAttribute("name") || "";
++        const suffix = name.split(".").at(-1) || "field";
++        return ({
++            SerialNumber: "Serial No.",
++            PppNumber: "PPP No.",
++            ProjectReference: "Project reference",
++            ProjectId: "PRISM project",
++            Category: "Category",
++            IpaCost: "IPA cost",
++            CfaOptionId: "CFA",
++            Cfa: "CFA",
++            FundOptionId: "Fund",
++            Fund: "Fund",
++            DfpdsScheduleId: "DFPDS",
++            DfpdsSchedule: "DFPDS",
++            FinancialYearStart: "Financial year",
++            Kind: "Issue type",
++            IssueSequence: "Addendum number",
++            IssueDate: "Issue date",
++            Name: "Document name"
++        })[suffix] || suffix.replace(/([a-z])([A-Z])/g, "$1 $2");
++    };
++
++    const validationMessageFor = control => {
++        if (!(control instanceof HTMLElement)) return "Review this field.";
++        const name = control.getAttribute("name");
++        if (name) {
++            const message = Array.from(form.querySelectorAll("[data-valmsg-for]"))
++                .find(element => element.getAttribute("data-valmsg-for") === name);
++            if (message?.textContent?.trim()) return message.textContent.trim();
++        }
++        return control.validationMessage || "Review this field.";
++    };
++
++    const collectValidationIssues = () => {
++        const controls = new Set();
++        form.querySelectorAll(":invalid, .input-validation-error, .is-invalid").forEach(control => {
++            if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement) {
++                controls.add(control);
++            }
++        });
++        form.querySelectorAll(".field-validation-error[data-valmsg-for]").forEach(message => {
++            const name = message.getAttribute("data-valmsg-for");
++            if (!name) return;
++            const control = Array.from(form.elements).find(element => element.getAttribute?.("name") === name);
++            if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement) {
++                controls.add(control);
++            }
++        });
++
++        return Array.from(controls).map(control => {
++            const row = control.closest("[data-arpp-entry-row]");
++            const rowNumber = row?.querySelector("[data-arpp-row-number]")?.textContent?.trim();
++            const field = fieldDisplayName(control);
++            return {
++                control,
++                row,
++                label: rowNumber ? `Row ${rowNumber} · ${field}` : field,
++                message: validationMessageFor(control)
++            };
++        });
++    };
++
++    const updateValidationNavigator = (focusFirst = false) => {
++        const navigator = root.querySelector("[data-arpp-validation-navigator]");
++        const heading = root.querySelector("[data-arpp-validation-heading]");
++        const copy = root.querySelector("[data-arpp-validation-copy]");
++        const items = root.querySelector("[data-arpp-validation-items]");
++        const firstButton = root.querySelector("[data-arpp-validation-first]");
++        if (!(navigator instanceof HTMLElement) || !(items instanceof HTMLElement)) return [];
++
++        const issues = collectValidationIssues();
++        navigator.classList.toggle("d-none", issues.length === 0);
++        items.replaceChildren();
++        rows().forEach(row => row.classList.remove("is-validation-target"));
++
++        if (!issues.length) return issues;
++        const affectedRows = new Set(issues.map(issue => issue.row).filter(Boolean)).size;
++        if (heading) heading.textContent = `${issues.length} ${issues.length === 1 ? "field requires" : "fields require"} attention`;
++        if (copy) copy.textContent = affectedRows ? `Found in ${affectedRows} ${affectedRows === 1 ? "row" : "rows"}.` : "Review the document identity fields.";
++
++        issues.slice(0, 8).forEach(issue => {
++            const button = document.createElement("button");
++            button.type = "button";
++            button.className = "btn btn-sm btn-outline-danger";
++            button.textContent = issue.label;
++            button.title = issue.message;
++            button.addEventListener("click", () => {
++                if (issue.row) scrollRowIntoWorkspace(issue.row, issue.control);
++                else {
++                    root.querySelector(".arpp-panel--identity")?.scrollIntoView({ behavior: "smooth", block: "center" });
++                    window.setTimeout(() => issue.control.focus({ preventScroll: true }), 180);
++                }
++            });
++            items.appendChild(button);
++        });
++        if (issues.length > 8) {
++            const remaining = document.createElement("span");
++            remaining.className = "small text-body-secondary align-self-center";
++            remaining.textContent = `+${issues.length - 8} more`;
++            items.appendChild(remaining);
++        }
++
++        if (firstButton instanceof HTMLButtonElement) {
++            firstButton.onclick = () => {
++                const first = issues[0];
++                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
++                else first.control.focus();
++            };
++        }
++        if (focusFirst) firstButton?.focus({ preventScroll: true });
++        return issues;
++    };
++
++    const setFullscreen = enabled => {
++        if (document.body.classList.contains("arpp-workspace-fullscreen") === enabled) return;
++        const activeRow = document.activeElement?.closest?.("[data-arpp-entry-row]");
++        if (enabled) fullscreenScrollY = window.scrollY;
++        document.body.classList.toggle("arpp-workspace-fullscreen", enabled);
++        root.querySelectorAll("[data-arpp-fullscreen-toggle]").forEach(button => {
++            button.setAttribute("aria-pressed", enabled ? "true" : "false");
++            button.title = enabled ? "Exit full-screen workspace" : "Open full-screen workspace";
++        });
++        root.querySelectorAll("[data-arpp-fullscreen-icon]").forEach(icon => {
++            icon.classList.toggle("bi-arrows-fullscreen", !enabled);
++            icon.classList.toggle("bi-fullscreen-exit", enabled);
++        });
++        root.querySelectorAll("[data-arpp-fullscreen-label]").forEach(label => {
++            label.textContent = enabled ? "Exit full screen" : "Full screen";
++        });
++        window.requestAnimationFrame(() => {
++            updateStickyMetrics();
++            syncTableScrollbars();
++            if (enabled && activeRow instanceof HTMLElement) activeRow.scrollIntoView({ block: "center" });
++            if (!enabled) window.scrollTo({ top: fullscreenScrollY, behavior: "auto" });
++        });
+     };
+ 
+     const updateIssueSequence = () => {
+@@ -87,11 +330,14 @@
+     const updateEmptyState = () => {
+         const count = rows().length;
+         root.querySelector("[data-arpp-empty-rows]")?.classList.toggle("d-none", count > 0);
+-        root.querySelector("[data-arpp-table-wrap]")?.classList.toggle("d-none", count === 0);
+-        const countElement = root.querySelector("[data-arpp-row-count]");
+-        const labelElement = root.querySelector("[data-arpp-row-count-label]");
+-        if (countElement) countElement.textContent = String(count);
+-        if (labelElement) labelElement.textContent = count === 1 ? "row" : "rows";
++        tableViewport?.classList.toggle("d-none", count === 0);
++        root.querySelectorAll("[data-arpp-row-count]").forEach(element => {
++            element.textContent = String(count);
++        });
++        root.querySelectorAll("[data-arpp-row-count-label]").forEach(element => {
++            element.textContent = count === 1 ? "row" : "rows";
++        });
++        window.requestAnimationFrame(syncTableScrollbars);
+     };
+ 
+     const refreshRowWarnings = () => {
+@@ -640,22 +886,43 @@
+         markDirty();
+     });
+ 
+-    form.addEventListener("input", () => {
++    form.addEventListener("input", event => {
++        if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
+         refreshRowWarnings();
+         markDirty();
++        if (!root.querySelector("[data-arpp-validation-navigator]")?.classList.contains("d-none")) {
++            window.setTimeout(() => updateValidationNavigator(false), 0);
++        }
+     });
+-    form.addEventListener("change", () => {
++    form.addEventListener("change", event => {
++        if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
+         refreshRowWarnings();
+         markDirty();
++        window.setTimeout(() => updateValidationNavigator(false), 0);
+     });
+-    form.addEventListener("submit", () => {
++    form.addEventListener("invalid", () => {
++        window.setTimeout(() => updateValidationNavigator(false), 0);
++    }, true);
++    form.addEventListener("submit", event => {
+         root.querySelectorAll("[data-arpp-money]").forEach(normaliseMoneyInput);
+-        dirty = false;
+-        const button = root.querySelector("[data-arpp-save-button]");
+-        if (button) {
+-            button.disabled = true;
+-            button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Saving…';
++        const jqueryValid = window.jQuery?.fn?.valid ? window.jQuery(form).valid() : true;
++        const nativeValid = form.checkValidity();
++        if (!jqueryValid || !nativeValid) {
++            event.preventDefault();
++            updateValidationNavigator(true);
++            return;
+         }
++
++        dirty = false;
++        const state = root.querySelector("[data-arpp-save-state]");
++        if (state) state.textContent = "Saving…";
++        setSaveButtonsDisabled(true);
++        root.querySelectorAll("[data-arpp-save-button-label]").forEach(label => {
++            label.textContent = "Saving…";
++        });
++        root.querySelectorAll("[data-arpp-save-button] .bi").forEach(icon => {
++            icon.className = "spinner-border spinner-border-sm";
++        });
+     });
+ 
+     window.addEventListener("beforeunload", event => {
+@@ -664,6 +931,74 @@
+         event.returnValue = "";
+     });
+ 
++    tableWrap?.addEventListener("scroll", () => {
++        if (scrollSyncInProgress || !(topScrollbar instanceof HTMLElement)) return;
++        scrollSyncInProgress = true;
++        topScrollbar.scrollLeft = tableWrap.scrollLeft;
++        updateScrollEdgeState();
++        window.requestAnimationFrame(() => { scrollSyncInProgress = false; });
++    }, { passive: true });
++
++    topScrollbar?.addEventListener("scroll", () => {
++        if (scrollSyncInProgress || !(tableWrap instanceof HTMLElement)) return;
++        scrollSyncInProgress = true;
++        tableWrap.scrollLeft = topScrollbar.scrollLeft;
++        updateScrollEdgeState();
++        window.requestAnimationFrame(() => { scrollSyncInProgress = false; });
++    }, { passive: true });
++
++    root.querySelector("[data-arpp-jump-input]")?.addEventListener("input", event => {
++        jumpMatches = [];
++        jumpMatchIndex = -1;
++        if (event.target instanceof HTMLInputElement && !event.target.value.trim()) {
++            rows().forEach(row => row.classList.remove("arpp-row--jump-target"));
++            const status = root.querySelector("[data-arpp-jump-status]");
++            if (status) status.textContent = "";
++        }
++    });
++    root.querySelector("[data-arpp-jump-input]")?.addEventListener("keydown", event => {
++        if (event.key !== "Enter") return;
++        event.preventDefault();
++        jumpToMatch(true);
++    });
++    root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
++    root.querySelector("[data-arpp-fullscreen-toggle]")?.addEventListener("click", () => {
++        setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
++    });
++
++    document.addEventListener("keydown", event => {
++        const modifier = event.ctrlKey || event.metaKey;
++        if (modifier && event.key.toLocaleLowerCase("en-IN") === "s") {
++            event.preventDefault();
++            if (dirty) form.requestSubmit(root.querySelector("[data-arpp-save-button]") || undefined);
++            return;
++        }
++        if (event.altKey && event.key.toLocaleLowerCase("en-IN") === "a") {
++            event.preventDefault();
++            addManualRow();
++            return;
++        }
++        if (event.key === "Escape" && document.body.classList.contains("arpp-workspace-fullscreen") && !document.querySelector(".modal.show")) {
++            setFullscreen(false);
++        }
++    });
++
++    window.addEventListener("resize", () => {
++        updateStickyMetrics();
++        syncTableScrollbars();
++    }, { passive: true });
++    window.addEventListener("scroll", updateStickyMetrics, { passive: true });
++
++    if (window.ResizeObserver) {
++        const resizeObserver = new ResizeObserver(() => {
++            updateStickyMetrics();
++            syncTableScrollbars();
++        });
++        if (entryTable) resizeObserver.observe(entryTable);
++        if (commandbar) resizeObserver.observe(commandbar);
++        if (tableWrap) resizeObserver.observe(tableWrap);
++    }
++
+     const entryGuidance = root.querySelector("[data-arpp-entry-guidance]");
+     if (entryGuidance) {
+         const storageKey = "prism.arpp.entryGuidance.open";
+@@ -686,5 +1021,10 @@
+ 
+     updateIssueSequence();
+     reindexRows();
+-    markClean();
++    updateStickyMetrics();
++    syncTableScrollbars();
++    const initialIssues = updateValidationNavigator(false);
++    const hasServerValidationErrors = Boolean(form.querySelector(".validation-summary-errors, .field-validation-error"));
++    if (initialIssues.length || hasServerValidationErrors) markDirty();
++    else markClean();
+ })();

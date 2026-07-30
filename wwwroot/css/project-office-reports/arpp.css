@@ -1687,3 +1687,28 @@ details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
     }
 }
 
+.arpp-unlock-reason-meta {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-top: .35rem;
+    color: var(--bs-secondary-color);
+    font-size: .75rem;
+    line-height: 1.35;
+}
+
+.arpp-unlock-reason-meta strong {
+    flex: 0 0 auto;
+    color: var(--bs-secondary-color);
+    font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+    .arpp-unlock-reason-meta {
+        flex-direction: column;
+        gap: .2rem;
+    }
+}

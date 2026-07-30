@@ -9168,20 +9168,22 @@ body {
 }
 
 .pm-page-shell {
-    width: min(calc(100% - (2 * var(--pm-shell-gutter))), var(--pm-shell-standard));
+    --pm-page-shell-max: var(--pm-shell-standard);
+    width: min(calc(100% - (2 * var(--pm-shell-gutter))), var(--pm-page-shell-max));
+    max-width: none;
     margin-inline: auto;
     padding-inline: 0;
 }
 
-.pm-page-shell--focused { max-width: var(--pm-shell-focused); }
-.pm-page-shell--standard { max-width: var(--pm-shell-standard); }
-.pm-page-shell--wide { max-width: var(--pm-shell-wide); }
-.pm-page-shell--calendar { max-width: var(--pm-shell-calendar); }
+.pm-page-shell--focused { --pm-page-shell-max: var(--pm-shell-focused); }
+.pm-page-shell--standard { --pm-page-shell-max: var(--pm-shell-standard); }
+.pm-page-shell--wide { --pm-page-shell-max: var(--pm-shell-wide); }
+.pm-page-shell--calendar { --pm-page-shell-max: var(--pm-shell-calendar); }
 .pm-page-shell--workspace {
     width: calc(100% - (2 * clamp(.75rem, 1.2vw, 1.5rem)));
     max-width: none;
 }
-.pm-page-shell--analytics { max-width: var(--pm-shell-analytics); }
+.pm-page-shell--analytics { --pm-page-shell-max: var(--pm-shell-analytics); }
 .pm-page-shell--landing { max-width: none; width: 100%; }
 
 main[role="main"].analytics-main {

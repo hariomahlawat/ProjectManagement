@@ -67,66 +67,71 @@
     const unlockForm = unlockModal?.querySelector("[data-arpp-unlock-form]");
     const unlockReason = unlockForm?.querySelector("[data-arpp-unlock-reason]");
     const unlockValidation = unlockForm?.querySelector("[data-arpp-unlock-validation]");
+    const unlockCounter = unlockForm?.querySelector("[data-arpp-unlock-counter]");
     const unlockSubmit = unlockForm?.querySelector("[data-arpp-unlock-submit]");
     const unlockSubmitLabel = unlockForm?.querySelector("[data-arpp-unlock-submit-label]");
 
     const unlockValidationMessage = "Enter a clear reason of at least 10 characters.";
 
-    const validateUnlockReason = () => {
+    const syncUnlockReason = (showError = false) => {
         if (!(unlockReason instanceof HTMLTextAreaElement)) return true;
 
-        const isValid = unlockReason.value.trim().length >= 10;
-        unlockReason.setCustomValidity(isValid ? "" : unlockValidationMessage);
-        unlockReason.classList.toggle("is-invalid", !isValid);
+        const length = unlockReason.value.trim().length;
+        const isValid = length >= 10;
+        const displayLength = Math.min(length, 500);
+        if (unlockCounter) {
+            unlockCounter.textContent = isValid
+                ? `${displayLength}/500 characters`
+                : `${displayLength}/10 minimum`;
+            unlockCounter.classList.toggle("text-success", isValid);
+        }
+        if (unlockSubmit instanceof HTMLButtonElement) {
+            unlockSubmit.disabled = !isValid;
+            unlockSubmit.setAttribute("aria-disabled", isValid ? "false" : "true");
+        }
 
+        const showInvalidState = showError && !isValid;
+        unlockReason.classList.toggle("is-invalid", showInvalidState);
+        unlockReason.setAttribute("aria-invalid", showInvalidState ? "true" : "false");
         if (unlockValidation) {
-            unlockValidation.textContent = isValid ? "" : unlockValidationMessage;
-            unlockValidation.classList.toggle("field-validation-error", !isValid);
-            unlockValidation.classList.toggle("field-validation-valid", isValid);
+            unlockValidation.textContent = showInvalidState ? unlockValidationMessage : "";
+            unlockValidation.classList.toggle("field-validation-error", showInvalidState);
+            unlockValidation.classList.toggle("field-validation-valid", !showInvalidState);
         }
 
         return isValid;
     };
 
     if (unlockReason) {
-        unlockReason.addEventListener("input", () => {
-            if (unlockReason.value.trim().length >= 10) {
-                validateUnlockReason();
-            } else {
-                unlockReason.setCustomValidity("");
-                unlockReason.classList.remove("is-invalid");
-                if (unlockValidation) unlockValidation.textContent = "";
-            }
-        });
-
-        unlockReason.addEventListener("invalid", () => {
-            validateUnlockReason();
+        unlockReason.addEventListener("input", () => syncUnlockReason(false));
+        unlockReason.addEventListener("blur", () => {
+            if (unlockReason.value.trim().length > 0) syncUnlockReason(true);
         });
     }
 
     if (unlockForm) {
         unlockForm.addEventListener("submit", event => {
-            if (!validateUnlockReason()) {
+            if (!syncUnlockReason(true)) {
                 event.preventDefault();
                 unlockReason?.focus();
-                unlockReason?.reportValidity();
                 return;
             }
 
-            if (unlockSubmit instanceof HTMLButtonElement) {
-                unlockSubmit.disabled = true;
-            }
-            if (unlockSubmitLabel) {
-                unlockSubmitLabel.textContent = "Unlocking…";
-            }
+            if (unlockSubmit instanceof HTMLButtonElement) unlockSubmit.disabled = true;
+            if (unlockSubmitLabel) unlockSubmitLabel.textContent = "Unlocking…";
         });
     }
+
+    unlockModal?.addEventListener("shown.bs.modal", () => {
+        unlockReason?.focus();
+        syncUnlockReason(false);
+    });
 
     if (root.dataset.arppReopenUnlockModal === "true" && unlockModal && window.bootstrap?.Modal) {
         const modal = window.bootstrap.Modal.getOrCreateInstance(unlockModal);
         unlockModal.addEventListener("shown.bs.modal", () => {
             unlockReason?.focus();
-            validateUnlockReason();
+            syncUnlockReason(true);
         }, { once: true });
         modal.show();
     }
