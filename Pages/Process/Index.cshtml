@@ -2,6 +2,8 @@
 @model ProjectManagement.Pages.Process.IndexModel
 @{
     ViewData["Title"] = "Procurement Process";
+    ViewData["PageShell"] = "workspace";
+    ViewData["UseFullWidth"] = true;
     var updatedText = Model.ProcessUpdatedOn.HasValue
         ? Model.ProcessUpdatedOn.Value.ToLocalTime().ToString("dd MMM yyyy")
         : "Not available";
@@ -13,39 +15,21 @@
          data-can-edit-checklist="@(Model.CanEditChecklist ? "true" : "false")"
          data-can-edit-purpose="@(Model.CanEditPurpose ? "true" : "false")">
 
-    <header class="process-hero" data-process-hero>
-        <div class="process-hero__glow process-hero__glow--one" aria-hidden="true"></div>
-        <div class="process-hero__glow process-hero__glow--two" aria-hidden="true"></div>
-        <div class="process-hero__grid" aria-hidden="true"></div>
-
-        <div class="process-hero__content">
-            <div class="process-eyebrow">PROCUREMENT GOVERNANCE</div>
-            <h1>From concept to capability.</h1>
-            <p>
-                Travel through the complete procurement process, understand every gate and open the
-                authorised checklist at the point where it matters.
-            </p>
-
-            <div class="process-hero__actions">
-                <button type="button" class="btn process-primary-action" data-action="begin-journey">
-                    <span>Begin journey</span>
-                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                </button>
-                <button type="button" class="btn process-secondary-action" data-action="show-map">
-                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
-                    <span>View complete process</span>
-                </button>
+    <section class="process-workspace" data-process-workspace>
+        <header class="process-commandbar" aria-label="Process controls">
+            <div class="process-workspace__identity">
+                <span>PROCUREMENT GOVERNANCE</span>
+                <div>
+                    <h1>Procurement process</h1>
+                    <small>
+                        <strong data-stage-count>15</strong> stages
+                        <span aria-hidden="true">·</span>
+                        @Model.ProcessVersion
+                        <span aria-hidden="true">·</span>
+                        Guidance updated @updatedText
+                    </small>
+                </div>
             </div>
-        </div>
-
-        <div class="process-hero__meta" aria-label="Process summary">
-            <div><strong data-stage-count>15</strong><span>Stages</span></div>
-            <div><strong>@Model.ProcessVersion</strong><span>Workflow version</span></div>
-            <div><strong>@updatedText</strong><span>Guidance updated</span></div>
-        </div>
-    </header>
-
-    <section class="process-commandbar" aria-label="Process controls">
         <div class="process-mode-switch" role="group" aria-label="Process view">
             <button type="button" class="process-mode-button is-active" data-mode-button="journey" aria-pressed="true">
                 <i class="bi bi-signpost-split" aria-hidden="true"></i>
@@ -83,9 +67,9 @@
                 <i class="bi bi-printer" aria-hidden="true"></i>
             </button>
         </div>
-    </section>
+        </header>
 
-    <section class="process-experience" data-process-experience data-mode="journey">
+        <section class="process-experience" data-process-experience data-mode="journey">
         <div class="process-scene" data-process-scene tabindex="0" aria-label="Interactive procurement journey">
             <div class="process-scene__atmosphere" aria-hidden="true"></div>
             <div class="process-scene__horizon" aria-hidden="true"></div>
@@ -194,6 +178,46 @@
                 <ol class="stage-checklist" data-checklist-list aria-live="polite" aria-busy="false"></ol>
             </section>
         </aside>
+        </section>
+
+        <dialog class="process-introduction" data-process-introduction aria-labelledby="processIntroductionTitle">
+            <div class="process-introduction__grid" aria-hidden="true"></div>
+            <div class="process-introduction__glow process-introduction__glow--blue" aria-hidden="true"></div>
+            <div class="process-introduction__glow process-introduction__glow--maroon" aria-hidden="true"></div>
+
+            <button type="button"
+                    class="process-introduction__close"
+                    data-action="close-introduction"
+                    aria-label="Close introduction">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+
+            <div class="process-introduction__content">
+                <div class="process-eyebrow">PROCUREMENT GOVERNANCE</div>
+                <h2 id="processIntroductionTitle">From concept to capability.</h2>
+                <p>
+                    Travel through the complete procurement process, understand every gate and open the
+                    authorised checklist at the point where it matters.
+                </p>
+
+                <div class="process-introduction__meta" aria-label="Process summary">
+                    <div><strong data-stage-count>15</strong><span>Stages</span></div>
+                    <div><strong>@Model.ProcessVersion</strong><span>Workflow version</span></div>
+                    <div><strong>@updatedText</strong><span>Guidance updated</span></div>
+                </div>
+
+                <div class="process-introduction__actions">
+                    <button type="button" class="btn process-primary-action" data-action="begin-journey">
+                        <span>Begin journey</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="btn process-secondary-action" data-action="show-map">
+                        <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                        <span>View complete process</span>
+                    </button>
+                </div>
+            </div>
+        </dialog>
     </section>
 </section>
 

@@ -15,7 +15,9 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("data-process-world", page, StringComparison.Ordinal);
         Assert.Contains("data-mode-button=\"journey\"", page, StringComparison.Ordinal);
         Assert.Contains("data-mode-button=\"map\"", page, StringComparison.Ordinal);
-        Assert.Contains("From concept to capability.", page, StringComparison.Ordinal);
+        Assert.Contains("data-process-workspace", page, StringComparison.Ordinal);
+        Assert.Contains("Procurement process", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-process-hero", page, StringComparison.Ordinal);
         Assert.DoesNotContain("six governance phases", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("process-phase-strip", page, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("const PHASES", script, StringComparison.Ordinal);
@@ -40,7 +42,24 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("process-endpoint", styles, StringComparison.Ordinal);
         Assert.Contains("conditional-entry", script, StringComparison.Ordinal);
         Assert.Contains("terminal-main", script, StringComparison.Ordinal);
-        Assert.Contains("prism.process.hero.seen.v2", script, StringComparison.Ordinal);
+        Assert.Contains("data-process-introduction", page, StringComparison.Ordinal);
+        Assert.Contains("showModal", script, StringComparison.Ordinal);
+        Assert.Contains("expandJourneyContextForWideViewport", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProcessPage_UsesFullWidthUnifiedEdgeToEdgeWorkspace()
+    {
+        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
+        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
+
+        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", page, StringComparison.Ordinal);
+        Assert.Contains("ViewData[\"UseFullWidth\"] = true", page, StringComparison.Ordinal);
+        Assert.Contains("process-workspace__identity", page, StringComparison.Ordinal);
+        Assert.Contains("--process-guide-width: clamp(360px, 20vw, 480px)", styles, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) var(--process-guide-width)", styles, StringComparison.Ordinal);
+        Assert.Contains("gap: 0", styles, StringComparison.Ordinal);
+        Assert.Contains("border-left: 1px solid rgba(145, 178, 218, .16)", styles, StringComparison.Ordinal);
     }
 
     [Fact]

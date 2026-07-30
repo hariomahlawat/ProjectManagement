@@ -41,8 +41,9 @@ if (root) {
     authenticationRecoveryStarted: false
   };
 
-  const hero = root.querySelector('[data-process-hero]');
+  const workspace = root.querySelector('[data-process-workspace]');
   const experience = root.querySelector('[data-process-experience]');
+  const introduction = root.querySelector('[data-process-introduction]');
   const scene = root.querySelector('[data-process-scene]');
   const worldViewport = root.querySelector('[data-world-viewport]');
   const world = root.querySelector('[data-process-world]');
@@ -81,32 +82,19 @@ if (root) {
   const itemText = itemForm?.querySelector('textarea[name="text"]');
   const itemCharacterCount = itemForm?.querySelector('[data-character-count]');
   const deleteForm = deleteModalElement?.querySelector('[data-checklist-delete-form]');
-  const heroStorageKey = 'prism.process.hero.seen.v2';
-
-  function hasSeenIntroduction() {
-    try { return window.localStorage.getItem(heroStorageKey) === '1'; }
-    catch { return false; }
-  }
-
-  function setIntroductionSeen() {
-    try { window.localStorage.setItem(heroStorageKey, '1'); }
-    catch { /* Storage may be disabled; the experience still works. */ }
-  }
-
-  function collapseIntroduction({ remember = true } = {}) {
-    if (!hero) return;
-    hero.classList.add('is-compact');
-    if (remember) setIntroductionSeen();
+  function closeIntroduction() {
+    if (!introduction?.open) return;
+    if (typeof introduction.close === 'function') introduction.close();
+    else introduction.removeAttribute('open');
   }
 
   function showIntroduction() {
-    if (!hero) return;
-    hero.classList.remove('is-compact');
-    hero.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
-  }
-
-  if (hero && (hasSeenIntroduction() || Boolean(location.hash))) {
-    hero.classList.add('is-compact');
+    if (!introduction || introduction.open) return;
+    if (typeof introduction.showModal === 'function') introduction.showModal();
+    else introduction.setAttribute('open', '');
+    window.requestAnimationFrame(() => {
+      introduction.querySelector('[data-action="begin-journey"]')?.focus();
+    });
   }
 
   class HttpError extends Error {
@@ -623,6 +611,23 @@ if (root) {
     return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
   }
 
+  function expandJourneyContextForWideViewport(tiers) {
+    if (viewportSize().width < 1480) return tiers;
+
+    const visibleCodes = [...tiers.entries()]
+      .filter(([, tier]) => tier !== 'hidden')
+      .map(([code]) => code);
+
+    visibleCodes.forEach(code => {
+      [...(state.structuralIncoming.get(code) || []), ...(state.structuralOutgoing.get(code) || [])]
+        .forEach(candidate => {
+          if (tiers.get(candidate) === 'hidden') tiers.set(candidate, 'context');
+        });
+    });
+
+    return tiers;
+  }
+
   function journeyTiersFor(active) {
     const tiers = new Map(state.nodes.map(node => [node.code, 'hidden']));
     if (!active) return tiers;
@@ -646,14 +651,14 @@ if (root) {
           .filter(detour => detour.source === cluster.convergence)
           .forEach(detour => tiers.set(detour.code, 'context'));
       }
-      return tiers;
+      return expandJourneyContextForWideViewport(tiers);
     }
 
     const activeDetour = state.optionalDetours.find(detour => detour.code === active.code);
     if (activeDetour) {
       tiers.set(activeDetour.source, 'near');
       if (activeDetour.successor) tiers.set(activeDetour.successor, 'near');
-      return tiers;
+      return expandJourneyContextForWideViewport(tiers);
     }
 
     const predecessors = state.structuralIncoming.get(active.code) || [];
@@ -680,7 +685,7 @@ if (root) {
       .filter(detour => detour.source === active.code)
       .forEach(detour => tiers.set(detour.code, 'context'));
 
-    return tiers;
+    return expandJourneyContextForWideViewport(tiers);
   }
 
   function endpointTierFor(active) {
@@ -1412,16 +1417,18 @@ if (root) {
     if (!actionButton) return;
     const action = actionButton.dataset.action;
     if (action === 'begin-journey') {
-      collapseIntroduction();
+      closeIntroduction();
       setMode('journey');
       selectStage(state.nodes[0]?.code, { animate: false });
-      experience.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      scene.focus({ preventScroll: true });
     } else if (action === 'show-map') {
-      collapseIntroduction();
+      closeIntroduction();
       setMode('map');
-      experience.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      scene.focus({ preventScroll: true });
     } else if (action === 'show-introduction') {
       showIntroduction();
+    } else if (action === 'close-introduction') {
+      closeIntroduction();
     } else if (action === 'previous-stage') goRelative(-1);
     else if (action === 'next-stage') goRelative(1);
     else if (action === 'toggle-fullscreen') {
@@ -1466,6 +1473,9 @@ if (root) {
   document.addEventListener('click', event => {
     if (!event.target.closest('.process-search-wrap')) searchResults.hidden = true;
   });
+  introduction?.addEventListener('click', event => {
+    if (event.target === introduction) closeIntroduction();
+  });
   scene.addEventListener('wheel', handleSceneWheel, { passive: false });
   worldViewport.addEventListener('pointerdown', beginMapDrag);
   worldViewport.addEventListener('pointermove', moveMapDrag);
@@ -1486,12 +1496,27 @@ if (root) {
     else if (event.key.toLowerCase() === 'm') setMode(state.mode === 'map' ? 'journey' : 'map');
   });
 
-  window.addEventListener('resize', () => {
+  let cameraRefreshFrame = 0;
+
+  function refreshCameraForAvailableSpace() {
+    cameraRefreshFrame = 0;
     if (!state.nodes.length) return;
     if (state.mode === 'map') resetMapCamera();
     else focusActiveStage(false);
     applyWorldTransform(false);
-  });
+  }
+
+  function scheduleCameraRefresh() {
+    if (cameraRefreshFrame) return;
+    cameraRefreshFrame = window.requestAnimationFrame(refreshCameraForAvailableSpace);
+  }
+
+  window.addEventListener('resize', scheduleCameraRefresh);
+
+  const workspaceResizeObserver = typeof ResizeObserver === 'function' && workspace
+    ? new ResizeObserver(scheduleCameraRefresh)
+    : null;
+  workspaceResizeObserver?.observe(workspace);
 
   document.addEventListener('fullscreenchange', () => {
     const active = document.fullscreenElement === experience;

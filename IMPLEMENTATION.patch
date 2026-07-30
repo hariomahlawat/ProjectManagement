@@ -1,1006 +1,788 @@
-diff --git a/Data/StageFlowSeeder.cs b/Data/StageFlowSeeder.cs
-index c30d2b6..eeff7df 100644
---- a/Data/StageFlowSeeder.cs
-+++ b/Data/StageFlowSeeder.cs
-@@ -161,7 +161,7 @@ public static class StageFlowSeeder
-             D(StageCodes.TEC, StageCodes.BID, version), D(StageCodes.BM, StageCodes.BID, version),
-             D(StageCodes.COB, StageCodes.TEC, version), D(StageCodes.COB, StageCodes.BM, version),
-             D(StageCodes.PNC, StageCodes.COB, version),
--            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
-+            D(StageCodes.EAS, StageCodes.COB, version),
-             D(StageCodes.SO, StageCodes.EAS, version), D(StageCodes.DEVP, StageCodes.SO, version), D(StageCodes.ATP, StageCodes.DEVP, version), D(StageCodes.PAYMENT, StageCodes.ATP, version),
-             D(StageCodes.TOT, StageCodes.PAYMENT, version)
-         };
-@@ -182,7 +182,7 @@ public static class StageFlowSeeder
-             D(StageCodes.COB, StageCodes.TEC, version),
-             D(StageCodes.COB, StageCodes.BM, version),
-             D(StageCodes.PNC, StageCodes.COB, version),
--            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
-+            D(StageCodes.EAS, StageCodes.COB, version),
-             D(StageCodes.SO, StageCodes.EAS, version),
-             D(StageCodes.DEVP, StageCodes.SO, version),
-             D(StageCodes.ATP, StageCodes.DEVP, version),
-diff --git a/Migrations/20261207180000_RefineProcurementJourneyTopology.cs b/Migrations/20261207180000_RefineProcurementJourneyTopology.cs
-new file mode 100644
-index 0000000..45aa7b8
---- /dev/null
-+++ b/Migrations/20261207180000_RefineProcurementJourneyTopology.cs
-@@ -0,0 +1,65 @@
-+using Microsoft.EntityFrameworkCore.Infrastructure;
-+using Microsoft.EntityFrameworkCore.Migrations;
-+using ProjectManagement.Data;
+diff --git a/Pages/Process/Index.cshtml b/Pages/Process/Index.cshtml
+index 49bd37d..29b17fc 100644
+--- a/Pages/Process/Index.cshtml
++++ b/Pages/Process/Index.cshtml
+@@ -2,6 +2,8 @@
+ @model ProjectManagement.Pages.Process.IndexModel
+ @{
+     ViewData["Title"] = "Procurement Process";
++    ViewData["PageShell"] = "workspace";
++    ViewData["UseFullWidth"] = true;
+     var updatedText = Model.ProcessUpdatedOn.HasValue
+         ? Model.ProcessUpdatedOn.Value.ToLocalTime().ToString("dd MMM yyyy")
+         : "Not available";
+@@ -13,39 +15,21 @@
+          data-can-edit-checklist="@(Model.CanEditChecklist ? "true" : "false")"
+          data-can-edit-purpose="@(Model.CanEditPurpose ? "true" : "false")">
+ 
+-    <header class="process-hero" data-process-hero>
+-        <div class="process-hero__glow process-hero__glow--one" aria-hidden="true"></div>
+-        <div class="process-hero__glow process-hero__glow--two" aria-hidden="true"></div>
+-        <div class="process-hero__grid" aria-hidden="true"></div>
+-
+-        <div class="process-hero__content">
+-            <div class="process-eyebrow">PROCUREMENT GOVERNANCE</div>
+-            <h1>From concept to capability.</h1>
+-            <p>
+-                Travel through the complete procurement process, understand every gate and open the
+-                authorised checklist at the point where it matters.
+-            </p>
+-
+-            <div class="process-hero__actions">
+-                <button type="button" class="btn process-primary-action" data-action="begin-journey">
+-                    <span>Begin journey</span>
+-                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+-                </button>
+-                <button type="button" class="btn process-secondary-action" data-action="show-map">
+-                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+-                    <span>View complete process</span>
+-                </button>
++    <section class="process-workspace" data-process-workspace>
++        <header class="process-commandbar" aria-label="Process controls">
++            <div class="process-workspace__identity">
++                <span>PROCUREMENT GOVERNANCE</span>
++                <div>
++                    <h1>Procurement process</h1>
++                    <small>
++                        <strong data-stage-count>15</strong> stages
++                        <span aria-hidden="true">·</span>
++                        @Model.ProcessVersion
++                        <span aria-hidden="true">·</span>
++                        Guidance updated @updatedText
++                    </small>
++                </div>
+             </div>
+-        </div>
+-
+-        <div class="process-hero__meta" aria-label="Process summary">
+-            <div><strong data-stage-count>15</strong><span>Stages</span></div>
+-            <div><strong>@Model.ProcessVersion</strong><span>Workflow version</span></div>
+-            <div><strong>@updatedText</strong><span>Guidance updated</span></div>
+-        </div>
+-    </header>
+-
+-    <section class="process-commandbar" aria-label="Process controls">
+         <div class="process-mode-switch" role="group" aria-label="Process view">
+             <button type="button" class="process-mode-button is-active" data-mode-button="journey" aria-pressed="true">
+                 <i class="bi bi-signpost-split" aria-hidden="true"></i>
+@@ -83,9 +67,9 @@
+                 <i class="bi bi-printer" aria-hidden="true"></i>
+             </button>
+         </div>
+-    </section>
++        </header>
+ 
+-    <section class="process-experience" data-process-experience data-mode="journey">
++        <section class="process-experience" data-process-experience data-mode="journey">
+         <div class="process-scene" data-process-scene tabindex="0" aria-label="Interactive procurement journey">
+             <div class="process-scene__atmosphere" aria-hidden="true"></div>
+             <div class="process-scene__horizon" aria-hidden="true"></div>
+@@ -194,6 +178,46 @@
+                 <ol class="stage-checklist" data-checklist-list aria-live="polite" aria-busy="false"></ol>
+             </section>
+         </aside>
++        </section>
 +
-+#nullable disable
++        <dialog class="process-introduction" data-process-introduction aria-labelledby="processIntroductionTitle">
++            <div class="process-introduction__grid" aria-hidden="true"></div>
++            <div class="process-introduction__glow process-introduction__glow--blue" aria-hidden="true"></div>
++            <div class="process-introduction__glow process-introduction__glow--maroon" aria-hidden="true"></div>
 +
-+namespace ProjectManagement.Migrations;
++            <button type="button"
++                    class="process-introduction__close"
++                    data-action="close-introduction"
++                    aria-label="Close introduction">
++                <i class="bi bi-x-lg" aria-hidden="true"></i>
++            </button>
 +
-+[DbContext(typeof(ApplicationDbContext))]
-+[Migration("20261207180000_RefineProcurementJourneyTopology")]
-+public partial class RefineProcurementJourneyTopology : Migration
-+{
-+    protected override void Up(MigrationBuilder migrationBuilder)
-+    {
-+        // Price Negotiation is conditional. Commercial Opening remains the
-+        // mandatory prerequisite for EAS, while PNC is an optional detour.
-+        migrationBuilder.Sql(
-+            """
-+            DELETE FROM "StageDependencyTemplates"
-+            WHERE "Version" IN ('SDD-1.0', 'SDD-2.0')
-+              AND UPPER("FromStageCode") = 'EAS'
-+              AND UPPER("DependsOnStageCode") = 'PNC';
++            <div class="process-introduction__content">
++                <div class="process-eyebrow">PROCUREMENT GOVERNANCE</div>
++                <h2 id="processIntroductionTitle">From concept to capability.</h2>
++                <p>
++                    Travel through the complete procurement process, understand every gate and open the
++                    authorised checklist at the point where it matters.
++                </p>
 +
-+            INSERT INTO "StageDependencyTemplates" ("Version", "FromStageCode", "DependsOnStageCode")
-+            SELECT versions."Version", 'EAS', 'COB'
-+            FROM (VALUES ('SDD-1.0'), ('SDD-2.0')) AS versions("Version")
-+            WHERE EXISTS (
-+                SELECT 1
-+                FROM "StageTemplates"
-+                WHERE "Version" = versions."Version"
-+                  AND UPPER("Code") = 'EAS'
-+            )
-+              AND NOT EXISTS (
-+                SELECT 1
-+                FROM "StageDependencyTemplates"
-+                WHERE "Version" = versions."Version"
-+                  AND UPPER("FromStageCode") = 'EAS'
-+                  AND UPPER("DependsOnStageCode") = 'COB'
-+            );
-+            """);
-+    }
++                <div class="process-introduction__meta" aria-label="Process summary">
++                    <div><strong data-stage-count>15</strong><span>Stages</span></div>
++                    <div><strong>@Model.ProcessVersion</strong><span>Workflow version</span></div>
++                    <div><strong>@updatedText</strong><span>Guidance updated</span></div>
++                </div>
 +
-+    protected override void Down(MigrationBuilder migrationBuilder)
-+    {
-+        migrationBuilder.Sql(
-+            """
-+            INSERT INTO "StageDependencyTemplates" ("Version", "FromStageCode", "DependsOnStageCode")
-+            SELECT versions."Version", 'EAS', 'PNC'
-+            FROM (VALUES ('SDD-1.0'), ('SDD-2.0')) AS versions("Version")
-+            WHERE EXISTS (
-+                SELECT 1
-+                FROM "StageTemplates"
-+                WHERE "Version" = versions."Version"
-+                  AND UPPER("Code") = 'EAS'
-+            )
-+              AND NOT EXISTS (
-+                SELECT 1
-+                FROM "StageDependencyTemplates"
-+                WHERE "Version" = versions."Version"
-+                  AND UPPER("FromStageCode") = 'EAS'
-+                  AND UPPER("DependsOnStageCode") = 'PNC'
-+            );
-+            """);
-+    }
-+}
-diff --git a/Migrations/immutable-migration-ids.txt b/Migrations/immutable-migration-ids.txt
-index ad140e1..d85f29a 100644
---- a/Migrations/immutable-migration-ids.txt
-+++ b/Migrations/immutable-migration-ids.txt
-@@ -86,3 +86,4 @@
- 20261207150000_AddProjectBriefingUpdateSheetLayout
- 20261207160000_AddArppPppNumberAndCategoryIdentifiers
- 20261207170000_RedesignProcurementJourney
-+20261207180000_RefineProcurementJourneyTopology
++                <div class="process-introduction__actions">
++                    <button type="button" class="btn process-primary-action" data-action="begin-journey">
++                        <span>Begin journey</span>
++                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
++                    </button>
++                    <button type="button" class="btn process-secondary-action" data-action="show-map">
++                        <i class="bi bi-diagram-3" aria-hidden="true"></i>
++                        <span>View complete process</span>
++                    </button>
++                </div>
++            </div>
++        </dialog>
+     </section>
+ </section>
+ 
 diff --git a/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs b/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
-index 876b775..5b73fa7 100644
+index 5b73fa7..e7ff4ca 100644
 --- a/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
 +++ b/ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
-@@ -33,10 +33,13 @@ public sealed class ProcessJourneyPresentationContractTests
-         Assert.Contains("data-fullscreen-exit", page, StringComparison.Ordinal);
-         Assert.Contains("Search or jump to a stage", page, StringComparison.Ordinal);
-         Assert.DoesNotContain("data-stage-jump", page, StringComparison.Ordinal);
--        Assert.Contains("function journeyTier", script, StringComparison.Ordinal);
-+        Assert.Contains("function journeyTiersFor", script, StringComparison.Ordinal);
-         Assert.Contains("function branchClusterFor", script, StringComparison.Ordinal);
-         Assert.Contains("data-map-density", styles, StringComparison.Ordinal);
--        Assert.Contains("processRouteFlow", styles, StringComparison.Ordinal);
-+        Assert.Contains("process-route-signal", styles, StringComparison.Ordinal);
-+        Assert.Contains("process-endpoint", styles, StringComparison.Ordinal);
-+        Assert.Contains("conditional-entry", script, StringComparison.Ordinal);
-+        Assert.Contains("terminal-main", script, StringComparison.Ordinal);
-         Assert.Contains("prism.process.hero.seen.v2", script, StringComparison.Ordinal);
+@@ -15,7 +15,9 @@ public sealed class ProcessJourneyPresentationContractTests
+         Assert.Contains("data-process-world", page, StringComparison.Ordinal);
+         Assert.Contains("data-mode-button=\"journey\"", page, StringComparison.Ordinal);
+         Assert.Contains("data-mode-button=\"map\"", page, StringComparison.Ordinal);
+-        Assert.Contains("From concept to capability.", page, StringComparison.Ordinal);
++        Assert.Contains("data-process-workspace", page, StringComparison.Ordinal);
++        Assert.Contains("Procurement process", page, StringComparison.Ordinal);
++        Assert.DoesNotContain("data-process-hero", page, StringComparison.Ordinal);
+         Assert.DoesNotContain("six governance phases", page, StringComparison.OrdinalIgnoreCase);
+         Assert.DoesNotContain("process-phase-strip", page, StringComparison.OrdinalIgnoreCase);
+         Assert.DoesNotContain("const PHASES", script, StringComparison.Ordinal);
+@@ -40,7 +42,24 @@ public sealed class ProcessJourneyPresentationContractTests
+         Assert.Contains("process-endpoint", styles, StringComparison.Ordinal);
+         Assert.Contains("conditional-entry", script, StringComparison.Ordinal);
+         Assert.Contains("terminal-main", script, StringComparison.Ordinal);
+-        Assert.Contains("prism.process.hero.seen.v2", script, StringComparison.Ordinal);
++        Assert.Contains("data-process-introduction", page, StringComparison.Ordinal);
++        Assert.Contains("showModal", script, StringComparison.Ordinal);
++        Assert.Contains("expandJourneyContextForWideViewport", script, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void ProcessPage_UsesFullWidthUnifiedEdgeToEdgeWorkspace()
++    {
++        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
++        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
++
++        Assert.Contains("ViewData[\"PageShell\"] = \"workspace\"", page, StringComparison.Ordinal);
++        Assert.Contains("ViewData[\"UseFullWidth\"] = true", page, StringComparison.Ordinal);
++        Assert.Contains("process-workspace__identity", page, StringComparison.Ordinal);
++        Assert.Contains("--process-guide-width: clamp(360px, 20vw, 480px)", styles, StringComparison.Ordinal);
++        Assert.Contains("grid-template-columns: minmax(0, 1fr) var(--process-guide-width)", styles, StringComparison.Ordinal);
++        Assert.Contains("gap: 0", styles, StringComparison.Ordinal);
++        Assert.Contains("border-left: 1px solid rgba(145, 178, 218, .16)", styles, StringComparison.Ordinal);
      }
  
-@@ -66,6 +69,26 @@ public sealed class ProcessJourneyPresentationContractTests
-             seeder,
-             StringComparison.Ordinal);
- 
-+        Assert.Contains(
-+            "D(StageCodes.EAS, StageCodes.COB, version)",
-+            seeder,
-+            StringComparison.Ordinal);
-+        Assert.DoesNotContain(
-+            "D(StageCodes.EAS, StageCodes.PNC, version)",
-+            seeder,
-+            StringComparison.Ordinal);
-+
-+        var topologyMigration = ReadRepoFile(
-+            "Migrations",
-+            "20261207180000_RefineProcurementJourneyTopology.cs");
-+        Assert.Contains("EAS", topologyMigration, StringComparison.Ordinal);
-+        Assert.Contains("PNC", topologyMigration, StringComparison.Ordinal);
-+
-+        var migrationIds = ReadRepoFile("Migrations", "immutable-migration-ids.txt");
-+        Assert.Contains(
-+            "20261207180000_RefineProcurementJourneyTopology",
-+            migrationIds,
-+            StringComparison.Ordinal);
-         var migration = ReadRepoFile(
-             "Migrations",
-             "20261207170000_RedesignProcurementJourney.cs");
+     [Fact]
 diff --git a/wwwroot/css/process-flow.css b/wwwroot/css/process-flow.css
-index 4ec99e1..8f1ccbb 100644
+index 8f1ccbb..aa5874c 100644
 --- a/wwwroot/css/process-flow.css
 +++ b/wwwroot/css/process-flow.css
-@@ -1954,3 +1954,241 @@
-     filter: none;
+@@ -2192,3 +2192,445 @@
+     filter: none !important;
    }
  }
 +
-+/* Final procurement-journey polish ----------------------------------------- */
-+.process-hero.is-compact {
-+  min-height: 108px;
-+  padding: .8rem 1.45rem;
-+  border-radius: 1.15rem;
++/* Unified edge-to-edge procurement workspace -------------------------------- */
++.process-page {
++  width: 100%;
++  padding: .65rem 0 1rem;
 +}
 +
-+.process-hero.is-compact .process-eyebrow {
++.process-workspace {
++  --process-guide-width: clamp(360px, 20vw, 480px);
++  position: relative;
++  width: 100%;
++  height: clamp(620px, calc(100dvh - 11.75rem), 980px);
++  min-height: 620px;
++  overflow: hidden;
++  display: grid;
++  grid-template-rows: auto minmax(0, 1fr);
++  border: 1px solid rgba(115, 143, 181, .24);
++  border-radius: 1.25rem;
++  background: var(--journey-bg);
++  box-shadow: 0 24px 72px rgba(12, 28, 51, .18);
++  isolation: isolate;
++}
++
++.process-commandbar {
++  grid-template-columns: minmax(230px, auto) auto minmax(280px, 1fr) auto;
++  gap: .65rem;
++  margin: 0;
++  padding: .62rem .7rem;
++  border: 0;
++  border-bottom: 1px solid #dce4ef;
++  border-radius: 0;
++  background: rgba(255, 255, 255, .985);
++  box-shadow: none;
++}
++
++.process-workspace__identity {
++  min-width: 0;
++  display: flex;
++  align-items: center;
++  gap: .7rem;
++  padding: 0 .35rem;
++}
++
++.process-workspace__identity > span {
++  flex: 0 0 auto;
++  color: #2d67ca;
 +  font-size: .56rem;
-+  letter-spacing: .16em;
++  font-weight: 830;
++  letter-spacing: .13em;
++  text-transform: uppercase;
++  writing-mode: vertical-rl;
++  transform: rotate(180deg);
 +}
 +
-+.process-hero.is-compact h1 {
-+  margin: .18rem 0 0;
-+  font-size: clamp(1.55rem, 2.35vw, 2rem);
-+  line-height: 1;
++.process-workspace__identity > div {
++  min-width: 0;
 +}
 +
-+.process-hero.is-compact .process-hero__actions {
-+  display: none;
++.process-workspace__identity h1 {
++  margin: 0;
++  color: #15243e;
++  font-size: 1.02rem;
++  line-height: 1.12;
++  letter-spacing: -.018em;
++  font-weight: 790;
 +}
 +
-+.process-hero.is-compact .process-hero__meta {
-+  gap: .85rem;
++.process-workspace__identity small {
++  overflow: hidden;
++  display: flex;
++  align-items: center;
++  gap: .32rem;
++  margin-top: .16rem;
++  color: #7b879a;
++  font-size: .64rem;
++  line-height: 1.2;
++  white-space: nowrap;
++  text-overflow: ellipsis;
 +}
 +
-+.process-hero.is-compact .process-hero__meta > div {
-+  min-width: 104px;
-+  padding: .18rem 0 .18rem .8rem;
++.process-workspace__identity small strong {
++  color: #43536c;
++  font-weight: 780;
 +}
 +
-+.process-hero.is-compact .process-hero__meta strong {
-+  font-size: .95rem;
++.process-experience {
++  min-height: 0;
++  height: 100%;
++  grid-template-columns: minmax(0, 1fr) var(--process-guide-width);
++  gap: 0;
++  scroll-margin-top: 0;
 +}
 +
-+.process-hero.is-compact .process-hero__meta span {
-+  font-size: .61rem;
++.process-scene,
++.stage-guide {
++  min-height: 0;
++  height: 100%;
++  border-radius: 0;
++  box-shadow: none;
 +}
 +
-+.process-connection {
-+  stroke-width: 4.25;
++.process-scene {
++  border: 0;
 +}
 +
-+.process-connection.is-bypass {
-+  opacity: .68;
++.stage-guide {
++  min-height: 0;
++  max-height: none;
++  border: 0;
++  border-left: 1px solid rgba(145, 178, 218, .16);
 +}
 +
-+.process-connection.is-conditional {
-+  stroke: url(#processConditionalGradient);
-+  stroke-width: 3.75;
-+  stroke-dasharray: 8 9;
-+  opacity: .58;
++.stage-checklist-block,
++.stage-checklist {
++  min-height: 0;
 +}
 +
-+.process-connection.is-active {
-+  stroke: url(#processActiveGradient);
-+  stroke-width: 5.75;
-+  stroke-dasharray: none;
-+  opacity: 1;
-+  filter: url(#processGlow);
-+  animation: none;
++.process-experience:fullscreen {
++  grid-template-columns: minmax(0, 1fr) clamp(390px, 22vw, 500px);
 +}
 +
-+.process-connection.is-conditional.is-active {
-+  stroke: url(#processConditionalGradient);
-+  stroke-width: 5.25;
-+  stroke-dasharray: 8 7;
++.process-experience:fullscreen .process-scene,
++.process-experience:fullscreen .stage-guide {
++  border-radius: 0;
 +}
 +
-+.process-route-signal {
-+  fill: none;
-+  stroke: #a4e8ff;
-+  stroke-width: 3;
-+  stroke-linecap: round;
-+  stroke-dasharray: 2 23;
-+  opacity: 0;
-+  pointer-events: none;
-+  filter: url(#processGlow);
-+  transition: opacity .28s ease;
++/* The introduction is deliberately optional: it never delays routine use. */
++.process-introduction {
++  width: min(920px, calc(100vw - 2rem));
++  max-width: 920px;
++  min-height: min(580px, calc(100dvh - 2rem));
++  overflow: hidden;
++  padding: 0;
++  border: 1px solid rgba(135, 177, 226, .24);
++  border-radius: 1.5rem;
++  color: #f5f8ff;
++  background:
++    linear-gradient(115deg, rgba(7, 15, 29, .995), rgba(9, 24, 45, .985) 58%, rgba(12, 34, 62, .97));
++  box-shadow: 0 38px 120px rgba(0, 7, 19, .62);
++  isolation: isolate;
 +}
 +
-+.process-route-signal.is-conditional {
-+  stroke: #ffd184;
++.process-introduction[open] {
++  display: grid;
++  place-items: center;
++  animation: processIntroductionIn .42s cubic-bezier(.19, .8, .18, 1);
 +}
 +
-+.process-route-signal.is-active {
-+  opacity: .94;
-+  animation: processRouteSignal 1.15s linear infinite;
++.process-introduction::backdrop {
++  background: rgba(2, 8, 17, .76);
++  backdrop-filter: blur(8px);
 +}
 +
-+.process-route-signal.is-story-hidden {
-+  opacity: 0;
-+}
-+
-+.process-node.is-active {
-+  box-shadow:
-+    0 34px 82px rgba(0, 7, 18, .58),
-+    0 0 0 1px rgba(124, 219, 255, .2),
-+    0 0 52px rgba(62, 169, 255, .3),
-+    inset 0 1px 0 rgba(255, 255, 255, .14);
-+}
-+
-+.process-node.is-active .process-node__halo {
-+  inset: -24px;
-+  opacity: .82;
-+}
-+
-+.process-node.is-context {
-+  pointer-events: auto;
-+}
-+
-+.process-endpoint {
++.process-introduction__grid {
 +  position: absolute;
-+  z-index: 3;
++  inset: 0;
++  z-index: -1;
++  opacity: .24;
++  background-image:
++    linear-gradient(rgba(152, 184, 226, .055) 1px, transparent 1px),
++    linear-gradient(90deg, rgba(152, 184, 226, .055) 1px, transparent 1px);
++  background-size: 58px 58px;
++  mask-image: linear-gradient(to right, transparent, #000 28%, #000);
++}
++
++.process-introduction__glow {
++  position: absolute;
++  z-index: -1;
++  width: 430px;
++  height: 430px;
++  border-radius: 50%;
++  filter: blur(72px);
++  opacity: .25;
++}
++
++.process-introduction__glow--blue {
++  top: -250px;
++  right: 4%;
++  background: #2d86ef;
++}
++
++.process-introduction__glow--maroon {
++  left: 12%;
++  bottom: -320px;
++  background: #941d3a;
++  opacity: .18;
++}
++
++.process-introduction__close {
++  position: absolute;
++  top: 1rem;
++  right: 1rem;
++  z-index: 2;
++  width: 2.55rem;
++  height: 2.55rem;
++  display: grid;
++  place-items: center;
++  border: 1px solid rgba(188, 211, 240, .2);
++  border-radius: .75rem;
++  color: #c7d7ea;
++  background: rgba(255, 255, 255, .045);
++}
++
++.process-introduction__close:hover,
++.process-introduction__close:focus-visible {
++  color: #fff;
++  border-color: rgba(116, 216, 255, .5);
++  background: rgba(77, 151, 224, .15);
++}
++
++.process-introduction__content {
++  width: min(100%, 760px);
++  padding: clamp(2.2rem, 5vw, 4.5rem);
++}
++
++.process-introduction h2 {
++  max-width: 720px;
++  margin: .65rem 0 1rem;
++  color: #fff;
++  font-size: clamp(2.65rem, 6vw, 5.2rem);
++  line-height: .96;
++  letter-spacing: -.055em;
++  font-weight: 790;
++}
++
++.process-introduction__content > p {
++  max-width: 650px;
++  margin: 0;
++  color: #b9c6d9;
++  font-size: clamp(.96rem, 1.5vw, 1.12rem);
++  line-height: 1.65;
++}
++
++.process-introduction__meta {
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: .65rem;
++  margin-top: 2rem;
++}
++
++.process-introduction__meta > div {
 +  display: flex;
 +  flex-direction: column;
-+  align-items: center;
-+  gap: .48rem;
-+  width: 112px;
-+  transform: translate(-50%, -50%) scale(.78);
-+  opacity: 0;
-+  visibility: hidden;
-+  color: #9eb8d6;
-+  text-align: center;
-+  transition: opacity .4s ease, transform .5s cubic-bezier(.19, .8, .18, 1), filter .4s ease;
++  gap: .18rem;
++  padding: .85rem 1rem;
++  border: 1px solid rgba(155, 188, 229, .14);
++  border-radius: .8rem;
++  background: rgba(255, 255, 255, .035);
 +}
 +
-+.process-endpoint.is-visible {
-+  opacity: .88;
-+  visibility: visible;
++.process-introduction__meta strong {
++  color: #fff;
++  font-size: 1rem;
++  font-weight: 790;
 +}
 +
-+.process-endpoint.is-near {
-+  transform: translate(-50%, -50%) scale(1);
-+  color: #dcecff;
-+}
-+
-+.process-endpoint.is-context {
-+  transform: translate(-50%, -50%) scale(.72);
-+  opacity: .34;
-+  filter: blur(1px);
-+}
-+
-+.process-endpoint__ring {
-+  width: 2.7rem;
-+  height: 2.7rem;
-+  border: 1px solid rgba(116, 216, 255, .68);
-+  border-radius: 50%;
-+  background:
-+    radial-gradient(circle, rgba(116, 216, 255, .28) 0 14%, transparent 16%),
-+    rgba(31, 78, 126, .18);
-+  box-shadow: 0 0 28px rgba(68, 174, 255, .22);
-+}
-+
-+.process-endpoint__copy {
-+  font-size: .66rem;
-+  font-weight: 760;
-+  letter-spacing: .04em;
++.process-introduction__meta span {
++  color: #8fa4c0;
++  font-size: .62rem;
++  letter-spacing: .055em;
 +  text-transform: uppercase;
 +}
 +
-+.process-experience[data-mode="map"] .process-endpoint {
-+  transform: translate(-50%, -50%) scale(var(--map-node-scale, 1));
-+  opacity: .82;
-+  visibility: visible;
-+  filter: none;
++.process-introduction__actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: .75rem;
++  margin-top: 1.35rem;
 +}
 +
-+.process-experience[data-mode="map"][data-map-density="compact"] .process-endpoint__copy {
-+  font-size: .56rem;
++@keyframes processIntroductionIn {
++  from { opacity: 0; transform: translateY(18px) scale(.975); }
++  to { opacity: 1; transform: translateY(0) scale(1); }
 +}
 +
-+.process-progress__dot.is-conditional {
-+  transform: translateY(4px);
-+}
-+
-+.process-progress__dot.is-conditional.is-active {
-+  transform: translateY(4px) scaleY(1.12);
-+}
-+
-+.process-progress__dot.is-parallel-up {
-+  transform: translateY(-4px);
-+}
-+
-+.process-progress__dot.is-parallel-down {
-+  transform: translateY(4px);
-+}
-+
-+.process-experience[data-mode="map"] .process-scene::before {
-+  background:
-+    radial-gradient(ellipse at 50% 50%, rgba(72, 174, 255, .12), transparent 32%),
-+    radial-gradient(ellipse at 50% 58%, rgba(45, 103, 177, .08), transparent 58%);
-+}
-+
-+.process-experience[data-mode="map"][data-map-density="compact"] .process-node {
-+  width: 112px;
-+  min-height: 66px;
-+}
-+
-+.process-experience[data-mode="map"][data-map-density="compact"] .process-node__body small {
-+  font-size: .9rem;
-+}
-+
-+@keyframes processRouteSignal {
-+  to { stroke-dashoffset: -25; }
-+}
-+
-+@media (max-width: 991.98px) {
-+  .process-hero.is-compact {
-+    min-height: 122px;
-+    padding: .9rem 1rem;
++@media (min-width: 1920px) {
++  .process-workspace {
++    --process-guide-width: clamp(390px, 18vw, 500px);
 +  }
 +
-+  .process-hero.is-compact .process-hero__meta {
-+    gap: .45rem;
++  .process-commandbar {
++    grid-template-columns: minmax(280px, auto) auto minmax(420px, 1fr) auto;
++    padding-inline: .85rem;
++  }
++
++  .process-workspace__identity h1 {
++    font-size: 1.08rem;
 +  }
 +}
 +
-+@media (prefers-reduced-motion: reduce) {
-+  .process-route-signal.is-active {
-+    animation: none;
-+    stroke-dasharray: none;
-+    opacity: .72;
++@media (min-width: 2400px) {
++  .process-workspace {
++    --process-guide-width: 500px;
++    height: clamp(700px, calc(100dvh - 11.75rem), 1080px);
++  }
++}
++
++@media (max-width: 1399.98px) {
++  .process-commandbar {
++    grid-template-columns: minmax(210px, auto) auto minmax(220px, 1fr) auto;
++  }
++
++  .process-workspace {
++    --process-guide-width: 360px;
++  }
++}
++
++@media (max-width: 1199.98px) {
++  .process-workspace {
++    height: auto;
++    min-height: 0;
++  }
++
++  .process-commandbar {
++    grid-template-columns: minmax(230px, 1fr) auto auto;
++  }
++
++  .process-search-wrap {
++    grid-column: 1 / -1;
++    grid-row: 2;
++  }
++
++  .process-experience {
++    height: auto;
++    grid-template-columns: 1fr;
++  }
++
++  .process-scene {
++    height: clamp(560px, 72dvh, 720px);
++  }
++
++  .stage-guide {
++    height: auto;
++    max-height: 560px;
++    border-left: 0;
++    border-top: 1px solid rgba(145, 178, 218, .16);
++  }
++
++  .process-experience:fullscreen {
++    grid-template-columns: 1fr;
++  }
++}
++
++@media (max-width: 767.98px) {
++  .process-page {
++    padding-top: .45rem;
++  }
++
++  .process-workspace {
++    border-radius: 1rem;
++  }
++
++  .process-commandbar {
++    grid-template-columns: 1fr auto;
++    padding: .55rem;
++  }
++
++  .process-workspace__identity {
++    grid-column: 1 / -1;
++    padding: .1rem .2rem;
++  }
++
++  .process-workspace__identity > span {
++    writing-mode: horizontal-tb;
++    transform: none;
++  }
++
++  .process-workspace__identity h1 {
++    font-size: .95rem;
++  }
++
++  .process-workspace__identity small {
++    white-space: normal;
++  }
++
++  .process-mode-switch {
++    grid-column: 1 / -1;
++  }
++
++  .process-command-actions {
++    grid-column: 2;
++    grid-row: 3;
++  }
++
++  .process-search-wrap {
++    grid-column: 1 / -1;
++    grid-row: 4;
++  }
++
++  .process-scene,
++  .stage-guide {
++    border-radius: 0;
++  }
++
++  .process-introduction {
++    width: calc(100vw - 1rem);
++    min-height: min(640px, calc(100dvh - 1rem));
++    border-radius: 1.1rem;
++  }
++
++  .process-introduction__content {
++    padding: 3rem 1.35rem 1.5rem;
++  }
++
++  .process-introduction h2 {
++    font-size: clamp(2.35rem, 13vw, 3.6rem);
++  }
++
++  .process-introduction__meta {
++    grid-template-columns: 1fr;
++  }
++
++  .process-introduction__actions {
++    flex-direction: column;
++  }
++
++  .process-introduction__actions .btn {
++    width: 100%;
 +  }
 +}
 +
 +@media print {
-+  .process-route-signal {
++  .process-commandbar,
++  .process-introduction {
 +    display: none !important;
 +  }
 +
-+  .process-endpoint {
-+    opacity: 1 !important;
-+    visibility: visible !important;
-+    filter: none !important;
++  .process-workspace {
++    height: auto;
++    overflow: visible;
++    border: 0;
++    box-shadow: none;
++  }
++}
++
++@media (max-width: 767.98px) {
++  .process-command-actions {
++    grid-column: 1 / -1;
++    grid-row: 3;
++    justify-content: flex-end;
 +  }
 +}
 diff --git a/wwwroot/js/process-flow.js b/wwwroot/js/process-flow.js
-index 686ec97..6e48aad 100644
+index 6e48aad..307a30f 100644
 --- a/wwwroot/js/process-flow.js
 +++ b/wwwroot/js/process-flow.js
-@@ -8,9 +8,14 @@ if (root) {
-     flow: null,
-     nodes: [],
-     edges: [],
-+    visualEdges: [],
-+    optionalDetours: [],
-+    endpoint: null,
-     stageByCode: new Map(),
-     incoming: new Map(),
-     outgoing: new Map(),
-+    structuralIncoming: new Map(),
-+    structuralOutgoing: new Map(),
-     branchClusters: [],
-     activeIndex: 0,
-     selectedCode: null,
-@@ -249,11 +254,13 @@ if (root) {
-     });
+@@ -41,8 +41,9 @@ if (root) {
+     authenticationRecoveryStarted: false
+   };
  
-     state.branchClusters = [];
--    state.nodes.forEach(source => {
--      const branches = state.outgoing.get(source.code) || [];
-+    state.nodes.filter(node => !node.optional).forEach(source => {
-+      const branches = (state.outgoing.get(source.code) || [])
-+        .filter(code => !state.stageByCode.get(code)?.optional);
-       if (branches.length < 2) return;
+-  const hero = root.querySelector('[data-process-hero]');
++  const workspace = root.querySelector('[data-process-workspace]');
+   const experience = root.querySelector('[data-process-experience]');
++  const introduction = root.querySelector('[data-process-introduction]');
+   const scene = root.querySelector('[data-process-scene]');
+   const worldViewport = root.querySelector('[data-world-viewport]');
+   const world = root.querySelector('[data-process-world]');
+@@ -81,32 +82,19 @@ if (root) {
+   const itemText = itemForm?.querySelector('textarea[name="text"]');
+   const itemCharacterCount = itemForm?.querySelector('[data-character-count]');
+   const deleteForm = deleteModalElement?.querySelector('[data-checklist-delete-form]');
+-  const heroStorageKey = 'prism.process.hero.seen.v2';
+-
+-  function hasSeenIntroduction() {
+-    try { return window.localStorage.getItem(heroStorageKey) === '1'; }
+-    catch { return false; }
+-  }
+-
+-  function setIntroductionSeen() {
+-    try { window.localStorage.setItem(heroStorageKey, '1'); }
+-    catch { /* Storage may be disabled; the experience still works. */ }
+-  }
+-
+-  function collapseIntroduction({ remember = true } = {}) {
+-    if (!hero) return;
+-    hero.classList.add('is-compact');
+-    if (remember) setIntroductionSeen();
++  function closeIntroduction() {
++    if (!introduction?.open) return;
++    if (typeof introduction.close === 'function') introduction.close();
++    else introduction.removeAttribute('open');
+   }
  
--      const downstreamSets = branches.map(code => new Set(state.outgoing.get(code) || []));
-+      const downstreamSets = branches.map(code => new Set(
-+        (state.outgoing.get(code) || []).filter(next => !state.stageByCode.get(next)?.optional)));
-       const convergenceCandidates = [...(downstreamSets[0] || [])]
-         .filter(code => downstreamSets.every(set => set.has(code)))
-         .map(code => state.stageByCode.get(code))
-@@ -270,21 +277,108 @@ if (root) {
-         codes: new Set([source.code, ...branches, convergence.code])
-       });
-     });
-+
-+    buildPresentationTopology();
-+  }
-+
-+  function buildPresentationTopology() {
-+    const optionalCodes = new Set(state.nodes.filter(node => node.optional).map(node => node.code));
-+    const structuralEdges = state.edges
-+      .filter(edge => !optionalCodes.has(edge.source) && !optionalCodes.has(edge.target))
-+      .map(edge => ({ ...edge, kind: 'structural', conditional: false, synthetic: false }));
-+
-+    state.optionalDetours = state.nodes
-+      .filter(node => node.optional)
-+      .map(node => {
-+        const sourceCode = (state.incoming.get(node.code) || [])
-+          .map(code => state.stageByCode.get(code))
-+          .filter(candidate => candidate && !candidate.optional)
-+          .sort((a, b) => b.displayIndex - a.displayIndex)[0]?.code || null;
-+        const explicitSuccessor = (state.outgoing.get(node.code) || [])
-+          .map(code => state.stageByCode.get(code))
-+          .filter(candidate => candidate && !candidate.optional)
-+          .sort((a, b) => a.displayIndex - b.displayIndex)[0]?.code || null;
-+        const inferredSuccessor = state.nodes.find(candidate =>
-+          !candidate.optional && candidate.displayIndex > node.displayIndex)?.code || null;
-+        return {
-+          code: node.code,
-+          source: sourceCode,
-+          successor: explicitSuccessor || inferredSuccessor
-+        };
-+      })
-+      .filter(detour => detour.source);
-+
-+    state.endpoint = {
-+      code: '__END__',
-+      name: 'Capability complete',
-+      x: 0,
-+      y: 450
-+    };
-+
-+    const visualEdges = [...structuralEdges];
-+    state.optionalDetours.forEach(detour => {
-+      const targetCode = detour.successor || state.endpoint.code;
-+      if (detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === detour.successor)) {
-+        visualEdges.push({
-+          source: detour.source,
-+          target: detour.successor,
-+          kind: 'bypass',
-+          conditional: false,
-+          synthetic: true
-+        });
-+      }
-+      if (!detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === state.endpoint.code)) {
-+        visualEdges.push({
-+          source: detour.source,
-+          target: state.endpoint.code,
-+          kind: 'terminal-main',
-+          conditional: false,
-+          synthetic: true
-+        });
-+      }
-+      visualEdges.push({
-+        source: detour.source,
-+        target: detour.code,
-+        kind: 'conditional-entry',
-+        conditional: true,
-+        synthetic: true
-+      });
-+      visualEdges.push({
-+        source: detour.code,
-+        target: targetCode,
-+        kind: 'conditional-return',
-+        conditional: true,
-+        synthetic: true
-+      });
-+    });
-+
-+    state.visualEdges = visualEdges;
-+    state.structuralIncoming = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
-+    state.structuralOutgoing = new Map(state.nodes.filter(node => !node.optional).map(node => [node.code, []]));
-+    structuralEdges.forEach(edge => {
-+      state.structuralOutgoing.get(edge.source)?.push(edge.target);
-+      state.structuralIncoming.get(edge.target)?.push(edge.source);
+   function showIntroduction() {
+-    if (!hero) return;
+-    hero.classList.remove('is-compact');
+-    hero.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+-  }
+-
+-  if (hero && (hasSeenIntroduction() || Boolean(location.hash))) {
+-    hero.classList.add('is-compact');
++    if (!introduction || introduction.open) return;
++    if (typeof introduction.showModal === 'function') introduction.showModal();
++    else introduction.setAttribute('open', '');
++    window.requestAnimationFrame(() => {
++      introduction.querySelector('[data-action="begin-journey"]')?.focus();
 +    });
    }
  
-   function branchClusterFor(code) {
-     return state.branchClusters.find(cluster => cluster.codes.has(code)) || null;
-   }
- 
-+  function entityForCode(code) {
-+    return code === state.endpoint?.code ? state.endpoint : state.stageByCode.get(code);
-+  }
-+
-   function calculateLayout() {
-+    const mandatoryNodes = state.nodes.filter(node => !node.optional);
-     const depths = new Map();
--    const unresolved = new Set(state.nodes.map(node => node.code));
--    let guard = state.nodes.length * 4;
-+    const unresolved = new Set(mandatoryNodes.map(node => node.code));
-+    let guard = mandatoryNodes.length * 4;
- 
-     while (unresolved.size && guard-- > 0) {
-       let progressed = false;
-       [...unresolved].forEach(code => {
--        const prerequisites = state.incoming.get(code) || [];
-+        const prerequisites = state.structuralIncoming.get(code) || [];
-         if (prerequisites.every(dep => depths.has(dep))) {
-           const depth = prerequisites.length
-             ? Math.max(...prerequisites.map(dep => depths.get(dep))) + 1
-@@ -303,12 +397,12 @@ if (root) {
-     });
- 
-     const maxDepth = Math.max(0, ...depths.values());
--    const xGap = 205;
--    const startX = 190;
-+    const xGap = 190;
-+    const startX = 175;
-     const centerY = 450;
-     const groups = new Map();
- 
--    state.nodes.forEach(node => {
-+    mandatoryNodes.forEach(node => {
-       node.depth = depths.get(node.code) || 0;
-       if (!groups.has(node.depth)) groups.set(node.depth, []);
-       groups.get(node.depth).push(node);
-@@ -320,15 +414,33 @@ if (root) {
-       nodesAtDepth.forEach((node, index) => {
-         node.x = startX + (node.depth * xGap);
-         if (count === 1) node.y = centerY;
--        else if (count === 2) node.y = index === 0 ? 290 : 610;
-+        else if (count === 2) node.y = index === 0 ? 215 : 685;
-         else {
--          const spread = 520;
-+          const spread = 560;
-           node.y = centerY - (spread / 2) + ((spread / Math.max(1, count - 1)) * index);
-         }
-       });
-     });
- 
--    state.worldWidth = startX + (maxDepth * xGap) + 230;
-+    state.optionalDetours.forEach((detour, index) => {
-+      const node = state.stageByCode.get(detour.code);
-+      const source = state.stageByCode.get(detour.source);
-+      const successor = detour.successor ? state.stageByCode.get(detour.successor) : null;
-+      if (!node || !source) return;
-+      node.depth = source.depth + .5;
-+      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * .55);
-+      node.y = centerY + 210 + (index * 18);
-+    });
-+
-+    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
-+    const terminalSource = terminalDetour ? state.stageByCode.get(terminalDetour.source) : mandatoryNodes.at(-1);
-+    state.endpoint.x = (terminalSource?.x || (startX + maxDepth * xGap)) + xGap;
-+    state.endpoint.y = centerY;
-+
-+    const maxEntityX = Math.max(
-+      state.endpoint.x,
-+      ...state.nodes.map(node => Number(node.x) || 0));
-+    state.worldWidth = maxEntityX + 190;
-     state.worldHeight = 900;
-     world.style.width = `${state.worldWidth}px`;
-     world.style.height = `${state.worldHeight}px`;
-@@ -337,13 +449,23 @@ if (root) {
-     svg.setAttribute('height', String(state.worldHeight));
-   }
- 
--  function pathForEdge(source, target) {
--    const startX = source.x + 78;
--    const endX = target.x - 78;
-+  function pathForEdge(source, target, edge) {
-+    const sourceHalf = source.code === state.endpoint.code ? 22 : 82;
-+    const targetHalf = target.code === state.endpoint.code ? 22 : 82;
-+    const startX = source.x + sourceHalf;
-+    const endX = target.x - targetHalf;
-     const startY = source.y;
-     const endY = target.y;
--    const distance = Math.max(70, endX - startX);
--    const curve = Math.min(140, Math.max(60, distance * 0.44));
-+    const distance = Math.max(48, endX - startX);
-+    const verticalDistance = Math.abs(endY - startY);
-+    const curve = Math.min(130, Math.max(45, distance * .42));
-+
-+    if (edge?.kind === 'conditional-entry' || edge?.kind === 'conditional-return') {
-+      const direction = endY > startY ? 1 : -1;
-+      const verticalControl = Math.min(120, Math.max(64, verticalDistance * .55));
-+      return `M ${startX} ${startY} C ${startX + curve * .58} ${startY}, ${endX - curve * .35} ${endY - direction * verticalControl}, ${endX} ${endY}`;
-+    }
-+
-     return `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
-   }
- 
-@@ -359,34 +481,58 @@ if (root) {
-           <stop offset="0%" stop-color="#4aa6ff" />
-           <stop offset="100%" stop-color="#7bdcff" />
-         </linearGradient>
-+        <linearGradient id="processConditionalGradient" x1="0" y1="0" x2="1" y2="0">
-+          <stop offset="0%" stop-color="#b77b2c" />
-+          <stop offset="100%" stop-color="#ffd184" />
-+        </linearGradient>
-         <filter id="processGlow" x="-50%" y="-50%" width="200%" height="200%">
--          <feGaussianBlur stdDeviation="6" result="blur" />
-+          <feGaussianBlur stdDeviation="4.5" result="blur" />
-           <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-         </filter>
--        <marker id="processArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-+        <marker id="processArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
-           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7896bd"></path>
-         </marker>
--        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-+        <marker id="processArrowActive" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.8" markerHeight="4.8" orient="auto-start-reverse">
-           <path d="M 0 0 L 10 5 L 0 10 z" fill="#7bdcff"></path>
-         </marker>
-+        <marker id="processArrowConditional" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
-+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e6ac52"></path>
-+        </marker>
-       </defs>
-       <g class="process-path-grid" aria-hidden="true">
-         <line x1="0" y1="450" x2="${state.worldWidth}" y2="450"></line>
-       </g>`;
- 
--    state.edges.forEach((edge, index) => {
--      const source = state.stageByCode.get(edge.source);
--      const target = state.stageByCode.get(edge.target);
-+    state.visualEdges.forEach((edge, index) => {
-+      const source = entityForCode(edge.source);
-+      const target = entityForCode(edge.target);
-       if (!source || !target) return;
-+      const d = pathForEdge(source, target, edge);
-+      const edgeId = `${edge.source}-${edge.target}-${edge.kind || 'structural'}`;
-+
-       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
--      path.setAttribute('d', pathForEdge(source, target));
--      path.setAttribute('data-edge-source', source.code);
--      path.setAttribute('data-edge-target', target.code);
--      path.setAttribute('marker-end', 'url(#processArrow)');
-+      path.setAttribute('d', d);
-+      path.setAttribute('data-edge-id', edgeId);
-+      path.setAttribute('data-edge-source', edge.source);
-+      path.setAttribute('data-edge-target', edge.target);
-+      path.setAttribute('data-edge-kind', edge.kind || 'structural');
-+      path.setAttribute('marker-end', edge.conditional ? 'url(#processArrowConditional)' : 'url(#processArrow)');
-       path.classList.add('process-connection');
--      if (target.optional || (source.optional && target.code !== source.code)) path.classList.add('is-conditional');
--      path.style.setProperty('--edge-delay', `${index * 28}ms`);
-+      if (edge.conditional) path.classList.add('is-conditional');
-+      if (edge.kind === 'bypass' || edge.kind === 'terminal-main') path.classList.add('is-bypass');
-+      if ((state.structuralOutgoing.get(edge.source) || []).length > 1) path.classList.add('is-branch');
-+      path.style.setProperty('--edge-delay', `${index * 24}ms`);
-       svg.appendChild(path);
-+
-+      const signal = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-+      signal.setAttribute('d', d);
-+      signal.setAttribute('data-signal-id', edgeId);
-+      signal.setAttribute('data-edge-source', edge.source);
-+      signal.setAttribute('data-edge-target', edge.target);
-+      signal.setAttribute('data-edge-kind', edge.kind || 'structural');
-+      signal.classList.add('process-route-signal');
-+      if (edge.conditional) signal.classList.add('is-conditional');
-+      svg.appendChild(signal);
-     });
- 
-     state.nodes.forEach(node => {
-@@ -409,6 +555,16 @@ if (root) {
-       nodeLayer.appendChild(button);
-     });
- 
-+    const endpoint = document.createElement('div');
-+    endpoint.className = 'process-endpoint';
-+    endpoint.dataset.processEndpoint = 'true';
-+    endpoint.style.left = `${state.endpoint.x}px`;
-+    endpoint.style.top = `${state.endpoint.y}px`;
-+    endpoint.innerHTML = `
-+      <span class="process-endpoint__ring" aria-hidden="true"></span>
-+      <span class="process-endpoint__copy">Capability complete</span>`;
-+    nodeLayer.appendChild(endpoint);
-+
-     renderProgressTrack();
-     placeholder.hidden = true;
-     world.setAttribute('aria-busy', 'false');
-@@ -467,11 +623,74 @@ if (root) {
+   class HttpError extends Error {
+@@ -623,6 +611,23 @@ if (root) {
      return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
    }
  
--  function journeyContext(active) {
--    const cluster = branchClusterFor(active?.code);
--    if (!cluster) return null;
--    const nodes = [...cluster.codes].map(code => state.stageByCode.get(code)).filter(Boolean);
--    return { cluster, nodes };
-+  function journeyTiersFor(active) {
-+    const tiers = new Map(state.nodes.map(node => [node.code, 'hidden']));
-+    if (!active) return tiers;
-+    tiers.set(active.code, 'active');
++  function expandJourneyContextForWideViewport(tiers) {
++    if (viewportSize().width < 1480) return tiers;
 +
-+    const cluster = branchClusterFor(active.code);
-+    if (cluster) {
-+      if (active.code === cluster.source) {
-+        cluster.branches.forEach(code => tiers.set(code, 'near'));
-+        tiers.set(cluster.convergence, 'context');
-+        (state.structuralIncoming.get(cluster.source) || []).forEach(code => tiers.set(code, 'context'));
-+      } else if (cluster.branches.includes(active.code)) {
-+        tiers.set(cluster.source, 'near');
-+        cluster.branches.filter(code => code !== active.code).forEach(code => tiers.set(code, 'near'));
-+        tiers.set(cluster.convergence, 'near');
-+      } else if (active.code === cluster.convergence) {
-+        cluster.branches.forEach(code => tiers.set(code, 'near'));
-+        tiers.set(cluster.source, 'context');
-+        (state.structuralOutgoing.get(cluster.convergence) || []).forEach(code => tiers.set(code, 'near'));
-+        state.optionalDetours
-+          .filter(detour => detour.source === cluster.convergence)
-+          .forEach(detour => tiers.set(detour.code, 'context'));
-+      }
-+      return tiers;
-+    }
++    const visibleCodes = [...tiers.entries()]
++      .filter(([, tier]) => tier !== 'hidden')
++      .map(([code]) => code);
 +
-+    const activeDetour = state.optionalDetours.find(detour => detour.code === active.code);
-+    if (activeDetour) {
-+      tiers.set(activeDetour.source, 'near');
-+      if (activeDetour.successor) tiers.set(activeDetour.successor, 'near');
-+      return tiers;
-+    }
-+
-+    const predecessors = state.structuralIncoming.get(active.code) || [];
-+    const successors = state.structuralOutgoing.get(active.code) || [];
-+    predecessors.forEach(code => tiers.set(code, 'near'));
-+    successors.forEach(code => tiers.set(code, 'near'));
-+
-+    predecessors.forEach(code => {
-+      const predecessorCluster = branchClusterFor(code);
-+      if (predecessorCluster?.convergence === code) return;
-+      (state.structuralIncoming.get(code) || []).forEach(next => {
-+        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
-+      });
++    visibleCodes.forEach(code => {
++      [...(state.structuralIncoming.get(code) || []), ...(state.structuralOutgoing.get(code) || [])]
++        .forEach(candidate => {
++          if (tiers.get(candidate) === 'hidden') tiers.set(candidate, 'context');
++        });
 +    });
-+    successors.forEach(code => {
-+      const successorCluster = branchClusterFor(code);
-+      if (successorCluster?.source === code) return;
-+      (state.structuralOutgoing.get(code) || []).forEach(next => {
-+        if (tiers.get(next) === 'hidden') tiers.set(next, 'context');
-+      });
-+    });
-+
-+    state.optionalDetours
-+      .filter(detour => detour.source === active.code)
-+      .forEach(detour => tiers.set(detour.code, 'context'));
 +
 +    return tiers;
 +  }
 +
-+  function endpointTierFor(active) {
-+    if (!active || !state.endpoint) return 'hidden';
-+    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
-+    if (!terminalDetour) return 'hidden';
-+    if (active.code === terminalDetour.code || active.code === terminalDetour.source) return 'near';
-+    const source = state.stageByCode.get(terminalDetour.source);
-+    if (source && active.displayIndex === source.displayIndex - 1) return 'context';
-+    return 'hidden';
-   }
- 
-   function focusActiveStage(animate = true) {
-@@ -479,30 +698,27 @@ if (root) {
-     if (!node) return;
- 
-     const viewport = viewportSize();
--    const context = journeyContext(node);
--    let focusX = node.x;
--    let focusY = node.y;
--    let scale;
--
--    if (context) {
--      const xs = context.nodes.map(candidate => candidate.x);
--      const ys = context.nodes.map(candidate => candidate.y);
--      const minX = Math.min(...xs) - 150;
--      const maxX = Math.max(...xs) + 150;
--      const minY = Math.min(...ys) - 120;
--      const maxY = Math.max(...ys) + 120;
--      focusX = (minX + maxX) / 2;
--      focusY = (minY + maxY) / 2;
--      scale = Math.min(
--        (viewport.width * .83) / Math.max(1, maxX - minX),
--        (viewport.height * .76) / Math.max(1, maxY - minY)
--      );
--      scale = clamp(scale, .78, 1.02);
--    } else {
--      scale = clamp(viewport.width / 900, .94, 1.24);
--    }
-+    const tiers = journeyTiersFor(node);
-+    const visible = state.nodes.filter(candidate => tiers.get(candidate.code) !== 'hidden');
-+    if (endpointTierFor(node) !== 'hidden') visible.push(state.endpoint);
-+
-+    const minX = Math.min(...visible.map(candidate => candidate.x)) - 125;
-+    const maxX = Math.max(...visible.map(candidate => candidate.x)) + 125;
-+    const minY = Math.min(...visible.map(candidate => candidate.y)) - 120;
-+    const maxY = Math.max(...visible.map(candidate => candidate.y)) + 120;
-+    const rangeX = Math.max(380, maxX - minX);
-+    const rangeY = Math.max(320, maxY - minY);
-+    let scale = Math.min(
-+      (viewport.width * .84) / rangeX,
-+      (viewport.height * .76) / rangeY
-+    );
-+    scale = clamp(scale, .78, 1.22);
- 
--    const visualCenterX = viewport.width * (viewport.width > 1000 ? .48 : .5);
-+    const boundsCenterX = (minX + maxX) / 2;
-+    const boundsCenterY = (minY + maxY) / 2;
-+    const focusX = (boundsCenterX * .44) + (node.x * .56);
-+    const focusY = (boundsCenterY * .52) + (node.y * .48);
-+    const visualCenterX = viewport.width * .5;
-     const visualCenterY = viewport.height * .50;
-     state.worldScale = scale;
-     state.worldX = visualCenterX - (focusX * scale);
-@@ -512,11 +728,10 @@ if (root) {
- 
-   function resetMapCamera() {
-     const viewport = viewportSize();
--    const fitScale = Math.min(
--      (viewport.width - 70) / state.worldWidth,
--      (viewport.height - 80) / state.worldHeight
--    );
--    state.mapScale = clamp(fitScale, .40, .76);
-+    const horizontalFit = (viewport.width - 54) / state.worldWidth;
-+    const verticalFit = (viewport.height - 64) / state.worldHeight;
-+    const fitScale = Math.min(horizontalFit, verticalFit);
-+    state.mapScale = clamp(fitScale, .30, .82);
-     state.mapX = (viewport.width - (state.worldWidth * state.mapScale)) / 2;
-     state.mapY = (viewport.height - (state.worldHeight * state.mapScale)) / 2;
-     updateMapZoom();
-@@ -533,10 +748,10 @@ if (root) {
- 
-   function updateMapZoom() {
-     if (mapZoom) mapZoom.textContent = `${Math.round(state.mapScale * 100)}%`;
--    const density = state.mapScale < .58 ? 'compact' : state.mapScale < .86 ? 'medium' : 'full';
-+    const density = state.mapScale < .52 ? 'compact' : state.mapScale < .80 ? 'medium' : 'full';
-     experience.dataset.mapDensity = density;
-     scene.dataset.mapDensity = density;
--    const semanticScale = clamp(.67 / Math.max(.01, state.mapScale), .92, 1.38);
-+    const semanticScale = clamp(.75 / Math.max(.01, state.mapScale), 1, 1.55);
-     scene.style.setProperty('--map-node-scale', semanticScale.toFixed(3));
-     if (state.mode === 'map') updateSelection();
-   }
-@@ -556,37 +771,11 @@ if (root) {
-     applyWorldTransform(true);
-   }
- 
--  function journeyTier(node, active) {
--    if (!node || !active) return 'hidden';
--    if (node.code === active.code) return 'active';
--
--    const cluster = branchClusterFor(active.code);
--    if (cluster) {
--      if (cluster.codes.has(node.code)) return cluster.branches.includes(node.code) ? 'near' : 'context';
--      const source = state.stageByCode.get(cluster.source);
--      const convergence = state.stageByCode.get(cluster.convergence);
--      if (active.code === cluster.source && source && node.displayIndex === source.displayIndex - 1) return 'context';
--      if (active.code === cluster.convergence && convergence && node.displayIndex === convergence.displayIndex + 1) return 'context';
--      return 'hidden';
--    }
--
--    const upcomingCluster = state.branchClusters.find(candidate => {
--      const source = state.stageByCode.get(candidate.source);
--      return source && active.displayIndex < source.displayIndex && candidate.codes.has(node.code);
--    });
--    if (upcomingCluster && node.code !== upcomingCluster.source) return 'hidden';
--
--    const distance = Math.abs(node.displayIndex - active.displayIndex);
--    if (distance === 1) return 'near';
--    if (distance === 2) return 'context';
--    return 'hidden';
--  }
--
-   function nodeScaleForTier(tier) {
--    if (tier === 'active') return 1.42;
-+    if (tier === 'active') return 1.38;
-     if (tier === 'near') return 1;
--    if (tier === 'context') return .76;
--    return .56;
-+    if (tier === 'context') return .72;
-+    return .52;
-   }
-   async function selectStage(code, { updateHash = true, animate = true } = {}) {
-     const node = state.stageByCode.get(String(code || '').toUpperCase());
-@@ -626,15 +815,17 @@ if (root) {
- 
-     const activeCode = active.code;
-     const activeDepth = active.depth ?? -1;
--    const tiers = new Map();
-+    const tiers = state.mode === 'map'
-+      ? new Map(state.nodes.map(node => [node.code, 'map']))
-+      : journeyTiersFor(active);
-+    const endpointTier = state.mode === 'map' ? 'map' : endpointTierFor(active);
-     scene.dataset.activeCode = activeCode.toLowerCase();
- 
-     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
-       const node = state.stageByCode.get(button.dataset.stageCode);
-       const selected = node?.code === activeCode;
-       const past = node && (node.depth < activeDepth || (node.depth === activeDepth && node.displayIndex < active.displayIndex));
--      const tier = state.mode === 'map' ? 'map' : journeyTier(node, active);
--      tiers.set(node?.code, tier);
-+      const tier = tiers.get(node?.code) || 'hidden';
- 
-       button.classList.toggle('is-active', selected);
-       button.classList.toggle('is-past', Boolean(past));
-@@ -648,30 +839,59 @@ if (root) {
- 
-       if (state.mode === 'map') {
-         button.style.setProperty('--node-scale', 'var(--map-node-scale, 1)');
--        button.style.setProperty('--node-opacity', selected ? '1' : '.92');
-+        button.style.setProperty('--node-opacity', selected ? '1' : '.94');
-         button.style.setProperty('--node-blur', '0px');
-       } else {
-         button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
--        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.92' : tier === 'context' ? '.42' : '0');
--        button.style.setProperty('--node-blur', tier === 'context' ? '1.4px' : tier === 'hidden' ? '7px' : '0px');
-+        button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
-+        button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
+   function journeyTiersFor(active) {
+     const tiers = new Map(state.nodes.map(node => [node.code, 'hidden']));
+     if (!active) return tiers;
+@@ -646,14 +651,14 @@ if (root) {
+           .filter(detour => detour.source === cluster.convergence)
+           .forEach(detour => tiers.set(detour.code, 'context'));
        }
-     });
+-      return tiers;
++      return expandJourneyContextForWideViewport(tiers);
+     }
  
-+    const endpointElement = root.querySelector('[data-process-endpoint]');
-+    if (endpointElement) {
-+      endpointElement.dataset.journeyTier = endpointTier;
-+      endpointElement.classList.toggle('is-visible', state.mode === 'map' || endpointTier !== 'hidden');
-+      endpointElement.classList.toggle('is-near', endpointTier === 'near');
-+      endpointElement.classList.toggle('is-context', endpointTier === 'context');
-+    }
+     const activeDetour = state.optionalDetours.find(detour => detour.code === active.code);
+     if (activeDetour) {
+       tiers.set(activeDetour.source, 'near');
+       if (activeDetour.successor) tiers.set(activeDetour.successor, 'near');
+-      return tiers;
++      return expandJourneyContextForWideViewport(tiers);
+     }
+ 
+     const predecessors = state.structuralIncoming.get(active.code) || [];
+@@ -680,7 +685,7 @@ if (root) {
+       .filter(detour => detour.source === active.code)
+       .forEach(detour => tiers.set(detour.code, 'context'));
+ 
+-    return tiers;
++    return expandJourneyContextForWideViewport(tiers);
+   }
+ 
+   function endpointTierFor(active) {
+@@ -1412,16 +1417,18 @@ if (root) {
+     if (!actionButton) return;
+     const action = actionButton.dataset.action;
+     if (action === 'begin-journey') {
+-      collapseIntroduction();
++      closeIntroduction();
+       setMode('journey');
+       selectStage(state.nodes[0]?.code, { animate: false });
+-      experience.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
++      scene.focus({ preventScroll: true });
+     } else if (action === 'show-map') {
+-      collapseIntroduction();
++      closeIntroduction();
+       setMode('map');
+-      experience.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
++      scene.focus({ preventScroll: true });
+     } else if (action === 'show-introduction') {
+       showIntroduction();
++    } else if (action === 'close-introduction') {
++      closeIntroduction();
+     } else if (action === 'previous-stage') goRelative(-1);
+     else if (action === 'next-stage') goRelative(1);
+     else if (action === 'toggle-fullscreen') {
+@@ -1466,6 +1473,9 @@ if (root) {
+   document.addEventListener('click', event => {
+     if (!event.target.closest('.process-search-wrap')) searchResults.hidden = true;
+   });
++  introduction?.addEventListener('click', event => {
++    if (event.target === introduction) closeIntroduction();
++  });
+   scene.addEventListener('wheel', handleSceneWheel, { passive: false });
+   worldViewport.addEventListener('pointerdown', beginMapDrag);
+   worldViewport.addEventListener('pointermove', moveMapDrag);
+@@ -1486,12 +1496,27 @@ if (root) {
+     else if (event.key.toLowerCase() === 'm') setMode(state.mode === 'map' ? 'journey' : 'map');
+   });
+ 
+-  window.addEventListener('resize', () => {
++  let cameraRefreshFrame = 0;
 +
-+    const activeDetour = state.optionalDetours.find(detour => detour.code === activeCode);
-     root.querySelectorAll('.process-connection').forEach(path => {
-       const source = path.dataset.edgeSource;
-       const target = path.dataset.edgeTarget;
--      const selected = target === activeCode || source === activeCode;
--      const targetNode = state.stageByCode.get(target);
--      const traversed = targetNode && targetNode.displayIndex <= active.displayIndex;
--      const sourceTier = tiers.get(source) || 'hidden';
--      const targetTier = tiers.get(target) || 'hidden';
-+      const kind = path.dataset.edgeKind;
-+      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
-+      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
-       const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
-+      const conditional = path.classList.contains('is-conditional');
-+      const connected = source === activeCode || target === activeCode;
-+      const detourActive = Boolean(activeDetour && conditional && (source === activeCode || target === activeCode));
-+      const bypassActive = !activeDetour && !conditional && connected;
-+      const activePath = detourActive || bypassActive;
-+      const targetNode = state.stageByCode.get(target);
-+      const traversed = !conditional && targetNode && targetNode.displayIndex <= active.displayIndex;
- 
--      path.classList.toggle('is-active', selected);
-+      path.classList.toggle('is-active', activePath);
-       path.classList.toggle('is-traversed', Boolean(traversed));
-       path.classList.toggle('is-story-hidden', !storyVisible);
--      path.classList.toggle('is-story-context', storyVisible && !selected);
--      path.setAttribute('marker-end', selected ? 'url(#processArrowActive)' : 'url(#processArrow)');
-+      path.classList.toggle('is-story-context', storyVisible && !activePath);
-+      path.setAttribute('marker-end', conditional
-+        ? 'url(#processArrowConditional)'
-+        : activePath ? 'url(#processArrowActive)' : 'url(#processArrow)');
-+    });
++  function refreshCameraForAvailableSpace() {
++    cameraRefreshFrame = 0;
+     if (!state.nodes.length) return;
+     if (state.mode === 'map') resetMapCamera();
+     else focusActiveStage(false);
+     applyWorldTransform(false);
+-  });
++  }
 +
-+    root.querySelectorAll('.process-route-signal').forEach(path => {
-+      const source = path.dataset.edgeSource;
-+      const target = path.dataset.edgeTarget;
-+      const conditional = path.classList.contains('is-conditional');
-+      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
-+      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
-+      const storyVisible = state.mode === 'map' || (sourceTier !== 'hidden' && targetTier !== 'hidden');
-+      const connected = source === activeCode || target === activeCode;
-+      const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
-+      path.classList.toggle('is-active', activeSignal);
-+      path.classList.toggle('is-story-hidden', !storyVisible);
-     });
++  function scheduleCameraRefresh() {
++    if (cameraRefreshFrame) return;
++    cameraRefreshFrame = window.requestAnimationFrame(refreshCameraForAvailableSpace);
++  }
++
++  window.addEventListener('resize', scheduleCameraRefresh);
++
++  const workspaceResizeObserver = typeof ResizeObserver === 'function' && workspace
++    ? new ResizeObserver(scheduleCameraRefresh)
++    : null;
++  workspaceResizeObserver?.observe(workspace);
  
-     root.querySelectorAll('[data-progress-code]').forEach(dot => {
+   document.addEventListener('fullscreenchange', () => {
+     const active = document.fullscreenElement === experience;

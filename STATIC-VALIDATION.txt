@@ -1,24 +1,17 @@
-PRISM PROCUREMENT JOURNEY FINAL POLISH — STATIC VALIDATION
-==========================================================
+Static validation completed
+===========================
 
-PASSED
-------
-- JavaScript syntax: node --check wwwroot/js/process-flow.js
-- CSS delimiter balance: 346 opening and 346 closing braces after comment removal
-- Unified patch whitespace check: git diff --check
-- New migration registered in Migrations/immutable-migration-ids.txt
-- StageFlowSeeder no longer contains EAS depending on PNC
-- StageFlowSeeder retains EAS depending on COB
-- TEC and Benchmarking parallel dependencies remain unchanged
-- Package uses no CDN, online font, remote image, or internet API
-- SVG namespace strings are local DOM namespace identifiers, not network calls
-- Incremental patch generated against the previously supplied cinematic package
+PASS  JavaScript syntax: node --check wwwroot/js/process-flow.js
+PASS  CSS parse: tinycss2 reported zero stylesheet parse errors
+PASS  Razor structural balance: section/header/aside/dialog tags balanced
+PASS  Persistent hero markup removed from Pages/Process/Index.cshtml
+PASS  Full-width workspace shell requested through ViewData
+PASS  Unified workspace, zero-gap canvas/guidance grid and responsive guide width present
+PASS  Native optional introduction dialog present
+PASS  Legacy hero local-storage lifecycle removed
+PASS  Wide-viewport context expansion present
+PASS  Patch whitespace validation: git diff --check
+PASS  Patch application checked against the prior Final Polish package baseline
 
-NOT EXECUTED IN THIS ENVIRONMENT
---------------------------------
-- dotnet build
-- Entity Framework migration execution
-- xUnit test execution
-
-Reason: the .NET SDK is not installed in the packaging environment.
-Run the commands in README-APPLY.txt on the development machine.
+The .NET SDK is not installed in the packaging environment, so dotnet build and
+the xUnit suite could not be executed here.

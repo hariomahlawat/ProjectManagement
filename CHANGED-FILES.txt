@@ -1,14 +1,4 @@
-Application and test files changed: 6
-
-Data/StageFlowSeeder.cs
-Migrations/20261207180000_RefineProcurementJourneyTopology.cs
-Migrations/immutable-migration-ids.txt
-wwwroot/js/process-flow.js
+Pages/Process/Index.cshtml
 wwwroot/css/process-flow.css
+wwwroot/js/process-flow.js
 ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
-
-Support files included in this package:
-README-APPLY.txt
-STATIC-VALIDATION.txt
-CHANGED-FILES.txt
-IMPLEMENTATION.patch

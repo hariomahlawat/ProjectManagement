@@ -1,56 +1,49 @@
-PRISM PROCUREMENT JOURNEY — FINAL PROFESSIONAL POLISH
-=====================================================
+PRISM Procurement Journey — Unified Full-Width Workspace
+========================================================
 
-PREREQUISITE
+This package is incremental and should be applied after the Procurement Journey
+Final Polish package already in use.
+
+Replace these four files in the ProjectManagement project root while preserving
+the folder structure:
+
+1. Pages/Process/Index.cshtml
+2. wwwroot/css/process-flow.css
+3. wwwroot/js/process-flow.js
+4. ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
+
+What changes
 ------------
-This is an incremental replacement package for the Procurement Journey redesign
-and cinematic-refinement files already applied on 30 Jul 2026.
+- Removes the permanent hero header from normal use.
+- Keeps the cinematic introduction as an optional accessible dialog.
+- Requests the PRISM workspace/full-width page shell.
+- Merges the toolbar, process canvas and stage guidance into one outer workspace.
+- Removes the visual gap, duplicate rounded corners and duplicate card shadows
+  between the process and checklist regions.
+- Uses a responsive stage-guidance width so ultrawide monitors give most extra
+  space to the process canvas.
+- Shows an additional contextual stage hop when the actual process viewport is
+  at least 1480px wide.
+- Recalculates the process camera when the unified workspace changes size.
+- Keeps full-screen, Journey, Complete Map, purpose editing and checklist
+  management behaviour intact.
 
-APPLICATION
------------
-1. Close the running PRISM application.
-2. Copy the contents of this ZIP into the ProjectManagement project root.
-3. Preserve the folder structure and replace the existing files.
-4. Apply the included data migration:
+No database migration is required.
 
-   dotnet ef database update
-
-5. Build and run tests:
+Verification
+------------
+1. Stop the running application.
+2. Replace the four files.
+3. Run:
 
    dotnet build
    dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-6. Start PRISM and hard-refresh the Process page once with Ctrl+F5.
-
-WHAT THIS REFINEMENT DOES
--------------------------
-- Models Price Negotiation as a true conditional detour:
-    Commercial Opening -> EAS remains the principal route.
-    Commercial Opening -> Price Negotiation -> EAS is the optional route.
-- Models Transfer of Technology as an optional detour after Payment and adds a
-  non-stage "Capability complete" destination to make the bypass visible.
-- Removes the mandatory EAS dependency on PNC from the authoritative workflow.
-- Keeps TEC and Benchmarking parallel and mandatory before Commercial Opening.
-- Replaces oversized branch arrowheads with restrained route markers.
-- Uses a continuous base path plus a subtle animated travelling signal.
-- Prevents TEC/BM branch remnants from leaking into unrelated later scenes.
-- Fits the Complete Map more efficiently and increases useful vertical presence.
-- Improves semantic map zoom without allowing adjacent nodes to overlap.
-- Reduces the repeat-use hero to a compact 108 px command header and removes
-  redundant journey CTA buttons once the introduction has been completed.
-- Retains the full introduction through the existing Introduction control.
-- Keeps all assets and runtime behaviour fully offline.
-
-DATABASE CHANGE
----------------
-Migration included:
-  20261207180000_RefineProcurementJourneyTopology
-
-The migration removes EAS -> PNC as a mandatory dependency for SDD-1.0 and
-SDD-2.0 while ensuring EAS -> COB exists. It contains data-only SQL and does not
-change the EF model snapshot.
-
-ROLLBACK
---------
-The migration Down method restores the former EAS -> PNC dependency. The files
-can be reverted using IMPLEMENTATION.patch in reverse or source control.
+4. Start the application and hard-refresh /Process using Ctrl+F5.
+5. Verify at normal desktop and ultrawide resolutions:
+   - no permanent hero banner;
+   - the process workspace begins directly below the Projects sub-navigation;
+   - canvas and guidance share one continuous surface;
+   - the guidance panel remains readable while extra width goes to the canvas;
+   - Introduction opens the optional cinematic overlay;
+   - Full screen remains edge-to-edge.
