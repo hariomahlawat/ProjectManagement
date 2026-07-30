@@ -1,43 +1,38 @@
-PRISM PROCUREMENT JOURNEY — LIGHT, JOURNEY-ONLY WORKSPACE
-=========================================================
+PRISM Procurement Journey — Final Operational Refinement
+Date: 30 Jul 2026
 
-BASELINE
---------
-Apply this package after PRISM_Procurement_Journey_Unified_Workspace_20260730.
+APPLICATION
+1. Copy the folders in this package into the ProjectManagement project root.
+2. Preserve the relative folder structure and replace the four existing files.
+3. Run:
+     dotnet build
+     dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+4. Hard-refresh /Process once with Ctrl+F5.
 
-REPLACEMENT
------------
-Copy the four project files into the ProjectManagement project root while
-preserving the included folder structure.
+NO DATABASE MIGRATION IS REQUIRED.
 
 IMPLEMENTED
------------
-1. Removed the permanent white command/header area.
-2. Removed the user-facing Complete Map mode; Journey is now the sole process view.
-3. Added a light operational theme as the default.
-4. Preserved the dark immersive theme as a user-selectable option.
-5. Added a compact floating utility dock inside the journey canvas:
-   - Search/jump
-   - Light/dark theme
-   - Introduction
-   - Full screen
-   - Print
-6. Search/jump now opens as a command-palette dialog; press / to open it.
-7. Theme choice is remembered locally and requires no internet connection.
-8. The unified journey/checklist workspace calculates and uses the available
-   viewport height instead of leaving a large unused header area.
-9. Wide-monitor behaviour remains responsive; additional width is assigned
-   primarily to the process canvas while the checklist retains a bounded width.
-10. Existing purpose/checklist APIs, permissions, audit and concurrency logic
-    are unchanged.
+- Removes the synthetic “Capability complete” endpoint.
+- Keeps Payment as the final mandatory procurement stage.
+- Shows Transfer of Technology as one simple optional continuation from Payment, with no return loop.
+- Softens the light-theme vignette and active-stage halo for prolonged office use.
+- Makes second-level contextual stages more legible while retaining progressive focus.
+- Uses a compact current-stage locator in normal mode; full identity returns in full-screen mode.
+- Renders checklist items as structured content with headings, paragraphs, numbered lists and bullet lists.
+- Automatically restructures legacy single-line entries such as:
+    Documents required 1. Drawings 2. User manual 3. Technical manual
+- Retains plain-text storage and existing APIs; no data conversion or migration is required.
+- Adds editing guidance for blank lines, numbered lists and bullet lists.
+- Retains safe HTML escaping before formatting.
 
-DATABASE
---------
-No database migration is required.
+CHECKLIST AUTHORING EXAMPLE
+Documents required
 
-VERIFY
-------
-dotnet build
-dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+1. Drawings
+2. User manual
+3. Technical manual
+4. Circuit diagrams
+5. Parts list
+6. MET documents
 
-After replacement, hard-refresh /Process once with Ctrl+F5.
+Bold emphasis may be entered as **important text**.

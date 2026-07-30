@@ -78,6 +78,26 @@ public sealed class ProcessJourneyPresentationContractTests
         Assert.Contains("height: var(--process-available-height", styles, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void ProcessJourney_UsesAuthoritativeTerminalTopologyAndStructuredChecklistRendering()
+    {
+        var page = ReadRepoFile("Pages", "Process", "Index.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "process-flow.js");
+        var styles = ReadRepoFile("wwwroot", "css", "process-flow.css");
+
+        Assert.DoesNotContain("Capability complete", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("state.endpoint", script, StringComparison.Ordinal);
+        Assert.Contains("if (detour.successor)", script, StringComparison.Ordinal);
+        Assert.Contains("single optional continuation", script, StringComparison.Ordinal);
+        Assert.Contains("function renderChecklistText", script, StringComparison.Ordinal);
+        Assert.Contains("function splitInlineNumberedList", script, StringComparison.Ordinal);
+        Assert.Contains("stage-checklist__sublist", script, StringComparison.Ordinal);
+        Assert.Contains("Formatting is applied automatically", page, StringComparison.Ordinal);
+        Assert.Contains("stage-checklist__content", styles, StringComparison.Ordinal);
+        Assert.Contains("stage-checklist__title", styles, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ProcessFlow_TecAndBenchmarkingRunInParallelBeforeCommercialOpening()
     {

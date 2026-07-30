@@ -1,20 +1,11 @@
 STATIC VALIDATION
-=================
+- JavaScript parsed successfully with Node.js --check.
+- CSS opening and closing brace counts match.
+- Razor replacement retains balanced Razor code braces.
+- process-flow.js contains no synthetic Capability Complete endpoint or state.endpoint reference.
+- Terminal optional stages receive only a conditional-entry route.
+- Checklist rendering escapes source text before applying controlled list/emphasis formatting.
+- No remote assets, CDN calls, online fonts or internet APIs were introduced.
+- No database migration is required.
 
-PASS  Razor uses workspace/full-width shell
-PASS  Journey is the sole user-facing view
-PASS  Permanent command bar removed
-PASS  Light theme is the markup default
-PASS  Floating utility dock present
-PASS  Theme toggle present
-PASS  Search command palette present
-PASS  Fullscreen remains available
-PASS  Introduction remains optional
-PASS  JavaScript theme persistence present
-PASS  JavaScript viewport-height synchronisation present
-PASS  No JavaScript map-mode interaction remains
-PASS  CSS braces balanced
-PASS  Light and dark theme CSS present
-PASS  Contract tests updated
-
-Result: 15/15 checks passed
+The .NET SDK is not installed in this packaging environment; run dotnet build and dotnet test after replacement.

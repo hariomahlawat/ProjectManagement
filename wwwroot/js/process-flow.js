@@ -10,7 +10,6 @@ if (root) {
     edges: [],
     visualEdges: [],
     optionalDetours: [],
-    endpoint: null,
     stageByCode: new Map(),
     incoming: new Map(),
     outgoing: new Map(),
@@ -339,16 +338,8 @@ if (root) {
       })
       .filter(detour => detour.source);
 
-    state.endpoint = {
-      code: '__END__',
-      name: 'Capability complete',
-      x: 0,
-      y: 450
-    };
-
     const visualEdges = [...structuralEdges];
     state.optionalDetours.forEach(detour => {
-      const targetCode = detour.successor || state.endpoint.code;
       if (detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === detour.successor)) {
         visualEdges.push({
           source: detour.source,
@@ -358,15 +349,7 @@ if (root) {
           synthetic: true
         });
       }
-      if (!detour.successor && !visualEdges.some(edge => edge.source === detour.source && edge.target === state.endpoint.code)) {
-        visualEdges.push({
-          source: detour.source,
-          target: state.endpoint.code,
-          kind: 'terminal-main',
-          conditional: false,
-          synthetic: true
-        });
-      }
+
       visualEdges.push({
         source: detour.source,
         target: detour.code,
@@ -374,13 +357,19 @@ if (root) {
         conditional: true,
         synthetic: true
       });
-      visualEdges.push({
-        source: detour.code,
-        target: targetCode,
-        kind: 'conditional-return',
-        conditional: true,
-        synthetic: true
-      });
+
+      // A conditional stage in the middle of the workflow rejoins the main route.
+      // A terminal conditional stage (currently ToT) is a single optional continuation
+      // from the last mandatory stage and therefore has no synthetic return path.
+      if (detour.successor) {
+        visualEdges.push({
+          source: detour.code,
+          target: detour.successor,
+          kind: 'conditional-return',
+          conditional: true,
+          synthetic: true
+        });
+      }
     });
 
     state.visualEdges = visualEdges;
@@ -397,7 +386,7 @@ if (root) {
   }
 
   function entityForCode(code) {
-    return code === state.endpoint?.code ? state.endpoint : state.stageByCode.get(code);
+    return state.stageByCode.get(code);
   }
 
   function calculateLayout() {
@@ -459,18 +448,11 @@ if (root) {
       const successor = detour.successor ? state.stageByCode.get(detour.successor) : null;
       if (!node || !source) return;
       node.depth = source.depth + .5;
-      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * .55);
-      node.y = centerY + 210 + (index * 18);
+      node.x = successor ? (source.x + successor.x) / 2 : source.x + (xGap * 1.25);
+      node.y = centerY + 215 + (index * 18);
     });
 
-    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
-    const terminalSource = terminalDetour ? state.stageByCode.get(terminalDetour.source) : mandatoryNodes.at(-1);
-    state.endpoint.x = (terminalSource?.x || (startX + maxDepth * xGap)) + xGap;
-    state.endpoint.y = centerY;
-
-    const maxEntityX = Math.max(
-      state.endpoint.x,
-      ...state.nodes.map(node => Number(node.x) || 0));
+    const maxEntityX = Math.max(...state.nodes.map(node => Number(node.x) || 0));
     state.worldWidth = maxEntityX + 190;
     state.worldHeight = 900;
     world.style.width = `${state.worldWidth}px`;
@@ -481,8 +463,8 @@ if (root) {
   }
 
   function pathForEdge(source, target, edge) {
-    const sourceHalf = source.code === state.endpoint.code ? 22 : 82;
-    const targetHalf = target.code === state.endpoint.code ? 22 : 82;
+    const sourceHalf = 82;
+    const targetHalf = 82;
     const startX = source.x + sourceHalf;
     const endX = target.x - targetHalf;
     const startY = source.y;
@@ -585,16 +567,6 @@ if (root) {
         </span>`;
       nodeLayer.appendChild(button);
     });
-
-    const endpoint = document.createElement('div');
-    endpoint.className = 'process-endpoint';
-    endpoint.dataset.processEndpoint = 'true';
-    endpoint.style.left = `${state.endpoint.x}px`;
-    endpoint.style.top = `${state.endpoint.y}px`;
-    endpoint.innerHTML = `
-      <span class="process-endpoint__ring" aria-hidden="true"></span>
-      <span class="process-endpoint__copy">Capability complete</span>`;
-    nodeLayer.appendChild(endpoint);
 
     renderProgressTrack();
     placeholder.hidden = true;
@@ -717,15 +689,6 @@ if (root) {
     return expandJourneyContextForWideViewport(tiers);
   }
 
-  function endpointTierFor(active) {
-    if (!active || !state.endpoint) return 'hidden';
-    const terminalDetour = state.optionalDetours.find(detour => !detour.successor);
-    if (!terminalDetour) return 'hidden';
-    if (active.code === terminalDetour.code || active.code === terminalDetour.source) return 'near';
-    const source = state.stageByCode.get(terminalDetour.source);
-    if (source && active.displayIndex === source.displayIndex - 1) return 'context';
-    return 'hidden';
-  }
 
   function focusActiveStage(animate = true) {
     const node = state.nodes[state.activeIndex];
@@ -734,7 +697,6 @@ if (root) {
     const viewport = viewportSize();
     const tiers = journeyTiersFor(node);
     const visible = state.nodes.filter(candidate => tiers.get(candidate.code) !== 'hidden');
-    if (endpointTierFor(node) !== 'hidden') visible.push(state.endpoint);
 
     const minX = Math.min(...visible.map(candidate => candidate.x)) - 125;
     const maxX = Math.max(...visible.map(candidate => candidate.x)) + 125;
@@ -769,7 +731,7 @@ if (root) {
   function nodeScaleForTier(tier) {
     if (tier === 'active') return 1.38;
     if (tier === 'near') return 1;
-    if (tier === 'context') return .72;
+    if (tier === 'context') return .76;
     return .52;
   }
   async function selectStage(code, { updateHash = true, animate = true } = {}) {
@@ -811,7 +773,6 @@ if (root) {
     const activeCode = active.code;
     const activeDepth = active.depth ?? -1;
     const tiers = journeyTiersFor(active);
-    const endpointTier = endpointTierFor(active);
     scene.dataset.activeCode = activeCode.toLowerCase();
 
     root.querySelectorAll('.process-node[data-stage-code]').forEach(button => {
@@ -831,25 +792,17 @@ if (root) {
       button.tabIndex = state.mode === 'journey' && tier === 'hidden' ? -1 : 0;
 
       button.style.setProperty('--node-scale', String(nodeScaleForTier(tier)));
-      button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.34' : '0');
-      button.style.setProperty('--node-blur', tier === 'context' ? '1px' : tier === 'hidden' ? '6px' : '0px');
+      button.style.setProperty('--node-opacity', tier === 'active' ? '1' : tier === 'near' ? '.9' : tier === 'context' ? '.46' : '0');
+      button.style.setProperty('--node-blur', tier === 'context' ? '.45px' : tier === 'hidden' ? '6px' : '0px');
     });
-
-    const endpointElement = root.querySelector('[data-process-endpoint]');
-    if (endpointElement) {
-      endpointElement.dataset.journeyTier = endpointTier;
-      endpointElement.classList.toggle('is-visible', endpointTier !== 'hidden');
-      endpointElement.classList.toggle('is-near', endpointTier === 'near');
-      endpointElement.classList.toggle('is-context', endpointTier === 'context');
-    }
 
     const activeDetour = state.optionalDetours.find(detour => detour.code === activeCode);
     root.querySelectorAll('.process-connection').forEach(path => {
       const source = path.dataset.edgeSource;
       const target = path.dataset.edgeTarget;
       const kind = path.dataset.edgeKind;
-      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
-      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
+      const sourceTier = tiers.get(source) || 'hidden';
+      const targetTier = tiers.get(target) || 'hidden';
       const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
       const conditional = path.classList.contains('is-conditional');
       const connected = source === activeCode || target === activeCode;
@@ -872,8 +825,8 @@ if (root) {
       const source = path.dataset.edgeSource;
       const target = path.dataset.edgeTarget;
       const conditional = path.classList.contains('is-conditional');
-      const sourceTier = source === state.endpoint.code ? endpointTier : (tiers.get(source) || 'hidden');
-      const targetTier = target === state.endpoint.code ? endpointTier : (tiers.get(target) || 'hidden');
+      const sourceTier = tiers.get(source) || 'hidden';
+      const targetTier = tiers.get(target) || 'hidden';
       const storyVisible = sourceTier !== 'hidden' && targetTier !== 'hidden';
       const connected = source === activeCode || target === activeCode;
       const activeSignal = Boolean(storyVisible && connected && (conditional ? activeDetour : !activeDetour));
@@ -981,6 +934,86 @@ if (root) {
       </li>`;
   }
 
+  function renderChecklistInline(value) {
+    const escaped = escapeHtml(value);
+    return escaped.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  }
+
+  function splitInlineNumberedList(value) {
+    const source = String(value || '').trim();
+    if (!source || /[\r\n]/.test(source)) return null;
+
+    const markers = [...source.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g)];
+    if (markers.length < 2) return null;
+
+    const firstMarker = markers[0];
+    const heading = source.slice(0, firstMarker.index).trim().replace(/[:\-–—]\s*$/, '');
+    const items = markers.map((match, index) => {
+      const start = match.index + match[0].length;
+      const end = index + 1 < markers.length ? markers[index + 1].index : source.length;
+      return source.slice(start, end).trim();
+    }).filter(Boolean);
+
+    return items.length >= 2 ? { heading, items } : null;
+  }
+
+  function renderChecklistText(value) {
+    const source = String(value || '').replace(/\r\n?/g, '\n').trim();
+    if (!source) return '';
+
+    const inlineList = splitInlineNumberedList(source);
+    if (inlineList) {
+      return `
+        <div class="stage-checklist__content">
+          ${inlineList.heading ? `<div class="stage-checklist__title">${renderChecklistInline(inlineList.heading)}</div>` : ''}
+          <ol class="stage-checklist__sublist">
+            ${inlineList.items.map(item => `<li>${renderChecklistInline(item)}</li>`).join('')}
+          </ol>
+        </div>`;
+    }
+
+    const lines = source.split('\n');
+    const hasList = lines.some(line => /^\s*(?:\d{1,2}[.)]|[-*•])\s+/.test(line));
+    const blocks = [];
+    let listType = null;
+    let listItems = [];
+
+    const closeList = () => {
+      if (!listType || !listItems.length) return;
+      const tag = listType === 'numbered' ? 'ol' : 'ul';
+      blocks.push(`<${tag} class="stage-checklist__sublist stage-checklist__sublist--${listType}">${listItems.map(item => `<li>${renderChecklistInline(item)}</li>`).join('')}</${tag}>`);
+      listType = null;
+      listItems = [];
+    };
+
+    lines.forEach((rawLine, index) => {
+      const line = rawLine.trim();
+      if (!line) {
+        closeList();
+        return;
+      }
+
+      const numbered = line.match(/^\d{1,2}[.)]\s+(.+)$/);
+      const bulleted = line.match(/^[-*•]\s+(.+)$/);
+      if (numbered || bulleted) {
+        const nextType = numbered ? 'numbered' : 'bulleted';
+        if (listType && listType !== nextType) closeList();
+        listType = nextType;
+        listItems.push((numbered || bulleted)[1].trim());
+        return;
+      }
+
+      closeList();
+      const isHeading = (index === 0 && hasList) || /:$/.test(line);
+      blocks.push(isHeading
+        ? `<div class="stage-checklist__title">${renderChecklistInline(line.replace(/:$/, ''))}</div>`
+        : `<p>${renderChecklistInline(line)}</p>`);
+    });
+    closeList();
+
+    return `<div class="stage-checklist__content">${blocks.join('')}</div>`;
+  }
+
   function renderChecklist(checklist) {
     destroySortable();
     const items = checklist?.items || [];
@@ -1015,7 +1048,7 @@ if (root) {
           data-item-row-version="${escapeHtml(item.rowVersion)}">
         <span class="stage-checklist__drag" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
         <span class="stage-checklist__number">${String(index + 1).padStart(2, '0')}</span>
-        <span class="stage-checklist__text">${escapeHtml(item.text)}</span>
+        <span class="stage-checklist__text">${renderChecklistText(item.text)}</span>
         <span class="stage-checklist__item-actions">
           <button type="button" data-action="edit-item" aria-label="Edit checklist item"><i class="bi bi-pencil"></i></button>
           <button type="button" data-action="delete-item" aria-label="Delete checklist item"><i class="bi bi-trash3"></i></button>

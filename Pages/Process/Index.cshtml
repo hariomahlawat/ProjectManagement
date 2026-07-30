@@ -274,9 +274,16 @@
             </div>
             <div class="modal-body">
                 <label for="checklistItemText" class="form-label fw-semibold">Action or verification required</label>
-                <textarea class="form-control" id="checklistItemText" name="text" rows="5" maxlength="512" required></textarea>
+                <textarea class="form-control"
+                          id="checklistItemText"
+                          name="text"
+                          rows="8"
+                          maxlength="512"
+                          spellcheck="true"
+                          placeholder="Example:&#10;Documents required&#10;&#10;1. Drawings&#10;2. User manual&#10;3. Technical manual"
+                          required></textarea>
                 <div class="form-text d-flex justify-content-between">
-                    <span>Use clear, action-oriented language.</span>
+                    <span>Use blank lines and start sub-items with <strong>1.</strong> or <strong>-</strong>. Formatting is applied automatically.</span>
                     <span data-character-count>0 / 512</span>
                 </div>
                 <input type="hidden" name="itemId" />

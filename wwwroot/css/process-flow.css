@@ -3524,3 +3524,119 @@
 .process-page[data-process-theme="dark"] .process-search-results button.is-current {
   background: rgba(68, 133, 207, .14);
 }
+
+
+/* Final operational refinement: calm light canvas, clearer context and structured checklist content. */
+.process-page[data-process-theme="light"] .process-scene {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(74, 139, 214, .075), transparent 43%),
+    linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
+}
+
+.process-page[data-process-theme="light"] .process-scene__atmosphere {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(91, 145, 207, .075), transparent 62%),
+    radial-gradient(circle at 84% 14%, rgba(68, 132, 207, .04), transparent 30%);
+}
+
+.process-page[data-process-theme="light"] .process-scene__horizon {
+  opacity: .17;
+}
+
+.process-page[data-process-theme="light"] .process-scene__noise {
+  opacity: .025;
+}
+
+.process-page[data-process-theme="light"] .process-node.is-active {
+  box-shadow:
+    0 20px 46px rgba(46, 91, 145, .17),
+    0 0 0 2px rgba(63, 140, 232, .1),
+    0 0 22px rgba(63, 140, 232, .09),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+
+.process-page[data-process-theme="light"] .process-node.is-active .process-node__halo {
+  opacity: .34;
+}
+
+.process-page[data-process-theme="light"] .process-node.is-context {
+  filter: blur(var(--node-blur, .45px));
+}
+
+/* Normal view keeps only a compact stage locator; full screen restores the full label. */
+.process-experience:not(.is-fullscreen) .process-scene__identity {
+  padding: .48rem .68rem;
+}
+
+.process-experience:not(.is-fullscreen) .process-scene__identity > span {
+  display: none;
+}
+
+.process-experience:not(.is-fullscreen) .process-scene__identity strong {
+  font-size: .75rem;
+}
+
+.process-experience.is-fullscreen .process-scene__identity > span {
+  display: block;
+}
+
+/* Checklist entries support headings, paragraphs and numbered/bulleted sub-items. */
+.stage-checklist__text {
+  min-width: 0;
+  padding-top: .08rem;
+}
+
+.stage-checklist__content {
+  display: flex;
+  flex-direction: column;
+  gap: .38rem;
+  min-width: 0;
+}
+
+.stage-checklist__content p {
+  margin: 0;
+  color: inherit;
+  line-height: 1.55;
+  white-space: normal;
+}
+
+.stage-checklist__title {
+  color: #20344f;
+  font-size: .78rem;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.stage-checklist__sublist {
+  display: grid;
+  gap: .26rem;
+  margin: .02rem 0 0;
+  padding-left: 1.25rem;
+  color: #405269;
+}
+
+.stage-checklist__sublist li {
+  padding-left: .12rem;
+  line-height: 1.48;
+}
+
+.stage-checklist__sublist--bulleted {
+  list-style-type: disc;
+}
+
+.process-page[data-process-theme="dark"] .stage-checklist__title {
+  color: #edf5ff;
+}
+
+.process-page[data-process-theme="dark"] .stage-checklist__sublist {
+  color: #c9d5e5;
+}
+
+#checklistItemModal .form-text {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+#checklistItemModal .form-text > span:first-child {
+  max-width: 78%;
+}
