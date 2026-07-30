@@ -1,13 +1,22 @@
-PRISM ARPP/PPP — Production UX Phase Validation
+PRISM ARPP/PPP — UI/UX Production Stabilisation Validation
 
-Completed in the supplied source tree:
+Completed against the supplied source plus the preceding Production UX phase:
 - JavaScript syntax: PASSED
   - node --check wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
   - node --check wwwroot/js/pages/project-office-reports/arpp/arpp-details.js
-- Git whitespace/diff validation: PASSED
+- Git whitespace / patch validation: PASSED
 - CSS brace validation: PASSED
-- Razor structural source checks for form/section/table/template tags: PASSED
-- Static production UX contract assertions: PASSED
+- Razor structural tag-count checks: PASSED
+- Static UI/UX contract assertions: PASSED
+- Patch dry-run and application against the clean phase baseline: PASSED
+- Scope audit: PASSED
+  - No migration files changed
+  - No model/entity files changed
+  - No service/business-logic files changed
+
+Repository-wide view-lint status:
+- The existing tools/check-views.sh command still reports pre-existing inline-style violations in unrelated repository pages.
+- None of the violations reported by that command are in the ARPP files included in this package.
 
 Not executed in this environment:
 - dotnet restore/build/test
@@ -15,7 +24,7 @@ Not executed in this environment:
 Reason:
 - The .NET SDK is not installed in the execution environment.
 
-Required final verification after pasting:
+Required final verification after copying:
 - dotnet build ProjectManagement.sln -c Release
 - dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
-- Browser smoke test described in README-APPLY-FIRST.md
+- Browser acceptance checks in README-APPLY-FIRST.md

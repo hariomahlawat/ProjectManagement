@@ -12,11 +12,13 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
 }
 
 <div class="arpp-page arpp-page--workspace py-2"
      data-arpp-workspace
-     data-arpp-project-lookup-url="@lookupUrl">
+     data-arpp-project-lookup-url="@lookupUrl"
+     data-arpp-has-server-errors="@(!ViewData.ModelState.IsValid ? "true" : "false")">
     <header class="arpp-header arpp-header--workspace">
         <div>
             <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
@@ -117,23 +119,48 @@
                 <span class="arpp-workspace-jump__status" data-arpp-jump-status aria-live="polite"></span>
             </div>
             <div class="arpp-workspace-commandbar__actions">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
-                    <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
-                    <span class="arpp-action-label">Fill common fields</span>
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
-                    <span class="bi bi-clipboard" aria-hidden="true"></span>
-                    <span class="arpp-action-label">Paste rows</span>
-                </button>
+                <div class="arpp-commandbar-tools arpp-commandbar-tools--desktop" aria-label="Entry tools">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-apply-common>
+                        <span class="bi bi-arrow-down-square" aria-hidden="true"></span>
+                        <span>Fill common fields</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#arppPasteModal">
+                        <span class="bi bi-clipboard" aria-hidden="true"></span>
+                        <span>Paste rows</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-fullscreen-toggle aria-pressed="false" title="Open full-screen workspace">
+                        <span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span>
+                        <span data-arpp-fullscreen-label>Full screen</span>
+                    </button>
+                </div>
+                <div class="dropdown arpp-commandbar-tools arpp-commandbar-tools--menu">
+                    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span class="bi bi-tools" aria-hidden="true"></span>
+                        Entry tools
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><button type="button" class="dropdown-item" data-arpp-apply-common><span class="bi bi-arrow-down-square" aria-hidden="true"></span> Fill common fields</button></li>
+                        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#arppPasteModal"><span class="bi bi-clipboard" aria-hidden="true"></span> Paste rows</button></li>
+                        <li><button type="button" class="dropdown-item" data-arpp-fullscreen-toggle aria-pressed="false"><span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span> <span data-arpp-fullscreen-label>Full screen</span></button></li>
+                        @if (Model.CanManageReferenceData)
+                        {
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><a asp-area="Admin" asp-page="/MasterData/ArppReferences/Index" class="dropdown-item"><span class="bi bi-list-check" aria-hidden="true"></span> Manage controlled lists</a></li>
+                        }
+                    </ul>
+                </div>
                 <button type="button" class="btn btn-outline-primary btn-sm" data-arpp-add-row title="Add row (Alt+A)">
                     <span class="bi bi-plus-lg" aria-hidden="true"></span>
                     <span class="arpp-action-label">Add row</span>
                 </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-arpp-fullscreen-toggle aria-pressed="false" title="Open full-screen workspace">
-                    <span class="bi bi-arrows-fullscreen" aria-hidden="true" data-arpp-fullscreen-icon></span>
-                    <span class="arpp-action-label" data-arpp-fullscreen-label>Full screen</span>
-                </button>
-                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Cancel</a>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/ARPP/Details"
+                   asp-route-id="@Model.Id"
+                   class="btn btn-outline-secondary btn-sm arpp-discard-return"
+                   data-arpp-discard-return>
+                    <span class="bi bi-arrow-left" aria-hidden="true"></span>
+                    <span class="arpp-action-label">Discard and return</span>
+                </a>
                 <button type="submit" class="btn btn-primary btn-sm" data-arpp-save-button title="Save issue (Ctrl+S)">
                     <span class="bi bi-check2" aria-hidden="true"></span>
                     <span data-arpp-save-button-label>Save issue</span>
@@ -142,8 +169,8 @@
             <div class="arpp-save-state" data-arpp-save-state aria-live="polite">No unsaved changes</div>
         </div>
 
-        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="alert" aria-live="assertive" aria-atomic="true">
-            <div>
+        <section class="arpp-validation-navigator d-none" data-arpp-validation-navigator role="status" aria-live="polite" aria-atomic="true">
+            <div class="arpp-validation-navigator__summary">
                 <span class="bi bi-exclamation-octagon" aria-hidden="true"></span>
                 <div>
                     <strong data-arpp-validation-heading>Review the highlighted fields</strong>
@@ -151,7 +178,10 @@
                 </div>
             </div>
             <div class="arpp-validation-navigator__items" data-arpp-validation-items></div>
-            <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
+            <div class="arpp-validation-navigator__actions">
+                <button type="button" class="btn btn-sm btn-link text-danger d-none" data-arpp-validation-more>View all</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-arpp-validation-first>Go to first issue</button>
+            </div>
         </section>
 
         <section class="arpp-panel arpp-panel--entries">
@@ -507,8 +537,11 @@
     </div>
 </div>
 
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true" defer></script>
     <script src="~/js/pages/project-office-reports/arpp/arpp-project-picker.js" asp-append-version="true" defer></script>
     <script src="~/js/pages/project-office-reports/arpp/arpp-manage.js" asp-append-version="true" defer></script>
 }

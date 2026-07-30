@@ -143,11 +143,11 @@
                                         }
                                         @if (issue.IsVerified)
                                         {
-                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>
+                                            <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified and published</span>
                                         }
                                         else
                                         {
-                                            <span class="arpp-badge arpp-badge--unverified">Unverified</span>
+                                            <span class="arpp-badge arpp-badge--unverified"><span class="bi bi-pencil-square" aria-hidden="true"></span> Verification pending</span>
                                         }
                                     </div>
                                     <h3><a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id">@issue.Name</a></h3>
@@ -177,18 +177,18 @@
                                 </div>
                                 <div class="arpp-issue-card__value">
                                     <div class="arpp-issue-card__value-line arpp-issue-card__value-line--approved">
-                                        <span>Approved row value</span>
+                                        <span>@(issue.IsVerified ? "Published approved value" : "Working approved value")</span>
                                         <strong>@IndianCurrencyFormatter.FormatCompact(issue.ApprovedRowValue)</strong>
                                     </div>
                                     <div class="arpp-issue-card__value-line arpp-issue-card__value-line--delisted">
-                                        <span>Delisted row value</span>
+                                        <span>@(issue.IsVerified ? "Published delisted value" : "Working delisted value")</span>
                                         <strong>@IndianCurrencyFormatter.FormatCompact(issue.DelistedRowValue)</strong>
                                     </div>
                                     <div class="arpp-card-actions">
-                                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View</a>
+                                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-route-id="@issue.Id" class="btn btn-outline-secondary btn-sm">View record</a>
                                         @if (Model.CanManage && !issue.IsVerified)
                                         {
-                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-outline-primary btn-sm">Manage</a>
+                                            <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@issue.Id" class="btn btn-outline-primary btn-sm">Edit working copy</a>
                                         }
                                     </div>
                                 </div>

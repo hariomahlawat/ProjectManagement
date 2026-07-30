@@ -841,3 +841,12 @@
         font-size: .7rem;
     }
 }
+
+/* ARPP library production search refinement */
+.project-arpp-search > small {
+    font-size: .72rem;
+}
+
+.project-arpp-search__submit .bi {
+    font-size: .82rem;
+}

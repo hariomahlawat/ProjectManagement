@@ -1712,3 +1712,312 @@ details.arpp-reference-guidance[open] .arpp-reference-guidance__chevron {
         gap: .2rem;
     }
 }
+
+/* ============================================================
+   ARPP/PPP production UI stabilisation
+   ============================================================ */
+.arpp-header--compact {
+    margin-bottom: .75rem;
+    padding-bottom: .75rem;
+}
+
+.arpp-badge--correction {
+    gap: .28rem;
+    border: 1px solid color-mix(in srgb, var(--bs-warning) 32%, transparent);
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 72%, var(--bs-body-bg));
+    color: var(--bs-warning-text-emphasis);
+}
+
+.arpp-document-state {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .75rem;
+    padding: .8rem .95rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: .8rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, .04);
+}
+
+.arpp-document-state--published {
+    border-color: color-mix(in srgb, var(--bs-success) 26%, var(--arpp-border));
+    background: color-mix(in srgb, var(--bs-success-bg-subtle) 34%, var(--bs-body-bg));
+}
+
+.arpp-document-state--correction {
+    border-color: color-mix(in srgb, var(--bs-warning) 32%, var(--arpp-border));
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 40%, var(--bs-body-bg));
+}
+
+.arpp-document-state--pending {
+    border-color: color-mix(in srgb, var(--bs-primary) 22%, var(--arpp-border));
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 34%, var(--bs-body-bg));
+}
+
+.arpp-document-state__identity {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: .7rem;
+}
+
+.arpp-document-state__identity > .bi {
+    flex: 0 0 auto;
+    margin-top: .08rem;
+    font-size: 1.05rem;
+}
+
+.arpp-document-state--published .arpp-document-state__identity > .bi {
+    color: var(--bs-success-text-emphasis);
+}
+
+.arpp-document-state--correction .arpp-document-state__identity > .bi {
+    color: var(--bs-warning-text-emphasis);
+}
+
+.arpp-document-state--pending .arpp-document-state__identity > .bi {
+    color: var(--bs-primary);
+}
+
+.arpp-document-state__titleline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+}
+
+.arpp-document-state__titleline strong {
+    font-size: .9rem;
+}
+
+.arpp-document-state__revision {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.35rem;
+    padding: .08rem .4rem;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 999px;
+    color: var(--bs-secondary-color);
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+.arpp-document-state p {
+    max-width: 78rem;
+    margin: .12rem 0 0;
+    color: var(--bs-secondary-color);
+    font-size: .78rem;
+    line-height: 1.42;
+}
+
+.arpp-document-state__action {
+    flex: 0 0 auto;
+}
+
+.arpp-verification-meta--inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem 1.25rem;
+    margin-top: .45rem;
+}
+
+.arpp-verification-meta--inline > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, auto);
+    gap: .35rem;
+}
+
+.arpp-verification-meta--inline dt,
+.arpp-verification-meta--inline dd {
+    font-size: .72rem;
+}
+
+.arpp-readiness-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .85rem;
+    padding: 0;
+    margin: .45rem 0 0;
+    list-style: none;
+    font-size: .73rem;
+}
+
+.arpp-readiness-strip li {
+    display: inline-flex;
+    align-items: center;
+    gap: .32rem;
+}
+
+.arpp-readiness-strip .is-ready {
+    color: var(--bs-success-text-emphasis);
+}
+
+.arpp-readiness-strip .is-pending {
+    color: var(--bs-secondary-color);
+}
+
+.arpp-kpis--details {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: .75rem;
+}
+
+.arpp-kpi--rows {
+    min-width: 0;
+}
+
+.arpp-kpi__category-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.arpp-reconcile-callout {
+    margin-bottom: .75rem;
+}
+
+.arpp-details-rows {
+    margin-bottom: .75rem;
+}
+
+.arpp-panel__heading--compact {
+    align-items: center;
+    padding-block: .65rem;
+}
+
+.arpp-evidence-panel {
+    margin-bottom: .75rem;
+}
+
+.arpp-evidence-panel__body {
+    display: grid;
+    gap: .65rem;
+    padding: .75rem;
+}
+
+.arpp-document-file--compact {
+    padding: .65rem .75rem;
+}
+
+.arpp-document-file--compact .arpp-document-file__icon {
+    width: 2.35rem;
+    height: 2.35rem;
+    font-size: 1.1rem;
+}
+
+.arpp-document-file--compact .arpp-document-file__identity span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.arpp-document-management {
+    overflow: hidden;
+    border: 1px solid var(--arpp-border);
+    border-radius: .65rem;
+    background: color-mix(in srgb, var(--arpp-soft) 60%, var(--bs-body-bg));
+}
+
+.arpp-document-management > summary {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .55rem .7rem;
+    color: var(--bs-secondary-color);
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 700;
+    list-style: none;
+}
+
+.arpp-document-management > summary::-webkit-details-marker {
+    display: none;
+}
+
+.arpp-document-management > summary .bi-chevron-down {
+    margin-left: auto;
+    transition: transform .16s ease;
+}
+
+.arpp-document-management[open] > summary .bi-chevron-down {
+    transform: rotate(180deg);
+}
+
+.arpp-document-management__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: .75rem;
+    padding: .7rem;
+    border-top: 1px solid var(--arpp-border);
+}
+
+.arpp-document-upload--compact {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.arpp-document-remove {
+    margin: 0;
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-kpis--details {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-document-state {
+        flex-direction: column;
+    }
+
+    .arpp-document-state__action {
+        align-self: stretch;
+    }
+
+    .arpp-document-state__action .btn {
+        width: 100%;
+    }
+
+    .arpp-verification-meta--inline {
+        display: grid;
+        gap: .25rem;
+    }
+
+    .arpp-document-management__body {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .arpp-document-remove .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .arpp-kpis--details {
+        grid-template-columns: 1fr;
+    }
+
+    .arpp-readiness-strip {
+        display: grid;
+    }
+
+    .arpp-document-file--compact {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .arpp-document-file--compact .arpp-document-file__actions {
+        justify-content: flex-start;
+    }
+}
+
+@media print {
+    .arpp-document-state__action,
+    .arpp-document-management,
+    .arpp-details-rows .arpp-panel__heading .btn {
+        display: none !important;
+    }
+}

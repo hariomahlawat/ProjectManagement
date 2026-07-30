@@ -9,6 +9,18 @@
     var issueTypeLabel = Model.Issue.Kind == ArppIssueKind.Original
         ? "Original ARPP"
         : $"Addendum No. {Model.Issue.IssueSequence}";
+    var isCorrection = !Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot;
+    var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
+    var statusLabel = Model.Issue.IsVerified
+        ? "Verified and published"
+        : isCorrection
+            ? "Unlocked for correction"
+            : "Verification pending";
+    var statusBadgeClass = Model.Issue.IsVerified
+        ? "arpp-badge--verified"
+        : isCorrection
+            ? "arpp-badge--correction"
+            : "arpp-badge--unverified";
 }
 
 @section Styles {
@@ -19,18 +31,14 @@
 <div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
      data-arpp-details
      data-arpp-reopen-unlock-modal="@(Model.ReopenUnlockModal ? "true" : "false")">
-    <header class="arpp-header">
+    <header class="arpp-header arpp-header--compact">
         <div>
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="arpp-eyebrow">ARPP / PPP · @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</div>
-                @if (Model.Issue.IsVerified)
-                {
-                    <span class="arpp-badge arpp-badge--verified"><span class="bi bi-lock-fill" aria-hidden="true"></span> Verified</span>
-                }
-                else
-                {
-                    <span class="arpp-badge arpp-badge--unverified">Unverified</span>
-                }
+                <span class="arpp-badge @statusBadgeClass">
+                    <span class="bi @(Model.Issue.IsVerified ? "bi-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-hourglass-split")" aria-hidden="true"></span>
+                    @statusLabel
+                </span>
             </div>
             <h1>@Model.Issue.Name</h1>
             <p>@issueTypeLabel · Issued @Model.Issue.IssueDate.ToString("dd MMM yyyy")</p>
@@ -39,7 +47,7 @@
             @if (Model.Issue.Attachment is not null)
             {
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-secondary btn-sm">
-                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Open issued PDF
+                    <span class="bi bi-file-earmark-pdf" aria-hidden="true"></span> Issued PDF
                 </a>
             }
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Excel" asp-route-id="@Model.Issue.Id" class="btn btn-outline-success btn-sm">
@@ -70,34 +78,22 @@
         <div class="alert alert-warning arpp-alert" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span><span>@warningMessage</span></div>
     }
 
-    @if (!Model.Issue.IsVerified && Model.Issue.HasPublishedSnapshot)
-    {
-        <section class="arpp-publication-continuity" role="status" aria-label="Published revision status">
-            <span class="bi bi-broadcast-pin" aria-hidden="true"></span>
+    <section class="arpp-document-state @(Model.Issue.IsVerified ? "arpp-document-state--published" : isCorrection ? "arpp-document-state--correction" : "arpp-document-state--pending")"
+             aria-label="Document state">
+        <div class="arpp-document-state__identity">
+            <span class="bi @(Model.Issue.IsVerified ? "bi-shield-lock-fill" : isCorrection ? "bi-pencil-square" : "bi-shield-exclamation")" aria-hidden="true"></span>
             <div>
-                <strong>Last verified revision remains published</strong>
-                <p>
-                    Corrections are being made in the management workspace. PRISM users continue to see
-                    revision @Model.Issue.PublishedRevisionNumber
-                    @if (Model.Issue.PublishedAtUtc.HasValue)
+                <div class="arpp-document-state__titleline">
+                    <strong>@statusLabel</strong>
+                    @if (Model.Issue.HasPublishedSnapshot && Model.Issue.PublishedRevisionNumber.HasValue)
                     {
-                        <text>published @Model.FormatIst(Model.Issue.PublishedAtUtc.Value)</text>
+                        <span class="arpp-document-state__revision">Revision @Model.Issue.PublishedRevisionNumber</span>
                     }
-                    until this record is verified again.
-                </p>
-            </div>
-        </section>
-    }
-
-    @if (Model.Issue.IsVerified)
-    {
-        <section class="arpp-verification-banner arpp-verification-banner--locked" aria-label="Verification status">
-            <div class="arpp-verification-banner__identity">
-                <span class="bi bi-shield-lock-fill" aria-hidden="true"></span>
-                <div>
-                    <strong>Verified and locked</strong>
-                    <p>Issued rows, document identity and HQ PDF are protected from modification.</p>
-                    <dl class="arpp-verification-meta">
+                </div>
+                @if (Model.Issue.IsVerified)
+                {
+                    <p>Issued rows, document identity and the HQ PDF are protected from modification.</p>
+                    <dl class="arpp-verification-meta arpp-verification-meta--inline">
                         @if (!string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName) || !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByUserId))
                         {
                             <div><dt>Verified by</dt><dd>@(Model.Issue.VerifiedByDisplayName ?? Model.Issue.VerifiedByUserId)</dd></div>
@@ -108,12 +104,46 @@
                         }
                         @if (!string.IsNullOrWhiteSpace(Model.Issue.VerificationNote))
                         {
-                            <div><dt>Verification note</dt><dd>@Model.Issue.VerificationNote</dd></div>
+                            <div><dt>Note</dt><dd>@Model.Issue.VerificationNote</dd></div>
                         }
                     </dl>
-                </div>
+                }
+                else
+                {
+                    @if (isCorrection)
+                    {
+                        <p>
+                            Published revision @Model.Issue.PublishedRevisionNumber remains visible to PRISM users
+                            @if (Model.Issue.PublishedAtUtc.HasValue)
+                            {
+                                <text>from @Model.FormatIst(Model.Issue.PublishedAtUtc.Value)</text>
+                            }
+                            until this working copy is verified again.
+                        </p>
+                    }
+                    else
+                    {
+                        <p>Check the structured rows against the issued HQ PDF before publishing this record for the first time.</p>
+                    }
+                    <ul class="arpp-readiness-strip" aria-label="Verification readiness">
+                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            Rows recorded
+                        </li>
+                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            HQ PDF attached
+                        </li>
+                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")">
+                            <span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
+                            Reference values mapped
+                        </li>
+                    </ul>
+                }
             </div>
-            @if (Model.CanUnlock)
+        </div>
+        <div class="arpp-document-state__action">
+            @if (Model.Issue.IsVerified && Model.CanUnlock)
             {
                 <button type="button"
                         class="btn btn-outline-warning btn-sm"
@@ -123,38 +153,15 @@
                     <span class="bi bi-unlock" aria-hidden="true"></span> Unlock for correction
                 </button>
             }
-        </section>
-    }
-    else
-    {
-        <section class="arpp-verification-banner" aria-label="Verification status">
-            <div class="arpp-verification-banner__identity">
-                <span class="bi bi-shield-exclamation" aria-hidden="true"></span>
-                <div>
-                    <strong>Verification pending</strong>
-                    <p>Verify after checking the structured rows against the issued HQ PDF.</p>
-                    <ul class="arpp-readiness-list" aria-label="Verification readiness">
-                        <li class="@(Model.Issue.Entries.Count > 0 ? "is-ready" : "is-pending")">
-                            <span class="bi @(Model.Issue.Entries.Count > 0 ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
-                            At least one complete issued row
-                        </li>
-                        <li class="@(Model.Issue.Attachment is not null ? "is-ready" : "is-pending")">
-                            <span class="bi @(Model.Issue.Attachment is not null ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
-                            Issued HQ PDF attached
-                        </li>
-                        <li class="@(Model.ReferenceDataReady ? "is-ready" : "is-pending")">
-                            <span class="bi @(Model.ReferenceDataReady ? "bi-check-circle-fill" : "bi-circle")" aria-hidden="true"></span>
-                            CFA, Fund and DFPDS values mapped to controlled lists
-                        </li>
-                    </ul>
-                </div>
-            </div>
-            @if (Model.CanVerify)
+            else if (!Model.Issue.IsVerified && Model.CanVerify)
             {
                 @if (Model.IsVerificationReady)
                 {
-                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#arppVerifyModal">
-                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#arppVerifyModal">
+                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and publish
                     </button>
                 }
                 else
@@ -164,25 +171,31 @@
                             disabled
                             aria-disabled="true"
                             title="Enter at least one row, attach the issued HQ PDF and resolve all CFA, Fund and DFPDS values before verification.">
-                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock
+                        <span class="bi bi-shield-check" aria-hidden="true"></span> Verify and publish
                     </button>
                 }
             }
-        </section>
-    }
+        </div>
+    </section>
 
     <section class="arpp-kpis arpp-kpis--details" aria-label="Issue summary">
-        <article class="arpp-kpi">
+        <article class="arpp-kpi arpp-kpi--rows">
             <span>Rows</span>
             <strong>@Model.Issue.Entries.Count</strong>
+            <small class="arpp-kpi__category-line">
+                New @Model.Issue.CategorySummary[ArppCategory.New].Count ·
+                CL @Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count ·
+                CF @Model.Issue.CategorySummary[ArppCategory.CarryForward].Count ·
+                Delisted @Model.Issue.CategorySummary[ArppCategory.Delisted].Count
+            </small>
         </article>
         <article class="arpp-kpi arpp-kpi--approved">
-            <span>This document — approved</span>
+            <span>@valueStateLabel approved value</span>
             <strong>@IndianCurrencyFormatter.FormatCompact(Model.ApprovedRowValue)</strong>
             <small>New, CL and CF</small>
         </article>
         <article class="arpp-kpi arpp-kpi--delisted">
-            <span>This document — delisted</span>
+            <span>@valueStateLabel delisted value</span>
             <strong>@IndianCurrencyFormatter.FormatCompact(Model.DelistedRowValue)</strong>
             <small>Recorded separately</small>
         </article>
@@ -191,83 +204,38 @@
             <strong>@Model.Issue.LinkedCount linked</strong>
             <small>@Model.Issue.UnlinkedCount pending</small>
         </article>
-        <article class="arpp-kpi arpp-kpi--categories">
-            <span class="arpp-kpi__label">Category breakdown</span>
-            <div class="arpp-category-breakdown">
-                <span>New <strong>@Model.Issue.CategorySummary[ArppCategory.New].Count</strong></span>
-                <span>CL <strong>@Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count</strong></span>
-                <span>CF <strong>@Model.Issue.CategorySummary[ArppCategory.CarryForward].Count</strong></span>
-                <span>Delisted <strong>@Model.Issue.CategorySummary[ArppCategory.Delisted].Count</strong></span>
-            </div>
-        </article>
     </section>
 
     @if (Model.Issue.UnlinkedCount > 0 && Model.CanManage)
     {
         <div class="arpp-reconcile-callout">
-            <div><span class="bi bi-link-45deg" aria-hidden="true"></span><span><strong>@Model.Issue.UnlinkedCount @(Model.Issue.UnlinkedCount == 1 ? "row is" : "rows are") unlinked.</strong> Linking can continue even after verification because it does not change the issued document.</span></div>
+            <div><span class="bi bi-link-45deg" aria-hidden="true"></span><span><strong>@Model.Issue.UnlinkedCount @(Model.Issue.UnlinkedCount == 1 ? "row is" : "rows are") unlinked.</strong> Linking can continue after verification because it does not change the issued document.</span></div>
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" asp-route-fy="@Model.Issue.FinancialYearStart" class="btn btn-outline-primary btn-sm">Open reconciliation</a>
         </div>
     }
 
-    <section class="arpp-panel arpp-document-panel" aria-labelledby="arpp-issued-document-heading">
-        <div class="arpp-panel__heading">
-            <div><h2 id="arpp-issued-document-heading">Issued HQ document</h2><p>The attached PDF is the evidentiary source for this structured ARPP record.</p></div>
-            <span class="arpp-document-status @(Model.Issue.Attachment is null ? "arpp-document-status--pending" : string.Empty)">
-                <span class="bi @(Model.Issue.Attachment is null ? "bi-exclamation-circle" : "bi-shield-check")" aria-hidden="true"></span>
-                @(Model.Issue.Attachment is null ? "Pending" : "Attached")
-            </span>
-        </div>
-        <div class="arpp-document-panel__body">
-            @if (Model.Issue.Attachment is not null)
-            {
-                var attachment = Model.Issue.Attachment;
-                <div class="arpp-document-file">
-                    <div class="arpp-document-file__icon" aria-hidden="true"><span class="bi bi-file-earmark-pdf"></span></div>
-                    <div class="arpp-document-file__identity">
-                        <strong>@attachment.OriginalFileName</strong>
-                        <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes) · Uploaded @Model.FormatIst(attachment.UploadedAtUtc)</span>
-                        <small>SHA-256 @(attachment.Sha256[..Math.Min(12, attachment.Sha256.Length)])…</small>
-                    </div>
-                    <div class="arpp-document-file__actions">
-                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-download" aria-hidden="true"></span> Download</a>
-                        @if (Model.CanManage && !Model.Issue.IsVerified)
-                        {
-                            <form method="post" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="DeletePdf" asp-route-id="@Model.Issue.Id" asp-route-attachmentId="@attachment.Id" data-arpp-delete-pdf-form>
-                                <button type="submit" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash3" aria-hidden="true"></span> Remove</button>
-                            </form>
-                        }
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="arpp-document-empty"><span class="bi bi-file-earmark-arrow-up" aria-hidden="true"></span><div><strong>No HQ PDF attached</strong><p>Attach the issued source document before verification.</p></div></div>
-            }
-
-            @if (Model.CanManage && !Model.Issue.IsVerified)
-            {
-                <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload">
-                    <div class="arpp-document-upload__field">
-                        <label asp-for="UploadFile" class="form-label">@(Model.Issue.Attachment is null ? "Attach issued PDF" : "Replace issued PDF")</label>
-                        <input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input />
-                        <span asp-validation-for="UploadFile" class="text-danger small"></span>
-                        <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> @(Model.Issue.Attachment is null ? "Attach PDF" : "Replace PDF")</button>
-                </form>
-            }
-        </div>
-    </section>
-
     @if (Model.Issue.Entries.Count == 0)
     {
-        <section class="arpp-empty"><span class="bi bi-list-check" aria-hidden="true"></span><h2>No issued rows entered</h2><p>The document identity exists, but its structured rows have not yet been entered.</p>@if (Model.CanManage && !Model.Issue.IsVerified) { <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary">Enter rows</a> }</section>
+        <section class="arpp-empty">
+            <span class="bi bi-list-check" aria-hidden="true"></span>
+            <h2>No issued rows entered</h2>
+            <p>The document identity exists, but its structured rows have not yet been entered.</p>
+            @if (Model.CanManage && !Model.Issue.IsVerified)
+            {
+                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-primary">Enter rows</a>
+            }
+        </section>
     }
     else
     {
-        <section class="arpp-panel arpp-panel--entries">
-            <div class="arpp-panel__heading"><div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div></div>
+        <section class="arpp-panel arpp-panel--entries arpp-details-rows">
+            <div class="arpp-panel__heading">
+                <div><h2>Issued rows</h2><p>Displayed in the order recorded from the HQ document.</p></div>
+                @if (Model.CanManage && !Model.Issue.IsVerified)
+                {
+                    <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Manage" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-pencil-square" aria-hidden="true"></span> Edit rows</a>
+                }
+            </div>
             <div class="arpp-table-wrap arpp-table-wrap--details">
                 <table class="table arpp-details-table align-middle">
                     <thead><tr><th>#</th><th>Serial</th><th>PPP No.</th><th>Project reference</th><th>Category</th><th class="text-end">IPA cost (₹)</th><th>CFA</th><th>Fund</th><th>DFPDS</th></tr></thead>
@@ -284,7 +252,7 @@
                                     {
                                         <div class="arpp-linked-project">
                                             <span class="bi bi-link-45deg" aria-hidden="true"></span>
-                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId">@entry.ProjectName</a>
+                                            <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@entry.ProjectId" target="_blank" rel="noopener">@entry.ProjectName</a>
                                             @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
                                             {
                                                 <span>@entry.ProjectCaseFileNumber</span>
@@ -312,6 +280,69 @@
         </section>
     }
 
+    <section class="arpp-panel arpp-evidence-panel" aria-labelledby="arpp-issued-document-heading">
+        <div class="arpp-panel__heading arpp-panel__heading--compact">
+            <div><h2 id="arpp-issued-document-heading">Issued HQ PDF</h2><p>Evidentiary source for the structured record.</p></div>
+            <span class="arpp-document-status @(Model.Issue.Attachment is null ? "arpp-document-status--pending" : string.Empty)">
+                <span class="bi @(Model.Issue.Attachment is null ? "bi-exclamation-circle" : "bi-shield-check")" aria-hidden="true"></span>
+                @(Model.Issue.Attachment is null ? "Pending" : "Attached")
+            </span>
+        </div>
+        <div class="arpp-evidence-panel__body">
+            @if (Model.Issue.Attachment is not null)
+            {
+                var attachment = Model.Issue.Attachment;
+                <div class="arpp-document-file arpp-document-file--compact">
+                    <div class="arpp-document-file__icon" aria-hidden="true"><span class="bi bi-file-earmark-pdf"></span></div>
+                    <div class="arpp-document-file__identity">
+                        <strong>@attachment.OriginalFileName</strong>
+                        <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes) · Uploaded @Model.FormatIst(attachment.UploadedAtUtc) · SHA-256 @(attachment.Sha256[..Math.Min(12, attachment.Sha256.Length)])…</span>
+                    </div>
+                    <div class="arpp-document-file__actions">
+                        <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="Attachment" asp-route-id="@Model.Issue.Id" class="btn btn-outline-primary btn-sm"><span class="bi bi-download" aria-hidden="true"></span> Download</a>
+                    </div>
+                </div>
+
+                @if (Model.CanManage && !Model.Issue.IsVerified)
+                {
+                    <details class="arpp-document-management" data-arpp-document-management open="@(!ViewData.ModelState.IsValid ? "open" : null)">
+                        <summary><span class="bi bi-gear" aria-hidden="true"></span> Manage issued PDF <span class="bi bi-chevron-down" aria-hidden="true"></span></summary>
+                        <div class="arpp-document-management__body">
+                            <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload arpp-document-upload--compact">
+                                <div class="arpp-document-upload__field">
+                                    <label asp-for="UploadFile" class="form-label">Replace issued PDF</label>
+                                    <input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input />
+                                    <span asp-validation-for="UploadFile" class="text-danger small"></span>
+                                    <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Replace PDF</button>
+                            </form>
+                            <form method="post" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="DeletePdf" asp-route-id="@Model.Issue.Id" asp-route-attachmentId="@attachment.Id" data-arpp-delete-pdf-form class="arpp-document-remove">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"><span class="bi bi-trash3" aria-hidden="true"></span> Remove PDF</button>
+                            </form>
+                        </div>
+                    </details>
+                }
+            }
+            else
+            {
+                <div class="arpp-document-empty"><span class="bi bi-file-earmark-arrow-up" aria-hidden="true"></span><div><strong>No HQ PDF attached</strong><p>Attach the issued source document before verification.</p></div></div>
+                @if (Model.CanManage && !Model.Issue.IsVerified)
+                {
+                    <form method="post" enctype="multipart/form-data" asp-area="ProjectOfficeReports" asp-page="/ARPP/Details" asp-page-handler="UploadPdf" asp-route-id="@Model.Issue.Id" class="arpp-document-upload">
+                        <div class="arpp-document-upload__field">
+                            <label asp-for="UploadFile" class="form-label">Attach issued PDF</label>
+                            <input asp-for="UploadFile" type="file" class="form-control form-control-sm" accept="application/pdf,.pdf" data-arpp-pdf-input />
+                            <span asp-validation-for="UploadFile" class="text-danger small"></span>
+                            <div class="form-text">PDF only · Maximum @Model.MaxAttachmentSizeLabel.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm" data-arpp-upload-button><span class="bi bi-cloud-arrow-up" aria-hidden="true"></span> Attach PDF</button>
+                    </form>
+                }
+            }
+        </div>
+    </section>
+
     <footer class="arpp-record-footer"><span>Created @Model.FormatIst(Model.Issue.CreatedAtUtc)</span><span>Last updated @Model.FormatIst(Model.Issue.UpdatedAtUtc)</span></footer>
 </div>
 
@@ -323,17 +354,17 @@
                 <form method="post" asp-page-handler="Verify" asp-route-id="@Model.Issue.Id">
                     <input type="hidden" name="issueRowVersion" value="@Model.Issue.RowVersion" />
                     <div class="modal-header">
-                        <h2 class="modal-title fs-5" id="arppVerifyModalLabel">Verify and lock issue</h2>
+                        <h2 class="modal-title fs-5" id="arppVerifyModalLabel">Verify and publish issue</h2>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p>Confirm that the structured rows have been checked against the attached HQ PDF. Issued data and the PDF will be locked.</p>
+                        <p>Confirm that the structured rows have been checked against the attached HQ PDF. This working copy will become the published position and will be locked.</p>
                         <label asp-for="VerificationNote" class="form-label">Verification note <span class="text-body-secondary">optional</span></label>
                         <textarea asp-for="VerificationNote" class="form-control" rows="3" maxlength="500"></textarea>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary"><span class="bi bi-shield-check" aria-hidden="true"></span> Verify and lock</button>
+                        <button type="submit" class="btn btn-primary"><span class="bi bi-shield-check" aria-hidden="true"></span> Verify and publish</button>
                     </div>
                 </form>
             </div>

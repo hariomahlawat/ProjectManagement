@@ -14,6 +14,11 @@
     if (!root || !form || !body || !template) return;
 
     let dirty = false;
+    let saving = false;
+    let validationIssueCount = 0;
+    let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
+    let baselineSnapshot = "";
+    let validationExpanded = false;
     let pasteRows = [];
     let jumpMatches = [];
     let jumpMatchIndex = -1;
@@ -47,40 +52,74 @@
         });
     };
 
-    const markDirty = () => {
-        dirty = true;
-        const state = root.querySelector("[data-arpp-save-state]");
-        if (state) state.textContent = "Unsaved changes";
-        setSaveButtonsDisabled(false);
-        commandbar?.classList.add("is-dirty");
+    const createFormSnapshot = () => {
+        const parts = [];
+        Array.from(form.elements).forEach((control, index) => {
+            if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
+            if (!control.name || control.disabled || control.closest("[data-arpp-ui-only]") || control.name === "__RequestVerificationToken") return;
+            if ((control.type === "checkbox" || control.type === "radio") && !control.checked) return;
+
+            const value = control instanceof HTMLSelectElement && control.multiple
+                ? Array.from(control.selectedOptions).map(option => option.value).join("\u001D")
+                : control.value;
+            parts.push(`${index}\u001F${control.name}\u001F${value}`);
+        });
+        return parts.join("\u001E");
     };
 
-    const markClean = () => {
-        dirty = false;
+    const syncWorkspaceStatus = () => {
         const state = root.querySelector("[data-arpp-save-state]");
-        if (state) state.textContent = "No unsaved changes";
-        setSaveButtonsDisabled(true);
-        commandbar?.classList.remove("is-dirty");
+        if (state) {
+            if (saving) state.textContent = "Saving…";
+            else if (dirty && validationIssueCount > 0) state.textContent = `Unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
+            else if (dirty) state.textContent = "Unsaved changes";
+            else if (validationIssueCount > 0) state.textContent = `No unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
+            else state.textContent = "No unsaved changes";
+        }
+
+        setSaveButtonsDisabled(saving || !dirty);
+        commandbar?.classList.toggle("is-dirty", dirty);
+        commandbar?.classList.toggle("has-validation", validationIssueCount > 0);
+        commandbar?.classList.toggle("is-saving", saving);
+    };
+
+    const setDirty = value => {
+        dirty = Boolean(value);
+        syncWorkspaceStatus();
+    };
+
+    const refreshDirtyState = () => {
+        setDirty(serverRejectedChanges || createFormSnapshot() !== baselineSnapshot);
+    };
+
+    const markDirty = () => refreshDirtyState();
+
+    const markClean = () => {
+        baselineSnapshot = createFormSnapshot();
+        serverRejectedChanges = false;
+        setDirty(false);
+    };
+
+    const measureApplicationChrome = () => {
+        if (document.body.classList.contains("arpp-workspace-fullscreen")) return 0;
+
+        const elements = [document.querySelector(".pm-topbar"), document.querySelector(".pm-module-subnav-wrap")]
+            .filter(element => element instanceof HTMLElement && getComputedStyle(element).display !== "none");
+        if (!elements.length) return 0;
+
+        return Math.max(...elements.map(element => {
+            const rect = element.getBoundingClientRect();
+            return Math.max(0, Math.ceil(rect.bottom));
+        }));
     };
 
     const updateStickyMetrics = () => {
-        const fullscreen = document.body.classList.contains("arpp-workspace-fullscreen");
-        let offset = 0;
-        if (!fullscreen) {
-            [document.querySelector(".pm-topbar"), document.querySelector(".pm-module-subnav-wrap")]
-                .filter(element => element instanceof HTMLElement)
-                .forEach(element => {
-                    const rect = element.getBoundingClientRect();
-                    if (rect.bottom > 0) offset = Math.max(offset, rect.bottom);
-                });
-        }
-
+        const appChromeHeight = measureApplicationChrome();
         const commandbarHeight = commandbar instanceof HTMLElement
             ? Math.ceil(commandbar.getBoundingClientRect().height)
             : 0;
-        root.style.setProperty("--arpp-sticky-offset", `${Math.max(0, Math.ceil(offset))}px`);
+        root.style.setProperty("--arpp-app-chrome-height", `${appChromeHeight}px`);
         root.style.setProperty("--arpp-commandbar-height", `${commandbarHeight}px`);
-        root.style.setProperty("--arpp-table-sticky-top", `${Math.max(0, Math.ceil(offset + commandbarHeight + 8))}px`);
     };
 
     const updateScrollEdgeState = () => {
@@ -225,38 +264,69 @@
         const copy = root.querySelector("[data-arpp-validation-copy]");
         const items = root.querySelector("[data-arpp-validation-items]");
         const firstButton = root.querySelector("[data-arpp-validation-first]");
+        const moreButton = root.querySelector("[data-arpp-validation-more]");
         if (!(navigator instanceof HTMLElement) || !(items instanceof HTMLElement)) return [];
 
         const issues = collectValidationIssues();
+        validationIssueCount = issues.length;
         navigator.classList.toggle("d-none", issues.length === 0);
         items.replaceChildren();
         rows().forEach(row => row.classList.remove("is-validation-target"));
 
-        if (!issues.length) return issues;
-        const affectedRows = new Set(issues.map(issue => issue.row).filter(Boolean)).size;
-        if (heading) heading.textContent = `${issues.length} ${issues.length === 1 ? "field requires" : "fields require"} attention`;
-        if (copy) copy.textContent = affectedRows ? `Found in ${affectedRows} ${affectedRows === 1 ? "row" : "rows"}.` : "Review the document identity fields.";
+        if (!issues.length) {
+            validationExpanded = false;
+            moreButton?.classList.add("d-none");
+            syncWorkspaceStatus();
+            return issues;
+        }
 
-        issues.slice(0, 8).forEach(issue => {
+        const groups = [];
+        const groupsByKey = new Map();
+        issues.forEach(issue => {
+            const rowNumber = issue.row?.querySelector("[data-arpp-row-number]")?.textContent?.trim();
+            const key = rowNumber ? `row:${rowNumber}` : "document";
+            let group = groupsByKey.get(key);
+            if (!group) {
+                group = {
+                    label: rowNumber ? `Row ${rowNumber}` : "Document identity",
+                    row: issue.row,
+                    issues: []
+                };
+                groupsByKey.set(key, group);
+                groups.push(group);
+            }
+            group.issues.push(issue);
+        });
+
+        if (heading) heading.textContent = `${issues.length} ${issues.length === 1 ? "field requires" : "fields require"} attention`;
+        if (copy) copy.textContent = groups.length === 1 ? `Found in ${groups[0].label.toLocaleLowerCase("en-IN")}.` : `Found across ${groups.length} rows or sections.`;
+
+        const visibleGroups = validationExpanded ? groups : groups.slice(0, 5);
+        visibleGroups.forEach(group => {
+            const fields = Array.from(new Set(group.issues.map(issue => fieldDisplayName(issue.control))));
             const button = document.createElement("button");
             button.type = "button";
             button.className = "btn btn-sm btn-outline-danger";
-            button.textContent = issue.label;
-            button.title = issue.message;
+            button.textContent = `${group.label} — ${fields.join(", ")}`;
+            button.title = group.issues.map(issue => `${fieldDisplayName(issue.control)}: ${issue.message}`).join("\n");
             button.addEventListener("click", () => {
-                if (issue.row) scrollRowIntoWorkspace(issue.row, issue.control);
+                const first = group.issues[0];
+                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
                 else {
                     root.querySelector(".arpp-panel--identity")?.scrollIntoView({ behavior: "smooth", block: "center" });
-                    window.setTimeout(() => issue.control.focus({ preventScroll: true }), 180);
+                    window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
                 }
             });
             items.appendChild(button);
         });
-        if (issues.length > 8) {
-            const remaining = document.createElement("span");
-            remaining.className = "small text-body-secondary align-self-center";
-            remaining.textContent = `+${issues.length - 8} more`;
-            items.appendChild(remaining);
+
+        if (moreButton instanceof HTMLButtonElement) {
+            moreButton.classList.toggle("d-none", groups.length <= 5);
+            moreButton.textContent = validationExpanded ? "Show fewer" : `View all ${groups.length}`;
+            moreButton.onclick = () => {
+                validationExpanded = !validationExpanded;
+                updateValidationNavigator(false);
+            };
         }
 
         if (firstButton instanceof HTMLButtonElement) {
@@ -267,6 +337,7 @@
             };
         }
         if (focusFirst) firstButton?.focus({ preventScroll: true });
+        syncWorkspaceStatus();
         return issues;
     };
 
@@ -857,7 +928,7 @@
         bootstrap.Modal.getInstance(document.getElementById("arppPasteModal"))?.hide();
     });
 
-    root.querySelector("[data-arpp-apply-common]")?.addEventListener("click", () => {
+    const applyCommonFields = () => {
         const currentRows = rows();
         const source = currentRows.find(row =>
             ["cfa", "fund", "dfpds"].every(kind => {
@@ -875,7 +946,8 @@
         });
         refreshRowWarnings();
         markDirty();
-    });
+    };
+    root.querySelectorAll("[data-arpp-apply-common]").forEach(button => button.addEventListener("click", applyCommonFields));
 
     root.querySelector("[data-arpp-add-row]")?.addEventListener("click", addManualRow);
     root.querySelector("[data-arpp-add-first-row]")?.addEventListener("click", addManualRow);
@@ -889,15 +961,13 @@
     form.addEventListener("input", event => {
         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
         refreshRowWarnings();
-        markDirty();
-        if (!root.querySelector("[data-arpp-validation-navigator]")?.classList.contains("d-none")) {
-            window.setTimeout(() => updateValidationNavigator(false), 0);
-        }
+        refreshDirtyState();
+        window.setTimeout(() => updateValidationNavigator(false), 0);
     });
     form.addEventListener("change", event => {
         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
         refreshRowWarnings();
-        markDirty();
+        refreshDirtyState();
         window.setTimeout(() => updateValidationNavigator(false), 0);
     });
     form.addEventListener("invalid", () => {
@@ -913,10 +983,9 @@
             return;
         }
 
+        saving = true;
         dirty = false;
-        const state = root.querySelector("[data-arpp-save-state]");
-        if (state) state.textContent = "Saving…";
-        setSaveButtonsDisabled(true);
+        syncWorkspaceStatus();
         root.querySelectorAll("[data-arpp-save-button-label]").forEach(label => {
             label.textContent = "Saving…";
         });
@@ -962,8 +1031,30 @@
         jumpToMatch(true);
     });
     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
-    root.querySelector("[data-arpp-fullscreen-toggle]")?.addEventListener("click", () => {
-        setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
+    root.querySelectorAll("[data-arpp-fullscreen-toggle]").forEach(button => {
+        button.addEventListener("click", () => {
+            setFullscreen(!document.body.classList.contains("arpp-workspace-fullscreen"));
+        });
+    });
+
+    root.querySelector("[data-arpp-discard-return]")?.addEventListener("click", async event => {
+        if (!dirty) return;
+        event.preventDefault();
+        const link = event.currentTarget;
+        const accepted = window.PrismConfirm?.show
+            ? await window.PrismConfirm.show({
+                title: "Discard unsaved changes?",
+                message: "Your changes to the ARPP working copy have not been saved.",
+                detail: "The last saved document remains unchanged.",
+                confirmText: "Discard and return",
+                cancelText: "Continue editing",
+                tone: "warning"
+            })
+            : window.confirm("Discard your unsaved changes and return to the record?");
+        if (accepted && link instanceof HTMLAnchorElement) {
+            dirty = false;
+            window.location.assign(link.href);
+        }
     });
 
     document.addEventListener("keydown", event => {
@@ -987,7 +1078,6 @@
         updateStickyMetrics();
         syncTableScrollbars();
     }, { passive: true });
-    window.addEventListener("scroll", updateStickyMetrics, { passive: true });
 
     if (window.ResizeObserver) {
         const resizeObserver = new ResizeObserver(() => {
@@ -1003,16 +1093,15 @@
     if (entryGuidance) {
         const storageKey = "prism.arpp.entryGuidance.open";
         try {
-            if (window.localStorage.getItem(storageKey) === "false") {
-                entryGuidance.removeAttribute("open");
-            }
+            const stored = window.localStorage.getItem(storageKey);
+            if (stored === "false" || stored === "seen") entryGuidance.removeAttribute("open");
         } catch {
             // Storage can be unavailable in hardened or private browser contexts.
         }
 
         entryGuidance.addEventListener("toggle", () => {
             try {
-                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "false");
+                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "seen");
             } catch {
                 // Guidance remains fully functional without persistence.
             }
@@ -1023,8 +1112,8 @@
     reindexRows();
     updateStickyMetrics();
     syncTableScrollbars();
-    const initialIssues = updateValidationNavigator(false);
-    const hasServerValidationErrors = Boolean(form.querySelector(".validation-summary-errors, .field-validation-error"));
-    if (initialIssues.length || hasServerValidationErrors) markDirty();
+    baselineSnapshot = createFormSnapshot();
+    updateValidationNavigator(false);
+    if (serverRejectedChanges) setDirty(true);
     else markClean();
 })();

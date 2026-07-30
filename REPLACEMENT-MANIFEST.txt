@@ -1,16 +1,20 @@
-PRISM ARPP/PPP — Production UX Phase
+PRISM ARPP/PPP — UI/UX Production Stabilisation
 
 REPLACE
-Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
 Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
-wwwroot/css/site.css
+Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
+Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+Pages/Projects/Arpp/Index.cshtml
+wwwroot/css/project-office-reports/arpp-workspace.css
 wwwroot/css/project-office-reports/arpp.css
+wwwroot/css/projects/arpp-library.css
 wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-wwwroot/js/pages/project-office-reports/arpp/arpp-details.js
 
 ADD
-wwwroot/css/project-office-reports/arpp-workspace.css
-ProjectManagement.Tests/Arpp/ArppProductionUxContractTests.cs
+ProjectManagement.Tests/Arpp/ArppUiUxStabilisationContractTests.cs
 
 DATABASE MIGRATION
+None
+
+ENTITY / SERVICE / BUSINESS-LOGIC CHANGE
 None

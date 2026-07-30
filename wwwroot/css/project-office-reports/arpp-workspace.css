@@ -1,10 +1,9 @@
 /* ============================================================
-   Production UX phase: high-volume ARPP document workspace
+   ARPP/PPP production workspace — stable, high-volume entry UX
    ============================================================ */
 .arpp-page--workspace {
-    --arpp-sticky-offset: 0px;
+    --arpp-app-chrome-height: 0px;
     --arpp-commandbar-height: 4.25rem;
-    --arpp-table-sticky-top: calc(var(--arpp-sticky-offset) + var(--arpp-commandbar-height) + .5rem);
     width: 100%;
     max-width: none;
 }
@@ -15,13 +14,13 @@
 
 .arpp-workspace-commandbar {
     position: sticky;
-    top: var(--arpp-sticky-offset);
-    z-index: 18;
+    top: var(--arpp-app-chrome-height);
+    z-index: 30;
     display: grid;
     grid-template-areas:
         "identity jump actions"
         "identity status actions";
-    grid-template-columns: minmax(13rem, 18rem) minmax(15rem, 1fr) auto;
+    grid-template-columns: minmax(13rem, 18rem) minmax(16rem, 1fr) auto;
     align-items: center;
     gap: .35rem .75rem;
     min-height: var(--arpp-commandbar-height);
@@ -29,9 +28,20 @@
     margin-bottom: .75rem;
     border: 1px solid color-mix(in srgb, var(--bs-primary) 18%, var(--arpp-border));
     border-radius: .75rem;
-    background: color-mix(in srgb, var(--bs-body-bg) 96%, transparent);
-    box-shadow: 0 .35rem 1rem rgba(16, 24, 40, .08);
-    backdrop-filter: blur(12px);
+    background: var(--bs-body-bg);
+    box-shadow: 0 .45rem 1.1rem rgba(16, 24, 40, .12);
+    isolation: isolate;
+}
+
+.arpp-workspace-commandbar::after {
+    position: absolute;
+    right: 0;
+    bottom: -.5rem;
+    left: 0;
+    height: .5rem;
+    background: linear-gradient(to bottom, rgba(16, 24, 40, .06), transparent);
+    content: "";
+    pointer-events: none;
 }
 
 .arpp-workspace-commandbar__identity {
@@ -65,7 +75,8 @@
 .arpp-workspace-commandbar__actions {
     grid-area: actions;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
     justify-content: flex-end;
     gap: .35rem;
 }
@@ -75,15 +86,43 @@
     white-space: nowrap;
 }
 
+.arpp-commandbar-tools {
+    display: inline-flex;
+    gap: .35rem;
+}
+
+.arpp-commandbar-tools--menu {
+    display: none;
+}
+
+.arpp-commandbar-tools--menu .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    font-size: .82rem;
+}
+
+.arpp-commandbar-tools--menu .dropdown-item .bi {
+    width: 1rem;
+    color: var(--bs-secondary-color);
+    text-align: center;
+}
+
 .arpp-save-state {
     grid-area: status;
     min-height: 1rem;
+    color: var(--arpp-muted);
     font-size: .75rem;
     line-height: 1.2;
 }
 
 .arpp-workspace-commandbar.is-dirty .arpp-save-state {
     color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.arpp-workspace-commandbar.has-validation:not(.is-dirty) .arpp-save-state {
+    color: var(--bs-danger-text-emphasis);
     font-weight: 600;
 }
 
@@ -127,23 +166,23 @@
 
 .arpp-validation-navigator {
     display: grid;
-    grid-template-columns: minmax(15rem, 1fr) minmax(18rem, 2fr) auto;
+    grid-template-columns: minmax(14rem, .8fr) minmax(20rem, 1.8fr) auto;
     align-items: center;
-    gap: .75rem;
+    gap: .65rem .8rem;
     margin-bottom: .75rem;
-    padding: .7rem .8rem;
+    padding: .65rem .75rem;
     border: 1px solid color-mix(in srgb, var(--bs-danger) 35%, var(--arpp-border));
     border-radius: .7rem;
     background: color-mix(in srgb, var(--bs-danger-bg-subtle) 65%, var(--bs-body-bg));
 }
 
-.arpp-validation-navigator > div:first-child {
+.arpp-validation-navigator__summary {
     display: flex;
     align-items: flex-start;
     gap: .55rem;
 }
 
-.arpp-validation-navigator > div:first-child > .bi {
+.arpp-validation-navigator__summary > .bi {
     margin-top: .08rem;
     color: var(--bs-danger);
 }
@@ -167,11 +206,19 @@
 }
 
 .arpp-validation-navigator__items .btn {
-    max-width: 18rem;
+    max-width: 21rem;
     overflow: hidden;
     padding: .2rem .45rem;
     font-size: .72rem;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.arpp-validation-navigator__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .3rem;
     white-space: nowrap;
 }
 
@@ -181,9 +228,8 @@
 }
 
 .arpp-table-scrollbar {
-    position: sticky;
-    top: var(--arpp-table-sticky-top);
-    z-index: 13;
+    position: relative;
+    z-index: 4;
     height: .9rem;
     overflow-x: auto;
     overflow-y: hidden;
@@ -198,8 +244,12 @@
     height: 1px;
 }
 
-.arpp-table-wrap {
+.arpp-page--workspace .arpp-table-wrap {
+    max-height: clamp(25rem, calc(100dvh - var(--arpp-app-chrome-height) - var(--arpp-commandbar-height) - 8rem), 58rem);
+    overflow: auto;
     border-top: 1px solid var(--arpp-border);
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
 .arpp-table-viewport::before,
@@ -236,14 +286,23 @@
 }
 
 .arpp-entry-table thead th {
-    top: calc(var(--arpp-table-sticky-top) + 1.15rem);
+    top: 0;
     z-index: 10;
     padding: .58rem .5rem;
+    background: var(--arpp-soft);
     font-size: .75rem;
 }
 
 .arpp-entry-table td {
     padding: .48rem .42rem;
+}
+
+.arpp-entry-table tr,
+.arpp-entry-table [data-arpp-entry-row],
+.arpp-entry-table input,
+.arpp-entry-table select,
+.arpp-entry-table textarea {
+    scroll-margin-top: 3.25rem;
 }
 
 .arpp-entry-table .form-control,
@@ -339,13 +398,17 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
     top: 0;
 }
 
-@media (max-width: 1399.98px) {
+body.arpp-workspace-fullscreen .arpp-page--workspace .arpp-table-wrap {
+    max-height: calc(100dvh - var(--arpp-commandbar-height) - 8rem);
+}
+
+@media (max-width: 1499.98px) {
     .arpp-workspace-commandbar {
         grid-template-areas:
             "identity jump"
             "actions actions"
             "status status";
-        grid-template-columns: minmax(13rem, .8fr) minmax(16rem, 1.2fr);
+        grid-template-columns: minmax(13rem, .75fr) minmax(18rem, 1.25fr);
     }
 
     .arpp-workspace-commandbar__actions {
@@ -354,16 +417,16 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
 }
 
 @media (max-width: 1199.98px) {
-    .arpp-workspace-commandbar__actions .arpp-action-label {
+    .arpp-commandbar-tools--desktop {
         display: none;
     }
 
-    .arpp-workspace-commandbar__actions .btn {
-        min-width: 2.1rem;
+    .arpp-commandbar-tools--menu {
+        display: inline-flex;
     }
 
     .arpp-validation-navigator {
-        grid-template-columns: 1fr auto;
+        grid-template-columns: minmax(14rem, 1fr) auto;
     }
 
     .arpp-validation-navigator__items {
@@ -373,10 +436,6 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
 }
 
 @media (max-width: 767.98px) {
-    .arpp-page--workspace {
-        --arpp-commandbar-height: 10.5rem;
-    }
-
     .arpp-workspace-commandbar {
         position: relative;
         top: auto;
@@ -390,7 +449,7 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
 
     .arpp-workspace-commandbar__actions {
         overflow-x: auto;
-        flex-wrap: nowrap;
+        justify-content: flex-start;
         padding-bottom: .15rem;
     }
 
@@ -404,22 +463,33 @@ body.arpp-workspace-fullscreen .arpp-workspace-commandbar {
         grid-template-columns: 1fr;
     }
 
-    .arpp-validation-navigator__items {
+    .arpp-validation-navigator__items,
+    .arpp-validation-navigator__actions {
         grid-column: auto;
         grid-row: auto;
+        justify-content: flex-start;
     }
 
-    .arpp-entry-table thead th {
-        top: 0;
-    }
-
-    .arpp-table-scrollbar {
-        position: relative;
-        top: auto;
+    .arpp-page--workspace .arpp-table-wrap {
+        max-height: 70dvh;
     }
 
     .arpp-issued-identity__identifiers {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .arpp-workspace-commandbar__actions .arpp-discard-return .arpp-action-label {
+        display: none;
+    }
+
+    .arpp-workspace-commandbar__actions .arpp-discard-return {
+        min-width: 2.15rem;
+    }
+
+    .arpp-validation-navigator__items .btn {
+        max-width: 100%;
     }
 }
 

@@ -1,28 +1,37 @@
-# PRISM ARPP/PPP — Production UX Phase
+# PRISM ARPP/PPP — UI/UX Production Stabilisation
 
-This package implements the next production-focused user-experience phase for the ARPP/PPP module. It is a **source-file replacement package** and contains no database migration.
+This is a focused **UI/UX-only replacement package** for the ARPP/PPP module. It is intended to be applied on top of the preceding ARPP Production UX phase/current implementation shown in the reviewed screenshots.
 
 ## Scope implemented
 
-- Corrects the global page-shell width defect so `wide`, `calendar`, `analytics` and related shell variants use their intended actual width.
-- Moves the ARPP document editor to the unrestricted workspace shell.
-- Adds a persistent document command bar with row count, jump search, bulk actions, full-screen mode, save state and keyboard shortcuts.
-- Reduces frozen-table width by combining Serial No., PPP No. and issued project reference into one structured **Issued identity** column while preserving all separate bound model fields.
-- Adds a synchronized upper horizontal scrollbar and left/right overflow cues.
-- Calculates sticky offsets from the live PRISM top bar and module navigation.
-- Adds a row-aware validation navigator that takes the user directly to invalid fields.
-- Adds `Ctrl+S` / `Cmd+S` to save, `Alt+A` to add a row and `Esc` to exit full-screen mode.
-- Improves unsaved/saving state wording and preserves the existing explicit-save and concurrency model.
-- Improves unlock-reason validation with a live character counter, controlled inline error state and no browser validation bubble.
-- Standardises key action wording on the Details page.
-- Adds source-contract tests for the production UX requirements.
+- Separates validation state from actual unsaved changes. An incomplete loaded record now shows **No unsaved changes** together with the number of fields requiring attention; it does not falsely activate Save or trigger a navigation warning.
+- Uses a canonical form snapshot so editing and then restoring the original values returns the workspace to a clean state.
+- Rebuilds the sticky workspace stack around a contained table viewport. The command bar is opaque, the table heading remains above row 1, and content no longer shows through the toolbar.
+- Keeps the upper and lower horizontal scroll positions synchronized and retains left/right overflow cues.
+- Refines the command bar for wide and constrained monitors. Less-frequent functions move into **Entry tools** at smaller widths while Add row and Save remain visible.
+- Renames **Cancel** to **Discard and return** and adds a deliberate confirmation only when real unsaved changes exist.
+- Groups validation issues by row/section, initially limits the list to five groups, and provides **View all / Show fewer** and direct field focus.
+- Remembers the entry-guidance state after the user dismisses it.
+- Consolidates publication continuity and verification readiness into one authoritative document-state panel on Details.
+- Reduces Details to four KPI cards, moves issued rows above PDF management, and converts the attachment area into a compact evidence strip with expandable management controls.
+- Clarifies **working** versus **published** values and administrative actions in the register.
+- Shortens and clarifies ARPP library search.
+- Adds source-contract tests for the stabilised behaviours.
+
+## Explicitly not changed
+
+- No EF Core migration.
+- No database schema or entity change.
+- No service, resolver, IPA synchronisation or publication-history change.
+- No permission or workflow-rule change.
 
 ## Apply
 
-1. Back up the current source tree or create a source-control checkpoint.
-2. Extract this archive into the **ProjectManagement project root**—the folder containing `ProjectManagement.csproj`.
-3. Allow the eight listed files to replace or add files at the same relative paths.
-4. Clear browser cache after deployment because CSS and JavaScript files changed. The Razor pages already use `asp-append-version`.
+1. Back up the current project or create a source-control checkpoint.
+2. Open the folder `PRISM_ARPP_UI_UX_Production_Stabilisation` from this archive.
+3. Copy its contents into the project root containing `ProjectManagement.csproj`.
+4. Replace the eight listed source files and add the one test file.
+5. Clear the browser cache after deployment. CSS and JavaScript references already use `asp-append-version`.
 
 ## Build and test
 
@@ -34,23 +43,23 @@ dotnet build ProjectManagement.sln -c Release
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
 ```
 
-No EF Core migration is required for this phase.
+No migration command is required.
 
 ## Browser acceptance check
 
-Test at 100%, 125% and 150% Windows display scaling:
+Test at 100%, 125% and 150% Windows display scaling, with particular attention to 1366×768 at 125%:
 
-1. Open an unlocked ARPP issue and select **Edit issued rows**.
-2. Confirm the workspace uses the full available browser width.
-3. Confirm the upper horizontal scrollbar appears whenever the table overflows and remains synchronized with the table.
-4. Confirm only the row number and Issued identity remain frozen on the left, with Actions frozen on the right.
-5. Search by Serial No., PPP No., project reference or linked PRISM project in **Jump to row or project**.
-6. Enter invalid data, select **Save issue**, and confirm the validation navigator opens and focuses the selected field.
-7. Test **Full screen**, then exit using the button and `Esc`.
-8. Test `Ctrl+S` and `Alt+A`.
-9. Open the unlock dialog and confirm the action remains disabled until a clear 10-character reason is entered.
-10. Verify normal save, concurrency warning, paste-row preview and project linking still operate as before.
+1. Open an incomplete working copy without editing it. Confirm the status reads **No unsaved changes · N fields require attention** and Save remains disabled.
+2. Change a value and restore the original value. Confirm the workspace returns to **No unsaved changes**.
+3. Scroll the page and the row viewport. Confirm the command bar is opaque and the table heading always remains before row 1.
+4. Confirm the upper horizontal scrollbar and table scroll remain synchronized.
+5. Confirm **Entry tools** appears on constrained widths and Add row / Save remain accessible.
+6. Select **Discard and return** while clean, then while dirty. Only the dirty state should ask for confirmation.
+7. Create more than five validation groups and verify **View all / Show fewer** and direct focus.
+8. Review Details. Confirm one state panel, four KPIs, issued rows before the PDF area, and compact PDF management.
+9. Review the register and confirm working values are not presented as published values.
+10. Check the published ARPP library search and both desktop and mobile navigation.
 
 ## Rollback
 
-Restore the previous versions of the files listed in `REPLACEMENT-MANIFEST.txt`. No database rollback is necessary.
+Restore the previous versions of the files in `REPLACEMENT-MANIFEST.txt` and remove the added contract-test file. No database rollback is required.
