@@ -2625,6 +2625,9 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.Version, x.StageCode }).IsUnique();
                 e.Property(x => x.Version).HasMaxLength(32);
                 e.Property(x => x.StageCode).HasMaxLength(16).IsRequired();
+                e.Property(x => x.Purpose).HasMaxLength(600);
+                e.Property(x => x.PurposeUpdatedByUserId).HasMaxLength(450);
+                e.Property(x => x.PurposeUpdatedOn).IsRequired(false);
                 e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
                 e.Property(x => x.UpdatedOn).IsRequired(false);
                 e.HasMany(x => x.Items)
@@ -2635,6 +2638,10 @@ namespace ProjectManagement.Data
                     .WithOne(x => x.Template)
                     .HasForeignKey(x => x.TemplateId)
                     .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.PurposeUpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.PurposeUpdatedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(x => x.UpdatedByUser)
                     .WithMany()
                     .HasForeignKey(x => x.UpdatedByUserId)

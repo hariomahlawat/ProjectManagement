@@ -28,6 +28,35 @@ namespace ProjectManagement.Tests;
 public class StageChecklistApiTests
 {
     [Fact]
+    public async Task UpdatePurpose_HoDCanEditAndMcoCannot()
+    {
+        using var factory = new StageChecklistApiFactory();
+        var seeded = await SeedChecklistAsync(factory);
+
+        var hodClient = await CreateClientForUserAsync(factory, "hod-user", "Head of Department", "HoD");
+        var hodResponse = await hodClient.PutAsJsonAsync(
+            $"/api/processes/{seeded.Version}/stages/{seeded.StageCode}/checklist/purpose",
+            new StagePurposeUpdateRequest(
+                "Establish the authoritative feasibility position before detailed procurement processing.",
+                seeded.TemplateRowVersion));
+
+        Assert.Equal(HttpStatusCode.OK, hodResponse.StatusCode);
+        var updated = await hodResponse.Content.ReadFromJsonAsync<StageChecklistTemplateDto>();
+        Assert.NotNull(updated);
+        Assert.Equal(
+            "Establish the authoritative feasibility position before detailed procurement processing.",
+            updated!.Purpose);
+        Assert.Equal("hod-user", updated.PurposeUpdatedByUserId);
+
+        var mcoClient = await CreateClientForUserAsync(factory, "mco-purpose-user", "MCO", "MCO");
+        var mcoResponse = await mcoClient.PutAsJsonAsync(
+            $"/api/processes/{seeded.Version}/stages/{seeded.StageCode}/checklist/purpose",
+            new StagePurposeUpdateRequest("MCO must not be able to change the purpose.", updated.RowVersion));
+
+        Assert.Equal(HttpStatusCode.Forbidden, mcoResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task ReorderChecklistItems_SwapsTwoItemsAndPersists()
     {
         using var factory = new StageChecklistApiFactory();

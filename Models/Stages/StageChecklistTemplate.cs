@@ -15,6 +15,16 @@ public class StageChecklistTemplate
     [MaxLength(16)]
     public string StageCode { get; set; } = string.Empty;
 
+    [MaxLength(600)]
+    public string? Purpose { get; set; }
+
+    [MaxLength(450)]
+    public string? PurposeUpdatedByUserId { get; set; }
+
+    public ApplicationUser? PurposeUpdatedByUser { get; set; }
+
+    public DateTimeOffset? PurposeUpdatedOn { get; set; }
+
     [MaxLength(450)]
     public string? UpdatedByUserId { get; set; }
 

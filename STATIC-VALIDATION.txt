@@ -1,12 +1,19 @@
-Static validation completed:
-- Replacement-file paths verified.
-- Default sort markers verified: completed / desc.
-- Legacy Sort=year compatibility verified.
-- Completion chronology helper and partial-date display verified.
-- Register, overview queues and Excel export integration markers verified.
-- Behavioral and source-contract tests included.
-- Unified patch dry-run applied successfully against the current relevant source files.
-- ZIP integrity verified after packaging.
+STATIC VALIDATION COMPLETED
+===========================
 
-The .NET SDK is not installed in the packaging environment, so dotnet build and
-dotnet test could not be executed here.
+Passed:
+- JavaScript syntax: node --check wwwroot/js/process-flow.js
+- CSS/JavaScript/Razor gross delimiter balance
+- Local SortableJS asset exists
+- No CDN or external network dependency in the Process page implementation
+- Unified patch applies cleanly to the supplied pre-change source
+- Workflow regression contract covers TEC/BM parallel convergence
+- Purpose authorization/API tests added
+- Migration ID registered in immutable-migration-ids.txt
+- Journey and Complete Map views preview-rendered in Chromium
+
+Not executed in this environment:
+- dotnet build
+- dotnet test
+
+Reason: the .NET SDK is not installed in the artifact-generation environment.

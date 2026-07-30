@@ -1,32 +1,48 @@
-PRISM — Completed Projects latest-completion ordering
-Generated: 29 Jul 2026
+PRISM PROCUREMENT JOURNEY REDESIGN
+==================================
 
-PURPOSE
-The Completed Projects workspace now opens in completion chronology, latest first,
-instead of alphabetical project-name order.
+Purpose
+-------
+Replaces the existing six-phase Procurement Process page with one continuous,
+graph-driven Procurement Journey designed for offline PRISM deployment.
 
-APPLY
-1. Extract this ZIP into the ProjectManagement project root.
-2. Preserve the folder structure and replace the existing files when prompted.
-3. Build and test:
+Application
+-----------
+1. Copy the package contents into the ProjectManagement project root.
+2. Preserve the included folder structure and replace existing files when prompted.
+3. Apply the database migration:
+
+   dotnet ef database update
+
+4. Build and run the automated tests:
 
    dotnet build
    dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-IMPLEMENTED RULES
-- Default sort: Completed, descending.
-- Exact dates are ordered by year, month and day.
-- Month-and-year records are ordered by recorded year and month.
-- Year-only records are ordered by recorded year.
-- Within the same year/month, more precise records appear before less precise records.
-- Projects with no completion information remain at the end.
-- Project name and Project ID provide deterministic final tie-breakers.
-- Existing URLs using Sort=year remain supported and are normalised to Sort=completed.
-- The register, overview queues and Excel export use the same completion chronology.
-- The Completed column now shows the recorded precision: dd MMM yyyy, MMM yyyy or yyyy.
+5. Start PRISM and open /Process.
 
-DATABASE
-No migration is required.
+Important behaviour
+-------------------
+- No Internet or CDN access is used.
+- The page uses native HTML, CSS, JavaScript and SVG.
+- SortableJS is loaded from the existing local wwwroot/lib installation.
+- The six invented process phases have been removed.
+- Technical Evaluation and Benchmarking start after Bid Process and proceed in parallel.
+- Commercial Opening requires both Technical Evaluation and Benchmarking.
+- The stage panel contains Purpose and Processing Checklist only.
+- Admin and HoD may edit Purpose.
+- Existing checklist permissions remain MCO and HoD.
+- Checklist concurrency, auditing, create/edit/delete and drag-reorder are retained.
+- Journey and Complete Map modes are generated from the dependency graph.
+- A reduced-motion mode and print fallback are included.
 
-FILES
-Eight project/test files are included. See CHANGED-FILES.txt.
+Database migration
+------------------
+20261207170000_RedesignProcurementJourney
+
+The migration:
+- adds editable purpose fields and audit metadata to StageChecklistTemplates;
+- backfills default purpose text for existing stage guidance;
+- corrects SDD-2.0 TEC/BM/COB dependencies even when startup seeders are disabled.
+
+No external packages are required.

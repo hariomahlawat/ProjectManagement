@@ -217,6 +217,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy(Policies.Checklist.Edit, policy =>
         policy.RequireRole(Policies.Checklist.EditorRoles));
+    options.AddPolicy(Policies.Checklist.EditPurpose, policy =>
+        policy.RequireRole(Policies.Checklist.PurposeEditorRoles));
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewVisits, policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>
@@ -1796,7 +1798,7 @@ projectsApi.MapPost("/{id:int}/purge", async (
 }).RequireAuthorization(AdminPolicies.RecoveryManage);
 
 var processFlowApi = app.MapGroup("/api/processes/{version}/flow")
-    .RequireAuthorization("Checklist.View");
+    .RequireAuthorization(Policies.Checklist.View);
 
 processFlowApi.MapGet("", async (
     string version,
@@ -1858,7 +1860,7 @@ processFlowApi.MapGet("", async (
 });
 
 var stageChecklistApi = app.MapGroup("/api/processes/{version}/stages/{stageCode}/checklist")
-    .RequireAuthorization("Checklist.View");
+    .RequireAuthorization(Policies.Checklist.View);
 
 stageChecklistApi.MapGet("", async (
     string version,
@@ -1885,6 +1887,76 @@ stageChecklistApi.MapGet("", async (
 
     return Results.Ok(ToDto(checklist));
 });
+
+stageChecklistApi.MapPut("/purpose", async (
+    string version,
+    string stageCode,
+    [FromBody] StagePurposeUpdateRequest request,
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    HttpContext httpContext,
+    IClock clock,
+    IWorkflowChecklistProvider checklistProvider,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
+    {
+        return Results.BadRequest(error);
+    }
+
+    var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
+        users.GetUserId(httpContext.User), clock.UtcNow, false, checklistProvider, cancellationToken);
+
+    if (template is not StageChecklistTemplate checklist)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.TemplateRowVersion is null || request.TemplateRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Template row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.TemplateRowVersion, checklist.RowVersion))
+    {
+        return Results.Conflict(new { message = "The stage guidance has been modified by another user." });
+    }
+
+    var purpose = request.Purpose?.Trim();
+    if (string.IsNullOrWhiteSpace(purpose))
+    {
+        return Results.BadRequest("Stage purpose is required.");
+    }
+
+    if (purpose.Length > 600)
+    {
+        return Results.BadRequest("Stage purpose cannot exceed 600 characters.");
+    }
+
+    var previousPurpose = checklist.Purpose;
+    var userId = users.GetUserId(httpContext.User);
+    var now = clock.UtcNow;
+
+    checklist.Purpose = purpose;
+    checklist.PurposeUpdatedByUserId = userId;
+    checklist.PurposeUpdatedOn = now;
+
+    db.StageChecklistAudits.Add(new StageChecklistAudit
+    {
+        Template = checklist,
+        Action = "PurposeUpdated",
+        PayloadJson = JsonSerializer.Serialize(new
+        {
+            Previous = previousPurpose,
+            Current = purpose
+        }),
+        PerformedByUserId = userId,
+        PerformedOn = now
+    });
+
+    await db.SaveChangesAsync(cancellationToken);
+    return Results.Ok(ToDto(checklist));
+}).RequireAuthorization(Policies.Checklist.EditPurpose);
 
 stageChecklistApi.MapPost("", async (
     string version,
@@ -1975,7 +2047,7 @@ stageChecklistApi.MapPost("", async (
     await db.SaveChangesAsync(cancellationToken);
 
     return Results.Ok(ToDto(checklist));
-}).RequireAuthorization("Checklist.Edit");
+}).RequireAuthorization(Policies.Checklist.Edit);
 
 stageChecklistApi.MapPut("/{itemId:int}", async (
     string version,
@@ -2063,7 +2135,7 @@ stageChecklistApi.MapPut("/{itemId:int}", async (
     await db.SaveChangesAsync(cancellationToken);
 
     return Results.Ok(ToDto(checklist));
-}).RequireAuthorization("Checklist.Edit");
+}).RequireAuthorization(Policies.Checklist.Edit);
 
 stageChecklistApi.MapDelete("/{itemId:int}", async (
     string version,
@@ -2138,7 +2210,7 @@ stageChecklistApi.MapDelete("/{itemId:int}", async (
     await db.SaveChangesAsync(cancellationToken);
 
     return Results.Ok(ToDto(checklist));
-}).RequireAuthorization("Checklist.Edit");
+}).RequireAuthorization(Policies.Checklist.Edit);
 
 stageChecklistApi.MapPost("/reorder", async (
     string version,
@@ -2274,7 +2346,7 @@ stageChecklistApi.MapPost("/reorder", async (
     }
 
     return Results.Ok(ToDto(checklist));
-}).RequireAuthorization("Checklist.Edit");
+}).RequireAuthorization(Policies.Checklist.Edit);
 
 var proliferationEffectiveApi = app.MapGroup("/api/proliferation/effective")
     .RequireAuthorization(new AuthorizeAttribute { Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker });
@@ -3163,6 +3235,9 @@ static StageChecklistTemplateDto ToDto(StageChecklistTemplate template)
         template.Id,
         template.Version,
         template.StageCode,
+        template.Purpose,
+        template.PurposeUpdatedByUserId,
+        template.PurposeUpdatedOn,
         template.UpdatedByUserId,
         template.UpdatedOn,
         template.RowVersion,
@@ -3206,6 +3281,7 @@ static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
     {
         Version = version,
         StageCode = stageCode,
+        Purpose = checklistProvider.GetPurpose(version, stageCode),
         UpdatedByUserId = userId,
         UpdatedOn = now
     };
@@ -3232,7 +3308,12 @@ static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
     {
         Template = template,
         Action = "TemplateCreated",
-        PayloadJson = JsonSerializer.Serialize(new { template.StageCode, template.Version }),
+        PayloadJson = JsonSerializer.Serialize(new
+        {
+            template.StageCode,
+            template.Version,
+            template.Purpose
+        }),
         PerformedByUserId = userId,
         PerformedOn = now
     });

@@ -5,11 +5,11 @@ using ProjectManagement.Models.Plans;
 namespace ProjectManagement.Models.Stages;
 
 /// <summary>
-/// Holds version-aware checklist definitions sourced from workflow configuration.
+/// Holds version-aware stage guidance defaults sourced from workflow configuration.
+/// The database remains authoritative after a stage guidance record is created.
 /// </summary>
 public static class WorkflowChecklistConfiguration
 {
-    // SECTION: Backing store
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> SharedChecklist
         = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {
@@ -96,22 +96,60 @@ public static class WorkflowChecklistConfiguration
                 "Receive vendor invoice and verify against contractual terms",
                 "Complete three-way match with order and delivery documents",
                 "Submit payment recommendation and track disbursement"
+            },
+            [StageCodes.TOT] = new[]
+            {
+                "Confirm the approved technology-transfer scope and deliverables",
+                "Receive and verify technical documents, source material and training",
+                "Record acceptance and close outstanding transfer actions"
             }
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> SharedPurposes
+        = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [StageCodes.FS] = "Establish the operational need, feasibility, broad scope, stakeholders and indicative resources.",
+            [StageCodes.SOW] = "Define and vet the technical scope, deliverables, standards, acceptance criteria and responsibilities.",
+            [StageCodes.IPA] = "Obtain in-principle approval to progress the proposal for detailed processing and costing.",
+            [StageCodes.AON] = "Secure formal acceptance of necessity or sanction for procurement and associated expenditure.",
+            [StageCodes.BID] = "Publish the approved tender package and manage bidder communication, clarifications and submissions.",
+            [StageCodes.TEC] = "Evaluate technical compliance, capability, demonstrations and mandatory documentation.",
+            [StageCodes.BM] = "Establish an independent and defensible benchmark for assessing price reasonableness.",
+            [StageCodes.COB] = "Open the commercial bids of technically qualified firms and establish the commercial position.",
+            [StageCodes.PNC] = "Conduct price negotiations where authorised and record the basis for the negotiated outcome.",
+            [StageCodes.EAS] = "Obtain expenditure approval or financial sanction based on the evaluated commercial proposal.",
+            [StageCodes.SO] = "Issue the supply order or contract with approved terms, milestones and obligations.",
+            [StageCodes.DEVP] = "Execute development, integration, reviews and milestone monitoring against the contracted scope.",
+            [StageCodes.ATP] = "Verify the delivered system against approved acceptance test procedures and contractual criteria.",
+            [StageCodes.PAYMENT] = "Process payment against accepted deliverables, contractual milestones and supporting documents.",
+            [StageCodes.TOT] = "Complete the approved transfer of technology, knowledge, documentation and sustainment arrangements."
         };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>> VersionedChecklists
         = new Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>>(StringComparer.OrdinalIgnoreCase)
         {
-            [ProcurementWorkflow.VersionV1] = BuildVersionLookup(ProcurementWorkflow.VersionV1),
-            [ProcurementWorkflow.VersionV2] = BuildVersionLookup(ProcurementWorkflow.VersionV2)
+            [ProcurementWorkflow.VersionV1] = BuildChecklistLookup(ProcurementWorkflow.VersionV1),
+            [ProcurementWorkflow.VersionV2] = BuildChecklistLookup(ProcurementWorkflow.VersionV2)
         };
 
-    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> DefaultLookup
-        = BuildVersionLookup(PlanConstants.DefaultStageTemplateVersion);
+    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> VersionedPurposes
+        = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            [ProcurementWorkflow.VersionV1] = BuildPurposeLookup(ProcurementWorkflow.VersionV1),
+            [ProcurementWorkflow.VersionV2] = BuildPurposeLookup(ProcurementWorkflow.VersionV2)
+        };
 
-    // SECTION: API
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> DefaultChecklistLookup
+        = BuildChecklistLookup(PlanConstants.DefaultStageTemplateVersion);
+
+    private static readonly IReadOnlyDictionary<string, string> DefaultPurposeLookup
+        = BuildPurposeLookup(PlanConstants.DefaultStageTemplateVersion);
+
     public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>> All
         => VersionedChecklists;
+
+    public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> AllPurposes
+        => VersionedPurposes;
 
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> GetForVersion(string? workflowVersion)
     {
@@ -121,11 +159,21 @@ public static class WorkflowChecklistConfiguration
             return lookup;
         }
 
-        return DefaultLookup;
+        return DefaultChecklistLookup;
     }
 
-    // SECTION: Helpers
-    private static IReadOnlyDictionary<string, IReadOnlyList<string>> BuildVersionLookup(string workflowVersion)
+    public static IReadOnlyDictionary<string, string> GetPurposesForVersion(string? workflowVersion)
+    {
+        if (!string.IsNullOrWhiteSpace(workflowVersion)
+            && VersionedPurposes.TryGetValue(workflowVersion, out var lookup))
+        {
+            return lookup;
+        }
+
+        return DefaultPurposeLookup;
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> BuildChecklistLookup(string workflowVersion)
     {
         var stageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
         var lookup = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -135,6 +183,21 @@ public static class WorkflowChecklistConfiguration
             lookup[stageCode] = SharedChecklist.TryGetValue(stageCode, out var items)
                 ? items
                 : Array.Empty<string>();
+        }
+
+        return lookup;
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildPurposeLookup(string workflowVersion)
+    {
+        var stageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var stageCode in stageCodes)
+        {
+            lookup[stageCode] = SharedPurposes.TryGetValue(stageCode, out var purpose)
+                ? purpose
+                : string.Empty;
         }
 
         return lookup;

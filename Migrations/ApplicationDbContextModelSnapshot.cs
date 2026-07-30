@@ -7459,6 +7459,17 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("PurposeUpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset?>("PurposeUpdatedOn")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -7482,6 +7493,8 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PurposeUpdatedByUserId");
 
                     b.HasIndex("UpdatedByUserId");
 
@@ -9168,10 +9181,17 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Stages.StageChecklistTemplate", b =>
                 {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "PurposeUpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("PurposeUpdatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "UpdatedByUser")
                         .WithMany()
                         .HasForeignKey("UpdatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("PurposeUpdatedByUser");
 
                     b.Navigation("UpdatedByUser");
                 });

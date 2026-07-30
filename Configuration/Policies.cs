@@ -88,10 +88,17 @@ public static class Policies
     {
         public const string View = "Checklist.View";
         public const string Edit = "Checklist.Edit";
+        public const string EditPurpose = "Checklist.PurposeEdit";
 
         public static readonly string[] EditorRoles =
         {
             RoleNames.Mco,
+            RoleNames.HoD
+        };
+
+        public static readonly string[] PurposeEditorRoles =
+        {
+            RoleNames.Admin,
             RoleNames.HoD
         };
     }

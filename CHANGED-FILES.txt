@@ -1,8 +1,20 @@
-Pages/Projects/CompletedSummary/Index.cshtml
-Pages/Projects/CompletedSummary/Index.cshtml.cs
-Services/Projects/CompletedProjectsSummaryService.cs
-Services/Projects/CompletedProjectsPortfolioOverview.cs
-Utilities/Reporting/CompletedProjectsSummaryExcelBuilder.cs
-wwwroot/css/pages/projects-completed-summary.css
-ProjectManagement.Tests/CompletedSummaryPresentationContractTests.cs
-ProjectManagement.Tests/CompletedProjectCompletionOrderingTests.cs
+PRISM Procurement Journey Redesign
+Changed/new source files: 17
+
+Configuration/Policies.cs
+Contracts/Stages/StageChecklistContracts.cs
+Data/ApplicationDbContext.cs
+Data/StageFlowSeeder.cs
+Migrations/20261207170000_RedesignProcurementJourney.cs
+Migrations/ApplicationDbContextModelSnapshot.cs
+Migrations/immutable-migration-ids.txt
+Models/Stages/StageChecklistTemplate.cs
+Models/Stages/WorkflowChecklistConfiguration.cs
+Models/Stages/WorkflowChecklistProvider.cs
+Pages/Process/Index.cshtml
+Pages/Process/Index.cshtml.cs
+Program.cs
+ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
+ProjectManagement.Tests/StageChecklistApiTests.cs
+wwwroot/css/process-flow.css
+wwwroot/js/process-flow.js

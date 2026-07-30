@@ -7,6 +7,9 @@ public record StageChecklistTemplateDto(
     int Id,
     string Version,
     string StageCode,
+    string? Purpose,
+    string? PurposeUpdatedByUserId,
+    DateTimeOffset? PurposeUpdatedOn,
     string? UpdatedByUserId,
     DateTimeOffset? UpdatedOn,
     byte[] RowVersion,
@@ -42,3 +45,7 @@ public record StageChecklistReorderItem(
     int ItemId,
     int Sequence,
     byte[] RowVersion);
+
+public record StagePurposeUpdateRequest(
+    string Purpose,
+    byte[] TemplateRowVersion);

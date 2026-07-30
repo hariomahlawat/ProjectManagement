@@ -6,6 +6,7 @@ using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Plans;
 
@@ -25,6 +26,7 @@ public class IndexModel : PageModel
 
     public string ProcessVersion { get; private set; } = PlanConstants.DefaultStageTemplateVersion;
     public bool CanEditChecklist { get; private set; }
+    public bool CanEditPurpose { get; private set; }
     public DateTimeOffset? ProcessUpdatedOn { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -40,10 +42,13 @@ public class IndexModel : PageModel
             .ThenByDescending(v => v, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault() ?? PlanConstants.DefaultStageTemplateVersion;
 
-        await LoadChecklistUpdatedOnAsync(ProcessVersion, cancellationToken);
+        await LoadGuidanceUpdatedOnAsync(ProcessVersion, cancellationToken);
 
-        var editAuthorization = await _authorizationService.AuthorizeAsync(User, "Checklist.Edit");
-        CanEditChecklist = editAuthorization.Succeeded;
+        var checklistAuthorization = await _authorizationService.AuthorizeAsync(User, Policies.Checklist.Edit);
+        CanEditChecklist = checklistAuthorization.Succeeded;
+
+        var purposeAuthorization = await _authorizationService.AuthorizeAsync(User, Policies.Checklist.EditPurpose);
+        CanEditPurpose = purposeAuthorization.Succeeded;
     }
 
     private static Version ParseVersion(string? value)
@@ -61,7 +66,7 @@ public class IndexModel : PageModel
             : new Version(0, 0);
     }
 
-    private async Task LoadChecklistUpdatedOnAsync(string version, CancellationToken cancellationToken)
+    private async Task LoadGuidanceUpdatedOnAsync(string version, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(version))
         {
@@ -71,7 +76,7 @@ public class IndexModel : PageModel
         var templateSnapshots = await _db.StageChecklistTemplates
             .AsNoTracking()
             .Where(t => t.Version == version)
-            .Select(t => new { t.Id, t.UpdatedOn })
+            .Select(t => new { t.Id, t.UpdatedOn, t.PurposeUpdatedOn })
             .ToListAsync(cancellationToken);
 
         if (templateSnapshots.Count == 0)
@@ -85,6 +90,10 @@ public class IndexModel : PageModel
         candidateDates.AddRange(templateSnapshots
             .Where(t => t.UpdatedOn.HasValue)
             .Select(t => t.UpdatedOn!.Value));
+
+        candidateDates.AddRange(templateSnapshots
+            .Where(t => t.PurposeUpdatedOn.HasValue)
+            .Select(t => t.PurposeUpdatedOn!.Value));
 
         var latestItemUpdate = await _db.StageChecklistItemTemplates
             .AsNoTracking()
