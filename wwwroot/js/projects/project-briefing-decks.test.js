@@ -129,6 +129,13 @@ test('deck settings hide standard-only sections for update sheets and persist co
   assert.match(source, /defaultOpenSettingsSections/);
 });
 
+test('settings drawer uses template-aware appearance naming and compact default section states', () => {
+  assert.match(source, /appearanceTitle/);
+  assert.match(source, /updateSheet \? 'Header branding' : 'Appearance'/);
+  assert.match(source, /ProjectUpdateSheet'[\s\S]*new Set\(\['appearance', 'summary'\]\)/);
+  assert.match(source, /new Set\(\['content'\]\)/);
+});
+
 test('readiness indicators expose accessible labels and professional hover-focus tooltips', () => {
   assert.match(source, /data-pbd-readiness-tip/);
   assert.match(source, /setAttribute\('aria-label', title\)/);

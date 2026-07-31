@@ -375,6 +375,8 @@ if (root) {
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
+    const appearanceTitle = root.querySelector('[data-pbd-settings-appearance-title]');
+    if (appearanceTitle) appearanceTitle.textContent = updateSheet ? 'Header branding' : 'Appearance';
     restoreSettingsSectionState();
     syncPreflightRequirementVisibility();
   };

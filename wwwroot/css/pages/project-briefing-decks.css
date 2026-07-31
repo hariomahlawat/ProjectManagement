@@ -2421,7 +2421,10 @@ body.pbd-settings-drawer-open {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.pbd-settings-drawer .pbd-choice-cards--three,
+.pbd-settings-drawer .pbd-choice-cards--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .pbd-settings-drawer .pbd-choice-cards--four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -2431,7 +2434,29 @@ body.pbd-settings-drawer-open {
 }
 
 .pbd-settings-drawer .pbd-theme-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pbd-settings-drawer .pbd-theme-card__body {
+    grid-template-columns: 6.15rem minmax(0, 1fr);
+    min-height: 4.85rem;
+    gap: .55rem;
+    padding: .5rem;
+}
+
+.pbd-settings-drawer .pbd-theme-preview {
+    width: 6.15rem;
+    height: 3.5rem;
+}
+
+.pbd-settings-drawer .pbd-branding-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .5rem;
+}
+
+.pbd-settings-drawer .pbd-branding-options label > span {
+    min-height: 3.8rem;
+    padding: .5rem .55rem;
 }
 
 .pbd-settings-drawer .pbd-settings__bottom {
@@ -2652,7 +2677,9 @@ body.pbd-settings-drawer-open {
     .pbd-settings-drawer .pbd-form-grid--identity,
     .pbd-settings-drawer .pbd-choice-cards--two,
     .pbd-settings-drawer .pbd-choice-cards--three,
-    .pbd-settings-drawer .pbd-choice-cards--four {
+    .pbd-settings-drawer .pbd-choice-cards--four,
+    .pbd-settings-drawer .pbd-theme-cards,
+    .pbd-settings-drawer .pbd-branding-options {
         grid-template-columns: minmax(0, 1fr);
     }
 

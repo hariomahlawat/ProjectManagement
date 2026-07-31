@@ -1,12 +1,9 @@
-REPLACE
+Replace these project-relative files:
+
 Pages/Workspace/BriefingDecks/Index.cshtml
 wwwroot/css/pages/project-briefing-decks.css
 wwwroot/js/pages/project-briefing-decks.js
 wwwroot/js/projects/project-briefing-decks.test.js
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 
-NO DATABASE MIGRATION
-NO MODEL CHANGE
-NO SERVICE CHANGE
-NO POWERPOINT COMPOSER CHANGE
-NO PROJECT ORDERING OR MEMBERSHIP RULE CHANGE
+No database migration, entity, service, project-selection, ordering, or PowerPoint-generation file is included.

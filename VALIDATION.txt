@@ -1,23 +1,15 @@
-PRISM PROJECT BRIEFING DECK — FINAL WORKFLOW POLISH VALIDATION
-Date: 31 Jul 2026
+Validation performed in the generation environment:
 
-PASSED
-- JavaScript syntax: node --check
-- Targeted JavaScript tests: 20/20 passed
-- Razor structural checks: section/details/div/fieldset balance
-- Page-order contract: Deck preflight appears before Projects in this deck
-- Project Update Sheet contract: standard-only Content and layout section is hidden as a complete section
-- Settings section-state persistence contract
-- Readiness tooltip and accessibility contract
-- Unsaved-settings navigation-protection contract
-- CSS brace balance and required responsive rules
-- git diff --check
-- Patch applies cleanly to the latest Workflow and Responsive Stabilisation baseline
-- Applied patch reproduces every replacement file byte-for-byte
+PASS  JavaScript syntax: node --check
+PASS  Targeted JavaScript tests: 21/21
+PASS  CSS brace balance: 493 opening / 493 closing
+PASS  Patch clean-application check against the immediately preceding Final Workflow Polish package
+PASS  Patched files reproduce replacement files byte-for-byte
+PASS  ZIP integrity
+PASS  Replacement scope limited to Razor, CSS, JavaScript and contract tests
 
-NOT EXECUTED IN THIS ENVIRONMENT
+Not run:
 - .NET Release build
-- xUnit test suite
+- xUnit suite
 
-Reason: the .NET SDK is not installed in the execution environment.
-Run the build and xUnit commands in README-APPLY-FIRST.md after replacement.
+Reason: the .NET SDK is not installed in the generation environment.

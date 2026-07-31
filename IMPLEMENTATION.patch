@@ -1,942 +1,152 @@
 diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
-index e1da316..43bcd28 100644
+index 43bcd28..fe97347 100644
 --- a/Pages/Workspace/BriefingDecks/Index.cshtml
 +++ b/Pages/Workspace/BriefingDecks/Index.cshtml
-@@ -9,6 +9,7 @@
-     ViewData["UseFullWidth"] = true;
-     ViewData["PageShell"] = "workspace";
-     var deck = Model.SelectedDeck;
-+    var activeDeckName = deck?.Name ?? "No deck selected";
-     var isUpdateSheet = deck?.Layout == ProjectBriefingLayout.ProjectUpdateSheet;
-     var layoutLabel = isUpdateSheet ? "Project Update Sheets" : "Standard PRISM Briefing";
-     var presentationModeLabel = deck?.PresentationMode switch
-@@ -131,7 +132,11 @@
-                 @if (Model.Decks.Count > 0)
-                 {
-                     <button type="button" class="btn btn-outline-secondary pbd-decks-toggle"
--                            data-pbd-decks-toggle aria-controls="pbd-saved-decks" aria-expanded="true">
-+                            data-pbd-decks-toggle
-+                            data-pbd-active-deck-name="@activeDeckName"
-+                            aria-controls="pbd-saved-decks"
-+                            aria-expanded="true"
-+                            aria-label="Shared decks. Current deck: @activeDeckName">
-                         <i class="bi bi-collection" aria-hidden="true"></i>
-                         <span>Shared decks</span>
-                     </button>
-@@ -318,8 +323,17 @@
-                                 </fieldset>
-                                     </section>
+@@ -376,10 +376,9 @@
  
--                                    <section class="pbd-settings-section" aria-labelledby="pbd-settings-content-title">
--                                        <h4 id="pbd-settings-content-title">Content and layout</h4>
-+                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-+                                             data-pbd-settings-collapsible
-+                                             data-pbd-settings-section="content"
-+                                             data-pbd-standard-section
-+                                             hidden="@isUpdateSheet"
-+                                             open>
-+                                        <summary id="pbd-settings-content-title">
-+                                            <span>Content and layout</span>
-+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-+                                        </summary>
-+                                        <div class="pbd-settings-section__body">
-                                 <div data-pbd-standard-settings hidden="@isUpdateSheet">
-                                     <fieldset class="pbd-choice-group">
-                                         <legend>Deck format</legend>
-@@ -357,10 +371,18 @@
-                                         </div>
+                                     <details class="pbd-settings-section pbd-settings-section--collapsible"
+                                              data-pbd-settings-collapsible
+-                                             data-pbd-settings-section="appearance"
+-                                             open>
++                                             data-pbd-settings-section="appearance">
+                                         <summary id="pbd-settings-appearance-title">
+-                                            <span>Appearance</span>
++                                            <span data-pbd-settings-appearance-title>@(isUpdateSheet ? "Header branding" : "Appearance")</span>
+                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                         </summary>
+                                         <div class="pbd-settings-section__body">
+@@ -500,7 +499,7 @@
+                                         <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary</label>
                                      </fieldset>
-                                 </div>
--                                    </section>
-+                                        </div>
-+                                    </details>
- 
--                                    <section class="pbd-settings-section" aria-labelledby="pbd-settings-appearance-title">
--                                        <h4 id="pbd-settings-appearance-title">Appearance</h4>
-+                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-+                                             data-pbd-settings-collapsible
-+                                             data-pbd-settings-section="appearance"
-+                                             open>
-+                                        <summary id="pbd-settings-appearance-title">
-+                                            <span>Appearance</span>
-+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-+                                        </summary>
-+                                        <div class="pbd-settings-section__body">
-                                 <div class="pbd-presentation-design @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-presentation-design>
-                                     <fieldset class="pbd-choice-group" data-pbd-standard-settings hidden="@isUpdateSheet">
-                                         <legend>Presentation theme</legend>
-@@ -414,10 +436,19 @@
-                                         </div>
-                                     </fieldset>
-                                 </div>
--                                    </section>
-+                                        </div>
-+                                    </details>
- 
--                                    <section class="pbd-settings-section" aria-labelledby="pbd-settings-financial-title" data-pbd-standard-settings hidden="@isUpdateSheet">
--                                        <h4 id="pbd-settings-financial-title">Financial information</h4>
-+                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-+                                             data-pbd-settings-collapsible
-+                                             data-pbd-settings-section="financial"
-+                                             data-pbd-standard-section
-+                                             hidden="@isUpdateSheet">
-+                                        <summary id="pbd-settings-financial-title">
-+                                            <span>Financial information</span>
-+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-+                                        </summary>
-+                                        <div class="pbd-settings-section__body">
-                                 <fieldset class="pbd-choice-group">
-                                     <legend>Cost information</legend>
-                                     <div class="pbd-choice-cards pbd-choice-cards--four">
-@@ -439,10 +470,17 @@
-                                         </label>
-                                     </div>
-                                 </fieldset>
--                                    </section>
-+                                        </div>
-+                                    </details>
- 
--                                    <section class="pbd-settings-section" aria-labelledby="pbd-settings-summary-title">
--                                        <h4 id="pbd-settings-summary-title">Summary and handling</h4>
-+                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
-+                                             data-pbd-settings-collapsible
-+                                             data-pbd-settings-section="summary">
-+                                        <summary id="pbd-settings-summary-title">
-+                                            <span>Summary and handling</span>
-+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
-+                                        </summary>
-+                                        <div class="pbd-settings-section__body">
-                                 <fieldset class="pbd-choice-group pbd-update-sheet-options" data-pbd-update-settings hidden="@(!isUpdateSheet)">
-                                     <legend>Project Update Sheet options</legend>
-                                     <div class="pbd-update-sheet-note">
-@@ -466,7 +504,8 @@
+                                     <label class="form-label pbd-marking">
+-                                        <span>Handling / classification marking <small>optional</small></span>
++                                        <span>Classification marking <small>optional</small></span>
                                          <input class="form-control" name="HandlingMarking" value="@deck.HandlingMarking" maxlength="80" placeholder="e.g. OFFICIAL" />
                                      </label>
                                  </div>
--                                    </section>
-+                                        </div>
-+                                    </details>
-                                 </div>
- 
-                                 <footer class="pbd-settings-drawer__footer">
-@@ -479,6 +518,170 @@
-                             </form>
-                         </aside>
- 
-+                        <section class="pbd-export-preflight" aria-labelledby="pbd-preflight-title">
-+                            <header class="pbd-preflight-header">
-+                                <div>
-+                                    <span class="pbd-eyebrow">Deck preflight</span>
-+                                    <h3 id="pbd-preflight-title">Content used by this presentation</h3>
-+                                    <p>Headline checks follow the selected template. Supporting project metadata is listed separately.</p>
-+                                </div>
-+                                <div class="pbd-slide-estimate" aria-label="Estimated deck size">
-+                                    <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
-+                                    <small data-pbd-slide-breakdown>
-+                                        @if (isUpdateSheet)
-+                                        {
-+                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
-+                                        }
-+                                        else
-+                                        {
-+                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
-+                                            @if (deck.SlideEstimate.DetailedProjectSlides > 0)
-+                                            {
-+                                                <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
-+                                            }
-+                                            @if (deck.SlideEstimate.ProjectBriefSlides > 0)
-+                                            {
-+                                                <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
-+                                            }
-+                                            @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
-+                                            {
-+                                                <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
-+                                            }
-+                                        }
-+                                    </small>
-+                                </div>
-+                            </header>
-+
-+                            <div class="pbd-preflight-metrics" data-pbd-preflight-metrics>
-+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="status" data-pbd-readiness-filter="missing-status" disabled="@(missingStatusCount == 0)">
-+                                    <strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong>
-+                                    <span>External status</span>
-+                                    <small>Show missing</small>
-+                                </button>
-+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="cost-rd" data-pbd-readiness-filter="missing-cost-rd" hidden="@(!includesCostRd)" disabled="@(missingCostRdCount == 0)">
-+                                    <strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong>
-+                                    <span>Cost (R&amp;D)</span>
-+                                    <small>Show missing</small>
-+                                </button>
-+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="proliferation" data-pbd-readiness-filter="missing-proliferation" hidden="@(!includesProliferationCost)" disabled="@(missingProliferationCount == 0)">
-+                                    <strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong>
-+                                    <span>Proliferation cost</span>
-+                                    <small>Show missing</small>
-+                                </button>
-+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="capability" data-pbd-readiness-filter="missing-description" hidden="@(!(includesDetailedSlides && needsCapabilities))" disabled="@(missingCapabilityCount == 0)">
-+                                    <strong data-pbd-metric="capability">@deck.Readiness.CapabilityOverviewAvailableCount/@deck.Readiness.ProjectCount</strong>
-+                                    <span>Capability overview</span>
-+                                    <small>Show missing</small>
-+                                </button>
-+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="project-brief" data-pbd-readiness-filter="missing-description" hidden="@(!(includesDetailedSlides && needsProjectBrief))" disabled="@(missingProjectBriefCount == 0)">
-+                                    <strong data-pbd-metric="project-brief">@deck.Readiness.ProjectBriefAvailableCount/@deck.Readiness.ProjectCount</strong>
-+                                    <span>Project brief</span>
-+                                    <small>Show missing</small>
-+                                </button>
-+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="photo" data-pbd-readiness-filter="missing-photo" hidden="@(!includesDetailedSlides)" disabled="@(missingPhotoCount == 0)">
-+                                    <strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong>
-+                                    <span>Usable photograph</span>
-+                                    <small>Show missing</small>
-+                                </button>
-+                            </div>
-+
-+                            <details class="pbd-preflight-details" data-pbd-preflight-details>
-+                                <summary>
-+                                    <span>
-+                                        <i class="bi @(affectedProjectCount == 0 ? "bi-check-circle" : "bi-exclamation-circle")" data-pbd-gap-summary-icon aria-hidden="true"></i>
-+                                        <strong data-pbd-gap-summary>@(affectedProjectCount == 0 ? "Selected content is ready" : $"{affectedProjectCount} {(affectedProjectCount == 1 ? "project has" : "projects have")} content gaps")</strong>
-+                                        <small data-pbd-gap-summary-detail>@(affectedProjectCount == 0 ? "All selected-layout content is available." : usedGapSummaryText)</small>
-+                                    </span>
-+                                </summary>
-+                                <div class="pbd-preflight-detail-grid">
-+                                    <section>
-+                                        <h4>Used in this deck</h4>
-+                                        <ul class="pbd-gap-list" data-pbd-used-gap-list>
-+                                            @if (deck.Readiness.ProjectCount == 0)
-+                                            {
-+                                                <li class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Add projects to generate a deck.</span></li>
-+                                            }
-+                                            else
-+                                            {
-+                                                @if (missingStatusCount > 0)
-+                                                {
-+                                                    <li><button type="button" data-pbd-readiness-filter="missing-status"><i class="bi bi-chat-left-text" aria-hidden="true"></i><span>External status</span><strong>@missingStatusCount missing</strong></button></li>
-+                                                }
-+                                                @if (includesCostRd && missingCostRdCount > 0)
-+                                                {
-+                                                    <li><button type="button" data-pbd-readiness-filter="missing-cost-rd"><i class="bi bi-currency-rupee" aria-hidden="true"></i><span>Cost (R&amp;D)</span><strong>@missingCostRdCount missing</strong></button></li>
-+                                                }
-+                                                @if (includesProliferationCost && missingProliferationCount > 0)
-+                                                {
-+                                                    <li><button type="button" data-pbd-readiness-filter="missing-proliferation"><i class="bi bi-boxes" aria-hidden="true"></i><span>Proliferation cost</span><strong>@missingProliferationCount missing</strong></button></li>
-+                                                }
-+                                                @if (includesDetailedSlides && missingPhotoCount > 0)
-+                                                {
-+                                                    <li><button type="button" data-pbd-readiness-filter="missing-photo"><i class="bi bi-image" aria-hidden="true"></i><span>PowerPoint-ready photograph</span><strong>@missingPhotoCount missing</strong></button></li>
-+                                                }
-+                                                @if (includesDetailedSlides && needsCapabilities && missingCapabilityCount > 0)
-+                                                {
-+                                                    <li><button type="button" data-pbd-readiness-filter="missing-description"><i class="bi bi-list-check" aria-hidden="true"></i><span>Capability overview</span><strong>@missingCapabilityCount missing</strong></button></li>
-+                                                }
-+                                                @if (includesDetailedSlides && needsProjectBrief && missingProjectBriefCount > 0)
-+                                                {
-+                                                    <li><button type="button" data-pbd-readiness-filter="missing-description"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Project brief</span><strong>@missingProjectBriefCount missing</strong></button></li>
-+                                                }
-+                                                @if (usedContentGapCount == 0)
-+                                                {
-+                                                    <li class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i><span>All selected-layout content is available.</span></li>
-+                                                }
-+                                            }
-+                                        </ul>
-+                                    </section>
-+                                    <section>
-+                                        <h4>Supporting project metadata</h4>
-+                                        <ul class="pbd-gap-list" data-pbd-additional-gap-list>
-+                                            @if (!isUpdateSheet)
-+                                            {
-+                                                <li class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i><span>No additional metadata is required by this template.</span></li>
-+                                            }
-+                                            else
-+                                            {
-+                                                @if (missingArppCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-journal-text" aria-hidden="true"></i><span>Complete ARPP/PPP details</span><strong>@missingArppCount missing</strong></li>
-+                                                }
-+                                                @if (missingAonDateCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-calendar-check" aria-hidden="true"></i><span>AoN date</span><strong>@missingAonDateCount missing</strong></li>
-+                                                }
-+                                                @if (missingSupplyOrderDateCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-calendar2-event" aria-hidden="true"></i><span>Supply-order date</span><strong>@missingSupplyOrderDateCount missing</strong></li>
-+                                                }
-+                                                @if (missingJdpCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-building" aria-hidden="true"></i><span>Linked JDP</span><strong>@missingJdpCount missing</strong></li>
-+                                                }
-+                                                @if (missingDevelopmentPdcCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-calendar-x" aria-hidden="true"></i><span>Development PDC</span><strong>@missingDevelopmentPdcCount missing</strong></li>
-+                                                }
-+                                                @if (missingProjectOfficerCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-person-badge" aria-hidden="true"></i><span>Project Officer rank and full name</span><strong>@missingProjectOfficerCount missing</strong></li>
-+                                                }
-+                                                @if (missingLineDirectorateCount > 0)
-+                                                {
-+                                                    <li><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Line Directorate</span><strong>@missingLineDirectorateCount missing</strong></li>
-+                                                }
-+                                                @if (additionalMetadataGapCount == 0)
-+                                                {
-+                                                    <li class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i><span>Supporting project metadata is complete.</span></li>
-+                                                }
-+                                            }
-+                                        </ul>
-+                                    </section>
-+                                </div>
-+                            </details>
-+                        </section>
-+
-                         <section class="pbd-selected" aria-labelledby="pbd-selected-title" data-pbd-selected-section>
-                             <header class="pbd-section-header pbd-section-header--selected">
-                                 <div>
-@@ -564,7 +767,19 @@
-                                             <th>Cost (R&amp;D)</th>
-                                             <th data-pbd-proliferation-column hidden="@isUpdateSheet">Proliferation cost</th>
-                                             <th class="pbd-status-column">Status <small>external remark</small></th>
--                                            <th>Deck readiness</th>
-+                                            <th>
-+                                                <span class="pbd-readiness-heading">
-+                                                    Deck readiness
-+                                                    <button type="button"
-+                                                            class="pbd-readiness-legend"
-+                                                            data-pbd-readiness-tip
-+                                                            data-bs-title="Indicators show photograph, external status, R&amp;D cost, update-sheet facts when applicable, and the selected project content."
-+                                                            title="Indicators show photograph, external status, R&amp;D cost, update-sheet facts when applicable, and the selected project content."
-+                                                            aria-label="Readiness indicator order: photograph, external status, R&amp;D cost, update-sheet facts when applicable, and selected project content.">
-+                                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
-+                                                    </button>
-+                                                </span>
-+                                            </th>
-                                             <th><span class="visually-hidden">Actions</span></th>
-                                         </tr>
-                                     </thead>
-@@ -644,15 +859,44 @@
-                                                 </td>
-                                                 <td>
-                                                     <div class="pbd-readiness-icons" aria-label="Project deck readiness">
--                                                        <span class="@(project.HasCoverPhoto ? "is-ready" : "is-missing")" title="@photoReadinessTitle"><i class="bi bi-image"></i></span>
--                                                        <span class="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "is-ready" : "is-missing")" title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"><i class="bi bi-chat-left-text"></i></span>
--                                                        <span class="@(project.CostRd.IsAvailable ? "is-ready" : "is-missing")" title="@costReadinessTitle"><i class="bi bi-currency-rupee"></i></span>
-+                                                        <span class="@(project.HasCoverPhoto ? "is-ready" : "is-missing")"
-+                                                              role="img"
-+                                                              tabindex="0"
-+                                                              aria-label="@photoReadinessTitle"
-+                                                              data-pbd-readiness-tip
-+                                                              data-bs-title="@photoReadinessTitle"
-+                                                              title="@photoReadinessTitle"><i class="bi bi-image" aria-hidden="true"></i></span>
-+                                                        <span class="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "is-ready" : "is-missing")"
-+                                                              role="img"
-+                                                              tabindex="0"
-+                                                              aria-label="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"
-+                                                              data-pbd-readiness-tip
-+                                                              data-bs-title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"
-+                                                              title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"><i class="bi bi-chat-left-text" aria-hidden="true"></i></span>
-+                                                        <span class="@(project.CostRd.IsAvailable ? "is-ready" : "is-missing")"
-+                                                              role="img"
-+                                                              tabindex="0"
-+                                                              aria-label="@costReadinessTitle"
-+                                                              data-pbd-readiness-tip
-+                                                              data-bs-title="@costReadinessTitle"
-+                                                              title="@costReadinessTitle"><i class="bi bi-currency-rupee" aria-hidden="true"></i></span>
-                                                         @if (isUpdateSheet)
-                                                         {
-                                                             <span class="@(project.IsUpdateSheetCoreFactsReady ? "is-ready" : "is-missing")"
--                                                                  title="@(project.IsUpdateSheetCoreFactsReady ? "Project update facts complete" : "Project update facts incomplete")"><i class="bi bi-card-checklist"></i></span>
-+                                                                  role="img"
-+                                                                  tabindex="0"
-+                                                                  aria-label="@(project.IsUpdateSheetCoreFactsReady ? "Project update facts complete" : "Project update facts incomplete")"
-+                                                                  data-pbd-readiness-tip
-+                                                                  data-bs-title="@(project.IsUpdateSheetCoreFactsReady ? "Project update facts complete" : "Project update facts incomplete")"
-+                                                                  title="@(project.IsUpdateSheetCoreFactsReady ? "Project update facts complete" : "Project update facts incomplete")"><i class="bi bi-card-checklist" aria-hidden="true"></i></span>
-                                                         }
--                                                        <span class="@(hasSelectedNarrative ? "is-ready" : "is-missing")" title="@narrativeReadinessTitle"><i class="bi @(needsCapabilities && needsProjectBrief ? "bi-layers" : needsProjectBrief ? "bi-file-earmark-text" : "bi-list-check")"></i></span>
-+                                                        <span class="@(hasSelectedNarrative ? "is-ready" : "is-missing")"
-+                                                              role="img"
-+                                                              tabindex="0"
-+                                                              aria-label="@narrativeReadinessTitle"
-+                                                              data-pbd-readiness-tip
-+                                                              data-bs-title="@narrativeReadinessTitle"
-+                                                              title="@narrativeReadinessTitle"><i class="bi @(needsCapabilities && needsProjectBrief ? "bi-layers" : needsProjectBrief ? "bi-file-earmark-text" : "bi-list-check")" aria-hidden="true"></i></span>
-                                                     </div>
-                                                 </td>
-                                                 <td class="pbd-row-actions">
-@@ -798,169 +1042,7 @@
-                             </div>
-                         </details>
- 
--                        <section class="pbd-export-preflight" aria-labelledby="pbd-preflight-title">
--                            <header class="pbd-preflight-header">
--                                <div>
--                                    <span class="pbd-eyebrow">Deck preflight</span>
--                                    <h3 id="pbd-preflight-title">Content used by this presentation</h3>
--                                    <p>Headline checks follow the selected template. Supporting project metadata is listed separately.</p>
--                                </div>
--                                <div class="pbd-slide-estimate" aria-label="Estimated deck size">
--                                    <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
--                                    <small data-pbd-slide-breakdown>
--                                        @if (isUpdateSheet)
--                                        {
--                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
--                                        }
--                                        else
--                                        {
--                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
--                                            @if (deck.SlideEstimate.DetailedProjectSlides > 0)
--                                            {
--                                                <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
--                                            }
--                                            @if (deck.SlideEstimate.ProjectBriefSlides > 0)
--                                            {
--                                                <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
--                                            }
--                                            @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
--                                            {
--                                                <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
--                                            }
--                                        }
--                                    </small>
--                                </div>
--                            </header>
--
--                            <div class="pbd-preflight-metrics" data-pbd-preflight-metrics>
--                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="status" data-pbd-readiness-filter="missing-status" disabled="@(missingStatusCount == 0)">
--                                    <strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong>
--                                    <span>External status</span>
--                                    <small>Show missing</small>
--                                </button>
--                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="cost-rd" data-pbd-readiness-filter="missing-cost-rd" hidden="@(!includesCostRd)" disabled="@(missingCostRdCount == 0)">
--                                    <strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong>
--                                    <span>Cost (R&amp;D)</span>
--                                    <small>Show missing</small>
--                                </button>
--                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="proliferation" data-pbd-readiness-filter="missing-proliferation" hidden="@(!includesProliferationCost)" disabled="@(missingProliferationCount == 0)">
--                                    <strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong>
--                                    <span>Proliferation cost</span>
--                                    <small>Show missing</small>
--                                </button>
--                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="capability" data-pbd-readiness-filter="missing-description" hidden="@(!(includesDetailedSlides && needsCapabilities))" disabled="@(missingCapabilityCount == 0)">
--                                    <strong data-pbd-metric="capability">@deck.Readiness.CapabilityOverviewAvailableCount/@deck.Readiness.ProjectCount</strong>
--                                    <span>Capability overview</span>
--                                    <small>Show missing</small>
--                                </button>
--                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="project-brief" data-pbd-readiness-filter="missing-description" hidden="@(!(includesDetailedSlides && needsProjectBrief))" disabled="@(missingProjectBriefCount == 0)">
--                                    <strong data-pbd-metric="project-brief">@deck.Readiness.ProjectBriefAvailableCount/@deck.Readiness.ProjectCount</strong>
--                                    <span>Project brief</span>
--                                    <small>Show missing</small>
--                                </button>
--                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="photo" data-pbd-readiness-filter="missing-photo" hidden="@(!includesDetailedSlides)" disabled="@(missingPhotoCount == 0)">
--                                    <strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong>
--                                    <span>Usable photograph</span>
--                                    <small>Show missing</small>
--                                </button>
--                            </div>
- 
--                            <details class="pbd-preflight-details" data-pbd-preflight-details>
--                                <summary>
--                                    <span>
--                                        <i class="bi @(affectedProjectCount == 0 ? "bi-check-circle" : "bi-exclamation-circle")" data-pbd-gap-summary-icon aria-hidden="true"></i>
--                                        <strong data-pbd-gap-summary>@(affectedProjectCount == 0 ? "Selected content is ready" : $"{affectedProjectCount} {(affectedProjectCount == 1 ? "project has" : "projects have")} content gaps")</strong>
--                                        <small data-pbd-gap-summary-detail>@(affectedProjectCount == 0 ? "All selected-layout content is available." : usedGapSummaryText)</small>
--                                    </span>
--                                </summary>
--                                <div class="pbd-preflight-detail-grid">
--                                    <section>
--                                        <h4>Used in this deck</h4>
--                                        <ul class="pbd-gap-list" data-pbd-used-gap-list>
--                                            @if (deck.Readiness.ProjectCount == 0)
--                                            {
--                                                <li class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Add projects to generate a deck.</span></li>
--                                            }
--                                            else
--                                            {
--                                                @if (missingStatusCount > 0)
--                                                {
--                                                    <li><button type="button" data-pbd-readiness-filter="missing-status"><i class="bi bi-chat-left-text" aria-hidden="true"></i><span>External status</span><strong>@missingStatusCount missing</strong></button></li>
--                                                }
--                                                @if (includesCostRd && missingCostRdCount > 0)
--                                                {
--                                                    <li><button type="button" data-pbd-readiness-filter="missing-cost-rd"><i class="bi bi-currency-rupee" aria-hidden="true"></i><span>Cost (R&amp;D)</span><strong>@missingCostRdCount missing</strong></button></li>
--                                                }
--                                                @if (includesProliferationCost && missingProliferationCount > 0)
--                                                {
--                                                    <li><button type="button" data-pbd-readiness-filter="missing-proliferation"><i class="bi bi-boxes" aria-hidden="true"></i><span>Proliferation cost</span><strong>@missingProliferationCount missing</strong></button></li>
--                                                }
--                                                @if (includesDetailedSlides && missingPhotoCount > 0)
--                                                {
--                                                    <li><button type="button" data-pbd-readiness-filter="missing-photo"><i class="bi bi-image" aria-hidden="true"></i><span>PowerPoint-ready photograph</span><strong>@missingPhotoCount missing</strong></button></li>
--                                                }
--                                                @if (includesDetailedSlides && needsCapabilities && missingCapabilityCount > 0)
--                                                {
--                                                    <li><button type="button" data-pbd-readiness-filter="missing-description"><i class="bi bi-list-check" aria-hidden="true"></i><span>Capability overview</span><strong>@missingCapabilityCount missing</strong></button></li>
--                                                }
--                                                @if (includesDetailedSlides && needsProjectBrief && missingProjectBriefCount > 0)
--                                                {
--                                                    <li><button type="button" data-pbd-readiness-filter="missing-description"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Project brief</span><strong>@missingProjectBriefCount missing</strong></button></li>
--                                                }
--                                                @if (usedContentGapCount == 0)
--                                                {
--                                                    <li class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i><span>All selected-layout content is available.</span></li>
--                                                }
--                                            }
--                                        </ul>
--                                    </section>
--                                    <section>
--                                        <h4>Supporting project metadata</h4>
--                                        <ul class="pbd-gap-list" data-pbd-additional-gap-list>
--                                            @if (!isUpdateSheet)
--                                            {
--                                                <li class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i><span>No additional metadata is required by this template.</span></li>
--                                            }
--                                            else
--                                            {
--                                                @if (missingArppCount > 0)
--                                                {
--                                                    <li><i class="bi bi-journal-text" aria-hidden="true"></i><span>Complete ARPP/PPP details</span><strong>@missingArppCount missing</strong></li>
--                                                }
--                                                @if (missingAonDateCount > 0)
--                                                {
--                                                    <li><i class="bi bi-calendar-check" aria-hidden="true"></i><span>AoN date</span><strong>@missingAonDateCount missing</strong></li>
--                                                }
--                                                @if (missingSupplyOrderDateCount > 0)
--                                                {
--                                                    <li><i class="bi bi-calendar2-event" aria-hidden="true"></i><span>Supply-order date</span><strong>@missingSupplyOrderDateCount missing</strong></li>
--                                                }
--                                                @if (missingJdpCount > 0)
--                                                {
--                                                    <li><i class="bi bi-building" aria-hidden="true"></i><span>Linked JDP</span><strong>@missingJdpCount missing</strong></li>
--                                                }
--                                                @if (missingDevelopmentPdcCount > 0)
--                                                {
--                                                    <li><i class="bi bi-calendar-x" aria-hidden="true"></i><span>Development PDC</span><strong>@missingDevelopmentPdcCount missing</strong></li>
--                                                }
--                                                @if (missingProjectOfficerCount > 0)
--                                                {
--                                                    <li><i class="bi bi-person-badge" aria-hidden="true"></i><span>Project Officer rank and full name</span><strong>@missingProjectOfficerCount missing</strong></li>
--                                                }
--                                                @if (missingLineDirectorateCount > 0)
--                                                {
--                                                    <li><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Line Directorate</span><strong>@missingLineDirectorateCount missing</strong></li>
--                                                }
--                                                @if (additionalMetadataGapCount == 0)
--                                                {
--                                                    <li class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i><span>Supporting project metadata is complete.</span></li>
--                                                }
--                                            }
--                                        </ul>
--                                    </section>
--                                </div>
--                            </details>
--                        </section>
- 
- 
- 
 diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-index 53a6537..bac8e45 100644
+index bac8e45..77b65eb 100644
 --- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 +++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-@@ -30,7 +30,7 @@ public sealed class ProjectBriefingContractTests
- 
- 
-     [Fact]
--    public void Builder_PrioritisesSelectedProjectsAndUsesTemplateAwarePreflight()
-+    public void Builder_KeepsCompactPreflightAboveProjectsAndUsesTemplateAwareChecks()
-     {
-         var page = Read("Index.cshtml");
-         var script = Read("project-briefing-decks.js");
-@@ -45,10 +45,14 @@ public sealed class ProjectBriefingContractTests
-         Assert.Contains("syncPreflightRequirementVisibility", script, StringComparison.Ordinal);
-         Assert.Contains("is-decks-collapsed", script, StringComparison.Ordinal);
-         Assert.True(
--            page.IndexOf("Projects in this deck", StringComparison.Ordinal) < page.IndexOf("Deck preflight", StringComparison.Ordinal),
--            "Selected-project management must appear before deck preflight.");
-+            page.IndexOf("Deck preflight", StringComparison.Ordinal) < page.IndexOf("Projects in this deck", StringComparison.Ordinal),
-+            "Deck preflight must remain the compact decision checkpoint above project management.");
-         Assert.Contains("data-pbd-settings-drawer", page, StringComparison.Ordinal);
-         Assert.Contains("data-pbd-settings-dirty", page, StringComparison.Ordinal);
-+        Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
-+        Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
-+        Assert.Contains("data-pbd-readiness-tip", page, StringComparison.Ordinal);
-+        Assert.Contains("aria-label="Readiness indicator order", page, StringComparison.Ordinal);
+@@ -52,7 +52,7 @@ public sealed class ProjectBriefingContractTests
+         Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
+         Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
+         Assert.Contains("data-pbd-readiness-tip", page, StringComparison.Ordinal);
+-        Assert.Contains("aria-label="Readiness indicator order", page, StringComparison.Ordinal);
++        Assert.Contains("aria-label=\"Readiness indicator order", page, StringComparison.Ordinal);
          Assert.Contains("projects have", page, StringComparison.Ordinal);
          Assert.DoesNotContain("Review {totalPreflightGapCount}", page, StringComparison.Ordinal);
      }
-@@ -66,6 +70,9 @@ public sealed class ProjectBriefingContractTests
-         Assert.Contains("Unsaved settings", page, StringComparison.Ordinal);
-         Assert.Contains("serializeSettings", script, StringComparison.Ordinal);
-         Assert.Contains("beforeunload", script, StringComparison.Ordinal);
-+        Assert.Contains("confirmSettingsNavigation", script, StringComparison.Ordinal);
-+        Assert.Contains("restoreSettingsSectionState", script, StringComparison.Ordinal);
-+        Assert.Contains("initialiseReadinessTooltips", script, StringComparison.Ordinal);
-         Assert.Contains("Save or discard settings before generating", script, StringComparison.Ordinal);
-         Assert.Contains("contain: inline-size", css, StringComparison.Ordinal);
-         Assert.Contains("overflow-x: clip", css, StringComparison.Ordinal);
-diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
-index 9fc8c8c..f962ec8 100644
---- a/wwwroot/css/pages/project-briefing-decks.css
-+++ b/wwwroot/css/pages/project-briefing-decks.css
-@@ -1036,6 +1036,44 @@
-     height: 1.55rem;
-     place-items: center;
-     border-radius: .42rem;
-+    cursor: help;
-+}
-+
-+.pbd-readiness-icons span:focus-visible {
-+    outline: 2px solid rgba(40, 95, 184, .42);
-+    outline-offset: 2px;
-+}
-+
-+.pbd-readiness-heading {
-+    display: inline-flex;
-+    align-items: center;
-+    gap: .3rem;
-+    white-space: nowrap;
-+}
-+
-+.pbd-readiness-legend {
-+    display: inline-grid;
-+    width: 1.25rem;
-+    height: 1.25rem;
-+    padding: 0;
-+    place-items: center;
-+    border: 0;
-+    border-radius: 999px;
-+    background: transparent;
-+    color: var(--pbd-muted);
-+    font-size: .72rem;
-+    cursor: help;
-+}
-+
-+.pbd-readiness-legend:hover,
-+.pbd-readiness-legend:focus-visible {
-+    background: #eaf1ff;
-+    color: var(--pbd-blue);
-+}
-+
-+.pbd-readiness-legend:focus-visible {
-+    outline: 2px solid rgba(40, 95, 184, .35);
-+    outline-offset: 1px;
- }
- 
- .pbd-readiness-icons .is-ready {
-@@ -2317,6 +2355,63 @@ body.pbd-settings-drawer-open {
-     text-transform: uppercase;
- }
- 
-+.pbd-settings-section[hidden] {
-+    display: none !important;
-+}
-+
-+.pbd-settings-section--collapsible {
-+    padding: 0;
-+    overflow: hidden;
-+}
-+
-+.pbd-settings-section--collapsible > summary {
-+    display: flex;
-+    min-height: 2.85rem;
-+    align-items: center;
-+    justify-content: space-between;
-+    gap: .75rem;
-+    padding: .72rem .78rem;
-+    color: #344054;
-+    cursor: pointer;
-+    font-size: .72rem;
-+    font-weight: 800;
-+    letter-spacing: .045em;
-+    list-style: none;
-+    text-transform: uppercase;
-+    user-select: none;
-+}
-+
-+.pbd-settings-section--collapsible > summary::-webkit-details-marker {
-+    display: none;
-+}
-+
-+.pbd-settings-section--collapsible > summary:hover {
-+    background: #f8fafe;
-+}
-+
-+.pbd-settings-section--collapsible > summary:focus-visible {
-+    outline: 3px solid rgba(40, 95, 184, .18);
-+    outline-offset: -3px;
-+}
-+
-+.pbd-settings-section--collapsible > summary i {
-+    color: var(--pbd-muted);
-+    transition: transform .16s ease;
-+}
-+
-+.pbd-settings-section--collapsible[open] > summary i {
-+    transform: rotate(180deg);
-+}
-+
-+.pbd-settings-section__body {
-+    padding: 0 .78rem .78rem;
-+    border-top: 1px solid #edf1f6;
-+}
-+
-+.pbd-settings-section__body > :first-child {
-+    margin-top: .72rem;
-+}
-+
- .pbd-settings-section .pbd-choice-group:first-of-type,
- .pbd-settings-section .pbd-checks:first-of-type {
-     margin-top: 0;
-@@ -2381,7 +2476,11 @@ body.pbd-settings-drawer-open {
-     box-shadow: none;
- }
- 
--/* Projects are the primary recurring workflow; preflight follows collection management. */
-+/* Preflight remains the compact decision checkpoint above project management. */
-+.pbd-export-preflight {
-+    margin-bottom: .75rem;
-+}
-+
- .pbd-selected {
-     margin-bottom: .75rem;
- }
-@@ -2391,10 +2490,6 @@ body.pbd-settings-drawer-open {
-     margin-bottom: .75rem;
- }
- 
--.pbd-export-preflight {
--    margin-bottom: 0;
--}
--
- /* Preflight metrics and used-content gaps are direct project-list filters. */
- .pbd-preflight-metrics > .pbd-preflight-metric {
-     display: grid;
-@@ -2515,6 +2610,20 @@ body.pbd-settings-drawer-open {
-         align-items: flex-start;
+@@ -79,6 +79,23 @@ public sealed class ProjectBriefingContractTests
+         Assert.Contains("max-width: 1499px", css, StringComparison.Ordinal);
      }
  
-+    .pbd-selected-actions .pbd-ordering-note,
-+    .pbd-selected-actions .pbd-filter-reorder-note {
-+        order: 20;
-+        flex: 1 0 100%;
-+        margin-top: .08rem;
++    [Fact]
++    public void Builder_UsesCompactTemplateAwareSettingsDrawerLayout()
++    {
++        var page = Read("Index.cshtml");
++        var script = Read("project-briefing-decks.js");
++        var css = Read("project-briefing-decks.css");
++
++        Assert.Contains("data-pbd-settings-appearance-title", page, StringComparison.Ordinal);
++        Assert.Contains("Classification marking <small>optional</small>", page, StringComparison.Ordinal);
++        Assert.DoesNotContain("Handling / classification marking", page, StringComparison.Ordinal);
++        Assert.Contains("appearanceTitle.textContent = updateSheet ? 'Header branding' : 'Appearance'", script, StringComparison.Ordinal);
++        Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
++        Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
++        Assert.Contains(".pbd-settings-drawer .pbd-theme-cards", css, StringComparison.Ordinal);
++        Assert.Contains(".pbd-settings-drawer .pbd-branding-options", css, StringComparison.Ordinal);
 +    }
 +
-+    .pbd-selected-actions .pbd-save-state {
-+        order: 21;
-+        width: 100%;
-+        margin-left: 0;
-+        text-align: left;
-+    }
+     [Fact]
+     public void Client_UsesApplicationAntiforgeryHeaderAndDownloadsPptx()
+     {
+diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
+index f962ec8..5c9d1f0 100644
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -2421,7 +2421,10 @@ body.pbd-settings-drawer-open {
+     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+ }
+ 
+-.pbd-settings-drawer .pbd-choice-cards--three,
++.pbd-settings-drawer .pbd-choice-cards--three {
++    grid-template-columns: repeat(3, minmax(0, 1fr));
++}
 +
-     .pbd-page-header__actions {
-         flex-wrap: wrap;
-         justify-content: flex-end;
+ .pbd-settings-drawer .pbd-choice-cards--four {
+     grid-template-columns: repeat(2, minmax(0, 1fr));
+ }
+@@ -2431,7 +2434,29 @@ body.pbd-settings-drawer-open {
+ }
+ 
+ .pbd-settings-drawer .pbd-theme-cards {
+-    grid-template-columns: 1fr;
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++}
++
++.pbd-settings-drawer .pbd-theme-card__body {
++    grid-template-columns: 6.15rem minmax(0, 1fr);
++    min-height: 4.85rem;
++    gap: .55rem;
++    padding: .5rem;
++}
++
++.pbd-settings-drawer .pbd-theme-preview {
++    width: 6.15rem;
++    height: 3.5rem;
++}
++
++.pbd-settings-drawer .pbd-branding-options {
++    grid-template-columns: repeat(3, minmax(0, 1fr));
++    gap: .5rem;
++}
++
++.pbd-settings-drawer .pbd-branding-options label > span {
++    min-height: 3.8rem;
++    padding: .5rem .55rem;
+ }
+ 
+ .pbd-settings-drawer .pbd-settings__bottom {
+@@ -2652,7 +2677,9 @@ body.pbd-settings-drawer-open {
+     .pbd-settings-drawer .pbd-form-grid--identity,
+     .pbd-settings-drawer .pbd-choice-cards--two,
+     .pbd-settings-drawer .pbd-choice-cards--three,
+-    .pbd-settings-drawer .pbd-choice-cards--four {
++    .pbd-settings-drawer .pbd-choice-cards--four,
++    .pbd-settings-drawer .pbd-theme-cards,
++    .pbd-settings-drawer .pbd-branding-options {
+         grid-template-columns: minmax(0, 1fr);
+     }
+ 
 diff --git a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
-index 29374b8..f0740f2 100644
+index f0740f2..fa2464b 100644
 --- a/wwwroot/js/pages/project-briefing-decks.js
 +++ b/wwwroot/js/pages/project-briefing-decks.js
-@@ -70,6 +70,46 @@ if (root) {
-   let settingsInitialState = '';
-   let settingsDirty = false;
-   let settingsReturnFocus = null;
-+  const settingsCollapsibleSections = settingsDrawer
-+    ? [...settingsDrawer.querySelectorAll('[data-pbd-settings-collapsible]')]
-+    : [];
-+  let restoringSettingsSections = false;
-+  const currentSettingsLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
-+  const settingsSectionStorageKey = () => `${storagePrefix}settingsSections:${currentSettingsLayout()}`;
-+  const defaultOpenSettingsSections = () => currentSettingsLayout() === 'ProjectUpdateSheet'
-+    ? new Set(['appearance', 'summary'])
-+    : new Set(['content']);
-+
-+  const persistSettingsSectionState = () => {
-+    if (restoringSettingsSections) return;
-+    const openSections = settingsCollapsibleSections
-+      .filter((section) => !section.hidden && section.open)
-+      .map((section) => section.dataset.pbdSettingsSection)
-+      .filter(Boolean);
-+    sessionStorage.setItem(settingsSectionStorageKey(), JSON.stringify(openSections));
-+  };
-+
-+  const restoreSettingsSectionState = () => {
-+    if (settingsCollapsibleSections.length === 0) return;
-+    let openSections = defaultOpenSettingsSections();
-+    const saved = sessionStorage.getItem(settingsSectionStorageKey());
-+    if (saved) {
-+      try {
-+        const parsed = JSON.parse(saved);
-+        if (Array.isArray(parsed)) openSections = new Set(parsed.map(String));
-+      } catch {
-+        sessionStorage.removeItem(settingsSectionStorageKey());
-+      }
-+    }
-+    restoringSettingsSections = true;
-+    settingsCollapsibleSections.forEach((section) => {
-+      const key = section.dataset.pbdSettingsSection || '';
-+      section.open = !section.hidden && openSections.has(key);
-+    });
-+    restoringSettingsSections = false;
-+  };
-+
-+  settingsCollapsibleSections.forEach((section) => section.addEventListener('toggle', persistSettingsSectionState));
- 
-   const serializeSettings = () => {
-     if (!(settingsForm instanceof HTMLFormElement)) return '';
-@@ -106,6 +146,7 @@ if (root) {
-     settingsBackdrop.hidden = false;
-     settingsLauncher.setAttribute('aria-expanded', 'true');
-     document.body.classList.add('pbd-settings-drawer-open');
-+    restoreSettingsSectionState();
-     window.requestAnimationFrame(() => focusableSettingsElements()[0]?.focus());
-   };
- 
-@@ -169,6 +210,29 @@ if (root) {
-     event.returnValue = '';
-   });
- 
-+  const confirmSettingsNavigation = () => {
-+    if (!settingsDirty) return true;
-+    if (!window.confirm('Discard unsaved deck settings and continue?')) return false;
-+    setSettingsDirty(false);
-+    return true;
-+  };
-+
-+  document.addEventListener('click', (event) => {
-+    if (!settingsDirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-+    const link = event.target.closest('a[href]');
-+    if (!(link instanceof HTMLAnchorElement) || settingsDrawer?.contains(link)) return;
-+    const href = link.getAttribute('href') || '';
-+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download')) return;
-+    if (!confirmSettingsNavigation()) event.preventDefault();
-+  }, true);
-+
-+  document.addEventListener('submit', (event) => {
-+    if (!settingsDirty || event.defaultPrevented) return;
-+    const form = event.target;
-+    if (!(form instanceof HTMLFormElement) || form === settingsForm || form.matches('[data-pbd-generate-form]')) return;
-+    if (!confirmSettingsNavigation()) event.preventDefault();
-+  }, true);
-+
-   // Preserve the user's working context for this deck.
-   const restoreScroll = () => {
-     const saved = Number(sessionStorage.getItem(`${storagePrefix}scroll`) || 0);
-@@ -189,7 +253,11 @@ if (root) {
-     const effectiveOpen = savedDecksMedia.matches ? open : true;
-     deckWorkspace.classList.toggle('is-decks-collapsed', !effectiveOpen);
-     savedDecksToggle.setAttribute('aria-expanded', String(effectiveOpen));
--    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : 'Show shared decks';
-+    const activeDeckName = savedDecksToggle.dataset.pbdActiveDeckName || 'current deck';
-+    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : `Show shared decks — ${activeDeckName}`;
-+    savedDecksToggle.setAttribute('aria-label', effectiveOpen
-+      ? `Hide shared decks. Current deck: ${activeDeckName}`
-+      : `Show shared decks. Current deck: ${activeDeckName}`);
-     const label = savedDecksToggle.querySelector('span');
-     if (label) label.textContent = effectiveOpen ? 'Hide decks' : 'Shared decks';
-     if (persist && savedDecksMedia.matches) {
-@@ -270,7 +338,7 @@ if (root) {
-   const generateButton = root.querySelector('[data-pbd-generate]');
-   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
- 
--  const selectedLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
-+  const selectedLayout = currentSettingsLayout;
-   const isUpdateSheet = (deck = null) => {
-     const layout = deck?.layout ?? selectedLayout();
-     return layout === 'ProjectUpdateSheet' || layout === 2 || layout === '2';
-@@ -302,10 +370,12 @@ if (root) {
- 
-   const syncTemplateSettings = () => {
-     const updateSheet = isUpdateSheet();
-+    root.querySelectorAll('[data-pbd-standard-section]').forEach((element) => { element.hidden = updateSheet; });
-     root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
+@@ -375,6 +375,8 @@ if (root) {
      root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
      root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
      root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
-+    restoreSettingsSectionState();
++    const appearanceTitle = root.querySelector('[data-pbd-settings-appearance-title]');
++    if (appearanceTitle) appearanceTitle.textContent = updateSheet ? 'Header branding' : 'Appearance';
+     restoreSettingsSectionState();
      syncPreflightRequirementVisibility();
    };
-   root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
-@@ -679,16 +749,43 @@ if (root) {
-     applySelectedFilters();
-   };
- 
-+  const disposeReadinessTooltips = (scope) => {
-+    if (!window.bootstrap?.Tooltip || !scope) return;
-+    scope.querySelectorAll('[data-pbd-readiness-tip]').forEach((element) => {
-+      window.bootstrap.Tooltip.getInstance(element)?.dispose();
-+    });
-+  };
-+
-+  const initialiseReadinessTooltips = (scope = root) => {
-+    if (!window.bootstrap?.Tooltip || !scope) return;
-+    scope.querySelectorAll('[data-pbd-readiness-tip]').forEach((element) => {
-+      window.bootstrap.Tooltip.getOrCreateInstance(element, {
-+        container: 'body',
-+        boundary: 'viewport',
-+        placement: 'top',
-+        trigger: 'hover focus'
-+      });
-+    });
-+  };
-+
-   const createReadinessIcon = (icon, ready, title) => {
-     const span = document.createElement('span');
-     span.className = ready ? 'is-ready' : 'is-missing';
-+    span.tabIndex = 0;
-+    span.setAttribute('role', 'img');
-+    span.setAttribute('aria-label', title);
-+    span.dataset.pbdReadinessTip = '';
-+    span.dataset.bsTitle = title;
-     span.title = title;
-     const i = document.createElement('i');
-     i.className = `bi ${icon}`;
-+    i.setAttribute('aria-hidden', 'true');
-     span.append(i);
-     return span;
-   };
- 
-+  initialiseReadinessTooltips();
-+
-   const buildProjectRow = (project) => {
-     const capabilityReady = hasCapabilityOverview(project);
-     const projectBriefReady = hasProjectBrief(project);
-@@ -871,7 +968,9 @@ if (root) {
- 
-   const renderSelectedProjects = (projects) => {
-     if (!sortableBody) return;
-+    disposeReadinessTooltips(sortableBody);
-     sortableBody.replaceChildren(...projects.map(buildProjectRow));
-+    initialiseReadinessTooltips(sortableBody);
-     const hasProjects = projects.length > 0;
-     if (selectedTableWrap) selectedTableWrap.hidden = !hasProjects;
-     if (emptyProjects) emptyProjects.hidden = hasProjects;
 diff --git a/wwwroot/js/projects/project-briefing-decks.test.js b/wwwroot/js/projects/project-briefing-decks.test.js
-index 331ea7a..2cd1d5e 100644
+index 2cd1d5e..47450b5 100644
 --- a/wwwroot/js/projects/project-briefing-decks.test.js
 +++ b/wwwroot/js/projects/project-briefing-decks.test.js
-@@ -120,3 +120,28 @@ test('preflight headline reports affected projects rather than summed metadata v
-   assert.match(source, /projects have.*content gaps|project has.*content gaps/);
-   assert.doesNotMatch(source, /Review \$\{totalGapCount\} content and metadata gaps/);
+@@ -129,6 +129,13 @@ test('deck settings hide standard-only sections for update sheets and persist co
+   assert.match(source, /defaultOpenSettingsSections/);
  });
-+
-+test('deck settings hide standard-only sections for update sheets and persist collapsible section state', () => {
-+  assert.match(source, /data-pbd-standard-section/);
-+  assert.match(source, /settingsCollapsibleSections/);
-+  assert.match(source, /settingsSections:\$\{currentSettingsLayout\(\)\}/);
-+  assert.match(source, /restoreSettingsSectionState/);
-+  assert.match(source, /defaultOpenSettingsSections/);
+ 
++test('settings drawer uses template-aware appearance naming and compact default section states', () => {
++  assert.match(source, /appearanceTitle/);
++  assert.match(source, /updateSheet \? 'Header branding' : 'Appearance'/);
++  assert.match(source, /ProjectUpdateSheet'[\s\S]*new Set\(\['appearance', 'summary'\]\)/);
++  assert.match(source, /new Set\(\['content'\]\)/);
 +});
 +
-+test('readiness indicators expose accessible labels and professional hover-focus tooltips', () => {
-+  assert.match(source, /data-pbd-readiness-tip/);
-+  assert.match(source, /setAttribute\('aria-label', title\)/);
-+  assert.match(source, /setAttribute\('role', 'img'\)/);
-+  assert.match(source, /Tooltip\.getOrCreateInstance/);
-+  assert.match(source, /trigger: 'hover focus'/);
-+});
-+
-+test('unsaved settings protect explicit navigation as well as browser and generation paths', () => {
-+  assert.match(source, /confirmSettingsNavigation/);
-+  assert.match(source, /Discard unsaved deck settings and continue/);
-+  assert.match(source, /document\.addEventListener\('click'/);
-+  assert.match(source, /document\.addEventListener\('submit'/);
-+  assert.match(source, /beforeunload/);
-+  assert.match(source, /Save or discard settings before generating/);
-+});
+ test('readiness indicators expose accessible labels and professional hover-focus tooltips', () => {
+   assert.match(source, /data-pbd-readiness-tip/);
+   assert.match(source, /setAttribute\('aria-label', title\)/);

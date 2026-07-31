@@ -52,7 +52,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-readiness-tip", page, StringComparison.Ordinal);
-        Assert.Contains("aria-label="Readiness indicator order", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Readiness indicator order", page, StringComparison.Ordinal);
         Assert.Contains("projects have", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Review {totalPreflightGapCount}", page, StringComparison.Ordinal);
     }
@@ -77,6 +77,23 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("contain: inline-size", css, StringComparison.Ordinal);
         Assert.Contains("overflow-x: clip", css, StringComparison.Ordinal);
         Assert.Contains("max-width: 1499px", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Builder_UsesCompactTemplateAwareSettingsDrawerLayout()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var css = Read("project-briefing-decks.css");
+
+        Assert.Contains("data-pbd-settings-appearance-title", page, StringComparison.Ordinal);
+        Assert.Contains("Classification marking <small>optional</small>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Handling / classification marking", page, StringComparison.Ordinal);
+        Assert.Contains("appearanceTitle.textContent = updateSheet ? 'Header branding' : 'Appearance'", script, StringComparison.Ordinal);
+        Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-settings-drawer .pbd-theme-cards", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-settings-drawer .pbd-branding-options", css, StringComparison.Ordinal);
     }
 
     [Fact]
