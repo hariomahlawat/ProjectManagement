@@ -39,7 +39,7 @@ test('briefing deck slide order supports drag and keyboard reordering within sta
 test('briefing-specific descriptions are saved without leaving the builder', () => {
   assert.match(source, /data-pbd-description-form/);
   assert.match(source, /requestJson\(root\.dataset\.descriptionUrl/);
-  assert.match(source, /Briefing description saved/);
+  assert.match(source, /Deck-specific capability overview saved/);
 });
 
 test('PowerPoint generation downloads the returned pptx and reports slide count', () => {
@@ -75,4 +75,26 @@ test('selected-project stage filtering uses canonical stage codes rather than di
 test('inline membership changes preserve the current page position', () => {
   assert.match(source, /applyEditorState\(payload\?\.deck, \{ preserveScroll: true \}\)/);
   assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);
+});
+
+test('briefing deck shell collapses the secondary saved-deck rail at laptop widths', () => {
+  assert.match(source, /matchMedia\('\(max-width: 1280px\)'\)/);
+  assert.match(source, /is-decks-collapsed/);
+  assert.match(source, /savedDecksOpen/);
+  assert.match(source, /aria-expanded/);
+});
+
+test('briefing deck preflight is template-aware and separates supporting metadata', () => {
+  assert.match(source, /syncPreflightRequirementVisibility/);
+  assert.match(source, /data-pbd-requirement/);
+  assert.match(source, /usedGapList/);
+  assert.match(source, /additionalGapList/);
+  assert.match(source, /Supporting project metadata/);
+  assert.doesNotMatch(source, /metric\('update-facts'\)/);
+});
+
+test('selected-project management can open the collapsed add-projects workflow', () => {
+  assert.match(source, /data-pbd-open-selector/);
+  assert.match(source, /selectorDetails\.open = true/);
+  assert.match(source, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
 });

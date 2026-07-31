@@ -1,17 +1,30 @@
-ARPP/PPP Published Position Semantics — Validation
+PRISM Project Briefing Deck Builder — validation report
 
-PASSED
-- Authoritative values are sourced through IArppLibraryService.GetCurrentPositionAsync.
-- Published-position retrieval is deliberately called with query: null.
-- Financial-year headings no longer reference working aggregate fields.
-- Precise structured-row and record-count wording is present.
-- No-published-position and under-correction states are present.
-- CSS braces are balanced.
-- Implementation patch applies cleanly to the supplied baseline files.
-- Replacement manifest and SHA-256 checksums generated.
+Changed files:
+  PASS  Pages/Workspace/BriefingDecks/Index.cshtml
+  PASS  wwwroot/css/pages/project-briefing-decks.css
+  PASS  wwwroot/js/pages/project-briefing-decks.js
+  PASS  wwwroot/js/projects/project-briefing-decks.test.js
+  PASS  ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+  PASS  exact changed-file count: 5
+  PASS  no migrations or backend service files changed: True
+  PASS  JavaScript syntax (node --check)
+  PASS  targeted JavaScript tests: 14 passed
+  PASS  CSS brace balance: 397 opening / 397 closing
+  PASS  Razor/HTML paired-container counts
+  PASS  Razor brace balance: 66 opening / 66 closing
+  PASS  C# contract-test string escaping
+  PASS  responsive Shared decks control
+  PASS  template-aware preflight
+  PASS  vague headline Project facts removed
+  PASS  empty description warning removed
+  PASS  placeholder policy visible
+  PASS  collapsed Add projects workflow
+  PASS  internal table scroller
 
-NOT EXECUTED IN THIS ENVIRONMENT
-- dotnet build
-- xUnit test suite
-
-Reason: .NET SDK is not installed in the execution environment.
+Not executed in this environment:
+  - .NET Release build and xUnit suite: .NET SDK is not installed.
+  - Full npm test suite: dependencies such as jsdom are not installed; the targeted briefing-deck suite passed.
+  - Browser visual regression: requires the running PRISM application.
+  PASS  standalone patch dry-run against the supplied source baseline
+  PASS  standalone patch applied and reproduced every replacement file byte-for-byte

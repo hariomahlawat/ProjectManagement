@@ -1,10 +1,12 @@
-REPLACE
-Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs
-wwwroot/css/project-office-reports/arpp-redesign.css
+PRISM Project Briefing Deck Builder — Responsive Preflight Completion
 
-ADD
-ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs
+Replace these files at the exact project-relative paths:
 
-NO DATABASE MIGRATION REQUIRED
-NO ENTITY OR BUSINESS-RULE CHANGE
+1. Pages/Workspace/BriefingDecks/Index.cshtml
+2. wwwroot/css/pages/project-briefing-decks.css
+3. wwwroot/js/pages/project-briefing-decks.js
+4. wwwroot/js/projects/project-briefing-decks.test.js
+5. ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+
+No files outside this list are changed.
+No database migration is included or required.

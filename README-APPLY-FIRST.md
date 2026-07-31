@@ -1,48 +1,81 @@
-# PRISM ARPP/PPP — Published Position Semantics
+# PRISM Project Briefing Deck Builder — Responsive Preflight Completion
 
-## Purpose
+This is a focused UI/UX completion package for the existing Project Briefing Deck Builder.
+It preserves the current data model, service layer, ordering rules and PowerPoint generation logic.
 
-This focused patch corrects the Administration register so that each financial-year heading displays the **authoritative published position** from verified ARPP snapshots. Editable working-copy values remain visible only against their individual records and are no longer mixed into the financial-year headline.
+## What this phase implements
 
-## What changes
+- Prevents page-level horizontal overflow by correcting flex/grid minimum widths and containing wide tables inside their own scroller.
+- Adds a responsive **Shared decks** control. The secondary deck rail remains visible on large monitors and collapses by default on office-laptop widths.
+- Replaces the overloaded warning-chip area with a template-aware **Deck preflight**:
+  - headline checks include only content actually used by the selected presentation configuration;
+  - additional Project Update Sheet metadata is grouped separately;
+  - detailed gaps remain collapsed until requested;
+  - generation remains available and the placeholder policy is explicit.
+- Removes the vague headline **Project facts** metric.
+- Gives the selected-project collection a clear **Projects in this deck** work area with search, filtering, bulk management and a direct **Add projects** action.
+- Converts project-addition methods into a collapsed workflow that opens on demand without losing the current deck.
+- Removes the empty-description warning, shortens audit metadata and uses compact dates in the shared-deck list.
+- Shows a precise slide composition such as Cover, Portfolio summary and Project sheets.
+- Adds responsive layouts for laptop, tablet and narrow-screen use.
+- Adds JavaScript and C# UI contract coverage for the new behaviour.
 
-- Financial-year summaries use `IArppLibraryService.GetCurrentPositionAsync`, the same published source used by the organisation-wide ARPP library.
-- The published summary is intentionally independent of free-text administration filters, so a working or historical row cannot become the apparent authoritative position.
-- Working-copy and published values remain clearly separated at record level.
-- Empty financial years show **No published position** instead of authoritative-looking zero totals.
-- The header shows precise scope wording such as **3 structured rows across 2 records**.
-- Unlinked published rows and records under correction are surfaced as secondary context.
-- The top KPI now states the number of structured rows and records explicitly.
+## Apply by replacing files
 
-## Apply
+1. Back up the five files listed in `REPLACEMENT-MANIFEST.txt`.
+2. Copy this package into the project root, preserving folders.
+3. Allow the five listed files to overwrite the existing files.
+4. Do not copy unrelated files from any older package.
 
-Copy the files in this package to the same relative locations in the project, replacing the three existing files and adding the test file.
+## Apply as a patch
 
-Then run:
+From the project root:
+
+```powershell
+patch -p1 < IMPLEMENTATION.patch
+```
+
+A Git-compatible review can also be performed before replacement:
+
+```powershell
+git apply --check IMPLEMENTATION.patch
+git apply IMPLEMENTATION.patch
+```
+
+## Build and verification
 
 ```powershell
 dotnet restore
 dotnet build ProjectManagement.sln -c Release
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
+node --test wwwroot/js/projects/project-briefing-decks.test.js
 ```
 
-## Database and business logic
+## Browser acceptance checks
 
-- No migration is required.
-- No entity or schema is changed.
-- No verification, publication, reconciliation or IPA-stage rule is changed.
-- The patch reuses the existing published-library service as the authoritative source.
+Validate at minimum:
 
-## Expected UI
+- 1366 × 768 with Windows display scaling at 125%
+- 1536 × 864
+- 1920 × 1080
+- 2560 × 1440
+- tablet portrait and landscape
 
-For a financial year with published data:
+Confirm:
 
-- `3 structured rows across 2 records`
-- `Published position`
-- authoritative approved and delisted totals
-- optional notes such as `1 record under correction`
+- no page-level horizontal scrollbar;
+- Shared decks can be shown and hidden without changing the selected deck;
+- Generate PowerPoint remains visible;
+- deck preflight changes when template, narrative or cost settings change;
+- additional metadata remains collapsed by default;
+- selected-project search/filter/reorder/remove behaviour is unchanged;
+- **Add projects** opens and focuses the existing selection workflow;
+- project addition/removal preserves the current page position;
+- wide project tables scroll only inside their table container.
 
-For a financial year without a verified published snapshot:
+## Data and deployment impact
 
-- `No published position`
-- the number of records currently under work
+- Database migration: **none**
+- Entity/model change: **none**
+- Service/business-rule change: **none**
+- PowerPoint ordering or cost-resolution change: **none**

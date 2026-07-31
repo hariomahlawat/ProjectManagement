@@ -70,6 +70,42 @@ if (root) {
   window.addEventListener('pagehide', () => sessionStorage.setItem(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
 
+  // Collapse the secondary saved-deck rail on laptop widths without losing deck context.
+  const deckWorkspace = root.querySelector('.pbd-workspace');
+  const savedDecksPanel = root.querySelector('[data-pbd-saved-decks]');
+  const savedDecksToggle = root.querySelector('[data-pbd-decks-toggle]');
+  const savedDecksMedia = window.matchMedia('(max-width: 1280px)');
+  const savedDecksStorageKey = `${storagePrefix}savedDecksOpen`;
+
+  const setSavedDecksOpen = (open, persist = true) => {
+    if (!deckWorkspace || !savedDecksPanel || !savedDecksToggle) return;
+    const effectiveOpen = savedDecksMedia.matches ? open : true;
+    deckWorkspace.classList.toggle('is-decks-collapsed', !effectiveOpen);
+    savedDecksToggle.setAttribute('aria-expanded', String(effectiveOpen));
+    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : 'Show shared decks';
+    const label = savedDecksToggle.querySelector('span');
+    if (label) label.textContent = effectiveOpen ? 'Hide decks' : 'Shared decks';
+    if (persist && savedDecksMedia.matches) {
+      sessionStorage.setItem(savedDecksStorageKey, effectiveOpen ? 'true' : 'false');
+    }
+  };
+
+  const syncSavedDecksForViewport = () => {
+    if (!savedDecksMedia.matches) {
+      setSavedDecksOpen(true, false);
+      return;
+    }
+    const saved = sessionStorage.getItem(savedDecksStorageKey);
+    setSavedDecksOpen(saved === 'true', false);
+  };
+
+  savedDecksToggle?.addEventListener('click', () => {
+    const currentlyOpen = savedDecksToggle.getAttribute('aria-expanded') === 'true';
+    setSavedDecksOpen(!currentlyOpen);
+  });
+  savedDecksMedia.addEventListener?.('change', syncSavedDecksForViewport);
+  syncSavedDecksForViewport();
+
   // Selection method tabs.
   const tabs = [...root.querySelectorAll('[data-pbd-selector-tab]')];
   const panels = [...root.querySelectorAll('[data-pbd-selector-panel]')];
@@ -106,11 +142,23 @@ if (root) {
     });
   });
 
+
+  const selectorDetails = root.querySelector('[data-pbd-selector-details]');
+  root.querySelectorAll('[data-pbd-open-selector]').forEach((button) => button.addEventListener('click', () => {
+    if (!(selectorDetails instanceof HTMLDetailsElement)) return;
+    selectorDetails.open = true;
+    selectorDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => selectorDetails.querySelector('[data-pbd-selector-tab].is-active')?.focus(), 350);
+  }));
+
   const metric = (name) => root.querySelector(`[data-pbd-metric="${name}"]`);
   const selectedTotal = root.querySelector('[data-pbd-selected-total]');
   const slideTotal = root.querySelector('[data-pbd-slide-total]');
   const slideBreakdown = root.querySelector('[data-pbd-slide-breakdown]');
-  const readinessGaps = root.querySelector('[data-pbd-readiness-gaps]');
+  const usedGapList = root.querySelector('[data-pbd-used-gap-list]');
+  const additionalGapList = root.querySelector('[data-pbd-additional-gap-list]');
+  const gapSummary = root.querySelector('[data-pbd-gap-summary]');
+  const gapSummaryIcon = root.querySelector('[data-pbd-gap-summary-icon]');
   const generateButton = root.querySelector('[data-pbd-generate]');
   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
 
@@ -130,14 +178,30 @@ if (root) {
   const includesCapabilities = () => !isUpdateSheet() && ['CapabilityOverview', 'Both'].includes(narrativeMode());
   const includesProjectBrief = () => isUpdateSheet() || ['ProjectBrief', 'Both'].includes(narrativeMode());
 
+  const syncPreflightRequirementVisibility = () => {
+    const visibility = {
+      status: true,
+      'cost-rd': includesCostRd(),
+      proliferation: includesProliferation(),
+      capability: includesDetailedSlides() && includesCapabilities(),
+      'project-brief': includesDetailedSlides() && includesProjectBrief(),
+      photo: includesDetailedSlides()
+    };
+    root.querySelectorAll('[data-pbd-requirement]').forEach((element) => {
+      element.hidden = !visibility[element.dataset.pbdRequirement];
+    });
+  };
+
   const syncTemplateSettings = () => {
     const updateSheet = isUpdateSheet();
     root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
+    syncPreflightRequirementVisibility();
   };
-  root.querySelectorAll('[data-pbd-layout-choice]').forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
+  root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
+    .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
   syncTemplateSettings();
   const hasCapabilityOverview = (project) => {
     const value = normalize(project?.briefDescription);
@@ -157,19 +221,22 @@ if (root) {
     const readiness = deck?.readiness || {};
     const estimate = deck?.slideEstimate || {};
     const total = Number(readiness.projectCount || 0);
-    if (metric('projects')) metric('projects').textContent = String(total);
     if (metric('status')) metric('status').textContent = `${readiness.externalStatusAvailableCount || 0}/${total}`;
     if (metric('cost-rd')) metric('cost-rd').textContent = `${readiness.costRdAvailableCount || 0}/${total}`;
     if (metric('proliferation')) metric('proliferation').textContent = `${readiness.proliferationCostAvailableCount || 0}/${total}`;
-    if (metric('update-facts')) metric('update-facts').textContent = `${readiness.updateSheetCoreFactsAvailableCount || 0}/${total}`;
+    if (metric('capability')) metric('capability').textContent = `${readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0}/${total}`;
+    if (metric('project-brief')) metric('project-brief').textContent = `${readiness.projectBriefAvailableCount || 0}/${total}`;
     if (metric('photo')) metric('photo').textContent = `${readiness.coverPhotoAvailableCount || 0}/${total}`;
     if (selectedTotal) selectedTotal.textContent = String(total);
     if (generateButton) generateButton.disabled = total === 0;
+    syncPreflightRequirementVisibility();
 
     if (slideTotal) slideTotal.textContent = `${estimate.totalSlides || 0} ${(estimate.totalSlides || 0) === 1 ? 'slide' : 'slides'}`;
     if (slideBreakdown) {
       if (isUpdateSheet(deck)) {
-        slideBreakdown.textContent = `Introductory slides ${estimate.coverAndPortfolioSlides || 0} · Project update sheets ${estimate.projectUpdateSheetSlides || 0}`;
+        const cover = deck?.includeCoverSlide === false ? 0 : 1;
+        const portfolio = deck?.includePortfolioSummarySlide === false ? 0 : 1;
+        slideBreakdown.textContent = `Cover ${cover} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0}`;
       } else {
         const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
         const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
@@ -191,59 +258,87 @@ if (root) {
       activeSavedCard.textContent = `${total} ${suffix} · updated just now`;
     }
 
-    if (!readinessGaps) return;
-    readinessGaps.replaceChildren();
-    const addPill = (icon, text, className = '') => {
-      const span = document.createElement('span');
-      if (className) span.className = className;
-      const i = document.createElement('i');
-      i.className = `bi ${icon}`;
-      i.setAttribute('aria-hidden', 'true');
-      span.append(i, document.createTextNode(` ${text}`));
-      readinessGaps.append(span);
+    const renderGapList = (container, gaps, emptyText, emptyClass = 'is-ready') => {
+      if (!container) return;
+      container.replaceChildren();
+      const items = gaps.length > 0
+        ? gaps
+        : [{ icon: emptyClass === 'is-ready' ? 'bi-check-circle' : 'bi-info-circle', label: emptyText, count: 0, className: emptyClass }];
+      items.forEach((gap) => {
+        const item = document.createElement('li');
+        if (gap.className) item.className = gap.className;
+        const icon = document.createElement('i');
+        icon.className = `bi ${gap.icon}`;
+        icon.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        label.textContent = gap.label;
+        item.append(icon, label);
+        if (gap.count > 0) {
+          const count = document.createElement('strong');
+          count.textContent = `${gap.count} missing`;
+          item.append(count);
+        }
+        container.append(item);
+      });
     };
 
     if (total === 0) {
-      addPill('bi-info-circle', 'Add projects to generate a deck', 'is-neutral');
+      renderGapList(usedGapList, [], 'Add projects to generate a deck.', 'is-neutral');
+      renderGapList(additionalGapList, [], 'No project metadata to review.', 'is-neutral');
+      if (gapSummary) gapSummary.textContent = 'Add projects to run the deck preflight';
+      if (gapSummaryIcon) gapSummaryIcon.className = 'bi bi-info-circle';
       return;
     }
 
-    const gaps = [];
     const missingStatus = total - Number(readiness.externalStatusAvailableCount || 0);
     const missingCost = total - Number(readiness.costRdAvailableCount || 0);
     const missingProliferation = total - Number(readiness.proliferationCostAvailableCount || 0);
     const missingPhoto = total - Number(readiness.coverPhotoAvailableCount || 0);
     const missingCapabilities = total - Number(readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0);
     const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
+
+    const usedGaps = [];
+    if (missingStatus > 0) usedGaps.push({ icon: 'bi-chat-left-text', label: 'External status', count: missingStatus });
+    if (includesCostRd() && missingCost > 0) usedGaps.push({ icon: 'bi-currency-rupee', label: 'Cost (R&D)', count: missingCost });
+    if (includesProliferation() && missingProliferation > 0) usedGaps.push({ icon: 'bi-boxes', label: 'Proliferation cost', count: missingProliferation });
+    if (includesDetailedSlides() && missingPhoto > 0) usedGaps.push({ icon: 'bi-image', label: 'PowerPoint-ready photograph', count: missingPhoto });
+    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) usedGaps.push({ icon: 'bi-list-check', label: 'Capability overview', count: missingCapabilities });
+    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) usedGaps.push({ icon: 'bi-file-earmark-text', label: 'Project brief', count: missingProjectBriefs });
+
+    const additionalGaps = [];
     if (isUpdateSheet(deck)) {
       const missingArpp = total - Number(readiness.arppDetailsAvailableCount || 0);
       const missingAon = total - Number(readiness.aonDateAvailableCount || 0);
       const missingSo = total - Number(readiness.supplyOrderDateAvailableCount || 0);
       const missingJdp = total - Number(readiness.jdpAvailableCount || 0);
-      const missingPdc = Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0);
+      const missingPdc = Math.max(0, Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0));
       const missingOfficer = total - Number(readiness.projectOfficerAvailableCount || 0);
       const missingLine = total - Number(readiness.lineDirectorateAvailableCount || 0);
-      if (missingArpp > 0) gaps.push(['bi-journal-text', `${missingArpp} without complete ARPP/PPP details`]);
-      if (missingAon > 0) gaps.push(['bi-calendar-check', `${missingAon} without AoN date`]);
-      if (missingSo > 0) gaps.push(['bi-calendar2-event', `${missingSo} without supply-order date`]);
-      if (missingJdp > 0) gaps.push(['bi-building', `${missingJdp} without linked JDP`]);
-      if (missingPdc > 0) gaps.push(['bi-calendar-x', `${missingPdc} development project(s) without PDC`]);
-      if (missingOfficer > 0) gaps.push(['bi-person-badge', `${missingOfficer} without rank and full name of Project Officer`]);
-      if (missingLine > 0) gaps.push(['bi-diagram-3', `${missingLine} without Line Directorate`]);
-      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
-      if (missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
-      if (missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
-      if (missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
-    } else {
-      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
-      if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
-      if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
-      if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
-      if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
-      if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
+      if (missingArpp > 0) additionalGaps.push({ icon: 'bi-journal-text', label: 'Complete ARPP/PPP details', count: missingArpp });
+      if (missingAon > 0) additionalGaps.push({ icon: 'bi-calendar-check', label: 'AoN date', count: missingAon });
+      if (missingSo > 0) additionalGaps.push({ icon: 'bi-calendar2-event', label: 'Supply-order date', count: missingSo });
+      if (missingJdp > 0) additionalGaps.push({ icon: 'bi-building', label: 'Linked JDP', count: missingJdp });
+      if (missingPdc > 0) additionalGaps.push({ icon: 'bi-calendar-x', label: 'Development PDC', count: missingPdc });
+      if (missingOfficer > 0) additionalGaps.push({ icon: 'bi-person-badge', label: 'Project Officer rank and full name', count: missingOfficer });
+      if (missingLine > 0) additionalGaps.push({ icon: 'bi-diagram-3', label: 'Line Directorate', count: missingLine });
     }
-    if (gaps.length === 0) addPill('bi-check-circle', isUpdateSheet(deck) ? 'Selected project sheets are ready' : 'Selected content is ready', 'is-ready');
-    else gaps.forEach(([icon, text]) => addPill(icon, text));
+
+    renderGapList(usedGapList, usedGaps, 'All selected-layout content is available.');
+    renderGapList(
+      additionalGapList,
+      additionalGaps,
+      isUpdateSheet(deck) ? 'Supporting project metadata is complete.' : 'No additional metadata is required by this template.',
+      isUpdateSheet(deck) ? 'is-ready' : 'is-neutral');
+
+    const totalGapCount = [...usedGaps, ...additionalGaps].reduce((sum, gap) => sum + gap.count, 0);
+    if (gapSummary) {
+      gapSummary.textContent = totalGapCount === 0
+        ? 'Selected content is ready'
+        : `Review ${totalGapCount} content and metadata gaps`;
+    }
+    if (gapSummaryIcon) {
+      gapSummaryIcon.className = totalGapCount === 0 ? 'bi bi-check-circle' : 'bi bi-exclamation-circle';
+    }
   };
 
   // Selected-project table management.

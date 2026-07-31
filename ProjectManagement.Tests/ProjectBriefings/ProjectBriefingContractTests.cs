@@ -28,6 +28,24 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("chart and table", page, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void Builder_PrioritisesSelectedProjectsAndUsesTemplateAwarePreflight()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+
+        Assert.Contains("Projects in this deck", page, StringComparison.Ordinal);
+        Assert.Contains("Content used by this presentation", page, StringComparison.Ordinal);
+        Assert.Contains("Supporting project metadata", page, StringComparison.Ordinal);
+        Assert.Contains("Missing content uses defined placeholders", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-selector-details", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-decks-toggle", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-metric=\"update-facts\"", page, StringComparison.Ordinal);
+        Assert.Contains("syncPreflightRequirementVisibility", script, StringComparison.Ordinal);
+        Assert.Contains("is-decks-collapsed", script, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Client_UsesApplicationAntiforgeryHeaderAndDownloadsPptx()
     {

@@ -1,273 +1,1477 @@
-diff -ruN baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
---- baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml	2026-07-31 02:14:42.809978255 +0000
-+++ current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml	2026-07-31 02:14:43.881978229 +0000
-@@ -8,7 +8,7 @@
-     ViewData["ArppSection"] = "administration";
-     ViewData["CanManageArpp"] = Model.CanManage;
-     var allIssues = Model.Register.FinancialYears.SelectMany(group => group.Issues).ToArray();
--    var publishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
-+    var activePublishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
-     var workingRecordCount = allIssues.Count(issue => !issue.IsVerified);
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -68,6 +68,17 @@
+     var missingDevelopmentPdcCount = deck is null ? 0 : deck.Readiness.DevelopmentProjectCount - deck.Readiness.DevelopmentPdcAvailableCount;
+     var missingProjectOfficerCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectOfficerAvailableCount;
+     var missingLineDirectorateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.LineDirectorateAvailableCount;
++    var usedContentGapCount = missingStatusCount
++        + (includesCostRd ? missingCostRdCount : 0)
++        + (includesProliferationCost ? missingProliferationCount : 0)
++        + (includesDetailedSlides ? missingPhotoCount : 0)
++        + (includesDetailedSlides && needsCapabilities ? missingCapabilityCount : 0)
++        + (includesDetailedSlides && needsProjectBrief ? missingProjectBriefCount : 0);
++    var additionalMetadataGapCount = isUpdateSheet
++        ? missingArppCount + missingAonDateCount + missingSupplyOrderDateCount + missingJdpCount
++            + Math.Max(0, missingDevelopmentPdcCount) + missingProjectOfficerCount + missingLineDirectorateCount
++        : 0;
++    var totalPreflightGapCount = usedContentGapCount + additionalMetadataGapCount;
  }
  
-@@ -42,8 +42,8 @@
-     }
+ @section Styles {
+@@ -93,10 +104,20 @@
+                 <h1>Project Briefing Deck Builder</h1>
+                 <p>Select projects, maintain shared command decks and generate professional editable PowerPoint presentations.</p>
+             </div>
+-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
+-                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+-                New deck
+-            </button>
++            <div class="pbd-page-header__actions">
++                @if (Model.Decks.Count > 0)
++                {
++                    <button type="button" class="btn btn-outline-secondary pbd-decks-toggle"
++                            data-pbd-decks-toggle aria-controls="pbd-saved-decks" aria-expanded="true">
++                        <i class="bi bi-collection" aria-hidden="true"></i>
++                        <span>Shared decks</span>
++                    </button>
++                }
++                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
++                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
++                    New deck
++                </button>
++            </div>
+         </header>
  
-     <section class="arpp-v2-summary" aria-label="Administration summary">
--        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "row" : "rows") across all records</small></article>
--        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@publishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
-+        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries structured @(Model.Register.TotalEntries == 1 ? "row" : "rows") across @Model.Register.TotalIssues @(Model.Register.TotalIssues == 1 ? "record" : "records")</small></article>
-+        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@activePublishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
-         <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Records under work</span><strong>@workingRecordCount</strong><small>Setup, correction or verification is in progress</small></article>
-         <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>
-     </section>
-@@ -63,13 +63,37 @@
-     {
-         @foreach (var group in Model.Register.FinancialYears)
+         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+@@ -131,7 +152,7 @@
+         else
          {
-+            var hasPublishedPosition = Model.PublishedPositions.TryGetValue(group.FinancialYearStart, out var publishedPosition);
-+            var correctionCount = group.Issues.Count(issue => !issue.IsVerified && issue.HasPublishedSnapshot);
-+            var underWorkCount = group.Issues.Count(issue => !issue.IsVerified);
-+
-             <section class="arpp-v2-year" aria-labelledby="arpp-year-@group.FinancialYearStart">
-                 <header class="arpp-v2-year__header">
-                     <div class="arpp-v2-year__title"><span>Financial year</span><strong id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</strong></div>
-                     <div class="arpp-v2-year__position">
--                        <span>@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
--                        <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(group.ApprovedLinkedIpaCost)</strong> approved · @group.ApprovedLinkedProjectCount @(group.ApprovedLinkedProjectCount == 1 ? "project" : "projects")</span>
--                        <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(group.DelistedLinkedIpaCost)</strong> delisted · @group.DelistedLinkedProjectCount @(group.DelistedLinkedProjectCount == 1 ? "project" : "projects")</span>
-+                        <span class="arpp-v2-year__record-count">@group.EntryCount structured @(group.EntryCount == 1 ? "row" : "rows") across @group.Issues.Count @(group.Issues.Count == 1 ? "record" : "records")</span>
-+                        @if (hasPublishedPosition && publishedPosition is not null)
-+                        {
-+                            <span class="arpp-v2-year__position-label">Published position</span>
-+                            <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(publishedPosition.ApprovedIpaValue)</strong> approved · @publishedPosition.ApprovedProjectCount @(publishedPosition.ApprovedProjectCount == 1 ? "project" : "projects")</span>
-+                            <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(publishedPosition.DelistedIpaValue)</strong> delisted · @publishedPosition.DelistedProjectCount @(publishedPosition.DelistedProjectCount == 1 ? "project" : "projects")</span>
-+                            @if (publishedPosition.UnlinkedDocumentRowCount > 0)
-+                            {
-+                                <span class="arpp-v2-year__position-note">@publishedPosition.UnlinkedDocumentRowCount unlinked published @(publishedPosition.UnlinkedDocumentRowCount == 1 ? "row" : "rows")</span>
-+                            }
-+                            @if (correctionCount > 0)
-+                            {
-+                                <span class="arpp-v2-year__position-note">@correctionCount @(correctionCount == 1 ? "record" : "records") under correction</span>
-+                            }
-+                        }
-+                        else
-+                        {
-+                            <span class="arpp-v2-year__position-empty">No published position</span>
-+                            @if (underWorkCount > 0)
-+                            {
-+                                <span class="arpp-v2-year__position-note">@underWorkCount @(underWorkCount == 1 ? "record" : "records") under work</span>
-+                            }
-+                        }
-                     </div>
-                 </header>
+             <div class="pbd-workspace">
+-                <aside class="pbd-saved" aria-label="Shared command decks">
++                <aside class="pbd-saved" id="pbd-saved-decks" data-pbd-saved-decks aria-label="Shared command decks">
+                     <div class="pbd-saved__header">
+                         <div>
+                             <span class="pbd-eyebrow">Command workspace</span>
+@@ -143,6 +164,8 @@
+                         @foreach (var saved in Model.Decks)
+                         {
+                             var isActive = deck?.Id == saved.Id;
++                            var savedUpdatedAtIst = IstClock.ToIst(saved.UpdatedAtUtc);
++                            var savedUpdatedTitle = $"Updated {savedUpdatedAtIst:dd MMM yyyy, HH:mm} by {saved.LastModifiedByDisplay}";
+                             <a asp-page="/Workspace/BriefingDecks/Index"
+                                asp-route-deckId="@saved.Id"
+                                class="pbd-saved-card @(isActive ? "is-active" : null)"
+@@ -150,7 +173,7 @@
+                                 <span class="pbd-saved-card__icon" aria-hidden="true"><i class="bi bi-file-earmark-slides"></i></span>
+                                 <span class="pbd-saved-card__body">
+                                     <strong>@saved.Name</strong>
+-                                    <small>@saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects") · updated @IstClock.ToIst(saved.UpdatedAtUtc).ToString("dd MMM") by @saved.LastModifiedByDisplay</small>
++                                    <small title="@savedUpdatedTitle">@saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects") · @savedUpdatedAtIst.ToString("dd MMM")</small>
+                                 </span>
+                                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                             </a>
+@@ -167,18 +190,24 @@
+                                 <div>
+                                     <span class="pbd-eyebrow">Saved briefing deck</span>
+                                     <h2 id="pbd-deck-title">@deck.Name</h2>
+-                                    <p>@(string.IsNullOrWhiteSpace(deck.Description) ? "No deck description recorded." : deck.Description)</p>
+-                                    <small class="pbd-deck-header__meta">Created by @deck.CreatedByDisplay · Last updated by @deck.LastModifiedByDisplay on @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm")</small>
++                                    @if (!string.IsNullOrWhiteSpace(deck.Description))
++                                    {
++                                        <p>@deck.Description</p>
++                                    }
++                                    <small class="pbd-deck-header__meta">Updated @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm") by @deck.LastModifiedByDisplay</small>
+                                 </div>
+                             </div>
+                             <div class="pbd-deck-header__actions">
+-                                <form method="post" asp-page-handler="Generate" data-pbd-generate-form>
+-                                    <input type="hidden" name="deckId" value="@deck.Id" />
+-                                    <button type="submit" class="btn btn-primary" disabled="@(deck.Projects.Count == 0)" data-pbd-generate>
+-                                        <span data-pbd-generate-label><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</span>
+-                                        <span class="d-none" data-pbd-generate-progress><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…</span>
+-                                    </button>
+-                                </form>
++                                <div class="pbd-generate-action">
++                                    <form method="post" asp-page-handler="Generate" data-pbd-generate-form>
++                                        <input type="hidden" name="deckId" value="@deck.Id" />
++                                        <button type="submit" class="btn btn-primary" disabled="@(deck.Projects.Count == 0)" data-pbd-generate>
++                                            <span data-pbd-generate-label><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</span>
++                                            <span class="d-none" data-pbd-generate-progress><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…</span>
++                                        </button>
++                                    </form>
++                                    <small data-pbd-placeholder-note>Missing content uses defined placeholders.</small>
++                                </div>
+                                 <div class="dropdown">
+                                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Deck actions">
+                                         <i class="bi bi-three-dots" aria-hidden="true"></i>
+@@ -202,146 +231,6 @@
+                         </header>
+                         <div class="pbd-generate-status" data-pbd-generate-status aria-live="polite"></div>
  
-diff -ruN baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs
---- baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs	2026-07-31 02:14:42.809978255 +0000
-+++ current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs	2026-07-31 02:14:43.361978242 +0000
-@@ -10,13 +10,16 @@
- public sealed class IndexModel : PageModel
- {
-     private readonly IArppReadService _readService;
-+    private readonly IArppLibraryService _libraryService;
-     private readonly IAuthorizationService _authorizationService;
+-                        <section class="pbd-readiness" aria-label="Deck readiness">
+-                            <div><strong data-pbd-metric="projects">@deck.Readiness.ProjectCount</strong><span>Selected projects</span></div>
+-                            <div><strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong><span>External status</span></div>
+-                            <div><strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong><span>Cost (R&amp;D)</span></div>
+-                            @if (isUpdateSheet)
+-                            {
+-                                <div><strong data-pbd-metric="update-facts">@deck.Readiness.UpdateSheetCoreFactsAvailableCount/@deck.Readiness.ProjectCount</strong><span>Project facts</span></div>
+-                            }
+-                            else
+-                            {
+-                                <div><strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong><span>Proliferation cost</span></div>
+-                            }
+-                            <div><strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong><span>PowerPoint-ready photo</span></div>
+-                        </section>
+-
+-                        <section class="pbd-export-preflight" aria-label="PowerPoint generation summary">
+-                            <div class="pbd-slide-estimate">
+-                                <span class="pbd-eyebrow">Estimated deck size</span>
+-                                <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
+-                                <small data-pbd-slide-breakdown>
+-                                    @if (isUpdateSheet)
+-                                    {
+-                                        <text>Introductory slides @deck.SlideEstimate.CoverAndPortfolioSlides · Project update sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
+-                                    }
+-                                    else
+-                                    {
+-                                        <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
+-                                        @if (deck.SlideEstimate.DetailedProjectSlides > 0)
+-                                        {
+-                                            <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
+-                                        }
+-                                        @if (deck.SlideEstimate.ProjectBriefSlides > 0)
+-                                        {
+-                                            <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
+-                                        }
+-                                        @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
+-                                        {
+-                                            <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
+-                                        }
+-                                    }
+-                                </small>
+-                            </div>
+-                            <div class="pbd-preflight-gaps">
+-                                <span class="pbd-eyebrow">Content readiness</span>
+-                                <div class="pbd-preflight-gaps__items" data-pbd-readiness-gaps>
+-                                    @if (deck.Readiness.ProjectCount == 0)
+-                                    {
+-                                        <span class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i> Add projects to generate a deck</span>
+-                                    }
+-                                    else if (isUpdateSheet)
+-                                    {
+-                                        @if (missingArppCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-journal-text" aria-hidden="true"></i> @missingArppCount without complete ARPP/PPP details</span>
+-                                        }
+-                                        @if (missingAonDateCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @missingAonDateCount without AoN date</span>
+-                                        }
+-                                        @if (missingSupplyOrderDateCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-calendar2-event" aria-hidden="true"></i> @missingSupplyOrderDateCount without supply-order date</span>
+-                                        }
+-                                        @if (missingJdpCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-building" aria-hidden="true"></i> @missingJdpCount without linked JDP</span>
+-                                        }
+-                                        @if (missingDevelopmentPdcCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-calendar-x" aria-hidden="true"></i> @missingDevelopmentPdcCount development project(s) without PDC</span>
+-                                        }
+-                                        @if (missingProjectOfficerCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-person-badge" aria-hidden="true"></i> @missingProjectOfficerCount without rank and full name of Project Officer</span>
+-                                        }
+-                                        @if (missingLineDirectorateCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-diagram-3" aria-hidden="true"></i> @missingLineDirectorateCount without Line Directorate</span>
+-                                        }
+-                                        @if (missingStatusCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-chat-left-text" aria-hidden="true"></i> @missingStatusCount without external status</span>
+-                                        }
+-                                        @if (missingCostRdCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-currency-rupee" aria-hidden="true"></i> @missingCostRdCount without Cost (R&amp;D)</span>
+-                                        }
+-                                        @if (missingPhotoCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-image" aria-hidden="true"></i> @missingPhotoCount without PowerPoint-ready photo</span>
+-                                        }
+-                                        @if (missingProjectBriefCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @missingProjectBriefCount without project brief</span>
+-                                        }
+-                                        @if (missingCoreFactsCount == 0 && missingStatusCount == 0 && missingCostRdCount == 0 && missingPhotoCount == 0 && missingProjectBriefCount == 0)
+-                                        {
+-                                            <span class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Selected project sheets are ready</span>
+-                                        }
+-                                    }
+-                                    else
+-                                    {
+-                                        @if (missingStatusCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-chat-left-text" aria-hidden="true"></i> @missingStatusCount without external status</span>
+-                                        }
+-                                        @if (includesCostRd && missingCostRdCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-currency-rupee" aria-hidden="true"></i> @missingCostRdCount without Cost (R&amp;D)</span>
+-                                        }
+-                                        @if (includesProliferationCost && missingProliferationCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-boxes" aria-hidden="true"></i> @missingProliferationCount without proliferation cost</span>
+-                                        }
+-                                        @if (includesDetailedSlides && missingPhotoCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-image" aria-hidden="true"></i> @missingPhotoCount without PowerPoint-ready photo</span>
+-                                        }
+-                                        @if (includesDetailedSlides && needsCapabilities && missingCapabilityCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-list-check" aria-hidden="true"></i> @missingCapabilityCount without capability overview</span>
+-                                        }
+-                                        @if (includesDetailedSlides && needsProjectBrief && missingProjectBriefCount > 0)
+-                                        {
+-                                            <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @missingProjectBriefCount without project brief</span>
+-                                        }
+-                                        @if (missingStatusCount == 0
+-                                            && (!includesCostRd || missingCostRdCount == 0)
+-                                            && (!includesProliferationCost || missingProliferationCount == 0)
+-                                            && (!includesDetailedSlides || (missingPhotoCount == 0
+-                                                && (!needsCapabilities || missingCapabilityCount == 0)
+-                                                && (!needsProjectBrief || missingProjectBriefCount == 0))))
+-                                        {
+-                                            <span class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Selected content is ready</span>
+-                                        }
+-                                    }
+-                                </div>
+-                            </div>
+-                        </section>
+-
+                         <details class="pbd-settings" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
+                             <summary>
+                                 <span><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
+@@ -517,126 +406,175 @@
+                             </form>
+                         </details>
  
-     public IndexModel(
-         IArppReadService readService,
-+        IArppLibraryService libraryService,
-         IAuthorizationService authorizationService)
-     {
-         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
-+        _libraryService = libraryService ?? throw new ArgumentNullException(nameof(libraryService));
-         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
-     }
+-                        <section class="pbd-selector" aria-labelledby="pbd-selector-title">
+-                            <header class="pbd-section-header">
++                        <section class="pbd-export-preflight" aria-labelledby="pbd-preflight-title">
++                            <header class="pbd-preflight-header">
+                                 <div>
+-                                    <span class="pbd-eyebrow">Build the collection</span>
+-                                    <h3 id="pbd-selector-title">Add projects</h3>
+-                                    <p>Use one or more selection methods. Existing projects are retained and duplicates are ignored.</p>
+-                                </div>
+-                            </header>
+-
+-                            <div class="pbd-selector-tabs" role="tablist" aria-label="Project selection methods">
+-                                <button type="button" class="is-active" data-pbd-selector-tab="quick" role="tab" aria-selected="true"><i class="bi bi-lightning" aria-hidden="true"></i> Quick add</button>
+-                                <button type="button" data-pbd-selector-tab="completed" role="tab" aria-selected="false"><i class="bi bi-check2-circle" aria-hidden="true"></i> Recently completed</button>
+-                                <button type="button" data-pbd-selector-tab="project-category" role="tab" aria-selected="false"><i class="bi bi-folder2" aria-hidden="true"></i> Project category</button>
+-                                <button type="button" data-pbd-selector-tab="technical-category" role="tab" aria-selected="false"><i class="bi bi-cpu" aria-hidden="true"></i> Technical category</button>
+-                                <button type="button" data-pbd-selector-tab="individual" role="tab" aria-selected="false"><i class="bi bi-search" aria-hidden="true"></i> Manage individually</button>
+-                            </div>
+-
+-                            <div class="pbd-selector-panel is-active" data-pbd-selector-panel="quick">
+-                                <div class="pbd-quick-grid">
+-                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card">
+-                                        <input type="hidden" name="DeckId" value="@deck.Id" />
+-                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+-                                        <input type="hidden" name="Kind" value="Ongoing" />
+-                                        <span class="pbd-quick-card__icon"><i class="bi bi-kanban"></i></span>
+-                                        <span><strong>All ongoing projects</strong><small>@Model.SelectionOptions.OngoingCount projects currently active</small></span>
+-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+-                                    </form>
+-                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card">
+-                                        <input type="hidden" name="DeckId" value="@deck.Id" />
+-                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+-                                        <input type="hidden" name="Kind" value="AvailableForProliferation" />
+-                                        <span class="pbd-quick-card__icon"><i class="bi bi-boxes"></i></span>
+-                                        <span><strong>Available for proliferation</strong><small>@Model.SelectionOptions.ProliferationAvailableCount projects marked available</small></span>
+-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+-                                    </form>
++                                    <span class="pbd-eyebrow">Deck preflight</span>
++                                    <h3 id="pbd-preflight-title">Content used by this presentation</h3>
++                                    <p>Headline checks follow the selected template. Supporting project metadata is listed separately.</p>
+                                 </div>
+-                            </div>
+-
+-                            <div class="pbd-selector-panel" data-pbd-selector-panel="completed" hidden>
+-                                <form method="post" asp-page-handler="AddSelection" class="pbd-inline-form">
+-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+-                                    <input type="hidden" name="Kind" value="RecentlyCompleted" />
+-                                    <label class="form-label"><span>From year</span><input class="form-control" type="number" name="CompletionYearFrom" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@(Math.Max(Model.SelectionOptions.MinimumCompletionYear, Model.SelectionOptions.MaximumCompletionYear - 1))" /></label>
+-                                    <label class="form-label"><span>To year</span><input class="form-control" type="number" name="CompletionYearTo" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@Model.SelectionOptions.MaximumCompletionYear" /></label>
+-                                    <div class="pbd-inline-form__context"><strong>@Model.SelectionOptions.CompletedCount completed projects</strong><span>Completion year falls back to completion date where required.</span></div>
+-                                    <button type="submit" class="btn btn-primary">Add matching projects</button>
+-                                </form>
+-                            </div>
+-
+-                            <div class="pbd-selector-panel" data-pbd-selector-panel="project-category" hidden>
+-                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form">
+-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+-                                    <input type="hidden" name="Kind" value="ProjectCategory" />
+-                                    <div class="pbd-category-grid">
+-                                        @foreach (var category in Model.SelectionOptions.ProjectCategories)
++                                <div class="pbd-slide-estimate" aria-label="Estimated deck size">
++                                    <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
++                                    <small data-pbd-slide-breakdown>
++                                        @if (isUpdateSheet)
+                                         {
+-                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
+-                                                <input type="checkbox" name="ProjectCategoryIds" value="@category.Id" />
+-                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
+-                                            </label>
++                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
+                                         }
+-                                    </div>
+-                                    <div class="pbd-category-form__footer"><span>Selecting a parent category also includes its child categories.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
+-                                </form>
+-                            </div>
+-
+-                            <div class="pbd-selector-panel" data-pbd-selector-panel="technical-category" hidden>
+-                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form">
+-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+-                                    <input type="hidden" name="Kind" value="TechnicalCategory" />
+-                                    <div class="pbd-category-grid">
+-                                        @foreach (var category in Model.SelectionOptions.TechnicalCategories)
++                                        else
+                                         {
+-                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
+-                                                <input type="checkbox" name="TechnicalCategoryIds" value="@category.Id" />
+-                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
+-                                            </label>
++                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
++                                            @if (deck.SlideEstimate.DetailedProjectSlides > 0)
++                                            {
++                                                <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
++                                            }
++                                            @if (deck.SlideEstimate.ProjectBriefSlides > 0)
++                                            {
++                                                <text> · Project brief slides @deck.SlideEstimate.ProjectBriefSlides</text>
++                                            }
++                                            @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
++                                            {
++                                                <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
++                                            }
+                                         }
+-                                    </div>
+-                                    <div class="pbd-category-form__footer"><span>Multiple technical categories can be added in one action.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
+-                                </form>
+-                            </div>
++                                    </small>
++                                </div>
++                            </header>
  
-@@ -31,6 +34,15 @@
+-                            <div class="pbd-selector-panel" data-pbd-selector-panel="individual" hidden>
+-                                <form method="post" asp-page-handler="AddSelection" class="pbd-individual-form" data-pbd-individual-form>
+-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+-                                    <input type="hidden" name="Kind" value="IndividualProjects" />
+-                                    <div class="pbd-manage-search-row">
+-                                        <label class="pbd-project-search">
+-                                            <span class="visually-hidden">Search all projects</span>
+-                                            <i class="bi bi-search" aria-hidden="true"></i>
+-                                            <input type="search" class="form-control" placeholder="Search all projects by name, case file, officer or category" autocomplete="off" data-pbd-project-search />
+-                                        </label>
+-                                        <select class="form-select" data-pbd-membership-filter aria-label="Filter search results by deck membership">
+-                                            <option value="all">All projects</option>
+-                                            <option value="selected">In this deck</option>
+-                                            <option value="unselected">Not in this deck</option>
+-                                        </select>
+-                                    </div>
+-                                    <div class="pbd-search-status" data-pbd-search-status>Enter at least two characters.</div>
+-                                    <div class="pbd-search-results" data-pbd-search-results></div>
+-                                    <div class="pbd-individual-form__footer">
+-                                        <span data-pbd-selected-count>No pending changes</span>
+-                                        <button type="submit" class="btn btn-primary" disabled data-pbd-apply-membership>Apply changes</button>
+-                                    </div>
+-                                </form>
++                            <div class="pbd-preflight-metrics" data-pbd-preflight-metrics>
++                                <div data-pbd-requirement="status">
++                                    <strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong>
++                                    <span>External status</span>
++                                </div>
++                                <div data-pbd-requirement="cost-rd" hidden="@(!includesCostRd)">
++                                    <strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong>
++                                    <span>Cost (R&amp;D)</span>
++                                </div>
++                                <div data-pbd-requirement="proliferation" hidden="@(!includesProliferationCost)">
++                                    <strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong>
++                                    <span>Proliferation cost</span>
++                                </div>
++                                <div data-pbd-requirement="capability" hidden="@(!(includesDetailedSlides && needsCapabilities))">
++                                    <strong data-pbd-metric="capability">@deck.Readiness.CapabilityOverviewAvailableCount/@deck.Readiness.ProjectCount</strong>
++                                    <span>Capability overview</span>
++                                </div>
++                                <div data-pbd-requirement="project-brief" hidden="@(!(includesDetailedSlides && needsProjectBrief))">
++                                    <strong data-pbd-metric="project-brief">@deck.Readiness.ProjectBriefAvailableCount/@deck.Readiness.ProjectCount</strong>
++                                    <span>Project brief</span>
++                                </div>
++                                <div data-pbd-requirement="photo" hidden="@(!includesDetailedSlides)">
++                                    <strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong>
++                                    <span>Usable photograph</span>
++                                </div>
+                             </div>
++
++                            <details class="pbd-preflight-details" data-pbd-preflight-details>
++                                <summary>
++                                    <span>
++                                        <i class="bi @(totalPreflightGapCount == 0 ? "bi-check-circle" : "bi-exclamation-circle")" data-pbd-gap-summary-icon aria-hidden="true"></i>
++                                        <strong data-pbd-gap-summary>@(totalPreflightGapCount == 0 ? "Selected content is ready" : $"Review {totalPreflightGapCount} content and metadata gaps")</strong>
++                                        <small>Generation remains available; defined placeholders are used where content is missing.</small>
++                                    </span>
++                                </summary>
++                                <div class="pbd-preflight-detail-grid">
++                                    <section>
++                                        <h4>Used in this deck</h4>
++                                        <ul class="pbd-gap-list" data-pbd-used-gap-list>
++                                            @if (deck.Readiness.ProjectCount == 0)
++                                            {
++                                                <li class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Add projects to generate a deck.</span></li>
++                                            }
++                                            else
++                                            {
++                                                @if (missingStatusCount > 0)
++                                                {
++                                                    <li><i class="bi bi-chat-left-text" aria-hidden="true"></i><span>External status</span><strong>@missingStatusCount missing</strong></li>
++                                                }
++                                                @if (includesCostRd && missingCostRdCount > 0)
++                                                {
++                                                    <li><i class="bi bi-currency-rupee" aria-hidden="true"></i><span>Cost (R&amp;D)</span><strong>@missingCostRdCount missing</strong></li>
++                                                }
++                                                @if (includesProliferationCost && missingProliferationCount > 0)
++                                                {
++                                                    <li><i class="bi bi-boxes" aria-hidden="true"></i><span>Proliferation cost</span><strong>@missingProliferationCount missing</strong></li>
++                                                }
++                                                @if (includesDetailedSlides && missingPhotoCount > 0)
++                                                {
++                                                    <li><i class="bi bi-image" aria-hidden="true"></i><span>PowerPoint-ready photograph</span><strong>@missingPhotoCount missing</strong></li>
++                                                }
++                                                @if (includesDetailedSlides && needsCapabilities && missingCapabilityCount > 0)
++                                                {
++                                                    <li><i class="bi bi-list-check" aria-hidden="true"></i><span>Capability overview</span><strong>@missingCapabilityCount missing</strong></li>
++                                                }
++                                                @if (includesDetailedSlides && needsProjectBrief && missingProjectBriefCount > 0)
++                                                {
++                                                    <li><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Project brief</span><strong>@missingProjectBriefCount missing</strong></li>
++                                                }
++                                                @if (usedContentGapCount == 0)
++                                                {
++                                                    <li class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i><span>All selected-layout content is available.</span></li>
++                                                }
++                                            }
++                                        </ul>
++                                    </section>
++                                    <section>
++                                        <h4>Supporting project metadata</h4>
++                                        <ul class="pbd-gap-list" data-pbd-additional-gap-list>
++                                            @if (!isUpdateSheet)
++                                            {
++                                                <li class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i><span>No additional metadata is required by this template.</span></li>
++                                            }
++                                            else
++                                            {
++                                                @if (missingArppCount > 0)
++                                                {
++                                                    <li><i class="bi bi-journal-text" aria-hidden="true"></i><span>Complete ARPP/PPP details</span><strong>@missingArppCount missing</strong></li>
++                                                }
++                                                @if (missingAonDateCount > 0)
++                                                {
++                                                    <li><i class="bi bi-calendar-check" aria-hidden="true"></i><span>AoN date</span><strong>@missingAonDateCount missing</strong></li>
++                                                }
++                                                @if (missingSupplyOrderDateCount > 0)
++                                                {
++                                                    <li><i class="bi bi-calendar2-event" aria-hidden="true"></i><span>Supply-order date</span><strong>@missingSupplyOrderDateCount missing</strong></li>
++                                                }
++                                                @if (missingJdpCount > 0)
++                                                {
++                                                    <li><i class="bi bi-building" aria-hidden="true"></i><span>Linked JDP</span><strong>@missingJdpCount missing</strong></li>
++                                                }
++                                                @if (missingDevelopmentPdcCount > 0)
++                                                {
++                                                    <li><i class="bi bi-calendar-x" aria-hidden="true"></i><span>Development PDC</span><strong>@missingDevelopmentPdcCount missing</strong></li>
++                                                }
++                                                @if (missingProjectOfficerCount > 0)
++                                                {
++                                                    <li><i class="bi bi-person-badge" aria-hidden="true"></i><span>Project Officer rank and full name</span><strong>@missingProjectOfficerCount missing</strong></li>
++                                                }
++                                                @if (missingLineDirectorateCount > 0)
++                                                {
++                                                    <li><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Line Directorate</span><strong>@missingLineDirectorateCount missing</strong></li>
++                                                }
++                                                @if (additionalMetadataGapCount == 0)
++                                                {
++                                                    <li class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i><span>Supporting project metadata is complete.</span></li>
++                                                }
++                                            }
++                                        </ul>
++                                    </section>
++                                </div>
++                            </details>
+                         </section>
  
-     public bool CanManage { get; private set; }
++
+                         <section class="pbd-selected" aria-labelledby="pbd-selected-title" data-pbd-selected-section>
+                             <header class="pbd-section-header pbd-section-header--selected">
+                                 <div>
+-                                    <span class="pbd-eyebrow">Slide order</span>
+-                                    <h3 id="pbd-selected-title">Selected projects <span data-pbd-selected-total>@deck.Projects.Count</span></h3>
+-                                    <p>Search, review and arrange the projects included in this deck.</p>
++                                    <span class="pbd-eyebrow">Projects</span>
++                                    <h3 id="pbd-selected-title">Projects in this deck <span data-pbd-selected-total>@deck.Projects.Count</span></h3>
++                                    <p>Search, review and arrange the final slide sequence.</p>
+                                 </div>
++                                <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-open-selector>
++                                    <i class="bi bi-plus-lg" aria-hidden="true"></i> Add projects
++                                </button>
+                             </header>
  
-+    /// <summary>
-+    /// Authoritative, organisation-visible position derived only from verified published
-+    /// snapshots. It is deliberately independent of working-copy values and free-text
-+    /// administration filters so the financial-year heading never presents editable data
-+    /// as the published position.
-+    /// </summary>
-+    public IReadOnlyDictionary<int, PublishedFinancialYearSummary> PublishedPositions { get; private set; }
-+        = new Dictionary<int, PublishedFinancialYearSummary>();
+                             <div class="pbd-selected-toolbar" data-pbd-selected-toolbar>
+@@ -831,6 +769,122 @@
+                             </div>
+                             <div class="pbd-no-filter-results" data-pbd-no-filter-results hidden>No selected projects match the current search and filters.</div>
+                         </section>
 +
-     public async Task OnGetAsync(CancellationToken cancellationToken)
-     {
-         Register = await _readService.GetRegisterAsync(
-@@ -38,9 +50,40 @@
-             Query,
-             cancellationToken);
- 
-+        var publishedPositions = new Dictionary<int, PublishedFinancialYearSummary>();
-+        foreach (var group in Register.FinancialYears)
-+        {
-+            var currentPosition = await _libraryService.GetCurrentPositionAsync(
-+                group.FinancialYearStart,
-+                query: null,
-+                cancellationToken);
 +
-+            if (currentPosition is null)
-+            {
-+                continue;
-+            }
++                        <details class="pbd-selector" data-pbd-selector-details @(deck.Projects.Count == 0 ? "open" : null)>
++                            <summary class="pbd-selector-summary">
++                                <span>
++                                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
++                                    <strong id="pbd-selector-title">Add projects</strong>
++                                    <small>Quick selections, categories or individual project management</small>
++                                </span>
++                            </summary>
 +
-+            publishedPositions[group.FinancialYearStart] = new PublishedFinancialYearSummary(
-+                currentPosition.ApprovedIpaValue,
-+                currentPosition.DelistedIpaValue,
-+                currentPosition.ApprovedRows.Count,
-+                currentPosition.DelistedRows.Count,
-+                currentPosition.TotalUnlinkedDocumentRows);
-+        }
++                            <div class="pbd-selector-tabs" role="tablist" aria-label="Project selection methods">
++                                <button type="button" class="is-active" data-pbd-selector-tab="quick" role="tab" aria-selected="true"><i class="bi bi-lightning" aria-hidden="true"></i> Quick add</button>
++                                <button type="button" data-pbd-selector-tab="completed" role="tab" aria-selected="false"><i class="bi bi-check2-circle" aria-hidden="true"></i> Recently completed</button>
++                                <button type="button" data-pbd-selector-tab="project-category" role="tab" aria-selected="false"><i class="bi bi-folder2" aria-hidden="true"></i> Project category</button>
++                                <button type="button" data-pbd-selector-tab="technical-category" role="tab" aria-selected="false"><i class="bi bi-cpu" aria-hidden="true"></i> Technical category</button>
++                                <button type="button" data-pbd-selector-tab="individual" role="tab" aria-selected="false"><i class="bi bi-search" aria-hidden="true"></i> Manage individually</button>
++                            </div>
 +
-+        PublishedPositions = publishedPositions;
++                            <div class="pbd-selector-panel is-active" data-pbd-selector-panel="quick">
++                                <div class="pbd-quick-grid">
++                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card">
++                                        <input type="hidden" name="DeckId" value="@deck.Id" />
++                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++                                        <input type="hidden" name="Kind" value="Ongoing" />
++                                        <span class="pbd-quick-card__icon"><i class="bi bi-kanban"></i></span>
++                                        <span><strong>All ongoing projects</strong><small>@Model.SelectionOptions.OngoingCount projects currently active</small></span>
++                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
++                                    </form>
++                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card">
++                                        <input type="hidden" name="DeckId" value="@deck.Id" />
++                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++                                        <input type="hidden" name="Kind" value="AvailableForProliferation" />
++                                        <span class="pbd-quick-card__icon"><i class="bi bi-boxes"></i></span>
++                                        <span><strong>Available for proliferation</strong><small>@Model.SelectionOptions.ProliferationAvailableCount projects marked available</small></span>
++                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
++                                    </form>
++                                </div>
++                            </div>
 +
-         CanManage = (await _authorizationService.AuthorizeAsync(
-             User,
-             resource: null,
-             ProjectOfficeReportsPolicies.ManageArpp)).Succeeded;
-     }
++                            <div class="pbd-selector-panel" data-pbd-selector-panel="completed" hidden>
++                                <form method="post" asp-page-handler="AddSelection" class="pbd-inline-form">
++                                    <input type="hidden" name="DeckId" value="@deck.Id" />
++                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++                                    <input type="hidden" name="Kind" value="RecentlyCompleted" />
++                                    <label class="form-label"><span>From year</span><input class="form-control" type="number" name="CompletionYearFrom" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@(Math.Max(Model.SelectionOptions.MinimumCompletionYear, Model.SelectionOptions.MaximumCompletionYear - 1))" /></label>
++                                    <label class="form-label"><span>To year</span><input class="form-control" type="number" name="CompletionYearTo" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@Model.SelectionOptions.MaximumCompletionYear" /></label>
++                                    <div class="pbd-inline-form__context"><strong>@Model.SelectionOptions.CompletedCount completed projects</strong><span>Completion year falls back to completion date where required.</span></div>
++                                    <button type="submit" class="btn btn-primary">Add matching projects</button>
++                                </form>
++                            </div>
++
++                            <div class="pbd-selector-panel" data-pbd-selector-panel="project-category" hidden>
++                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form">
++                                    <input type="hidden" name="DeckId" value="@deck.Id" />
++                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++                                    <input type="hidden" name="Kind" value="ProjectCategory" />
++                                    <div class="pbd-category-grid">
++                                        @foreach (var category in Model.SelectionOptions.ProjectCategories)
++                                        {
++                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
++                                                <input type="checkbox" name="ProjectCategoryIds" value="@category.Id" />
++                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
++                                            </label>
++                                        }
++                                    </div>
++                                    <div class="pbd-category-form__footer"><span>Selecting a parent category also includes its child categories.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
++                                </form>
++                            </div>
++
++                            <div class="pbd-selector-panel" data-pbd-selector-panel="technical-category" hidden>
++                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form">
++                                    <input type="hidden" name="DeckId" value="@deck.Id" />
++                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++                                    <input type="hidden" name="Kind" value="TechnicalCategory" />
++                                    <div class="pbd-category-grid">
++                                        @foreach (var category in Model.SelectionOptions.TechnicalCategories)
++                                        {
++                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
++                                                <input type="checkbox" name="TechnicalCategoryIds" value="@category.Id" />
++                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
++                                            </label>
++                                        }
++                                    </div>
++                                    <div class="pbd-category-form__footer"><span>Multiple technical categories can be added in one action.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
++                                </form>
++                            </div>
++
++                            <div class="pbd-selector-panel" data-pbd-selector-panel="individual" hidden>
++                                <form method="post" asp-page-handler="AddSelection" class="pbd-individual-form" data-pbd-individual-form>
++                                    <input type="hidden" name="DeckId" value="@deck.Id" />
++                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++                                    <input type="hidden" name="Kind" value="IndividualProjects" />
++                                    <div class="pbd-manage-search-row">
++                                        <label class="pbd-project-search">
++                                            <span class="visually-hidden">Search all projects</span>
++                                            <i class="bi bi-search" aria-hidden="true"></i>
++                                            <input type="search" class="form-control" placeholder="Search all projects by name, case file, officer or category" autocomplete="off" data-pbd-project-search />
++                                        </label>
++                                        <select class="form-select" data-pbd-membership-filter aria-label="Filter search results by deck membership">
++                                            <option value="all">All projects</option>
++                                            <option value="selected">In this deck</option>
++                                            <option value="unselected">Not in this deck</option>
++                                        </select>
++                                    </div>
++                                    <div class="pbd-search-status" data-pbd-search-status>Enter at least two characters.</div>
++                                    <div class="pbd-search-results" data-pbd-search-results></div>
++                                    <div class="pbd-individual-form__footer">
++                                        <span data-pbd-selected-count>No pending changes</span>
++                                        <button type="submit" class="btn btn-primary" disabled data-pbd-apply-membership>Apply changes</button>
++                                    </div>
++                                </form>
++                            </div>
++                        </details>
++
++
+                     </section>
+                 }
+             </div>
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -1604,3 +1604,503 @@
+     .pbd-theme-card__body { grid-template-columns: 6.7rem minmax(0, 1fr); }
+     .pbd-theme-preview { width: 6.7rem; }
  }
 +
-+
-+public sealed record PublishedFinancialYearSummary(
-+    decimal ApprovedIpaValue,
-+    decimal DelistedIpaValue,
-+    int ApprovedProjectCount,
-+    int DelistedProjectCount,
-+    int UnlinkedDocumentRowCount);
-diff -ruN baseline/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs current/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs
---- baseline/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs	1970-01-01 00:00:00.000000000 +0000
-+++ current/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs	2026-07-31 02:14:43.985978226 +0000
-@@ -0,0 +1,57 @@
-+using Xunit;
-+
-+namespace ProjectManagement.Tests.Arpp;
-+
-+public sealed class ArppAdministrationPublishedPositionContractTests
-+{
-+    [Fact]
-+    public void AdministrationRegister_UsesPublishedLibraryPosition_NotWorkingAggregates()
-+    {
-+        var pageModel = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml.cs");
-+        var page = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml");
-+
-+        Assert.Contains("IArppLibraryService libraryService", pageModel, StringComparison.Ordinal);
-+        Assert.Contains("GetCurrentPositionAsync", pageModel, StringComparison.Ordinal);
-+        Assert.Contains("query: null", pageModel, StringComparison.Ordinal);
-+        Assert.Contains("PublishedPositions", pageModel, StringComparison.Ordinal);
-+
-+        Assert.Contains("Published position", page, StringComparison.Ordinal);
-+        Assert.Contains("publishedPosition.ApprovedIpaValue", page, StringComparison.Ordinal);
-+        Assert.Contains("publishedPosition.DelistedIpaValue", page, StringComparison.Ordinal);
-+        Assert.DoesNotContain("group.ApprovedLinkedIpaCost", page, StringComparison.Ordinal);
-+        Assert.DoesNotContain("group.DelistedLinkedIpaCost", page, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void AdministrationRegister_StatesRecordAndRowBasisPrecisely()
-+    {
-+        var page = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml");
-+
-+        Assert.Contains("structured", page, StringComparison.Ordinal);
-+        Assert.Contains("across @group.Issues.Count", page, StringComparison.Ordinal);
-+        Assert.Contains("No published position", page, StringComparison.Ordinal);
-+        Assert.Contains("under correction", page, StringComparison.Ordinal);
-+    }
-+
-+    private static string ReadRepoFile(params string[] relativePath)
-+    {
-+        var root = FindRepositoryRoot();
-+        return File.ReadAllText(Path.Combine(new[] { root }.Concat(relativePath).ToArray()));
-+    }
-+
-+    private static string FindRepositoryRoot()
-+    {
-+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-+        while (directory is not null)
-+        {
-+            if (File.Exists(Path.Combine(directory.FullName, "ProjectManagement.csproj")))
-+            {
-+                return directory.FullName;
-+            }
-+
-+            directory = directory.Parent;
-+        }
-+
-+        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
-+    }
++/* Phase: responsive shell, primary collection workflow and template-aware preflight */
++.command-workspace--briefing-decks {
++    max-width: 100%;
++    overflow-x: clip;
 +}
-diff -ruN baseline/wwwroot/css/project-office-reports/arpp-redesign.css current/wwwroot/css/project-office-reports/arpp-redesign.css
---- baseline/wwwroot/css/project-office-reports/arpp-redesign.css	2026-07-31 02:14:42.809978255 +0000
-+++ current/wwwroot/css/project-office-reports/arpp-redesign.css	2026-07-31 02:15:30.045977074 +0000
-@@ -1243,3 +1243,67 @@
-         padding: .45rem .6rem;
-     }
- }
 +
-+/* Published-position semantics ------------------------------------- */
-+.arpp-v2-year__position-label,
-+.arpp-v2-year__position-empty {
-+    color: var(--arpp-text-muted);
-+    font-size: .65rem;
-+    font-weight: 700;
-+    letter-spacing: .055em;
++.command-workspace--briefing-decks,
++.command-workspace--briefing-decks .cw-workspace-content,
++.pbd-shell,
++.pbd-workspace,
++.pbd-workspace > *,
++.pbd-editor,
++.pbd-selected,
++.pbd-selector,
++.pbd-table-wrap {
++    min-width: 0;
++    max-width: 100%;
++}
++
++.pbd-shell {
++    overflow-x: clip;
++}
++
++.pbd-page-header__actions {
++    display: flex;
++    flex: 0 0 auto;
++    align-items: center;
++    gap: .45rem;
++}
++
++.pbd-decks-toggle {
++    display: none;
++}
++
++.pbd-editor {
++    overflow: hidden;
++}
++
++.pbd-deck-header__identity > div {
++    min-width: 0;
++}
++
++.pbd-deck-header__identity p {
++    max-width: 58rem;
++}
++
++.pbd-generate-action {
++    display: grid;
++    justify-items: end;
++    gap: .2rem;
++}
++
++.pbd-generate-action small {
++    max-width: 17rem;
++    color: var(--pbd-muted);
++    font-size: .62rem;
++    line-height: 1.3;
++    text-align: right;
++}
++
++.pbd-settings {
++    order: 1;
++}
++
++.pbd-export-preflight {
++    order: 2;
++    display: block;
++    margin-bottom: .75rem;
++    overflow: hidden;
++    border: 1px solid var(--pbd-border);
++    border-radius: .76rem;
++    background: #fff;
++}
++
++.pbd-selected {
++    order: 3;
++}
++
++.pbd-selector {
++    order: 4;
++}
++
++.pbd-preflight-header {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: 1rem;
++    padding: .68rem .78rem .62rem;
++    border-bottom: 1px solid var(--pbd-border);
++    background: #fbfcfe;
++}
++
++.pbd-preflight-header > div:first-child {
++    min-width: 0;
++}
++
++.pbd-preflight-header h3 {
++    margin: 0;
++    color: var(--pbd-ink);
++    font-size: .92rem;
++    font-weight: 750;
++    letter-spacing: -.01em;
++}
++
++.pbd-preflight-header p {
++    margin: .12rem 0 0;
++    color: var(--pbd-muted);
++    font-size: .68rem;
++}
++
++.pbd-preflight-header .pbd-slide-estimate {
++    flex: 0 1 28rem;
++    padding: 0;
++    border: 0;
++    background: transparent;
++    text-align: right;
++}
++
++.pbd-preflight-header .pbd-slide-estimate > strong {
++    margin: 0;
++    font-size: .98rem;
++}
++
++.pbd-preflight-header .pbd-slide-estimate > small {
++    margin-top: .08rem;
++}
++
++.pbd-preflight-metrics {
++    display: grid;
++    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
++    border-bottom: 1px solid var(--pbd-border);
++}
++
++.pbd-preflight-metrics > div {
++    min-width: 0;
++    padding: .58rem .72rem;
++    border-right: 1px solid var(--pbd-border);
++}
++
++.pbd-preflight-metrics > div:last-child {
++    border-right: 0;
++}
++
++.pbd-preflight-metrics > div[hidden] {
++    display: none !important;
++}
++
++.pbd-preflight-metrics strong,
++.pbd-preflight-metrics span {
++    display: block;
++}
++
++.pbd-preflight-metrics strong {
++    color: var(--pbd-ink);
++    font-size: .98rem;
++    font-variant-numeric: tabular-nums;
++}
++
++.pbd-preflight-metrics span {
++    margin-top: .08rem;
++    color: var(--pbd-muted);
++    font-size: .66rem;
++}
++
++.pbd-preflight-details {
++    background: #fff;
++}
++
++.pbd-preflight-details > summary {
++    display: flex;
++    align-items: center;
++    min-height: 2.8rem;
++    padding: .52rem .74rem;
++    cursor: pointer;
++    list-style: none;
++}
++
++.pbd-preflight-details > summary::-webkit-details-marker {
++    display: none;
++}
++
++.pbd-preflight-details > summary::after {
++    margin-left: auto;
++    color: var(--pbd-muted);
++    content: "\F282";
++    font-family: "bootstrap-icons";
++    transition: transform .15s ease;
++}
++
++.pbd-preflight-details[open] > summary::after {
++    transform: rotate(180deg);
++}
++
++.pbd-preflight-details > summary > span {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr);
++    align-items: center;
++    min-width: 0;
++    gap: .1rem .45rem;
++}
++
++.pbd-preflight-details > summary i {
++    grid-row: 1 / 3;
++    color: var(--pbd-amber);
++}
++
++.pbd-preflight-details > summary strong {
++    color: #344054;
++    font-size: .74rem;
++}
++
++.pbd-preflight-details > summary small {
++    color: var(--pbd-muted);
++    font-size: .63rem;
++}
++
++.pbd-preflight-detail-grid {
++    display: grid;
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++    gap: .7rem;
++    padding: .7rem;
++    border-top: 1px solid var(--pbd-border);
++    background: #fbfcfe;
++}
++
++.pbd-preflight-detail-grid section {
++    min-width: 0;
++    padding: .62rem;
++    border: 1px solid var(--pbd-border);
++    border-radius: .58rem;
++    background: #fff;
++}
++
++.pbd-preflight-detail-grid h4 {
++    margin: 0 0 .4rem;
++    color: #344054;
++    font-size: .7rem;
++    font-weight: 750;
++    letter-spacing: .025em;
 +    text-transform: uppercase;
 +}
 +
-+.arpp-v2-year__position-empty {
-+    color: var(--arpp-text-secondary);
++.pbd-gap-list {
++    display: grid;
++    gap: .28rem;
++    margin: 0;
++    padding: 0;
++    list-style: none;
 +}
 +
-+.arpp-v2-year__record-count,
-+.arpp-v2-year__position-note {
-+    color: var(--arpp-text-muted);
++.pbd-gap-list li {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    align-items: center;
++    gap: .4rem;
++    min-height: 2rem;
++    padding: .35rem .45rem;
++    border-radius: .42rem;
++    background: #fff8eb;
++    color: #7a4808;
++    font-size: .66rem;
++}
++
++.pbd-gap-list li i {
++    color: var(--pbd-amber);
++}
++
++.pbd-gap-list li strong {
++    color: #8a4d08;
++    font-size: .63rem;
 +    white-space: nowrap;
 +}
 +
-+.arpp-v2-year__position-note {
-+    padding-left: .85rem;
-+    border-left: 1px solid var(--arpp-border);
++.pbd-gap-list li.is-ready {
++    grid-template-columns: auto minmax(0, 1fr);
++    background: #edf9f1;
++    color: var(--pbd-green);
 +}
 +
-+@media (max-width: 1199.98px) {
-+    .arpp-v2-year__position {
-+        row-gap: .35rem;
++.pbd-gap-list li.is-ready i {
++    color: var(--pbd-green);
++}
++
++.pbd-gap-list li.is-neutral {
++    grid-template-columns: auto minmax(0, 1fr);
++    background: #f4f6f9;
++    color: var(--pbd-muted);
++}
++
++.pbd-gap-list li.is-neutral i {
++    color: #7c8797;
++}
++
++.pbd-selector {
++    margin-top: .75rem;
++    margin-bottom: 0;
++    box-shadow: none;
++}
++
++.pbd-selector-summary {
++    display: flex;
++    align-items: center;
++    min-height: 3.15rem;
++    padding: .62rem .78rem;
++    cursor: pointer;
++    list-style: none;
++}
++
++.pbd-selector-summary::-webkit-details-marker {
++    display: none;
++}
++
++.pbd-selector-summary::after {
++    margin-left: auto;
++    color: var(--pbd-muted);
++    content: "\F282";
++    font-family: "bootstrap-icons";
++    transition: transform .15s ease;
++}
++
++.pbd-selector[open] > .pbd-selector-summary::after {
++    transform: rotate(180deg);
++}
++
++.pbd-selector-summary > span {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr);
++    align-items: center;
++    min-width: 0;
++    gap: .05rem .48rem;
++}
++
++.pbd-selector-summary i {
++    grid-row: 1 / 3;
++    color: var(--pbd-blue);
++}
++
++.pbd-selector-summary strong {
++    color: var(--pbd-ink);
++    font-size: .8rem;
++}
++
++.pbd-selector-summary small {
++    color: var(--pbd-muted);
++    font-size: .64rem;
++}
++
++.pbd-selector[open] > .pbd-selector-tabs {
++    border-top: 1px solid var(--pbd-border);
++}
++
++.pbd-selected {
++    overflow: hidden;
++}
++
++.pbd-section-header--selected .btn {
++    flex: 0 0 auto;
++}
++
++.pbd-table-wrap {
++    max-width: 100%;
++    overscroll-behavior-inline: contain;
++    scrollbar-width: thin;
++}
++
++.pbd-project-table {
++    max-width: none;
++}
++
++.pbd-selected-toolbar,
++.pbd-selected-actions {
++    max-width: 100%;
++}
++
++.pbd-saved-card__body small {
++    font-variant-numeric: tabular-nums;
++}
++
++@media (max-width: 1280px) {
++    .pbd-shell {
++        padding-inline: .85rem;
 +    }
 +
-+    .arpp-v2-year__position-note {
-+        padding-left: 0;
-+        border-left: 0;
++    .pbd-decks-toggle {
++        display: inline-flex;
++    }
++
++    .pbd-workspace {
++        grid-template-columns: minmax(0, 1fr);
++    }
++
++    .pbd-workspace.is-decks-collapsed .pbd-saved {
++        display: none;
++    }
++
++    .pbd-saved {
++        position: static;
++        max-width: 100%;
++    }
++
++    .pbd-saved__list {
++        display: flex;
++        max-height: none;
++        overflow-x: auto;
++        overscroll-behavior-inline: contain;
++    }
++
++    .pbd-saved-card {
++        flex: 0 0 14rem;
++    }
++
++    .pbd-preflight-detail-grid {
++        grid-template-columns: 1fr;
 +    }
 +}
 +
-+@media (max-width: 767.98px) {
-+    .arpp-v2-year__record-count,
-+    .arpp-v2-year__position-note {
-+        white-space: normal;
++@media (max-width: 980px) {
++    .pbd-page-header,
++    .pbd-deck-header,
++    .pbd-preflight-header {
++        align-items: stretch;
++        flex-direction: column;
++    }
++
++    .pbd-page-header__actions {
++        align-self: flex-end;
++    }
++
++    .pbd-deck-header__actions {
++        width: 100%;
++        justify-content: flex-end;
++    }
++
++    .pbd-preflight-header .pbd-slide-estimate {
++        flex-basis: auto;
++        text-align: left;
++    }
++
++    .pbd-selected-toolbar {
++        position: static;
++        grid-template-columns: minmax(14rem, 1fr) repeat(2, minmax(9rem, .5fr));
++    }
++
++    .pbd-selected-filter-result {
++        grid-column: 1 / -1;
++        justify-self: start;
 +    }
 +}
 +
-+.arpp-v2-year__position-label,
-+.arpp-v2-year__position-empty,
-+.arpp-v2-year__record-count,
-+.arpp-v2-year__position-note {
-+    display: inline-flex;
-+    grid-template-columns: none;
-+    align-items: baseline;
-+}
++@media (max-width: 720px) {
++    .pbd-page-header__actions,
++    .pbd-deck-header__actions {
++        width: 100%;
++        align-self: stretch;
++    }
 +
-+.arpp-v2-year__position-label {
-+    padding-left: .85rem;
-+    border-left: 1px solid var(--arpp-border);
-+}
++    .pbd-page-header__actions > .btn,
++    .pbd-deck-header__actions .pbd-generate-action,
++    .pbd-deck-header__actions .pbd-generate-action form,
++    .pbd-deck-header__actions .pbd-generate-action .btn {
++        min-width: 0;
++        width: 100%;
++    }
 +
-+@media (max-width: 1199.98px) {
-+    .arpp-v2-year__position-label {
-+        padding-left: 0;
-+        border-left: 0;
++    .pbd-generate-action {
++        flex: 1 1 auto;
++        justify-items: stretch;
++    }
++
++    .pbd-generate-action small {
++        max-width: none;
++        text-align: left;
++    }
++
++    .pbd-preflight-metrics {
++        grid-template-columns: repeat(2, minmax(0, 1fr));
++    }
++
++    .pbd-preflight-metrics > div {
++        border-bottom: 1px solid var(--pbd-border);
++    }
++
++    .pbd-preflight-metrics > div:nth-child(even) {
++        border-right: 0;
++    }
++
++    .pbd-section-header--selected {
++        align-items: stretch;
++        flex-direction: column;
++    }
++
++    .pbd-section-header--selected .btn {
++        align-self: flex-start;
++    }
++
++    .pbd-selected-toolbar {
++        grid-template-columns: 1fr;
 +    }
 +}
+--- a/wwwroot/js/pages/project-briefing-decks.js
++++ b/wwwroot/js/pages/project-briefing-decks.js
+@@ -70,6 +70,42 @@
+   window.addEventListener('pagehide', () => sessionStorage.setItem(`${storagePrefix}scroll`, String(window.scrollY)));
+   restoreScroll();
+ 
++  // Collapse the secondary saved-deck rail on laptop widths without losing deck context.
++  const deckWorkspace = root.querySelector('.pbd-workspace');
++  const savedDecksPanel = root.querySelector('[data-pbd-saved-decks]');
++  const savedDecksToggle = root.querySelector('[data-pbd-decks-toggle]');
++  const savedDecksMedia = window.matchMedia('(max-width: 1280px)');
++  const savedDecksStorageKey = `${storagePrefix}savedDecksOpen`;
++
++  const setSavedDecksOpen = (open, persist = true) => {
++    if (!deckWorkspace || !savedDecksPanel || !savedDecksToggle) return;
++    const effectiveOpen = savedDecksMedia.matches ? open : true;
++    deckWorkspace.classList.toggle('is-decks-collapsed', !effectiveOpen);
++    savedDecksToggle.setAttribute('aria-expanded', String(effectiveOpen));
++    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : 'Show shared decks';
++    const label = savedDecksToggle.querySelector('span');
++    if (label) label.textContent = effectiveOpen ? 'Hide decks' : 'Shared decks';
++    if (persist && savedDecksMedia.matches) {
++      sessionStorage.setItem(savedDecksStorageKey, effectiveOpen ? 'true' : 'false');
++    }
++  };
++
++  const syncSavedDecksForViewport = () => {
++    if (!savedDecksMedia.matches) {
++      setSavedDecksOpen(true, false);
++      return;
++    }
++    const saved = sessionStorage.getItem(savedDecksStorageKey);
++    setSavedDecksOpen(saved === 'true', false);
++  };
++
++  savedDecksToggle?.addEventListener('click', () => {
++    const currentlyOpen = savedDecksToggle.getAttribute('aria-expanded') === 'true';
++    setSavedDecksOpen(!currentlyOpen);
++  });
++  savedDecksMedia.addEventListener?.('change', syncSavedDecksForViewport);
++  syncSavedDecksForViewport();
++
+   // Selection method tabs.
+   const tabs = [...root.querySelectorAll('[data-pbd-selector-tab]')];
+   const panels = [...root.querySelectorAll('[data-pbd-selector-panel]')];
+@@ -106,11 +142,23 @@
+     });
+   });
+ 
++
++  const selectorDetails = root.querySelector('[data-pbd-selector-details]');
++  root.querySelectorAll('[data-pbd-open-selector]').forEach((button) => button.addEventListener('click', () => {
++    if (!(selectorDetails instanceof HTMLDetailsElement)) return;
++    selectorDetails.open = true;
++    selectorDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
++    window.setTimeout(() => selectorDetails.querySelector('[data-pbd-selector-tab].is-active')?.focus(), 350);
++  }));
++
+   const metric = (name) => root.querySelector(`[data-pbd-metric="${name}"]`);
+   const selectedTotal = root.querySelector('[data-pbd-selected-total]');
+   const slideTotal = root.querySelector('[data-pbd-slide-total]');
+   const slideBreakdown = root.querySelector('[data-pbd-slide-breakdown]');
+-  const readinessGaps = root.querySelector('[data-pbd-readiness-gaps]');
++  const usedGapList = root.querySelector('[data-pbd-used-gap-list]');
++  const additionalGapList = root.querySelector('[data-pbd-additional-gap-list]');
++  const gapSummary = root.querySelector('[data-pbd-gap-summary]');
++  const gapSummaryIcon = root.querySelector('[data-pbd-gap-summary-icon]');
+   const generateButton = root.querySelector('[data-pbd-generate]');
+   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
+ 
+@@ -130,14 +178,30 @@
+   const includesCapabilities = () => !isUpdateSheet() && ['CapabilityOverview', 'Both'].includes(narrativeMode());
+   const includesProjectBrief = () => isUpdateSheet() || ['ProjectBrief', 'Both'].includes(narrativeMode());
+ 
++  const syncPreflightRequirementVisibility = () => {
++    const visibility = {
++      status: true,
++      'cost-rd': includesCostRd(),
++      proliferation: includesProliferation(),
++      capability: includesDetailedSlides() && includesCapabilities(),
++      'project-brief': includesDetailedSlides() && includesProjectBrief(),
++      photo: includesDetailedSlides()
++    };
++    root.querySelectorAll('[data-pbd-requirement]').forEach((element) => {
++      element.hidden = !visibility[element.dataset.pbdRequirement];
++    });
++  };
++
+   const syncTemplateSettings = () => {
+     const updateSheet = isUpdateSheet();
+     root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
+     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
+     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
+     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
++    syncPreflightRequirementVisibility();
+   };
+-  root.querySelectorAll('[data-pbd-layout-choice]').forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
++  root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
++    .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
+   syncTemplateSettings();
+   const hasCapabilityOverview = (project) => {
+     const value = normalize(project?.briefDescription);
+@@ -157,19 +221,22 @@
+     const readiness = deck?.readiness || {};
+     const estimate = deck?.slideEstimate || {};
+     const total = Number(readiness.projectCount || 0);
+-    if (metric('projects')) metric('projects').textContent = String(total);
+     if (metric('status')) metric('status').textContent = `${readiness.externalStatusAvailableCount || 0}/${total}`;
+     if (metric('cost-rd')) metric('cost-rd').textContent = `${readiness.costRdAvailableCount || 0}/${total}`;
+     if (metric('proliferation')) metric('proliferation').textContent = `${readiness.proliferationCostAvailableCount || 0}/${total}`;
+-    if (metric('update-facts')) metric('update-facts').textContent = `${readiness.updateSheetCoreFactsAvailableCount || 0}/${total}`;
++    if (metric('capability')) metric('capability').textContent = `${readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0}/${total}`;
++    if (metric('project-brief')) metric('project-brief').textContent = `${readiness.projectBriefAvailableCount || 0}/${total}`;
+     if (metric('photo')) metric('photo').textContent = `${readiness.coverPhotoAvailableCount || 0}/${total}`;
+     if (selectedTotal) selectedTotal.textContent = String(total);
+     if (generateButton) generateButton.disabled = total === 0;
++    syncPreflightRequirementVisibility();
+ 
+     if (slideTotal) slideTotal.textContent = `${estimate.totalSlides || 0} ${(estimate.totalSlides || 0) === 1 ? 'slide' : 'slides'}`;
+     if (slideBreakdown) {
+       if (isUpdateSheet(deck)) {
+-        slideBreakdown.textContent = `Introductory slides ${estimate.coverAndPortfolioSlides || 0} · Project update sheets ${estimate.projectUpdateSheetSlides || 0}`;
++        const cover = deck?.includeCoverSlide === false ? 0 : 1;
++        const portfolio = deck?.includePortfolioSummarySlide === false ? 0 : 1;
++        slideBreakdown.textContent = `Cover ${cover} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0}`;
+       } else {
+         const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
+         const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
+@@ -191,59 +258,87 @@
+       activeSavedCard.textContent = `${total} ${suffix} · updated just now`;
+     }
+ 
+-    if (!readinessGaps) return;
+-    readinessGaps.replaceChildren();
+-    const addPill = (icon, text, className = '') => {
+-      const span = document.createElement('span');
+-      if (className) span.className = className;
+-      const i = document.createElement('i');
+-      i.className = `bi ${icon}`;
+-      i.setAttribute('aria-hidden', 'true');
+-      span.append(i, document.createTextNode(` ${text}`));
+-      readinessGaps.append(span);
++    const renderGapList = (container, gaps, emptyText, emptyClass = 'is-ready') => {
++      if (!container) return;
++      container.replaceChildren();
++      const items = gaps.length > 0
++        ? gaps
++        : [{ icon: emptyClass === 'is-ready' ? 'bi-check-circle' : 'bi-info-circle', label: emptyText, count: 0, className: emptyClass }];
++      items.forEach((gap) => {
++        const item = document.createElement('li');
++        if (gap.className) item.className = gap.className;
++        const icon = document.createElement('i');
++        icon.className = `bi ${gap.icon}`;
++        icon.setAttribute('aria-hidden', 'true');
++        const label = document.createElement('span');
++        label.textContent = gap.label;
++        item.append(icon, label);
++        if (gap.count > 0) {
++          const count = document.createElement('strong');
++          count.textContent = `${gap.count} missing`;
++          item.append(count);
++        }
++        container.append(item);
++      });
+     };
+ 
+     if (total === 0) {
+-      addPill('bi-info-circle', 'Add projects to generate a deck', 'is-neutral');
++      renderGapList(usedGapList, [], 'Add projects to generate a deck.', 'is-neutral');
++      renderGapList(additionalGapList, [], 'No project metadata to review.', 'is-neutral');
++      if (gapSummary) gapSummary.textContent = 'Add projects to run the deck preflight';
++      if (gapSummaryIcon) gapSummaryIcon.className = 'bi bi-info-circle';
+       return;
+     }
+ 
+-    const gaps = [];
+     const missingStatus = total - Number(readiness.externalStatusAvailableCount || 0);
+     const missingCost = total - Number(readiness.costRdAvailableCount || 0);
+     const missingProliferation = total - Number(readiness.proliferationCostAvailableCount || 0);
+     const missingPhoto = total - Number(readiness.coverPhotoAvailableCount || 0);
+     const missingCapabilities = total - Number(readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0);
+     const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
++
++    const usedGaps = [];
++    if (missingStatus > 0) usedGaps.push({ icon: 'bi-chat-left-text', label: 'External status', count: missingStatus });
++    if (includesCostRd() && missingCost > 0) usedGaps.push({ icon: 'bi-currency-rupee', label: 'Cost (R&D)', count: missingCost });
++    if (includesProliferation() && missingProliferation > 0) usedGaps.push({ icon: 'bi-boxes', label: 'Proliferation cost', count: missingProliferation });
++    if (includesDetailedSlides() && missingPhoto > 0) usedGaps.push({ icon: 'bi-image', label: 'PowerPoint-ready photograph', count: missingPhoto });
++    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) usedGaps.push({ icon: 'bi-list-check', label: 'Capability overview', count: missingCapabilities });
++    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) usedGaps.push({ icon: 'bi-file-earmark-text', label: 'Project brief', count: missingProjectBriefs });
++
++    const additionalGaps = [];
+     if (isUpdateSheet(deck)) {
+       const missingArpp = total - Number(readiness.arppDetailsAvailableCount || 0);
+       const missingAon = total - Number(readiness.aonDateAvailableCount || 0);
+       const missingSo = total - Number(readiness.supplyOrderDateAvailableCount || 0);
+       const missingJdp = total - Number(readiness.jdpAvailableCount || 0);
+-      const missingPdc = Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0);
++      const missingPdc = Math.max(0, Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0));
+       const missingOfficer = total - Number(readiness.projectOfficerAvailableCount || 0);
+       const missingLine = total - Number(readiness.lineDirectorateAvailableCount || 0);
+-      if (missingArpp > 0) gaps.push(['bi-journal-text', `${missingArpp} without complete ARPP/PPP details`]);
+-      if (missingAon > 0) gaps.push(['bi-calendar-check', `${missingAon} without AoN date`]);
+-      if (missingSo > 0) gaps.push(['bi-calendar2-event', `${missingSo} without supply-order date`]);
+-      if (missingJdp > 0) gaps.push(['bi-building', `${missingJdp} without linked JDP`]);
+-      if (missingPdc > 0) gaps.push(['bi-calendar-x', `${missingPdc} development project(s) without PDC`]);
+-      if (missingOfficer > 0) gaps.push(['bi-person-badge', `${missingOfficer} without rank and full name of Project Officer`]);
+-      if (missingLine > 0) gaps.push(['bi-diagram-3', `${missingLine} without Line Directorate`]);
+-      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
+-      if (missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
+-      if (missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
+-      if (missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
+-    } else {
+-      if (missingStatus > 0) gaps.push(['bi-chat-left-text', `${missingStatus} without external status`]);
+-      if (includesCostRd() && missingCost > 0) gaps.push(['bi-currency-rupee', `${missingCost} without Cost (R&D)`]);
+-      if (includesProliferation() && missingProliferation > 0) gaps.push(['bi-boxes', `${missingProliferation} without proliferation cost`]);
+-      if (includesDetailedSlides() && missingPhoto > 0) gaps.push(['bi-image', `${missingPhoto} without PowerPoint-ready photo`]);
+-      if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) gaps.push(['bi-list-check', `${missingCapabilities} without capability overview`]);
+-      if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) gaps.push(['bi-file-earmark-text', `${missingProjectBriefs} without project brief`]);
++      if (missingArpp > 0) additionalGaps.push({ icon: 'bi-journal-text', label: 'Complete ARPP/PPP details', count: missingArpp });
++      if (missingAon > 0) additionalGaps.push({ icon: 'bi-calendar-check', label: 'AoN date', count: missingAon });
++      if (missingSo > 0) additionalGaps.push({ icon: 'bi-calendar2-event', label: 'Supply-order date', count: missingSo });
++      if (missingJdp > 0) additionalGaps.push({ icon: 'bi-building', label: 'Linked JDP', count: missingJdp });
++      if (missingPdc > 0) additionalGaps.push({ icon: 'bi-calendar-x', label: 'Development PDC', count: missingPdc });
++      if (missingOfficer > 0) additionalGaps.push({ icon: 'bi-person-badge', label: 'Project Officer rank and full name', count: missingOfficer });
++      if (missingLine > 0) additionalGaps.push({ icon: 'bi-diagram-3', label: 'Line Directorate', count: missingLine });
++    }
++
++    renderGapList(usedGapList, usedGaps, 'All selected-layout content is available.');
++    renderGapList(
++      additionalGapList,
++      additionalGaps,
++      isUpdateSheet(deck) ? 'Supporting project metadata is complete.' : 'No additional metadata is required by this template.',
++      isUpdateSheet(deck) ? 'is-ready' : 'is-neutral');
++
++    const totalGapCount = [...usedGaps, ...additionalGaps].reduce((sum, gap) => sum + gap.count, 0);
++    if (gapSummary) {
++      gapSummary.textContent = totalGapCount === 0
++        ? 'Selected content is ready'
++        : `Review ${totalGapCount} content and metadata gaps`;
++    }
++    if (gapSummaryIcon) {
++      gapSummaryIcon.className = totalGapCount === 0 ? 'bi bi-check-circle' : 'bi bi-exclamation-circle';
+     }
+-    if (gaps.length === 0) addPill('bi-check-circle', isUpdateSheet(deck) ? 'Selected project sheets are ready' : 'Selected content is ready', 'is-ready');
+-    else gaps.forEach(([icon, text]) => addPill(icon, text));
+   };
+ 
+   // Selected-project table management.
+--- a/wwwroot/js/projects/project-briefing-decks.test.js
++++ b/wwwroot/js/projects/project-briefing-decks.test.js
+@@ -39,7 +39,7 @@
+ test('briefing-specific descriptions are saved without leaving the builder', () => {
+   assert.match(source, /data-pbd-description-form/);
+   assert.match(source, /requestJson\(root\.dataset\.descriptionUrl/);
+-  assert.match(source, /Briefing description saved/);
++  assert.match(source, /Deck-specific capability overview saved/);
+ });
+ 
+ test('PowerPoint generation downloads the returned pptx and reports slide count', () => {
+@@ -76,3 +76,25 @@
+   assert.match(source, /applyEditorState\(payload\?\.deck, \{ preserveScroll: true \}\)/);
+   assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);
+ });
++
++test('briefing deck shell collapses the secondary saved-deck rail at laptop widths', () => {
++  assert.match(source, /matchMedia\('\(max-width: 1280px\)'\)/);
++  assert.match(source, /is-decks-collapsed/);
++  assert.match(source, /savedDecksOpen/);
++  assert.match(source, /aria-expanded/);
++});
++
++test('briefing deck preflight is template-aware and separates supporting metadata', () => {
++  assert.match(source, /syncPreflightRequirementVisibility/);
++  assert.match(source, /data-pbd-requirement/);
++  assert.match(source, /usedGapList/);
++  assert.match(source, /additionalGapList/);
++  assert.match(source, /Supporting project metadata/);
++  assert.doesNotMatch(source, /metric\('update-facts'\)/);
++});
++
++test('selected-project management can open the collapsed add-projects workflow', () => {
++  assert.match(source, /data-pbd-open-selector/);
++  assert.match(source, /selectorDetails\.open = true/);
++  assert.match(source, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
++});
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -28,6 +28,24 @@
+         Assert.Contains("chart and table", page, StringComparison.Ordinal);
+     }
+ 
++
++    [Fact]
++    public void Builder_PrioritisesSelectedProjectsAndUsesTemplateAwarePreflight()
++    {
++        var page = Read("Index.cshtml");
++        var script = Read("project-briefing-decks.js");
++
++        Assert.Contains("Projects in this deck", page, StringComparison.Ordinal);
++        Assert.Contains("Content used by this presentation", page, StringComparison.Ordinal);
++        Assert.Contains("Supporting project metadata", page, StringComparison.Ordinal);
++        Assert.Contains("Missing content uses defined placeholders", page, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-selector-details", page, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-decks-toggle", page, StringComparison.Ordinal);
++        Assert.DoesNotContain("data-pbd-metric=\"update-facts\"", page, StringComparison.Ordinal);
++        Assert.Contains("syncPreflightRequirementVisibility", script, StringComparison.Ordinal);
++        Assert.Contains("is-decks-collapsed", script, StringComparison.Ordinal);
++    }
++
+     [Fact]
+     public void Client_UsesApplicationAntiforgeryHeaderAndDownloadsPptx()
+     {
