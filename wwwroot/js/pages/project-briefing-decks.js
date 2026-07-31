@@ -59,8 +59,115 @@ if (root) {
     return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
   };
 
-  const settings = root.querySelector('[data-pbd-open-settings="true"]');
-  if (settings instanceof HTMLDetailsElement) settings.open = true;
+  // Dedicated settings drawer with canonical dirty-state tracking.
+  const settingsLauncher = root.querySelector('[data-pbd-settings-open]');
+  const settingsDrawer = root.querySelector('[data-pbd-settings-drawer]');
+  const settingsBackdrop = root.querySelector('[data-pbd-settings-backdrop]');
+  const settingsForm = root.querySelector('[data-pbd-settings-form]');
+  const settingsSave = root.querySelector('[data-pbd-settings-save]');
+  const settingsDirtyBadge = root.querySelector('[data-pbd-settings-dirty]');
+  const settingsStatus = root.querySelector('[data-pbd-settings-status]');
+  let settingsInitialState = '';
+  let settingsDirty = false;
+  let settingsReturnFocus = null;
+
+  const serializeSettings = () => {
+    if (!(settingsForm instanceof HTMLFormElement)) return '';
+    return [...new FormData(settingsForm).entries()]
+      .filter(([name]) => name !== 'RowVersion')
+      .map(([name, value]) => `${name}=${String(value).trim()}`)
+      .sort()
+      .join('&');
+  };
+
+  const setSettingsDirty = (dirty) => {
+    settingsDirty = dirty;
+    settingsDirtyBadge?.toggleAttribute('hidden', !dirty);
+    if (settingsSave) settingsSave.disabled = !dirty;
+    if (settingsStatus) {
+      settingsStatus.textContent = dirty ? 'Unsaved settings' : 'No unsaved changes';
+      settingsStatus.classList.toggle('is-dirty', dirty);
+      settingsStatus.classList.remove('is-saving');
+    }
+  };
+
+  const refreshSettingsDirtyState = () => setSettingsDirty(serializeSettings() !== settingsInitialState);
+
+  const focusableSettingsElements = () => settingsDrawer
+    ? [...settingsDrawer.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
+        .filter((element) => !element.hidden && element.getClientRects().length > 0)
+    : [];
+
+  const openSettingsDrawer = () => {
+    if (!settingsDrawer || !settingsBackdrop || !settingsLauncher) return;
+    settingsReturnFocus = document.activeElement;
+    settingsDrawer.classList.add('is-open');
+    settingsDrawer.setAttribute('aria-hidden', 'false');
+    settingsBackdrop.hidden = false;
+    settingsLauncher.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('pbd-settings-drawer-open');
+    window.requestAnimationFrame(() => focusableSettingsElements()[0]?.focus());
+  };
+
+  const closeSettingsDrawer = ({ discard = true, force = false } = {}) => {
+    if (!settingsDrawer || !settingsBackdrop || !settingsLauncher) return false;
+    if (settingsDirty && !force && !window.confirm('Discard unsaved deck settings?')) return false;
+    if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
+      settingsForm.reset();
+      syncTemplateSettings();
+      setSettingsDirty(false);
+    }
+    settingsDrawer.classList.remove('is-open');
+    settingsDrawer.setAttribute('aria-hidden', 'true');
+    settingsBackdrop.hidden = true;
+    settingsLauncher.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('pbd-settings-drawer-open');
+    if (settingsReturnFocus instanceof HTMLElement) settingsReturnFocus.focus();
+    return true;
+  };
+
+  settingsLauncher?.addEventListener('click', openSettingsDrawer);
+  root.querySelectorAll('[data-pbd-settings-close]').forEach((button) => button.addEventListener('click', () => closeSettingsDrawer()));
+  settingsBackdrop?.addEventListener('click', () => closeSettingsDrawer());
+  settingsDrawer?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSettingsDrawer();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = focusableSettingsElements();
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  settingsForm?.addEventListener('input', refreshSettingsDirtyState);
+  settingsForm?.addEventListener('change', refreshSettingsDirtyState);
+  settingsForm?.addEventListener('submit', (event) => {
+    if (!settingsDirty) {
+      event.preventDefault();
+      return;
+    }
+    if (settingsSave) settingsSave.disabled = true;
+    if (settingsStatus) {
+      settingsStatus.textContent = 'Saving settings…';
+      settingsStatus.classList.remove('is-dirty');
+      settingsStatus.classList.add('is-saving');
+    }
+    settingsDirty = false;
+  });
+  window.addEventListener('beforeunload', (event) => {
+    if (!settingsDirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   // Preserve the user's working context for this deck.
   const restoreScroll = () => {
@@ -74,7 +181,7 @@ if (root) {
   const deckWorkspace = root.querySelector('.pbd-workspace');
   const savedDecksPanel = root.querySelector('[data-pbd-saved-decks]');
   const savedDecksToggle = root.querySelector('[data-pbd-decks-toggle]');
-  const savedDecksMedia = window.matchMedia('(max-width: 1280px)');
+  const savedDecksMedia = window.matchMedia('(max-width: 1499px)');
   const savedDecksStorageKey = `${storagePrefix}savedDecksOpen`;
 
   const setSavedDecksOpen = (open, persist = true) => {
@@ -158,6 +265,7 @@ if (root) {
   const usedGapList = root.querySelector('[data-pbd-used-gap-list]');
   const additionalGapList = root.querySelector('[data-pbd-additional-gap-list]');
   const gapSummary = root.querySelector('[data-pbd-gap-summary]');
+  const gapSummaryDetail = root.querySelector('[data-pbd-gap-summary-detail]');
   const gapSummaryIcon = root.querySelector('[data-pbd-gap-summary-icon]');
   const generateButton = root.querySelector('[data-pbd-generate]');
   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
@@ -203,6 +311,11 @@ if (root) {
   root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
     .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
   syncTemplateSettings();
+  settingsInitialState = serializeSettings();
+  setSettingsDirty(false);
+  if (root.querySelector('[data-pbd-open-settings="true"]')) {
+    window.setTimeout(openSettingsDrawer, 0);
+  }
   const hasCapabilityOverview = (project) => {
     const value = normalize(project?.briefDescription);
     return Boolean(value)
@@ -227,6 +340,13 @@ if (root) {
     if (metric('capability')) metric('capability').textContent = `${readiness.capabilityOverviewAvailableCount ?? readiness.descriptionAvailableCount ?? 0}/${total}`;
     if (metric('project-brief')) metric('project-brief').textContent = `${readiness.projectBriefAvailableCount || 0}/${total}`;
     if (metric('photo')) metric('photo').textContent = `${readiness.coverPhotoAvailableCount || 0}/${total}`;
+    root.querySelectorAll('[data-pbd-readiness-filter]').forEach((button) => {
+      if (!(button instanceof HTMLButtonElement) || !button.classList.contains('pbd-preflight-metric')) return;
+      const metricName = button.querySelector('[data-pbd-metric]')?.dataset.pbdMetric;
+      const available = metricName ? Number((metric(metricName)?.textContent || '0/0').split('/')[0] || 0) : 0;
+      button.disabled = total === 0 || available >= total;
+      button.title = button.disabled ? 'No missing projects for this requirement' : 'Filter the project list to missing content';
+    });
     if (selectedTotal) selectedTotal.textContent = String(total);
     if (generateButton) generateButton.disabled = total === 0;
     syncPreflightRequirementVisibility();
@@ -267,17 +387,24 @@ if (root) {
       items.forEach((gap) => {
         const item = document.createElement('li');
         if (gap.className) item.className = gap.className;
+        const content = gap.filter ? document.createElement('button') : document.createDocumentFragment();
+        if (content instanceof HTMLButtonElement) {
+          content.type = 'button';
+          content.dataset.pbdReadinessFilter = gap.filter;
+          content.title = `Show projects missing ${gap.label.toLocaleLowerCase()}`;
+        }
         const icon = document.createElement('i');
         icon.className = `bi ${gap.icon}`;
         icon.setAttribute('aria-hidden', 'true');
         const label = document.createElement('span');
         label.textContent = gap.label;
-        item.append(icon, label);
+        content.append(icon, label);
         if (gap.count > 0) {
           const count = document.createElement('strong');
           count.textContent = `${gap.count} missing`;
-          item.append(count);
+          content.append(count);
         }
+        item.append(content);
         container.append(item);
       });
     };
@@ -286,6 +413,7 @@ if (root) {
       renderGapList(usedGapList, [], 'Add projects to generate a deck.', 'is-neutral');
       renderGapList(additionalGapList, [], 'No project metadata to review.', 'is-neutral');
       if (gapSummary) gapSummary.textContent = 'Add projects to run the deck preflight';
+      if (gapSummaryDetail) gapSummaryDetail.textContent = 'Preflight checks begin after projects are selected.';
       if (gapSummaryIcon) gapSummaryIcon.className = 'bi bi-info-circle';
       return;
     }
@@ -298,12 +426,12 @@ if (root) {
     const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
 
     const usedGaps = [];
-    if (missingStatus > 0) usedGaps.push({ icon: 'bi-chat-left-text', label: 'External status', count: missingStatus });
-    if (includesCostRd() && missingCost > 0) usedGaps.push({ icon: 'bi-currency-rupee', label: 'Cost (R&D)', count: missingCost });
-    if (includesProliferation() && missingProliferation > 0) usedGaps.push({ icon: 'bi-boxes', label: 'Proliferation cost', count: missingProliferation });
-    if (includesDetailedSlides() && missingPhoto > 0) usedGaps.push({ icon: 'bi-image', label: 'PowerPoint-ready photograph', count: missingPhoto });
-    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) usedGaps.push({ icon: 'bi-list-check', label: 'Capability overview', count: missingCapabilities });
-    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) usedGaps.push({ icon: 'bi-file-earmark-text', label: 'Project brief', count: missingProjectBriefs });
+    if (missingStatus > 0) usedGaps.push({ icon: 'bi-chat-left-text', label: 'External status', count: missingStatus, filter: 'missing-status' });
+    if (includesCostRd() && missingCost > 0) usedGaps.push({ icon: 'bi-currency-rupee', label: 'Cost (R&D)', count: missingCost, filter: 'missing-cost-rd' });
+    if (includesProliferation() && missingProliferation > 0) usedGaps.push({ icon: 'bi-boxes', label: 'Proliferation cost', count: missingProliferation, filter: 'missing-proliferation' });
+    if (includesDetailedSlides() && missingPhoto > 0) usedGaps.push({ icon: 'bi-image', label: 'PowerPoint-ready photograph', count: missingPhoto, filter: 'missing-photo' });
+    if (includesDetailedSlides() && includesCapabilities() && missingCapabilities > 0) usedGaps.push({ icon: 'bi-list-check', label: 'Capability overview', count: missingCapabilities, filter: 'missing-description' });
+    if (includesDetailedSlides() && includesProjectBrief() && missingProjectBriefs > 0) usedGaps.push({ icon: 'bi-file-earmark-text', label: 'Project brief', count: missingProjectBriefs, filter: 'missing-description' });
 
     const additionalGaps = [];
     if (isUpdateSheet(deck)) {
@@ -330,14 +458,28 @@ if (root) {
       isUpdateSheet(deck) ? 'Supporting project metadata is complete.' : 'No additional metadata is required by this template.',
       isUpdateSheet(deck) ? 'is-ready' : 'is-neutral');
 
-    const totalGapCount = [...usedGaps, ...additionalGaps].reduce((sum, gap) => sum + gap.count, 0);
+    const projects = deck?.projects || [];
+    const affectedProjectCount = projects.filter((project) => {
+      const statusMissing = !String(project.externalStatus || '').trim();
+      const costMissing = includesCostRd() && !project.costRd?.isAvailable;
+      const proliferationMissing = includesProliferation() && !project.proliferationCost?.isAvailable;
+      const photoMissing = includesDetailedSlides() && !project.hasCoverPhoto;
+      const capabilityMissing = includesDetailedSlides() && includesCapabilities() && !hasCapabilityOverview(project);
+      const briefMissing = includesDetailedSlides() && includesProjectBrief() && !hasProjectBrief(project);
+      return statusMissing || costMissing || proliferationMissing || photoMissing || capabilityMissing || briefMissing;
+    }).length;
     if (gapSummary) {
-      gapSummary.textContent = totalGapCount === 0
+      gapSummary.textContent = affectedProjectCount === 0
         ? 'Selected content is ready'
-        : `Review ${totalGapCount} content and metadata gaps`;
+        : `${affectedProjectCount} ${affectedProjectCount === 1 ? 'project has' : 'projects have'} content gaps`;
+    }
+    if (gapSummaryDetail) {
+      gapSummaryDetail.textContent = usedGaps.length === 0
+        ? 'All selected-layout content is available.'
+        : usedGaps.map((gap) => `${gap.count} missing ${gap.label.toLocaleLowerCase()}`).join(' · ');
     }
     if (gapSummaryIcon) {
-      gapSummaryIcon.className = totalGapCount === 0 ? 'bi bi-check-circle' : 'bi bi-exclamation-circle';
+      gapSummaryIcon.className = affectedProjectCount === 0 ? 'bi bi-check-circle' : 'bi bi-exclamation-circle';
     }
   };
 
@@ -346,6 +488,7 @@ if (root) {
   const selectedTableWrap = root.querySelector('[data-pbd-selected-table-wrap]');
   const emptyProjects = root.querySelector('[data-pbd-empty-projects]');
   const noFilterResults = root.querySelector('[data-pbd-no-filter-results]');
+  const selectedSection = root.querySelector('[data-pbd-selected-section]');
   const selectedToolbar = root.querySelector('[data-pbd-selected-toolbar]');
   const selectedSearch = root.querySelector('[data-pbd-selected-search]');
   const selectedStage = root.querySelector('[data-pbd-selected-stage]');
@@ -469,6 +612,20 @@ if (root) {
     persistSelectedFilters();
     applySelectedFilters();
     selectedSearch?.focus();
+  });
+
+  root.addEventListener('click', (event) => {
+    const filterButton = event.target.closest('[data-pbd-readiness-filter]');
+    if (!(filterButton instanceof HTMLButtonElement) || filterButton.disabled || !selectedReadiness) return;
+    const filter = filterButton.dataset.pbdReadinessFilter || '';
+    if (![...selectedReadiness.options].some((option) => option.value === filter)) return;
+    if (selectedSearch) selectedSearch.value = '';
+    if (selectedStage) selectedStage.value = '';
+    selectedReadiness.value = filter;
+    persistSelectedFilters();
+    applySelectedFilters({ revealFirstMatch: true });
+    selectedSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => selectedReadiness.focus(), 350);
   });
 
   selectVisible?.addEventListener('change', () => {
@@ -1056,6 +1213,14 @@ if (root) {
 
   generateForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (settingsDirty) {
+      openSettingsDrawer();
+      if (settingsStatus) {
+        settingsStatus.textContent = 'Save or discard settings before generating the PowerPoint.';
+        settingsStatus.classList.add('is-dirty');
+      }
+      return;
+    }
     if (!generateButton || generateButton.disabled) return;
     generateButton.disabled = true;
     generateLabel?.classList.add('d-none');

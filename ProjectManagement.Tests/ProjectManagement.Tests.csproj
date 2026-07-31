@@ -151,6 +151,9 @@
     <None Include="..\wwwroot\js\pages\project-briefing-decks.js"
           Link="TestData\ProjectBriefing\project-briefing-decks.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\css\pages\project-briefing-decks.css"
+          Link="TestData\ProjectBriefing\project-briefing-decks.css"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\ProjectBriefingCostResolver.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingCostResolver.cs"
           CopyToOutputDirectory="PreserveNewest" />

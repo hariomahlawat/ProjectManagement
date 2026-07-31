@@ -1,12 +1,13 @@
-PRISM Project Briefing Deck Builder — Responsive Preflight Completion
+REPLACEMENT MANIFEST
+====================
 
-Replace these files at the exact project-relative paths:
+Replace these project-relative files exactly:
 
-1. Pages/Workspace/BriefingDecks/Index.cshtml
-2. wwwroot/css/pages/project-briefing-decks.css
-3. wwwroot/js/pages/project-briefing-decks.js
-4. wwwroot/js/projects/project-briefing-decks.test.js
-5. ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+- Pages/Workspace/BriefingDecks/Index.cshtml
+- wwwroot/css/pages/project-briefing-decks.css
+- wwwroot/js/pages/project-briefing-decks.js
+- wwwroot/js/projects/project-briefing-decks.test.js
+- ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+- ProjectManagement.Tests/ProjectManagement.Tests.csproj
 
-No files outside this list are changed.
-No database migration is included or required.
+No migration, entity-model, ordering-rule, selection-rule or PowerPoint-composition change is included.

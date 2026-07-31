@@ -44,6 +44,32 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("data-pbd-metric=\"update-facts\"", page, StringComparison.Ordinal);
         Assert.Contains("syncPreflightRequirementVisibility", script, StringComparison.Ordinal);
         Assert.Contains("is-decks-collapsed", script, StringComparison.Ordinal);
+        Assert.True(
+            page.IndexOf("Projects in this deck", StringComparison.Ordinal) < page.IndexOf("Deck preflight", StringComparison.Ordinal),
+            "Selected-project management must appear before deck preflight.");
+        Assert.Contains("data-pbd-settings-drawer", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-settings-dirty", page, StringComparison.Ordinal);
+        Assert.Contains("projects have", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Review {totalPreflightGapCount}", page, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void Builder_UsesDrawerSettingsAndResponsiveWidthContainment()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var css = Read("project-briefing-decks.css");
+
+        Assert.Contains("pbd-settings-drawer", page, StringComparison.Ordinal);
+        Assert.Contains("Save settings", page, StringComparison.Ordinal);
+        Assert.Contains("Unsaved settings", page, StringComparison.Ordinal);
+        Assert.Contains("serializeSettings", script, StringComparison.Ordinal);
+        Assert.Contains("beforeunload", script, StringComparison.Ordinal);
+        Assert.Contains("Save or discard settings before generating", script, StringComparison.Ordinal);
+        Assert.Contains("contain: inline-size", css, StringComparison.Ordinal);
+        Assert.Contains("overflow-x: clip", css, StringComparison.Ordinal);
+        Assert.Contains("max-width: 1499px", css, StringComparison.Ordinal);
     }
 
     [Fact]

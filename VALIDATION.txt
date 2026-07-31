@@ -1,30 +1,21 @@
-PRISM Project Briefing Deck Builder — validation report
+VALIDATION REPORT
+=================
 
-Changed files:
-  PASS  Pages/Workspace/BriefingDecks/Index.cshtml
-  PASS  wwwroot/css/pages/project-briefing-decks.css
-  PASS  wwwroot/js/pages/project-briefing-decks.js
-  PASS  wwwroot/js/projects/project-briefing-decks.test.js
-  PASS  ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-  PASS  exact changed-file count: 5
-  PASS  no migrations or backend service files changed: True
-  PASS  JavaScript syntax (node --check)
-  PASS  targeted JavaScript tests: 14 passed
-  PASS  CSS brace balance: 397 opening / 397 closing
-  PASS  Razor/HTML paired-container counts
-  PASS  Razor brace balance: 66 opening / 66 closing
-  PASS  C# contract-test string escaping
-  PASS  responsive Shared decks control
-  PASS  template-aware preflight
-  PASS  vague headline Project facts removed
-  PASS  empty description warning removed
-  PASS  placeholder policy visible
-  PASS  collapsed Add projects workflow
-  PASS  internal table scroller
+PASSED
+- JavaScript syntax: node --check
+- JavaScript targeted tests: 17/17
+- Razor structural checks: balanced forms, sections, asides and details
+- Projects section precedes Deck preflight in the rendered source order
+- Settings drawer, dirty-state and generation-guard contracts present
+- CSS brace and parenthesis balance
+- CSS responsive width-containment and 1499 px rail breakpoint present
+- Test project copies the Briefing Deck CSS contract file to TestData
+- Patch cleanly applies to the supplied baseline
+- Patched files reproduce replacement files byte-for-byte
+- ZIP integrity and SHA-256 manifest
 
-Not executed in this environment:
-  - .NET Release build and xUnit suite: .NET SDK is not installed.
-  - Full npm test suite: dependencies such as jsdom are not installed; the targeted briefing-deck suite passed.
-  - Browser visual regression: requires the running PRISM application.
-  PASS  standalone patch dry-run against the supplied source baseline
-  PASS  standalone patch applied and reproduced every replacement file byte-for-byte
+NOT RUN
+- .NET Release build
+- xUnit suite
+
+Reason: the .NET SDK is not installed in the preparation environment.

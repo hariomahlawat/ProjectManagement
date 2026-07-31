@@ -78,7 +78,7 @@ test('inline membership changes preserve the current page position', () => {
 });
 
 test('briefing deck shell collapses the secondary saved-deck rail at laptop widths', () => {
-  assert.match(source, /matchMedia\('\(max-width: 1280px\)'\)/);
+  assert.match(source, /matchMedia\('\(max-width: 1499px\)'\)/);
   assert.match(source, /is-decks-collapsed/);
   assert.match(source, /savedDecksOpen/);
   assert.match(source, /aria-expanded/);
@@ -97,4 +97,26 @@ test('selected-project management can open the collapsed add-projects workflow',
   assert.match(source, /data-pbd-open-selector/);
   assert.match(source, /selectorDetails\.open = true/);
   assert.match(source, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/);
+});
+
+test('deck settings use an isolated drawer with canonical dirty-state protection', () => {
+  assert.match(source, /data-pbd-settings-drawer/);
+  assert.match(source, /serializeSettings/);
+  assert.match(source, /setSettingsDirty/);
+  assert.match(source, /beforeunload/);
+  assert.match(source, /Save or discard settings before generating/);
+  assert.match(source, /Discard unsaved deck settings/);
+});
+
+test('preflight requirements filter the selected-project list directly', () => {
+  assert.match(source, /data-pbd-readiness-filter/);
+  assert.match(source, /selectedReadiness\.value = filter/);
+  assert.match(source, /applySelectedFilters\(\{ revealFirstMatch: true \}\)/);
+  assert.match(source, /selectedSection\?\.scrollIntoView/);
+});
+
+test('preflight headline reports affected projects rather than summed metadata values', () => {
+  assert.match(source, /affectedProjectCount/);
+  assert.match(source, /projects have.*content gaps|project has.*content gaps/);
+  assert.doesNotMatch(source, /Review \$\{totalGapCount\} content and metadata gaps/);
 });
