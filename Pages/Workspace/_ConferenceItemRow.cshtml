@@ -26,8 +26,9 @@
     var directionCount = Math.Max(item.DirectionCount, direction is null ? 0 : 1);
 }
 
-<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
+<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty) @(item.IsRecentlyCompleted ? "oc-item--completed-carryover" : string.Empty)"
          data-oc-item
+         data-project-carryover="@(item.IsRecentlyCompleted ? "true" : "false")"
          data-officer-id="@Model.OfficerUserId"
          data-item-kind="@((int)item.Kind)"
          data-item-id="@item.ItemId"

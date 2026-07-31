@@ -13,6 +13,12 @@
     var isIdeaSection = sectionModel.Kind == ConferenceItemKind.ProjectIdea;
     var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
     var itemColumnLabel = isProjectSection ? "Project" : isIdeaSection ? "Idea" : "Task";
+    var activeProjectItems = isProjectSection
+        ? sectionModel.Items.Where(item => !item.IsRecentlyCompleted).ToArray()
+        : Array.Empty<OfficerConferenceItemVm>();
+    var recentlyCompletedProjectItems = isProjectSection
+        ? sectionModel.Items.Where(item => item.IsRecentlyCompleted).ToArray()
+        : Array.Empty<OfficerConferenceItemVm>();
 
     var ideaEditorId = $"oc-idea-create-{Model.OfficerUserId}";
     var ideaTitleErrorId = $"{ideaEditorId}-title-error";
@@ -276,15 +282,63 @@
             <span>Progress after direction</span>
         </div>
         <div class="oc-item-list" data-oc-item-list>
-            @foreach (var item in sectionModel.Items)
+            @if (isProjectSection && recentlyCompletedProjectItems.Length > 0)
             {
-                @await Html.PartialAsync(
-                    "_ConferenceItemRow",
-                    new OfficerConferenceItemRenderVm
+                @if (activeProjectItems.Length > 0)
+                {
+                    <div class="oc-project-group-heading oc-project-group-heading--active"
+                         role="heading"
+                         aria-level="3">
+                        <span><strong>Active projects</strong></span>
+                        <b>@activeProjectItems.Length</b>
+                    </div>
+                    @foreach (var item in activeProjectItems)
                     {
-                        OfficerUserId = Model.OfficerUserId,
-                        Item = item
-                    })
+                        @await Html.PartialAsync(
+                            "_ConferenceItemRow",
+                            new OfficerConferenceItemRenderVm
+                            {
+                                OfficerUserId = Model.OfficerUserId,
+                                Item = item
+                            })
+                    }
+                }
+
+                <div class="oc-project-group-heading oc-project-group-heading--completed"
+                     role="heading"
+                     aria-level="3">
+                    <span>
+                        <strong>Recently completed</strong>
+                        @if (Model.CompletedProjectRetentionDays > 0)
+                        {
+                            <small>Available for @Model.CompletedProjectRetentionDays days after completion</small>
+                        }
+                    </span>
+                    <b>@recentlyCompletedProjectItems.Length</b>
+                </div>
+                @foreach (var item in recentlyCompletedProjectItems)
+                {
+                    @await Html.PartialAsync(
+                        "_ConferenceItemRow",
+                        new OfficerConferenceItemRenderVm
+                        {
+                            OfficerUserId = Model.OfficerUserId,
+                            Item = item
+                        })
+                }
+            }
+            else
+            {
+                @foreach (var item in sectionModel.Items)
+                {
+                    @await Html.PartialAsync(
+                        "_ConferenceItemRow",
+                        new OfficerConferenceItemRenderVm
+                        {
+                            OfficerUserId = Model.OfficerUserId,
+                            Item = item
+                        })
+                }
             }
         </div>
     }

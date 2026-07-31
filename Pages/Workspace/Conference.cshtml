@@ -58,9 +58,13 @@
                             <span class="oc-officer-card__body">
                                 <strong>@option.DisplayName</strong>
                                 <small>
-                                    @option.ProjectCount @(option.ProjectCount == 1 ? "project" : "projects")
-                                    · @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")
-                                    · @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")
+                                    @option.ActiveProjectCount active @(option.ActiveProjectCount == 1 ? "project" : "projects")
+                                    @if (option.RecentlyCompletedProjectCount > 0)
+                                    {
+                                        <span>· @option.RecentlyCompletedProjectCount recently completed</span>
+                                    }
+                                    <span>· @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")</span>
+                                    <span>· @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
                                 </small>
                             </span>
                             <i class="bi bi-chevron-right" aria-hidden="true"></i>
@@ -90,7 +94,11 @@
                         <span class="oc-eyebrow">Officer conference review</span>
                         <h1>@Model.Conference.OfficerDisplayName</h1>
                         <p>
-                            <span class="oc-header__metric"><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
+                            <span class="oc-header__metric"><strong>@Model.Conference.ActiveProjectCount</strong> active @(Model.Conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
+                            @if (Model.Conference.RecentlyCompletedProjectCount > 0)
+                            {
+                                <span class="oc-header__metric oc-header__metric--carryover"><strong>@Model.Conference.RecentlyCompletedProjectCount</strong> recently completed</span>
+                            }
                             <span class="oc-header__metric"><strong data-oc-header-idea-count>@Model.Conference.IdeaCount</strong> <span data-oc-header-idea-label>@(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span></span>
                             <span class="oc-header__metric oc-header__metric--tasks @(Model.Conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
                         </p>
@@ -185,6 +193,7 @@
                         MinimumTaskDueDate = Model.MinimumTaskDueDate,
                         DefaultTaskDueDate = Model.DefaultTaskDueDate,
                         IdeaCreation = Model.IdeaCreation,
+                        CompletedProjectRetentionDays = Model.Conference.CompletedProjectRetentionDays,
                         Section = section
                     })
             }

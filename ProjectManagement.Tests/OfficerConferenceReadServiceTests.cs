@@ -624,6 +624,95 @@ public sealed class OfficerConferenceReadServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_IncludesCarryoverOnlyOfficerAndRecentlyCompletedProject()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var command = CreateUser("command-1", "Command User", "Colonel");
+        var officer = CreateUser("officer-1", "Carryover Officer", "Lt Col");
+        db.Users.AddRange(command, officer);
+
+        var project = new Project
+        {
+            Name = "Recently completed project",
+            CreatedByUserId = command.Id,
+            LeadPoUserId = officer.Id,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CompletedOn = new DateOnly(2026, 7, 25),
+            CompletedYear = 2026,
+            CompletedMonth = 7
+        };
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        db.Remarks.Add(ProjectRemark(
+            project.Id,
+            command.Id,
+            RemarkActorRole.HeadOfDepartment,
+            RemarkType.Conference,
+            "Complete closure documentation.",
+            Utc(26),
+            StageCodes.DEVP));
+        await db.SaveChangesAsync();
+
+        var carryover = new ConferenceProjectCarryover(
+            project.Id,
+            project.Name,
+            officer.Id,
+            officer.FullName!,
+            officer.Rank!,
+            project.CompletedOn,
+            project.CompletedYear,
+            project.CompletedMonth,
+            null,
+            project.CompletedOn.Value,
+            "Completed on 25 Jul 2026");
+        var projectScope = new StubConferenceProjectScopeService(new[] { carryover });
+        var service = new OfficerConferenceReadService(
+            db,
+            new StubOfficerWorkloadReadService(Array.Empty<CommandOfficerWorkloadVm>()),
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(31)),
+            projectScope);
+
+        var optionsResult = await service.GetOfficerOptionsAsync(command.Id);
+        var officerOption = Assert.Single(optionsResult);
+        Assert.Equal(officer.Id, officerOption.UserId);
+        Assert.Equal(0, officerOption.ActiveProjectCount);
+        Assert.Equal(1, officerOption.RecentlyCompletedProjectCount);
+
+        var result = await service.GetAsync(command.Id, officer.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result!.ActiveProjectCount);
+        Assert.Equal(1, result.RecentlyCompletedProjectCount);
+        Assert.Equal(90, result.CompletedProjectRetentionDays);
+        var item = Assert.Single(
+            result.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
+        Assert.True(item.IsRecentlyCompleted);
+        Assert.Equal("Completed", item.CurrentStateName);
+        Assert.Equal("Completed on 25 Jul 2026", item.CurrentContext);
+        Assert.Null(item.AttentionText);
+        Assert.False(item.RequiresAttention);
+
+        var history = await service.GetDirectionHistoryAsync(
+            command.Id,
+            officer.Id,
+            ConferenceItemKind.Project,
+            project.Id);
+        Assert.NotNull(history);
+        Assert.Single(history!.Cycles);
+        Assert.Equal("Complete closure documentation.", history.Cycles[0].Direction.Body);
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNull_WhenOfficerIsOutsideCanonicalWorkloadOrder()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");
@@ -680,6 +769,30 @@ public sealed class OfficerConferenceReadServiceTests
 
     private static DateTime Utc(int day)
         => new(2026, 7, day, 8, 0, 0, DateTimeKind.Utc);
+
+    private sealed class StubConferenceProjectScopeService : IConferenceProjectScopeService
+    {
+        private readonly IReadOnlyList<ConferenceProjectCarryover> _carryovers;
+
+        public StubConferenceProjectScopeService(IReadOnlyList<ConferenceProjectCarryover> carryovers)
+        {
+            _carryovers = carryovers;
+        }
+
+        public int CompletedProjectRetentionDays => 90;
+
+        public Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(_carryovers);
+
+        public Task<bool> IsProjectInScopeAsync(
+            string officerUserId,
+            int projectId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(_carryovers.Any(item =>
+                item.ProjectId == projectId
+                && string.Equals(item.OfficerUserId, officerUserId, StringComparison.Ordinal)));
+    }
 
     private sealed class StubOfficerWorkloadReadService : IOfficerWorkloadReadService
     {

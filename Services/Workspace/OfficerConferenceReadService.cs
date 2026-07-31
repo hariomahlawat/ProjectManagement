@@ -28,6 +28,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     private readonly IClock _clock;
     private readonly ProjectRecordHealthService? _recordHealth;
     private readonly IErpUsageQueryService? _erpUsage;
+    private readonly IConferenceProjectScopeService? _projectScope;
 
     // Retained for isolated conference-read tests and legacy composition roots. The
     // application DI container resolves the complete constructor below.
@@ -44,7 +45,17 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
-    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public OfficerConferenceReadService(
+        ApplicationDbContext db,
+        IOfficerWorkloadReadService workload,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IClock clock,
+        IConferenceProjectScopeService projectScope)
+        : this(db, workload, workflowStageMetadataProvider, clock)
+    {
+        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
+    }
+
     public OfficerConferenceReadService(
         ApplicationDbContext db,
         IOfficerWorkloadReadService workload,
@@ -52,14 +63,24 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IClock clock,
         ProjectRecordHealthService recordHealth,
         IErpUsageQueryService erpUsage)
+        : this(db, workload, workflowStageMetadataProvider, clock)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
-        _workflowStageMetadataProvider = workflowStageMetadataProvider
-            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _recordHealth = recordHealth ?? throw new ArgumentNullException(nameof(recordHealth));
         _erpUsage = erpUsage ?? throw new ArgumentNullException(nameof(erpUsage));
+    }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public OfficerConferenceReadService(
+        ApplicationDbContext db,
+        IOfficerWorkloadReadService workload,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IClock clock,
+        ProjectRecordHealthService recordHealth,
+        IErpUsageQueryService erpUsage,
+        IConferenceProjectScopeService projectScope)
+        : this(db, workload, workflowStageMetadataProvider, clock, recordHealth, erpUsage)
+    {
+        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
     }
 
 
@@ -73,7 +94,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return Array.Empty<OfficerConferenceOfficerOptionVm>();
         }
 
-        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
         return BuildOfficerOptions(orderedOfficers, selectedOfficerUserId);
     }
 
@@ -88,7 +109,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return null;
         }
 
-        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
         var selectedIndex = orderedOfficers
             .Select((officer, index) => new { officer, index })
             .FirstOrDefault(entry => string.Equals(
@@ -102,7 +123,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         }
 
         var selected = selectedIndex.officer;
-        var projectIds = selected.Projects.Select(item => item.ProjectId).Distinct().ToArray();
+        var projectIds = selected.ActiveProjects
+            .Select(item => item.ProjectId)
+            .Concat(selected.RecentlyCompletedProjects.Select(item => item.ProjectId))
+            .Distinct()
+            .ToArray();
         var ideaIds = selected.Ideas.Select(item => item.IdeaId).Distinct().ToArray();
         var taskIds = selected.OtherTasks.Select(item => item.TaskId).Distinct().ToArray();
 
@@ -241,8 +266,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             OfficerRank = selected.Rank,
             OfficerInitial = InitialOf(selected.OfficerName),
             ProjectCount = projectItems.Count,
+            ActiveProjectCount = selected.ActiveProjects.Count,
+            RecentlyCompletedProjectCount = selected.RecentlyCompletedProjects.Count,
             IdeaCount = ideaItems.Count,
             OtherTaskCount = taskItems.Count,
+            CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
             PreviousOfficerUserId = selectedIndex.index > 0
                 ? orderedOfficers[selectedIndex.index - 1].UserId
                 : null,
@@ -294,7 +322,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return null;
         }
 
-        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
         var selected = orderedOfficers.FirstOrDefault(officer => string.Equals(
             officer.UserId,
             officerUserId,
@@ -304,20 +332,25 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return null;
         }
 
+        var projectInScope = kind != ConferenceItemKind.Project
+            || (_projectScope is not null
+                ? await _projectScope.IsProjectInScopeAsync(officerUserId, itemId, cancellationToken)
+                : selected.ActiveProjects.Any(item => item.ProjectId == itemId));
+
         return kind switch
         {
-            ConferenceItemKind.Project when selected.Projects.Any(item => item.ProjectId == itemId)
-                => await BuildProjectDirectionHistoryAsync(selected, itemId, cancellationToken),
+            ConferenceItemKind.Project when projectInScope
+                => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
                 => await BuildIdeaDirectionHistoryAsync(itemId, cancellationToken),
             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
-                => await BuildTaskDirectionHistoryAsync(selected, itemId, cancellationToken),
+                => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             _ => null
         };
     }
 
     private async Task<ConferenceDirectionHistoryVm> BuildProjectDirectionHistoryAsync(
-        CommandOfficerWorkloadVm officer,
+        string officerUserId,
         int projectId,
         CancellationToken cancellationToken)
     {
@@ -341,7 +374,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         }
 
         var assignedProjectOfficerId = string.IsNullOrWhiteSpace(project.LeadPoUserId)
-            ? officer.UserId
+            ? officerUserId
             : project.LeadPoUserId;
         var mcoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Mco, cancellationToken);
         var mcoUserIdArray = mcoUserIds.ToArray();
@@ -430,7 +463,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
                     AuthorRole = DisplayRole(direction.AuthorRole),
                     CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
-                    SnapshotLabel = "Stage when issued",
+                    SnapshotLabel = BuildProjectSnapshotLabel(direction.StageRef, direction.StageNameSnapshot),
                     SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
                 },
                 ProgressEntries = progressEntries,
@@ -585,7 +618,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     }
 
     private async Task<ConferenceDirectionHistoryVm> BuildTaskDirectionHistoryAsync(
-        CommandOfficerWorkloadVm officer,
+        string officerUserId,
         int taskId,
         CancellationToken cancellationToken)
     {
@@ -609,7 +642,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         }
 
         var assignedTaskUserId = string.IsNullOrWhiteSpace(task.AssignedToUserId)
-            ? officer.UserId
+            ? officerUserId
             : task.AssignedToUserId;
         var firstDirection = directions[0];
         var updates = await _db.ActionTaskUpdates
@@ -730,8 +763,70 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         };
 
 
+    private async Task<IReadOnlyList<ConferenceOfficerContext>> LoadConferenceOfficersAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken)
+    {
+        var activeWorkloads = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        IReadOnlyList<ConferenceProjectCarryover> carryovers = _projectScope is null
+            ? Array.Empty<ConferenceProjectCarryover>()
+            : await _projectScope.GetRecentlyCompletedProjectsAsync(cancellationToken);
+        var carryoversByOfficer = carryovers
+            .GroupBy(item => item.OfficerUserId, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ConferenceProjectCarryover>)group
+                    .OrderByDescending(item => item.CompletionSortDate)
+                    .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                StringComparer.Ordinal);
+
+        var result = new List<ConferenceOfficerContext>(
+            activeWorkloads.Count + carryoversByOfficer.Count);
+        var includedOfficerIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var workload in activeWorkloads)
+        {
+            carryoversByOfficer.TryGetValue(workload.UserId, out var officerCarryovers);
+            officerCarryovers ??= Array.Empty<ConferenceProjectCarryover>();
+            result.Add(new ConferenceOfficerContext(
+                workload.UserId,
+                workload.OfficerName,
+                workload.Rank,
+                workload.Projects,
+                workload.Ideas,
+                workload.OtherTasks,
+                officerCarryovers));
+            includedOfficerIds.Add(workload.UserId);
+        }
+
+        var carryoverOnlyOfficers = carryovers
+            .Where(item => !includedOfficerIds.Contains(item.OfficerUserId))
+            .GroupBy(item => item.OfficerUserId, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                var identity = group.First();
+                return new ConferenceOfficerContext(
+                    identity.OfficerUserId,
+                    identity.OfficerName,
+                    identity.OfficerRank,
+                    Array.Empty<CommandOfficerProjectVm>(),
+                    Array.Empty<CommandOfficerIdeaVm>(),
+                    Array.Empty<CommandOfficerTaskVm>(),
+                    group
+                        .OrderByDescending(item => item.CompletionSortDate)
+                        .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
+                        .ToArray());
+            })
+            .OrderBy(officer => OfficerRankOrder(officer.Rank))
+            .ThenBy(officer => officer.OfficerName, StringComparer.OrdinalIgnoreCase);
+
+        result.AddRange(carryoverOnlyOfficers);
+        return result;
+    }
+
     private static IReadOnlyList<OfficerConferenceOfficerOptionVm> BuildOfficerOptions(
-        IReadOnlyList<CommandOfficerWorkloadVm> orderedOfficers,
+        IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
         string? selectedOfficerUserId)
         => orderedOfficers
             .Select(officer => new OfficerConferenceOfficerOptionVm(
@@ -739,8 +834,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 DisplayOfficerName(officer),
                 string.Equals(officer.UserId, selectedOfficerUserId, StringComparison.Ordinal),
                 officer.ProjectCount,
-                officer.IdeaCount,
-                officer.OtherTaskCount))
+                officer.Ideas.Count,
+                officer.OtherTasks.Count,
+                officer.ActiveProjects.Count,
+                officer.RecentlyCompletedProjects.Count))
             .ToArray();
 
     private async Task<List<ProjectRow>> LoadProjectsAsync(
@@ -760,6 +857,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 project.Name,
                 project.LeadPoUserId,
                 project.WorkflowVersion,
+                project.LifecycleStatus,
+                project.CompletedOn,
+                project.CompletedYear,
+                project.CompletedMonth,
                 project.ProjectStages
                     .Select(stage => new ProjectStageRow(
                         stage.StageCode,
@@ -1062,7 +1163,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     }
 
     private IReadOnlyList<OfficerConferenceItemVm> BuildProjectItems(
-        CommandOfficerWorkloadVm officer,
+        ConferenceOfficerContext officer,
         IReadOnlyList<ProjectRow> rows,
         IReadOnlyList<Remark> remarks,
         IReadOnlyDictionary<int, Remark> latestDirections,
@@ -1076,61 +1177,94 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         var remarksByProject = remarks
             .GroupBy(remark => remark.ProjectId)
             .ToDictionary(group => group.Key, group => group.ToList());
-        var result = new List<OfficerConferenceItemVm>();
+        var sources = officer.ActiveProjects
+            .Select(item => new ConferenceProjectSource(
+                item.ProjectId,
+                item.OpenUrl,
+                item.StageCode,
+                item.StageName,
+                IsRecentlyCompleted: false,
+                CompletionContext: null))
+            .Concat(officer.RecentlyCompletedProjects.Select(item => new ConferenceProjectSource(
+                item.ProjectId,
+                $"/Projects/Overview/{item.ProjectId}",
+                "COMPLETED",
+                "Completed",
+                IsRecentlyCompleted: true,
+                item.CompletionContext)))
+            .ToArray();
+        var result = new List<OfficerConferenceItemVm>(sources.Length);
 
-        foreach (var workloadItem in officer.Projects)
+        foreach (var source in sources)
         {
-            if (!rowsById.TryGetValue(workloadItem.ProjectId, out var row))
+            if (!rowsById.TryGetValue(source.ProjectId, out var row))
             {
                 continue;
             }
 
-            var snapshots = row.Stages
-                .Select(stage => new ProjectStageStatusSnapshot(
-                    stage.StageCode,
-                    stage.Status,
-                    stage.SortOrder,
-                    stage.ActualStart,
-                    stage.CompletedOn))
-                .ToList();
-            var presentStage = PresentStageHelper.ComputePresentStageAndAge(
-                snapshots,
-                _workflowStageMetadataProvider,
-                row.WorkflowVersion,
-                today);
-            var currentCode = presentStage.CurrentStageCode ?? workloadItem.StageCode;
-            var currentName = presentStage.CurrentStageName ?? workloadItem.StageName;
-            var currentPdc = row.Stages
-                .FirstOrDefault(stage => string.Equals(
-                    stage.StageCode,
-                    currentCode,
-                    StringComparison.OrdinalIgnoreCase))
-                ?.PlannedDue;
-
-            var contextParts = new List<string>();
-            if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
-            {
-                contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
-            }
-
+            string currentCode;
+            string currentName;
+            string? currentContext;
             string? attentionText = null;
             var requiresAttention = false;
-            if (currentPdc.HasValue)
+
+            if (source.IsRecentlyCompleted)
             {
-                var delta = currentPdc.Value.DayNumber - today.DayNumber;
-                if (delta < 0)
-                {
-                    attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
-                    requiresAttention = true;
-                }
-                else
-                {
-                    contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
-                }
+                currentCode = "COMPLETED";
+                currentName = "Completed";
+                currentContext = string.IsNullOrWhiteSpace(source.CompletionContext)
+                    ? "Recently completed"
+                    : source.CompletionContext;
             }
             else
             {
-                contextParts.Add("PDC not set");
+                var snapshots = row.Stages
+                    .Select(stage => new ProjectStageStatusSnapshot(
+                        stage.StageCode,
+                        stage.Status,
+                        stage.SortOrder,
+                        stage.ActualStart,
+                        stage.CompletedOn))
+                    .ToList();
+                var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+                    snapshots,
+                    _workflowStageMetadataProvider,
+                    row.WorkflowVersion,
+                    today);
+                currentCode = presentStage.CurrentStageCode ?? source.StageCode;
+                currentName = presentStage.CurrentStageName ?? source.StageName;
+                var currentPdc = row.Stages
+                    .FirstOrDefault(stage => string.Equals(
+                        stage.StageCode,
+                        currentCode,
+                        StringComparison.OrdinalIgnoreCase))
+                    ?.PlannedDue;
+
+                var contextParts = new List<string>();
+                if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+                {
+                    contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
+                }
+
+                if (currentPdc.HasValue)
+                {
+                    var delta = currentPdc.Value.DayNumber - today.DayNumber;
+                    if (delta < 0)
+                    {
+                        attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
+                        requiresAttention = true;
+                    }
+                    else
+                    {
+                        contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
+                    }
+                }
+                else
+                {
+                    contextParts.Add("PDC not set");
+                }
+
+                currentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts);
             }
 
             latestDirections.TryGetValue(row.Id, out var direction);
@@ -1202,12 +1336,13 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 Kind = ConferenceItemKind.Project,
                 ItemId = row.Id,
                 Title = row.Name,
-                OpenUrl = workloadItem.OpenUrl,
+                OpenUrl = source.OpenUrl,
                 CurrentStateCode = currentCode,
                 CurrentStateName = currentName,
-                CurrentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts),
+                CurrentContext = currentContext,
                 AttentionText = attentionText,
                 RequiresAttention = requiresAttention,
+                IsRecentlyCompleted = source.IsRecentlyCompleted,
                 RecordHealth = recordHealth.GetValueOrDefault(row.Id),
                 LatestDirection = direction is null
                     ? null
@@ -1218,7 +1353,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
                         AuthorRole = DisplayRole(direction.AuthorRole),
                         CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
-                        SnapshotLabel = "Stage when issued",
+                        SnapshotLabel = BuildProjectSnapshotLabel(direction.StageRef, direction.StageNameSnapshot),
                         SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
                     },
                 DirectionCount = directionCounts.GetValueOrDefault(row.Id),
@@ -1233,7 +1368,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     }
 
     private static IReadOnlyList<OfficerConferenceItemVm> BuildIdeaItems(
-        CommandOfficerWorkloadVm officer,
+        ConferenceOfficerContext officer,
         IReadOnlyList<IdeaRow> rows,
         IReadOnlyList<ProjectIdeaComment> comments,
         IReadOnlyList<IdeaNoteRow> notes,
@@ -1348,7 +1483,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     }
 
     private static IReadOnlyList<OfficerConferenceItemVm> BuildTaskItems(
-        CommandOfficerWorkloadVm officer,
+        ConferenceOfficerContext officer,
         IReadOnlyList<TaskRow> rows,
         IReadOnlyList<ActionTaskUpdate> updates,
         IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
@@ -1495,6 +1630,12 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         => candidateAt < boundaryAt
            || (candidateAt == boundaryAt && candidateId < boundaryId);
 
+    private static string BuildProjectSnapshotLabel(string? stageRef, string? stageName)
+        => string.IsNullOrWhiteSpace(stageRef)
+           && string.Equals(stageName, "Completed", StringComparison.OrdinalIgnoreCase)
+            ? "Status when issued"
+            : "Stage when issued";
+
     private static string BuildStageSnapshot(string? stageRef, string? stageName)
     {
         if (string.IsNullOrWhiteSpace(stageRef) && string.IsNullOrWhiteSpace(stageName))
@@ -1549,21 +1690,58 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             ? value
             : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
-    private static string DisplayOfficerName(CommandOfficerWorkloadVm officer)
+    private static string DisplayOfficerName(ConferenceOfficerContext officer)
         => string.IsNullOrWhiteSpace(officer.Rank)
             ? officer.OfficerName
             : $"{officer.Rank} {officer.OfficerName}";
+
+    private static int OfficerRankOrder(string? rank)
+    {
+        if (string.IsNullOrWhiteSpace(rank)) return int.MaxValue;
+        var value = rank.Trim().ToUpperInvariant();
+        if (value.Contains("LT COL", StringComparison.Ordinal)
+            || value.Contains("LIEUTENANT COLONEL", StringComparison.Ordinal)) return 20;
+        if (value.Contains("COLONEL", StringComparison.Ordinal) || value == "COL") return 10;
+        if (value.Contains("MAJOR", StringComparison.Ordinal) || value == "MAJ") return 30;
+        if (value.Contains("CAPTAIN", StringComparison.Ordinal) || value == "CAPT") return 40;
+        if (value.Contains("LIEUTENANT", StringComparison.Ordinal) || value == "LT") return 50;
+        return 100;
+    }
 
     private static string InitialOf(string? name)
         => string.IsNullOrWhiteSpace(name)
             ? "P"
             : name.Trim()[0].ToString().ToUpperInvariant();
 
+    private sealed record ConferenceOfficerContext(
+        string UserId,
+        string OfficerName,
+        string Rank,
+        IReadOnlyList<CommandOfficerProjectVm> ActiveProjects,
+        IReadOnlyList<CommandOfficerIdeaVm> Ideas,
+        IReadOnlyList<CommandOfficerTaskVm> OtherTasks,
+        IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects)
+    {
+        public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
+    }
+
+    private sealed record ConferenceProjectSource(
+        int ProjectId,
+        string OpenUrl,
+        string StageCode,
+        string StageName,
+        bool IsRecentlyCompleted,
+        string? CompletionContext);
+
     private sealed record ProjectRow(
         int Id,
         string Name,
         string? LeadPoUserId,
         string WorkflowVersion,
+        ProjectLifecycleStatus LifecycleStatus,
+        DateOnly? CompletedOn,
+        int? CompletedYear,
+        short? CompletedMonth,
         IReadOnlyList<ProjectStageRow> Stages);
 
     private sealed record ProjectStageRow(

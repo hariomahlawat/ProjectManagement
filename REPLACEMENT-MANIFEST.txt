@@ -1,17 +1,22 @@
-READY-TO-REPLACE FILES
+PRISM Conference Completion Carryover — replacement manifest
 
-Pages/Workspace/BriefingDecks/Index.cshtml
-Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingNarrativeTypography.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-wwwroot/css/pages/project-briefing-decks.css
-wwwroot/js/pages/project-briefing-decks.js
-wwwroot/js/projects/project-briefing-decks.test.js
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingThemeTests.cs
-ProjectManagement.Tests/ProjectManagement.Tests.csproj
+Configuration/ConferenceOptions.cs
+Configuration/ConferenceOptionsValidator.cs
+Pages/Workspace/Conference.cshtml
+Pages/Workspace/_ConferenceItemRow.cshtml
+Pages/Workspace/_ConferenceSection.cshtml
+Program.cs
+ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
+ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
+ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
+ProjectManagement.Tests/RemarkServiceTests.cs
+Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
+Services/Remarks/RemarkService.cs
+Services/Workspace/ConferenceProjectScopeService.cs
+Services/Workspace/IConferenceProjectScopeService.cs
+Services/Workspace/OfficerConferenceReadService.cs
+ViewModels/Workspace/OfficerConferenceViewModels.cs
+appsettings.Production.json
+appsettings.json
+wwwroot/css/officer-conference.css
+wwwroot/js/pages/officer-conference.test.js

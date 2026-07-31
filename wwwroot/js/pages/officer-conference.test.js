@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 
 const source = fs.readFileSync(path.resolve(__dirname, 'officer-conference.js'), 'utf8');
 const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer-conference.css'), 'utf8');
+const conferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Conference.cshtml'), 'utf8');
+const conferenceSection = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceSection.cshtml'), 'utf8');
+const conferenceItemRow = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceItemRow.cshtml'), 'utf8');
 
 test('conference editor supports keyboard save and cancel', () => {
     assert.match(source, /event\.key === 'Escape'/);
@@ -224,4 +227,19 @@ test('conference column terminology supports historical direction browsing', () 
 test('conference history navigation restores keyboard focus after replacing row controls', () => {
     assert.match(source, /const preferredSelector = delta < 0/);
     assert.match(source, /focusTarget\?\.focus\(\{ preventScroll: true \}\)/);
+});
+
+test('conference view distinguishes active and recently completed project scope', () => {
+    assert.match(conferenceView, /ActiveProjectCount/);
+    assert.match(conferenceView, /RecentlyCompletedProjectCount/);
+    assert.match(conferenceSection, /Active projects/);
+    assert.match(conferenceSection, /Recently completed/);
+    assert.match(conferenceSection, /CompletedProjectRetentionDays/);
+});
+
+test('recently completed project rows carry semantic state and restrained visual treatment', () => {
+    assert.match(conferenceItemRow, /oc-item--completed-carryover/);
+    assert.match(conferenceItemRow, /data-project-carryover/);
+    assert.match(conferenceCss, /\.oc-project-group-heading--completed/);
+    assert.match(conferenceCss, /\.oc-item--completed-carryover::before/);
 });

@@ -182,6 +182,42 @@ public sealed class RemarkServiceTests
     }
 
     [Fact]
+    public async Task CreateRemarkAsync_ConferenceOnCompletedProjectCapturesCompletedStatus()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 105);
+        var project = await db.Projects.SingleAsync(candidate => candidate.Id == 105);
+        project.LifecycleStatus = ProjectLifecycleStatus.Completed;
+        project.CompletedOn = new DateOnly(2024, 9, 25);
+        project.CompletedYear = 2024;
+        project.CompletedMonth = 9;
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out _);
+        var actor = new RemarkActorContext(
+            "comdt",
+            RemarkActorRole.Commandant,
+            new[] { RemarkActorRole.Commandant });
+
+        var remark = await service.CreateRemarkAsync(
+            new CreateRemarkRequest(
+                105,
+                actor,
+                RemarkType.Conference,
+                RemarkScope.General,
+                "Confirm closure action.",
+                new DateOnly(2024, 9, 30),
+                null,
+                null,
+                null),
+            CancellationToken.None);
+
+        Assert.Null(remark.StageRef);
+        Assert.Equal("Completed", remark.StageNameSnapshot);
+    }
+
+    [Fact]
     public async Task CreateRemarkAsync_RejectsConferenceForAdministratorWithoutCommandRole()
     {
         await using var scope = await CreateContextAsync();

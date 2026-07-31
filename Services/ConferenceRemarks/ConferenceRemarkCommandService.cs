@@ -11,14 +11,15 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Remarks;
+using ProjectManagement.Services.Workspace;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.ConferenceRemarks;
 
 /// <summary>
 /// Writes conference directions to the native remarks stream of the selected source item.
-/// The service derives actor identity, authority and state snapshots on the server and rejects
-/// item identifiers that are not part of the selected officer's current active workload.
+/// The service derives actor identity, authority and state snapshots on the server and uses the
+/// shared conference scope so read and write behaviour remain aligned for active and carryover work.
 /// </summary>
 public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandService
 {
@@ -28,7 +29,10 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
     private readonly IProjectIdeaCommandService _ideaCommands;
     private readonly IActionTaskCollaborationService _taskCollaboration;
     private readonly IClock _clock;
+    private readonly IConferenceProjectScopeService? _projectScope;
 
+    // Retained for isolated tests and legacy composition roots. Application DI resolves
+    // the complete constructor below.
     public ConferenceRemarkCommandService(
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
@@ -43,6 +47,20 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         _ideaCommands = ideaCommands ?? throw new ArgumentNullException(nameof(ideaCommands));
         _taskCollaboration = taskCollaboration ?? throw new ArgumentNullException(nameof(taskCollaboration));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public ConferenceRemarkCommandService(
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> users,
+        IRemarkService projectRemarks,
+        IProjectIdeaCommandService ideaCommands,
+        IActionTaskCollaborationService taskCollaboration,
+        IClock clock,
+        IConferenceProjectScopeService projectScope)
+        : this(db, users, projectRemarks, ideaCommands, taskCollaboration, clock)
+    {
+        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
     }
 
     public async Task<AddConferenceRemarkResult> AddAsync(
@@ -116,18 +134,24 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         string body,
         CancellationToken cancellationToken)
     {
-        var belongsToOfficer = await _db.Projects
-            .AsNoTracking()
-            .AnyAsync(project =>
-                project.Id == request.ItemId
-                && !project.IsDeleted
-                && !project.IsArchived
-                && project.LifecycleStatus == ProjectLifecycleStatus.Active
-                && project.LeadPoUserId == request.OfficerUserId,
-                cancellationToken);
+        var belongsToOfficer = _projectScope is not null
+            ? await _projectScope.IsProjectInScopeAsync(
+                request.OfficerUserId,
+                request.ItemId,
+                cancellationToken)
+            : await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(project =>
+                    project.Id == request.ItemId
+                    && !project.IsDeleted
+                    && !project.IsArchived
+                    && project.LifecycleStatus == ProjectLifecycleStatus.Active
+                    && project.LeadPoUserId == request.OfficerUserId,
+                    cancellationToken);
         if (!belongsToOfficer)
         {
-            throw new InvalidOperationException("This project is not part of the selected officer's current workload.");
+            throw new InvalidOperationException(
+                "This project is not part of the selected officer's conference review.");
         }
 
         var remarkRoles = assignedRoles
@@ -162,7 +186,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 AuthorName = DisplayName(actor),
                 AuthorRole = DisplayRole(commandRole),
                 CreatedAtUtc = AsUtc(remark.CreatedAtUtc),
-                SnapshotLabel = "Stage when issued",
+                SnapshotLabel = BuildProjectSnapshotLabel(remark.StageRef, remark.StageNameSnapshot),
                 SnapshotValue = BuildStageSnapshot(remark.StageRef, remark.StageNameSnapshot)
             },
             new[]
@@ -296,6 +320,12 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         => string.Equals(role, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)
             ? "Comdt"
             : "HoD";
+
+    private static string BuildProjectSnapshotLabel(string? stageRef, string? stageName)
+        => string.IsNullOrWhiteSpace(stageRef)
+           && string.Equals(stageName, "Completed", StringComparison.OrdinalIgnoreCase)
+            ? "Status when issued"
+            : "Stage when issued";
 
     private static string BuildStageSnapshot(string? stageRef, string? stageName)
     {

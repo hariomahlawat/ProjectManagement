@@ -1,1340 +1,2107 @@
-diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
-index 46e59d3..0fe1834 100644
---- a/Pages/Workspace/BriefingDecks/Index.cshtml
-+++ b/Pages/Workspace/BriefingDecks/Index.cshtml
-@@ -494,10 +494,14 @@
-                                             <label class="pbd-theme-card">
-                                                 <input type="radio" name="PresentationTheme" value="EditorialLight" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.EditorialLight)" />
-                                                 <span class="pbd-theme-card__body">
--                                                    <span class="pbd-theme-preview pbd-theme-preview--light" aria-hidden="true">
-+                                                    <span class="pbd-theme-preview pbd-theme-preview--light @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-theme-preview aria-hidden="true">
-                                                         <span class="pbd-theme-preview__header"></span>
-                                                         <span class="pbd-theme-preview__title"></span>
--                                                        <span class="pbd-theme-preview__content"><i></i><i></i><i></i></span>
-+                                                        <span class="pbd-theme-preview__content">
-+                                                            <i class="pbd-theme-preview__primary"></i>
-+                                                            <i class="pbd-theme-preview__secondary"></i>
-+                                                            <i class="pbd-theme-preview__tertiary"></i>
-+                                                        </span>
-                                                     </span>
-                                                     <span>
-                                                         <strong>Editorial Light</strong>
-@@ -508,10 +512,14 @@
-                                             <label class="pbd-theme-card">
-                                                 <input type="radio" name="PresentationTheme" value="GraphiteDark" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.GraphiteDark)" />
-                                                 <span class="pbd-theme-card__body">
--                                                    <span class="pbd-theme-preview pbd-theme-preview--dark" aria-hidden="true">
-+                                                    <span class="pbd-theme-preview pbd-theme-preview--dark @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-theme-preview aria-hidden="true">
-                                                         <span class="pbd-theme-preview__header"></span>
-                                                         <span class="pbd-theme-preview__title"></span>
--                                                        <span class="pbd-theme-preview__content"><i></i><i></i><i></i></span>
-+                                                        <span class="pbd-theme-preview__content">
-+                                                            <i class="pbd-theme-preview__primary"></i>
-+                                                            <i class="pbd-theme-preview__secondary"></i>
-+                                                            <i class="pbd-theme-preview__tertiary"></i>
-+                                                        </span>
-                                                     </span>
-                                                     <span>
-                                                         <strong>Graphite Dark</strong>
-diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs
-index 0bb33c7..39a9b04 100644
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs
-@@ -181,4 +181,60 @@ public sealed class ProjectBriefingCapabilityPaginationTests
-         Assert.True(block.IsMuted);
-         Assert.Equal("Capability overview not recorded.", block.Text);
-     }
+diff --git a/Configuration/ConferenceOptions.cs b/Configuration/ConferenceOptions.cs
+new file mode 100644
+index 0000000..2b74930
+--- /dev/null
++++ b/Configuration/ConferenceOptions.cs
+@@ -0,0 +1,15 @@
++namespace ProjectManagement.Configuration;
 +
-+    [Fact]
-+    public void Paginator_UsesSparseTypographyForConciseCapabilityLists()
++/// <summary>
++/// Controls the command-conference review window without changing project lifecycle data.
++/// </summary>
++public sealed class ConferenceOptions
++{
++    public const string SectionName = "Conference";
++
++    /// <summary>
++    /// Number of calendar days for which a completed project remains available in the
++    /// officer conference review. The completion day is included.
++    /// </summary>
++    public int CompletedProjectRetentionDays { get; set; } = 90;
++}
+diff --git a/Configuration/ConferenceOptionsValidator.cs b/Configuration/ConferenceOptionsValidator.cs
+new file mode 100644
+index 0000000..2db5995
+--- /dev/null
++++ b/Configuration/ConferenceOptionsValidator.cs
+@@ -0,0 +1,19 @@
++using Microsoft.Extensions.Options;
++
++namespace ProjectManagement.Configuration;
++
++public sealed class ConferenceOptionsValidator : IValidateOptions<ConferenceOptions>
++{
++    private const int MaximumRetentionDays = 730;
++
++    public ValidateOptionsResult Validate(string? name, ConferenceOptions options)
 +    {
-+        const string source = """
-+        • Detects and classifies targets.
-+        • Presents a real-time cue to the operator.
-+        • Supports day and night employment.
-+        • Records engagement data for review.
-+        """;
-+
-+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(source);
-+
-+        var page = Assert.Single(pagination.Pages);
-+        Assert.Equal(ProjectBriefingNarrativeDensity.Sparse, page.Density);
-+        Assert.All(
-+            page.Blocks.Where(block => block.Type == ProjectBriefingCapabilityBlockType.Bullet),
-+            block => Assert.True(block.FontSize >= 14.4));
-+    }
-+
-+    [Fact]
-+    public void Paginator_UsesDenseTypographyWithoutDiscardingLongCapabilityContent()
-+    {
-+        var source = string.Join(
-+            "\n",
-+            Enumerable.Range(1, 18).Select(index =>
-+                $"{index}. Capability {index} provides a complete operational function, user action, measurable training effect and support outcome without removing source information."));
-+
-+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(source);
-+        var rendered = string.Join(" ", pagination.Pages.SelectMany(page => page.Blocks).Select(block => block.Text));
-+
-+        Assert.All(pagination.Pages, page => Assert.Equal(ProjectBriefingNarrativeDensity.Dense, page.Density));
-+        Assert.Contains("Capability 18", rendered, StringComparison.Ordinal);
-+        Assert.All(
-+            pagination.Pages.SelectMany(page => page.Blocks)
-+                .Where(block => block.Type != ProjectBriefingCapabilityBlockType.Heading),
-+            block => Assert.True(block.FontSize <= 12.0));
-+    }
-+
-+    [Fact]
-+    public void NarrativeTypography_UsesControlledProfilesForProjectBriefs()
-+    {
-+        var sparse = ProjectBriefingNarrativeTypography.ResolveProjectBrief(
-+            "A concise project brief describing purpose, employment and expected operational effect.");
-+        var standard = ProjectBriefingNarrativeTypography.ResolveProjectBrief(
-+            string.Join(" ", Enumerable.Repeat("This paragraph provides project context, operational purpose and implementation detail.", 12)));
-+        var dense = ProjectBriefingNarrativeTypography.ResolveProjectBrief(
-+            string.Join(" ", Enumerable.Repeat("This longer brief contains detailed context, delivery information, dependencies and outcomes.", 40)));
-+
-+        Assert.Equal(ProjectBriefingNarrativeDensity.Sparse, sparse.Density);
-+        Assert.Equal(ProjectBriefingNarrativeDensity.Standard, standard.Density);
-+        Assert.Equal(ProjectBriefingNarrativeDensity.Dense, dense.Density);
-+        Assert.True(sparse.BodyFontSize > standard.BodyFontSize);
-+        Assert.True(standard.BodyFontSize > dense.BodyFontSize);
-+    }
-+
- }
-diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-index 6f10506..806c276 100644
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-@@ -90,6 +90,9 @@ public sealed class ProjectBriefingContractTests
-         Assert.Contains("Classification marking <small>optional</small>", page, StringComparison.Ordinal);
-         Assert.DoesNotContain("Handling / classification marking", page, StringComparison.Ordinal);
-         Assert.Contains("Presentation theme", page, StringComparison.Ordinal);
-+        Assert.Contains("data-pbd-theme-preview", page, StringComparison.Ordinal);
-+        Assert.Contains("preview.classList.toggle('is-update-sheet'", script, StringComparison.Ordinal);
-+        Assert.Contains(".pbd-theme-preview--light.is-update-sheet", css, StringComparison.Ordinal);
-         Assert.DoesNotContain("appearanceTitle.textContent", script, StringComparison.Ordinal);
-         Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
-         Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
-@@ -165,9 +168,10 @@ public sealed class ProjectBriefingContractTests
-         Assert.Contains("UpdateSheetStatus(project.ExternalStatus)", composer, StringComparison.Ordinal);
-         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
-         Assert.DoesNotContain("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
--        Assert.Contains("AddBrandingImages(HeaderVariant.ProjectUpdateSheet)", composer, StringComparison.Ordinal);
--        Assert.Contains("Align: \"ctr\"", composer, StringComparison.Ordinal);
--        Assert.Contains("UpdateSheetAccent", composer, StringComparison.Ordinal);
-+        Assert.Contains("AddProjectSlideHeader", composer, StringComparison.Ordinal);
-+        Assert.Contains("ProjectSlideHeaderVariant.ProjectUpdateSheet", composer, StringComparison.Ordinal);
-+        Assert.DoesNotContain("UpdateSheetAccent", composer, StringComparison.Ordinal);
-+        Assert.Contains("ProjectUpdateLabelFill", composer, StringComparison.Ordinal);
-         Assert.Contains("SO Date:", composer, StringComparison.Ordinal);
-         Assert.Contains("Firm:", composer, StringComparison.Ordinal);
-         Assert.Contains("string.Join(\"\\n\"", composer, StringComparison.Ordinal);
-@@ -215,9 +219,34 @@ public sealed class ProjectBriefingContractTests
-         Assert.Contains("Completion Status", composer, StringComparison.Ordinal);
-         Assert.Contains("Project completed", composer, StringComparison.Ordinal);
-         Assert.Contains("StageCodes.DEVP", composer, StringComparison.Ordinal);
-+        Assert.Contains("ProjectBriefingNarrativeTypography.ResolveUpdateSheetBrief", composer, StringComparison.Ordinal);
-         Assert.DoesNotContain("Name of Project", composer, StringComparison.Ordinal);
-     }
- 
-+    [Fact]
-+    public void PresentationVisualSystem_UsesSharedSemanticHeaderAndNarrativeRoles()
-+    {
-+        var theme = Read("ProjectBriefingThemeDefinition.cs");
-+        var composer = Read("ProjectBriefingSlideComposer.cs");
-+        var updateComposer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
-+        var typography = Read("ProjectBriefingNarrativeTypography.cs");
-+
-+        Assert.Contains("ProjectUpdateAccent", theme, StringComparison.Ordinal);
-+        Assert.Contains("ProjectUpdateLabelFill", theme, StringComparison.Ordinal);
-+        Assert.Contains("OperationalAccent", theme, StringComparison.Ordinal);
-+        Assert.Contains("NarrativeAccent", theme, StringComparison.Ordinal);
-+        Assert.Contains("AddProjectSlideHeader", composer, StringComparison.Ordinal);
-+        Assert.Contains("Project sheet title", composer, StringComparison.Ordinal);
-+        Assert.Contains("canvas.Theme.TextPrimary", composer, StringComparison.Ordinal);
-+        Assert.Contains("canvas.Theme.ProjectUpdateAccent", composer, StringComparison.Ordinal);
-+        Assert.Contains("CalculateDetailedLayout", composer, StringComparison.Ordinal);
-+        Assert.Contains("ProjectBriefingNarrativeDensity.Sparse", typography, StringComparison.Ordinal);
-+        Assert.Contains("ProjectBriefingNarrativeDensity.Dense", typography, StringComparison.Ordinal);
-+        Assert.Contains("ResolveProjectBrief", typography, StringComparison.Ordinal);
-+        Assert.Contains("ResolveUpdateSheetBrief", typography, StringComparison.Ordinal);
-+        Assert.DoesNotContain("private const string UpdateSheetAccent", updateComposer, StringComparison.Ordinal);
-+    }
-+
-     [Fact]
-     public void SharedDecks_AreCommandWorkspaceWideAndTrackLastModifier()
-     {
-diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-index 19ab29c..216246c 100644
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-@@ -522,7 +522,8 @@ public sealed class ProjectBriefingSlideComposerTests
-         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
-         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
-         Assert.Contains("15181E", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
--        Assert.Contains("5B7CFA", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-+        Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Project sheet title")));
-+        Assert.Equal("5B7CFA", ShapeFillColor(ShapeByName(slide, "Project sheet top accent")));
-         Assert.DoesNotContain("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-         Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
-         Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
-@@ -548,6 +549,81 @@ public sealed class ProjectBriefingSlideComposerTests
-         Assert.Single(slide.Slide.Descendants<A.Table>());
-     }
- 
-+    [Fact]
-+    public void Compose_ProjectUpdateSheet_EditorialLightUsesFormalRuleAndPrimaryTitleText()
-+    {
-+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-+        var project = BriefingProject(
-+            711,
-+            "Editorial update sheet",
-+            StageCodes.AON,
-+            ProjectBriefingStageOrder.AcceptanceOfNecessity,
-+            1,
-+            projectBrief: "A concise formal project update for circulation and print.");
-+        var data = new ProjectBriefingPresentationData
++        if (options.CompletedProjectRetentionDays is < 1 or > MaximumRetentionDays)
 +        {
-+            DeckId = 711,
-+            DeckName = "Editorial Update",
-+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
-+            PresentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
-+            BrandingScope = ProjectBriefingBrandingScope.None,
-+            IncludeCoverSlide = false,
-+            IncludePortfolioSummarySlide = false,
-+            Projects = new[] { project },
-+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
-+        };
++            return ValidateOptionsResult.Fail(
++                $"Conference:{nameof(ConferenceOptions.CompletedProjectRetentionDays)} must be between 1 and {MaximumRetentionDays} days.");
++        }
 +
-+        var (content, _) = composer.Compose(data);
-+
-+        using var stream = new MemoryStream(content, writable: false);
-+        using var document = PresentationDocument.Open(stream, false);
-+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
-+        Assert.Equal("191B20", ShapeTextColor(ShapeByName(slide, "Project sheet title")));
-+        Assert.Equal("8F0D21", ShapeFillColor(ShapeByName(slide, "Project sheet top accent")));
-+        Assert.Equal("EDF1F6", ShapeFillColor(ShapeByName(slide, "Project brief heading")));
++        return ValidateOptionsResult.Success;
 +    }
-+
-+    [Fact]
-+    public void Compose_GraphiteProjectSlideUsesSemanticHeaderNarrativeAndOperationalColours()
-+    {
-+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-+        var (content, _) = composer.Compose(BuildData(ProjectBriefingPresentationTheme.GraphiteDark));
-+
-+        using var stream = new MemoryStream(content, writable: false);
-+        using var document = PresentationDocument.Open(stream, false);
-+        var slide = Assert.IsType<PresentationPart>(document.PresentationPart)
-+            .SlideParts
-+            .Single(part => SlideText(part).Contains("AURA", StringComparison.Ordinal)
-+                && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
-+
-+        Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Slide title")));
-+        Assert.Equal("5B7CFA", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
-+        Assert.Equal("4FA6A8", ShapeFillColor(ShapeByName(slide, "Capability accent")));
-+        Assert.Equal("5B7CFA", ShapeTextColor(ShapeByName(slide, "Present status labels")));
-+    }
-+
-+    [Fact]
-+    public void Compose_ShortStatusWithoutPhotographKeepsLeftColumnVisuallyBalanced()
-+    {
-+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
-+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
-+        var (content, _) = composer.Compose(BuildData(ProjectBriefingPresentationTheme.GraphiteDark));
-+
-+        using var stream = new MemoryStream(content, writable: false);
-+        using var document = PresentationDocument.Open(stream, false);
-+        var slide = Assert.IsType<PresentationPart>(document.PresentationPart)
-+            .SlideParts
-+            .Single(part => SlideText(part).Contains("AURA", StringComparison.Ordinal)
-+                && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
-+        var placeholderHeight = ShapeHeight(ShapeByName(slide, "Project photograph placeholder"));
-+        var statusHeight = ShapeHeight(ShapeByName(slide, "Present status panel"));
-+
-+        Assert.True(placeholderHeight >= 1.20 * 914400, $"Expected a substantive placeholder zone; found {placeholderHeight} EMU.");
-+        Assert.True(statusHeight <= 2.70 * 914400, $"Expected a bounded status card; found {statusHeight} EMU.");
-+    }
-+
-     [Fact]
-     public void Compose_ProjectUpdateSheet_LeavesPppCellBlankForDelistedPosition()
-     {
-@@ -870,6 +946,30 @@ public sealed class ProjectBriefingSlideComposerTests
-             SortOrder = sortOrder
-         };
++}
+diff --git a/Pages/Workspace/Conference.cshtml b/Pages/Workspace/Conference.cshtml
+index 09eb97c..8cbfa38 100644
+--- a/Pages/Workspace/Conference.cshtml
++++ b/Pages/Workspace/Conference.cshtml
+@@ -58,9 +58,13 @@
+                             <span class="oc-officer-card__body">
+                                 <strong>@option.DisplayName</strong>
+                                 <small>
+-                                    @option.ProjectCount @(option.ProjectCount == 1 ? "project" : "projects")
+-                                    · @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")
+-                                    · @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")
++                                    @option.ActiveProjectCount active @(option.ActiveProjectCount == 1 ? "project" : "projects")
++                                    @if (option.RecentlyCompletedProjectCount > 0)
++                                    {
++                                        <span>· @option.RecentlyCompletedProjectCount recently completed</span>
++                                    }
++                                    <span>· @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")</span>
++                                    <span>· @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
+                                 </small>
+                             </span>
+                             <i class="bi bi-chevron-right" aria-hidden="true"></i>
+@@ -90,7 +94,11 @@
+                         <span class="oc-eyebrow">Officer conference review</span>
+                         <h1>@Model.Conference.OfficerDisplayName</h1>
+                         <p>
+-                            <span class="oc-header__metric"><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
++                            <span class="oc-header__metric"><strong>@Model.Conference.ActiveProjectCount</strong> active @(Model.Conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
++                            @if (Model.Conference.RecentlyCompletedProjectCount > 0)
++                            {
++                                <span class="oc-header__metric oc-header__metric--carryover"><strong>@Model.Conference.RecentlyCompletedProjectCount</strong> recently completed</span>
++                            }
+                             <span class="oc-header__metric"><strong data-oc-header-idea-count>@Model.Conference.IdeaCount</strong> <span data-oc-header-idea-label>@(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span></span>
+                             <span class="oc-header__metric oc-header__metric--tasks @(Model.Conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
+                         </p>
+@@ -185,6 +193,7 @@
+                         MinimumTaskDueDate = Model.MinimumTaskDueDate,
+                         DefaultTaskDueDate = Model.DefaultTaskDueDate,
+                         IdeaCreation = Model.IdeaCreation,
++                        CompletedProjectRetentionDays = Model.Conference.CompletedProjectRetentionDays,
+                         Section = section
+                     })
+             }
+diff --git a/Pages/Workspace/_ConferenceItemRow.cshtml b/Pages/Workspace/_ConferenceItemRow.cshtml
+index a49bc48..4ca49f2 100644
+--- a/Pages/Workspace/_ConferenceItemRow.cshtml
++++ b/Pages/Workspace/_ConferenceItemRow.cshtml
+@@ -26,8 +26,9 @@
+     var directionCount = Math.Max(item.DirectionCount, direction is null ? 0 : 1);
+ }
  
-+    private static P.Shape ShapeByName(SlidePart slide, string name)
-+        => Assert.Single(slide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
-+            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
-+            name,
-+            StringComparison.Ordinal)));
-+
-+    private static string ShapeTextColor(P.Shape shape)
-+        => Assert.IsType<A.RgbColorModelHex>(shape
-+                .Descendants<A.RunProperties>()
-+                .SelectMany(properties => properties.Descendants<A.RgbColorModelHex>())
-+                .FirstOrDefault())
-+            .Val?.Value
-+            ?? string.Empty;
-+
-+    private static string ShapeFillColor(P.Shape shape)
-+        => shape.ShapeProperties?
-+               .Descendants<A.RgbColorModelHex>()
-+               .FirstOrDefault()?
-+               .Val?.Value
-+           ?? string.Empty;
-+
-+    private static long ShapeHeight(P.Shape shape)
-+        => shape.ShapeProperties?.Transform2D?.Extents?.Cy?.Value ?? 0L;
-+
-     private static string SlideText(SlidePart slide)
-         => string.Join("\n", slide.Slide.Descendants<A.Text>().Select(node => node.Text));
+-<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
++<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty) @(item.IsRecentlyCompleted ? "oc-item--completed-carryover" : string.Empty)"
+          data-oc-item
++         data-project-carryover="@(item.IsRecentlyCompleted ? "true" : "false")"
+          data-officer-id="@Model.OfficerUserId"
+          data-item-kind="@((int)item.Kind)"
+          data-item-id="@item.ItemId"
+diff --git a/Pages/Workspace/_ConferenceSection.cshtml b/Pages/Workspace/_ConferenceSection.cshtml
+index f6e8750..8f3526f 100644
+--- a/Pages/Workspace/_ConferenceSection.cshtml
++++ b/Pages/Workspace/_ConferenceSection.cshtml
+@@ -13,6 +13,12 @@
+     var isIdeaSection = sectionModel.Kind == ConferenceItemKind.ProjectIdea;
+     var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
+     var itemColumnLabel = isProjectSection ? "Project" : isIdeaSection ? "Idea" : "Task";
++    var activeProjectItems = isProjectSection
++        ? sectionModel.Items.Where(item => !item.IsRecentlyCompleted).ToArray()
++        : Array.Empty<OfficerConferenceItemVm>();
++    var recentlyCompletedProjectItems = isProjectSection
++        ? sectionModel.Items.Where(item => item.IsRecentlyCompleted).ToArray()
++        : Array.Empty<OfficerConferenceItemVm>();
  
-diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingThemeTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingThemeTests.cs
-index 13520e5..127d597 100644
---- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingThemeTests.cs
-+++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingThemeTests.cs
-@@ -24,4 +24,23 @@ public sealed class ProjectBriefingThemeTests
-                 .Select(property => (string?)property.GetValue(palette)),
-             value => Assert.Matches("^[0-9A-F]{6}$", Assert.IsType<string>(value)));
+     var ideaEditorId = $"oc-idea-create-{Model.OfficerUserId}";
+     var ideaTitleErrorId = $"{ideaEditorId}-title-error";
+@@ -276,15 +282,63 @@
+             <span>Progress after direction</span>
+         </div>
+         <div class="oc-item-list" data-oc-item-list>
+-            @foreach (var item in sectionModel.Items)
++            @if (isProjectSection && recentlyCompletedProjectItems.Length > 0)
+             {
+-                @await Html.PartialAsync(
+-                    "_ConferenceItemRow",
+-                    new OfficerConferenceItemRenderVm
++                @if (activeProjectItems.Length > 0)
++                {
++                    <div class="oc-project-group-heading oc-project-group-heading--active"
++                         role="heading"
++                         aria-level="3">
++                        <span><strong>Active projects</strong></span>
++                        <b>@activeProjectItems.Length</b>
++                    </div>
++                    @foreach (var item in activeProjectItems)
+                     {
+-                        OfficerUserId = Model.OfficerUserId,
+-                        Item = item
+-                    })
++                        @await Html.PartialAsync(
++                            "_ConferenceItemRow",
++                            new OfficerConferenceItemRenderVm
++                            {
++                                OfficerUserId = Model.OfficerUserId,
++                                Item = item
++                            })
++                    }
++                }
++
++                <div class="oc-project-group-heading oc-project-group-heading--completed"
++                     role="heading"
++                     aria-level="3">
++                    <span>
++                        <strong>Recently completed</strong>
++                        @if (Model.CompletedProjectRetentionDays > 0)
++                        {
++                            <small>Available for @Model.CompletedProjectRetentionDays days after completion</small>
++                        }
++                    </span>
++                    <b>@recentlyCompletedProjectItems.Length</b>
++                </div>
++                @foreach (var item in recentlyCompletedProjectItems)
++                {
++                    @await Html.PartialAsync(
++                        "_ConferenceItemRow",
++                        new OfficerConferenceItemRenderVm
++                        {
++                            OfficerUserId = Model.OfficerUserId,
++                            Item = item
++                        })
++                }
++            }
++            else
++            {
++                @foreach (var item in sectionModel.Items)
++                {
++                    @await Html.PartialAsync(
++                        "_ConferenceItemRow",
++                        new OfficerConferenceItemRenderVm
++                        {
++                            OfficerUserId = Model.OfficerUserId,
++                            Item = item
++                        })
++                }
+             }
+         </div>
      }
+diff --git a/Program.cs b/Program.cs
+index d6750f5..d833e5d 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -501,6 +501,10 @@ builder.Services.AddOptions<ErpUsageOptions>()
+     .Bind(builder.Configuration.GetSection(ErpUsageOptions.SectionName))
+     .ValidateOnStart();
+ builder.Services.AddSingleton<IValidateOptions<ErpUsageOptions>, ErpUsageOptionsValidator>();
++builder.Services.AddOptions<ConferenceOptions>()
++    .Bind(builder.Configuration.GetSection(ConferenceOptions.SectionName))
++    .ValidateOnStart();
++builder.Services.AddSingleton<IValidateOptions<ConferenceOptions>, ConferenceOptionsValidator>();
+ builder.Services.Configure<IprAttachmentOptions>(
+     builder.Configuration.GetSection("IprAttachments"));
+ builder.Services.Configure<FfcAttachmentOptions>(
+@@ -585,6 +589,7 @@ builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingP
+ builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
+ builder.Services.AddScoped<ProjectManagement.Services.Workspace.IProjectOfficerConferenceActionQuery, ProjectManagement.Services.Workspace.ProjectOfficerConferenceActionQuery>();
+ builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
++builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceProjectScopeService, ProjectManagement.Services.Workspace.ConferenceProjectScopeService>();
+ builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
+ builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
+ builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();
+diff --git a/ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs b/ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
+new file mode 100644
+index 0000000..34b07cb
+--- /dev/null
++++ b/ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
+@@ -0,0 +1,196 @@
++using Microsoft.AspNetCore.Identity;
++using Microsoft.Data.Sqlite;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Options;
++using ProjectManagement.Configuration;
++using ProjectManagement.Data;
++using ProjectManagement.Infrastructure;
++using ProjectManagement.Models;
++using ProjectManagement.Services;
++using ProjectManagement.Services.Workspace;
++
++namespace ProjectManagement.Tests;
++
++public sealed class ConferenceProjectScopeServiceTests
++{
++    [Theory]
++    [InlineData(0, false)]
++    [InlineData(1, true)]
++    [InlineData(90, true)]
++    [InlineData(730, true)]
++    [InlineData(731, false)]
++    public void ConferenceOptionsValidator_EnforcesSafeRetentionRange(int days, bool expectedValid)
++    {
++        var result = new ConferenceOptionsValidator().Validate(
++            name: null,
++            options: new ConferenceOptions { CompletedProjectRetentionDays = days });
++
++        Assert.Equal(expectedValid, result.Succeeded);
++    }
 +
 +    [Theory]
-+    [InlineData(ProjectBriefingPresentationTheme.EditorialLight, "315FA8", "2D7F82", "8F0D21", "EDF1F6")]
-+    [InlineData(ProjectBriefingPresentationTheme.GraphiteDark, "5B7CFA", "4FA6A8", "5B7CFA", "242A34")]
-+    public void ThemeCatalog_ProvidesSemanticOperationalNarrativeAndUpdateSheetRoles(
-+        ProjectBriefingPresentationTheme theme,
-+        string operationalAccent,
-+        string narrativeAccent,
-+        string updateSheetAccent,
-+        string updateSheetLabelFill)
++    [InlineData(2026, 7, 25, true)]
++    [InlineData(2026, 5, 2, true)]
++    [InlineData(2026, 5, 1, false)]
++    [InlineData(2026, 8, 1, false)]
++    public void TryResolveCarryover_UsesExactCompletionDate(
++        int year,
++        int month,
++        int day,
++        bool expected)
 +    {
-+        var palette = ProjectBriefingThemeCatalog.Resolve(theme);
++        var included = ConferenceProjectScopeService.TryResolveCarryover(
++            new DateOnly(year, month, day),
++            year,
++            (short)month,
++            null,
++            new DateOnly(2026, 7, 31),
++            90,
++            out _);
 +
-+        Assert.Equal(operationalAccent, palette.OperationalAccent);
-+        Assert.Equal(narrativeAccent, palette.NarrativeAccent);
-+        Assert.Equal(updateSheetAccent, palette.ProjectUpdateAccent);
-+        Assert.Equal(updateSheetLabelFill, palette.ProjectUpdateLabelFill);
++        Assert.Equal(expected, included);
 +    }
 +
- }
-diff --git a/ProjectManagement.Tests/ProjectManagement.Tests.csproj b/ProjectManagement.Tests/ProjectManagement.Tests.csproj
-index 3cfbf71..4c8ecf8 100644
---- a/ProjectManagement.Tests/ProjectManagement.Tests.csproj
-+++ b/ProjectManagement.Tests/ProjectManagement.Tests.csproj
-@@ -178,6 +178,12 @@
-     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.UpdateSheet.cs"
-           Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.UpdateSheet.cs"
-           CopyToOutputDirectory="PreserveNewest" />
-+    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingThemeDefinition.cs"
-+          Link="TestData\ProjectBriefing\ProjectBriefingThemeDefinition.cs"
-+          CopyToOutputDirectory="PreserveNewest" />
-+    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingNarrativeTypography.cs"
-+          Link="TestData\ProjectBriefing\ProjectBriefingNarrativeTypography.cs"
-+          CopyToOutputDirectory="PreserveNewest" />
-     <None Include="..\Resources\ProjectBriefing\ProjectBriefingTemplate.pptx"
-           Link="TestData\ProjectBriefing\PresentationRoot\Resources\ProjectBriefing\ProjectBriefingTemplate.pptx"
-           CopyToOutputDirectory="PreserveNewest" />
-diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs
-index a8f8214..0842090 100644
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs
-@@ -34,6 +34,7 @@ public sealed record ProjectBriefingCapabilityLayoutBlock(
- public sealed record ProjectBriefingCapabilityPage(
-     int PageNumber,
-     bool IsPrimary,
-+    ProjectBriefingNarrativeDensity Density,
-     IReadOnlyList<ProjectBriefingCapabilityLayoutBlock> Blocks);
- 
- public sealed class ProjectBriefingCapabilityPagination
-diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs
-index b9c2634..0252397 100644
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs
-@@ -24,6 +24,7 @@ public static class ProjectBriefingCapabilityPaginator
-             ? ProjectBriefingRichTextParser.Parse(null)
-             : sourceBlocks;
- 
-+        var density = ProjectBriefingNarrativeTypography.ResolveCapabilityDensity(blocks);
-         var pending = new LinkedList<ProjectBriefingCapabilityBlock>(blocks);
-         var pages = new List<ProjectBriefingCapabilityPage>();
-         var pageNumber = 1;
-@@ -42,15 +43,15 @@ public static class ProjectBriefingCapabilityPaginator
-                     && rendered.Count > 0
-                     && pending.First.Next is not null)
-                 {
--                    var headingHeight = CreateLayout(block, profile).TotalHeight;
--                    var nextMinimum = MinimumFollowingHeight(pending.First.Next.Value, profile);
-+                    var headingHeight = CreateLayout(block, profile, density).TotalHeight;
-+                    var nextMinimum = MinimumFollowingHeight(pending.First.Next.Value, profile, density);
-                     if (headingHeight + nextMinimum > remaining)
-                     {
-                         break;
-                     }
-                 }
- 
--                var layout = CreateLayout(block, profile);
-+                var layout = CreateLayout(block, profile, density);
-                 if (layout.TotalHeight <= remaining + .001)
-                 {
-                     pending.RemoveFirst();
-@@ -65,10 +66,10 @@ public static class ProjectBriefingCapabilityPaginator
-                         && rendered[0].Type == ProjectBriefingCapabilityBlockType.Heading;
- 
-                     if (headingNeedsContent
--                        && TrySplit(block, profile, remaining, out var first, out var remainder))
-+                        && TrySplit(block, profile, density, remaining, out var first, out var remainder))
-                     {
-                         pending.RemoveFirst();
--                        rendered.Add(CreateLayout(first!, profile));
-+                        rendered.Add(CreateLayout(first!, profile, density));
-                         if (remainder is not null)
-                         {
-                             pending.AddFirst(remainder);
-@@ -78,10 +79,10 @@ public static class ProjectBriefingCapabilityPaginator
-                     break;
-                 }
- 
--                if (TrySplit(block, profile, remaining, out var splitFirst, out var splitRemainder))
-+                if (TrySplit(block, profile, density, remaining, out var splitFirst, out var splitRemainder))
-                 {
-                     pending.RemoveFirst();
--                    rendered.Add(CreateLayout(splitFirst!, profile));
-+                    rendered.Add(CreateLayout(splitFirst!, profile, density));
-                     if (splitRemainder is not null)
-                     {
-                         pending.AddFirst(splitRemainder);
-@@ -102,12 +103,13 @@ public static class ProjectBriefingCapabilityPaginator
-             {
-                 var forced = pending.First!.Value;
-                 pending.RemoveFirst();
--                rendered.Add(CreateLayout(forced, profile));
-+                rendered.Add(CreateLayout(forced, profile, density));
-             }
- 
-             pages.Add(new ProjectBriefingCapabilityPage(
-                 pageNumber,
-                 pageNumber == 1,
-+                density,
-                 rendered));
-             pageNumber++;
-         }
-@@ -117,18 +119,20 @@ public static class ProjectBriefingCapabilityPaginator
- 
-     private static ProjectBriefingCapabilityLayoutBlock CreateLayout(
-         ProjectBriefingCapabilityBlock block,
--        LayoutProfile profile)
-+        LayoutProfile profile,
-+        ProjectBriefingNarrativeDensity density)
-     {
--        var (fontSize, lineHeight, spaceAfter) = block.Type switch
--        {
--            ProjectBriefingCapabilityBlockType.Heading => (13.6, .235, .105),
--            ProjectBriefingCapabilityBlockType.Bullet => (12.7, .215, .060),
--            ProjectBriefingCapabilityBlockType.NumberedItem => (12.7, .215, .060),
--            ProjectBriefingCapabilityBlockType.LetteredItem => (12.7, .215, .060),
--            _ => (block.IsMuted ? 12.5 : 13.0, .222, .105)
--        };
--
--        var characterBudget = profile.CharactersPerLine;
-+        var typography = ProjectBriefingNarrativeTypography.ResolveCapabilityBlock(
-+            block.Type,
-+            block.IsMuted,
-+            density);
-+        var fontSize = typography.FontSize;
-+        var lineHeight = typography.LineHeight;
-+        var spaceAfter = typography.SpaceAfter;
++    [Fact]
++    public void TryResolveCarryover_RespectsPartialPrecisionAndAuditFallback()
++    {
++        Assert.True(ConferenceProjectScopeService.TryResolveCarryover(
++            null,
++            2026,
++            5,
++            null,
++            new DateOnly(2026, 7, 31),
++            90,
++            out var monthSortDate));
++        Assert.Equal(new DateOnly(2026, 5, 31), monthSortDate);
 +
-+        var characterBudget = ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(
-+            profile.CharactersPerLine,
-+            density);
-         if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
-             or ProjectBriefingCapabilityBlockType.NumberedItem
-             or ProjectBriefingCapabilityBlockType.LetteredItem)
-@@ -153,9 +157,10 @@ public static class ProjectBriefingCapabilityPaginator
++        Assert.True(ConferenceProjectScopeService.TryResolveCarryover(
++            null,
++            2026,
++            null,
++            null,
++            new DateOnly(2026, 7, 31),
++            90,
++            out var yearSortDate));
++        Assert.Equal(new DateOnly(2026, 7, 31), yearSortDate);
++
++        Assert.True(ConferenceProjectScopeService.TryResolveCarryover(
++            null,
++            null,
++            null,
++            new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc),
++            new DateOnly(2026, 7, 31),
++            90,
++            out var auditSortDate));
++        Assert.Equal(new DateOnly(2026, 7, 20), auditSortDate);
++    }
++
++    [Theory]
++    [InlineData(2026, 7, 25, 2026, 7, "Completed on 25 Jul 2026")]
++    [InlineData(null, null, null, 2026, 7, "Completed in Jul 2026")]
++    [InlineData(null, null, null, 2026, null, "Completed in 2026")]
++    public void FormatCompletionContext_PreservesRecordedPrecision(
++        int? exactYear,
++        int? exactMonth,
++        int? exactDay,
++        int completedYear,
++        int? completedMonth,
++        string expected)
++    {
++        DateOnly? completedOn = exactYear.HasValue
++            ? new DateOnly(exactYear.Value, exactMonth!.Value, exactDay!.Value)
++            : null;
++
++        var result = ConferenceProjectScopeService.FormatCompletionContext(
++            completedOn,
++            completedYear,
++            completedMonth.HasValue ? (short?)completedMonth.Value : null);
++
++        Assert.Equal(expected, result);
++    }
++
++    [Fact]
++    public async Task Scope_IncludesActiveAndRecentCompletedButExcludesExpiredCompleted()
++    {
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++        await using var db = new ApplicationDbContext(dbOptions);
++        await db.Database.EnsureCreatedAsync();
++
++        var command = CreateUser("command", "Command User", "Colonel");
++        var officer = CreateUser("officer", "Conference Officer", "Lt Col");
++        db.Users.AddRange(command, officer);
++        var poRole = new IdentityRole
++        {
++            Id = "role-project-officer",
++            Name = RoleNames.ProjectOfficer,
++            NormalizedName = RoleNames.ProjectOfficer.ToUpperInvariant(),
++            ConcurrencyStamp = Guid.NewGuid().ToString()
++        };
++        db.Roles.Add(poRole);
++        db.UserRoles.Add(new IdentityUserRole<string>
++        {
++            UserId = officer.Id,
++            RoleId = poRole.Id
++        });
++
++        var active = Project("Active project", command.Id, officer.Id, ProjectLifecycleStatus.Active);
++        var recent = Project("Recent project", command.Id, officer.Id, ProjectLifecycleStatus.Completed);
++        recent.CompletedOn = new DateOnly(2026, 7, 20);
++        recent.CompletedYear = 2026;
++        recent.CompletedMonth = 7;
++        var expired = Project("Expired project", command.Id, officer.Id, ProjectLifecycleStatus.Completed);
++        expired.CompletedOn = new DateOnly(2026, 4, 1);
++        expired.CompletedYear = 2026;
++        expired.CompletedMonth = 4;
++        db.Projects.AddRange(active, recent, expired);
++        await db.SaveChangesAsync();
++
++        var service = new ConferenceProjectScopeService(
++            db,
++            new FixedClock(new DateTimeOffset(2026, 7, 31, 8, 0, 0, TimeSpan.Zero)),
++            Options.Create(new ConferenceOptions { CompletedProjectRetentionDays = 90 }));
++
++        var carryovers = await service.GetRecentlyCompletedProjectsAsync();
++
++        var carryover = Assert.Single(carryovers);
++        Assert.Equal(recent.Id, carryover.ProjectId);
++        Assert.Equal("Completed on 20 Jul 2026", carryover.CompletionContext);
++        Assert.True(await service.IsProjectInScopeAsync(officer.Id, active.Id));
++        Assert.True(await service.IsProjectInScopeAsync(officer.Id, recent.Id));
++        Assert.False(await service.IsProjectInScopeAsync(officer.Id, expired.Id));
++    }
++
++    private static Project Project(
++        string name,
++        string createdBy,
++        string officerId,
++        ProjectLifecycleStatus lifecycleStatus)
++        => new()
++        {
++            Name = name,
++            CreatedByUserId = createdBy,
++            LeadPoUserId = officerId,
++            LifecycleStatus = lifecycleStatus,
++            WorkflowVersion = ProcurementWorkflow.VersionV2
++        };
++
++    private static ApplicationUser CreateUser(string id, string fullName, string rank)
++        => new()
++        {
++            Id = id,
++            UserName = id,
++            NormalizedUserName = id.ToUpperInvariant(),
++            FullName = fullName,
++            Rank = rank,
++            SecurityStamp = Guid.NewGuid().ToString()
++        };
++
++    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
++    {
++        public DateTimeOffset UtcNow { get; } = utcNow;
++    }
++}
+diff --git a/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs b/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
+index 1f591c7..e1ead28 100644
+--- a/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
++++ b/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
+@@ -16,6 +16,7 @@ using ProjectManagement.Services.ActionTasks;
+ using ProjectManagement.Services.ConferenceRemarks;
+ using ProjectManagement.Services.ProjectIdeas;
+ using ProjectManagement.Services.Remarks;
++using ProjectManagement.Services.Workspace;
+ using ProjectManagement.ViewModels.Workspace;
  
-     private static double MinimumFollowingHeight(
-         ProjectBriefingCapabilityBlock block,
--        LayoutProfile profile)
-+        LayoutProfile profile,
-+        ProjectBriefingNarrativeDensity density)
-     {
--        var layout = CreateLayout(block, profile);
-+        var layout = CreateLayout(block, profile, density);
-         return Math.Min(layout.TotalHeight, .56);
+ namespace ProjectManagement.Tests;
+@@ -130,6 +131,44 @@ public sealed class ConferenceRemarkCommandServiceTests
+         Assert.Equal("No update by the task assignee after the direction.", assigneeProgress.EmptyText);
      }
  
-@@ -193,6 +198,7 @@ public static class ProjectBriefingCapabilityPaginator
-     private static bool TrySplit(
-         ProjectBriefingCapabilityBlock block,
-         LayoutProfile profile,
-+        ProjectBriefingNarrativeDensity density,
-         double availableHeight,
-         out ProjectBriefingCapabilityBlock? first,
-         out ProjectBriefingCapabilityBlock? remainder)
-@@ -206,14 +212,11 @@ public static class ProjectBriefingCapabilityPaginator
-             return false;
++    [Fact]
++    public async Task AddAsync_Project_AllowsRecentlyCompletedConferenceCarryover()
++    {
++        await using var scope = await TestScope.CreateAsync();
++        var actor = await scope.AddCommandUserAsync("command", RoleNames.HoD);
++        var officer = await scope.AddUserAsync("officer");
++        var project = new Project
++        {
++            Name = "Completed project",
++            CreatedByUserId = actor.Id,
++            LeadPoUserId = officer.Id,
++            LifecycleStatus = ProjectLifecycleStatus.Completed,
++            CompletedOn = new DateOnly(2026, 7, 10),
++            CompletedYear = 2026,
++            CompletedMonth = 7
++        };
++        scope.Db.Projects.Add(project);
++        await scope.Db.SaveChangesAsync();
++
++        var remarks = new CapturingRemarkService();
++        var projectScope = new StubConferenceProjectScopeService(officer.Id, project.Id, isAllowed: true);
++        var service = scope.CreateService(remarks: remarks, projectScope: projectScope);
++
++        var result = await service.AddAsync(
++            actor.Id,
++            new AddConferenceRemarkRequest(
++                officer.Id,
++                ConferenceItemKind.Project,
++                project.Id,
++                "Confirm post-completion closure."));
++
++        Assert.NotNull(remarks.Request);
++        Assert.Equal(project.Id, remarks.Request!.ProjectId);
++        Assert.Equal("Confirm post-completion closure.", result.Direction.Body);
++        Assert.Equal(officer.Id, projectScope.LastRequest?.OfficerUserId);
++        Assert.Equal(project.Id, projectScope.LastRequest?.ProjectId);
++    }
++
+     [Fact]
+     public async Task AddAsync_RejectsNonCommandRole()
+     {
+@@ -237,14 +276,27 @@ public sealed class ConferenceRemarkCommandServiceTests
+         public ConferenceRemarkCommandService CreateService(
+             IRemarkService? remarks = null,
+             IProjectIdeaCommandService? ideas = null,
+-            IActionTaskCollaborationService? tasks = null)
+-            => new(
+-                Db,
+-                UserManager,
+-                remarks ?? new CapturingRemarkService(),
+-                ideas ?? new CapturingIdeaCommandService(),
+-                tasks ?? new CapturingTaskCollaborationService(),
+-                new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero)));
++            IActionTaskCollaborationService? tasks = null,
++            IConferenceProjectScopeService? projectScope = null)
++        {
++            var clock = new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero));
++            return projectScope is null
++                ? new ConferenceRemarkCommandService(
++                    Db,
++                    UserManager,
++                    remarks ?? new CapturingRemarkService(),
++                    ideas ?? new CapturingIdeaCommandService(),
++                    tasks ?? new CapturingTaskCollaborationService(),
++                    clock)
++                : new ConferenceRemarkCommandService(
++                    Db,
++                    UserManager,
++                    remarks ?? new CapturingRemarkService(),
++                    ideas ?? new CapturingIdeaCommandService(),
++                    tasks ?? new CapturingTaskCollaborationService(),
++                    clock,
++                    projectScope);
++        }
+ 
+         public async ValueTask DisposeAsync()
+         {
+@@ -269,6 +321,43 @@ public sealed class ConferenceRemarkCommandServiceTests
          }
+     }
  
--        var sample = CreateLayout(block, profile);
--        var lineHeight = block.Type switch
--        {
--            ProjectBriefingCapabilityBlockType.Bullet => .215,
--            ProjectBriefingCapabilityBlockType.NumberedItem => .215,
--            ProjectBriefingCapabilityBlockType.LetteredItem => .215,
--            _ => .222
--        };
-+        var sample = CreateLayout(block, profile, density);
-+        var lineHeight = ProjectBriefingNarrativeTypography.ResolveCapabilityBlock(
-+            block.Type,
-+            block.IsMuted,
-+            density).LineHeight;
- 
-         var usableHeight = availableHeight - sample.SpaceAfter - .025;
-         var maximumLines = (int)Math.Floor(usableHeight / lineHeight);
-@@ -222,7 +225,9 @@ public static class ProjectBriefingCapabilityPaginator
-             return false;
-         }
- 
--        var characterBudget = profile.CharactersPerLine;
-+        var characterBudget = ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(
-+            profile.CharactersPerLine,
-+            density);
-         if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
-             or ProjectBriefingCapabilityBlockType.NumberedItem
-             or ProjectBriefingCapabilityBlockType.LetteredItem)
-diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingNarrativeTypography.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingNarrativeTypography.cs
-new file mode 100644
-index 0000000..356fb5c
---- /dev/null
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingNarrativeTypography.cs
-@@ -0,0 +1,166 @@
-+namespace ProjectManagement.Services.ProjectBriefings.Presentation;
-+
-+public enum ProjectBriefingNarrativeDensity
-+{
-+    Sparse = 1,
-+    Standard = 2,
-+    Dense = 3
-+}
-+
-+public sealed record ProjectBriefingCapabilityTypography(
-+    double FontSize,
-+    double LineHeight,
-+    double SpaceAfter);
-+
-+public sealed record ProjectBriefingNarrativeTypographyProfile(
-+    ProjectBriefingNarrativeDensity Density,
-+    double BodyFontSize,
-+    double LineSpacingPoints,
-+    double SpaceAfterPoints);
-+
-+public static class ProjectBriefingNarrativeTypography
-+{
-+    public static ProjectBriefingNarrativeDensity ResolveCapabilityDensity(
-+        IReadOnlyList<ProjectBriefingCapabilityBlock> blocks)
++    private sealed class StubConferenceProjectScopeService : IConferenceProjectScopeService
 +    {
-+        ArgumentNullException.ThrowIfNull(blocks);
++        private readonly string _officerUserId;
++        private readonly int _projectId;
++        private readonly bool _isAllowed;
 +
-+        var meaningful = blocks.Where(block => !block.IsMuted).ToArray();
-+        if (meaningful.Length == 0)
++        public StubConferenceProjectScopeService(
++            string officerUserId,
++            int projectId,
++            bool isAllowed)
 +        {
-+            return ProjectBriefingNarrativeDensity.Standard;
++            _officerUserId = officerUserId;
++            _projectId = projectId;
++            _isAllowed = isAllowed;
 +        }
 +
-+        var characters = meaningful.Sum(block => block.Text?.Trim().Length ?? 0);
-+        var listItems = meaningful.Count(block => block.Type is ProjectBriefingCapabilityBlockType.Bullet
-+            or ProjectBriefingCapabilityBlockType.NumberedItem
-+            or ProjectBriefingCapabilityBlockType.LetteredItem);
++        public int CompletedProjectRetentionDays => 90;
++        public (string OfficerUserId, int ProjectId)? LastRequest { get; private set; }
 +
-+        if (meaningful.Length <= 6 && listItems <= 6 && characters <= 520)
++        public Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
++            CancellationToken cancellationToken = default)
++            => Task.FromResult<IReadOnlyList<ConferenceProjectCarryover>>(
++                Array.Empty<ConferenceProjectCarryover>());
++
++        public Task<bool> IsProjectInScopeAsync(
++            string officerUserId,
++            int projectId,
++            CancellationToken cancellationToken = default)
 +        {
-+            return ProjectBriefingNarrativeDensity.Sparse;
++            LastRequest = (officerUserId, projectId);
++            return Task.FromResult(
++                _isAllowed
++                && string.Equals(officerUserId, _officerUserId, StringComparison.Ordinal)
++                && projectId == _projectId);
 +        }
-+
-+        if (meaningful.Length > 12 || characters > 1_200)
-+        {
-+            return ProjectBriefingNarrativeDensity.Dense;
-+        }
-+
-+        return ProjectBriefingNarrativeDensity.Standard;
 +    }
 +
-+    public static ProjectBriefingCapabilityTypography ResolveCapabilityBlock(
-+        ProjectBriefingCapabilityBlockType type,
-+        bool isMuted,
-+        ProjectBriefingNarrativeDensity density)
+     private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+     {
+         public DateTimeOffset UtcNow { get; } = utcNow;
+diff --git a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
+index d4e5b29..2a3b884 100644
+--- a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
++++ b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
+@@ -623,6 +623,95 @@ public sealed class OfficerConferenceReadServiceTests
+         Assert.Null(placeholder.Body);
+     }
+ 
++    [Fact]
++    public async Task GetAsync_IncludesCarryoverOnlyOfficerAndRecentlyCompletedProject()
 +    {
-+        var profile = (type, density) switch
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++        await using var db = new ApplicationDbContext(options);
++        await db.Database.EnsureCreatedAsync();
++
++        var command = CreateUser("command-1", "Command User", "Colonel");
++        var officer = CreateUser("officer-1", "Carryover Officer", "Lt Col");
++        db.Users.AddRange(command, officer);
++
++        var project = new Project
 +        {
-+            (ProjectBriefingCapabilityBlockType.Heading, ProjectBriefingNarrativeDensity.Sparse) => (15.0, .252, .120),
-+            (ProjectBriefingCapabilityBlockType.Heading, ProjectBriefingNarrativeDensity.Dense) => (12.7, .218, .082),
-+            (ProjectBriefingCapabilityBlockType.Heading, _) => (13.6, .235, .105),
-+
-+            (ProjectBriefingCapabilityBlockType.Bullet or ProjectBriefingCapabilityBlockType.NumberedItem or ProjectBriefingCapabilityBlockType.LetteredItem,
-+                ProjectBriefingNarrativeDensity.Sparse) => (14.4, .238, .082),
-+            (ProjectBriefingCapabilityBlockType.Bullet or ProjectBriefingCapabilityBlockType.NumberedItem or ProjectBriefingCapabilityBlockType.LetteredItem,
-+                ProjectBriefingNarrativeDensity.Dense) => (11.8, .198, .046),
-+            (ProjectBriefingCapabilityBlockType.Bullet or ProjectBriefingCapabilityBlockType.NumberedItem or ProjectBriefingCapabilityBlockType.LetteredItem,
-+                _) => (12.7, .215, .060),
-+
-+            (_, ProjectBriefingNarrativeDensity.Sparse) => (isMuted ? 13.3 : 14.6, .242, .120),
-+            (_, ProjectBriefingNarrativeDensity.Dense) => (isMuted ? 11.7 : 12.0, .202, .072),
-+            _ => (isMuted ? 12.5 : 13.0, .222, .105)
++            Name = "Recently completed project",
++            CreatedByUserId = command.Id,
++            LeadPoUserId = officer.Id,
++            WorkflowVersion = ProcurementWorkflow.VersionV2,
++            LifecycleStatus = ProjectLifecycleStatus.Completed,
++            CompletedOn = new DateOnly(2026, 7, 25),
++            CompletedYear = 2026,
++            CompletedMonth = 7
 +        };
++        db.Projects.Add(project);
++        await db.SaveChangesAsync();
 +
-+        return new ProjectBriefingCapabilityTypography(profile.Item1, profile.Item2, profile.Item3);
++        db.Remarks.Add(ProjectRemark(
++            project.Id,
++            command.Id,
++            RemarkActorRole.HeadOfDepartment,
++            RemarkType.Conference,
++            "Complete closure documentation.",
++            Utc(26),
++            StageCodes.DEVP));
++        await db.SaveChangesAsync();
++
++        var carryover = new ConferenceProjectCarryover(
++            project.Id,
++            project.Name,
++            officer.Id,
++            officer.FullName!,
++            officer.Rank!,
++            project.CompletedOn,
++            project.CompletedYear,
++            project.CompletedMonth,
++            null,
++            project.CompletedOn.Value,
++            "Completed on 25 Jul 2026");
++        var projectScope = new StubConferenceProjectScopeService(new[] { carryover });
++        var service = new OfficerConferenceReadService(
++            db,
++            new StubOfficerWorkloadReadService(Array.Empty<CommandOfficerWorkloadVm>()),
++            new WorkflowStageMetadataProvider(),
++            new FixedClock(Utc(31)),
++            projectScope);
++
++        var optionsResult = await service.GetOfficerOptionsAsync(command.Id);
++        var officerOption = Assert.Single(optionsResult);
++        Assert.Equal(officer.Id, officerOption.UserId);
++        Assert.Equal(0, officerOption.ActiveProjectCount);
++        Assert.Equal(1, officerOption.RecentlyCompletedProjectCount);
++
++        var result = await service.GetAsync(command.Id, officer.Id);
++
++        Assert.NotNull(result);
++        Assert.Equal(0, result!.ActiveProjectCount);
++        Assert.Equal(1, result.RecentlyCompletedProjectCount);
++        Assert.Equal(90, result.CompletedProjectRetentionDays);
++        var item = Assert.Single(
++            result.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
++        Assert.True(item.IsRecentlyCompleted);
++        Assert.Equal("Completed", item.CurrentStateName);
++        Assert.Equal("Completed on 25 Jul 2026", item.CurrentContext);
++        Assert.Null(item.AttentionText);
++        Assert.False(item.RequiresAttention);
++
++        var history = await service.GetDirectionHistoryAsync(
++            command.Id,
++            officer.Id,
++            ConferenceItemKind.Project,
++            project.Id);
++        Assert.NotNull(history);
++        Assert.Single(history!.Cycles);
++        Assert.Equal("Complete closure documentation.", history.Cycles[0].Direction.Body);
 +    }
 +
-+    public static int AdjustCapabilityCharactersPerLine(
-+        int standardCharactersPerLine,
-+        ProjectBriefingNarrativeDensity density)
-+        => density switch
-+        {
-+            ProjectBriefingNarrativeDensity.Sparse => Math.Max(24, standardCharactersPerLine - 7),
-+            ProjectBriefingNarrativeDensity.Dense => standardCharactersPerLine + 8,
-+            _ => standardCharactersPerLine
-+        };
-+
-+    public static ProjectBriefingNarrativeTypographyProfile ResolveProjectBrief(string? value)
-+    {
-+        var (characters, paragraphs) = Measure(value);
-+        if (characters <= 700 && paragraphs <= 4)
-+        {
-+            return new ProjectBriefingNarrativeTypographyProfile(
-+                ProjectBriefingNarrativeDensity.Sparse,
-+                15.0,
-+                19.2,
-+                10.5);
-+        }
-+
-+        if (characters <= 1_400 && paragraphs <= 7)
-+        {
-+            return new ProjectBriefingNarrativeTypographyProfile(
-+                ProjectBriefingNarrativeDensity.Standard,
-+                13.2,
-+                17.2,
-+                9.0);
-+        }
-+
-+        return new ProjectBriefingNarrativeTypographyProfile(
-+            ProjectBriefingNarrativeDensity.Dense,
-+            characters > 2_200 ? 10.4 : 11.6,
-+            characters > 2_200 ? 12.8 : 14.5,
-+            6.0);
-+    }
-+
-+    public static ProjectBriefingNarrativeTypographyProfile ResolveUpdateSheetBrief(string? value)
-+    {
-+        var (characters, paragraphs) = Measure(value);
-+        if (characters <= 650 && paragraphs <= 4)
-+        {
-+            return new ProjectBriefingNarrativeTypographyProfile(
-+                ProjectBriefingNarrativeDensity.Sparse,
-+                12.2,
-+                15.2,
-+                5.5);
-+        }
-+
-+        if (characters <= 1_350 && paragraphs <= 7)
-+        {
-+            return new ProjectBriefingNarrativeTypographyProfile(
-+                ProjectBriefingNarrativeDensity.Standard,
-+                10.4,
-+                12.9,
-+                4.0);
-+        }
-+
-+        var denseFont = characters switch
-+        {
-+            <= 1_900 => 8.9,
-+            <= 2_500 => 7.9,
-+            _ => 7.1
-+        };
-+        return new ProjectBriefingNarrativeTypographyProfile(
-+            ProjectBriefingNarrativeDensity.Dense,
-+            denseFont,
-+            Math.Max(denseFont + 1.4, 8.2),
-+            2.8);
-+    }
-+
-+    private static (int Characters, int Paragraphs) Measure(string? value)
-+    {
-+        if (string.IsNullOrWhiteSpace(value))
-+        {
-+            return (0, 0);
-+        }
-+
-+        var normalized = value
-+            .Replace("\r\n", "\n", StringComparison.Ordinal)
-+            .Replace('\r', '\n')
-+            .Trim();
-+        var paragraphs = normalized
-+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-+            .Length;
-+        return (normalized.Length, Math.Max(1, paragraphs));
-+    }
-+}
-diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-index e69ee98..8f2aef7 100644
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-@@ -8,8 +8,6 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
+     [Fact]
+     public async Task GetAsync_ReturnsNull_WhenOfficerIsOutsideCanonicalWorkloadOrder()
+     {
+@@ -681,6 +770,30 @@ public sealed class OfficerConferenceReadServiceTests
+     private static DateTime Utc(int day)
+         => new(2026, 7, day, 8, 0, 0, DateTimeKind.Utc);
  
- public sealed partial class ProjectBriefingSlideComposer
++    private sealed class StubConferenceProjectScopeService : IConferenceProjectScopeService
++    {
++        private readonly IReadOnlyList<ConferenceProjectCarryover> _carryovers;
++
++        public StubConferenceProjectScopeService(IReadOnlyList<ConferenceProjectCarryover> carryovers)
++        {
++            _carryovers = carryovers;
++        }
++
++        public int CompletedProjectRetentionDays => 90;
++
++        public Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
++            CancellationToken cancellationToken = default)
++            => Task.FromResult(_carryovers);
++
++        public Task<bool> IsProjectInScopeAsync(
++            string officerUserId,
++            int projectId,
++            CancellationToken cancellationToken = default)
++            => Task.FromResult(_carryovers.Any(item =>
++                item.ProjectId == projectId
++                && string.Equals(item.OfficerUserId, officerUserId, StringComparison.Ordinal)));
++    }
++
+     private sealed class StubOfficerWorkloadReadService : IOfficerWorkloadReadService
+     {
+         private readonly IReadOnlyList<CommandOfficerWorkloadVm> _officers;
+diff --git a/ProjectManagement.Tests/RemarkServiceTests.cs b/ProjectManagement.Tests/RemarkServiceTests.cs
+index 921d848..e2241ec 100644
+--- a/ProjectManagement.Tests/RemarkServiceTests.cs
++++ b/ProjectManagement.Tests/RemarkServiceTests.cs
+@@ -181,6 +181,42 @@ public sealed class RemarkServiceTests
+         Assert.Equal(StageCodes.DisplayNameOf(ProcurementWorkflow.VersionV2, StageCodes.SOW), remark.StageNameSnapshot);
+     }
+ 
++    [Fact]
++    public async Task CreateRemarkAsync_ConferenceOnCompletedProjectCapturesCompletedStatus()
++    {
++        await using var scope = await CreateContextAsync();
++        var db = scope.Db;
++        await SeedProjectAsync(db, 105);
++        var project = await db.Projects.SingleAsync(candidate => candidate.Id == 105);
++        project.LifecycleStatus = ProjectLifecycleStatus.Completed;
++        project.CompletedOn = new DateOnly(2024, 9, 25);
++        project.CompletedYear = 2024;
++        project.CompletedMonth = 9;
++        await db.SaveChangesAsync();
++
++        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out _);
++        var actor = new RemarkActorContext(
++            "comdt",
++            RemarkActorRole.Commandant,
++            new[] { RemarkActorRole.Commandant });
++
++        var remark = await service.CreateRemarkAsync(
++            new CreateRemarkRequest(
++                105,
++                actor,
++                RemarkType.Conference,
++                RemarkScope.General,
++                "Confirm closure action.",
++                new DateOnly(2024, 9, 30),
++                null,
++                null,
++                null),
++            CancellationToken.None);
++
++        Assert.Null(remark.StageRef);
++        Assert.Equal("Completed", remark.StageNameSnapshot);
++    }
++
+     [Fact]
+     public async Task CreateRemarkAsync_RejectsConferenceForAdministratorWithoutCommandRole()
+     {
+diff --git a/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs b/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
+index 4036a2a..8510000 100644
+--- a/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
++++ b/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
+@@ -11,14 +11,15 @@ using ProjectManagement.Services;
+ using ProjectManagement.Services.ActionTasks;
+ using ProjectManagement.Services.ProjectIdeas;
+ using ProjectManagement.Services.Remarks;
++using ProjectManagement.Services.Workspace;
+ using ProjectManagement.ViewModels.Workspace;
+ 
+ namespace ProjectManagement.Services.ConferenceRemarks;
+ 
+ /// <summary>
+ /// Writes conference directions to the native remarks stream of the selected source item.
+-/// The service derives actor identity, authority and state snapshots on the server and rejects
+-/// item identifiers that are not part of the selected officer's current active workload.
++/// The service derives actor identity, authority and state snapshots on the server and uses the
++/// shared conference scope so read and write behaviour remain aligned for active and carryover work.
+ /// </summary>
+ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandService
  {
--    private const string UpdateSheetAccent = "8F0D21";
--
-     private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
-     {
-         var plans = new List<SlidePlan>();
-@@ -38,45 +36,15 @@ public sealed partial class ProjectBriefingSlideComposer
-         ProjectBriefingPresentationProject project)
-     {
-         var theme = canvas.Theme;
--        var accent = theme.IsDark ? theme.Accent : UpdateSheetAccent;
--        var labelFill = theme.IsDark ? theme.SurfaceRaised : "EDF1F6";
-+        var labelFill = theme.ProjectUpdateLabelFill;
-         var serialFill = theme.SurfaceMuted;
-         var bodyFill = theme.Surface;
+@@ -28,7 +29,10 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
+     private readonly IProjectIdeaCommandService _ideaCommands;
+     private readonly IActionTaskCollaborationService _taskCollaboration;
+     private readonly IClock _clock;
++    private readonly IConferenceProjectScopeService? _projectScope;
  
--        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.Canvas);
--        canvas.AddRect(0, 0, SlideWidth, .065, accent, name: "Project sheet top accent");
--        canvas.AddBrandingImages(HeaderVariant.ProjectUpdateSheet);
--
--        var titleX = canvas.ShowBranding ? 1.16 : .62;
--        var titleWidth = canvas.ShowBranding ? 11.01 : 12.09;
--        var titleFontSize = UpdateSheetTitleFontSize(project.ProjectName);
--        canvas.AddRichTextBox(
--            titleX,
--            .15,
--            titleWidth,
--            .64,
--            new[]
--            {
--                new RichTextParagraph(
--                    new[]
--                    {
--                        new RichTextRun(
--                            project.ProjectName,
--                            titleFontSize,
--                            accent,
--                            Bold: true)
--                    },
--                    Align: "ctr",
--                    LineSpacingPoints: titleFontSize * 1.05)
--            },
--            "Project name",
--            verticalAnchor: "ctr",
--            allowAutoFit: true,
--            leftInset: .03,
--            rightInset: .03,
--            topInset: 0,
--            bottomInset: 0);
--        canvas.AddLine(.55, .92, 12.78, .92, theme.Divider, .65);
-+        AddProjectSlideHeader(
-+            canvas,
-+            project.ProjectName,
-+            subtitle: null,
-+            variant: ProjectSlideHeaderVariant.ProjectUpdateSheet);
- 
-         var rows = ResolveProjectUpdateRows(project, data.UpdateSheetOptions, theme.TextPrimary, theme.TextMuted);
-         var rowHeights = BuildProjectUpdateRowHeights(rows);
-@@ -360,15 +328,20 @@ public sealed partial class ProjectBriefingSlideComposer
-         var normalized = projectBrief!
-             .Replace("\r\n", "\n", StringComparison.Ordinal)
-             .Replace("\r", "\n", StringComparison.Ordinal);
--        var fontSize = UpdateSheetBriefFontSize(normalized.Length);
--        var lineSpacing = Math.Max(fontSize + 1.5, 8.0);
-+        var typography = ProjectBriefingNarrativeTypography.ResolveUpdateSheetBrief(normalized);
- 
-         return normalized
-             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-             .Select(paragraph => new RichTextParagraph(
--                new[] { new RichTextRun(paragraph.Replace("\n", " ", StringComparison.Ordinal), fontSize, text) },
--                SpaceAfterPoints: Math.Max(2.5, fontSize * .42),
--                LineSpacingPoints: lineSpacing))
-+                new[]
-+                {
-+                    new RichTextRun(
-+                        paragraph.Replace("\n", " ", StringComparison.Ordinal),
-+                        typography.BodyFontSize,
-+                        text)
-+                },
-+                SpaceAfterPoints: typography.SpaceAfterPoints,
-+                LineSpacingPoints: typography.LineSpacingPoints))
-             .ToArray();
++    // Retained for isolated tests and legacy composition roots. Application DI resolves
++    // the complete constructor below.
+     public ConferenceRemarkCommandService(
+         ApplicationDbContext db,
+         UserManager<ApplicationUser> users,
+@@ -45,6 +49,20 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
+         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
      }
  
-@@ -459,16 +432,6 @@ public sealed partial class ProjectBriefingSlideComposer
-             _ => .80
-         };
- 
--    private static double UpdateSheetBriefFontSize(int characterCount)
--        => characterCount switch
--        {
--            <= 650 => 10.8,
--            <= 1_000 => 9.8,
--            <= 1_500 => 8.8,
--            <= 2_100 => 7.8,
--            _ => 6.8
--        };
--
-     private sealed record UpdateSheetResolvedRow(
-         ProjectBriefingUpdateSheetRow Key,
-         string Label,
-diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-index d6afaa9..2c9c08e 100644
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-@@ -813,7 +813,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-         }
- 
-         var statusY = contentTop + layout.PhotoHeight + sectionGap;
--        AddPresentStatusCard(canvas, leftX, statusY, leftWidth, positionBottom - statusY, project);
-+        AddPresentStatusCard(canvas, leftX, statusY, leftWidth, layout.StatusHeight, project);
- 
-         if (costCards.Count > 0)
-         {
-@@ -860,7 +860,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-         const double gap = .16;
- 
-         var hasPhoto = project.CoverPhoto is { Length: > 0 };
--        const double photoHeight = 2.10;
-+        var costCards = CostCards(canvas, data.CostMode, project);
-+        var costHeight = costCards.Count == 0 ? 0d : .98;
-+        var costY = bottom - costHeight;
-+        var statusBottom = costCards.Count == 0 ? bottom : costY - gap;
-+        var layout = CalculateDetailedLayout(
-+            project.ExternalStatus,
-+            hasPhoto,
-+            top,
-+            statusBottom,
-+            gap,
-+            statusCharactersPerLine: 38,
-+            minimumPhotoHeight: 1.48,
-+            maximumPhotoHeight: 2.10,
-+            minimumPlaceholderHeight: 1.25,
-+            maximumPlaceholderHeight: 1.72);
-+        var photoHeight = layout.PhotoHeight;
++    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
++    public ConferenceRemarkCommandService(
++        ApplicationDbContext db,
++        UserManager<ApplicationUser> users,
++        IRemarkService projectRemarks,
++        IProjectIdeaCommandService ideaCommands,
++        IActionTaskCollaborationService taskCollaboration,
++        IClock clock,
++        IConferenceProjectScopeService projectScope)
++        : this(db, users, projectRemarks, ideaCommands, taskCollaboration, clock)
++    {
++        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
++    }
 +
-         if (hasPhoto)
-         {
-             canvas.AddRoundedRect(
-@@ -916,12 +932,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                 bottomInset: .06);
-         }
- 
--        var costCards = CostCards(canvas, data.CostMode, project);
--        var costHeight = costCards.Count == 0 ? 0d : .98;
--        var costY = bottom - costHeight;
-         var statusY = top + photoHeight + gap;
--        var statusBottom = costCards.Count == 0 ? bottom : costY - gap;
--        AddPresentStatusCard(canvas, leftX, statusY, leftWidth, statusBottom - statusY, project);
-+        AddPresentStatusCard(canvas, leftX, statusY, leftWidth, layout.StatusHeight, project);
- 
-         if (costCards.Count == 1)
-         {
-@@ -951,7 +963,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-             top,
-             .08,
-             bottom - top,
--            canvas.Theme.SecondaryAccent,
-+            canvas.Theme.NarrativeAccent,
-             name: "Project brief accent");
- 
-         var paragraphs = BuildProjectBriefParagraphs(canvas, project.ProjectBrief);
-@@ -982,7 +994,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                     new RichTextRun(
-                         "PROJECT BRIEF",
-                         10.5,
--                        canvas.Theme.SecondaryAccent,
-+                        canvas.Theme.NarrativeAccent,
-                         Bold: true)
-                 },
-                 SpaceAfterPoints: 12.0,
-@@ -1006,6 +1018,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-             return paragraphs;
-         }
- 
-+        var typography = ProjectBriefingNarrativeTypography.ResolveProjectBrief(projectBrief);
-         foreach (var paragraph in projectBrief!
-                      .Replace("\r\n", "\n", StringComparison.Ordinal)
-                      .Replace("\r", "\n", StringComparison.Ordinal)
-@@ -1016,11 +1029,11 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                 {
-                     new RichTextRun(
-                         paragraph.Replace("\n", " ", StringComparison.Ordinal),
--                        13.2,
-+                        typography.BodyFontSize,
-                         canvas.Theme.TextPrimary)
-                 },
--                SpaceAfterPoints: 9.0,
--                LineSpacingPoints: 17.2));
-+                SpaceAfterPoints: typography.SpaceAfterPoints,
-+                LineSpacingPoints: typography.LineSpacingPoints));
-         }
- 
-         return paragraphs;
-@@ -1075,7 +1088,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-             y,
-             .08,
-             height,
--            canvas.Theme.SecondaryAccent,
-+            canvas.Theme.NarrativeAccent,
-             name: "Capability accent");
- 
-         canvas.AddRichTextBox(
-@@ -1106,7 +1119,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                     new RichTextRun(
-                         heading,
-                         10.5,
--                        canvas.Theme.SecondaryAccent,
-+                        canvas.Theme.NarrativeAccent,
-                         Bold: true)
-                 },
-                 SpaceAfterPoints: 10.0,
-@@ -1131,7 +1144,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                         new RichTextRun(
-                             block.Text,
-                             block.FontSize,
--                            canvas.Theme.SecondaryAccent,
-+                            canvas.Theme.NarrativeAccent,
-                             Bold: true)
-                     },
-                     SpaceAfterPoints: spaceAfter,
-@@ -1205,16 +1218,39 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-         bool hasPhoto,
-         double contentTop,
-         double positionBottom,
--        double sectionGap)
-+        double sectionGap,
-+        int statusCharactersPerLine = 48,
-+        double minimumPhotoHeight = 1.48,
-+        double maximumPhotoHeight = 2.35,
-+        double minimumPlaceholderHeight = 1.20,
-+        double maximumPlaceholderHeight = 1.65)
+     public async Task<AddConferenceRemarkResult> AddAsync(
+         string requestingUserId,
+         AddConferenceRemarkRequest request,
+@@ -116,18 +134,24 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
+         string body,
+         CancellationToken cancellationToken)
      {
-         var normalized = NormalizePresentationText(externalStatus);
--        var estimatedLines = Math.Clamp(EstimateWrappedLines(normalized, 48), 1, 6);
--        var desiredStatusHeight = 1.50 + (estimatedLines * .205);
-+        var estimatedLines = Math.Clamp(
-+            EstimateWrappedLines(normalized, statusCharactersPerLine),
-+            1,
-+            8);
-+        var desiredStatusHeight = Math.Clamp(
-+            1.52 + (estimatedLines * .205),
-+            1.82,
-+            hasPhoto ? 2.78 : 2.66);
-         var available = Math.Max(2.2, positionBottom - contentTop - sectionGap);
--        var minimumPhoto = hasPhoto ? 1.48 : .78;
--        var maximumPhoto = hasPhoto ? 2.35 : .92;
-+        var minimumPhoto = hasPhoto ? minimumPhotoHeight : minimumPlaceholderHeight;
-+        var maximumPhoto = hasPhoto ? maximumPhotoHeight : maximumPlaceholderHeight;
-         var photoHeight = Math.Clamp(available - desiredStatusHeight, minimumPhoto, maximumPhoto);
--        return new DetailedSlideLayout(photoHeight);
-+        var statusHeight = Math.Max(1.76, available - photoHeight);
+-        var belongsToOfficer = await _db.Projects
+-            .AsNoTracking()
+-            .AnyAsync(project =>
+-                project.Id == request.ItemId
+-                && !project.IsDeleted
+-                && !project.IsArchived
+-                && project.LifecycleStatus == ProjectLifecycleStatus.Active
+-                && project.LeadPoUserId == request.OfficerUserId,
+-                cancellationToken);
++        var belongsToOfficer = _projectScope is not null
++            ? await _projectScope.IsProjectInScopeAsync(
++                request.OfficerUserId,
++                request.ItemId,
++                cancellationToken)
++            : await _db.Projects
++                .AsNoTracking()
++                .AnyAsync(project =>
++                    project.Id == request.ItemId
++                    && !project.IsDeleted
++                    && !project.IsArchived
++                    && project.LifecycleStatus == ProjectLifecycleStatus.Active
++                    && project.LeadPoUserId == request.OfficerUserId,
++                    cancellationToken);
+         if (!belongsToOfficer)
+         {
+-            throw new InvalidOperationException("This project is not part of the selected officer's current workload.");
++            throw new InvalidOperationException(
++                "This project is not part of the selected officer's conference review.");
+         }
+ 
+         var remarkRoles = assignedRoles
+@@ -162,7 +186,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
+                 AuthorName = DisplayName(actor),
+                 AuthorRole = DisplayRole(commandRole),
+                 CreatedAtUtc = AsUtc(remark.CreatedAtUtc),
+-                SnapshotLabel = "Stage when issued",
++                SnapshotLabel = BuildProjectSnapshotLabel(remark.StageRef, remark.StageNameSnapshot),
+                 SnapshotValue = BuildStageSnapshot(remark.StageRef, remark.StageNameSnapshot)
+             },
+             new[]
+@@ -297,6 +321,12 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
+             ? "Comdt"
+             : "HoD";
+ 
++    private static string BuildProjectSnapshotLabel(string? stageRef, string? stageName)
++        => string.IsNullOrWhiteSpace(stageRef)
++           && string.Equals(stageName, "Completed", StringComparison.OrdinalIgnoreCase)
++            ? "Status when issued"
++            : "Stage when issued";
 +
-+        // Use any surplus to strengthen the visual/photo zone before allowing a short
-+        // status statement to create an oversized empty status card.
-+        var maximumStatusHeight = hasPhoto ? 2.78 : 2.66;
-+        if (statusHeight > maximumStatusHeight && photoHeight < maximumPhoto)
+     private static string BuildStageSnapshot(string? stageRef, string? stageName)
+     {
+         if (string.IsNullOrWhiteSpace(stageRef) && string.IsNullOrWhiteSpace(stageName))
+diff --git a/Services/Remarks/RemarkService.cs b/Services/Remarks/RemarkService.cs
+index 12a7d5f..246c4fc 100644
+--- a/Services/Remarks/RemarkService.cs
++++ b/Services/Remarks/RemarkService.cs
+@@ -645,6 +645,7 @@ public sealed class RemarkService : IRemarkService
+             .Select(candidate => new
+             {
+                 candidate.WorkflowVersion,
++                candidate.LifecycleStatus,
+                 Stages = candidate.ProjectStages
+                     .Select(stage => new ProjectStageStatusSnapshot(
+                         stage.StageCode,
+@@ -656,6 +657,11 @@ public sealed class RemarkService : IRemarkService
+             })
+             .SingleAsync(cancellationToken);
+ 
++        if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
 +        {
-+            var transfer = Math.Min(statusHeight - maximumStatusHeight, maximumPhoto - photoHeight);
-+            photoHeight += transfer;
-+            statusHeight -= transfer;
++            return (null, "Completed");
 +        }
 +
-+        return new DetailedSlideLayout(photoHeight, statusHeight);
-     }
- 
-     private static void AddPresentStatusCard(
-@@ -1248,7 +1284,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                         new RichTextRun(
-                             "PRESENT STATUS",
-                             9.5,
--                            canvas.Theme.Accent,
-+                            canvas.Theme.OperationalAccent,
-                             Bold: true)
-                     },
-                     SpaceAfterPoints: 7.0,
-@@ -1277,8 +1313,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-             y + .70,
-             Math.Min(width - .50, 2.92),
-             .38,
--            canvas.Theme.AccentSoft,
--            canvas.Theme.Accent,
-+            canvas.Theme.OperationalAccentSoft,
-+            canvas.Theme.OperationalAccent,
-             .75,
-             "roundRect",
-             new[]
-@@ -1330,7 +1366,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-                         new RichTextRun(
-                             statusLabel,
-                             8.2,
--                            canvas.Theme.Accent,
-+                            canvas.Theme.OperationalAccent,
-                             Bold: true)
-                     },
-                     SpaceAfterPoints: 6.0,
-@@ -1496,29 +1532,156 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-     }
- 
-     private static void AddSlideTitle(SlideCanvas canvas, string title, string? subtitle = null)
-+        => AddProjectSlideHeader(
-+            canvas,
-+            title,
-+            subtitle,
-+            ProjectSlideHeaderVariant.Standard);
+         var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+             project.Stages,
+             _workflowStageMetadataProvider,
+diff --git a/Services/Workspace/ConferenceProjectScopeService.cs b/Services/Workspace/ConferenceProjectScopeService.cs
+new file mode 100644
+index 0000000..a51edf8
+--- /dev/null
++++ b/Services/Workspace/ConferenceProjectScopeService.cs
+@@ -0,0 +1,448 @@
++using System.Globalization;
++using System.Text.Json;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Options;
++using ProjectManagement.Configuration;
++using ProjectManagement.Data;
++using ProjectManagement.Infrastructure;
++using ProjectManagement.Models;
 +
-+    private static void AddProjectSlideHeader(
-+        SlideCanvas canvas,
-+        string title,
-+        string? subtitle,
-+        ProjectSlideHeaderVariant variant)
-     {
--        canvas.AddRect(0, 0, SlideWidth, SlideHeight, canvas.Theme.Canvas);
--        canvas.AddRect(0, 0, SlideWidth, .10, canvas.Theme.Accent);
--        canvas.AddBrandingImages(HeaderVariant.Standard);
-+        var style = ResolveProjectSlideHeaderStyle(canvas, title, variant);
- 
--        var titleX = canvas.ShowBranding ? 1.30 : .62;
--        var titleWidth = canvas.ShowBranding ? 10.73 : 11.40;
--        var titleAlign = canvas.ShowBranding ? "ctr" : "l";
--        canvas.AddText(
--            titleX,
--            .27,
--            titleWidth,
--            .44,
--            title,
--            SlideTitleFontSize(title),
--            canvas.Theme.TextPrimary,
--            true,
--            titleAlign);
--        if (!string.IsNullOrWhiteSpace(subtitle))
-+        canvas.AddRect(0, 0, SlideWidth, SlideHeight, canvas.Theme.Canvas, name: style.CanvasShapeName);
-+        canvas.AddRect(
-+            0,
-+            0,
-+            SlideWidth,
-+            style.TopRuleHeight,
-+            style.TopRuleColor,
-+            name: style.TopRuleShapeName);
-+        canvas.AddBrandingImages(style.BrandingVariant);
++namespace ProjectManagement.Services.Workspace;
 +
-+        if (style.UseRichTextTitle)
++/// <summary>
++/// Resolves the project scope for officer conference review without changing the meaning
++/// of active workload. Completion precision is respected: exact dates, month/year and
++/// year-only values are evaluated as intervals, while genuinely unknown dates use the
++/// lifecycle audit timestamp as a bounded fallback.
++/// </summary>
++public sealed class ConferenceProjectScopeService : IConferenceProjectScopeService
++{
++    private static readonly string[] CompletionAuditActions =
++    {
++        "Project.LifecycleCompleted",
++        "Project.LifecycleCompletionUpdated",
++        "Project.LifecycleCompletionEndorsed"
++    };
++
++    private readonly ApplicationDbContext _db;
++    private readonly IClock _clock;
++    private readonly ConferenceOptions _options;
++
++    public ConferenceProjectScopeService(
++        ApplicationDbContext db,
++        IClock clock,
++        IOptions<ConferenceOptions> options)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
++        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
++    }
++
++    public int CompletedProjectRetentionDays => _options.CompletedProjectRetentionDays;
++
++    public async Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
++        CancellationToken cancellationToken = default)
++    {
++        var officers = await LoadActiveProjectOfficersAsync(cancellationToken);
++        if (officers.Count == 0)
 +        {
-+            canvas.AddRichTextBox(
-+                style.TitleX,
-+                style.TitleY,
-+                style.TitleWidth,
-+                style.TitleHeight,
-+                new[]
-+                {
-+                    new RichTextParagraph(
-+                        new[]
-+                        {
-+                            new RichTextRun(
-+                                title,
-+                                style.TitleFontSize,
-+                                style.TitleColor,
-+                                Bold: true)
-+                        },
-+                        Align: style.TitleAlign,
-+                        LineSpacingPoints: style.TitleFontSize * 1.05)
-+                },
-+                style.TitleShapeName,
-+                verticalAnchor: "ctr",
-+                allowAutoFit: true,
-+                leftInset: .03,
-+                rightInset: .03,
-+                topInset: 0,
-+                bottomInset: 0);
++            return Array.Empty<ConferenceProjectCarryover>();
++        }
++
++        var officerIds = officers.Keys.ToArray();
++        var candidates = await _db.Projects
++            .AsNoTracking()
++            .Where(project =>
++                !project.IsDeleted
++                && !project.IsArchived
++                && project.LifecycleStatus == ProjectLifecycleStatus.Completed
++                && project.LeadPoUserId != null
++                && officerIds.Contains(project.LeadPoUserId))
++            .Select(project => new CompletedProjectCandidate(
++                project.Id,
++                project.Name,
++                project.LeadPoUserId!,
++                project.CompletedOn,
++                project.CompletedYear,
++                project.CompletedMonth))
++            .ToListAsync(cancellationToken);
++
++        if (candidates.Count == 0)
++        {
++            return Array.Empty<ConferenceProjectCarryover>();
++        }
++
++        var today = IstToday();
++        var unknownProjectIds = candidates
++            .Where(candidate => !candidate.CompletedOn.HasValue && !candidate.CompletedYear.HasValue)
++            .Select(candidate => candidate.ProjectId)
++            .ToArray();
++        var auditDates = await LoadRecentCompletionAuditDatesAsync(
++            unknownProjectIds,
++            today,
++            cancellationToken);
++
++        var result = new List<ConferenceProjectCarryover>();
++        foreach (var candidate in candidates)
++        {
++            DateTime? auditDateUtc = auditDates.TryGetValue(candidate.ProjectId, out var recordedAtUtc)
++                ? recordedAtUtc
++                : null;
++            if (!TryResolveCarryover(
++                    candidate.CompletedOn,
++                    candidate.CompletedYear,
++                    candidate.CompletedMonth,
++                    auditDateUtc,
++                    today,
++                    CompletedProjectRetentionDays,
++                    out var sortDate))
++            {
++                continue;
++            }
++
++            var officer = officers[candidate.OfficerUserId];
++            result.Add(new ConferenceProjectCarryover(
++                candidate.ProjectId,
++                candidate.ProjectName,
++                candidate.OfficerUserId,
++                officer.Name,
++                officer.Rank,
++                candidate.CompletedOn,
++                candidate.CompletedYear,
++                candidate.CompletedMonth,
++                auditDateUtc,
++                sortDate,
++                FormatCompletionContext(
++                    candidate.CompletedOn,
++                    candidate.CompletedYear,
++                    candidate.CompletedMonth)));
++        }
++
++        return result
++            .OrderBy(carryover => carryover.OfficerName, StringComparer.OrdinalIgnoreCase)
++            .ThenByDescending(carryover => carryover.CompletionSortDate)
++            .ThenBy(carryover => carryover.ProjectName, StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++    }
++
++    public async Task<bool> IsProjectInScopeAsync(
++        string officerUserId,
++        int projectId,
++        CancellationToken cancellationToken = default)
++    {
++        if (string.IsNullOrWhiteSpace(officerUserId) || projectId <= 0)
++        {
++            return false;
++        }
++
++        if (!await IsActiveProjectOfficerAsync(officerUserId, cancellationToken))
++        {
++            return false;
++        }
++
++        var project = await _db.Projects
++            .AsNoTracking()
++            .Where(candidate =>
++                candidate.Id == projectId
++                && !candidate.IsDeleted
++                && !candidate.IsArchived
++                && candidate.LeadPoUserId == officerUserId)
++            .Select(candidate => new ProjectScopeCandidate(
++                candidate.LifecycleStatus,
++                candidate.CompletedOn,
++                candidate.CompletedYear,
++                candidate.CompletedMonth))
++            .SingleOrDefaultAsync(cancellationToken);
++
++        if (project is null)
++        {
++            return false;
++        }
++
++        if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
++        {
++            return true;
++        }
++
++        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed)
++        {
++            return false;
++        }
++
++        var today = IstToday();
++        DateTime? auditDateUtc = null;
++        if (!project.CompletedOn.HasValue && !project.CompletedYear.HasValue)
++        {
++            var auditDates = await LoadRecentCompletionAuditDatesAsync(
++                new[] { projectId },
++                today,
++                cancellationToken);
++            if (auditDates.TryGetValue(projectId, out var recordedAtUtc))
++            {
++                auditDateUtc = recordedAtUtc;
++            }
++        }
++
++        return TryResolveCarryover(
++            project.CompletedOn,
++            project.CompletedYear,
++            project.CompletedMonth,
++            auditDateUtc,
++            today,
++            CompletedProjectRetentionDays,
++            out _);
++    }
++
++    internal static bool TryResolveCarryover(
++        DateOnly? completedOn,
++        int? completedYear,
++        short? completedMonth,
++        DateTime? completionRecordedAtUtc,
++        DateOnly today,
++        int retentionDays,
++        out DateOnly sortDate)
++    {
++        sortDate = default;
++        if (retentionDays < 1)
++        {
++            return false;
++        }
++
++        var windowStart = today.AddDays(-retentionDays);
++        DateOnly intervalStart;
++        DateOnly intervalEnd;
++
++        if (completedYear is < 1 or > 9999)
++        {
++            return false;
++        }
++
++        if (completedOn.HasValue)
++        {
++            intervalStart = completedOn.Value;
++            intervalEnd = completedOn.Value;
++        }
++        else if (completedYear.HasValue && completedMonth is >= 1 and <= 12)
++        {
++            intervalStart = new DateOnly(completedYear.Value, completedMonth.Value, 1);
++            intervalEnd = new DateOnly(
++                completedYear.Value,
++                completedMonth.Value,
++                DateTime.DaysInMonth(completedYear.Value, completedMonth.Value));
++        }
++        else if (completedYear.HasValue)
++        {
++            intervalStart = new DateOnly(completedYear.Value, 1, 1);
++            intervalEnd = new DateOnly(completedYear.Value, 12, 31);
++        }
++        else if (completionRecordedAtUtc.HasValue)
++        {
++            var auditDate = DateOnly.FromDateTime(IstClock.ToIst(
++                DateTime.SpecifyKind(completionRecordedAtUtc.Value, DateTimeKind.Utc)));
++            intervalStart = auditDate;
++            intervalEnd = auditDate;
 +        }
 +        else
 +        {
-+            canvas.AddText(
-+                style.TitleX,
-+                style.TitleY,
-+                style.TitleWidth,
-+                style.TitleHeight,
-+                title,
-+                style.TitleFontSize,
-+                style.TitleColor,
-+                true,
-+                style.TitleAlign,
-+                name: style.TitleShapeName);
++            return false;
 +        }
 +
-+        if (!string.IsNullOrWhiteSpace(subtitle) && style.SubtitleHeight > 0)
-         {
--            canvas.AddText(titleX, .72, titleWidth, .22, subtitle, 10.0, canvas.Theme.TextMuted, false, titleAlign);
-+            canvas.AddText(
-+                style.TitleX,
-+                style.SubtitleY,
-+                style.TitleWidth,
-+                style.SubtitleHeight,
-+                subtitle,
-+                style.SubtitleFontSize,
-+                style.SubtitleColor,
-+                false,
-+                style.TitleAlign,
-+                name: style.SubtitleShapeName);
-         }
--        canvas.AddLine(.62, 1.00, 12.72, 1.00, canvas.Theme.Divider, .55);
-+
-+        canvas.AddLine(
-+            style.DividerX1,
-+            style.DividerY,
-+            style.DividerX2,
-+            style.DividerY,
-+            canvas.Theme.Divider,
-+            style.DividerWidth);
-+    }
-+
-+    private static ProjectSlideHeaderStyle ResolveProjectSlideHeaderStyle(
-+        SlideCanvas canvas,
-+        string title,
-+        ProjectSlideHeaderVariant variant)
-+    {
-+        if (variant == ProjectSlideHeaderVariant.ProjectUpdateSheet)
++        if (intervalStart > today || intervalEnd < windowStart)
 +        {
-+            return new ProjectSlideHeaderStyle(
-+                HeaderVariant.ProjectUpdateSheet,
-+                canvas.Theme.ProjectUpdateAccent,
-+                canvas.Theme.TextPrimary,
-+                canvas.Theme.TextMuted,
-+                TopRuleHeight: .065,
-+                TitleX: canvas.ShowBranding ? 1.16 : .62,
-+                TitleY: .15,
-+                TitleWidth: canvas.ShowBranding ? 11.01 : 12.09,
-+                TitleHeight: .64,
-+                TitleFontSize: UpdateSheetTitleFontSize(title),
-+                TitleAlign: "ctr",
-+                UseRichTextTitle: true,
-+                SubtitleY: 0,
-+                SubtitleHeight: 0,
-+                SubtitleFontSize: 0,
-+                DividerX1: .55,
-+                DividerX2: 12.78,
-+                DividerY: .92,
-+                DividerWidth: .65,
-+                CanvasShapeName: "Project sheet canvas",
-+                TopRuleShapeName: "Project sheet top accent",
-+                TitleShapeName: "Project sheet title",
-+                SubtitleShapeName: "Project sheet subtitle");
++            return false;
 +        }
 +
-+        var titleAlign = canvas.ShowBranding ? "ctr" : "l";
-+        return new ProjectSlideHeaderStyle(
-+            HeaderVariant.Standard,
-+            canvas.Theme.OperationalAccent,
-+            canvas.Theme.TextPrimary,
-+            canvas.Theme.TextMuted,
-+            TopRuleHeight: .10,
-+            TitleX: canvas.ShowBranding ? 1.30 : .62,
-+            TitleY: .27,
-+            TitleWidth: canvas.ShowBranding ? 10.73 : 11.40,
-+            TitleHeight: .44,
-+            TitleFontSize: SlideTitleFontSize(title),
-+            TitleAlign: titleAlign,
-+            UseRichTextTitle: false,
-+            SubtitleY: .72,
-+            SubtitleHeight: .22,
-+            SubtitleFontSize: 10.0,
-+            DividerX1: .62,
-+            DividerX2: 12.72,
-+            DividerY: 1.00,
-+            DividerWidth: .55,
-+            CanvasShapeName: "Slide canvas",
-+            TopRuleShapeName: "Slide top accent",
-+            TitleShapeName: "Slide title",
-+            SubtitleShapeName: "Slide subtitle");
-     }
- 
-     private static void AddFooter(
-@@ -1653,7 +1816,38 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
-         ProjectUpdateSheet
-     }
- 
--    private sealed record DetailedSlideLayout(double PhotoHeight);
-+    private enum ProjectSlideHeaderVariant
-+    {
-+        Standard,
-+        ProjectUpdateSheet
++        sortDate = intervalEnd > today ? today : intervalEnd;
++        return true;
 +    }
 +
-+    private sealed record ProjectSlideHeaderStyle(
-+        HeaderVariant BrandingVariant,
-+        string TopRuleColor,
-+        string TitleColor,
-+        string SubtitleColor,
-+        double TopRuleHeight,
-+        double TitleX,
-+        double TitleY,
-+        double TitleWidth,
-+        double TitleHeight,
-+        double TitleFontSize,
-+        string TitleAlign,
-+        bool UseRichTextTitle,
-+        double SubtitleY,
-+        double SubtitleHeight,
-+        double SubtitleFontSize,
-+        double DividerX1,
-+        double DividerX2,
-+        double DividerY,
-+        double DividerWidth,
-+        string CanvasShapeName,
-+        string TopRuleShapeName,
-+        string TitleShapeName,
-+        string SubtitleShapeName);
++    internal static string FormatCompletionContext(
++        DateOnly? completedOn,
++        int? completedYear,
++        short? completedMonth)
++    {
++        if (completedOn.HasValue)
++        {
++            return $"Completed on {completedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}";
++        }
 +
-+    private sealed record DetailedSlideLayout(double PhotoHeight, double StatusHeight);
-     private sealed record CostCard(string Title, string Value, string Accent, string Fill, string? Note);
-     private sealed record RichTextRun(
-         string Text,
-diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
-index 5fe9936..5c0bbec 100644
---- a/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
-+++ b/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
-@@ -17,6 +17,8 @@ public sealed record ProjectBriefingThemeDefinition(
-     string AccentSoft,
-     string SecondaryAccent,
-     string SecondaryAccentSoft,
-+    string ProjectUpdateAccent,
-+    string ProjectUpdateLabelFill,
-     string Positive,
-     string PositiveSoft,
-     string Warning,
-@@ -35,6 +37,13 @@ public sealed record ProjectBriefingThemeDefinition(
-     string CoverMuted)
++        if (completedYear is >= 1 and <= 9999 && completedMonth is >= 1 and <= 12)
++        {
++            var month = new DateOnly(completedYear.Value, completedMonth.Value, 1);
++            return $"Completed in {month.ToString("MMM yyyy", CultureInfo.InvariantCulture)}";
++        }
++
++        return completedYear is >= 1 and <= 9999
++            ? $"Completed in {completedYear.Value.ToString(CultureInfo.InvariantCulture)}"
++            : "Recently completed";
++    }
++
++    private DateOnly IstToday()
++        => DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow.UtcDateTime));
++
++    private async Task<Dictionary<string, OfficerIdentity>> LoadActiveProjectOfficersAsync(
++        CancellationToken cancellationToken)
++    {
++        var normalizedRoleName = RoleNames.ProjectOfficer.ToUpperInvariant();
++        var roleId = await _db.Roles
++            .AsNoTracking()
++            .Where(role => role.NormalizedName == normalizedRoleName)
++            .Select(role => role.Id)
++            .SingleOrDefaultAsync(cancellationToken);
++
++        if (string.IsNullOrWhiteSpace(roleId))
++        {
++            return new Dictionary<string, OfficerIdentity>(StringComparer.Ordinal);
++        }
++
++        var rows = await (
++                from userRole in _db.UserRoles.AsNoTracking()
++                join user in _db.Users.AsNoTracking() on userRole.UserId equals user.Id
++                where userRole.RoleId == roleId
++                    && !user.IsDisabled
++                    && !user.PendingDeletion
++                select new
++                {
++                    user.Id,
++                    user.FullName,
++                    user.UserName,
++                    user.Rank
++                })
++            .ToListAsync(cancellationToken);
++
++        return rows.ToDictionary(
++            row => row.Id,
++            row => new OfficerIdentity(
++                string.IsNullOrWhiteSpace(row.FullName)
++                    ? row.UserName ?? "Project Officer"
++                    : row.FullName,
++                row.Rank ?? string.Empty),
++            StringComparer.Ordinal);
++    }
++
++    private async Task<bool> IsActiveProjectOfficerAsync(
++        string officerUserId,
++        CancellationToken cancellationToken)
++    {
++        var normalizedRoleName = RoleNames.ProjectOfficer.ToUpperInvariant();
++        return await (
++                from userRole in _db.UserRoles.AsNoTracking()
++                join role in _db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
++                join user in _db.Users.AsNoTracking() on userRole.UserId equals user.Id
++                where user.Id == officerUserId
++                    && role.NormalizedName == normalizedRoleName
++                    && !user.IsDisabled
++                    && !user.PendingDeletion
++                select user.Id)
++            .AnyAsync(cancellationToken);
++    }
++
++    private async Task<IReadOnlyDictionary<int, DateTime>> LoadRecentCompletionAuditDatesAsync(
++        int[] projectIds,
++        DateOnly today,
++        CancellationToken cancellationToken)
++    {
++        if (projectIds.Length == 0)
++        {
++            return new Dictionary<int, DateTime>();
++        }
++
++        var projectIdSet = projectIds.ToHashSet();
++        var windowStart = today.AddDays(-CompletedProjectRetentionDays);
++        var windowStartUtc = new DateTime(
++            windowStart.Year,
++            windowStart.Month,
++            windowStart.Day,
++            0,
++            0,
++            0,
++            DateTimeKind.Utc).AddHours(-5).AddMinutes(-30);
++
++        var rows = await _db.AuditLogs
++            .AsNoTracking()
++            .Where(log =>
++                CompletionAuditActions.Contains(log.Action)
++                && log.TimeUtc >= windowStartUtc
++                && log.DataJson != null)
++            .Select(log => new { log.Action, log.TimeUtc, log.DataJson })
++            .ToListAsync(cancellationToken);
++
++        var result = new Dictionary<int, DateTime>();
++        foreach (var row in rows)
++        {
++            if (!TryReadCompletionAudit(row.Action, row.DataJson!, out var projectId)
++                || !projectIdSet.Contains(projectId))
++            {
++                continue;
++            }
++
++            if (!result.TryGetValue(projectId, out var current) || row.TimeUtc > current)
++            {
++                // The latest transition supports projects that were reactivated and later
++                // completed again. Metadata-only edits of an already completed project are
++                // filtered by TryReadCompletionAudit and cannot restart the carryover window.
++                result[projectId] = DateTime.SpecifyKind(row.TimeUtc, DateTimeKind.Utc);
++            }
++        }
++
++        return result;
++    }
++
++    private static bool TryReadCompletionAudit(
++        string action,
++        string dataJson,
++        out int projectId)
++    {
++        projectId = 0;
++        try
++        {
++            using var document = JsonDocument.Parse(dataJson);
++            if (!document.RootElement.TryGetProperty("ProjectId", out var projectIdElement))
++            {
++                return false;
++            }
++
++            var projectIdText = projectIdElement.ValueKind == JsonValueKind.String
++                ? projectIdElement.GetString()
++                : projectIdElement.GetRawText();
++            if (!int.TryParse(projectIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out projectId))
++            {
++                return false;
++            }
++
++            if (string.Equals(action, "Project.LifecycleCompletionUpdated", StringComparison.Ordinal)
++                && document.RootElement.TryGetProperty("PreviousStatus", out var previousStatus)
++                && string.Equals(
++                    previousStatus.GetString(),
++                    ProjectLifecycleStatus.Completed.ToString(),
++                    StringComparison.OrdinalIgnoreCase))
++            {
++                // Editing completion metadata for an already completed project must not
++                // restart the conference carryover period.
++                return false;
++            }
++
++            return true;
++        }
++        catch (JsonException)
++        {
++            return false;
++        }
++    }
++
++    private sealed record OfficerIdentity(string Name, string Rank);
++
++    private sealed record CompletedProjectCandidate(
++        int ProjectId,
++        string ProjectName,
++        string OfficerUserId,
++        DateOnly? CompletedOn,
++        int? CompletedYear,
++        short? CompletedMonth);
++
++    private sealed record ProjectScopeCandidate(
++        ProjectLifecycleStatus LifecycleStatus,
++        DateOnly? CompletedOn,
++        int? CompletedYear,
++        short? CompletedMonth);
++}
+diff --git a/Services/Workspace/IConferenceProjectScopeService.cs b/Services/Workspace/IConferenceProjectScopeService.cs
+new file mode 100644
+index 0000000..a1f7646
+--- /dev/null
++++ b/Services/Workspace/IConferenceProjectScopeService.cs
+@@ -0,0 +1,32 @@
++namespace ProjectManagement.Services.Workspace;
++
++/// <summary>
++/// Defines the project scope used by command conference review. This scope intentionally
++/// differs from active workload: active projects remain in scope, and recently completed
++/// projects remain available for a bounded carryover period.
++/// </summary>
++public interface IConferenceProjectScopeService
++{
++    int CompletedProjectRetentionDays { get; }
++
++    Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
++        CancellationToken cancellationToken = default);
++
++    Task<bool> IsProjectInScopeAsync(
++        string officerUserId,
++        int projectId,
++        CancellationToken cancellationToken = default);
++}
++
++public sealed record ConferenceProjectCarryover(
++    int ProjectId,
++    string ProjectName,
++    string OfficerUserId,
++    string OfficerName,
++    string OfficerRank,
++    DateOnly? CompletedOn,
++    int? CompletedYear,
++    short? CompletedMonth,
++    DateTime? CompletionRecordedAtUtc,
++    DateOnly CompletionSortDate,
++    string CompletionContext);
+diff --git a/Services/Workspace/OfficerConferenceReadService.cs b/Services/Workspace/OfficerConferenceReadService.cs
+index 1597664..cdd2009 100644
+--- a/Services/Workspace/OfficerConferenceReadService.cs
++++ b/Services/Workspace/OfficerConferenceReadService.cs
+@@ -28,6 +28,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+     private readonly IClock _clock;
+     private readonly ProjectRecordHealthService? _recordHealth;
+     private readonly IErpUsageQueryService? _erpUsage;
++    private readonly IConferenceProjectScopeService? _projectScope;
+ 
+     // Retained for isolated conference-read tests and legacy composition roots. The
+     // application DI container resolves the complete constructor below.
+@@ -44,7 +45,17 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+     }
+ 
+-    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
++    public OfficerConferenceReadService(
++        ApplicationDbContext db,
++        IOfficerWorkloadReadService workload,
++        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
++        IClock clock,
++        IConferenceProjectScopeService projectScope)
++        : this(db, workload, workflowStageMetadataProvider, clock)
++    {
++        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
++    }
++
+     public OfficerConferenceReadService(
+         ApplicationDbContext db,
+         IOfficerWorkloadReadService workload,
+@@ -52,16 +63,26 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         IClock clock,
+         ProjectRecordHealthService recordHealth,
+         IErpUsageQueryService erpUsage)
++        : this(db, workload, workflowStageMetadataProvider, clock)
+     {
+-        _db = db ?? throw new ArgumentNullException(nameof(db));
+-        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
+-        _workflowStageMetadataProvider = workflowStageMetadataProvider
+-            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+         _recordHealth = recordHealth ?? throw new ArgumentNullException(nameof(recordHealth));
+         _erpUsage = erpUsage ?? throw new ArgumentNullException(nameof(erpUsage));
+     }
+ 
++    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
++    public OfficerConferenceReadService(
++        ApplicationDbContext db,
++        IOfficerWorkloadReadService workload,
++        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
++        IClock clock,
++        ProjectRecordHealthService recordHealth,
++        IErpUsageQueryService erpUsage,
++        IConferenceProjectScopeService projectScope)
++        : this(db, workload, workflowStageMetadataProvider, clock, recordHealth, erpUsage)
++    {
++        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
++    }
++
+ 
+     public async Task<IReadOnlyList<OfficerConferenceOfficerOptionVm>> GetOfficerOptionsAsync(
+         string requestingUserId,
+@@ -73,7 +94,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             return Array.Empty<OfficerConferenceOfficerOptionVm>();
+         }
+ 
+-        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
++        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+         return BuildOfficerOptions(orderedOfficers, selectedOfficerUserId);
+     }
+ 
+@@ -88,7 +109,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             return null;
+         }
+ 
+-        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
++        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+         var selectedIndex = orderedOfficers
+             .Select((officer, index) => new { officer, index })
+             .FirstOrDefault(entry => string.Equals(
+@@ -102,7 +123,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         }
+ 
+         var selected = selectedIndex.officer;
+-        var projectIds = selected.Projects.Select(item => item.ProjectId).Distinct().ToArray();
++        var projectIds = selected.ActiveProjects
++            .Select(item => item.ProjectId)
++            .Concat(selected.RecentlyCompletedProjects.Select(item => item.ProjectId))
++            .Distinct()
++            .ToArray();
+         var ideaIds = selected.Ideas.Select(item => item.IdeaId).Distinct().ToArray();
+         var taskIds = selected.OtherTasks.Select(item => item.TaskId).Distinct().ToArray();
+ 
+@@ -241,8 +266,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             OfficerRank = selected.Rank,
+             OfficerInitial = InitialOf(selected.OfficerName),
+             ProjectCount = projectItems.Count,
++            ActiveProjectCount = selected.ActiveProjects.Count,
++            RecentlyCompletedProjectCount = selected.RecentlyCompletedProjects.Count,
+             IdeaCount = ideaItems.Count,
+             OtherTaskCount = taskItems.Count,
++            CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
+             PreviousOfficerUserId = selectedIndex.index > 0
+                 ? orderedOfficers[selectedIndex.index - 1].UserId
+                 : null,
+@@ -294,7 +322,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             return null;
+         }
+ 
+-        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
++        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+         var selected = orderedOfficers.FirstOrDefault(officer => string.Equals(
+             officer.UserId,
+             officerUserId,
+@@ -304,20 +332,25 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             return null;
+         }
+ 
++        var projectInScope = kind != ConferenceItemKind.Project
++            || (_projectScope is not null
++                ? await _projectScope.IsProjectInScopeAsync(officerUserId, itemId, cancellationToken)
++                : selected.ActiveProjects.Any(item => item.ProjectId == itemId));
++
+         return kind switch
+         {
+-            ConferenceItemKind.Project when selected.Projects.Any(item => item.ProjectId == itemId)
+-                => await BuildProjectDirectionHistoryAsync(selected, itemId, cancellationToken),
++            ConferenceItemKind.Project when projectInScope
++                => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+             ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
+                 => await BuildIdeaDirectionHistoryAsync(itemId, cancellationToken),
+             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
+-                => await BuildTaskDirectionHistoryAsync(selected, itemId, cancellationToken),
++                => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+             _ => null
+         };
+     }
+ 
+     private async Task<ConferenceDirectionHistoryVm> BuildProjectDirectionHistoryAsync(
+-        CommandOfficerWorkloadVm officer,
++        string officerUserId,
+         int projectId,
+         CancellationToken cancellationToken)
+     {
+@@ -341,7 +374,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         }
+ 
+         var assignedProjectOfficerId = string.IsNullOrWhiteSpace(project.LeadPoUserId)
+-            ? officer.UserId
++            ? officerUserId
+             : project.LeadPoUserId;
+         var mcoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Mco, cancellationToken);
+         var mcoUserIdArray = mcoUserIds.ToArray();
+@@ -430,7 +463,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                     AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
+                     AuthorRole = DisplayRole(direction.AuthorRole),
+                     CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
+-                    SnapshotLabel = "Stage when issued",
++                    SnapshotLabel = BuildProjectSnapshotLabel(direction.StageRef, direction.StageNameSnapshot),
+                     SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
+                 },
+                 ProgressEntries = progressEntries,
+@@ -585,7 +618,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+     }
+ 
+     private async Task<ConferenceDirectionHistoryVm> BuildTaskDirectionHistoryAsync(
+-        CommandOfficerWorkloadVm officer,
++        string officerUserId,
+         int taskId,
+         CancellationToken cancellationToken)
+     {
+@@ -609,7 +642,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         }
+ 
+         var assignedTaskUserId = string.IsNullOrWhiteSpace(task.AssignedToUserId)
+-            ? officer.UserId
++            ? officerUserId
+             : task.AssignedToUserId;
+         var firstDirection = directions[0];
+         var updates = await _db.ActionTaskUpdates
+@@ -730,8 +763,70 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         };
+ 
+ 
++    private async Task<IReadOnlyList<ConferenceOfficerContext>> LoadConferenceOfficersAsync(
++        string requestingUserId,
++        CancellationToken cancellationToken)
++    {
++        var activeWorkloads = await _workload.GetAllAsync(requestingUserId, cancellationToken);
++        IReadOnlyList<ConferenceProjectCarryover> carryovers = _projectScope is null
++            ? Array.Empty<ConferenceProjectCarryover>()
++            : await _projectScope.GetRecentlyCompletedProjectsAsync(cancellationToken);
++        var carryoversByOfficer = carryovers
++            .GroupBy(item => item.OfficerUserId, StringComparer.Ordinal)
++            .ToDictionary(
++                group => group.Key,
++                group => (IReadOnlyList<ConferenceProjectCarryover>)group
++                    .OrderByDescending(item => item.CompletionSortDate)
++                    .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
++                    .ToArray(),
++                StringComparer.Ordinal);
++
++        var result = new List<ConferenceOfficerContext>(
++            activeWorkloads.Count + carryoversByOfficer.Count);
++        var includedOfficerIds = new HashSet<string>(StringComparer.Ordinal);
++
++        foreach (var workload in activeWorkloads)
++        {
++            carryoversByOfficer.TryGetValue(workload.UserId, out var officerCarryovers);
++            officerCarryovers ??= Array.Empty<ConferenceProjectCarryover>();
++            result.Add(new ConferenceOfficerContext(
++                workload.UserId,
++                workload.OfficerName,
++                workload.Rank,
++                workload.Projects,
++                workload.Ideas,
++                workload.OtherTasks,
++                officerCarryovers));
++            includedOfficerIds.Add(workload.UserId);
++        }
++
++        var carryoverOnlyOfficers = carryovers
++            .Where(item => !includedOfficerIds.Contains(item.OfficerUserId))
++            .GroupBy(item => item.OfficerUserId, StringComparer.Ordinal)
++            .Select(group =>
++            {
++                var identity = group.First();
++                return new ConferenceOfficerContext(
++                    identity.OfficerUserId,
++                    identity.OfficerName,
++                    identity.OfficerRank,
++                    Array.Empty<CommandOfficerProjectVm>(),
++                    Array.Empty<CommandOfficerIdeaVm>(),
++                    Array.Empty<CommandOfficerTaskVm>(),
++                    group
++                        .OrderByDescending(item => item.CompletionSortDate)
++                        .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
++                        .ToArray());
++            })
++            .OrderBy(officer => OfficerRankOrder(officer.Rank))
++            .ThenBy(officer => officer.OfficerName, StringComparer.OrdinalIgnoreCase);
++
++        result.AddRange(carryoverOnlyOfficers);
++        return result;
++    }
++
+     private static IReadOnlyList<OfficerConferenceOfficerOptionVm> BuildOfficerOptions(
+-        IReadOnlyList<CommandOfficerWorkloadVm> orderedOfficers,
++        IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
+         string? selectedOfficerUserId)
+         => orderedOfficers
+             .Select(officer => new OfficerConferenceOfficerOptionVm(
+@@ -739,8 +834,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                 DisplayOfficerName(officer),
+                 string.Equals(officer.UserId, selectedOfficerUserId, StringComparison.Ordinal),
+                 officer.ProjectCount,
+-                officer.IdeaCount,
+-                officer.OtherTaskCount))
++                officer.Ideas.Count,
++                officer.OtherTasks.Count,
++                officer.ActiveProjects.Count,
++                officer.RecentlyCompletedProjects.Count))
+             .ToArray();
+ 
+     private async Task<List<ProjectRow>> LoadProjectsAsync(
+@@ -760,6 +857,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                 project.Name,
+                 project.LeadPoUserId,
+                 project.WorkflowVersion,
++                project.LifecycleStatus,
++                project.CompletedOn,
++                project.CompletedYear,
++                project.CompletedMonth,
+                 project.ProjectStages
+                     .Select(stage => new ProjectStageRow(
+                         stage.StageCode,
+@@ -1062,7 +1163,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+     }
+ 
+     private IReadOnlyList<OfficerConferenceItemVm> BuildProjectItems(
+-        CommandOfficerWorkloadVm officer,
++        ConferenceOfficerContext officer,
+         IReadOnlyList<ProjectRow> rows,
+         IReadOnlyList<Remark> remarks,
+         IReadOnlyDictionary<int, Remark> latestDirections,
+@@ -1076,61 +1177,94 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         var remarksByProject = remarks
+             .GroupBy(remark => remark.ProjectId)
+             .ToDictionary(group => group.Key, group => group.ToList());
+-        var result = new List<OfficerConferenceItemVm>();
++        var sources = officer.ActiveProjects
++            .Select(item => new ConferenceProjectSource(
++                item.ProjectId,
++                item.OpenUrl,
++                item.StageCode,
++                item.StageName,
++                IsRecentlyCompleted: false,
++                CompletionContext: null))
++            .Concat(officer.RecentlyCompletedProjects.Select(item => new ConferenceProjectSource(
++                item.ProjectId,
++                $"/Projects/Overview/{item.ProjectId}",
++                "COMPLETED",
++                "Completed",
++                IsRecentlyCompleted: true,
++                item.CompletionContext)))
++            .ToArray();
++        var result = new List<OfficerConferenceItemVm>(sources.Length);
+ 
+-        foreach (var workloadItem in officer.Projects)
++        foreach (var source in sources)
+         {
+-            if (!rowsById.TryGetValue(workloadItem.ProjectId, out var row))
++            if (!rowsById.TryGetValue(source.ProjectId, out var row))
+             {
+                 continue;
+             }
+ 
+-            var snapshots = row.Stages
+-                .Select(stage => new ProjectStageStatusSnapshot(
+-                    stage.StageCode,
+-                    stage.Status,
+-                    stage.SortOrder,
+-                    stage.ActualStart,
+-                    stage.CompletedOn))
+-                .ToList();
+-            var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+-                snapshots,
+-                _workflowStageMetadataProvider,
+-                row.WorkflowVersion,
+-                today);
+-            var currentCode = presentStage.CurrentStageCode ?? workloadItem.StageCode;
+-            var currentName = presentStage.CurrentStageName ?? workloadItem.StageName;
+-            var currentPdc = row.Stages
+-                .FirstOrDefault(stage => string.Equals(
+-                    stage.StageCode,
+-                    currentCode,
+-                    StringComparison.OrdinalIgnoreCase))
+-                ?.PlannedDue;
+-
+-            var contextParts = new List<string>();
+-            if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+-            {
+-                contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
+-            }
+-
++            string currentCode;
++            string currentName;
++            string? currentContext;
+             string? attentionText = null;
+             var requiresAttention = false;
+-            if (currentPdc.HasValue)
++
++            if (source.IsRecentlyCompleted)
+             {
+-                var delta = currentPdc.Value.DayNumber - today.DayNumber;
+-                if (delta < 0)
++                currentCode = "COMPLETED";
++                currentName = "Completed";
++                currentContext = string.IsNullOrWhiteSpace(source.CompletionContext)
++                    ? "Recently completed"
++                    : source.CompletionContext;
++            }
++            else
++            {
++                var snapshots = row.Stages
++                    .Select(stage => new ProjectStageStatusSnapshot(
++                        stage.StageCode,
++                        stage.Status,
++                        stage.SortOrder,
++                        stage.ActualStart,
++                        stage.CompletedOn))
++                    .ToList();
++                var presentStage = PresentStageHelper.ComputePresentStageAndAge(
++                    snapshots,
++                    _workflowStageMetadataProvider,
++                    row.WorkflowVersion,
++                    today);
++                currentCode = presentStage.CurrentStageCode ?? source.StageCode;
++                currentName = presentStage.CurrentStageName ?? source.StageName;
++                var currentPdc = row.Stages
++                    .FirstOrDefault(stage => string.Equals(
++                        stage.StageCode,
++                        currentCode,
++                        StringComparison.OrdinalIgnoreCase))
++                    ?.PlannedDue;
++
++                var contextParts = new List<string>();
++                if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+                 {
+-                    attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
+-                    requiresAttention = true;
++                    contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
++                }
++
++                if (currentPdc.HasValue)
++                {
++                    var delta = currentPdc.Value.DayNumber - today.DayNumber;
++                    if (delta < 0)
++                    {
++                        attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
++                        requiresAttention = true;
++                    }
++                    else
++                    {
++                        contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
++                    }
+                 }
+                 else
+                 {
+-                    contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
++                    contextParts.Add("PDC not set");
+                 }
+-            }
+-            else
+-            {
+-                contextParts.Add("PDC not set");
++
++                currentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts);
+             }
+ 
+             latestDirections.TryGetValue(row.Id, out var direction);
+@@ -1202,12 +1336,13 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                 Kind = ConferenceItemKind.Project,
+                 ItemId = row.Id,
+                 Title = row.Name,
+-                OpenUrl = workloadItem.OpenUrl,
++                OpenUrl = source.OpenUrl,
+                 CurrentStateCode = currentCode,
+                 CurrentStateName = currentName,
+-                CurrentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts),
++                CurrentContext = currentContext,
+                 AttentionText = attentionText,
+                 RequiresAttention = requiresAttention,
++                IsRecentlyCompleted = source.IsRecentlyCompleted,
+                 RecordHealth = recordHealth.GetValueOrDefault(row.Id),
+                 LatestDirection = direction is null
+                     ? null
+@@ -1218,7 +1353,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                         AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
+                         AuthorRole = DisplayRole(direction.AuthorRole),
+                         CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
+-                        SnapshotLabel = "Stage when issued",
++                        SnapshotLabel = BuildProjectSnapshotLabel(direction.StageRef, direction.StageNameSnapshot),
+                         SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
+                     },
+                 DirectionCount = directionCounts.GetValueOrDefault(row.Id),
+@@ -1233,7 +1368,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+     }
+ 
+     private static IReadOnlyList<OfficerConferenceItemVm> BuildIdeaItems(
+-        CommandOfficerWorkloadVm officer,
++        ConferenceOfficerContext officer,
+         IReadOnlyList<IdeaRow> rows,
+         IReadOnlyList<ProjectIdeaComment> comments,
+         IReadOnlyList<IdeaNoteRow> notes,
+@@ -1348,7 +1483,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+     }
+ 
+     private static IReadOnlyList<OfficerConferenceItemVm> BuildTaskItems(
+-        CommandOfficerWorkloadVm officer,
++        ConferenceOfficerContext officer,
+         IReadOnlyList<TaskRow> rows,
+         IReadOnlyList<ActionTaskUpdate> updates,
+         IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
+@@ -1495,6 +1630,12 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         => candidateAt < boundaryAt
+            || (candidateAt == boundaryAt && candidateId < boundaryId);
+ 
++    private static string BuildProjectSnapshotLabel(string? stageRef, string? stageName)
++        => string.IsNullOrWhiteSpace(stageRef)
++           && string.Equals(stageName, "Completed", StringComparison.OrdinalIgnoreCase)
++            ? "Status when issued"
++            : "Stage when issued";
++
+     private static string BuildStageSnapshot(string? stageRef, string? stageName)
+     {
+         if (string.IsNullOrWhiteSpace(stageRef) && string.IsNullOrWhiteSpace(stageName))
+@@ -1549,21 +1690,58 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             ? value
+             : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+ 
+-    private static string DisplayOfficerName(CommandOfficerWorkloadVm officer)
++    private static string DisplayOfficerName(ConferenceOfficerContext officer)
+         => string.IsNullOrWhiteSpace(officer.Rank)
+             ? officer.OfficerName
+             : $"{officer.Rank} {officer.OfficerName}";
+ 
++    private static int OfficerRankOrder(string? rank)
++    {
++        if (string.IsNullOrWhiteSpace(rank)) return int.MaxValue;
++        var value = rank.Trim().ToUpperInvariant();
++        if (value.Contains("LT COL", StringComparison.Ordinal)
++            || value.Contains("LIEUTENANT COLONEL", StringComparison.Ordinal)) return 20;
++        if (value.Contains("COLONEL", StringComparison.Ordinal) || value == "COL") return 10;
++        if (value.Contains("MAJOR", StringComparison.Ordinal) || value == "MAJ") return 30;
++        if (value.Contains("CAPTAIN", StringComparison.Ordinal) || value == "CAPT") return 40;
++        if (value.Contains("LIEUTENANT", StringComparison.Ordinal) || value == "LT") return 50;
++        return 100;
++    }
++
+     private static string InitialOf(string? name)
+         => string.IsNullOrWhiteSpace(name)
+             ? "P"
+             : name.Trim()[0].ToString().ToUpperInvariant();
+ 
++    private sealed record ConferenceOfficerContext(
++        string UserId,
++        string OfficerName,
++        string Rank,
++        IReadOnlyList<CommandOfficerProjectVm> ActiveProjects,
++        IReadOnlyList<CommandOfficerIdeaVm> Ideas,
++        IReadOnlyList<CommandOfficerTaskVm> OtherTasks,
++        IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects)
++    {
++        public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
++    }
++
++    private sealed record ConferenceProjectSource(
++        int ProjectId,
++        string OpenUrl,
++        string StageCode,
++        string StageName,
++        bool IsRecentlyCompleted,
++        string? CompletionContext);
++
+     private sealed record ProjectRow(
+         int Id,
+         string Name,
+         string? LeadPoUserId,
+         string WorkflowVersion,
++        ProjectLifecycleStatus LifecycleStatus,
++        DateOnly? CompletedOn,
++        int? CompletedYear,
++        short? CompletedMonth,
+         IReadOnlyList<ProjectStageRow> Stages);
+ 
+     private sealed record ProjectStageRow(
+diff --git a/ViewModels/Workspace/OfficerConferenceViewModels.cs b/ViewModels/Workspace/OfficerConferenceViewModels.cs
+index 0738ba4..a48892c 100644
+--- a/ViewModels/Workspace/OfficerConferenceViewModels.cs
++++ b/ViewModels/Workspace/OfficerConferenceViewModels.cs
+@@ -20,6 +20,9 @@ public sealed class OfficerConferenceVm
+ 
+     public string OfficerInitial { get; init; } = "P";
+     public int ProjectCount { get; init; }
++    public int ActiveProjectCount { get; init; }
++    public int RecentlyCompletedProjectCount { get; init; }
++    public int CompletedProjectRetentionDays { get; init; }
+     public int IdeaCount { get; init; }
+     public int OtherTaskCount { get; init; }
+ 
+@@ -40,7 +43,9 @@ public sealed record OfficerConferenceOfficerOptionVm(
+     bool IsSelected,
+     int ProjectCount = 0,
+     int IdeaCount = 0,
+-    int OtherTaskCount = 0);
++    int OtherTaskCount = 0,
++    int ActiveProjectCount = 0,
++    int RecentlyCompletedProjectCount = 0);
+ 
+ public sealed class OfficerConferenceSectionVm
  {
-     public bool IsDark { get; init; }
-+
-+    // Semantic aliases keep presentation code aligned with the visual language.
-+    // Accent is reserved for operational/status emphasis; SecondaryAccent for narrative content.
-+    public string OperationalAccent => Accent;
-+    public string OperationalAccentSoft => AccentSoft;
-+    public string NarrativeAccent => SecondaryAccent;
-+    public string NarrativeAccentSoft => SecondaryAccentSoft;
+@@ -63,6 +68,7 @@ public sealed class OfficerConferenceItemVm
+     public string? CurrentContext { get; init; }
+     public string? AttentionText { get; init; }
+     public bool RequiresAttention { get; init; }
++    public bool IsRecentlyCompleted { get; init; }
+     public WorkspaceRecordHealthVm? RecordHealth { get; init; }
+ 
+     public ConferenceDirectionVm? LatestDirection { get; init; }
+@@ -229,6 +235,7 @@ public sealed class OfficerConferenceSectionRenderVm
+     public DateTime MinimumTaskDueDate { get; init; }
+     public DateTime DefaultTaskDueDate { get; init; }
+     public ConferenceIdeaCreationOptionsVm IdeaCreation { get; init; } = new();
++    public int CompletedProjectRetentionDays { get; init; }
+     public OfficerConferenceSectionVm Section { get; init; } = new();
  }
  
- public static class ProjectBriefingThemeCatalog
-@@ -54,6 +63,8 @@ public static class ProjectBriefingThemeCatalog
-         AccentSoft: "E8EEF7",
-         SecondaryAccent: "2D7F82",
-         SecondaryAccentSoft: "E7F1F0",
-+        ProjectUpdateAccent: "8F0D21",
-+        ProjectUpdateLabelFill: "EDF1F6",
-         Positive: "39765A",
-         PositiveSoft: "E8F2EC",
-         Warning: "B36B20",
-@@ -89,6 +100,8 @@ public static class ProjectBriefingThemeCatalog
-         AccentSoft: "263659",
-         SecondaryAccent: "4FA6A8",
-         SecondaryAccentSoft: "203B3C",
-+        ProjectUpdateAccent: "5B7CFA",
-+        ProjectUpdateLabelFill: "242A34",
-         Positive: "69B889",
-         PositiveSoft: "23382D",
-         Warning: "D9A54C",
-diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
-index 008c2a6..a9de915 100644
---- a/wwwroot/css/pages/project-briefing-decks.css
-+++ b/wwwroot/css/pages/project-briefing-decks.css
-@@ -2905,3 +2905,66 @@ body.pbd-settings-drawer-open {
-         flex: 1 1 0;
+diff --git a/appsettings.Production.json b/appsettings.Production.json
+index 2ef5515..c68d478 100644
+--- a/appsettings.Production.json
++++ b/appsettings.Production.json
+@@ -16,6 +16,9 @@
+       "Microsoft.AspNetCore": "Warning"
      }
+   },
++  "Conference": {
++    "CompletedProjectRetentionDays": 90
++  },
+   "Todo": {
+     "RetentionDays": 7,
+     "MaxOpenTasks": 500
+diff --git a/appsettings.json b/appsettings.json
+index 67ee378..803f01a 100644
+--- a/appsettings.json
++++ b/appsettings.json
+@@ -44,6 +44,9 @@
+     "DefaultReviewPageSize": 25,
+     "MaximumReviewPageSize": 100
+   },
++  "Conference": {
++    "CompletedProjectRetentionDays": 90
++  },
+   "Todo": {
+     "RetentionDays": 7,
+     "MaxOpenTasks": 500
+diff --git a/wwwroot/css/officer-conference.css b/wwwroot/css/officer-conference.css
+index bac85d2..c82fe7c 100644
+--- a/wwwroot/css/officer-conference.css
++++ b/wwwroot/css/officer-conference.css
+@@ -215,6 +215,77 @@
+     font-style: italic;
  }
+ 
 +
-+/* Template-aware presentation previews */
-+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__title {
-+    top: .50rem;
-+    left: 1.18rem;
-+    right: 1.18rem;
-+    width: auto;
-+    height: .19rem;
++.oc-header__metric--carryover {
++    color: #56766e;
 +}
 +
-+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__content {
-+    top: .96rem;
-+    grid-template-columns: 1.08fr .92fr;
-+    grid-template-rows: 1.25fr .70fr;
-+    gap: .22rem;
++.oc-header__metric--carryover strong {
++    color: #2f6b5d;
 +}
 +
-+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__content i:first-child {
-+    grid-row: auto;
++.oc-project-group-heading {
++    min-height: 36px;
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: 12px;
++    padding: 7px 12px;
++    border-bottom: 1px solid #e4eaf2;
++    background: #f8fafc;
++    color: #4b607f;
 +}
 +
-+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__tertiary {
-+    grid-column: 1 / -1;
++.oc-project-group-heading:not(:first-child) {
++    border-top: 1px solid #e4eaf2;
 +}
 +
-+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__primary {
-+    position: relative;
-+    background-image: repeating-linear-gradient(
-+        to bottom,
-+        transparent 0,
-+        transparent .22rem,
-+        rgba(100, 116, 139, .20) .23rem,
-+        rgba(100, 116, 139, .20) .25rem);
++.oc-project-group-heading > span {
++    min-width: 0;
++    display: flex;
++    flex-wrap: wrap;
++    align-items: baseline;
++    gap: 4px 8px;
 +}
 +
-+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__header {
-+    background: #8f0d21;
++.oc-project-group-heading strong {
++    font-size: .66rem;
++    font-weight: 900;
++    letter-spacing: .055em;
++    text-transform: uppercase;
 +}
 +
-+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__primary {
-+    background-color: #fff;
++.oc-project-group-heading small {
++    color: #7b8799;
++    font-size: .62rem;
 +}
 +
-+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__secondary {
-+    background: #e6e8ea;
++.oc-project-group-heading b {
++    min-width: 23px;
++    height: 23px;
++    display: grid;
++    place-items: center;
++    padding: 0 6px;
++    border-radius: 999px;
++    background: #e9eef6;
++    color: #4b607f;
++    font-size: .64rem;
 +}
 +
-+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__tertiary {
-+    background: #fff;
++.oc-project-group-heading--completed {
++    background: #f3f9f7;
++    color: #35685b;
 +}
 +
-+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__header {
-+    background: #5b7cfa;
++.oc-project-group-heading--completed small {
++    color: #668178;
 +}
 +
-+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__primary,
-+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__tertiary {
-+    background-color: #1d222b;
++.oc-project-group-heading--completed b {
++    background: #dfeee9;
++    color: #2f6b5d;
 +}
 +
-+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__secondary {
-+    background: #252b34;
+ .oc-item + .oc-item { border-top: 1px solid #e9edf4; }
+ 
+ .oc-item {
+@@ -226,6 +297,26 @@
+     background: #fff;
+ }
+ 
++.oc-item--completed-carryover {
++    background: linear-gradient(90deg, rgba(239,248,245,.82), #fff 18%);
 +}
-diff --git a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
-index 0695a3d..8fce91f 100644
---- a/wwwroot/js/pages/project-briefing-decks.js
-+++ b/wwwroot/js/pages/project-briefing-decks.js
-@@ -520,6 +520,9 @@ if (root) {
-     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
-     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
-     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
-+    root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
-+      preview.classList.toggle('is-update-sheet', updateSheet);
-+    });
-     restoreSettingsSectionState();
-     validateUpdateSheetRows();
-     syncPreflightRequirementVisibility();
-diff --git a/wwwroot/js/projects/project-briefing-decks.test.js b/wwwroot/js/projects/project-briefing-decks.test.js
-index 1ad98c8..2069a52 100644
---- a/wwwroot/js/projects/project-briefing-decks.test.js
-+++ b/wwwroot/js/projects/project-briefing-decks.test.js
-@@ -170,3 +170,8 @@ test('Project Update Sheet preflight follows selected rows and hide-empty policy
-   assert.match(source, /arppReferenceAvailableCount/);
-   assert.match(source, /PdcOrCompletionStatus/);
++
++.oc-item--completed-carryover::before {
++    content: "";
++    position: absolute;
++    inset: 0 auto 0 0;
++    width: 3px;
++    background: #4e8a79;
++}
++
++.oc-item--completed-carryover .oc-state strong {
++    color: #2f6b5d;
++}
++
++.oc-item--completed-carryover .oc-current-context {
++    color: #607a72;
++}
++
+ .oc-item--attention::before {
+     content: "";
+     position: absolute;
+diff --git a/wwwroot/js/pages/officer-conference.test.js b/wwwroot/js/pages/officer-conference.test.js
+index 0fcacde..fad3701 100644
+--- a/wwwroot/js/pages/officer-conference.test.js
++++ b/wwwroot/js/pages/officer-conference.test.js
+@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
+ 
+ const source = fs.readFileSync(path.resolve(__dirname, 'officer-conference.js'), 'utf8');
+ const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer-conference.css'), 'utf8');
++const conferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Conference.cshtml'), 'utf8');
++const conferenceSection = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceSection.cshtml'), 'utf8');
++const conferenceItemRow = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceItemRow.cshtml'), 'utf8');
+ 
+ test('conference editor supports keyboard save and cancel', () => {
+     assert.match(source, /event\.key === 'Escape'/);
+@@ -225,3 +228,18 @@ test('conference history navigation restores keyboard focus after replacing row
+     assert.match(source, /const preferredSelector = delta < 0/);
+     assert.match(source, /focusTarget\?\.focus\(\{ preventScroll: true \}\)/);
  });
 +
-+test('presentation theme previews follow the selected Standard or Project Update Sheet template', () => {
-+  assert.match(source, /data-pbd-theme-preview/);
-+  assert.match(source, /preview\.classList\.toggle\('is-update-sheet', updateSheet\)/);
++test('conference view distinguishes active and recently completed project scope', () => {
++    assert.match(conferenceView, /ActiveProjectCount/);
++    assert.match(conferenceView, /RecentlyCompletedProjectCount/);
++    assert.match(conferenceSection, /Active projects/);
++    assert.match(conferenceSection, /Recently completed/);
++    assert.match(conferenceSection, /CompletedProjectRetentionDays/);
++});
++
++test('recently completed project rows carry semantic state and restrained visual treatment', () => {
++    assert.match(conferenceItemRow, /oc-item--completed-carryover/);
++    assert.match(conferenceItemRow, /data-project-carryover/);
++    assert.match(conferenceCss, /\.oc-project-group-heading--completed/);
++    assert.match(conferenceCss, /\.oc-item--completed-carryover::before/);
 +});

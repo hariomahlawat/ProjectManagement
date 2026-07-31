@@ -16,6 +16,7 @@ using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.ConferenceRemarks;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Remarks;
+using ProjectManagement.Services.Workspace;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Tests;
@@ -131,6 +132,44 @@ public sealed class ConferenceRemarkCommandServiceTests
     }
 
     [Fact]
+    public async Task AddAsync_Project_AllowsRecentlyCompletedConferenceCarryover()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var actor = await scope.AddCommandUserAsync("command", RoleNames.HoD);
+        var officer = await scope.AddUserAsync("officer");
+        var project = new Project
+        {
+            Name = "Completed project",
+            CreatedByUserId = actor.Id,
+            LeadPoUserId = officer.Id,
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CompletedOn = new DateOnly(2026, 7, 10),
+            CompletedYear = 2026,
+            CompletedMonth = 7
+        };
+        scope.Db.Projects.Add(project);
+        await scope.Db.SaveChangesAsync();
+
+        var remarks = new CapturingRemarkService();
+        var projectScope = new StubConferenceProjectScopeService(officer.Id, project.Id, isAllowed: true);
+        var service = scope.CreateService(remarks: remarks, projectScope: projectScope);
+
+        var result = await service.AddAsync(
+            actor.Id,
+            new AddConferenceRemarkRequest(
+                officer.Id,
+                ConferenceItemKind.Project,
+                project.Id,
+                "Confirm post-completion closure."));
+
+        Assert.NotNull(remarks.Request);
+        Assert.Equal(project.Id, remarks.Request!.ProjectId);
+        Assert.Equal("Confirm post-completion closure.", result.Direction.Body);
+        Assert.Equal(officer.Id, projectScope.LastRequest?.OfficerUserId);
+        Assert.Equal(project.Id, projectScope.LastRequest?.ProjectId);
+    }
+
+    [Fact]
     public async Task AddAsync_RejectsNonCommandRole()
     {
         await using var scope = await TestScope.CreateAsync();
@@ -237,14 +276,27 @@ public sealed class ConferenceRemarkCommandServiceTests
         public ConferenceRemarkCommandService CreateService(
             IRemarkService? remarks = null,
             IProjectIdeaCommandService? ideas = null,
-            IActionTaskCollaborationService? tasks = null)
-            => new(
-                Db,
-                UserManager,
-                remarks ?? new CapturingRemarkService(),
-                ideas ?? new CapturingIdeaCommandService(),
-                tasks ?? new CapturingTaskCollaborationService(),
-                new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero)));
+            IActionTaskCollaborationService? tasks = null,
+            IConferenceProjectScopeService? projectScope = null)
+        {
+            var clock = new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero));
+            return projectScope is null
+                ? new ConferenceRemarkCommandService(
+                    Db,
+                    UserManager,
+                    remarks ?? new CapturingRemarkService(),
+                    ideas ?? new CapturingIdeaCommandService(),
+                    tasks ?? new CapturingTaskCollaborationService(),
+                    clock)
+                : new ConferenceRemarkCommandService(
+                    Db,
+                    UserManager,
+                    remarks ?? new CapturingRemarkService(),
+                    ideas ?? new CapturingIdeaCommandService(),
+                    tasks ?? new CapturingTaskCollaborationService(),
+                    clock,
+                    projectScope);
+        }
 
         public async ValueTask DisposeAsync()
         {
@@ -266,6 +318,43 @@ public sealed class ConferenceRemarkCommandServiceTests
                 new IdentityErrorDescriber(),
                 null!,
                 NullLogger<UserManager<ApplicationUser>>.Instance);
+        }
+    }
+
+    private sealed class StubConferenceProjectScopeService : IConferenceProjectScopeService
+    {
+        private readonly string _officerUserId;
+        private readonly int _projectId;
+        private readonly bool _isAllowed;
+
+        public StubConferenceProjectScopeService(
+            string officerUserId,
+            int projectId,
+            bool isAllowed)
+        {
+            _officerUserId = officerUserId;
+            _projectId = projectId;
+            _isAllowed = isAllowed;
+        }
+
+        public int CompletedProjectRetentionDays => 90;
+        public (string OfficerUserId, int ProjectId)? LastRequest { get; private set; }
+
+        public Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ConferenceProjectCarryover>>(
+                Array.Empty<ConferenceProjectCarryover>());
+
+        public Task<bool> IsProjectInScopeAsync(
+            string officerUserId,
+            int projectId,
+            CancellationToken cancellationToken = default)
+        {
+            LastRequest = (officerUserId, projectId);
+            return Task.FromResult(
+                _isAllowed
+                && string.Equals(officerUserId, _officerUserId, StringComparison.Ordinal)
+                && projectId == _projectId);
         }
     }
 

@@ -645,6 +645,7 @@ public sealed class RemarkService : IRemarkService
             .Select(candidate => new
             {
                 candidate.WorkflowVersion,
+                candidate.LifecycleStatus,
                 Stages = candidate.ProjectStages
                     .Select(stage => new ProjectStageStatusSnapshot(
                         stage.StageCode,
@@ -655,6 +656,11 @@ public sealed class RemarkService : IRemarkService
                     .ToList()
             })
             .SingleAsync(cancellationToken);
+
+        if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+        {
+            return (null, "Completed");
+        }
 
         var presentStage = PresentStageHelper.ComputePresentStageAndAge(
             project.Stages,

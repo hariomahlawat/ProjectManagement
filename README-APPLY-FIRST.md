@@ -1,32 +1,36 @@
-# PRISM Project Briefing — Presentation Visual-System Completion
+# PRISM Conference Completion Carryover
 
-This package is based on the latest **Adaptive Project Update Sheets** implementation.
+This package contains exact replacement files for the Conference Completion Carryover phase.
 
 ## Apply
 
-1. Back up the solution.
-2. Copy the supplied folders into the `ProjectManagement-master` solution root.
-3. Allow the listed files to replace the existing files.
-4. Add the new file:
-   `Services/ProjectBriefings/Presentation/ProjectBriefingNarrativeTypography.cs`
-5. Clean and rebuild the solution.
-6. Run the Project Briefing test suite and generate representative light/dark decks.
+1. Back up the current application source.
+2. Copy the folders and files from this package into the project root, preserving paths.
+3. Replace existing files when prompted.
+4. Rebuild the solution and run the test suite.
+5. Restart the application/IIS site after deployment.
 
-The included `IMPLEMENTATION.patch` is an alternative to file replacement and applies against the latest Adaptive Update Sheets baseline.
+Alternatively, apply `IMPLEMENTATION.patch` from the project root with Git.
 
-## Database
+## Configuration
 
-No migration or database update is required.
+The carryover period is configured in both appsettings files:
 
-## Scope
+```json
+"Conference": {
+  "CompletedProjectRetentionDays": 90
+}
+```
 
-- Shared semantic project-slide header renderer.
-- Graphite Dark project titles use primary white text; the operational top rule remains blue.
-- Editorial Light Project Update Sheets retain a centrally defined formal maroon rule.
-- Semantic operational, narrative and update-sheet colour roles.
-- Template-aware theme previews in Deck settings.
-- Sparse, standard and dense narrative typography profiles.
-- Improved photograph/status/cost vertical balance.
-- Exact colour and shape-level presentation tests.
+The accepted range is 1–730 days. Startup validation rejects an invalid value.
 
-No project selection, ordering, cost resolution, PDC/completion resolution, update-sheet row selection, or database behaviour is changed.
+## Behaviour
+
+- Active workload counts remain unchanged.
+- Recently completed projects remain in Conference for the configured carryover period.
+- Active and recently completed projects are shown as separate groups.
+- Officers with only recently completed projects remain selectable in Conference.
+- Direction history and further directions remain available during carryover.
+- Completion display respects exact date, month/year, year-only and unknown precision.
+- A direction issued after completion records the semantic snapshot `Completed`.
+- No database migration is required.

@@ -501,6 +501,10 @@ builder.Services.AddOptions<ErpUsageOptions>()
     .Bind(builder.Configuration.GetSection(ErpUsageOptions.SectionName))
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<ErpUsageOptions>, ErpUsageOptionsValidator>();
+builder.Services.AddOptions<ConferenceOptions>()
+    .Bind(builder.Configuration.GetSection(ConferenceOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ConferenceOptions>, ConferenceOptionsValidator>();
 builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
@@ -585,6 +589,7 @@ builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingP
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IProjectOfficerConferenceActionQuery, ProjectManagement.Services.Workspace.ProjectOfficerConferenceActionQuery>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceProjectScopeService, ProjectManagement.Services.Workspace.ConferenceProjectScopeService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();

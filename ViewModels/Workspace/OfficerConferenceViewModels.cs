@@ -20,6 +20,9 @@ public sealed class OfficerConferenceVm
 
     public string OfficerInitial { get; init; } = "P";
     public int ProjectCount { get; init; }
+    public int ActiveProjectCount { get; init; }
+    public int RecentlyCompletedProjectCount { get; init; }
+    public int CompletedProjectRetentionDays { get; init; }
     public int IdeaCount { get; init; }
     public int OtherTaskCount { get; init; }
 
@@ -40,7 +43,9 @@ public sealed record OfficerConferenceOfficerOptionVm(
     bool IsSelected,
     int ProjectCount = 0,
     int IdeaCount = 0,
-    int OtherTaskCount = 0);
+    int OtherTaskCount = 0,
+    int ActiveProjectCount = 0,
+    int RecentlyCompletedProjectCount = 0);
 
 public sealed class OfficerConferenceSectionVm
 {
@@ -63,6 +68,7 @@ public sealed class OfficerConferenceItemVm
     public string? CurrentContext { get; init; }
     public string? AttentionText { get; init; }
     public bool RequiresAttention { get; init; }
+    public bool IsRecentlyCompleted { get; init; }
     public WorkspaceRecordHealthVm? RecordHealth { get; init; }
 
     public ConferenceDirectionVm? LatestDirection { get; init; }
@@ -229,6 +235,7 @@ public sealed class OfficerConferenceSectionRenderVm
     public DateTime MinimumTaskDueDate { get; init; }
     public DateTime DefaultTaskDueDate { get; init; }
     public ConferenceIdeaCreationOptionsVm IdeaCreation { get; init; } = new();
+    public int CompletedProjectRetentionDays { get; init; }
     public OfficerConferenceSectionVm Section { get; init; } = new();
 }
 
