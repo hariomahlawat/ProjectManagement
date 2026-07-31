@@ -1,2107 +1,436 @@
-diff --git a/Configuration/ConferenceOptions.cs b/Configuration/ConferenceOptions.cs
-new file mode 100644
-index 0000000..2b74930
---- /dev/null
-+++ b/Configuration/ConferenceOptions.cs
-@@ -0,0 +1,15 @@
-+namespace ProjectManagement.Configuration;
-+
-+/// <summary>
-+/// Controls the command-conference review window without changing project lifecycle data.
-+/// </summary>
-+public sealed class ConferenceOptions
-+{
-+    public const string SectionName = "Conference";
-+
-+    /// <summary>
-+    /// Number of calendar days for which a completed project remains available in the
-+    /// officer conference review. The completion day is included.
-+    /// </summary>
-+    public int CompletedProjectRetentionDays { get; set; } = 90;
-+}
-diff --git a/Configuration/ConferenceOptionsValidator.cs b/Configuration/ConferenceOptionsValidator.cs
-new file mode 100644
-index 0000000..2db5995
---- /dev/null
-+++ b/Configuration/ConferenceOptionsValidator.cs
-@@ -0,0 +1,19 @@
-+using Microsoft.Extensions.Options;
-+
-+namespace ProjectManagement.Configuration;
-+
-+public sealed class ConferenceOptionsValidator : IValidateOptions<ConferenceOptions>
-+{
-+    private const int MaximumRetentionDays = 730;
-+
-+    public ValidateOptionsResult Validate(string? name, ConferenceOptions options)
-+    {
-+        if (options.CompletedProjectRetentionDays is < 1 or > MaximumRetentionDays)
-+        {
-+            return ValidateOptionsResult.Fail(
-+                $"Conference:{nameof(ConferenceOptions.CompletedProjectRetentionDays)} must be between 1 and {MaximumRetentionDays} days.");
-+        }
-+
-+        return ValidateOptionsResult.Success;
-+    }
-+}
-diff --git a/Pages/Workspace/Conference.cshtml b/Pages/Workspace/Conference.cshtml
-index 09eb97c..8cbfa38 100644
---- a/Pages/Workspace/Conference.cshtml
-+++ b/Pages/Workspace/Conference.cshtml
-@@ -58,9 +58,13 @@
-                             <span class="oc-officer-card__body">
-                                 <strong>@option.DisplayName</strong>
-                                 <small>
--                                    @option.ProjectCount @(option.ProjectCount == 1 ? "project" : "projects")
--                                    · @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")
--                                    · @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")
-+                                    @option.ActiveProjectCount active @(option.ActiveProjectCount == 1 ? "project" : "projects")
-+                                    @if (option.RecentlyCompletedProjectCount > 0)
-+                                    {
-+                                        <span>· @option.RecentlyCompletedProjectCount recently completed</span>
-+                                    }
-+                                    <span>· @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")</span>
-+                                    <span>· @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
-                                 </small>
-                             </span>
-                             <i class="bi bi-chevron-right" aria-hidden="true"></i>
-@@ -90,7 +94,11 @@
-                         <span class="oc-eyebrow">Officer conference review</span>
-                         <h1>@Model.Conference.OfficerDisplayName</h1>
-                         <p>
--                            <span class="oc-header__metric"><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
-+                            <span class="oc-header__metric"><strong>@Model.Conference.ActiveProjectCount</strong> active @(Model.Conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
-+                            @if (Model.Conference.RecentlyCompletedProjectCount > 0)
-+                            {
-+                                <span class="oc-header__metric oc-header__metric--carryover"><strong>@Model.Conference.RecentlyCompletedProjectCount</strong> recently completed</span>
-+                            }
-                             <span class="oc-header__metric"><strong data-oc-header-idea-count>@Model.Conference.IdeaCount</strong> <span data-oc-header-idea-label>@(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span></span>
-                             <span class="oc-header__metric oc-header__metric--tasks @(Model.Conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
-                         </p>
-@@ -185,6 +193,7 @@
-                         MinimumTaskDueDate = Model.MinimumTaskDueDate,
-                         DefaultTaskDueDate = Model.DefaultTaskDueDate,
-                         IdeaCreation = Model.IdeaCreation,
-+                        CompletedProjectRetentionDays = Model.Conference.CompletedProjectRetentionDays,
-                         Section = section
-                     })
-             }
-diff --git a/Pages/Workspace/_ConferenceItemRow.cshtml b/Pages/Workspace/_ConferenceItemRow.cshtml
-index a49bc48..4ca49f2 100644
---- a/Pages/Workspace/_ConferenceItemRow.cshtml
-+++ b/Pages/Workspace/_ConferenceItemRow.cshtml
-@@ -26,8 +26,9 @@
-     var directionCount = Math.Max(item.DirectionCount, direction is null ? 0 : 1);
+diff --git a/Pages/Projects/Remarks/Index.cshtml b/Pages/Projects/Remarks/Index.cshtml
+index 16b2ebd..b442700 100644
+--- a/Pages/Projects/Remarks/Index.cshtml
++++ b/Pages/Projects/Remarks/Index.cshtml
+@@ -8,6 +8,12 @@
+     ViewData["Title"] = $"Remarks - {projectName}";
+     ViewData["UseFullWidth"] = true;
+     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
++    var defaultConferenceRemark = Model.RemarksPanel.AllowConference
++        && string.Equals(Model.RemarksPanel.DefaultType, "Conference", StringComparison.OrdinalIgnoreCase);
++    var defaultExternalRemark = !defaultConferenceRemark
++        && Model.RemarksPanel.AllowExternal
++        && string.Equals(Model.RemarksPanel.DefaultType, "External", StringComparison.OrdinalIgnoreCase);
++    var defaultInternalRemark = !defaultConferenceRemark && !defaultExternalRemark;
  }
  
--<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
-+<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty) @(item.IsRecentlyCompleted ? "oc-item--completed-carryover" : string.Empty)"
-          data-oc-item
-+         data-project-carryover="@(item.IsRecentlyCompleted ? "true" : "false")"
-          data-officer-id="@Model.OfficerUserId"
-          data-item-kind="@((int)item.Kind)"
-          data-item-id="@item.ItemId"
-diff --git a/Pages/Workspace/_ConferenceSection.cshtml b/Pages/Workspace/_ConferenceSection.cshtml
-index f6e8750..8f3526f 100644
---- a/Pages/Workspace/_ConferenceSection.cshtml
-+++ b/Pages/Workspace/_ConferenceSection.cshtml
-@@ -13,6 +13,12 @@
-     var isIdeaSection = sectionModel.Kind == ConferenceItemKind.ProjectIdea;
-     var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
-     var itemColumnLabel = isProjectSection ? "Project" : isIdeaSection ? "Idea" : "Task";
-+    var activeProjectItems = isProjectSection
-+        ? sectionModel.Items.Where(item => !item.IsRecentlyCompleted).ToArray()
-+        : Array.Empty<OfficerConferenceItemVm>();
-+    var recentlyCompletedProjectItems = isProjectSection
-+        ? sectionModel.Items.Where(item => item.IsRecentlyCompleted).ToArray()
-+        : Array.Empty<OfficerConferenceItemVm>();
- 
-     var ideaEditorId = $"oc-idea-create-{Model.OfficerUserId}";
-     var ideaTitleErrorId = $"{ideaEditorId}-title-error";
-@@ -276,15 +282,63 @@
-             <span>Progress after direction</span>
-         </div>
-         <div class="oc-item-list" data-oc-item-list>
--            @foreach (var item in sectionModel.Items)
-+            @if (isProjectSection && recentlyCompletedProjectItems.Length > 0)
-             {
--                @await Html.PartialAsync(
--                    "_ConferenceItemRow",
--                    new OfficerConferenceItemRenderVm
-+                @if (activeProjectItems.Length > 0)
-+                {
-+                    <div class="oc-project-group-heading oc-project-group-heading--active"
-+                         role="heading"
-+                         aria-level="3">
-+                        <span><strong>Active projects</strong></span>
-+                        <b>@activeProjectItems.Length</b>
-+                    </div>
-+                    @foreach (var item in activeProjectItems)
-                     {
--                        OfficerUserId = Model.OfficerUserId,
--                        Item = item
--                    })
-+                        @await Html.PartialAsync(
-+                            "_ConferenceItemRow",
-+                            new OfficerConferenceItemRenderVm
-+                            {
-+                                OfficerUserId = Model.OfficerUserId,
-+                                Item = item
-+                            })
-+                    }
-+                }
-+
-+                <div class="oc-project-group-heading oc-project-group-heading--completed"
-+                     role="heading"
-+                     aria-level="3">
-+                    <span>
-+                        <strong>Recently completed</strong>
-+                        @if (Model.CompletedProjectRetentionDays > 0)
-+                        {
-+                            <small>Available for @Model.CompletedProjectRetentionDays days after completion</small>
-+                        }
-+                    </span>
-+                    <b>@recentlyCompletedProjectItems.Length</b>
-+                </div>
-+                @foreach (var item in recentlyCompletedProjectItems)
-+                {
-+                    @await Html.PartialAsync(
-+                        "_ConferenceItemRow",
-+                        new OfficerConferenceItemRenderVm
-+                        {
-+                            OfficerUserId = Model.OfficerUserId,
-+                            Item = item
-+                        })
-+                }
-+            }
-+            else
-+            {
-+                @foreach (var item in sectionModel.Items)
-+                {
-+                    @await Html.PartialAsync(
-+                        "_ConferenceItemRow",
-+                        new OfficerConferenceItemRenderVm
-+                        {
-+                            OfficerUserId = Model.OfficerUserId,
-+                            Item = item
-+                        })
-+                }
-             }
-         </div>
+ <div class="project-remarks-page">
+@@ -122,18 +128,18 @@
+                             <div class="project-remarks-option-group">
+                                 <span>Type</span>
+                                 <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
+-                                    <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
++                                    <button type="button" class="btn btn-outline-secondary@(defaultInternalRemark ? " active" : string.Empty)" data-remarks-composer-option="Internal" aria-pressed="@(defaultInternalRemark ? "true" : "false")">Internal</button>
+                                     @if (Model.RemarksPanel.AllowExternal)
+                                     {
+-                                        <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
++                                        <button type="button" class="btn btn-outline-secondary@(defaultExternalRemark ? " active" : string.Empty)" data-remarks-composer-option="External" aria-pressed="@(defaultExternalRemark ? "true" : "false")">External</button>
+                                     }
+                                     @if (Model.RemarksPanel.AllowConference)
+                                     {
+-                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
++                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option@(defaultConferenceRemark ? " active" : string.Empty)" data-remarks-composer-option="Conference" aria-pressed="@(defaultConferenceRemark ? "true" : "false")">Conference</button>
+                                     }
+                                 </div>
+                             </div>
+-                            <div class="remarks-composer-external project-remarks-external d-none" data-remarks-external-fields>
++                            <div class="remarks-composer-external project-remarks-external@(defaultExternalRemark ? string.Empty : " d-none")" data-remarks-external-fields>
+                                 <div>
+                                     <label for="remark-event-date">Event date</label>
+                                     <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+diff --git a/Pages/Projects/_ProjectLifecycleWorkspace.cshtml b/Pages/Projects/_ProjectLifecycleWorkspace.cshtml
+index dd01c36..c2c1475 100644
+--- a/Pages/Projects/_ProjectLifecycleWorkspace.cshtml
++++ b/Pages/Projects/_ProjectLifecycleWorkspace.cshtml
+@@ -50,6 +50,12 @@
      }
-diff --git a/Program.cs b/Program.cs
-index d6750f5..d833e5d 100644
---- a/Program.cs
-+++ b/Program.cs
-@@ -501,6 +501,10 @@ builder.Services.AddOptions<ErpUsageOptions>()
-     .Bind(builder.Configuration.GetSection(ErpUsageOptions.SectionName))
-     .ValidateOnStart();
- builder.Services.AddSingleton<IValidateOptions<ErpUsageOptions>, ErpUsageOptionsValidator>();
-+builder.Services.AddOptions<ConferenceOptions>()
-+    .Bind(builder.Configuration.GetSection(ConferenceOptions.SectionName))
-+    .ValidateOnStart();
-+builder.Services.AddSingleton<IValidateOptions<ConferenceOptions>, ConferenceOptionsValidator>();
- builder.Services.Configure<IprAttachmentOptions>(
-     builder.Configuration.GetSection("IprAttachments"));
- builder.Services.Configure<FfcAttachmentOptions>(
-@@ -585,6 +589,7 @@ builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingP
- builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
- builder.Services.AddScoped<ProjectManagement.Services.Workspace.IProjectOfficerConferenceActionQuery, ProjectManagement.Services.Workspace.ProjectOfficerConferenceActionQuery>();
- builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
-+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceProjectScopeService, ProjectManagement.Services.Workspace.ConferenceProjectScopeService>();
- builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
- builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
- builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();
-diff --git a/ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs b/ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
+ 
+     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
++    var defaultConferenceRemark = Model.RemarksPanel.AllowConference
++        && string.Equals(Model.RemarksPanel.DefaultType, "Conference", StringComparison.OrdinalIgnoreCase);
++    var defaultExternalRemark = !defaultConferenceRemark
++        && Model.RemarksPanel.AllowExternal
++        && string.Equals(Model.RemarksPanel.DefaultType, "External", StringComparison.OrdinalIgnoreCase);
++    var defaultInternalRemark = !defaultConferenceRemark && !defaultExternalRemark;
+ }
+             <div class="card pm-card project-lifecycle-panel"
+                  data-panel-project-id="@Model.Project!.Id"
+@@ -412,17 +418,17 @@
+                                                 </div>
+                                             }
+                                             <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
+-                                                <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
++                                                <button type="button" class="btn btn-outline-secondary@(defaultInternalRemark ? " active" : string.Empty)" data-remarks-composer-option="Internal" aria-pressed="@(defaultInternalRemark ? "true" : "false")">Internal</button>
+                                                 @if (Model.RemarksPanel.AllowExternal)
+                                                 {
+-                                                    <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
++                                                    <button type="button" class="btn btn-outline-secondary@(defaultExternalRemark ? " active" : string.Empty)" data-remarks-composer-option="External" aria-pressed="@(defaultExternalRemark ? "true" : "false")">External</button>
+                                                 }
+                                                 @if (Model.RemarksPanel.AllowConference)
+                                                 {
+-                                                    <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
++                                                    <button type="button" class="btn btn-outline-secondary remarks-conference-option@(defaultConferenceRemark ? " active" : string.Empty)" data-remarks-composer-option="Conference" aria-pressed="@(defaultConferenceRemark ? "true" : "false")">Conference</button>
+                                                 }
+                                             </div>
+-                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
++                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2@(defaultExternalRemark ? string.Empty : " d-none")" data-remarks-external-fields>
+                                                 <div>
+                                                     <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
+                                                     <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+diff --git a/ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs b/ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs
 new file mode 100644
-index 0000000..34b07cb
+index 0000000..2120fde
 --- /dev/null
-+++ b/ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
-@@ -0,0 +1,196 @@
-+using Microsoft.AspNetCore.Identity;
-+using Microsoft.Data.Sqlite;
-+using Microsoft.EntityFrameworkCore;
-+using Microsoft.Extensions.Options;
-+using ProjectManagement.Configuration;
-+using ProjectManagement.Data;
-+using ProjectManagement.Infrastructure;
-+using ProjectManagement.Models;
-+using ProjectManagement.Services;
-+using ProjectManagement.Services.Workspace;
++++ b/ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs
+@@ -0,0 +1,84 @@
++using System;
++using System.IO;
++using Xunit;
 +
 +namespace ProjectManagement.Tests;
 +
-+public sealed class ConferenceProjectScopeServiceTests
++public sealed class ProjectRemarkDefaultTypeContractTests
 +{
-+    [Theory]
-+    [InlineData(0, false)]
-+    [InlineData(1, true)]
-+    [InlineData(90, true)]
-+    [InlineData(730, true)]
-+    [InlineData(731, false)]
-+    public void ConferenceOptionsValidator_EnforcesSafeRetentionRange(int days, bool expectedValid)
++    [Fact]
++    public void ProjectRemarkComposers_RenderTheServerResolvedDefaultType()
 +    {
-+        var result = new ConferenceOptionsValidator().Validate(
-+            name: null,
-+            options: new ConferenceOptions { CompletedProjectRetentionDays = days });
++        var standalone = ReadRepoFile("Pages", "Projects", "Remarks", "Index.cshtml");
++        var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
 +
-+        Assert.Equal(expectedValid, result.Succeeded);
-+    }
-+
-+    [Theory]
-+    [InlineData(2026, 7, 25, true)]
-+    [InlineData(2026, 5, 2, true)]
-+    [InlineData(2026, 5, 1, false)]
-+    [InlineData(2026, 8, 1, false)]
-+    public void TryResolveCarryover_UsesExactCompletionDate(
-+        int year,
-+        int month,
-+        int day,
-+        bool expected)
-+    {
-+        var included = ConferenceProjectScopeService.TryResolveCarryover(
-+            new DateOnly(year, month, day),
-+            year,
-+            (short)month,
-+            null,
-+            new DateOnly(2026, 7, 31),
-+            90,
-+            out _);
-+
-+        Assert.Equal(expected, included);
++        Assert.Contains("Model.RemarksPanel.DefaultType", standalone, StringComparison.Ordinal);
++        Assert.Contains("defaultConferenceRemark", standalone, StringComparison.Ordinal);
++        Assert.Contains("defaultConferenceRemark", workspace, StringComparison.Ordinal);
++        Assert.DoesNotContain(
++            "class=\"btn btn-outline-secondary active\" data-remarks-composer-option=\"Internal\"",
++            standalone,
++            StringComparison.Ordinal);
++        Assert.DoesNotContain(
++            "class=\"btn btn-outline-secondary active\" data-remarks-composer-option=\"Internal\"",
++            workspace,
++            StringComparison.Ordinal);
 +    }
 +
 +    [Fact]
-+    public void TryResolveCarryover_RespectsPartialPrecisionAndAuditFallback()
++    public void RemarksClientInitialisesAndResetsToTheConfiguredDefaultType()
 +    {
-+        Assert.True(ConferenceProjectScopeService.TryResolveCarryover(
-+            null,
-+            2026,
-+            5,
-+            null,
-+            new DateOnly(2026, 7, 31),
-+            90,
-+            out var monthSortDate));
-+        Assert.Equal(new DateOnly(2026, 5, 31), monthSortDate);
++        var script = ReadRepoFile("wwwroot", "js", "projects", "remarks-panel.js");
 +
-+        Assert.True(ConferenceProjectScopeService.TryResolveCarryover(
-+            null,
-+            2026,
-+            null,
-+            null,
-+            new DateOnly(2026, 7, 31),
-+            90,
-+            out var yearSortDate));
-+        Assert.Equal(new DateOnly(2026, 7, 31), yearSortDate);
-+
-+        Assert.True(ConferenceProjectScopeService.TryResolveCarryover(
-+            null,
-+            null,
-+            null,
-+            new DateTime(2026, 7, 20, 8, 0, 0, DateTimeKind.Utc),
-+            new DateOnly(2026, 7, 31),
-+            90,
-+            out var auditSortDate));
-+        Assert.Equal(new DateOnly(2026, 7, 20), auditSortDate);
-+    }
-+
-+    [Theory]
-+    [InlineData(2026, 7, 25, 2026, 7, "Completed on 25 Jul 2026")]
-+    [InlineData(null, null, null, 2026, 7, "Completed in Jul 2026")]
-+    [InlineData(null, null, null, 2026, null, "Completed in 2026")]
-+    public void FormatCompletionContext_PreservesRecordedPrecision(
-+        int? exactYear,
-+        int? exactMonth,
-+        int? exactDay,
-+        int completedYear,
-+        int? completedMonth,
-+        string expected)
-+    {
-+        DateOnly? completedOn = exactYear.HasValue
-+            ? new DateOnly(exactYear.Value, exactMonth!.Value, exactDay!.Value)
-+            : null;
-+
-+        var result = ConferenceProjectScopeService.FormatCompletionContext(
-+            completedOn,
-+            completedYear,
-+            completedMonth.HasValue ? (short?)completedMonth.Value : null);
-+
-+        Assert.Equal(expected, result);
++        Assert.Contains(
++            "this.defaultComposerType = this.resolveComposerType(this.config.defaultType);",
++            script,
++            StringComparison.Ordinal);
++        Assert.Contains("resolveComposerType(type)", script, StringComparison.Ordinal);
++        Assert.Equal(2, CountOccurrences(script, "this.setComposerType(this.defaultComposerType);"));
 +    }
 +
 +    [Fact]
-+    public async Task Scope_IncludesActiveAndRecentCompletedButExcludesExpiredCompleted()
++    public void DefaultTypePolicyIsResolvedOnTheServerForCommandantOnly()
 +    {
-+        await using var connection = new SqliteConnection("DataSource=:memory:");
-+        await connection.OpenAsync();
-+        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
-+            .UseSqlite(connection)
-+            .Options;
-+        await using var db = new ApplicationDbContext(dbOptions);
-+        await db.Database.EnsureCreatedAsync();
++        var viewModel = ReadRepoFile("ViewModels", "ProjectRemarksPanelViewModel.cs");
++        var service = ReadRepoFile("Services", "Projects", "ProjectRemarksPanelService.cs");
 +
-+        var command = CreateUser("command", "Command User", "Colonel");
-+        var officer = CreateUser("officer", "Conference Officer", "Lt Col");
-+        db.Users.AddRange(command, officer);
-+        var poRole = new IdentityRole
-+        {
-+            Id = "role-project-officer",
-+            Name = RoleNames.ProjectOfficer,
-+            NormalizedName = RoleNames.ProjectOfficer.ToUpperInvariant(),
-+            ConcurrencyStamp = Guid.NewGuid().ToString()
-+        };
-+        db.Roles.Add(poRole);
-+        db.UserRoles.Add(new IdentityUserRole<string>
-+        {
-+            UserId = officer.Id,
-+            RoleId = poRole.Id
-+        });
-+
-+        var active = Project("Active project", command.Id, officer.Id, ProjectLifecycleStatus.Active);
-+        var recent = Project("Recent project", command.Id, officer.Id, ProjectLifecycleStatus.Completed);
-+        recent.CompletedOn = new DateOnly(2026, 7, 20);
-+        recent.CompletedYear = 2026;
-+        recent.CompletedMonth = 7;
-+        var expired = Project("Expired project", command.Id, officer.Id, ProjectLifecycleStatus.Completed);
-+        expired.CompletedOn = new DateOnly(2026, 4, 1);
-+        expired.CompletedYear = 2026;
-+        expired.CompletedMonth = 4;
-+        db.Projects.AddRange(active, recent, expired);
-+        await db.SaveChangesAsync();
-+
-+        var service = new ConferenceProjectScopeService(
-+            db,
-+            new FixedClock(new DateTimeOffset(2026, 7, 31, 8, 0, 0, TimeSpan.Zero)),
-+            Options.Create(new ConferenceOptions { CompletedProjectRetentionDays = 90 }));
-+
-+        var carryovers = await service.GetRecentlyCompletedProjectsAsync();
-+
-+        var carryover = Assert.Single(carryovers);
-+        Assert.Equal(recent.Id, carryover.ProjectId);
-+        Assert.Equal("Completed on 20 Jul 2026", carryover.CompletionContext);
-+        Assert.True(await service.IsProjectInScopeAsync(officer.Id, active.Id));
-+        Assert.True(await service.IsProjectInScopeAsync(officer.Id, recent.Id));
-+        Assert.False(await service.IsProjectInScopeAsync(officer.Id, expired.Id));
++        Assert.Contains("public string DefaultType", viewModel, StringComparison.Ordinal);
++        Assert.Contains("SelectDefaultRemarkType(actorRole, allowConference)", service, StringComparison.Ordinal);
++        Assert.Contains("actorRole == RemarkActorRole.Commandant && allowConference", service, StringComparison.Ordinal);
++        Assert.Contains("? RemarkType.Conference", service, StringComparison.Ordinal);
++        Assert.Contains(": RemarkType.Internal", service, StringComparison.Ordinal);
 +    }
 +
-+    private static Project Project(
-+        string name,
-+        string createdBy,
-+        string officerId,
-+        ProjectLifecycleStatus lifecycleStatus)
-+        => new()
-+        {
-+            Name = name,
-+            CreatedByUserId = createdBy,
-+            LeadPoUserId = officerId,
-+            LifecycleStatus = lifecycleStatus,
-+            WorkflowVersion = ProcurementWorkflow.VersionV2
-+        };
-+
-+    private static ApplicationUser CreateUser(string id, string fullName, string rank)
-+        => new()
-+        {
-+            Id = id,
-+            UserName = id,
-+            NormalizedUserName = id.ToUpperInvariant(),
-+            FullName = fullName,
-+            Rank = rank,
-+            SecurityStamp = Guid.NewGuid().ToString()
-+        };
-+
-+    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
++    private static string ReadRepoFile(params string[] relativePath)
 +    {
-+        public DateTimeOffset UtcNow { get; } = utcNow;
++        var current = new DirectoryInfo(AppContext.BaseDirectory);
++        while (current is not null)
++        {
++            var candidate = Path.Combine(current.FullName, Path.Combine(relativePath));
++            if (File.Exists(candidate))
++            {
++                return File.ReadAllText(candidate);
++            }
++
++            current = current.Parent;
++        }
++
++        throw new FileNotFoundException(
++            $"Could not locate repository file: {Path.Combine(relativePath)}");
++    }
++
++    private static int CountOccurrences(string value, string search)
++    {
++        var count = 0;
++        var index = 0;
++        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
++        {
++            count++;
++            index += search.Length;
++        }
++
++        return count;
 +    }
 +}
-diff --git a/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs b/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
-index 1f591c7..e1ead28 100644
---- a/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
-+++ b/ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
-@@ -16,6 +16,7 @@ using ProjectManagement.Services.ActionTasks;
- using ProjectManagement.Services.ConferenceRemarks;
- using ProjectManagement.Services.ProjectIdeas;
- using ProjectManagement.Services.Remarks;
-+using ProjectManagement.Services.Workspace;
- using ProjectManagement.ViewModels.Workspace;
- 
- namespace ProjectManagement.Tests;
-@@ -130,6 +131,44 @@ public sealed class ConferenceRemarkCommandServiceTests
-         Assert.Equal("No update by the task assignee after the direction.", assigneeProgress.EmptyText);
+diff --git a/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs b/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
+index 1a4faba..b41ddf4 100644
+--- a/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
++++ b/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
+@@ -109,6 +109,84 @@ public sealed class ProjectRemarksPanelServiceTests
+         Assert.Equal(expected, viewModel.AllowConference);
      }
  
-+    [Fact]
-+    public async Task AddAsync_Project_AllowsRecentlyCompletedConferenceCarryover()
++    [Theory]
++    [InlineData(RoleNames.Comdt, RemarkType.Conference)]
++    [InlineData(RoleNames.HoD, RemarkType.Internal)]
++    [InlineData(RoleNames.Admin, RemarkType.Internal)]
++    [InlineData(RoleNames.Mco, RemarkType.Internal)]
++    [InlineData(RoleNames.ProjectOfficer, RemarkType.Internal)]
++    public async Task BuildAsync_DefaultRemarkTypeFollowsEffectiveActorRole(
++        string role,
++        RemarkType expected)
 +    {
-+        await using var scope = await TestScope.CreateAsync();
-+        var actor = await scope.AddCommandUserAsync("command", RoleNames.HoD);
-+        var officer = await scope.AddUserAsync("officer");
-+        var project = new Project
-+        {
-+            Name = "Completed project",
-+            CreatedByUserId = actor.Id,
-+            LeadPoUserId = officer.Id,
-+            LifecycleStatus = ProjectLifecycleStatus.Completed,
-+            CompletedOn = new DateOnly(2026, 7, 10),
-+            CompletedYear = 2026,
-+            CompletedMonth = 7
-+        };
-+        scope.Db.Projects.Add(project);
-+        await scope.Db.SaveChangesAsync();
++        await using var db = CreateContext();
++        using var userManager = CreateUserManager(db);
++        var service = new ProjectRemarksPanelService(
++            userManager,
++            new FixedClock(DateTimeOffset.UtcNow),
++            new WorkflowStageMetadataProvider());
 +
-+        var remarks = new CapturingRemarkService();
-+        var projectScope = new StubConferenceProjectScopeService(officer.Id, project.Id, isAllowed: true);
-+        var service = scope.CreateService(remarks: remarks, projectScope: projectScope);
-+
-+        var result = await service.AddAsync(
-+            actor.Id,
-+            new AddConferenceRemarkRequest(
-+                officer.Id,
-+                ConferenceItemKind.Project,
-+                project.Id,
-+                "Confirm post-completion closure."));
-+
-+        Assert.NotNull(remarks.Request);
-+        Assert.Equal(project.Id, remarks.Request!.ProjectId);
-+        Assert.Equal("Confirm post-completion closure.", result.Direction.Body);
-+        Assert.Equal(officer.Id, projectScope.LastRequest?.OfficerUserId);
-+        Assert.Equal(project.Id, projectScope.LastRequest?.ProjectId);
-+    }
-+
-     [Fact]
-     public async Task AddAsync_RejectsNonCommandRole()
-     {
-@@ -237,14 +276,27 @@ public sealed class ConferenceRemarkCommandServiceTests
-         public ConferenceRemarkCommandService CreateService(
-             IRemarkService? remarks = null,
-             IProjectIdeaCommandService? ideas = null,
--            IActionTaskCollaborationService? tasks = null)
--            => new(
--                Db,
--                UserManager,
--                remarks ?? new CapturingRemarkService(),
--                ideas ?? new CapturingIdeaCommandService(),
--                tasks ?? new CapturingTaskCollaborationService(),
--                new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero)));
-+            IActionTaskCollaborationService? tasks = null,
-+            IConferenceProjectScopeService? projectScope = null)
-+        {
-+            var clock = new FixedClock(new DateTimeOffset(2026, 7, 12, 3, 0, 0, TimeSpan.Zero));
-+            return projectScope is null
-+                ? new ConferenceRemarkCommandService(
-+                    Db,
-+                    UserManager,
-+                    remarks ?? new CapturingRemarkService(),
-+                    ideas ?? new CapturingIdeaCommandService(),
-+                    tasks ?? new CapturingTaskCollaborationService(),
-+                    clock)
-+                : new ConferenceRemarkCommandService(
-+                    Db,
-+                    UserManager,
-+                    remarks ?? new CapturingRemarkService(),
-+                    ideas ?? new CapturingIdeaCommandService(),
-+                    tasks ?? new CapturingTaskCollaborationService(),
-+                    clock,
-+                    projectScope);
-+        }
- 
-         public async ValueTask DisposeAsync()
-         {
-@@ -269,6 +321,43 @@ public sealed class ConferenceRemarkCommandServiceTests
-         }
-     }
- 
-+    private sealed class StubConferenceProjectScopeService : IConferenceProjectScopeService
-+    {
-+        private readonly string _officerUserId;
-+        private readonly int _projectId;
-+        private readonly bool _isAllowed;
-+
-+        public StubConferenceProjectScopeService(
-+            string officerUserId,
-+            int projectId,
-+            bool isAllowed)
-+        {
-+            _officerUserId = officerUserId;
-+            _projectId = projectId;
-+            _isAllowed = isAllowed;
-+        }
-+
-+        public int CompletedProjectRetentionDays => 90;
-+        public (string OfficerUserId, int ProjectId)? LastRequest { get; private set; }
-+
-+        public Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
-+            CancellationToken cancellationToken = default)
-+            => Task.FromResult<IReadOnlyList<ConferenceProjectCarryover>>(
-+                Array.Empty<ConferenceProjectCarryover>());
-+
-+        public Task<bool> IsProjectInScopeAsync(
-+            string officerUserId,
-+            int projectId,
-+            CancellationToken cancellationToken = default)
-+        {
-+            LastRequest = (officerUserId, projectId);
-+            return Task.FromResult(
-+                _isAllowed
-+                && string.Equals(officerUserId, _officerUserId, StringComparison.Ordinal)
-+                && projectId == _projectId);
-+        }
-+    }
-+
-     private sealed class FixedClock(DateTimeOffset utcNow) : IClock
-     {
-         public DateTimeOffset UtcNow { get; } = utcNow;
-diff --git a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
-index d4e5b29..2a3b884 100644
---- a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
-+++ b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
-@@ -623,6 +623,95 @@ public sealed class OfficerConferenceReadServiceTests
-         Assert.Null(placeholder.Body);
-     }
- 
-+    [Fact]
-+    public async Task GetAsync_IncludesCarryoverOnlyOfficerAndRecentlyCompletedProject()
-+    {
-+        await using var connection = new SqliteConnection("DataSource=:memory:");
-+        await connection.OpenAsync();
-+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-+            .UseSqlite(connection)
-+            .Options;
-+        await using var db = new ApplicationDbContext(options);
-+        await db.Database.EnsureCreatedAsync();
-+
-+        var command = CreateUser("command-1", "Command User", "Colonel");
-+        var officer = CreateUser("officer-1", "Carryover Officer", "Lt Col");
-+        db.Users.AddRange(command, officer);
++        var user = new ApplicationUser { Id = $"default-{role}", UserName = $"default-{role}@example.com" };
++        await userManager.CreateAsync(user);
 +
 +        var project = new Project
 +        {
-+            Name = "Recently completed project",
-+            CreatedByUserId = command.Id,
-+            LeadPoUserId = officer.Id,
-+            WorkflowVersion = ProcurementWorkflow.VersionV2,
-+            LifecycleStatus = ProjectLifecycleStatus.Completed,
-+            CompletedOn = new DateOnly(2026, 7, 25),
-+            CompletedYear = 2026,
-+            CompletedMonth = 7
++            Id = 21,
++            Name = "Project Default Type",
++            LeadPoUserId = role == RoleNames.ProjectOfficer ? user.Id : null
 +        };
-+        db.Projects.Add(project);
-+        await db.SaveChangesAsync();
++        var principal = new ClaimsPrincipal(new ClaimsIdentity(
++            new[]
++            {
++                new Claim(ClaimTypes.NameIdentifier, user.Id),
++                new Claim(ClaimTypes.Role, role)
++            },
++            "TestAuth"));
 +
-+        db.Remarks.Add(ProjectRemark(
-+            project.Id,
-+            command.Id,
-+            RemarkActorRole.HeadOfDepartment,
-+            RemarkType.Conference,
-+            "Complete closure documentation.",
-+            Utc(26),
-+            StageCodes.DEVP));
-+        await db.SaveChangesAsync();
-+
-+        var carryover = new ConferenceProjectCarryover(
-+            project.Id,
-+            project.Name,
-+            officer.Id,
-+            officer.FullName!,
-+            officer.Rank!,
-+            project.CompletedOn,
-+            project.CompletedYear,
-+            project.CompletedMonth,
-+            null,
-+            project.CompletedOn.Value,
-+            "Completed on 25 Jul 2026");
-+        var projectScope = new StubConferenceProjectScopeService(new[] { carryover });
-+        var service = new OfficerConferenceReadService(
-+            db,
-+            new StubOfficerWorkloadReadService(Array.Empty<CommandOfficerWorkloadVm>()),
-+            new WorkflowStageMetadataProvider(),
-+            new FixedClock(Utc(31)),
-+            projectScope);
-+
-+        var optionsResult = await service.GetOfficerOptionsAsync(command.Id);
-+        var officerOption = Assert.Single(optionsResult);
-+        Assert.Equal(officer.Id, officerOption.UserId);
-+        Assert.Equal(0, officerOption.ActiveProjectCount);
-+        Assert.Equal(1, officerOption.RecentlyCompletedProjectCount);
-+
-+        var result = await service.GetAsync(command.Id, officer.Id);
-+
-+        Assert.NotNull(result);
-+        Assert.Equal(0, result!.ActiveProjectCount);
-+        Assert.Equal(1, result.RecentlyCompletedProjectCount);
-+        Assert.Equal(90, result.CompletedProjectRetentionDays);
-+        var item = Assert.Single(
-+            result.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
-+        Assert.True(item.IsRecentlyCompleted);
-+        Assert.Equal("Completed", item.CurrentStateName);
-+        Assert.Equal("Completed on 25 Jul 2026", item.CurrentContext);
-+        Assert.Null(item.AttentionText);
-+        Assert.False(item.RequiresAttention);
-+
-+        var history = await service.GetDirectionHistoryAsync(
-+            command.Id,
-+            officer.Id,
-+            ConferenceItemKind.Project,
-+            project.Id);
-+        Assert.NotNull(history);
-+        Assert.Single(history!.Cycles);
-+        Assert.Equal("Complete closure documentation.", history.Cycles[0].Direction.Body);
-+    }
-+
-     [Fact]
-     public async Task GetAsync_ReturnsNull_WhenOfficerIsOutsideCanonicalWorkloadOrder()
-     {
-@@ -681,6 +770,30 @@ public sealed class OfficerConferenceReadServiceTests
-     private static DateTime Utc(int day)
-         => new(2026, 7, day, 8, 0, 0, DateTimeKind.Utc);
- 
-+    private sealed class StubConferenceProjectScopeService : IConferenceProjectScopeService
-+    {
-+        private readonly IReadOnlyList<ConferenceProjectCarryover> _carryovers;
-+
-+        public StubConferenceProjectScopeService(IReadOnlyList<ConferenceProjectCarryover> carryovers)
-+        {
-+            _carryovers = carryovers;
-+        }
-+
-+        public int CompletedProjectRetentionDays => 90;
-+
-+        public Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
-+            CancellationToken cancellationToken = default)
-+            => Task.FromResult(_carryovers);
-+
-+        public Task<bool> IsProjectInScopeAsync(
-+            string officerUserId,
-+            int projectId,
-+            CancellationToken cancellationToken = default)
-+            => Task.FromResult(_carryovers.Any(item =>
-+                item.ProjectId == projectId
-+                && string.Equals(item.OfficerUserId, officerUserId, StringComparison.Ordinal)));
-+    }
-+
-     private sealed class StubOfficerWorkloadReadService : IOfficerWorkloadReadService
-     {
-         private readonly IReadOnlyList<CommandOfficerWorkloadVm> _officers;
-diff --git a/ProjectManagement.Tests/RemarkServiceTests.cs b/ProjectManagement.Tests/RemarkServiceTests.cs
-index 921d848..e2241ec 100644
---- a/ProjectManagement.Tests/RemarkServiceTests.cs
-+++ b/ProjectManagement.Tests/RemarkServiceTests.cs
-@@ -181,6 +181,42 @@ public sealed class RemarkServiceTests
-         Assert.Equal(StageCodes.DisplayNameOf(ProcurementWorkflow.VersionV2, StageCodes.SOW), remark.StageNameSnapshot);
-     }
- 
-+    [Fact]
-+    public async Task CreateRemarkAsync_ConferenceOnCompletedProjectCapturesCompletedStatus()
-+    {
-+        await using var scope = await CreateContextAsync();
-+        var db = scope.Db;
-+        await SeedProjectAsync(db, 105);
-+        var project = await db.Projects.SingleAsync(candidate => candidate.Id == 105);
-+        project.LifecycleStatus = ProjectLifecycleStatus.Completed;
-+        project.CompletedOn = new DateOnly(2024, 9, 25);
-+        project.CompletedYear = 2024;
-+        project.CompletedMonth = 9;
-+        await db.SaveChangesAsync();
-+
-+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out _);
-+        var actor = new RemarkActorContext(
-+            "comdt",
-+            RemarkActorRole.Commandant,
-+            new[] { RemarkActorRole.Commandant });
-+
-+        var remark = await service.CreateRemarkAsync(
-+            new CreateRemarkRequest(
-+                105,
-+                actor,
-+                RemarkType.Conference,
-+                RemarkScope.General,
-+                "Confirm closure action.",
-+                new DateOnly(2024, 9, 30),
-+                null,
-+                null,
-+                null),
++        var viewModel = await service.BuildAsync(
++            project,
++            Array.Empty<ProjectStage>(),
++            principal,
 +            CancellationToken.None);
 +
-+        Assert.Null(remark.StageRef);
-+        Assert.Equal("Completed", remark.StageNameSnapshot);
++        Assert.Equal(expected.ToString(), viewModel.DefaultType);
++    }
++
++    [Fact]
++    public async Task BuildAsync_MultiRoleCommandantStillDefaultsToConference()
++    {
++        await using var db = CreateContext();
++        using var userManager = CreateUserManager(db);
++        var service = new ProjectRemarksPanelService(
++            userManager,
++            new FixedClock(DateTimeOffset.UtcNow),
++            new WorkflowStageMetadataProvider());
++
++        var user = new ApplicationUser { Id = "multi-role-commandant", UserName = "multi-role-commandant@example.com" };
++        await userManager.CreateAsync(user);
++
++        var project = new Project { Id = 22, Name = "Project Multi Role" };
++        var principal = new ClaimsPrincipal(new ClaimsIdentity(
++            new[]
++            {
++                new Claim(ClaimTypes.NameIdentifier, user.Id),
++                new Claim(ClaimTypes.Role, RoleNames.HoD),
++                new Claim(ClaimTypes.Role, RoleNames.Comdt),
++                new Claim(ClaimTypes.Role, RoleNames.Admin)
++            },
++            "TestAuth"));
++
++        var viewModel = await service.BuildAsync(
++            project,
++            Array.Empty<ProjectStage>(),
++            principal,
++            CancellationToken.None);
++
++        Assert.Equal(RemarkActorRole.Commandant.ToString(), viewModel.ActorRole);
++        Assert.True(viewModel.AllowConference);
++        Assert.Equal(RemarkType.Conference.ToString(), viewModel.DefaultType);
 +    }
 +
      [Fact]
-     public async Task CreateRemarkAsync_RejectsConferenceForAdministratorWithoutCommandRole()
+     public async Task BuildAsync_WhenNoStages_UsesAllStageCodes()
      {
-diff --git a/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs b/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
-index 4036a2a..8510000 100644
---- a/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
-+++ b/Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
-@@ -11,14 +11,15 @@ using ProjectManagement.Services;
- using ProjectManagement.Services.ActionTasks;
- using ProjectManagement.Services.ProjectIdeas;
- using ProjectManagement.Services.Remarks;
-+using ProjectManagement.Services.Workspace;
- using ProjectManagement.ViewModels.Workspace;
+diff --git a/Services/Projects/ProjectRemarksPanelService.cs b/Services/Projects/ProjectRemarksPanelService.cs
+index c156b25..474a8d6 100644
+--- a/Services/Projects/ProjectRemarksPanelService.cs
++++ b/Services/Projects/ProjectRemarksPanelService.cs
+@@ -149,6 +149,7 @@ public sealed class ProjectRemarksPanelService
+         var allowExternal = !viewerOnly && canPostAsHoDOrAbove;
+         var allowConference = !viewerOnly && remarkRoleSet.Any(role =>
+             role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant);
++        var defaultType = SelectDefaultRemarkType(actorRole, allowConference);
  
- namespace ProjectManagement.Services.ConferenceRemarks;
- 
- /// <summary>
- /// Writes conference directions to the native remarks stream of the selected source item.
--/// The service derives actor identity, authority and state snapshots on the server and rejects
--/// item identifiers that are not part of the selected officer's current active workload.
-+/// The service derives actor identity, authority and state snapshots on the server and uses the
-+/// shared conference scope so read and write behaviour remain aligned for active and carryover work.
- /// </summary>
- public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandService
- {
-@@ -28,7 +29,10 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
-     private readonly IProjectIdeaCommandService _ideaCommands;
-     private readonly IActionTaskCollaborationService _taskCollaboration;
-     private readonly IClock _clock;
-+    private readonly IConferenceProjectScopeService? _projectScope;
- 
-+    // Retained for isolated tests and legacy composition roots. Application DI resolves
-+    // the complete constructor below.
-     public ConferenceRemarkCommandService(
-         ApplicationDbContext db,
-         UserManager<ApplicationUser> users,
-@@ -45,6 +49,20 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
-         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-     }
- 
-+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-+    public ConferenceRemarkCommandService(
-+        ApplicationDbContext db,
-+        UserManager<ApplicationUser> users,
-+        IRemarkService projectRemarks,
-+        IProjectIdeaCommandService ideaCommands,
-+        IActionTaskCollaborationService taskCollaboration,
-+        IClock clock,
-+        IConferenceProjectScopeService projectScope)
-+        : this(db, users, projectRemarks, ideaCommands, taskCollaboration, clock)
-+    {
-+        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
-+    }
-+
-     public async Task<AddConferenceRemarkResult> AddAsync(
-         string requestingUserId,
-         AddConferenceRemarkRequest request,
-@@ -116,18 +134,24 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
-         string body,
-         CancellationToken cancellationToken)
-     {
--        var belongsToOfficer = await _db.Projects
--            .AsNoTracking()
--            .AnyAsync(project =>
--                project.Id == request.ItemId
--                && !project.IsDeleted
--                && !project.IsArchived
--                && project.LifecycleStatus == ProjectLifecycleStatus.Active
--                && project.LeadPoUserId == request.OfficerUserId,
--                cancellationToken);
-+        var belongsToOfficer = _projectScope is not null
-+            ? await _projectScope.IsProjectInScopeAsync(
-+                request.OfficerUserId,
-+                request.ItemId,
-+                cancellationToken)
-+            : await _db.Projects
-+                .AsNoTracking()
-+                .AnyAsync(project =>
-+                    project.Id == request.ItemId
-+                    && !project.IsDeleted
-+                    && !project.IsArchived
-+                    && project.LifecycleStatus == ProjectLifecycleStatus.Active
-+                    && project.LeadPoUserId == request.OfficerUserId,
-+                    cancellationToken);
-         if (!belongsToOfficer)
+         return new ProjectRemarksPanelViewModel
          {
--            throw new InvalidOperationException("This project is not part of the selected officer's current workload.");
-+            throw new InvalidOperationException(
-+                "This project is not part of the selected officer's conference review.");
-         }
+@@ -162,6 +163,7 @@ public sealed class ProjectRemarksPanelService
+             AllowInternal = showComposer,
+             AllowExternal = allowExternal,
+             AllowConference = allowConference,
++            DefaultType = defaultType.ToString(),
+             ShowDeletedToggle = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Administrator),
+             ActorHasOverride = canOverride,
+             StageOptions = stageOptions,
+@@ -265,6 +267,13 @@ public sealed class ProjectRemarksPanelService
+         return latestCompleted?.StageCode ?? string.Empty;
+     }
  
-         var remarkRoles = assignedRoles
-@@ -162,7 +186,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
-                 AuthorName = DisplayName(actor),
-                 AuthorRole = DisplayRole(commandRole),
-                 CreatedAtUtc = AsUtc(remark.CreatedAtUtc),
--                SnapshotLabel = "Stage when issued",
-+                SnapshotLabel = BuildProjectSnapshotLabel(remark.StageRef, remark.StageNameSnapshot),
-                 SnapshotValue = BuildStageSnapshot(remark.StageRef, remark.StageNameSnapshot)
-             },
-             new[]
-@@ -297,6 +321,12 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
-             ? "Comdt"
-             : "HoD";
- 
-+    private static string BuildProjectSnapshotLabel(string? stageRef, string? stageName)
-+        => string.IsNullOrWhiteSpace(stageRef)
-+           && string.Equals(stageName, "Completed", StringComparison.OrdinalIgnoreCase)
-+            ? "Status when issued"
-+            : "Stage when issued";
++    private static RemarkType SelectDefaultRemarkType(
++        RemarkActorRole actorRole,
++        bool allowConference)
++        => actorRole == RemarkActorRole.Commandant && allowConference
++            ? RemarkType.Conference
++            : RemarkType.Internal;
 +
-     private static string BuildStageSnapshot(string? stageRef, string? stageName)
+     private static RemarkActorRole SelectDefaultRemarkRole(IReadOnlyCollection<RemarkActorRole> roles)
      {
-         if (string.IsNullOrWhiteSpace(stageRef) && string.IsNullOrWhiteSpace(stageName))
-diff --git a/Services/Remarks/RemarkService.cs b/Services/Remarks/RemarkService.cs
-index 12a7d5f..246c4fc 100644
---- a/Services/Remarks/RemarkService.cs
-+++ b/Services/Remarks/RemarkService.cs
-@@ -645,6 +645,7 @@ public sealed class RemarkService : IRemarkService
-             .Select(candidate => new
-             {
-                 candidate.WorkflowVersion,
-+                candidate.LifecycleStatus,
-                 Stages = candidate.ProjectStages
-                     .Select(stage => new ProjectStageStatusSnapshot(
-                         stage.StageCode,
-@@ -656,6 +657,11 @@ public sealed class RemarkService : IRemarkService
-             })
-             .SingleAsync(cancellationToken);
+         foreach (var candidate in new[]
+diff --git a/ViewModels/ProjectRemarksPanelViewModel.cs b/ViewModels/ProjectRemarksPanelViewModel.cs
+index e12eb5e..575e047 100644
+--- a/ViewModels/ProjectRemarksPanelViewModel.cs
++++ b/ViewModels/ProjectRemarksPanelViewModel.cs
+@@ -29,6 +29,8 @@ public sealed class ProjectRemarksPanelViewModel
  
-+        if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
-+        {
-+            return (null, "Completed");
-+        }
-+
-         var presentStage = PresentStageHelper.ComputePresentStageAndAge(
-             project.Stages,
-             _workflowStageMetadataProvider,
-diff --git a/Services/Workspace/ConferenceProjectScopeService.cs b/Services/Workspace/ConferenceProjectScopeService.cs
-new file mode 100644
-index 0000000..a51edf8
---- /dev/null
-+++ b/Services/Workspace/ConferenceProjectScopeService.cs
-@@ -0,0 +1,448 @@
-+using System.Globalization;
-+using System.Text.Json;
-+using Microsoft.EntityFrameworkCore;
-+using Microsoft.Extensions.Options;
-+using ProjectManagement.Configuration;
-+using ProjectManagement.Data;
-+using ProjectManagement.Infrastructure;
-+using ProjectManagement.Models;
-+
-+namespace ProjectManagement.Services.Workspace;
-+
-+/// <summary>
-+/// Resolves the project scope for officer conference review without changing the meaning
-+/// of active workload. Completion precision is respected: exact dates, month/year and
-+/// year-only values are evaluated as intervals, while genuinely unknown dates use the
-+/// lifecycle audit timestamp as a bounded fallback.
-+/// </summary>
-+public sealed class ConferenceProjectScopeService : IConferenceProjectScopeService
-+{
-+    private static readonly string[] CompletionAuditActions =
-+    {
-+        "Project.LifecycleCompleted",
-+        "Project.LifecycleCompletionUpdated",
-+        "Project.LifecycleCompletionEndorsed"
-+    };
-+
-+    private readonly ApplicationDbContext _db;
-+    private readonly IClock _clock;
-+    private readonly ConferenceOptions _options;
-+
-+    public ConferenceProjectScopeService(
-+        ApplicationDbContext db,
-+        IClock clock,
-+        IOptions<ConferenceOptions> options)
-+    {
-+        _db = db ?? throw new ArgumentNullException(nameof(db));
-+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-+    }
-+
-+    public int CompletedProjectRetentionDays => _options.CompletedProjectRetentionDays;
-+
-+    public async Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
-+        CancellationToken cancellationToken = default)
-+    {
-+        var officers = await LoadActiveProjectOfficersAsync(cancellationToken);
-+        if (officers.Count == 0)
-+        {
-+            return Array.Empty<ConferenceProjectCarryover>();
-+        }
-+
-+        var officerIds = officers.Keys.ToArray();
-+        var candidates = await _db.Projects
-+            .AsNoTracking()
-+            .Where(project =>
-+                !project.IsDeleted
-+                && !project.IsArchived
-+                && project.LifecycleStatus == ProjectLifecycleStatus.Completed
-+                && project.LeadPoUserId != null
-+                && officerIds.Contains(project.LeadPoUserId))
-+            .Select(project => new CompletedProjectCandidate(
-+                project.Id,
-+                project.Name,
-+                project.LeadPoUserId!,
-+                project.CompletedOn,
-+                project.CompletedYear,
-+                project.CompletedMonth))
-+            .ToListAsync(cancellationToken);
-+
-+        if (candidates.Count == 0)
-+        {
-+            return Array.Empty<ConferenceProjectCarryover>();
-+        }
-+
-+        var today = IstToday();
-+        var unknownProjectIds = candidates
-+            .Where(candidate => !candidate.CompletedOn.HasValue && !candidate.CompletedYear.HasValue)
-+            .Select(candidate => candidate.ProjectId)
-+            .ToArray();
-+        var auditDates = await LoadRecentCompletionAuditDatesAsync(
-+            unknownProjectIds,
-+            today,
-+            cancellationToken);
-+
-+        var result = new List<ConferenceProjectCarryover>();
-+        foreach (var candidate in candidates)
-+        {
-+            DateTime? auditDateUtc = auditDates.TryGetValue(candidate.ProjectId, out var recordedAtUtc)
-+                ? recordedAtUtc
-+                : null;
-+            if (!TryResolveCarryover(
-+                    candidate.CompletedOn,
-+                    candidate.CompletedYear,
-+                    candidate.CompletedMonth,
-+                    auditDateUtc,
-+                    today,
-+                    CompletedProjectRetentionDays,
-+                    out var sortDate))
-+            {
-+                continue;
-+            }
-+
-+            var officer = officers[candidate.OfficerUserId];
-+            result.Add(new ConferenceProjectCarryover(
-+                candidate.ProjectId,
-+                candidate.ProjectName,
-+                candidate.OfficerUserId,
-+                officer.Name,
-+                officer.Rank,
-+                candidate.CompletedOn,
-+                candidate.CompletedYear,
-+                candidate.CompletedMonth,
-+                auditDateUtc,
-+                sortDate,
-+                FormatCompletionContext(
-+                    candidate.CompletedOn,
-+                    candidate.CompletedYear,
-+                    candidate.CompletedMonth)));
-+        }
-+
-+        return result
-+            .OrderBy(carryover => carryover.OfficerName, StringComparer.OrdinalIgnoreCase)
-+            .ThenByDescending(carryover => carryover.CompletionSortDate)
-+            .ThenBy(carryover => carryover.ProjectName, StringComparer.OrdinalIgnoreCase)
-+            .ToArray();
-+    }
-+
-+    public async Task<bool> IsProjectInScopeAsync(
-+        string officerUserId,
-+        int projectId,
-+        CancellationToken cancellationToken = default)
-+    {
-+        if (string.IsNullOrWhiteSpace(officerUserId) || projectId <= 0)
-+        {
-+            return false;
-+        }
-+
-+        if (!await IsActiveProjectOfficerAsync(officerUserId, cancellationToken))
-+        {
-+            return false;
-+        }
-+
-+        var project = await _db.Projects
-+            .AsNoTracking()
-+            .Where(candidate =>
-+                candidate.Id == projectId
-+                && !candidate.IsDeleted
-+                && !candidate.IsArchived
-+                && candidate.LeadPoUserId == officerUserId)
-+            .Select(candidate => new ProjectScopeCandidate(
-+                candidate.LifecycleStatus,
-+                candidate.CompletedOn,
-+                candidate.CompletedYear,
-+                candidate.CompletedMonth))
-+            .SingleOrDefaultAsync(cancellationToken);
-+
-+        if (project is null)
-+        {
-+            return false;
-+        }
-+
-+        if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
-+        {
-+            return true;
-+        }
-+
-+        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed)
-+        {
-+            return false;
-+        }
-+
-+        var today = IstToday();
-+        DateTime? auditDateUtc = null;
-+        if (!project.CompletedOn.HasValue && !project.CompletedYear.HasValue)
-+        {
-+            var auditDates = await LoadRecentCompletionAuditDatesAsync(
-+                new[] { projectId },
-+                today,
-+                cancellationToken);
-+            if (auditDates.TryGetValue(projectId, out var recordedAtUtc))
-+            {
-+                auditDateUtc = recordedAtUtc;
-+            }
-+        }
-+
-+        return TryResolveCarryover(
-+            project.CompletedOn,
-+            project.CompletedYear,
-+            project.CompletedMonth,
-+            auditDateUtc,
-+            today,
-+            CompletedProjectRetentionDays,
-+            out _);
-+    }
-+
-+    internal static bool TryResolveCarryover(
-+        DateOnly? completedOn,
-+        int? completedYear,
-+        short? completedMonth,
-+        DateTime? completionRecordedAtUtc,
-+        DateOnly today,
-+        int retentionDays,
-+        out DateOnly sortDate)
-+    {
-+        sortDate = default;
-+        if (retentionDays < 1)
-+        {
-+            return false;
-+        }
-+
-+        var windowStart = today.AddDays(-retentionDays);
-+        DateOnly intervalStart;
-+        DateOnly intervalEnd;
-+
-+        if (completedYear is < 1 or > 9999)
-+        {
-+            return false;
-+        }
-+
-+        if (completedOn.HasValue)
-+        {
-+            intervalStart = completedOn.Value;
-+            intervalEnd = completedOn.Value;
-+        }
-+        else if (completedYear.HasValue && completedMonth is >= 1 and <= 12)
-+        {
-+            intervalStart = new DateOnly(completedYear.Value, completedMonth.Value, 1);
-+            intervalEnd = new DateOnly(
-+                completedYear.Value,
-+                completedMonth.Value,
-+                DateTime.DaysInMonth(completedYear.Value, completedMonth.Value));
-+        }
-+        else if (completedYear.HasValue)
-+        {
-+            intervalStart = new DateOnly(completedYear.Value, 1, 1);
-+            intervalEnd = new DateOnly(completedYear.Value, 12, 31);
-+        }
-+        else if (completionRecordedAtUtc.HasValue)
-+        {
-+            var auditDate = DateOnly.FromDateTime(IstClock.ToIst(
-+                DateTime.SpecifyKind(completionRecordedAtUtc.Value, DateTimeKind.Utc)));
-+            intervalStart = auditDate;
-+            intervalEnd = auditDate;
-+        }
-+        else
-+        {
-+            return false;
-+        }
-+
-+        if (intervalStart > today || intervalEnd < windowStart)
-+        {
-+            return false;
-+        }
-+
-+        sortDate = intervalEnd > today ? today : intervalEnd;
-+        return true;
-+    }
-+
-+    internal static string FormatCompletionContext(
-+        DateOnly? completedOn,
-+        int? completedYear,
-+        short? completedMonth)
-+    {
-+        if (completedOn.HasValue)
-+        {
-+            return $"Completed on {completedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}";
-+        }
-+
-+        if (completedYear is >= 1 and <= 9999 && completedMonth is >= 1 and <= 12)
-+        {
-+            var month = new DateOnly(completedYear.Value, completedMonth.Value, 1);
-+            return $"Completed in {month.ToString("MMM yyyy", CultureInfo.InvariantCulture)}";
-+        }
-+
-+        return completedYear is >= 1 and <= 9999
-+            ? $"Completed in {completedYear.Value.ToString(CultureInfo.InvariantCulture)}"
-+            : "Recently completed";
-+    }
-+
-+    private DateOnly IstToday()
-+        => DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow.UtcDateTime));
-+
-+    private async Task<Dictionary<string, OfficerIdentity>> LoadActiveProjectOfficersAsync(
-+        CancellationToken cancellationToken)
-+    {
-+        var normalizedRoleName = RoleNames.ProjectOfficer.ToUpperInvariant();
-+        var roleId = await _db.Roles
-+            .AsNoTracking()
-+            .Where(role => role.NormalizedName == normalizedRoleName)
-+            .Select(role => role.Id)
-+            .SingleOrDefaultAsync(cancellationToken);
-+
-+        if (string.IsNullOrWhiteSpace(roleId))
-+        {
-+            return new Dictionary<string, OfficerIdentity>(StringComparer.Ordinal);
-+        }
-+
-+        var rows = await (
-+                from userRole in _db.UserRoles.AsNoTracking()
-+                join user in _db.Users.AsNoTracking() on userRole.UserId equals user.Id
-+                where userRole.RoleId == roleId
-+                    && !user.IsDisabled
-+                    && !user.PendingDeletion
-+                select new
-+                {
-+                    user.Id,
-+                    user.FullName,
-+                    user.UserName,
-+                    user.Rank
-+                })
-+            .ToListAsync(cancellationToken);
-+
-+        return rows.ToDictionary(
-+            row => row.Id,
-+            row => new OfficerIdentity(
-+                string.IsNullOrWhiteSpace(row.FullName)
-+                    ? row.UserName ?? "Project Officer"
-+                    : row.FullName,
-+                row.Rank ?? string.Empty),
-+            StringComparer.Ordinal);
-+    }
-+
-+    private async Task<bool> IsActiveProjectOfficerAsync(
-+        string officerUserId,
-+        CancellationToken cancellationToken)
-+    {
-+        var normalizedRoleName = RoleNames.ProjectOfficer.ToUpperInvariant();
-+        return await (
-+                from userRole in _db.UserRoles.AsNoTracking()
-+                join role in _db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-+                join user in _db.Users.AsNoTracking() on userRole.UserId equals user.Id
-+                where user.Id == officerUserId
-+                    && role.NormalizedName == normalizedRoleName
-+                    && !user.IsDisabled
-+                    && !user.PendingDeletion
-+                select user.Id)
-+            .AnyAsync(cancellationToken);
-+    }
-+
-+    private async Task<IReadOnlyDictionary<int, DateTime>> LoadRecentCompletionAuditDatesAsync(
-+        int[] projectIds,
-+        DateOnly today,
-+        CancellationToken cancellationToken)
-+    {
-+        if (projectIds.Length == 0)
-+        {
-+            return new Dictionary<int, DateTime>();
-+        }
-+
-+        var projectIdSet = projectIds.ToHashSet();
-+        var windowStart = today.AddDays(-CompletedProjectRetentionDays);
-+        var windowStartUtc = new DateTime(
-+            windowStart.Year,
-+            windowStart.Month,
-+            windowStart.Day,
-+            0,
-+            0,
-+            0,
-+            DateTimeKind.Utc).AddHours(-5).AddMinutes(-30);
-+
-+        var rows = await _db.AuditLogs
-+            .AsNoTracking()
-+            .Where(log =>
-+                CompletionAuditActions.Contains(log.Action)
-+                && log.TimeUtc >= windowStartUtc
-+                && log.DataJson != null)
-+            .Select(log => new { log.Action, log.TimeUtc, log.DataJson })
-+            .ToListAsync(cancellationToken);
-+
-+        var result = new Dictionary<int, DateTime>();
-+        foreach (var row in rows)
-+        {
-+            if (!TryReadCompletionAudit(row.Action, row.DataJson!, out var projectId)
-+                || !projectIdSet.Contains(projectId))
-+            {
-+                continue;
-+            }
-+
-+            if (!result.TryGetValue(projectId, out var current) || row.TimeUtc > current)
-+            {
-+                // The latest transition supports projects that were reactivated and later
-+                // completed again. Metadata-only edits of an already completed project are
-+                // filtered by TryReadCompletionAudit and cannot restart the carryover window.
-+                result[projectId] = DateTime.SpecifyKind(row.TimeUtc, DateTimeKind.Utc);
-+            }
-+        }
-+
-+        return result;
-+    }
-+
-+    private static bool TryReadCompletionAudit(
-+        string action,
-+        string dataJson,
-+        out int projectId)
-+    {
-+        projectId = 0;
-+        try
-+        {
-+            using var document = JsonDocument.Parse(dataJson);
-+            if (!document.RootElement.TryGetProperty("ProjectId", out var projectIdElement))
-+            {
-+                return false;
-+            }
-+
-+            var projectIdText = projectIdElement.ValueKind == JsonValueKind.String
-+                ? projectIdElement.GetString()
-+                : projectIdElement.GetRawText();
-+            if (!int.TryParse(projectIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out projectId))
-+            {
-+                return false;
-+            }
-+
-+            if (string.Equals(action, "Project.LifecycleCompletionUpdated", StringComparison.Ordinal)
-+                && document.RootElement.TryGetProperty("PreviousStatus", out var previousStatus)
-+                && string.Equals(
-+                    previousStatus.GetString(),
-+                    ProjectLifecycleStatus.Completed.ToString(),
-+                    StringComparison.OrdinalIgnoreCase))
-+            {
-+                // Editing completion metadata for an already completed project must not
-+                // restart the conference carryover period.
-+                return false;
-+            }
-+
-+            return true;
-+        }
-+        catch (JsonException)
-+        {
-+            return false;
-+        }
-+    }
-+
-+    private sealed record OfficerIdentity(string Name, string Rank);
-+
-+    private sealed record CompletedProjectCandidate(
-+        int ProjectId,
-+        string ProjectName,
-+        string OfficerUserId,
-+        DateOnly? CompletedOn,
-+        int? CompletedYear,
-+        short? CompletedMonth);
-+
-+    private sealed record ProjectScopeCandidate(
-+        ProjectLifecycleStatus LifecycleStatus,
-+        DateOnly? CompletedOn,
-+        int? CompletedYear,
-+        short? CompletedMonth);
-+}
-diff --git a/Services/Workspace/IConferenceProjectScopeService.cs b/Services/Workspace/IConferenceProjectScopeService.cs
-new file mode 100644
-index 0000000..a1f7646
---- /dev/null
-+++ b/Services/Workspace/IConferenceProjectScopeService.cs
-@@ -0,0 +1,32 @@
-+namespace ProjectManagement.Services.Workspace;
-+
-+/// <summary>
-+/// Defines the project scope used by command conference review. This scope intentionally
-+/// differs from active workload: active projects remain in scope, and recently completed
-+/// projects remain available for a bounded carryover period.
-+/// </summary>
-+public interface IConferenceProjectScopeService
-+{
-+    int CompletedProjectRetentionDays { get; }
-+
-+    Task<IReadOnlyList<ConferenceProjectCarryover>> GetRecentlyCompletedProjectsAsync(
-+        CancellationToken cancellationToken = default);
-+
-+    Task<bool> IsProjectInScopeAsync(
-+        string officerUserId,
-+        int projectId,
-+        CancellationToken cancellationToken = default);
-+}
-+
-+public sealed record ConferenceProjectCarryover(
-+    int ProjectId,
-+    string ProjectName,
-+    string OfficerUserId,
-+    string OfficerName,
-+    string OfficerRank,
-+    DateOnly? CompletedOn,
-+    int? CompletedYear,
-+    short? CompletedMonth,
-+    DateTime? CompletionRecordedAtUtc,
-+    DateOnly CompletionSortDate,
-+    string CompletionContext);
-diff --git a/Services/Workspace/OfficerConferenceReadService.cs b/Services/Workspace/OfficerConferenceReadService.cs
-index 1597664..cdd2009 100644
---- a/Services/Workspace/OfficerConferenceReadService.cs
-+++ b/Services/Workspace/OfficerConferenceReadService.cs
-@@ -28,6 +28,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-     private readonly IClock _clock;
-     private readonly ProjectRecordHealthService? _recordHealth;
-     private readonly IErpUsageQueryService? _erpUsage;
-+    private readonly IConferenceProjectScopeService? _projectScope;
+     public bool AllowConference { get; init; }
  
-     // Retained for isolated conference-read tests and legacy composition roots. The
-     // application DI container resolves the complete constructor below.
-@@ -44,7 +45,17 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-     }
- 
--    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-+    public OfficerConferenceReadService(
-+        ApplicationDbContext db,
-+        IOfficerWorkloadReadService workload,
-+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
-+        IClock clock,
-+        IConferenceProjectScopeService projectScope)
-+        : this(db, workload, workflowStageMetadataProvider, clock)
-+    {
-+        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
-+    }
++    public string DefaultType { get; init; } = RemarkType.Internal.ToString();
 +
-     public OfficerConferenceReadService(
-         ApplicationDbContext db,
-         IOfficerWorkloadReadService workload,
-@@ -52,16 +63,26 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         IClock clock,
-         ProjectRecordHealthService recordHealth,
-         IErpUsageQueryService erpUsage)
-+        : this(db, workload, workflowStageMetadataProvider, clock)
-     {
--        _db = db ?? throw new ArgumentNullException(nameof(db));
--        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
--        _workflowStageMetadataProvider = workflowStageMetadataProvider
--            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
--        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-         _recordHealth = recordHealth ?? throw new ArgumentNullException(nameof(recordHealth));
-         _erpUsage = erpUsage ?? throw new ArgumentNullException(nameof(erpUsage));
-     }
+     public bool ShowDeletedToggle { get; init; }
  
-+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-+    public OfficerConferenceReadService(
-+        ApplicationDbContext db,
-+        IOfficerWorkloadReadService workload,
-+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
-+        IClock clock,
-+        ProjectRecordHealthService recordHealth,
-+        IErpUsageQueryService erpUsage,
-+        IConferenceProjectScopeService projectScope)
-+        : this(db, workload, workflowStageMetadataProvider, clock, recordHealth, erpUsage)
-+    {
-+        _projectScope = projectScope ?? throw new ArgumentNullException(nameof(projectScope));
-+    }
-+
+     public bool ActorHasOverride { get; init; }
+diff --git a/wwwroot/js/projects/remarks-panel.js b/wwwroot/js/projects/remarks-panel.js
+index edbcf90..90a4a24 100644
+--- a/wwwroot/js/projects/remarks-panel.js
++++ b/wwwroot/js/projects/remarks-panel.js
+@@ -326,6 +326,7 @@
+             this.actorHasOverride = !!this.config.actorHasOverride;
+             this.allowExternal = !!this.config.allowExternal;
+             this.allowConference = !!this.config.allowConference;
++            this.defaultComposerType = this.resolveComposerType(this.config.defaultType);
+             this.viewerOnly = !!this.config.viewerOnly;
+             const parsedPageSize = Number.parseInt(this.config.pageSize, 10);
+             this.pageSize = Number.isFinite(parsedPageSize) && parsedPageSize > 0 ? parsedPageSize : 20;
+@@ -654,7 +655,7 @@
+                     });
+                 }
  
-     public async Task<IReadOnlyList<OfficerConferenceOfficerOptionVm>> GetOfficerOptionsAsync(
-         string requestingUserId,
-@@ -73,7 +94,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-             return Array.Empty<OfficerConferenceOfficerOptionVm>();
+-                this.setComposerType('Internal');
++                this.setComposerType(this.defaultComposerType);
+                 this.validateComposer();
+ 
+                 if (this.bodyField) {
+@@ -2244,13 +2245,21 @@
+             return headers;
          }
  
--        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
-+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
-         return BuildOfficerOptions(orderedOfficers, selectedOfficerUserId);
-     }
- 
-@@ -88,7 +109,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-             return null;
-         }
- 
--        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
-+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
-         var selectedIndex = orderedOfficers
-             .Select((officer, index) => new { officer, index })
-             .FirstOrDefault(entry => string.Equals(
-@@ -102,7 +123,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         }
- 
-         var selected = selectedIndex.officer;
--        var projectIds = selected.Projects.Select(item => item.ProjectId).Distinct().ToArray();
-+        var projectIds = selected.ActiveProjects
-+            .Select(item => item.ProjectId)
-+            .Concat(selected.RecentlyCompletedProjects.Select(item => item.ProjectId))
-+            .Distinct()
-+            .ToArray();
-         var ideaIds = selected.Ideas.Select(item => item.IdeaId).Distinct().ToArray();
-         var taskIds = selected.OtherTasks.Select(item => item.TaskId).Distinct().ToArray();
- 
-@@ -241,8 +266,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-             OfficerRank = selected.Rank,
-             OfficerInitial = InitialOf(selected.OfficerName),
-             ProjectCount = projectItems.Count,
-+            ActiveProjectCount = selected.ActiveProjects.Count,
-+            RecentlyCompletedProjectCount = selected.RecentlyCompletedProjects.Count,
-             IdeaCount = ideaItems.Count,
-             OtherTaskCount = taskItems.Count,
-+            CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
-             PreviousOfficerUserId = selectedIndex.index > 0
-                 ? orderedOfficers[selectedIndex.index - 1].UserId
-                 : null,
-@@ -294,7 +322,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-             return null;
-         }
- 
--        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
-+        var orderedOfficers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
-         var selected = orderedOfficers.FirstOrDefault(officer => string.Equals(
-             officer.UserId,
-             officerUserId,
-@@ -304,20 +332,25 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-             return null;
-         }
- 
-+        var projectInScope = kind != ConferenceItemKind.Project
-+            || (_projectScope is not null
-+                ? await _projectScope.IsProjectInScopeAsync(officerUserId, itemId, cancellationToken)
-+                : selected.ActiveProjects.Any(item => item.ProjectId == itemId));
+-        setComposerType(type) {
++        resolveComposerType(type) {
+             const requested = String(type || 'Internal').toLowerCase();
+-            const target = requested === 'external' && this.allowExternal
+-                ? 'External'
+-                : requested === 'conference' && this.allowConference
+-                    ? 'Conference'
+-                    : 'Internal';
++            if (requested === 'external' && this.allowExternal) {
++                return 'External';
++            }
 +
-         return kind switch
-         {
--            ConferenceItemKind.Project when selected.Projects.Any(item => item.ProjectId == itemId)
--                => await BuildProjectDirectionHistoryAsync(selected, itemId, cancellationToken),
-+            ConferenceItemKind.Project when projectInScope
-+                => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
-             ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
-                 => await BuildIdeaDirectionHistoryAsync(itemId, cancellationToken),
-             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
--                => await BuildTaskDirectionHistoryAsync(selected, itemId, cancellationToken),
-+                => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
-             _ => null
-         };
-     }
- 
-     private async Task<ConferenceDirectionHistoryVm> BuildProjectDirectionHistoryAsync(
--        CommandOfficerWorkloadVm officer,
-+        string officerUserId,
-         int projectId,
-         CancellationToken cancellationToken)
-     {
-@@ -341,7 +374,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         }
- 
-         var assignedProjectOfficerId = string.IsNullOrWhiteSpace(project.LeadPoUserId)
--            ? officer.UserId
-+            ? officerUserId
-             : project.LeadPoUserId;
-         var mcoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Mco, cancellationToken);
-         var mcoUserIdArray = mcoUserIds.ToArray();
-@@ -430,7 +463,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-                     AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
-                     AuthorRole = DisplayRole(direction.AuthorRole),
-                     CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
--                    SnapshotLabel = "Stage when issued",
-+                    SnapshotLabel = BuildProjectSnapshotLabel(direction.StageRef, direction.StageNameSnapshot),
-                     SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
-                 },
-                 ProgressEntries = progressEntries,
-@@ -585,7 +618,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-     }
- 
-     private async Task<ConferenceDirectionHistoryVm> BuildTaskDirectionHistoryAsync(
--        CommandOfficerWorkloadVm officer,
-+        string officerUserId,
-         int taskId,
-         CancellationToken cancellationToken)
-     {
-@@ -609,7 +642,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         }
- 
-         var assignedTaskUserId = string.IsNullOrWhiteSpace(task.AssignedToUserId)
--            ? officer.UserId
-+            ? officerUserId
-             : task.AssignedToUserId;
-         var firstDirection = directions[0];
-         var updates = await _db.ActionTaskUpdates
-@@ -730,8 +763,70 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         };
- 
- 
-+    private async Task<IReadOnlyList<ConferenceOfficerContext>> LoadConferenceOfficersAsync(
-+        string requestingUserId,
-+        CancellationToken cancellationToken)
-+    {
-+        var activeWorkloads = await _workload.GetAllAsync(requestingUserId, cancellationToken);
-+        IReadOnlyList<ConferenceProjectCarryover> carryovers = _projectScope is null
-+            ? Array.Empty<ConferenceProjectCarryover>()
-+            : await _projectScope.GetRecentlyCompletedProjectsAsync(cancellationToken);
-+        var carryoversByOfficer = carryovers
-+            .GroupBy(item => item.OfficerUserId, StringComparer.Ordinal)
-+            .ToDictionary(
-+                group => group.Key,
-+                group => (IReadOnlyList<ConferenceProjectCarryover>)group
-+                    .OrderByDescending(item => item.CompletionSortDate)
-+                    .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
-+                    .ToArray(),
-+                StringComparer.Ordinal);
++            if (requested === 'conference' && this.allowConference) {
++                return 'Conference';
++            }
 +
-+        var result = new List<ConferenceOfficerContext>(
-+            activeWorkloads.Count + carryoversByOfficer.Count);
-+        var includedOfficerIds = new HashSet<string>(StringComparer.Ordinal);
-+
-+        foreach (var workload in activeWorkloads)
-+        {
-+            carryoversByOfficer.TryGetValue(workload.UserId, out var officerCarryovers);
-+            officerCarryovers ??= Array.Empty<ConferenceProjectCarryover>();
-+            result.Add(new ConferenceOfficerContext(
-+                workload.UserId,
-+                workload.OfficerName,
-+                workload.Rank,
-+                workload.Projects,
-+                workload.Ideas,
-+                workload.OtherTasks,
-+                officerCarryovers));
-+            includedOfficerIds.Add(workload.UserId);
++            return 'Internal';
 +        }
 +
-+        var carryoverOnlyOfficers = carryovers
-+            .Where(item => !includedOfficerIds.Contains(item.OfficerUserId))
-+            .GroupBy(item => item.OfficerUserId, StringComparer.Ordinal)
-+            .Select(group =>
-+            {
-+                var identity = group.First();
-+                return new ConferenceOfficerContext(
-+                    identity.OfficerUserId,
-+                    identity.OfficerName,
-+                    identity.OfficerRank,
-+                    Array.Empty<CommandOfficerProjectVm>(),
-+                    Array.Empty<CommandOfficerIdeaVm>(),
-+                    Array.Empty<CommandOfficerTaskVm>(),
-+                    group
-+                        .OrderByDescending(item => item.CompletionSortDate)
-+                        .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
-+                        .ToArray());
-+            })
-+            .OrderBy(officer => OfficerRankOrder(officer.Rank))
-+            .ThenBy(officer => officer.OfficerName, StringComparer.OrdinalIgnoreCase);
-+
-+        result.AddRange(carryoverOnlyOfficers);
-+        return result;
-+    }
-+
-     private static IReadOnlyList<OfficerConferenceOfficerOptionVm> BuildOfficerOptions(
--        IReadOnlyList<CommandOfficerWorkloadVm> orderedOfficers,
-+        IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
-         string? selectedOfficerUserId)
-         => orderedOfficers
-             .Select(officer => new OfficerConferenceOfficerOptionVm(
-@@ -739,8 +834,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-                 DisplayOfficerName(officer),
-                 string.Equals(officer.UserId, selectedOfficerUserId, StringComparison.Ordinal),
-                 officer.ProjectCount,
--                officer.IdeaCount,
--                officer.OtherTaskCount))
-+                officer.Ideas.Count,
-+                officer.OtherTasks.Count,
-+                officer.ActiveProjects.Count,
-+                officer.RecentlyCompletedProjects.Count))
-             .ToArray();
++        setComposerType(type) {
++            const target = this.resolveComposerType(type);
+             this.composerType = target;
  
-     private async Task<List<ProjectRow>> LoadProjectsAsync(
-@@ -760,6 +857,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-                 project.Name,
-                 project.LeadPoUserId,
-                 project.WorkflowVersion,
-+                project.LifecycleStatus,
-+                project.CompletedOn,
-+                project.CompletedYear,
-+                project.CompletedMonth,
-                 project.ProjectStages
-                     .Select(stage => new ProjectStageRow(
-                         stage.StageCode,
-@@ -1062,7 +1163,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-     }
- 
-     private IReadOnlyList<OfficerConferenceItemVm> BuildProjectItems(
--        CommandOfficerWorkloadVm officer,
-+        ConferenceOfficerContext officer,
-         IReadOnlyList<ProjectRow> rows,
-         IReadOnlyList<Remark> remarks,
-         IReadOnlyDictionary<int, Remark> latestDirections,
-@@ -1076,61 +1177,94 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         var remarksByProject = remarks
-             .GroupBy(remark => remark.ProjectId)
-             .ToDictionary(group => group.Key, group => group.ToList());
--        var result = new List<OfficerConferenceItemVm>();
-+        var sources = officer.ActiveProjects
-+            .Select(item => new ConferenceProjectSource(
-+                item.ProjectId,
-+                item.OpenUrl,
-+                item.StageCode,
-+                item.StageName,
-+                IsRecentlyCompleted: false,
-+                CompletionContext: null))
-+            .Concat(officer.RecentlyCompletedProjects.Select(item => new ConferenceProjectSource(
-+                item.ProjectId,
-+                $"/Projects/Overview/{item.ProjectId}",
-+                "COMPLETED",
-+                "Completed",
-+                IsRecentlyCompleted: true,
-+                item.CompletionContext)))
-+            .ToArray();
-+        var result = new List<OfficerConferenceItemVm>(sources.Length);
- 
--        foreach (var workloadItem in officer.Projects)
-+        foreach (var source in sources)
-         {
--            if (!rowsById.TryGetValue(workloadItem.ProjectId, out var row))
-+            if (!rowsById.TryGetValue(source.ProjectId, out var row))
-             {
-                 continue;
+             if (this.composerForm) {
+@@ -2308,7 +2317,7 @@
              }
  
--            var snapshots = row.Stages
--                .Select(stage => new ProjectStageStatusSnapshot(
--                    stage.StageCode,
--                    stage.Status,
--                    stage.SortOrder,
--                    stage.ActualStart,
--                    stage.CompletedOn))
--                .ToList();
--            var presentStage = PresentStageHelper.ComputePresentStageAndAge(
--                snapshots,
--                _workflowStageMetadataProvider,
--                row.WorkflowVersion,
--                today);
--            var currentCode = presentStage.CurrentStageCode ?? workloadItem.StageCode;
--            var currentName = presentStage.CurrentStageName ?? workloadItem.StageName;
--            var currentPdc = row.Stages
--                .FirstOrDefault(stage => string.Equals(
--                    stage.StageCode,
--                    currentCode,
--                    StringComparison.OrdinalIgnoreCase))
--                ?.PlannedDue;
--
--            var contextParts = new List<string>();
--            if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
--            {
--                contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
--            }
--
-+            string currentCode;
-+            string currentName;
-+            string? currentContext;
-             string? attentionText = null;
-             var requiresAttention = false;
--            if (currentPdc.HasValue)
-+
-+            if (source.IsRecentlyCompleted)
-             {
--                var delta = currentPdc.Value.DayNumber - today.DayNumber;
--                if (delta < 0)
-+                currentCode = "COMPLETED";
-+                currentName = "Completed";
-+                currentContext = string.IsNullOrWhiteSpace(source.CompletionContext)
-+                    ? "Recently completed"
-+                    : source.CompletionContext;
-+            }
-+            else
-+            {
-+                var snapshots = row.Stages
-+                    .Select(stage => new ProjectStageStatusSnapshot(
-+                        stage.StageCode,
-+                        stage.Status,
-+                        stage.SortOrder,
-+                        stage.ActualStart,
-+                        stage.CompletedOn))
-+                    .ToList();
-+                var presentStage = PresentStageHelper.ComputePresentStageAndAge(
-+                    snapshots,
-+                    _workflowStageMetadataProvider,
-+                    row.WorkflowVersion,
-+                    today);
-+                currentCode = presentStage.CurrentStageCode ?? source.StageCode;
-+                currentName = presentStage.CurrentStageName ?? source.StageName;
-+                var currentPdc = row.Stages
-+                    .FirstOrDefault(stage => string.Equals(
-+                        stage.StageCode,
-+                        currentCode,
-+                        StringComparison.OrdinalIgnoreCase))
-+                    ?.PlannedDue;
-+
-+                var contextParts = new List<string>();
-+                if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
-                 {
--                    attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
--                    requiresAttention = true;
-+                    contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
-+                }
-+
-+                if (currentPdc.HasValue)
-+                {
-+                    var delta = currentPdc.Value.DayNumber - today.DayNumber;
-+                    if (delta < 0)
-+                    {
-+                        attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
-+                        requiresAttention = true;
-+                    }
-+                    else
-+                    {
-+                        contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
-+                    }
-                 }
-                 else
-                 {
--                    contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
-+                    contextParts.Add("PDC not set");
-                 }
--            }
--            else
--            {
--                contextParts.Add("PDC not set");
-+
-+                currentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts);
-             }
+             this.setComposerScope(this.defaultScope);
+-            this.setComposerType('Internal');
++            this.setComposerType(this.defaultComposerType);
+             this.clearFeedback();
+             this.validateComposer();
+         }
+diff --git a/wwwroot/js/projects/remarks-panel.test.js b/wwwroot/js/projects/remarks-panel.test.js
+index b69c31d..03c4c36 100644
+--- a/wwwroot/js/projects/remarks-panel.test.js
++++ b/wwwroot/js/projects/remarks-panel.test.js
+@@ -31,6 +31,12 @@ function createPanelDom(config = {}) {
+         })
+         .join('');
+     const configJson = escapeHtml(JSON.stringify(config));
++    const externalOptionHtml = config.allowExternal
++        ? '<button type="button" data-remarks-composer-option="External" aria-pressed="false">External</button>'
++        : '';
++    const conferenceOptionHtml = config.allowConference
++        ? '<button type="button" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>'
++        : '';
  
-             latestDirections.TryGetValue(row.Id, out var direction);
-@@ -1202,12 +1336,13 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-                 Kind = ConferenceItemKind.Project,
-                 ItemId = row.Id,
-                 Title = row.Name,
--                OpenUrl = workloadItem.OpenUrl,
-+                OpenUrl = source.OpenUrl,
-                 CurrentStateCode = currentCode,
-                 CurrentStateName = currentName,
--                CurrentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts),
-+                CurrentContext = currentContext,
-                 AttentionText = attentionText,
-                 RequiresAttention = requiresAttention,
-+                IsRecentlyCompleted = source.IsRecentlyCompleted,
-                 RecordHealth = recordHealth.GetValueOrDefault(row.Id),
-                 LatestDirection = direction is null
-                     ? null
-@@ -1218,7 +1353,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-                         AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
-                         AuthorRole = DisplayRole(direction.AuthorRole),
-                         CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
--                        SnapshotLabel = "Stage when issued",
-+                        SnapshotLabel = BuildProjectSnapshotLabel(direction.StageRef, direction.StageNameSnapshot),
-                         SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
-                     },
-                 DirectionCount = directionCounts.GetValueOrDefault(row.Id),
-@@ -1233,7 +1368,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-     }
- 
-     private static IReadOnlyList<OfficerConferenceItemVm> BuildIdeaItems(
--        CommandOfficerWorkloadVm officer,
-+        ConferenceOfficerContext officer,
-         IReadOnlyList<IdeaRow> rows,
-         IReadOnlyList<ProjectIdeaComment> comments,
-         IReadOnlyList<IdeaNoteRow> notes,
-@@ -1348,7 +1483,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-     }
- 
-     private static IReadOnlyList<OfficerConferenceItemVm> BuildTaskItems(
--        CommandOfficerWorkloadVm officer,
-+        ConferenceOfficerContext officer,
-         IReadOnlyList<TaskRow> rows,
-         IReadOnlyList<ActionTaskUpdate> updates,
-         IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
-@@ -1495,6 +1630,12 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-         => candidateAt < boundaryAt
-            || (candidateAt == boundaryAt && candidateId < boundaryId);
- 
-+    private static string BuildProjectSnapshotLabel(string? stageRef, string? stageName)
-+        => string.IsNullOrWhiteSpace(stageRef)
-+           && string.Equals(stageName, "Completed", StringComparison.OrdinalIgnoreCase)
-+            ? "Status when issued"
-+            : "Stage when issued";
-+
-     private static string BuildStageSnapshot(string? stageRef, string? stageName)
-     {
-         if (string.IsNullOrWhiteSpace(stageRef) && string.IsNullOrWhiteSpace(stageName))
-@@ -1549,21 +1690,58 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
-             ? value
-             : DateTime.SpecifyKind(value, DateTimeKind.Utc);
- 
--    private static string DisplayOfficerName(CommandOfficerWorkloadVm officer)
-+    private static string DisplayOfficerName(ConferenceOfficerContext officer)
-         => string.IsNullOrWhiteSpace(officer.Rank)
-             ? officer.OfficerName
-             : $"{officer.Rank} {officer.OfficerName}";
- 
-+    private static int OfficerRankOrder(string? rank)
-+    {
-+        if (string.IsNullOrWhiteSpace(rank)) return int.MaxValue;
-+        var value = rank.Trim().ToUpperInvariant();
-+        if (value.Contains("LT COL", StringComparison.Ordinal)
-+            || value.Contains("LIEUTENANT COLONEL", StringComparison.Ordinal)) return 20;
-+        if (value.Contains("COLONEL", StringComparison.Ordinal) || value == "COL") return 10;
-+        if (value.Contains("MAJOR", StringComparison.Ordinal) || value == "MAJ") return 30;
-+        if (value.Contains("CAPTAIN", StringComparison.Ordinal) || value == "CAPT") return 40;
-+        if (value.Contains("LIEUTENANT", StringComparison.Ordinal) || value == "LT") return 50;
-+        return 100;
-+    }
-+
-     private static string InitialOf(string? name)
-         => string.IsNullOrWhiteSpace(name)
-             ? "P"
-             : name.Trim()[0].ToString().ToUpperInvariant();
- 
-+    private sealed record ConferenceOfficerContext(
-+        string UserId,
-+        string OfficerName,
-+        string Rank,
-+        IReadOnlyList<CommandOfficerProjectVm> ActiveProjects,
-+        IReadOnlyList<CommandOfficerIdeaVm> Ideas,
-+        IReadOnlyList<CommandOfficerTaskVm> OtherTasks,
-+        IReadOnlyList<ConferenceProjectCarryover> RecentlyCompletedProjects)
-+    {
-+        public int ProjectCount => ActiveProjects.Count + RecentlyCompletedProjects.Count;
-+    }
-+
-+    private sealed record ConferenceProjectSource(
-+        int ProjectId,
-+        string OpenUrl,
-+        string StageCode,
-+        string StageName,
-+        bool IsRecentlyCompleted,
-+        string? CompletionContext);
-+
-     private sealed record ProjectRow(
-         int Id,
-         string Name,
-         string? LeadPoUserId,
-         string WorkflowVersion,
-+        ProjectLifecycleStatus LifecycleStatus,
-+        DateOnly? CompletedOn,
-+        int? CompletedYear,
-+        short? CompletedMonth,
-         IReadOnlyList<ProjectStageRow> Stages);
- 
-     private sealed record ProjectStageRow(
-diff --git a/ViewModels/Workspace/OfficerConferenceViewModels.cs b/ViewModels/Workspace/OfficerConferenceViewModels.cs
-index 0738ba4..a48892c 100644
---- a/ViewModels/Workspace/OfficerConferenceViewModels.cs
-+++ b/ViewModels/Workspace/OfficerConferenceViewModels.cs
-@@ -20,6 +20,9 @@ public sealed class OfficerConferenceVm
- 
-     public string OfficerInitial { get; init; } = "P";
-     public int ProjectCount { get; init; }
-+    public int ActiveProjectCount { get; init; }
-+    public int RecentlyCompletedProjectCount { get; init; }
-+    public int CompletedProjectRetentionDays { get; init; }
-     public int IdeaCount { get; init; }
-     public int OtherTaskCount { get; init; }
- 
-@@ -40,7 +43,9 @@ public sealed record OfficerConferenceOfficerOptionVm(
-     bool IsSelected,
-     int ProjectCount = 0,
-     int IdeaCount = 0,
--    int OtherTaskCount = 0);
-+    int OtherTaskCount = 0,
-+    int ActiveProjectCount = 0,
-+    int RecentlyCompletedProjectCount = 0);
- 
- public sealed class OfficerConferenceSectionVm
- {
-@@ -63,6 +68,7 @@ public sealed class OfficerConferenceItemVm
-     public string? CurrentContext { get; init; }
-     public string? AttentionText { get; init; }
-     public bool RequiresAttention { get; init; }
-+    public bool IsRecentlyCompleted { get; init; }
-     public WorkspaceRecordHealthVm? RecordHealth { get; init; }
- 
-     public ConferenceDirectionVm? LatestDirection { get; init; }
-@@ -229,6 +235,7 @@ public sealed class OfficerConferenceSectionRenderVm
-     public DateTime MinimumTaskDueDate { get; init; }
-     public DateTime DefaultTaskDueDate { get; init; }
-     public ConferenceIdeaCreationOptionsVm IdeaCreation { get; init; } = new();
-+    public int CompletedProjectRetentionDays { get; init; }
-     public OfficerConferenceSectionVm Section { get; init; } = new();
- }
- 
-diff --git a/appsettings.Production.json b/appsettings.Production.json
-index 2ef5515..c68d478 100644
---- a/appsettings.Production.json
-+++ b/appsettings.Production.json
-@@ -16,6 +16,9 @@
-       "Microsoft.AspNetCore": "Warning"
-     }
-   },
-+  "Conference": {
-+    "CompletedProjectRetentionDays": 90
-+  },
-   "Todo": {
-     "RetentionDays": 7,
-     "MaxOpenTasks": 500
-diff --git a/appsettings.json b/appsettings.json
-index 67ee378..803f01a 100644
---- a/appsettings.json
-+++ b/appsettings.json
-@@ -44,6 +44,9 @@
-     "DefaultReviewPageSize": 25,
-     "MaximumReviewPageSize": 100
-   },
-+  "Conference": {
-+    "CompletedProjectRetentionDays": 90
-+  },
-   "Todo": {
-     "RetentionDays": 7,
-     "MaxOpenTasks": 500
-diff --git a/wwwroot/css/officer-conference.css b/wwwroot/css/officer-conference.css
-index bac85d2..c82fe7c 100644
---- a/wwwroot/css/officer-conference.css
-+++ b/wwwroot/css/officer-conference.css
-@@ -215,6 +215,77 @@
-     font-style: italic;
- }
- 
-+
-+.oc-header__metric--carryover {
-+    color: #56766e;
-+}
-+
-+.oc-header__metric--carryover strong {
-+    color: #2f6b5d;
-+}
-+
-+.oc-project-group-heading {
-+    min-height: 36px;
-+    display: flex;
-+    align-items: center;
-+    justify-content: space-between;
-+    gap: 12px;
-+    padding: 7px 12px;
-+    border-bottom: 1px solid #e4eaf2;
-+    background: #f8fafc;
-+    color: #4b607f;
-+}
-+
-+.oc-project-group-heading:not(:first-child) {
-+    border-top: 1px solid #e4eaf2;
-+}
-+
-+.oc-project-group-heading > span {
-+    min-width: 0;
-+    display: flex;
-+    flex-wrap: wrap;
-+    align-items: baseline;
-+    gap: 4px 8px;
-+}
-+
-+.oc-project-group-heading strong {
-+    font-size: .66rem;
-+    font-weight: 900;
-+    letter-spacing: .055em;
-+    text-transform: uppercase;
-+}
-+
-+.oc-project-group-heading small {
-+    color: #7b8799;
-+    font-size: .62rem;
-+}
-+
-+.oc-project-group-heading b {
-+    min-width: 23px;
-+    height: 23px;
-+    display: grid;
-+    place-items: center;
-+    padding: 0 6px;
-+    border-radius: 999px;
-+    background: #e9eef6;
-+    color: #4b607f;
-+    font-size: .64rem;
-+}
-+
-+.oc-project-group-heading--completed {
-+    background: #f3f9f7;
-+    color: #35685b;
-+}
-+
-+.oc-project-group-heading--completed small {
-+    color: #668178;
-+}
-+
-+.oc-project-group-heading--completed b {
-+    background: #dfeee9;
-+    color: #2f6b5d;
-+}
-+
- .oc-item + .oc-item { border-top: 1px solid #e9edf4; }
- 
- .oc-item {
-@@ -226,6 +297,26 @@
-     background: #fff;
- }
- 
-+.oc-item--completed-carryover {
-+    background: linear-gradient(90deg, rgba(239,248,245,.82), #fff 18%);
-+}
-+
-+.oc-item--completed-carryover::before {
-+    content: "";
-+    position: absolute;
-+    inset: 0 auto 0 0;
-+    width: 3px;
-+    background: #4e8a79;
-+}
-+
-+.oc-item--completed-carryover .oc-state strong {
-+    color: #2f6b5d;
-+}
-+
-+.oc-item--completed-carryover .oc-current-context {
-+    color: #607a72;
-+}
-+
- .oc-item--attention::before {
-     content: "";
-     position: absolute;
-diff --git a/wwwroot/js/pages/officer-conference.test.js b/wwwroot/js/pages/officer-conference.test.js
-index 0fcacde..fad3701 100644
---- a/wwwroot/js/pages/officer-conference.test.js
-+++ b/wwwroot/js/pages/officer-conference.test.js
-@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
- 
- const source = fs.readFileSync(path.resolve(__dirname, 'officer-conference.js'), 'utf8');
- const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer-conference.css'), 'utf8');
-+const conferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Conference.cshtml'), 'utf8');
-+const conferenceSection = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceSection.cshtml'), 'utf8');
-+const conferenceItemRow = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceItemRow.cshtml'), 'utf8');
- 
- test('conference editor supports keyboard save and cancel', () => {
-     assert.match(source, /event\.key === 'Escape'/);
-@@ -225,3 +228,18 @@ test('conference history navigation restores keyboard focus after replacing row
-     assert.match(source, /const preferredSelector = delta < 0/);
-     assert.match(source, /focusTarget\?\.focus\(\{ preventScroll: true \}\)/);
+     const dom = new JSDOM(`<!DOCTYPE html><html><body>
+         <div data-panel-project-id="1" data-config="${configJson}">
+@@ -39,6 +45,11 @@ function createPanelDom(config = {}) {
+             <div data-remarks-pagination></div>
+             <form data-remarks-composer>
+                 <textarea data-remarks-body></textarea>
++                <div data-remarks-composer-type>
++                    <button type="button" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
++                    ${externalOptionHtml}
++                    ${conferenceOptionHtml}
++                </div>
+                 <div data-remarks-external-fields>
+                     <input data-remarks-event-date type="date" />
+                     <select data-remarks-stage>
+@@ -395,3 +406,43 @@ test('conference composer type is accepted only when enabled', () => {
+     disabled.setComposerType('Conference');
+     assert.equal(disabled.composerType, 'Internal');
  });
 +
-+test('conference view distinguishes active and recently completed project scope', () => {
-+    assert.match(conferenceView, /ActiveProjectCount/);
-+    assert.match(conferenceView, /RecentlyCompletedProjectCount/);
-+    assert.match(conferenceSection, /Active projects/);
-+    assert.match(conferenceSection, /Recently completed/);
-+    assert.match(conferenceSection, /CompletedProjectRetentionDays/);
++test('configured conference default is selected on initialisation when allowed', () => {
++    const { panel, document } = createPanelDom({
++        allowConference: true,
++        defaultType: 'Conference'
++    });
++
++    assert.equal(panel.defaultComposerType, 'Conference');
++    assert.equal(panel.composerType, 'Conference');
++    assert.equal(
++        document.querySelector('[data-remarks-composer-option="Conference"]').getAttribute('aria-pressed'),
++        'true');
++    assert.equal(
++        document.querySelector('[data-remarks-composer-option="Internal"]').getAttribute('aria-pressed'),
++        'false');
 +});
 +
-+test('recently completed project rows carry semantic state and restrained visual treatment', () => {
-+    assert.match(conferenceItemRow, /oc-item--completed-carryover/);
-+    assert.match(conferenceItemRow, /data-project-carryover/);
-+    assert.match(conferenceCss, /\.oc-project-group-heading--completed/);
-+    assert.match(conferenceCss, /\.oc-item--completed-carryover::before/);
++test('conference default safely falls back to internal when conference is unavailable', () => {
++    const { panel } = createPanelDom({
++        allowConference: false,
++        defaultType: 'Conference'
++    });
++
++    assert.equal(panel.defaultComposerType, 'Internal');
++    assert.equal(panel.composerType, 'Internal');
++});
++
++test('resetComposer restores the configured conference default', () => {
++    const { panel } = createPanelDom({
++        allowConference: true,
++        defaultType: 'Conference'
++    });
++
++    panel.setComposerType('Internal');
++    assert.equal(panel.composerType, 'Internal');
++
++    panel.resetComposer();
++
++    assert.equal(panel.composerType, 'Conference');
 +});

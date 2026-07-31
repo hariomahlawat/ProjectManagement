@@ -149,6 +149,7 @@ public sealed class ProjectRemarksPanelService
         var allowExternal = !viewerOnly && canPostAsHoDOrAbove;
         var allowConference = !viewerOnly && remarkRoleSet.Any(role =>
             role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant);
+        var defaultType = SelectDefaultRemarkType(actorRole, allowConference);
 
         return new ProjectRemarksPanelViewModel
         {
@@ -162,6 +163,7 @@ public sealed class ProjectRemarksPanelService
             AllowInternal = showComposer,
             AllowExternal = allowExternal,
             AllowConference = allowConference,
+            DefaultType = defaultType.ToString(),
             ShowDeletedToggle = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Administrator),
             ActorHasOverride = canOverride,
             StageOptions = stageOptions,
@@ -264,6 +266,13 @@ public sealed class ProjectRemarksPanelService
 
         return latestCompleted?.StageCode ?? string.Empty;
     }
+
+    private static RemarkType SelectDefaultRemarkType(
+        RemarkActorRole actorRole,
+        bool allowConference)
+        => actorRole == RemarkActorRole.Commandant && allowConference
+            ? RemarkType.Conference
+            : RemarkType.Internal;
 
     private static RemarkActorRole SelectDefaultRemarkRole(IReadOnlyCollection<RemarkActorRole> roles)
     {

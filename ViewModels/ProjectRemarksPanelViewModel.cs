@@ -29,6 +29,8 @@ public sealed class ProjectRemarksPanelViewModel
 
     public bool AllowConference { get; init; }
 
+    public string DefaultType { get; init; } = RemarkType.Internal.ToString();
+
     public bool ShowDeletedToggle { get; init; }
 
     public bool ActorHasOverride { get; init; }

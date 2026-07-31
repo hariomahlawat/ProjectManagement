@@ -326,6 +326,7 @@
             this.actorHasOverride = !!this.config.actorHasOverride;
             this.allowExternal = !!this.config.allowExternal;
             this.allowConference = !!this.config.allowConference;
+            this.defaultComposerType = this.resolveComposerType(this.config.defaultType);
             this.viewerOnly = !!this.config.viewerOnly;
             const parsedPageSize = Number.parseInt(this.config.pageSize, 10);
             this.pageSize = Number.isFinite(parsedPageSize) && parsedPageSize > 0 ? parsedPageSize : 20;
@@ -654,7 +655,7 @@
                     });
                 }
 
-                this.setComposerType('Internal');
+                this.setComposerType(this.defaultComposerType);
                 this.validateComposer();
 
                 if (this.bodyField) {
@@ -2244,13 +2245,21 @@
             return headers;
         }
 
-        setComposerType(type) {
+        resolveComposerType(type) {
             const requested = String(type || 'Internal').toLowerCase();
-            const target = requested === 'external' && this.allowExternal
-                ? 'External'
-                : requested === 'conference' && this.allowConference
-                    ? 'Conference'
-                    : 'Internal';
+            if (requested === 'external' && this.allowExternal) {
+                return 'External';
+            }
+
+            if (requested === 'conference' && this.allowConference) {
+                return 'Conference';
+            }
+
+            return 'Internal';
+        }
+
+        setComposerType(type) {
+            const target = this.resolveComposerType(type);
             this.composerType = target;
 
             if (this.composerForm) {
@@ -2308,7 +2317,7 @@
             }
 
             this.setComposerScope(this.defaultScope);
-            this.setComposerType('Internal');
+            this.setComposerType(this.defaultComposerType);
             this.clearFeedback();
             this.validateComposer();
         }

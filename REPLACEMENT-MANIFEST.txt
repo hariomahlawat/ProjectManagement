@@ -1,22 +1,10 @@
-PRISM Conference Completion Carryover — replacement manifest
+PRISM Project Remarks — Commandant Default Conference Type
 
-Configuration/ConferenceOptions.cs
-Configuration/ConferenceOptionsValidator.cs
-Pages/Workspace/Conference.cshtml
-Pages/Workspace/_ConferenceItemRow.cshtml
-Pages/Workspace/_ConferenceSection.cshtml
-Program.cs
-ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
-ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
-ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
-ProjectManagement.Tests/RemarkServiceTests.cs
-Services/ConferenceRemarks/ConferenceRemarkCommandService.cs
-Services/Remarks/RemarkService.cs
-Services/Workspace/ConferenceProjectScopeService.cs
-Services/Workspace/IConferenceProjectScopeService.cs
-Services/Workspace/OfficerConferenceReadService.cs
-ViewModels/Workspace/OfficerConferenceViewModels.cs
-appsettings.Production.json
-appsettings.json
-wwwroot/css/officer-conference.css
-wwwroot/js/pages/officer-conference.test.js
+Pages/Projects/Remarks/Index.cshtml
+Pages/Projects/_ProjectLifecycleWorkspace.cshtml
+ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs
+ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
+Services/Projects/ProjectRemarksPanelService.cs
+ViewModels/ProjectRemarksPanelViewModel.cs
+wwwroot/js/projects/remarks-panel.js
+wwwroot/js/projects/remarks-panel.test.js

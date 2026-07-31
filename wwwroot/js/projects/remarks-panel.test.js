@@ -31,6 +31,12 @@ function createPanelDom(config = {}) {
         })
         .join('');
     const configJson = escapeHtml(JSON.stringify(config));
+    const externalOptionHtml = config.allowExternal
+        ? '<button type="button" data-remarks-composer-option="External" aria-pressed="false">External</button>'
+        : '';
+    const conferenceOptionHtml = config.allowConference
+        ? '<button type="button" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>'
+        : '';
 
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
         <div data-panel-project-id="1" data-config="${configJson}">
@@ -39,6 +45,11 @@ function createPanelDom(config = {}) {
             <div data-remarks-pagination></div>
             <form data-remarks-composer>
                 <textarea data-remarks-body></textarea>
+                <div data-remarks-composer-type>
+                    <button type="button" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
+                    ${externalOptionHtml}
+                    ${conferenceOptionHtml}
+                </div>
                 <div data-remarks-external-fields>
                     <input data-remarks-event-date type="date" />
                     <select data-remarks-stage>
@@ -394,4 +405,44 @@ test('conference composer type is accepted only when enabled', () => {
     const disabled = createPanelDom({ allowConference: false }).panel;
     disabled.setComposerType('Conference');
     assert.equal(disabled.composerType, 'Internal');
+});
+
+test('configured conference default is selected on initialisation when allowed', () => {
+    const { panel, document } = createPanelDom({
+        allowConference: true,
+        defaultType: 'Conference'
+    });
+
+    assert.equal(panel.defaultComposerType, 'Conference');
+    assert.equal(panel.composerType, 'Conference');
+    assert.equal(
+        document.querySelector('[data-remarks-composer-option="Conference"]').getAttribute('aria-pressed'),
+        'true');
+    assert.equal(
+        document.querySelector('[data-remarks-composer-option="Internal"]').getAttribute('aria-pressed'),
+        'false');
+});
+
+test('conference default safely falls back to internal when conference is unavailable', () => {
+    const { panel } = createPanelDom({
+        allowConference: false,
+        defaultType: 'Conference'
+    });
+
+    assert.equal(panel.defaultComposerType, 'Internal');
+    assert.equal(panel.composerType, 'Internal');
+});
+
+test('resetComposer restores the configured conference default', () => {
+    const { panel } = createPanelDom({
+        allowConference: true,
+        defaultType: 'Conference'
+    });
+
+    panel.setComposerType('Internal');
+    assert.equal(panel.composerType, 'Internal');
+
+    panel.resetComposer();
+
+    assert.equal(panel.composerType, 'Conference');
 });

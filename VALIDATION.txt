@@ -1,14 +1,15 @@
 Validation completed in the packaging environment:
 
-- JavaScript syntax checks passed.
-- 35/35 officer-conference Node tests passed.
-- appsettings.json and appsettings.Production.json parsed successfully.
-- Conference Razor partial structural checks passed.
-- officer-conference.css structural validation passed.
-- Modified/new C# delimiter and lexical checks passed.
+- remarks-panel.js JavaScript syntax check passed.
+- 3/3 focused source-contract Node tests passed against the actual resolver implementation.
+- The resolver preserves Conference and External permission boundaries.
+- Initialisation and reset both use the server-configured default composer type.
+- Targeted Razor button/tag structural checks passed.
+- Modified/new C# delimiter and policy contract checks passed.
+- No project remark composer retains a hard-coded active Internal button.
 - Git diff whitespace validation passed.
-- Implementation patch applied cleanly to the latest baseline.
-- Patched files matched the replacement files byte-for-byte.
+- Implementation patch applied cleanly to the latest Conference Completion Carryover baseline.
+- Patched files matched the replacement package byte-for-byte.
 - ZIP integrity test passed.
 
-The .NET SDK was not installed in the packaging environment. The .NET Release build and xUnit suite were therefore not run here and must be run after replacement in Visual Studio or a .NET-enabled build environment.
+The complete remarks-panel Node suite could not be executed because the jsdom dependency was not installed and the available npm registry did not contain one transitive package. The .NET SDK was also unavailable, so the Release build and xUnit suite must be run after replacement in Visual Studio or another .NET-enabled environment.

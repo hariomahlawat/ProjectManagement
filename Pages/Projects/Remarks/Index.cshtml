@@ -8,6 +8,12 @@
     ViewData["Title"] = $"Remarks - {projectName}";
     ViewData["UseFullWidth"] = true;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var defaultConferenceRemark = Model.RemarksPanel.AllowConference
+        && string.Equals(Model.RemarksPanel.DefaultType, "Conference", StringComparison.OrdinalIgnoreCase);
+    var defaultExternalRemark = !defaultConferenceRemark
+        && Model.RemarksPanel.AllowExternal
+        && string.Equals(Model.RemarksPanel.DefaultType, "External", StringComparison.OrdinalIgnoreCase);
+    var defaultInternalRemark = !defaultConferenceRemark && !defaultExternalRemark;
 }
 
 <div class="project-remarks-page">
@@ -122,18 +128,18 @@
                             <div class="project-remarks-option-group">
                                 <span>Type</span>
                                 <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
-                                    <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
+                                    <button type="button" class="btn btn-outline-secondary@(defaultInternalRemark ? " active" : string.Empty)" data-remarks-composer-option="Internal" aria-pressed="@(defaultInternalRemark ? "true" : "false")">Internal</button>
                                     @if (Model.RemarksPanel.AllowExternal)
                                     {
-                                        <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                        <button type="button" class="btn btn-outline-secondary@(defaultExternalRemark ? " active" : string.Empty)" data-remarks-composer-option="External" aria-pressed="@(defaultExternalRemark ? "true" : "false")">External</button>
                                     }
                                     @if (Model.RemarksPanel.AllowConference)
                                     {
-                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
+                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option@(defaultConferenceRemark ? " active" : string.Empty)" data-remarks-composer-option="Conference" aria-pressed="@(defaultConferenceRemark ? "true" : "false")">Conference</button>
                                     }
                                 </div>
                             </div>
-                            <div class="remarks-composer-external project-remarks-external d-none" data-remarks-external-fields>
+                            <div class="remarks-composer-external project-remarks-external@(defaultExternalRemark ? string.Empty : " d-none")" data-remarks-external-fields>
                                 <div>
                                     <label for="remark-event-date">Event date</label>
                                     <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />

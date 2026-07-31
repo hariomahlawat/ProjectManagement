@@ -109,6 +109,84 @@ public sealed class ProjectRemarksPanelServiceTests
         Assert.Equal(expected, viewModel.AllowConference);
     }
 
+    [Theory]
+    [InlineData(RoleNames.Comdt, RemarkType.Conference)]
+    [InlineData(RoleNames.HoD, RemarkType.Internal)]
+    [InlineData(RoleNames.Admin, RemarkType.Internal)]
+    [InlineData(RoleNames.Mco, RemarkType.Internal)]
+    [InlineData(RoleNames.ProjectOfficer, RemarkType.Internal)]
+    public async Task BuildAsync_DefaultRemarkTypeFollowsEffectiveActorRole(
+        string role,
+        RemarkType expected)
+    {
+        await using var db = CreateContext();
+        using var userManager = CreateUserManager(db);
+        var service = new ProjectRemarksPanelService(
+            userManager,
+            new FixedClock(DateTimeOffset.UtcNow),
+            new WorkflowStageMetadataProvider());
+
+        var user = new ApplicationUser { Id = $"default-{role}", UserName = $"default-{role}@example.com" };
+        await userManager.CreateAsync(user);
+
+        var project = new Project
+        {
+            Id = 21,
+            Name = "Project Default Type",
+            LeadPoUserId = role == RoleNames.ProjectOfficer ? user.Id : null
+        };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Role, role)
+            },
+            "TestAuth"));
+
+        var viewModel = await service.BuildAsync(
+            project,
+            Array.Empty<ProjectStage>(),
+            principal,
+            CancellationToken.None);
+
+        Assert.Equal(expected.ToString(), viewModel.DefaultType);
+    }
+
+    [Fact]
+    public async Task BuildAsync_MultiRoleCommandantStillDefaultsToConference()
+    {
+        await using var db = CreateContext();
+        using var userManager = CreateUserManager(db);
+        var service = new ProjectRemarksPanelService(
+            userManager,
+            new FixedClock(DateTimeOffset.UtcNow),
+            new WorkflowStageMetadataProvider());
+
+        var user = new ApplicationUser { Id = "multi-role-commandant", UserName = "multi-role-commandant@example.com" };
+        await userManager.CreateAsync(user);
+
+        var project = new Project { Id = 22, Name = "Project Multi Role" };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Role, RoleNames.HoD),
+                new Claim(ClaimTypes.Role, RoleNames.Comdt),
+                new Claim(ClaimTypes.Role, RoleNames.Admin)
+            },
+            "TestAuth"));
+
+        var viewModel = await service.BuildAsync(
+            project,
+            Array.Empty<ProjectStage>(),
+            principal,
+            CancellationToken.None);
+
+        Assert.Equal(RemarkActorRole.Commandant.ToString(), viewModel.ActorRole);
+        Assert.True(viewModel.AllowConference);
+        Assert.Equal(RemarkType.Conference.ToString(), viewModel.DefaultType);
+    }
+
     [Fact]
     public async Task BuildAsync_WhenNoStages_UsesAllStageCodes()
     {
