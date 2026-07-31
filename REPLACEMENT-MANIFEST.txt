@@ -1,13 +1,12 @@
-REPLACEMENT MANIFEST
-====================
+REPLACE
+Pages/Workspace/BriefingDecks/Index.cshtml
+wwwroot/css/pages/project-briefing-decks.css
+wwwroot/js/pages/project-briefing-decks.js
+wwwroot/js/projects/project-briefing-decks.test.js
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 
-Replace these project-relative files exactly:
-
-- Pages/Workspace/BriefingDecks/Index.cshtml
-- wwwroot/css/pages/project-briefing-decks.css
-- wwwroot/js/pages/project-briefing-decks.js
-- wwwroot/js/projects/project-briefing-decks.test.js
-- ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-- ProjectManagement.Tests/ProjectManagement.Tests.csproj
-
-No migration, entity-model, ordering-rule, selection-rule or PowerPoint-composition change is included.
+NO DATABASE MIGRATION
+NO MODEL CHANGE
+NO SERVICE CHANGE
+NO POWERPOINT COMPOSER CHANGE
+NO PROJECT ORDERING OR MEMBERSHIP RULE CHANGE

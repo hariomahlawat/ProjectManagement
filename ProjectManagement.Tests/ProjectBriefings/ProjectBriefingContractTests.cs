@@ -30,7 +30,7 @@ public sealed class ProjectBriefingContractTests
 
 
     [Fact]
-    public void Builder_PrioritisesSelectedProjectsAndUsesTemplateAwarePreflight()
+    public void Builder_KeepsCompactPreflightAboveProjectsAndUsesTemplateAwareChecks()
     {
         var page = Read("Index.cshtml");
         var script = Read("project-briefing-decks.js");
@@ -45,10 +45,14 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("syncPreflightRequirementVisibility", script, StringComparison.Ordinal);
         Assert.Contains("is-decks-collapsed", script, StringComparison.Ordinal);
         Assert.True(
-            page.IndexOf("Projects in this deck", StringComparison.Ordinal) < page.IndexOf("Deck preflight", StringComparison.Ordinal),
-            "Selected-project management must appear before deck preflight.");
+            page.IndexOf("Deck preflight", StringComparison.Ordinal) < page.IndexOf("Projects in this deck", StringComparison.Ordinal),
+            "Deck preflight must remain the compact decision checkpoint above project management.");
         Assert.Contains("data-pbd-settings-drawer", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-settings-dirty", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-standard-section", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-settings-collapsible", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-readiness-tip", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label="Readiness indicator order", page, StringComparison.Ordinal);
         Assert.Contains("projects have", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Review {totalPreflightGapCount}", page, StringComparison.Ordinal);
     }
@@ -66,6 +70,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Unsaved settings", page, StringComparison.Ordinal);
         Assert.Contains("serializeSettings", script, StringComparison.Ordinal);
         Assert.Contains("beforeunload", script, StringComparison.Ordinal);
+        Assert.Contains("confirmSettingsNavigation", script, StringComparison.Ordinal);
+        Assert.Contains("restoreSettingsSectionState", script, StringComparison.Ordinal);
+        Assert.Contains("initialiseReadinessTooltips", script, StringComparison.Ordinal);
         Assert.Contains("Save or discard settings before generating", script, StringComparison.Ordinal);
         Assert.Contains("contain: inline-size", css, StringComparison.Ordinal);
         Assert.Contains("overflow-x: clip", css, StringComparison.Ordinal);

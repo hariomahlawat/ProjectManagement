@@ -120,3 +120,28 @@ test('preflight headline reports affected projects rather than summed metadata v
   assert.match(source, /projects have.*content gaps|project has.*content gaps/);
   assert.doesNotMatch(source, /Review \$\{totalGapCount\} content and metadata gaps/);
 });
+
+test('deck settings hide standard-only sections for update sheets and persist collapsible section state', () => {
+  assert.match(source, /data-pbd-standard-section/);
+  assert.match(source, /settingsCollapsibleSections/);
+  assert.match(source, /settingsSections:\$\{currentSettingsLayout\(\)\}/);
+  assert.match(source, /restoreSettingsSectionState/);
+  assert.match(source, /defaultOpenSettingsSections/);
+});
+
+test('readiness indicators expose accessible labels and professional hover-focus tooltips', () => {
+  assert.match(source, /data-pbd-readiness-tip/);
+  assert.match(source, /setAttribute\('aria-label', title\)/);
+  assert.match(source, /setAttribute\('role', 'img'\)/);
+  assert.match(source, /Tooltip\.getOrCreateInstance/);
+  assert.match(source, /trigger: 'hover focus'/);
+});
+
+test('unsaved settings protect explicit navigation as well as browser and generation paths', () => {
+  assert.match(source, /confirmSettingsNavigation/);
+  assert.match(source, /Discard unsaved deck settings and continue/);
+  assert.match(source, /document\.addEventListener\('click'/);
+  assert.match(source, /document\.addEventListener\('submit'/);
+  assert.match(source, /beforeunload/);
+  assert.match(source, /Save or discard settings before generating/);
+});

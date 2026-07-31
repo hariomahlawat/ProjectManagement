@@ -1,21 +1,23 @@
-VALIDATION REPORT
-=================
+PRISM PROJECT BRIEFING DECK — FINAL WORKFLOW POLISH VALIDATION
+Date: 31 Jul 2026
 
 PASSED
 - JavaScript syntax: node --check
-- JavaScript targeted tests: 17/17
-- Razor structural checks: balanced forms, sections, asides and details
-- Projects section precedes Deck preflight in the rendered source order
-- Settings drawer, dirty-state and generation-guard contracts present
-- CSS brace and parenthesis balance
-- CSS responsive width-containment and 1499 px rail breakpoint present
-- Test project copies the Briefing Deck CSS contract file to TestData
-- Patch cleanly applies to the supplied baseline
-- Patched files reproduce replacement files byte-for-byte
-- ZIP integrity and SHA-256 manifest
+- Targeted JavaScript tests: 20/20 passed
+- Razor structural checks: section/details/div/fieldset balance
+- Page-order contract: Deck preflight appears before Projects in this deck
+- Project Update Sheet contract: standard-only Content and layout section is hidden as a complete section
+- Settings section-state persistence contract
+- Readiness tooltip and accessibility contract
+- Unsaved-settings navigation-protection contract
+- CSS brace balance and required responsive rules
+- git diff --check
+- Patch applies cleanly to the latest Workflow and Responsive Stabilisation baseline
+- Applied patch reproduces every replacement file byte-for-byte
 
-NOT RUN
+NOT EXECUTED IN THIS ENVIRONMENT
 - .NET Release build
-- xUnit suite
+- xUnit test suite
 
-Reason: the .NET SDK is not installed in the preparation environment.
+Reason: the .NET SDK is not installed in the execution environment.
+Run the build and xUnit commands in README-APPLY-FIRST.md after replacement.

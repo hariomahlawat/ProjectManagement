@@ -70,6 +70,46 @@ if (root) {
   let settingsInitialState = '';
   let settingsDirty = false;
   let settingsReturnFocus = null;
+  const settingsCollapsibleSections = settingsDrawer
+    ? [...settingsDrawer.querySelectorAll('[data-pbd-settings-collapsible]')]
+    : [];
+  let restoringSettingsSections = false;
+  const currentSettingsLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
+  const settingsSectionStorageKey = () => `${storagePrefix}settingsSections:${currentSettingsLayout()}`;
+  const defaultOpenSettingsSections = () => currentSettingsLayout() === 'ProjectUpdateSheet'
+    ? new Set(['appearance', 'summary'])
+    : new Set(['content']);
+
+  const persistSettingsSectionState = () => {
+    if (restoringSettingsSections) return;
+    const openSections = settingsCollapsibleSections
+      .filter((section) => !section.hidden && section.open)
+      .map((section) => section.dataset.pbdSettingsSection)
+      .filter(Boolean);
+    sessionStorage.setItem(settingsSectionStorageKey(), JSON.stringify(openSections));
+  };
+
+  const restoreSettingsSectionState = () => {
+    if (settingsCollapsibleSections.length === 0) return;
+    let openSections = defaultOpenSettingsSections();
+    const saved = sessionStorage.getItem(settingsSectionStorageKey());
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) openSections = new Set(parsed.map(String));
+      } catch {
+        sessionStorage.removeItem(settingsSectionStorageKey());
+      }
+    }
+    restoringSettingsSections = true;
+    settingsCollapsibleSections.forEach((section) => {
+      const key = section.dataset.pbdSettingsSection || '';
+      section.open = !section.hidden && openSections.has(key);
+    });
+    restoringSettingsSections = false;
+  };
+
+  settingsCollapsibleSections.forEach((section) => section.addEventListener('toggle', persistSettingsSectionState));
 
   const serializeSettings = () => {
     if (!(settingsForm instanceof HTMLFormElement)) return '';
@@ -106,6 +146,7 @@ if (root) {
     settingsBackdrop.hidden = false;
     settingsLauncher.setAttribute('aria-expanded', 'true');
     document.body.classList.add('pbd-settings-drawer-open');
+    restoreSettingsSectionState();
     window.requestAnimationFrame(() => focusableSettingsElements()[0]?.focus());
   };
 
@@ -169,6 +210,29 @@ if (root) {
     event.returnValue = '';
   });
 
+  const confirmSettingsNavigation = () => {
+    if (!settingsDirty) return true;
+    if (!window.confirm('Discard unsaved deck settings and continue?')) return false;
+    setSettingsDirty(false);
+    return true;
+  };
+
+  document.addEventListener('click', (event) => {
+    if (!settingsDirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement) || settingsDrawer?.contains(link)) return;
+    const href = link.getAttribute('href') || '';
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download')) return;
+    if (!confirmSettingsNavigation()) event.preventDefault();
+  }, true);
+
+  document.addEventListener('submit', (event) => {
+    if (!settingsDirty || event.defaultPrevented) return;
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || form === settingsForm || form.matches('[data-pbd-generate-form]')) return;
+    if (!confirmSettingsNavigation()) event.preventDefault();
+  }, true);
+
   // Preserve the user's working context for this deck.
   const restoreScroll = () => {
     const saved = Number(sessionStorage.getItem(`${storagePrefix}scroll`) || 0);
@@ -189,7 +253,11 @@ if (root) {
     const effectiveOpen = savedDecksMedia.matches ? open : true;
     deckWorkspace.classList.toggle('is-decks-collapsed', !effectiveOpen);
     savedDecksToggle.setAttribute('aria-expanded', String(effectiveOpen));
-    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : 'Show shared decks';
+    const activeDeckName = savedDecksToggle.dataset.pbdActiveDeckName || 'current deck';
+    savedDecksToggle.title = effectiveOpen ? 'Hide shared decks' : `Show shared decks — ${activeDeckName}`;
+    savedDecksToggle.setAttribute('aria-label', effectiveOpen
+      ? `Hide shared decks. Current deck: ${activeDeckName}`
+      : `Show shared decks. Current deck: ${activeDeckName}`);
     const label = savedDecksToggle.querySelector('span');
     if (label) label.textContent = effectiveOpen ? 'Hide decks' : 'Shared decks';
     if (persist && savedDecksMedia.matches) {
@@ -270,7 +338,7 @@ if (root) {
   const generateButton = root.querySelector('[data-pbd-generate]');
   const activeSavedCard = root.querySelector('.pbd-saved-card.is-active small');
 
-  const selectedLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
+  const selectedLayout = currentSettingsLayout;
   const isUpdateSheet = (deck = null) => {
     const layout = deck?.layout ?? selectedLayout();
     return layout === 'ProjectUpdateSheet' || layout === 2 || layout === '2';
@@ -302,10 +370,12 @@ if (root) {
 
   const syncTemplateSettings = () => {
     const updateSheet = isUpdateSheet();
+    root.querySelectorAll('[data-pbd-standard-section]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
+    restoreSettingsSectionState();
     syncPreflightRequirementVisibility();
   };
   root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
@@ -679,15 +749,42 @@ if (root) {
     applySelectedFilters();
   };
 
+  const disposeReadinessTooltips = (scope) => {
+    if (!window.bootstrap?.Tooltip || !scope) return;
+    scope.querySelectorAll('[data-pbd-readiness-tip]').forEach((element) => {
+      window.bootstrap.Tooltip.getInstance(element)?.dispose();
+    });
+  };
+
+  const initialiseReadinessTooltips = (scope = root) => {
+    if (!window.bootstrap?.Tooltip || !scope) return;
+    scope.querySelectorAll('[data-pbd-readiness-tip]').forEach((element) => {
+      window.bootstrap.Tooltip.getOrCreateInstance(element, {
+        container: 'body',
+        boundary: 'viewport',
+        placement: 'top',
+        trigger: 'hover focus'
+      });
+    });
+  };
+
   const createReadinessIcon = (icon, ready, title) => {
     const span = document.createElement('span');
     span.className = ready ? 'is-ready' : 'is-missing';
+    span.tabIndex = 0;
+    span.setAttribute('role', 'img');
+    span.setAttribute('aria-label', title);
+    span.dataset.pbdReadinessTip = '';
+    span.dataset.bsTitle = title;
     span.title = title;
     const i = document.createElement('i');
     i.className = `bi ${icon}`;
+    i.setAttribute('aria-hidden', 'true');
     span.append(i);
     return span;
   };
+
+  initialiseReadinessTooltips();
 
   const buildProjectRow = (project) => {
     const capabilityReady = hasCapabilityOverview(project);
@@ -871,7 +968,9 @@ if (root) {
 
   const renderSelectedProjects = (projects) => {
     if (!sortableBody) return;
+    disposeReadinessTooltips(sortableBody);
     sortableBody.replaceChildren(...projects.map(buildProjectRow));
+    initialiseReadinessTooltips(sortableBody);
     const hasProjects = projects.length > 0;
     if (selectedTableWrap) selectedTableWrap.hidden = !hasProjects;
     if (emptyProjects) emptyProjects.hidden = hasProjects;

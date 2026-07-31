@@ -1036,6 +1036,44 @@
     height: 1.55rem;
     place-items: center;
     border-radius: .42rem;
+    cursor: help;
+}
+
+.pbd-readiness-icons span:focus-visible {
+    outline: 2px solid rgba(40, 95, 184, .42);
+    outline-offset: 2px;
+}
+
+.pbd-readiness-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    white-space: nowrap;
+}
+
+.pbd-readiness-legend {
+    display: inline-grid;
+    width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--pbd-muted);
+    font-size: .72rem;
+    cursor: help;
+}
+
+.pbd-readiness-legend:hover,
+.pbd-readiness-legend:focus-visible {
+    background: #eaf1ff;
+    color: var(--pbd-blue);
+}
+
+.pbd-readiness-legend:focus-visible {
+    outline: 2px solid rgba(40, 95, 184, .35);
+    outline-offset: 1px;
 }
 
 .pbd-readiness-icons .is-ready {
@@ -2317,6 +2355,63 @@ body.pbd-settings-drawer-open {
     text-transform: uppercase;
 }
 
+.pbd-settings-section[hidden] {
+    display: none !important;
+}
+
+.pbd-settings-section--collapsible {
+    padding: 0;
+    overflow: hidden;
+}
+
+.pbd-settings-section--collapsible > summary {
+    display: flex;
+    min-height: 2.85rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .72rem .78rem;
+    color: #344054;
+    cursor: pointer;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .045em;
+    list-style: none;
+    text-transform: uppercase;
+    user-select: none;
+}
+
+.pbd-settings-section--collapsible > summary::-webkit-details-marker {
+    display: none;
+}
+
+.pbd-settings-section--collapsible > summary:hover {
+    background: #f8fafe;
+}
+
+.pbd-settings-section--collapsible > summary:focus-visible {
+    outline: 3px solid rgba(40, 95, 184, .18);
+    outline-offset: -3px;
+}
+
+.pbd-settings-section--collapsible > summary i {
+    color: var(--pbd-muted);
+    transition: transform .16s ease;
+}
+
+.pbd-settings-section--collapsible[open] > summary i {
+    transform: rotate(180deg);
+}
+
+.pbd-settings-section__body {
+    padding: 0 .78rem .78rem;
+    border-top: 1px solid #edf1f6;
+}
+
+.pbd-settings-section__body > :first-child {
+    margin-top: .72rem;
+}
+
 .pbd-settings-section .pbd-choice-group:first-of-type,
 .pbd-settings-section .pbd-checks:first-of-type {
     margin-top: 0;
@@ -2381,7 +2476,11 @@ body.pbd-settings-drawer-open {
     box-shadow: none;
 }
 
-/* Projects are the primary recurring workflow; preflight follows collection management. */
+/* Preflight remains the compact decision checkpoint above project management. */
+.pbd-export-preflight {
+    margin-bottom: .75rem;
+}
+
 .pbd-selected {
     margin-bottom: .75rem;
 }
@@ -2389,10 +2488,6 @@ body.pbd-settings-drawer-open {
 .pbd-selector {
     margin-top: 0;
     margin-bottom: .75rem;
-}
-
-.pbd-export-preflight {
-    margin-bottom: 0;
 }
 
 /* Preflight metrics and used-content gaps are direct project-list filters. */
@@ -2513,6 +2608,20 @@ body.pbd-settings-drawer-open {
 @media (max-width: 1180px) {
     .pbd-page-header {
         align-items: flex-start;
+    }
+
+    .pbd-selected-actions .pbd-ordering-note,
+    .pbd-selected-actions .pbd-filter-reorder-note {
+        order: 20;
+        flex: 1 0 100%;
+        margin-top: .08rem;
+    }
+
+    .pbd-selected-actions .pbd-save-state {
+        order: 21;
+        width: 100%;
+        margin-left: 0;
+        text-align: left;
     }
 
     .pbd-page-header__actions {
