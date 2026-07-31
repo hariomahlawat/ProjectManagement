@@ -239,3 +239,11 @@ body { margin: 0; background: #eef1f4; }
     .arpp-print-table tr { break-inside: avoid; page-break-inside: avoid; }
     .arpp-print-footer { break-inside: avoid; page-break-inside: avoid; }
 }
+
+.arpp-print-source__line--attention {
+    color: #7a4d00;
+}
+
+.arpp-print-source__line--attention strong {
+    color: #6a4300;
+}

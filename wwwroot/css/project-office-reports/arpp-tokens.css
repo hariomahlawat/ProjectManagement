@@ -1,0 +1,117 @@
+/* ============================================================
+   ARPP / PPP visual foundation
+   Authoritative light and dark surface, border, text and state tokens.
+   ============================================================ */
+
+:root,
+[data-bs-theme="light"] {
+    --arpp-canvas: #f4f6fa;
+    --arpp-surface: #ffffff;
+    --arpp-surface-subtle: #f7f9fc;
+    --arpp-surface-muted: #eef2f7;
+    --arpp-surface-hover: #f8fafd;
+
+    --arpp-border: #d7dee9;
+    --arpp-border-strong: #c9d2df;
+
+    --arpp-text: #172033;
+    --arpp-text-secondary: #475467;
+    --arpp-text-muted: #667085;
+
+    --arpp-primary: #3165e8;
+    --arpp-primary-soft: #edf3ff;
+    --arpp-primary-border: #b9ccfb;
+
+    --arpp-success: #087443;
+    --arpp-success-soft: #eaf6ef;
+    --arpp-success-border: #b9ddc9;
+
+    --arpp-warning: #946200;
+    --arpp-warning-soft: #fff7df;
+    --arpp-warning-border: #ead38b;
+
+    --arpp-danger: #c92a3a;
+    --arpp-danger-soft: #fff0f2;
+    --arpp-danger-border: #efb8c0;
+
+    --arpp-radius-sm: .5rem;
+    --arpp-radius: .625rem;
+    --arpp-radius-lg: .75rem;
+    --arpp-shadow-soft: 0 1px 3px rgba(16, 24, 40, .05);
+    --arpp-focus-ring: 0 0 0 .2rem rgba(49, 101, 232, .14);
+}
+
+[data-bs-theme="dark"] {
+    --arpp-canvas: #111827;
+    --arpp-surface: #182235;
+    --arpp-surface-subtle: #1d293d;
+    --arpp-surface-muted: #243249;
+    --arpp-surface-hover: #223049;
+
+    --arpp-border: #34435a;
+    --arpp-border-strong: #46566e;
+
+    --arpp-text: #f1f5f9;
+    --arpp-text-secondary: #d4dbe6;
+    --arpp-text-muted: #aeb9c9;
+
+    --arpp-primary: #83a7ff;
+    --arpp-primary-soft: #1e315f;
+    --arpp-primary-border: #3d5e9f;
+
+    --arpp-success: #63d39a;
+    --arpp-success-soft: #173b2d;
+    --arpp-success-border: #2f6f52;
+
+    --arpp-warning: #f1c75b;
+    --arpp-warning-soft: #403419;
+    --arpp-warning-border: #76622c;
+
+    --arpp-danger: #ff8795;
+    --arpp-danger-soft: #48232a;
+    --arpp-danger-border: #82404b;
+
+    --arpp-shadow-soft: 0 1px 4px rgba(0, 0, 0, .24);
+    --arpp-focus-ring: 0 0 0 .2rem rgba(131, 167, 255, .22);
+}
+
+/* Shared application-level treatment. Keep this scoped to ARPP roots. */
+.arpp-page,
+.arpp-record-v2,
+.project-arpp-page {
+    color: var(--arpp-text);
+}
+
+.arpp-page .form-control,
+.arpp-page .form-select,
+.arpp-record-v2 .form-control,
+.arpp-record-v2 .form-select,
+.arpp-workspace-v2 .form-control,
+.arpp-workspace-v2 .form-select {
+    border-color: var(--arpp-border-strong);
+    background-color: var(--arpp-surface);
+    color: var(--arpp-text);
+}
+
+.arpp-page .form-control:focus,
+.arpp-page .form-select:focus,
+.arpp-record-v2 .form-control:focus,
+.arpp-record-v2 .form-select:focus,
+.arpp-workspace-v2 .form-control:focus,
+.arpp-workspace-v2 .form-select:focus {
+    border-color: var(--arpp-primary);
+    box-shadow: var(--arpp-focus-ring);
+}
+
+.arpp-page .form-control::placeholder,
+.arpp-record-v2 .form-control::placeholder,
+.arpp-workspace-v2 .form-control::placeholder {
+    color: color-mix(in srgb, var(--arpp-text-muted) 82%, transparent);
+    opacity: 1;
+}
+
+.arpp-page .form-text,
+.arpp-record-v2 .form-text,
+.arpp-workspace-v2 .form-text {
+    color: var(--arpp-text-muted);
+}

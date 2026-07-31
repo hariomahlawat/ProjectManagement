@@ -10,11 +10,12 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
-<div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
+<div class="container-fluid px-3 px-lg-4 py-1 arpp-page"
      data-arpp-project-lookup-url="@lookupUrl"
      data-arpp-reconcile>
     <partial name="_ModuleNav" />
@@ -26,7 +27,7 @@
         </div>
         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
             <span class="bi bi-arrow-left" aria-hidden="true"></span>
-            Register
+            Back to administration
         </a>
     </header>
 

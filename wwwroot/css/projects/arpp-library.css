@@ -1,9 +1,9 @@
 .project-arpp-page {
-    --arpp-reader-border: #d9e1ec;
-    --arpp-reader-muted: #66758b;
-    --arpp-reader-navy: #102b55;
-    --arpp-reader-green: #176b43;
-    --arpp-reader-amber: #9a6300;
+    --arpp-reader-border: var(--arpp-border);
+    --arpp-reader-muted: var(--arpp-text-muted);
+    --arpp-reader-navy: var(--arpp-text);
+    --arpp-reader-green: var(--arpp-success);
+    --arpp-reader-amber: var(--arpp-warning);
     min-width: 0;
 }
 
@@ -30,7 +30,7 @@
 
 .project-arpp-page__header h1 {
     margin: 0;
-    color: #0c1e3d;
+    color: var(--arpp-text);
     font-size: clamp(1.48rem, 1.8vw, 1.8rem);
     font-weight: 800;
     line-height: 1.05;
@@ -95,8 +95,8 @@
     overflow: auto;
     border: 1px solid var(--arpp-reader-border);
     border-radius: 14px;
-    background: #fff;
-    box-shadow: 0 8px 24px rgba(20, 40, 72, .06);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .project-arpp-search {
@@ -109,7 +109,7 @@
     position: absolute;
     left: 1.45rem;
     top: 50%;
-    color: #77869b;
+    color: var(--arpp-text-muted);
     transform: translateY(-50%);
 }
 
@@ -117,15 +117,15 @@
     width: 100%;
     min-height: 42px;
     padding: .55rem 2.25rem .55rem 2.35rem;
-    border: 1px solid #cfd8e6;
+    border: 1px solid var(--arpp-border-strong);
     border-radius: 10px;
-    background: #f8faff;
-    color: #14233f;
+    background: var(--arpp-surface);
+    color: var(--arpp-text);
     outline: none;
 }
 
 .project-arpp-search input:focus {
-    border-color: #5d83e8;
+    border-color: var(--arpp-primary);
     box-shadow: 0 0 0 .2rem rgba(67, 111, 230, .12);
 }
 
@@ -133,7 +133,7 @@
     position: absolute;
     right: 1.35rem;
     top: 50%;
-    color: #64748b;
+    color: var(--arpp-text-muted);
     transform: translateY(-50%);
 }
 
@@ -143,7 +143,7 @@
 
 .project-arpp-nav__year h2 {
     margin: .8rem .9rem .35rem;
-    color: #5e6d82;
+    color: var(--arpp-text-muted);
     font-size: .76rem;
     font-weight: 800;
     letter-spacing: .08em;
@@ -153,7 +153,7 @@
 .project-arpp-nav__year + .project-arpp-nav__year {
     margin-top: .5rem;
     padding-top: .35rem;
-    border-top: 1px solid #edf1f7;
+    border-top: 1px solid var(--arpp-border);
 }
 
 .project-arpp-nav__item {
@@ -164,19 +164,19 @@
     margin: .15rem .5rem;
     padding: .55rem .6rem;
     border-radius: 9px;
-    color: #23344f;
+    color: var(--arpp-text-secondary);
     text-decoration: none;
 }
 
 .project-arpp-nav__item:hover {
-    background: #f2f6ff;
-    color: #1746ad;
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
 }
 
 .project-arpp-nav__item.is-active {
-    background: #e9f0ff;
-    color: #1746ad;
-    box-shadow: inset 3px 0 0 #3e6fe6;
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
+    box-shadow: inset 3px 0 0 var(--arpp-primary);
 }
 
 .project-arpp-nav__icon {
@@ -186,8 +186,8 @@
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: #eef3fb;
-    color: #53709d;
+    background: var(--arpp-surface-muted);
+    color: var(--arpp-text-secondary);
 }
 
 .project-arpp-nav__item strong,
@@ -204,7 +204,7 @@
 
 .project-arpp-nav__item small {
     margin-top: .1rem;
-    color: #718096;
+    color: var(--arpp-text-muted);
     font-size: .72rem;
 }
 
@@ -220,12 +220,13 @@
     padding: .72rem .9rem;
     border: 1px solid var(--arpp-reader-border);
     border-radius: 12px;
-    background: linear-gradient(135deg, #fff 0%, #f7f9fd 100%);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .project-arpp-reader__header h2 {
     margin: 0;
-    color: #0c1e3d;
+    color: var(--arpp-text);
     font-size: clamp(1.3rem, 1.65vw, 1.62rem);
     font-weight: 800;
     line-height: 1.12;
@@ -246,11 +247,11 @@
     padding: .58rem .78rem;
     border: 1px solid var(--arpp-reader-border);
     border-radius: 11px;
-    background: #fff;
+    background: var(--arpp-surface);
 }
 
 .project-arpp-summary span {
-    color: #66758b;
+    color: var(--arpp-text-muted);
     font-size: .75rem;
     font-weight: 700;
     letter-spacing: .04em;
@@ -259,14 +260,14 @@
 
 .project-arpp-summary strong {
     margin-top: .12rem;
-    color: #0f1f3b;
+    color: var(--arpp-text);
     font-size: 1.24rem;
     line-height: 1.12;
 }
 
 .project-arpp-summary small {
     margin-top: .2rem;
-    color: #718096;
+    color: var(--arpp-text-muted);
 }
 
 .project-arpp-money--delisted {
@@ -278,7 +279,7 @@
     overflow: hidden;
     border: 1px solid var(--arpp-reader-border);
     border-radius: 14px;
-    background: #fff;
+    background: var(--arpp-surface);
 }
 
 .project-arpp-table-card__head {
@@ -288,7 +289,7 @@
 
 .project-arpp-table-card__head h3 {
     margin: 0;
-    color: #14233f;
+    color: var(--arpp-text);
     font-size: 1rem;
     font-weight: 800;
 }
@@ -310,9 +311,9 @@
 
 .project-arpp-table th {
     padding: .65rem .7rem;
-    border-bottom: 1px solid #dce3ed;
-    background: #f5f7fb;
-    color: #4e5e74;
+    border-bottom: 1px solid var(--arpp-border);
+    background: var(--arpp-surface-muted);
+    color: var(--arpp-text-secondary);
     font-size: .72rem;
     font-weight: 800;
     letter-spacing: .035em;
@@ -322,8 +323,8 @@
 
 .project-arpp-table td {
     padding: .72rem .7rem;
-    border-bottom: 1px solid #e8edf4;
-    color: #1d2a40;
+    border-bottom: 1px solid var(--arpp-border);
+    color: var(--arpp-text-secondary);
     vertical-align: top;
 }
 
@@ -332,12 +333,12 @@
 }
 
 .project-arpp-table tbody tr.is-delisted td {
-    background: #fffbef;
+    background: var(--arpp-warning-soft);
 }
 
 .project-arpp-table__order {
     width: 44px;
-    color: #6b788b !important;
+    color: var(--arpp-text-muted) !important;
 }
 
 .project-arpp-table__serial {
@@ -353,29 +354,29 @@
 }
 
 .project-arpp-table__project {
-    color: #101d33;
+    color: var(--arpp-text);
     font-weight: 700;
 }
 
 .project-arpp-table__linked {
     margin-top: .2rem;
-    color: #718096;
+    color: var(--arpp-text-muted);
     font-size: .75rem;
 }
 
 .project-arpp-table__linked a {
-    color: #3264d8;
+    color: var(--arpp-primary);
 }
 
 .project-arpp-table td small {
     display: block;
     margin-top: .18rem;
-    color: #718096;
+    color: var(--arpp-text-muted);
 }
 
 .project-arpp-table-empty {
     padding: 1.35rem;
-    color: #718096;
+    color: var(--arpp-text-muted);
     text-align: center;
 }
 
@@ -385,7 +386,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #718096;
+    color: var(--arpp-text-muted);
     text-align: center;
 }
 
@@ -395,7 +396,7 @@
 }
 
 .project-arpp-empty h2 {
-    color: #14233f;
+    color: var(--arpp-text);
     font-size: 1.15rem;
 }
 
@@ -409,7 +410,7 @@
 
 .project-arpp-empty--inside {
     min-height: 320px;
-    border: 1px dashed #cfd8e6;
+    border: 1px dashed var(--arpp-border-strong);
     border-radius: 14px;
 }
 
@@ -495,10 +496,10 @@
     font-weight: 800;
     white-space: nowrap;
 }
-.project-arpp-page .arpp-badge--new { background: #e5f4eb; color: #17683f; }
-.project-arpp-page .arpp-badge--committedliability { background: #e8efff; color: #2859be; }
-.project-arpp-page .arpp-badge--carryforward { background: #e8efff; color: #2859be; }
-.project-arpp-page .arpp-badge--delisted { background: #fff1c8; color: #976100; }
+.project-arpp-page .arpp-badge--new { background: var(--arpp-success-soft); color: var(--arpp-success); }
+.project-arpp-page .arpp-badge--committedliability { background: var(--arpp-primary-soft); color: var(--arpp-primary); }
+.project-arpp-page .arpp-badge--carryforward { background: var(--arpp-primary-soft); color: var(--arpp-primary); }
+.project-arpp-page .arpp-badge--delisted { background: var(--arpp-warning-soft); color: var(--arpp-warning); }
 
 /* Phase 9: current-position completeness, history and responsive navigation */
 .project-arpp-rail__mobile-header {
@@ -508,7 +509,7 @@
     gap: .75rem;
     padding: .7rem .75rem;
     border-bottom: 1px solid var(--arpp-reader-border);
-    color: #14233f;
+    color: var(--arpp-text);
 }
 
 .project-arpp-rail__mobile-header strong {
@@ -524,7 +525,7 @@
     padding: .75rem .85rem;
     border: 1px solid #e8ca7a;
     border-radius: 12px;
-    background: #fffbef;
+    background: var(--arpp-warning-soft);
     color: #6c4a00;
 }
 
@@ -563,7 +564,7 @@
 .project-arpp-history-link::before {
     content: "·";
     margin-right: .35rem;
-    color: #9aa6b8;
+    color: var(--arpp-text-muted);
     font-weight: 400;
 }
 
@@ -579,7 +580,7 @@
 .project-arpp-table-card__head h2,
 .project-arpp-table-card__head h3 {
     margin: 0;
-    color: #14233f;
+    color: var(--arpp-text);
     font-size: 1rem;
     font-weight: 800;
 }
@@ -602,7 +603,7 @@
     gap: .25rem;
     padding: .12rem .42rem;
     border-radius: 999px;
-    background: #e5f4eb;
+    background: var(--arpp-success-soft);
     color: var(--arpp-reader-green);
     font-size: .7rem;
     font-weight: 800;
@@ -618,7 +619,7 @@
         position: sticky;
         z-index: 2;
         top: 0;
-        background: #fff;
+        background: var(--arpp-surface);
     }
 
     .project-arpp-completeness {
@@ -659,7 +660,7 @@
     z-index: 1;
     left: .78rem;
     top: 50%;
-    color: #77869b;
+    color: var(--arpp-text-muted);
     transform: translateY(-50%);
     pointer-events: none;
 }
@@ -686,31 +687,31 @@
 
 .project-arpp-search__clear {
     right: 2.55rem;
-    color: #64748b;
+    color: var(--arpp-text-muted);
     text-decoration: none;
 }
 
 .project-arpp-search__clear:hover {
-    background: #e9eef7;
-    color: #243a5d;
+    background: var(--arpp-surface-muted);
+    color: var(--arpp-text);
 }
 
 .project-arpp-search__submit {
     right: .34rem;
     border: 0;
-    background: #e8efff;
-    color: #2859be;
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
 }
 
 .project-arpp-search__submit:hover {
-    background: #dbe6ff;
-    color: #1746ad;
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
 }
 
 .project-arpp-search > small {
     display: block;
     margin: .38rem .12rem 0;
-    color: #7a8798;
+    color: var(--arpp-text-muted);
     font-size: .66rem;
     line-height: 1.35;
 }
@@ -722,7 +723,7 @@
 .project-arpp-nav__year + .project-arpp-nav__year {
     margin-top: .45rem;
     padding-top: .35rem;
-    border-top: 1px solid #edf1f7;
+    border-top: 1px solid var(--arpp-border);
 }
 
 .project-arpp-nav__year > summary {
@@ -733,7 +734,7 @@
     margin: .35rem .5rem .2rem;
     padding: .48rem .55rem;
     border-radius: 8px;
-    color: #536278;
+    color: var(--arpp-text-muted);
     cursor: pointer;
     list-style: none;
     user-select: none;
@@ -744,12 +745,12 @@
 }
 
 .project-arpp-nav__year > summary:hover {
-    background: #f4f7fc;
-    color: #243a5d;
+    background: var(--arpp-surface-subtle);
+    color: var(--arpp-text);
 }
 
 .project-arpp-nav__year > summary:focus-visible {
-    outline: 2px solid #5d83e8;
+    outline: 2px solid var(--arpp-primary);
     outline-offset: 2px;
 }
 
@@ -761,7 +762,7 @@
 }
 
 .project-arpp-nav__year > summary small {
-    color: #8793a5;
+    color: var(--arpp-text-muted);
     font-size: .66rem;
     white-space: nowrap;
 }
@@ -794,7 +795,7 @@
     max-width: 100%;
     align-items: baseline;
     gap: .28rem;
-    color: #245fce;
+    color: var(--arpp-primary);
     font-weight: 750;
     text-decoration: underline;
     text-decoration-color: rgba(36, 95, 206, .34);
@@ -803,13 +804,13 @@
 }
 
 .project-arpp-table__project-link:hover {
-    color: #1746ad;
+    color: var(--arpp-primary);
     text-decoration-color: currentColor;
 }
 
 .project-arpp-table__project-link:focus-visible {
     border-radius: 3px;
-    outline: 2px solid #5d83e8;
+    outline: 2px solid var(--arpp-primary);
     outline-offset: 2px;
 }
 
@@ -831,7 +832,7 @@
 
 .project-arpp-table__issued-reference {
     margin-top: .16rem;
-    color: #718096;
+    color: var(--arpp-text-muted);
     font-size: .75rem;
     line-height: 1.35;
 }
@@ -840,13 +841,4 @@
     .project-arpp-search > small {
         font-size: .7rem;
     }
-}
-
-/* ARPP library production search refinement */
-.project-arpp-search > small {
-    font-size: .72rem;
-}
-
-.project-arpp-search__submit .bi {
-    font-size: .82rem;
 }

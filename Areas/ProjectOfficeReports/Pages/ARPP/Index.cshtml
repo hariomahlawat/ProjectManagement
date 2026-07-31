@@ -13,11 +13,12 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
 }
 
-<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
+<div class="container-fluid px-3 px-lg-4 py-1 arpp-page">
     <partial name="_ModuleNav" />
 
     <header class="arpp-v2-page-header">
@@ -41,7 +42,7 @@
     }
 
     <section class="arpp-v2-summary" aria-label="Administration summary">
-        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small></article>
+        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "row" : "rows") across all records</small></article>
         <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@publishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
         <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Records under work</span><strong>@workingRecordCount</strong><small>Setup, correction or verification is in progress</small></article>
         <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>

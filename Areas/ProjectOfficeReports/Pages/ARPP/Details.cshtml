@@ -25,12 +25,13 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
 }
 
-<div class="container-fluid px-3 px-lg-4 py-2 arpp-record-v2"
+<div class="container-fluid px-3 px-lg-4 py-1 arpp-record-v2"
      data-arpp-details
      data-arpp-reopen-unlock-modal="@(Model.ReopenUnlockModal ? "true" : "false")">
     <partial name="_ModuleNav" />
@@ -55,7 +56,7 @@
                 <span class="bi bi-printer" aria-hidden="true"></span> Print / PDF
             </a>
             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
-                <span class="bi bi-arrow-left" aria-hidden="true"></span> Register
+                <span class="bi bi-arrow-left" aria-hidden="true"></span> Back to administration
             </a>
         </div>
     </header>
@@ -131,7 +132,7 @@
 
     <div class="tab-content">
         <section class="tab-pane fade show active arpp-record-v2__panel" id="arpp-overview" role="tabpanel" aria-labelledby="arpp-overview-tab" tabindex="0">
-            <div class="arpp-record-v2__panel-header"><div><h2>Document overview</h2><p>Working values, publication readiness and linkage at a glance.</p></div></div>
+            <h2 class="visually-hidden">Document overview</h2>
             <div class="arpp-record-v2__panel-body">
                 <div class="arpp-record-v2__overview-grid">
                     <article class="arpp-record-v2__metric"><span>Rows</span><strong>@Model.Issue.Entries.Count</strong><small>New @Model.Issue.CategorySummary[ArppCategory.New].Count · CL @Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count · CF @Model.Issue.CategorySummary[ArppCategory.CarryForward].Count · Delisted @Model.Issue.CategorySummary[ArppCategory.Delisted].Count</small></article>
@@ -160,7 +161,8 @@
         </section>
 
         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-rows" role="tabpanel" aria-labelledby="arpp-rows-tab" tabindex="0">
-            <div class="arpp-record-v2__panel-header"><div><h2>Issued rows</h2><p>Wording and order are preserved from the HQ document.</p></div></div>
+            <h2 class="visually-hidden">Issued rows</h2>
+            <div class="arpp-record-v2__tab-intro">Wording and order are preserved from the HQ document.</div>
             @if (Model.Issue.Entries.Count == 0)
             {
                 <div class="arpp-record-v2__panel-body text-center py-5">
@@ -183,8 +185,8 @@
                                 var sameProjectName = entry.ProjectId.HasValue && !string.IsNullOrWhiteSpace(linkedName) && string.Equals(issuedName, linkedName, StringComparison.OrdinalIgnoreCase);
                                 <tr class="@(entry.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
                                     <td data-label="#" class="text-body-secondary">@entry.SortOrder</td>
-                                    <td data-label="Serial"><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</span></td>
-                                    <td data-label="PPP No."><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</span></td>
+                                    <td data-label="Serial"><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted || string.IsNullOrWhiteSpace(entry.SerialNumber) ? "—" : entry.SerialNumber)</span></td>
+                                    <td data-label="PPP No."><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted || string.IsNullOrWhiteSpace(entry.PppNumber) ? "—" : entry.PppNumber)</span></td>
                                     <td data-label="Project" class="arpp-v2-project-cell">
                                         @if (sameProjectName)
                                         {
@@ -219,7 +221,8 @@
         </section>
 
         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-document" role="tabpanel" aria-labelledby="arpp-document-tab" tabindex="0">
-            <div class="arpp-record-v2__panel-header"><div><h2>Issued HQ document</h2><p>Evidentiary source for the structured record.</p></div></div>
+            <h2 class="visually-hidden">Issued HQ document</h2>
+            <div class="arpp-record-v2__tab-intro">Evidentiary source for the structured record.</div>
             <div class="arpp-record-v2__panel-body">
                 @if (Model.Issue.Attachment is not null)
                 {
@@ -258,7 +261,8 @@
         </section>
 
         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-audit" role="tabpanel" aria-labelledby="arpp-audit-tab" tabindex="0">
-            <div class="arpp-record-v2__panel-header"><div><h2>Audit and publication</h2><p>Record provenance and current publication information.</p></div></div>
+            <h2 class="visually-hidden">Audit and publication</h2>
+            <div class="arpp-record-v2__tab-intro">Record provenance and current publication information.</div>
             <div class="arpp-record-v2__panel-body arpp-v2-audit">
                 <section class="arpp-v2-audit__group"><h3>Record history</h3><dl><div><dt>Created</dt><dd>@Model.FormatIst(Model.Issue.CreatedAtUtc)</dd></div><div><dt>Last updated</dt><dd>@Model.FormatIst(Model.Issue.UpdatedAtUtc)</dd></div><div><dt>Current state</dt><dd>@statusLabel</dd></div></dl></section>
                 <section class="arpp-v2-audit__group"><h3>Publication</h3><dl><div><dt>Revision</dt><dd>@(Model.Issue.PublishedRevisionNumber.HasValue ? $"Revision {Model.Issue.PublishedRevisionNumber}" : "Not published")</dd></div>@if (Model.Issue.VerifiedAtUtc.HasValue) { <div><dt>Verified on</dt><dd>@Model.FormatIst(Model.Issue.VerifiedAtUtc.Value)</dd></div> }@if (!string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName) || !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByUserId)) { <div><dt>Verified by</dt><dd>@(Model.Issue.VerifiedByDisplayName ?? Model.Issue.VerifiedByUserId)</dd></div> }@if (!string.IsNullOrWhiteSpace(Model.Issue.VerificationNote)) { <div><dt>Verification note</dt><dd>@Model.Issue.VerificationNote</dd></div> }</dl></section>

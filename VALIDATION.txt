@@ -1,25 +1,25 @@
-PRISM ARPP/PPP Production Finishing - Validation
-================================================
+PRISM ARPP/PPP Visual System and Density Completion
+Validation summary
 
-Validated against the ARPP/PPP Fresh Experience Redesign baseline.
+PASS  Shared arpp-tokens.css is linked exactly once by all eight ARPP view surfaces.
+PASS  Light and dark surface, border, text, semantic-state and focus tokens are defined.
+PASS  CSS parsed successfully with PostCSS:
+      - arpp-tokens.css
+      - arpp.css
+      - arpp-redesign.css
+      - arpp-workspace.css
+      - arpp-print.css
+      - arpp-library.css
+PASS  arpp-manage.js passed Node.js syntax validation.
+PASS  Record page uses compact tab introductions and no longer repeats the Issued rows heading.
+PASS  Record navigation wording is standardised to Back to administration.
+PASS  Workspace rows use white surfaces, stronger control borders and horizontal edge cues.
+PASS  Workspace search uses a standard search icon.
+PASS  Print view distinguishes Working and Published values.
+PASS  Print view displays em dashes for absent Serial/PPP values.
+PASS  Print view discloses incomplete working-copy fields.
+PASS  Static UI contract checks passed.
+PASS  Patch applies cleanly to the latest Fresh Experience + Production Finishing baseline.
+PASS  Applied-patch files match the packaged replacement files.
 
-PASS  Patch dry-run against clean baseline
-PASS  Patch applied against clean baseline
-PASS  JavaScript syntax: arpp-manage.js (node --check)
-PASS  CSS brace balance: arpp-print.css
-PASS  CSS brace balance: arpp-redesign.css
-PASS  CSS brace balance: arpp-workspace.css
-PASS  Print view contains exactly nine explicit columns and nine headers
-PASS  Print status distinguishes unlocked working copy and published revision
-PASS  Print table removes separate PRISM-project column
-PASS  Published search placeholder restored
-PASS  Duplicate Administration Reconciliation button removed
-PASS  Workspace save-state text separated from validation count
-PASS  Workspace navigator collapse and persistence contract present
-PASS  Desktop sticky row-actions contract present
-PASS  UI contract tests added/updated
-
-NOT RUN
--------
-The .NET SDK is not installed in the packaging environment. A Release build and
-xUnit execution must be completed locally using the commands in README-APPLY-FIRST.md.
+NOT RUN  dotnet build / xUnit execution: .NET SDK is not installed in this environment.

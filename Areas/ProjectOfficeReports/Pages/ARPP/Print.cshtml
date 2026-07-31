@@ -17,6 +17,23 @@
     var delistedRowValue = Model.Issue.CategorySummary[ArppCategory.Delisted].TotalIpaCost;
     var referenceDataReady = Model.Issue.Entries.All(entry => !entry.HasUnresolvedReferenceData);
     var setupIncomplete = Model.Issue.Entries.Count == 0 || Model.Issue.Attachment is null;
+    var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
+    var validationIssueCount = Model.Issue.Entries.Sum(entry =>
+    {
+        var count = 0;
+        if (string.IsNullOrWhiteSpace(entry.ProjectReference)) count++;
+        if (entry.Category != ArppCategory.Delisted)
+        {
+            if (string.IsNullOrWhiteSpace(entry.SerialNumber)) count++;
+            if (string.IsNullOrWhiteSpace(entry.PppNumber)) count++;
+        }
+        if (string.IsNullOrWhiteSpace(entry.Cfa)) count++;
+        if (string.IsNullOrWhiteSpace(entry.Fund)) count++;
+        if (string.IsNullOrWhiteSpace(entry.DfpdsSchedule)) count++;
+        return count;
+    });
+
+    string DisplayOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 
     string FormatPrintCurrency(decimal amount)
     {
@@ -51,6 +68,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>@Model.Issue.Name · @financialYear</title>
+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/project-office-reports/arpp-print.css" asp-append-version="true" />
 </head>
 <body>
@@ -76,12 +94,12 @@
                 <small>Issued document rows</small>
             </div>
             <div class="arpp-print-summary__metric arpp-print-summary__metric--approved">
-                <span>Approved row value</span>
+                <span>@valueStateLabel approved value</span>
                 <strong>@FormatPrintCurrency(approvedRowValue)</strong>
                 <small>New, CL and CF</small>
             </div>
             <div class="arpp-print-summary__metric arpp-print-summary__metric--delisted">
-                <span>Delisted row value</span>
+                <span>@valueStateLabel delisted value</span>
                 <strong>@FormatPrintCurrency(delistedRowValue)</strong>
                 <small>Recorded separately</small>
             </div>
@@ -143,6 +161,14 @@
                 </div>
             }
 
+            @if (!Model.Issue.IsVerified && validationIssueCount > 0)
+            {
+                <div class="arpp-print-source__line arpp-print-source__line--attention">
+                    <strong>Working-copy completeness:</strong>
+                    <span>@validationIssueCount @(validationIssueCount == 1 ? "field requires" : "fields require") attention</span>
+                </div>
+            }
+
             <div class="arpp-print-source__line">
                 <strong>Issued source PDF:</strong>
                 @if (Model.Issue.Attachment is null)
@@ -195,8 +221,8 @@
 
                     <tr class="@(entry.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
                         <td class="number">@entry.SortOrder</td>
-                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</td>
-                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</td>
+                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : DisplayOrDash(entry.SerialNumber))</td>
+                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : DisplayOrDash(entry.PppNumber))</td>
                         <td class="arpp-print-project">
                             <strong>@issuedName</strong>
                             @if (entry.ProjectId.HasValue && !sameProjectName)
@@ -218,9 +244,9 @@
                         </td>
                         <td>@CategoryShortLabel(entry.Category)</td>
                         <td class="money">@FormatPrintCurrency(entry.IpaCost).TrimStart('₹')</td>
-                        <td>@entry.Cfa</td>
-                        <td>@entry.Fund</td>
-                        <td>@entry.DfpdsSchedule</td>
+                        <td>@DisplayOrDash(entry.Cfa)</td>
+                        <td>@DisplayOrDash(entry.Fund)</td>
+                        <td>@DisplayOrDash(entry.DfpdsSchedule)</td>
                     </tr>
                 }
             </tbody>

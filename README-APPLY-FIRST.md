@@ -1,59 +1,65 @@
-# PRISM ARPP/PPP Production Finishing
+# PRISM ARPP/PPP — Visual System and Density Completion
 
-This package completes the focused UI/UX finishing pass on top of the **ARPP/PPP Fresh Experience Redesign**.
+This package is designed for the latest **ARPP Fresh Experience Redesign + Production Finishing** implementation.
 
 ## Scope
 
-The package addresses the remaining issues visible in the latest screenshots:
+The phase standardises the complete ARPP/PPP front end without changing the database, entities, publication workflow, reconciliation rules, IPA resolver or stage synchronisation.
 
-- Rebuilds the Print / PDF summary and table for A4 landscape output.
-- Replaces the broken category summary box with a balanced four-part strip.
-- Distinguishes an unlocked working copy from the active published revision in print.
-- Combines issued and linked project information into one wider print column.
-- Removes the residual blank print column and uses nine explicit columns.
-- Uses compact Crore/Lakh currency presentation in print.
-- Keeps repeating print table headers and page-safe rows.
-- Makes the workspace **Issues** action compact and removes validation text from the save-state message.
-- Shortens workspace search to **Find row or project**.
-- Adds a collapsible, preference-preserving row navigator.
-- Keeps row actions reachable through a sticky right-hand actions column on desktop.
-- Reduces the visual weight of the horizontal grid scrollbar.
-- Restores **Search ARPP records** in the published library.
-- Removes the duplicate page-level Reconciliation action from Administration.
-- Clarifies the Administration KPIs as **Active published records** and **Records under work**.
-- Compresses document identity on the record Overview tab.
+Implemented improvements include:
 
-## Important
+- Shared light/dark ARPP design-token layer.
+- Clear cool-grey canvas, white primary surfaces, stronger borders and readable muted text.
+- Compact module navigation and page headers.
+- White Administration KPI, filter, financial-year and record surfaces.
+- Denser Record page with compact state panel and tabs.
+- Removal of repeated tab-section headings; data begins higher in the viewport.
+- Sharper read-only tables with clear header and row separation.
+- Workspace white rows, stronger input boundaries, focus rings and restrained validation emphasis.
+- Distinct navigator and grid surfaces.
+- Horizontal overflow edge cues and refined fixed Actions strip.
+- Consistent visual treatment for Published, Create, Reconciliation and Project History pages.
+- Print/PDF working-versus-published labels, em dashes for absent identifiers and working-copy completeness disclosure.
+- UI contract tests for the token layer, density, workspace and print behaviour.
 
-- **No database migration is included or required.**
-- No entity, publication-rule, IPA-resolution, stage-synchronisation or service-contract change is included.
-- Apply this package to the codebase containing the immediately preceding **Fresh Experience Redesign**.
+## Apply by replacement
 
-## Apply
+1. Back up the project.
+2. Copy the contents of this folder into the project root.
+3. Replace existing files when prompted.
+4. Confirm that the new file `wwwroot/css/project-office-reports/arpp-tokens.css` is copied.
+5. Build and test in Release configuration.
 
-1. Stop the running PRISM debug or IIS process.
-2. Back up the current source.
-3. Copy the contents of `PRISM_ARPP_Production_Finishing` into the project root.
-4. Replace matching files while preserving the supplied folder paths.
-5. Clean and rebuild the solution.
+PowerShell example from inside this package folder:
 
 ```powershell
-dotnet clean ProjectManagement.sln
-dotnet restore ProjectManagement.sln
+Copy-Item .\Areas -Destination <PROJECT_ROOT> -Recurse -Force
+Copy-Item .\Pages -Destination <PROJECT_ROOT> -Recurse -Force
+Copy-Item .\ProjectManagement.Tests -Destination <PROJECT_ROOT> -Recurse -Force
+Copy-Item .\wwwroot -Destination <PROJECT_ROOT> -Recurse -Force
+```
+
+## Build and test
+
+```powershell
+dotnet restore
 dotnet build ProjectManagement.sln -c Release
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
 ```
 
-## Focused browser verification
+## Browser checks
 
-After building, verify:
+Review these pages after deployment:
 
-1. Published ARPP search displays **Search ARPP records**.
-2. Administration shows only **New ARPP / Addendum** as the page-level action.
-3. Workspace Issues is compact and save state reads only `No unsaved changes`, `Unsaved changes` or `Saving…`.
-4. The Rows control collapses and restores the row navigator.
-5. Duplicate/Delete actions remain visible while the grid is horizontally scrolled.
-6. Print preview shows a horizontal category strip, no blank column and a combined project-reference column.
-7. A4 landscape print repeats the table heading across multiple pages.
+- Published current position and issued document.
+- Administration top and lower financial-year sections.
+- Verified and unlocked Record pages: Overview, Issued rows, HQ document and Audit.
+- Workspace: All rows, Needs attention, Delisted, navigator expanded/collapsed and horizontal scrolling.
+- Reconciliation and Project History.
+- Print/PDF for verified and unlocked records.
 
-Recommended viewports: 1366×768 at 125% scaling, 1536×864, 1920×1080, 1024×768 and 768×1024.
+Test at 1366×768 with Windows scaling at 125%, 1536×864 and 1920×1080.
+
+## Database
+
+No migration is included or required.

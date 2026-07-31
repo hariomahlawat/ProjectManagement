@@ -4,13 +4,13 @@
    ============================================================ */
 
 :root {
-    --arpp-v2-surface: var(--bs-body-bg);
-    --arpp-v2-surface-soft: color-mix(in srgb, var(--bs-tertiary-bg) 70%, var(--bs-body-bg));
-    --arpp-v2-border: color-mix(in srgb, var(--bs-border-color) 88%, transparent);
-    --arpp-v2-muted: var(--bs-secondary-color);
-    --arpp-v2-primary: var(--bs-primary);
-    --arpp-v2-radius: .75rem;
-    --arpp-v2-shadow: 0 .35rem 1.1rem rgba(15, 23, 42, .055);
+    --arpp-v2-surface: var(--arpp-surface);
+    --arpp-v2-surface-soft: var(--arpp-surface-subtle);
+    --arpp-v2-border: var(--arpp-border);
+    --arpp-v2-muted: var(--arpp-text-muted);
+    --arpp-v2-primary: var(--arpp-primary);
+    --arpp-v2-radius: var(--arpp-radius-lg);
+    --arpp-v2-shadow: var(--arpp-shadow-soft);
 }
 
 /* Module navigation ------------------------------------------------ */
@@ -19,12 +19,13 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 0 0 1rem;
-    padding: .45rem .55rem;
+    min-height: 2.75rem;
+    margin: 0 0 .65rem;
+    padding: .28rem .42rem;
     border: 1px solid var(--arpp-v2-border);
-    border-radius: .75rem;
+    border-radius: var(--arpp-radius-lg);
     background: var(--arpp-v2-surface);
-    box-shadow: 0 .18rem .65rem rgba(15, 23, 42, .04);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .arpp-module-nav__identity {
@@ -32,7 +33,7 @@
     align-items: center;
     gap: .5rem;
     padding: 0 .35rem;
-    color: var(--bs-emphasis-color);
+    color: var(--arpp-text);
     font-size: .82rem;
     font-weight: 700;
     letter-spacing: .02em;
@@ -54,10 +55,10 @@
     display: inline-flex;
     align-items: center;
     gap: .42rem;
-    min-height: 2.15rem;
-    padding: .38rem .72rem;
+    min-height: 2rem;
+    padding: .3rem .65rem;
     border: 1px solid transparent;
-    border-radius: .55rem;
+    border-radius: var(--arpp-radius-sm);
     color: var(--arpp-v2-muted);
     font-size: .8rem;
     font-weight: 600;
@@ -69,7 +70,7 @@
 .arpp-module-nav__link:hover {
     border-color: var(--arpp-v2-border);
     background: var(--arpp-v2-surface-soft);
-    color: var(--bs-emphasis-color);
+    color: var(--arpp-text);
 }
 
 .arpp-module-nav__link.is-active {
@@ -84,8 +85,8 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1.25rem;
-    margin-bottom: 1rem;
-    padding-bottom: .9rem;
+    margin-bottom: .7rem;
+    padding-bottom: .6rem;
     border-bottom: 1px solid var(--arpp-v2-border);
 }
 
@@ -111,9 +112,9 @@
 
 .arpp-v2-page-header p {
     max-width: 54rem;
-    margin: .35rem 0 0;
-    color: var(--arpp-v2-muted);
-    font-size: .875rem;
+    margin: .25rem 0 0;
+    color: var(--arpp-text-secondary);
+    font-size: .84rem;
 }
 
 .arpp-v2-page-header__actions {
@@ -127,16 +128,17 @@
 .arpp-v2-summary {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: .75rem;
-    margin-bottom: .9rem;
+    gap: .65rem;
+    margin-bottom: .7rem;
 }
 
 .arpp-v2-summary__item {
     min-width: 0;
-    padding: .85rem .95rem;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: var(--arpp-v2-radius);
-    background: var(--arpp-v2-surface);
+    padding: .72rem .85rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .arpp-v2-summary__item > span {
@@ -151,21 +153,21 @@
 .arpp-v2-summary__item > strong {
     display: block;
     margin-top: .25rem;
-    color: var(--bs-emphasis-color);
+    color: var(--arpp-text);
     font-size: 1.45rem;
     line-height: 1.1;
 }
 
 .arpp-v2-summary__item > small {
     display: block;
-    margin-top: .3rem;
-    color: var(--arpp-v2-muted);
+    margin-top: .25rem;
+    color: var(--arpp-text-muted);
     font-size: .75rem;
     line-height: 1.35;
 }
 
-.arpp-v2-summary__item--published > strong { color: var(--bs-success-text-emphasis); }
-.arpp-v2-summary__item--working > strong { color: var(--bs-warning-text-emphasis); }
+.arpp-v2-summary__item--published > strong { color: var(--arpp-success); }
+.arpp-v2-summary__item--working > strong { color: var(--arpp-warning); }
 .arpp-v2-summary__item--reconcile > strong { color: var(--arpp-v2-primary); }
 
 .arpp-v2-filterbar {
@@ -173,11 +175,12 @@
     grid-template-columns: minmax(18rem, 1fr) minmax(12rem, 17rem) auto auto;
     align-items: center;
     gap: .55rem;
-    margin-bottom: .9rem;
-    padding: .65rem;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: var(--arpp-v2-radius);
-    background: var(--arpp-v2-surface);
+    margin-bottom: .7rem;
+    padding: .55rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .arpp-v2-search {
@@ -199,11 +202,12 @@
 
 /* Register groups ------------------------------------------------- */
 .arpp-v2-year {
-    margin-bottom: 1rem;
+    margin-bottom: .85rem;
     overflow: hidden;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: .85rem;
-    background: var(--arpp-v2-surface);
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius-lg);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .arpp-v2-year__header {
@@ -211,9 +215,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: .75rem 1rem;
-    border-bottom: 1px solid var(--arpp-v2-border);
-    background: var(--arpp-v2-surface-soft);
+    padding: .65rem .9rem;
+    border-bottom: 1px solid var(--arpp-border);
+    background: var(--arpp-surface-subtle);
 }
 
 .arpp-v2-year__title span {
@@ -248,7 +252,7 @@
 }
 
 .arpp-v2-year__position strong {
-    color: var(--bs-emphasis-color);
+    color: var(--arpp-text);
     font-size: .95rem;
 }
 
@@ -262,8 +266,9 @@
     grid-template-columns: minmax(0, 1fr) minmax(11rem, auto) auto;
     gap: 1rem;
     align-items: center;
-    padding: .9rem 1rem;
-    border-bottom: 1px solid var(--arpp-v2-border);
+    padding: .72rem .9rem;
+    border-bottom: 1px solid var(--arpp-border);
+    background: var(--arpp-surface);
 }
 
 .arpp-v2-record:last-child {
@@ -340,8 +345,8 @@
     font-size: .95rem;
 }
 
-.arpp-v2-record__value--approved strong { color: var(--bs-success-text-emphasis); }
-.arpp-v2-record__value--delisted strong { color: var(--bs-warning-text-emphasis); }
+.arpp-v2-record__value--approved strong { color: var(--arpp-success); }
+.arpp-v2-record__value--delisted strong { color: var(--arpp-warning); }
 
 .arpp-v2-record__actions {
     display: flex;
@@ -360,8 +365,8 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding-bottom: .85rem;
-    border-bottom: 1px solid var(--arpp-v2-border);
+    padding-bottom: .55rem;
+    border-bottom: 1px solid var(--arpp-border);
 }
 
 .arpp-record-v2__header h1 {
@@ -388,22 +393,22 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: .8rem 0;
-    padding: .75rem .9rem;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: .7rem;
-    background: var(--arpp-v2-surface);
+    margin: .65rem 0;
+    padding: .58rem .78rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius);
+    background: var(--arpp-surface);
 }
 
 .arpp-record-v2__state.is-published {
-    border-color: color-mix(in srgb, var(--bs-success) 25%, var(--arpp-v2-border));
-    background: color-mix(in srgb, var(--bs-success-bg-subtle) 45%, var(--arpp-v2-surface));
+    border-color: var(--arpp-success-border);
+    background: var(--arpp-success-soft);
 }
 
 .arpp-record-v2__state.is-correction,
 .arpp-record-v2__state.is-pending {
-    border-color: color-mix(in srgb, var(--bs-warning) 30%, var(--arpp-v2-border));
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 42%, var(--arpp-v2-surface));
+    border-color: var(--arpp-warning-border);
+    background: var(--arpp-warning-soft);
 }
 
 .arpp-record-v2__state-copy {
@@ -415,7 +420,7 @@
 
 .arpp-record-v2__state-copy > .bi {
     margin-top: .15rem;
-    color: var(--bs-emphasis-color);
+    color: var(--arpp-text);
 }
 
 .arpp-record-v2__state-copy strong {
@@ -454,20 +459,21 @@
     display: flex;
     align-items: center;
     gap: .25rem;
-    margin: .9rem 0 .65rem;
-    padding: .3rem;
+    min-height: 2.55rem;
+    margin: .65rem 0 .45rem;
+    padding: .18rem;
     overflow-x: auto;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: .65rem;
-    background: var(--arpp-v2-surface-soft);
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius);
+    background: var(--arpp-surface);
 }
 
 .arpp-record-v2__tabs .nav-link {
     display: inline-flex;
     align-items: center;
     gap: .4rem;
-    min-height: 2.15rem;
-    padding: .38rem .7rem;
+    min-height: 2.05rem;
+    padding: .3rem .62rem;
     border: 0;
     border-radius: .48rem;
     color: var(--arpp-v2-muted);
@@ -477,15 +483,17 @@
 }
 
 .arpp-record-v2__tabs .nav-link.active {
-    background: var(--arpp-v2-surface);
-    color: var(--arpp-v2-primary);
-    box-shadow: 0 .15rem .5rem rgba(15, 23, 42, .08);
+    border: 1px solid var(--arpp-primary-border);
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
+    box-shadow: none;
 }
 
 .arpp-record-v2__panel {
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: .75rem;
-    background: var(--arpp-v2-surface);
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius-lg);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
 }
 
 .arpp-record-v2__panel-header {
@@ -493,8 +501,8 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: .75rem .9rem;
-    border-bottom: 1px solid var(--arpp-v2-border);
+    padding: .58rem .75rem;
+    border-bottom: 1px solid var(--arpp-border);
 }
 
 .arpp-record-v2__panel-header h2 {
@@ -509,20 +517,20 @@
 }
 
 .arpp-record-v2__panel-body {
-    padding: .9rem;
+    padding: .72rem;
 }
 
 .arpp-record-v2__overview-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: .7rem;
+    gap: .6rem;
 }
 
 .arpp-record-v2__metric {
-    padding: .75rem;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: .65rem;
-    background: var(--arpp-v2-surface-soft);
+    padding: .68rem .72rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius);
+    background: var(--arpp-surface);
 }
 
 .arpp-record-v2__metric span {
@@ -547,8 +555,8 @@
     font-size: .73rem;
 }
 
-.arpp-record-v2__metric--approved strong { color: var(--bs-success-text-emphasis); }
-.arpp-record-v2__metric--delisted strong { color: var(--bs-warning-text-emphasis); }
+.arpp-record-v2__metric--approved strong { color: var(--arpp-success); }
+.arpp-record-v2__metric--delisted strong { color: var(--arpp-warning); }
 
 .arpp-record-v2__overview-section {
     margin-top: .8rem;
@@ -599,8 +607,8 @@
 .arpp-v2-table thead th {
     padding: .58rem .65rem;
     border-bottom: 1px solid var(--arpp-v2-border);
-    background: var(--arpp-v2-surface-soft);
-    color: var(--arpp-v2-muted);
+    background: var(--arpp-surface-muted);
+    color: var(--arpp-text-muted);
     font-size: .69rem;
     font-weight: 700;
     letter-spacing: .035em;
@@ -616,7 +624,7 @@
 
 .arpp-v2-table tbody tr:last-child td { border-bottom: 0; }
 .arpp-v2-table tbody tr.arpp-row--delisted td {
-    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 34%, var(--arpp-v2-surface));
+    background: var(--arpp-warning-soft);
 }
 
 .arpp-v2-project-cell {
@@ -674,10 +682,10 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: .75rem;
-    padding: .75rem;
-    border: 1px solid var(--arpp-v2-border);
-    border-radius: .65rem;
-    background: var(--arpp-v2-surface-soft);
+    padding: .68rem .72rem;
+    border: 1px solid var(--arpp-border);
+    border-radius: var(--arpp-radius);
+    background: var(--arpp-surface);
 }
 
 .arpp-v2-file__icon {
@@ -999,8 +1007,8 @@
     display: flex;
     flex-wrap: wrap;
     gap: .45rem 1.2rem;
-    margin-top: .75rem;
-    padding: .58rem .72rem;
+    margin-top: .6rem;
+    padding: .48rem .65rem;
     border-top: 1px solid var(--arpp-v2-border);
     color: var(--arpp-v2-muted);
     font-size: .75rem;
@@ -1025,5 +1033,213 @@
         display: grid;
         grid-template-columns: 1fr;
         gap: .35rem;
+    }
+}
+
+
+/* Visual-system and density completion --------------------------- */
+.arpp-page,
+.arpp-record-v2 {
+    min-height: calc(100dvh - 7rem);
+}
+
+.arpp-v2-page-header h1,
+.arpp-record-v2__header h1 {
+    color: var(--arpp-text);
+    letter-spacing: -.02em;
+}
+
+.arpp-v2-page-header__eyebrow,
+.arpp-v2-summary__item > span,
+.arpp-v2-year__title span,
+.arpp-v2-record__value span,
+.arpp-record-v2__metric span,
+.arpp-record-v2__identity-strip strong {
+    color: var(--arpp-text-muted);
+}
+
+.arpp-v2-record__continuity,
+.arpp-v2-record__meta,
+.arpp-v2-record__categories,
+.arpp-record-v2__header p,
+.arpp-record-v2__state-copy p,
+.arpp-record-v2__readiness,
+.arpp-record-v2__metric small,
+.arpp-v2-project-cell__meta,
+.arpp-v2-file__identity span {
+    color: var(--arpp-text-muted);
+}
+
+.arpp-v2-summary__item > strong,
+.arpp-v2-year__position strong,
+.arpp-v2-record h3,
+.arpp-record-v2__state-copy strong,
+.arpp-record-v2__metric strong {
+    color: var(--arpp-text);
+}
+
+.arpp-v2-summary__item--published > strong,
+.arpp-v2-record__value--approved strong,
+.arpp-record-v2__metric--approved strong {
+    color: var(--arpp-success);
+}
+
+.arpp-v2-summary__item--working > strong,
+.arpp-v2-record__value--delisted strong,
+.arpp-record-v2__metric--delisted strong {
+    color: var(--arpp-warning);
+}
+
+.arpp-v2-search .form-control,
+.arpp-v2-filterbar .form-select {
+    min-height: 2.35rem;
+}
+
+.arpp-v2-record:hover {
+    background: var(--arpp-surface-hover);
+}
+
+.arpp-v2-record__categories span {
+    border-color: var(--arpp-border);
+    background: var(--arpp-surface-subtle);
+    color: var(--arpp-text-secondary);
+}
+
+.arpp-record-v2__state-copy > .bi {
+    color: var(--arpp-text);
+}
+
+.arpp-record-v2__readiness .is-ready .bi { color: var(--arpp-success); }
+.arpp-record-v2__readiness .is-pending .bi { color: var(--arpp-warning); }
+
+.arpp-record-v2__tab-intro {
+    padding: .48rem .72rem;
+    border-bottom: 1px solid var(--arpp-border);
+    background: var(--arpp-surface-subtle);
+    color: var(--arpp-text-muted);
+    font-size: .75rem;
+    line-height: 1.35;
+}
+
+.arpp-record-v2__panel > .arpp-v2-table-wrap:first-of-type {
+    border-radius: inherit;
+}
+
+.arpp-v2-table thead th {
+    border-bottom-color: var(--arpp-border-strong);
+    background: var(--arpp-surface-muted);
+    color: var(--arpp-text-secondary);
+}
+
+.arpp-v2-table tbody td {
+    border-bottom-color: var(--arpp-border);
+    background: var(--arpp-surface);
+    color: var(--arpp-text-secondary);
+}
+
+.arpp-v2-table tbody tr:hover td {
+    background: var(--arpp-surface-hover);
+}
+
+.arpp-v2-table tbody tr.arpp-row--delisted td {
+    background: var(--arpp-warning-soft);
+}
+
+.arpp-v2-project-cell__title,
+.arpp-v2-project-cell__issued,
+.arpp-v2-project-cell__linked {
+    color: var(--arpp-text);
+}
+
+.arpp-v2-project-cell__issued strong,
+.arpp-v2-project-cell__linked strong {
+    color: var(--arpp-text-muted);
+}
+
+.arpp-v2-file {
+    border-color: var(--arpp-border);
+    background: var(--arpp-surface-subtle);
+}
+
+.arpp-v2-audit__group,
+.arpp-record-v2__overview-section,
+.arpp-v2-form-panel {
+    border-color: var(--arpp-border);
+    background: var(--arpp-surface);
+}
+
+.arpp-v2-form-panel__header {
+    border-bottom-color: var(--arpp-border);
+    background: var(--arpp-surface-subtle);
+}
+
+/* Published library consumes the same neutral hierarchy. */
+.project-arpp-page .project-arpp-rail,
+.project-arpp-page .project-arpp-reader__header,
+.project-arpp-page .project-arpp-summary > div,
+.project-arpp-page .project-arpp-table-card {
+    border-color: var(--arpp-border);
+    background: var(--arpp-surface);
+    box-shadow: var(--arpp-shadow-soft);
+}
+
+.project-arpp-page .project-arpp-search input {
+    border-color: var(--arpp-border-strong);
+    background: var(--arpp-surface);
+    color: var(--arpp-text);
+}
+
+.project-arpp-page .project-arpp-search input:focus {
+    border-color: var(--arpp-primary);
+    box-shadow: var(--arpp-focus-ring);
+}
+
+.project-arpp-page .project-arpp-reader__header {
+    background: var(--arpp-surface);
+}
+
+.project-arpp-page .project-arpp-table-card__head,
+.project-arpp-page .project-arpp-table thead th {
+    border-color: var(--arpp-border);
+    background: var(--arpp-surface-muted);
+    color: var(--arpp-text-secondary);
+}
+
+.project-arpp-page .project-arpp-table tbody td {
+    border-color: var(--arpp-border);
+    background: var(--arpp-surface);
+}
+
+.project-arpp-page .project-arpp-table tbody tr:hover td {
+    background: var(--arpp-surface-hover);
+}
+
+.project-arpp-page .project-arpp-nav__item {
+    color: var(--arpp-text-secondary);
+}
+
+.project-arpp-page .project-arpp-nav__item:hover,
+.project-arpp-page .project-arpp-nav__item.is-active {
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
+}
+
+.project-arpp-page .project-arpp-nav__item.is-active {
+    box-shadow: inset 3px 0 0 var(--arpp-primary);
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-v2-page-header {
+        gap: .85rem;
+    }
+
+    .arpp-v2-record {
+        gap: .75rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-record-v2__tab-intro {
+        padding: .45rem .6rem;
     }
 }
