@@ -17,6 +17,8 @@ public sealed record ProjectBriefingThemeDefinition(
     string AccentSoft,
     string SecondaryAccent,
     string SecondaryAccentSoft,
+    string ProjectUpdateAccent,
+    string ProjectUpdateLabelFill,
     string Positive,
     string PositiveSoft,
     string Warning,
@@ -35,6 +37,13 @@ public sealed record ProjectBriefingThemeDefinition(
     string CoverMuted)
 {
     public bool IsDark { get; init; }
+
+    // Semantic aliases keep presentation code aligned with the visual language.
+    // Accent is reserved for operational/status emphasis; SecondaryAccent for narrative content.
+    public string OperationalAccent => Accent;
+    public string OperationalAccentSoft => AccentSoft;
+    public string NarrativeAccent => SecondaryAccent;
+    public string NarrativeAccentSoft => SecondaryAccentSoft;
 }
 
 public static class ProjectBriefingThemeCatalog
@@ -54,6 +63,8 @@ public static class ProjectBriefingThemeCatalog
         AccentSoft: "E8EEF7",
         SecondaryAccent: "2D7F82",
         SecondaryAccentSoft: "E7F1F0",
+        ProjectUpdateAccent: "8F0D21",
+        ProjectUpdateLabelFill: "EDF1F6",
         Positive: "39765A",
         PositiveSoft: "E8F2EC",
         Warning: "B36B20",
@@ -89,6 +100,8 @@ public static class ProjectBriefingThemeCatalog
         AccentSoft: "263659",
         SecondaryAccent: "4FA6A8",
         SecondaryAccentSoft: "203B3C",
+        ProjectUpdateAccent: "5B7CFA",
+        ProjectUpdateLabelFill: "242A34",
         Positive: "69B889",
         PositiveSoft: "23382D",
         Warning: "D9A54C",

@@ -24,4 +24,23 @@ public sealed class ProjectBriefingThemeTests
                 .Select(property => (string?)property.GetValue(palette)),
             value => Assert.Matches("^[0-9A-F]{6}$", Assert.IsType<string>(value)));
     }
+
+    [Theory]
+    [InlineData(ProjectBriefingPresentationTheme.EditorialLight, "315FA8", "2D7F82", "8F0D21", "EDF1F6")]
+    [InlineData(ProjectBriefingPresentationTheme.GraphiteDark, "5B7CFA", "4FA6A8", "5B7CFA", "242A34")]
+    public void ThemeCatalog_ProvidesSemanticOperationalNarrativeAndUpdateSheetRoles(
+        ProjectBriefingPresentationTheme theme,
+        string operationalAccent,
+        string narrativeAccent,
+        string updateSheetAccent,
+        string updateSheetLabelFill)
+    {
+        var palette = ProjectBriefingThemeCatalog.Resolve(theme);
+
+        Assert.Equal(operationalAccent, palette.OperationalAccent);
+        Assert.Equal(narrativeAccent, palette.NarrativeAccent);
+        Assert.Equal(updateSheetAccent, palette.ProjectUpdateAccent);
+        Assert.Equal(updateSheetLabelFill, palette.ProjectUpdateLabelFill);
+    }
+
 }

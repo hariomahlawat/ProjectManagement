@@ -520,6 +520,9 @@ if (root) {
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
+    root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
+      preview.classList.toggle('is-update-sheet', updateSheet);
+    });
     restoreSettingsSectionState();
     validateUpdateSheetRows();
     syncPreflightRequirementVisibility();

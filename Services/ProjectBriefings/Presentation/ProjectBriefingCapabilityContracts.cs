@@ -34,6 +34,7 @@ public sealed record ProjectBriefingCapabilityLayoutBlock(
 public sealed record ProjectBriefingCapabilityPage(
     int PageNumber,
     bool IsPrimary,
+    ProjectBriefingNarrativeDensity Density,
     IReadOnlyList<ProjectBriefingCapabilityLayoutBlock> Blocks);
 
 public sealed class ProjectBriefingCapabilityPagination

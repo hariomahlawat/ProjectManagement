@@ -8,8 +8,6 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
 public sealed partial class ProjectBriefingSlideComposer
 {
-    private const string UpdateSheetAccent = "8F0D21";
-
     private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
     {
         var plans = new List<SlidePlan>();
@@ -38,45 +36,15 @@ public sealed partial class ProjectBriefingSlideComposer
         ProjectBriefingPresentationProject project)
     {
         var theme = canvas.Theme;
-        var accent = theme.IsDark ? theme.Accent : UpdateSheetAccent;
-        var labelFill = theme.IsDark ? theme.SurfaceRaised : "EDF1F6";
+        var labelFill = theme.ProjectUpdateLabelFill;
         var serialFill = theme.SurfaceMuted;
         var bodyFill = theme.Surface;
 
-        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.Canvas);
-        canvas.AddRect(0, 0, SlideWidth, .065, accent, name: "Project sheet top accent");
-        canvas.AddBrandingImages(HeaderVariant.ProjectUpdateSheet);
-
-        var titleX = canvas.ShowBranding ? 1.16 : .62;
-        var titleWidth = canvas.ShowBranding ? 11.01 : 12.09;
-        var titleFontSize = UpdateSheetTitleFontSize(project.ProjectName);
-        canvas.AddRichTextBox(
-            titleX,
-            .15,
-            titleWidth,
-            .64,
-            new[]
-            {
-                new RichTextParagraph(
-                    new[]
-                    {
-                        new RichTextRun(
-                            project.ProjectName,
-                            titleFontSize,
-                            accent,
-                            Bold: true)
-                    },
-                    Align: "ctr",
-                    LineSpacingPoints: titleFontSize * 1.05)
-            },
-            "Project name",
-            verticalAnchor: "ctr",
-            allowAutoFit: true,
-            leftInset: .03,
-            rightInset: .03,
-            topInset: 0,
-            bottomInset: 0);
-        canvas.AddLine(.55, .92, 12.78, .92, theme.Divider, .65);
+        AddProjectSlideHeader(
+            canvas,
+            project.ProjectName,
+            subtitle: null,
+            variant: ProjectSlideHeaderVariant.ProjectUpdateSheet);
 
         var rows = ResolveProjectUpdateRows(project, data.UpdateSheetOptions, theme.TextPrimary, theme.TextMuted);
         var rowHeights = BuildProjectUpdateRowHeights(rows);
@@ -360,15 +328,20 @@ public sealed partial class ProjectBriefingSlideComposer
         var normalized = projectBrief!
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\r", "\n", StringComparison.Ordinal);
-        var fontSize = UpdateSheetBriefFontSize(normalized.Length);
-        var lineSpacing = Math.Max(fontSize + 1.5, 8.0);
+        var typography = ProjectBriefingNarrativeTypography.ResolveUpdateSheetBrief(normalized);
 
         return normalized
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(paragraph => new RichTextParagraph(
-                new[] { new RichTextRun(paragraph.Replace("\n", " ", StringComparison.Ordinal), fontSize, text) },
-                SpaceAfterPoints: Math.Max(2.5, fontSize * .42),
-                LineSpacingPoints: lineSpacing))
+                new[]
+                {
+                    new RichTextRun(
+                        paragraph.Replace("\n", " ", StringComparison.Ordinal),
+                        typography.BodyFontSize,
+                        text)
+                },
+                SpaceAfterPoints: typography.SpaceAfterPoints,
+                LineSpacingPoints: typography.LineSpacingPoints))
             .ToArray();
     }
 
@@ -457,16 +430,6 @@ public sealed partial class ProjectBriefingSlideComposer
             <= 165 => .57,
             <= 250 => .68,
             _ => .80
-        };
-
-    private static double UpdateSheetBriefFontSize(int characterCount)
-        => characterCount switch
-        {
-            <= 650 => 10.8,
-            <= 1_000 => 9.8,
-            <= 1_500 => 8.8,
-            <= 2_100 => 7.8,
-            _ => 6.8
         };
 
     private sealed record UpdateSheetResolvedRow(

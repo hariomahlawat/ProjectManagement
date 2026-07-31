@@ -2905,3 +2905,66 @@ body.pbd-settings-drawer-open {
         flex: 1 1 0;
     }
 }
+
+/* Template-aware presentation previews */
+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__title {
+    top: .50rem;
+    left: 1.18rem;
+    right: 1.18rem;
+    width: auto;
+    height: .19rem;
+}
+
+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__content {
+    top: .96rem;
+    grid-template-columns: 1.08fr .92fr;
+    grid-template-rows: 1.25fr .70fr;
+    gap: .22rem;
+}
+
+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__content i:first-child {
+    grid-row: auto;
+}
+
+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__tertiary {
+    grid-column: 1 / -1;
+}
+
+.pbd-theme-preview.is-update-sheet .pbd-theme-preview__primary {
+    position: relative;
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent .22rem,
+        rgba(100, 116, 139, .20) .23rem,
+        rgba(100, 116, 139, .20) .25rem);
+}
+
+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__header {
+    background: #8f0d21;
+}
+
+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__primary {
+    background-color: #fff;
+}
+
+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__secondary {
+    background: #e6e8ea;
+}
+
+.pbd-theme-preview--light.is-update-sheet .pbd-theme-preview__tertiary {
+    background: #fff;
+}
+
+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__header {
+    background: #5b7cfa;
+}
+
+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__primary,
+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__tertiary {
+    background-color: #1d222b;
+}
+
+.pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__secondary {
+    background: #252b34;
+}

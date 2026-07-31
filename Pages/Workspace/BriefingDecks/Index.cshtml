@@ -494,10 +494,14 @@
                                             <label class="pbd-theme-card">
                                                 <input type="radio" name="PresentationTheme" value="EditorialLight" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.EditorialLight)" />
                                                 <span class="pbd-theme-card__body">
-                                                    <span class="pbd-theme-preview pbd-theme-preview--light" aria-hidden="true">
+                                                    <span class="pbd-theme-preview pbd-theme-preview--light @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-theme-preview aria-hidden="true">
                                                         <span class="pbd-theme-preview__header"></span>
                                                         <span class="pbd-theme-preview__title"></span>
-                                                        <span class="pbd-theme-preview__content"><i></i><i></i><i></i></span>
+                                                        <span class="pbd-theme-preview__content">
+                                                            <i class="pbd-theme-preview__primary"></i>
+                                                            <i class="pbd-theme-preview__secondary"></i>
+                                                            <i class="pbd-theme-preview__tertiary"></i>
+                                                        </span>
                                                     </span>
                                                     <span>
                                                         <strong>Editorial Light</strong>
@@ -508,10 +512,14 @@
                                             <label class="pbd-theme-card">
                                                 <input type="radio" name="PresentationTheme" value="GraphiteDark" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.GraphiteDark)" />
                                                 <span class="pbd-theme-card__body">
-                                                    <span class="pbd-theme-preview pbd-theme-preview--dark" aria-hidden="true">
+                                                    <span class="pbd-theme-preview pbd-theme-preview--dark @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-theme-preview aria-hidden="true">
                                                         <span class="pbd-theme-preview__header"></span>
                                                         <span class="pbd-theme-preview__title"></span>
-                                                        <span class="pbd-theme-preview__content"><i></i><i></i><i></i></span>
+                                                        <span class="pbd-theme-preview__content">
+                                                            <i class="pbd-theme-preview__primary"></i>
+                                                            <i class="pbd-theme-preview__secondary"></i>
+                                                            <i class="pbd-theme-preview__tertiary"></i>
+                                                        </span>
                                                     </span>
                                                     <span>
                                                         <strong>Graphite Dark</strong>

@@ -1,20 +1,14 @@
-PRISM Project Briefing Deck — Adaptive Project Update Sheets
-Validation summary
+Validation completed in the packaging environment:
 
-PASSED
-- git diff whitespace/error check
-- JavaScript syntax check with Node.js
-- 23 targeted JavaScript contract tests
-- ProjectManagement.Tests.csproj XML parse
-- Razor structural counts for details/section/fieldset/form/aside/div
-- C# delimiter/state scan over every changed and added C# file
-- Clean patch applicability against the exact baseline commit
-- Byte-for-byte comparison of every patched file with the packaged replacement file
-- ZIP integrity test
-- Confirmed that no migration file or database model column was added
+- git diff --check: PASS
+- JavaScript syntax check: PASS
+- Node targeted tests: 24/24 PASS
+- Razor structural tag counts: PASS
+- CSS brace balance: PASS
+- Modified C# delimiter scan: PASS
+- ProjectManagement.Tests.csproj XML parse: PASS
+- Patch applies cleanly to the latest Adaptive Update Sheets baseline: PASS
+- Applied patch reproduces all replacement files byte-for-byte: PASS
+- ZIP integrity: PASS
 
-NOT RUN IN THIS ENVIRONMENT
-- .NET Release build
-- xUnit/.NET test suite
-
-Reason: the .NET SDK is not installed in the execution environment. Run the commands in README-APPLY-FIRST.md after replacement.
+The .NET SDK is not installed in the packaging environment. The .NET build and xUnit test suite were therefore not executed here and must be run in the development environment after replacement.

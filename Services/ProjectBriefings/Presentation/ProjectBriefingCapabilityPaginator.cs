@@ -24,6 +24,7 @@ public static class ProjectBriefingCapabilityPaginator
             ? ProjectBriefingRichTextParser.Parse(null)
             : sourceBlocks;
 
+        var density = ProjectBriefingNarrativeTypography.ResolveCapabilityDensity(blocks);
         var pending = new LinkedList<ProjectBriefingCapabilityBlock>(blocks);
         var pages = new List<ProjectBriefingCapabilityPage>();
         var pageNumber = 1;
@@ -42,15 +43,15 @@ public static class ProjectBriefingCapabilityPaginator
                     && rendered.Count > 0
                     && pending.First.Next is not null)
                 {
-                    var headingHeight = CreateLayout(block, profile).TotalHeight;
-                    var nextMinimum = MinimumFollowingHeight(pending.First.Next.Value, profile);
+                    var headingHeight = CreateLayout(block, profile, density).TotalHeight;
+                    var nextMinimum = MinimumFollowingHeight(pending.First.Next.Value, profile, density);
                     if (headingHeight + nextMinimum > remaining)
                     {
                         break;
                     }
                 }
 
-                var layout = CreateLayout(block, profile);
+                var layout = CreateLayout(block, profile, density);
                 if (layout.TotalHeight <= remaining + .001)
                 {
                     pending.RemoveFirst();
@@ -65,10 +66,10 @@ public static class ProjectBriefingCapabilityPaginator
                         && rendered[0].Type == ProjectBriefingCapabilityBlockType.Heading;
 
                     if (headingNeedsContent
-                        && TrySplit(block, profile, remaining, out var first, out var remainder))
+                        && TrySplit(block, profile, density, remaining, out var first, out var remainder))
                     {
                         pending.RemoveFirst();
-                        rendered.Add(CreateLayout(first!, profile));
+                        rendered.Add(CreateLayout(first!, profile, density));
                         if (remainder is not null)
                         {
                             pending.AddFirst(remainder);
@@ -78,10 +79,10 @@ public static class ProjectBriefingCapabilityPaginator
                     break;
                 }
 
-                if (TrySplit(block, profile, remaining, out var splitFirst, out var splitRemainder))
+                if (TrySplit(block, profile, density, remaining, out var splitFirst, out var splitRemainder))
                 {
                     pending.RemoveFirst();
-                    rendered.Add(CreateLayout(splitFirst!, profile));
+                    rendered.Add(CreateLayout(splitFirst!, profile, density));
                     if (splitRemainder is not null)
                     {
                         pending.AddFirst(splitRemainder);
@@ -102,12 +103,13 @@ public static class ProjectBriefingCapabilityPaginator
             {
                 var forced = pending.First!.Value;
                 pending.RemoveFirst();
-                rendered.Add(CreateLayout(forced, profile));
+                rendered.Add(CreateLayout(forced, profile, density));
             }
 
             pages.Add(new ProjectBriefingCapabilityPage(
                 pageNumber,
                 pageNumber == 1,
+                density,
                 rendered));
             pageNumber++;
         }
@@ -117,18 +119,20 @@ public static class ProjectBriefingCapabilityPaginator
 
     private static ProjectBriefingCapabilityLayoutBlock CreateLayout(
         ProjectBriefingCapabilityBlock block,
-        LayoutProfile profile)
+        LayoutProfile profile,
+        ProjectBriefingNarrativeDensity density)
     {
-        var (fontSize, lineHeight, spaceAfter) = block.Type switch
-        {
-            ProjectBriefingCapabilityBlockType.Heading => (13.6, .235, .105),
-            ProjectBriefingCapabilityBlockType.Bullet => (12.7, .215, .060),
-            ProjectBriefingCapabilityBlockType.NumberedItem => (12.7, .215, .060),
-            ProjectBriefingCapabilityBlockType.LetteredItem => (12.7, .215, .060),
-            _ => (block.IsMuted ? 12.5 : 13.0, .222, .105)
-        };
+        var typography = ProjectBriefingNarrativeTypography.ResolveCapabilityBlock(
+            block.Type,
+            block.IsMuted,
+            density);
+        var fontSize = typography.FontSize;
+        var lineHeight = typography.LineHeight;
+        var spaceAfter = typography.SpaceAfter;
 
-        var characterBudget = profile.CharactersPerLine;
+        var characterBudget = ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(
+            profile.CharactersPerLine,
+            density);
         if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)
@@ -153,9 +157,10 @@ public static class ProjectBriefingCapabilityPaginator
 
     private static double MinimumFollowingHeight(
         ProjectBriefingCapabilityBlock block,
-        LayoutProfile profile)
+        LayoutProfile profile,
+        ProjectBriefingNarrativeDensity density)
     {
-        var layout = CreateLayout(block, profile);
+        var layout = CreateLayout(block, profile, density);
         return Math.Min(layout.TotalHeight, .56);
     }
 
@@ -193,6 +198,7 @@ public static class ProjectBriefingCapabilityPaginator
     private static bool TrySplit(
         ProjectBriefingCapabilityBlock block,
         LayoutProfile profile,
+        ProjectBriefingNarrativeDensity density,
         double availableHeight,
         out ProjectBriefingCapabilityBlock? first,
         out ProjectBriefingCapabilityBlock? remainder)
@@ -206,14 +212,11 @@ public static class ProjectBriefingCapabilityPaginator
             return false;
         }
 
-        var sample = CreateLayout(block, profile);
-        var lineHeight = block.Type switch
-        {
-            ProjectBriefingCapabilityBlockType.Bullet => .215,
-            ProjectBriefingCapabilityBlockType.NumberedItem => .215,
-            ProjectBriefingCapabilityBlockType.LetteredItem => .215,
-            _ => .222
-        };
+        var sample = CreateLayout(block, profile, density);
+        var lineHeight = ProjectBriefingNarrativeTypography.ResolveCapabilityBlock(
+            block.Type,
+            block.IsMuted,
+            density).LineHeight;
 
         var usableHeight = availableHeight - sample.SpaceAfter - .025;
         var maximumLines = (int)Math.Floor(usableHeight / lineHeight);
@@ -222,7 +225,9 @@ public static class ProjectBriefingCapabilityPaginator
             return false;
         }
 
-        var characterBudget = profile.CharactersPerLine;
+        var characterBudget = ProjectBriefingNarrativeTypography.AdjustCapabilityCharactersPerLine(
+            profile.CharactersPerLine,
+            density);
         if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)

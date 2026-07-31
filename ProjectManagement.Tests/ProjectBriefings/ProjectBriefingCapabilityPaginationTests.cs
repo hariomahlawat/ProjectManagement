@@ -181,4 +181,60 @@ public sealed class ProjectBriefingCapabilityPaginationTests
         Assert.True(block.IsMuted);
         Assert.Equal("Capability overview not recorded.", block.Text);
     }
+
+    [Fact]
+    public void Paginator_UsesSparseTypographyForConciseCapabilityLists()
+    {
+        const string source = """
+        • Detects and classifies targets.
+        • Presents a real-time cue to the operator.
+        • Supports day and night employment.
+        • Records engagement data for review.
+        """;
+
+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(source);
+
+        var page = Assert.Single(pagination.Pages);
+        Assert.Equal(ProjectBriefingNarrativeDensity.Sparse, page.Density);
+        Assert.All(
+            page.Blocks.Where(block => block.Type == ProjectBriefingCapabilityBlockType.Bullet),
+            block => Assert.True(block.FontSize >= 14.4));
+    }
+
+    [Fact]
+    public void Paginator_UsesDenseTypographyWithoutDiscardingLongCapabilityContent()
+    {
+        var source = string.Join(
+            "\n",
+            Enumerable.Range(1, 18).Select(index =>
+                $"{index}. Capability {index} provides a complete operational function, user action, measurable training effect and support outcome without removing source information."));
+
+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(source);
+        var rendered = string.Join(" ", pagination.Pages.SelectMany(page => page.Blocks).Select(block => block.Text));
+
+        Assert.All(pagination.Pages, page => Assert.Equal(ProjectBriefingNarrativeDensity.Dense, page.Density));
+        Assert.Contains("Capability 18", rendered, StringComparison.Ordinal);
+        Assert.All(
+            pagination.Pages.SelectMany(page => page.Blocks)
+                .Where(block => block.Type != ProjectBriefingCapabilityBlockType.Heading),
+            block => Assert.True(block.FontSize <= 12.0));
+    }
+
+    [Fact]
+    public void NarrativeTypography_UsesControlledProfilesForProjectBriefs()
+    {
+        var sparse = ProjectBriefingNarrativeTypography.ResolveProjectBrief(
+            "A concise project brief describing purpose, employment and expected operational effect.");
+        var standard = ProjectBriefingNarrativeTypography.ResolveProjectBrief(
+            string.Join(" ", Enumerable.Repeat("This paragraph provides project context, operational purpose and implementation detail.", 12)));
+        var dense = ProjectBriefingNarrativeTypography.ResolveProjectBrief(
+            string.Join(" ", Enumerable.Repeat("This longer brief contains detailed context, delivery information, dependencies and outcomes.", 40)));
+
+        Assert.Equal(ProjectBriefingNarrativeDensity.Sparse, sparse.Density);
+        Assert.Equal(ProjectBriefingNarrativeDensity.Standard, standard.Density);
+        Assert.Equal(ProjectBriefingNarrativeDensity.Dense, dense.Density);
+        Assert.True(sparse.BodyFontSize > standard.BodyFontSize);
+        Assert.True(standard.BodyFontSize > dense.BodyFontSize);
+    }
+
 }

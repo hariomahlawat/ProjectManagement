@@ -522,7 +522,8 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
         Assert.Contains("15181E", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("5B7CFA", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Project sheet title")));
+        Assert.Equal("5B7CFA", ShapeFillColor(ShapeByName(slide, "Project sheet top accent")));
         Assert.DoesNotContain("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
         Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
@@ -546,6 +547,81 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.DoesNotContain("Compact footer insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
         Assert.Equal(2, slide.ImageParts.Count());
         Assert.Single(slide.Slide.Descendants<A.Table>());
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_EditorialLightUsesFormalRuleAndPrimaryTitleText()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            711,
+            "Editorial update sheet",
+            StageCodes.AON,
+            ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            1,
+            projectBrief: "A concise formal project update for circulation and print.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 711,
+            DeckName = "Editorial Update",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            PresentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        Assert.Equal("191B20", ShapeTextColor(ShapeByName(slide, "Project sheet title")));
+        Assert.Equal("8F0D21", ShapeFillColor(ShapeByName(slide, "Project sheet top accent")));
+        Assert.Equal("EDF1F6", ShapeFillColor(ShapeByName(slide, "Project brief heading")));
+    }
+
+    [Fact]
+    public void Compose_GraphiteProjectSlideUsesSemanticHeaderNarrativeAndOperationalColours()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var (content, _) = composer.Compose(BuildData(ProjectBriefingPresentationTheme.GraphiteDark));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .Single(part => SlideText(part).Contains("AURA", StringComparison.Ordinal)
+                && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
+
+        Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Slide title")));
+        Assert.Equal("5B7CFA", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
+        Assert.Equal("4FA6A8", ShapeFillColor(ShapeByName(slide, "Capability accent")));
+        Assert.Equal("5B7CFA", ShapeTextColor(ShapeByName(slide, "Present status labels")));
+    }
+
+    [Fact]
+    public void Compose_ShortStatusWithoutPhotographKeepsLeftColumnVisuallyBalanced()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var (content, _) = composer.Compose(BuildData(ProjectBriefingPresentationTheme.GraphiteDark));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .Single(part => SlideText(part).Contains("AURA", StringComparison.Ordinal)
+                && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
+        var placeholderHeight = ShapeHeight(ShapeByName(slide, "Project photograph placeholder"));
+        var statusHeight = ShapeHeight(ShapeByName(slide, "Present status panel"));
+
+        Assert.True(placeholderHeight >= 1.20 * 914400, $"Expected a substantive placeholder zone; found {placeholderHeight} EMU.");
+        Assert.True(statusHeight <= 2.70 * 914400, $"Expected a bounded status card; found {statusHeight} EMU.");
     }
 
     [Fact]
@@ -869,6 +945,30 @@ public sealed class ProjectBriefingSlideComposerTests
             ProjectBrief = projectBrief ?? string.Empty,
             SortOrder = sortOrder
         };
+
+    private static P.Shape ShapeByName(SlidePart slide, string name)
+        => Assert.Single(slide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
+            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
+            name,
+            StringComparison.Ordinal)));
+
+    private static string ShapeTextColor(P.Shape shape)
+        => Assert.IsType<A.RgbColorModelHex>(shape
+                .Descendants<A.RunProperties>()
+                .SelectMany(properties => properties.Descendants<A.RgbColorModelHex>())
+                .FirstOrDefault())
+            .Val?.Value
+            ?? string.Empty;
+
+    private static string ShapeFillColor(P.Shape shape)
+        => shape.ShapeProperties?
+               .Descendants<A.RgbColorModelHex>()
+               .FirstOrDefault()?
+               .Val?.Value
+           ?? string.Empty;
+
+    private static long ShapeHeight(P.Shape shape)
+        => shape.ShapeProperties?.Transform2D?.Extents?.Cy?.Value ?? 0L;
 
     private static string SlideText(SlidePart slide)
         => string.Join("\n", slide.Slide.Descendants<A.Text>().Select(node => node.Text));

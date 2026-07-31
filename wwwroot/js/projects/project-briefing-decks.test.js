@@ -170,3 +170,8 @@ test('Project Update Sheet preflight follows selected rows and hide-empty policy
   assert.match(source, /arppReferenceAvailableCount/);
   assert.match(source, /PdcOrCompletionStatus/);
 });
+
+test('presentation theme previews follow the selected Standard or Project Update Sheet template', () => {
+  assert.match(source, /data-pbd-theme-preview/);
+  assert.match(source, /preview\.classList\.toggle\('is-update-sheet', updateSheet\)/);
+});

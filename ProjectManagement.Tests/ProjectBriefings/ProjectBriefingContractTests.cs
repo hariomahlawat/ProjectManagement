@@ -90,6 +90,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Classification marking <small>optional</small>", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Handling / classification marking", page, StringComparison.Ordinal);
         Assert.Contains("Presentation theme", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-theme-preview", page, StringComparison.Ordinal);
+        Assert.Contains("preview.classList.toggle('is-update-sheet'", script, StringComparison.Ordinal);
+        Assert.Contains(".pbd-theme-preview--light.is-update-sheet", css, StringComparison.Ordinal);
         Assert.DoesNotContain("appearanceTitle.textContent", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
@@ -165,9 +168,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("UpdateSheetStatus(project.ExternalStatus)", composer, StringComparison.Ordinal);
         Assert.Contains("BRIEF OF THE PROJECT", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("PROJECT UPDATE SHEET", composer, StringComparison.Ordinal);
-        Assert.Contains("AddBrandingImages(HeaderVariant.ProjectUpdateSheet)", composer, StringComparison.Ordinal);
-        Assert.Contains("Align: \"ctr\"", composer, StringComparison.Ordinal);
-        Assert.Contains("UpdateSheetAccent", composer, StringComparison.Ordinal);
+        Assert.Contains("AddProjectSlideHeader", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectSlideHeaderVariant.ProjectUpdateSheet", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("UpdateSheetAccent", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectUpdateLabelFill", composer, StringComparison.Ordinal);
         Assert.Contains("SO Date:", composer, StringComparison.Ordinal);
         Assert.Contains("Firm:", composer, StringComparison.Ordinal);
         Assert.Contains("string.Join(\"\\n\"", composer, StringComparison.Ordinal);
@@ -215,7 +219,32 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Completion Status", composer, StringComparison.Ordinal);
         Assert.Contains("Project completed", composer, StringComparison.Ordinal);
         Assert.Contains("StageCodes.DEVP", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingNarrativeTypography.ResolveUpdateSheetBrief", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("Name of Project", composer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PresentationVisualSystem_UsesSharedSemanticHeaderAndNarrativeRoles()
+    {
+        var theme = Read("ProjectBriefingThemeDefinition.cs");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+        var updateComposer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
+        var typography = Read("ProjectBriefingNarrativeTypography.cs");
+
+        Assert.Contains("ProjectUpdateAccent", theme, StringComparison.Ordinal);
+        Assert.Contains("ProjectUpdateLabelFill", theme, StringComparison.Ordinal);
+        Assert.Contains("OperationalAccent", theme, StringComparison.Ordinal);
+        Assert.Contains("NarrativeAccent", theme, StringComparison.Ordinal);
+        Assert.Contains("AddProjectSlideHeader", composer, StringComparison.Ordinal);
+        Assert.Contains("Project sheet title", composer, StringComparison.Ordinal);
+        Assert.Contains("canvas.Theme.TextPrimary", composer, StringComparison.Ordinal);
+        Assert.Contains("canvas.Theme.ProjectUpdateAccent", composer, StringComparison.Ordinal);
+        Assert.Contains("CalculateDetailedLayout", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingNarrativeDensity.Sparse", typography, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingNarrativeDensity.Dense", typography, StringComparison.Ordinal);
+        Assert.Contains("ResolveProjectBrief", typography, StringComparison.Ordinal);
+        Assert.Contains("ResolveUpdateSheetBrief", typography, StringComparison.Ordinal);
+        Assert.DoesNotContain("private const string UpdateSheetAccent", updateComposer, StringComparison.Ordinal);
     }
 
     [Fact]
