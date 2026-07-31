@@ -1,36 +1,41 @@
-# PRISM ARPP/PPP Workspace Defect Stabilisation
+# PRISM ARPP/PPP Workspace Final Polish
 
-This is a focused replacement package for the latest ARPP/PPP visual-system baseline.
+This package is a focused UI/UX finishing pass for the latest ARPP working-copy workspace.
+It must be applied **after** the ARPP Workspace Defect Stabilisation phase currently installed in the project.
 
 ## Scope
 
-The package fixes only the confirmed working-copy workspace defects:
+The package refines the existing workspace without changing its architecture or business behaviour:
 
-1. Collapsing **Rows** now hides only the row navigator; the editor grid remains mounted and expands to the full workspace width.
-2. Validation field totals, affected-row totals, navigator filters and invalid-row accents are derived from one authoritative validation result.
-3. Adding a row refreshes validation, scrolls the new row fully into view and focuses **Serial No.** without an uncontrolled browser jump.
-4. Every row containing a validation issue receives the same restrained left-edge indication; the selected issue remains more prominent.
-5. The **Rows** toggle exposes an explicit, state-aware accessible action: **Show row navigator** or **Hide row navigator**.
-6. The toolbar issue badge reports affected rows, matching the **Needs attention** navigator count; the issue tray continues to show the precise field total.
+- The **Rows** control now communicates whether the row navigator is visible and what clicking the control will do.
+- Horizontal-scroll edge cues are shown only when applicable.
+- The fixed Actions strip uses a restrained contextual boundary shadow and visually remains part of each row.
+- **Save working copy** is unmistakably disabled while the form is clean.
+- The validation tray no longer shows a redundant **Go to first issue** action for short, already-visible issue lists.
+- Validation actions are hidden entirely when they add no value.
+- Entry guidance always opens in the collapsed state for an uncluttered returning-user experience.
+- UI contract tests cover the refined interaction behaviour.
 
-## No backend change
+## Replacement method
+
+Copy the four project-relative files from this folder into the project root and replace the existing files:
+
+1. `Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml`
+2. `wwwroot/css/project-office-reports/arpp-workspace.css`
+3. `wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js`
+4. `ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs`
+
+The supplied `IMPLEMENTATION.patch` is an alternative to manual replacement. It is generated against the latest ARPP Workspace Defect Stabilisation baseline.
+
+## Database and backend impact
 
 - No migration
-- No entity/model change
-- No service or resolver change
+- No entity-model change
+- No service change
 - No publication-rule change
-- No IPA-stage synchronisation change
+- No IPA resolver or stage-synchronisation change
 
-## Files to replace/add
-
-Copy the package contents into the project root, preserving paths:
-
-- `Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml`
-- `wwwroot/css/project-office-reports/arpp-workspace.css`
-- `wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js`
-- `ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs`
-
-## Local verification
+## Recommended local validation
 
 ```powershell
 dotnet restore
@@ -38,13 +43,13 @@ dotnet build ProjectManagement.sln -c Release
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
 ```
 
-Then verify in the browser:
+Then verify in a browser:
 
-1. Open an ARPP working copy.
-2. Select **Rows**; confirm only the navigator collapses and the grid expands.
-3. Select **Rows** again; confirm the navigator returns without losing scroll position.
-4. Select **Add row**; confirm the new row is fully visible and Serial No. receives focus.
-5. Confirm the toolbar issue badge and **Needs attention** count both increase to the number of affected rows.
-6. Enter the missing fields and confirm both counts reduce together.
-7. Change a row to **Delisted** and confirm Serial/PPP validation clears immediately.
-8. Duplicate/delete/link rows and confirm counts remain current.
+- Rows navigator expanded and collapsed
+- Search at the far-left and far-right grid positions
+- Issues tray with 1–5 issues and with more than 5 issues
+- Issues tray while a non-issue filter is active
+- Disabled and enabled Save states
+- Actions column while horizontally scrolling
+- Entry guidance after page reload
+- 1366×768 at 125% Windows scaling

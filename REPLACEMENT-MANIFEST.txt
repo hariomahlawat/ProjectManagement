@@ -1,4 +1,4 @@
-REPLACE Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-REPLACE wwwroot/css/project-office-reports/arpp-workspace.css
-REPLACE wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-ADD ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
+Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+wwwroot/css/project-office-reports/arpp-workspace.css
+wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs

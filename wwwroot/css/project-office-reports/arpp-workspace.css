@@ -1191,3 +1191,46 @@ body.arpp-workspace-active {
         grid-column: 1;
     }
 }
+
+
+/* Final workspace interaction polish ------------------------------ */
+.arpp-workspace-v2__header [data-arpp-save-button]:disabled {
+    opacity: .56;
+    cursor: not-allowed;
+    box-shadow: none;
+    filter: saturate(.62);
+}
+
+.arpp-workspace-v2__navigator-toggle[aria-expanded="false"] {
+    border-color: var(--arpp-border-strong);
+    background: var(--arpp-surface);
+    color: var(--arpp-text-secondary);
+}
+
+.arpp-workspace-v2__issue-actions.d-none {
+    display: none !important;
+}
+
+/* The right-side cue terminates at the fixed Actions strip rather than
+   painting over the row controls. */
+.arpp-workspace-v2__table-viewport::after {
+    right: 4.5rem;
+}
+
+/* The Actions strip should read as part of the row. A boundary shadow is
+   introduced only after the user has moved horizontally away from the start. */
+.arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-col-actions,
+.arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-actions-cell {
+    box-shadow: -.22rem 0 .5rem rgba(23, 32, 51, .035);
+}
+
+.arpp-workspace-v2__table-viewport:not(.is-scrolled-start) .arpp-col-actions,
+.arpp-workspace-v2__table-viewport:not(.is-scrolled-start) .arpp-actions-cell {
+    box-shadow: none;
+}
+
+@media (max-width: 767.98px) {
+    .arpp-workspace-v2__table-viewport::after {
+        right: 0;
+    }
+}

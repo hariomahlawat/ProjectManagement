@@ -1,441 +1,248 @@
-diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-index 6afb44d..5a72105 100644
 --- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-@@ -78,7 +78,8 @@
-                     data-arpp-navigator-toggle
-                     aria-controls="arppWorkspaceNavigator"
-                     aria-expanded="true"
--                    title="Show or hide the row navigator">
-+                    aria-label="Hide row navigator"
-+                    title="Hide row navigator">
+@@ -81,7 +81,7 @@
+                     aria-label="Hide row navigator"
+                     title="Hide row navigator">
                  <span class="bi bi-layout-sidebar" aria-hidden="true"></span>
-                 <span>Rows</span>
+-                <span>Rows</span>
++                <span data-arpp-navigator-label>Rows</span>
              </button>
-diff --git a/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs b/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
-new file mode 100644
-index 0000000..aa82c1b
---- /dev/null
-+++ b/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
-@@ -0,0 +1,76 @@
-+using Xunit;
-+
-+namespace ProjectManagement.Tests.Arpp;
-+
-+public sealed class ArppWorkspaceDefectStabilizationContractTests
-+{
-+    [Fact]
-+    public void CollapsingNavigator_LeavesGridMountedAtFullWidth()
-+    {
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
-+
-+        Assert.Contains(".arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__body", css, StringComparison.Ordinal);
-+        Assert.Contains("grid-template-columns: minmax(0, 1fr);", css, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell", css, StringComparison.Ordinal);
-+        Assert.Contains("grid-column: 1;", ExtractRule(css, ".arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell"), StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void ValidationCountsAndInvalidRows_UseOneDerivedIssueSet()
-+    {
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
-+
-+        Assert.Contains("const validationRowsFrom = issues => new Set", script, StringComparison.Ordinal);
-+        Assert.Contains("validationIssueRowCount = issueRows.size;", script, StringComparison.Ordinal);
-+        Assert.Contains("syncInvalidRowClasses(issueRows);", script, StringComparison.Ordinal);
-+        Assert.Contains("updateRowNavigator(issues);", script, StringComparison.Ordinal);
-+        Assert.Contains("tr.has-validation-issue td:nth-child(2)", css, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void AddRow_RefreshesValidationThenScrollsAndFocusesTheNewRow()
-+    {
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+
-+        Assert.Contains("updateValidationNavigator(false);", script, StringComparison.Ordinal);
-+        Assert.Contains("scrollRowIntoWorkspace(row, firstControl, false);", script, StringComparison.Ordinal);
-+        Assert.Contains("target.focus({ preventScroll: true });", script, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void NavigatorToggle_CommunicatesItsCurrentAction()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+
-+        Assert.Contains("aria-label=\"Hide row navigator\"", markup, StringComparison.Ordinal);
-+        Assert.Contains("const label = isVisible ? \"Hide row navigator\" : \"Show row navigator\";", script, StringComparison.Ordinal);
-+        Assert.Contains("toggle.setAttribute(\"aria-label\", label);", script, StringComparison.Ordinal);
-+    }
-+
-+    private static string ExtractRule(string css, string selector)
-+    {
-+        var start = css.IndexOf(selector, StringComparison.Ordinal);
-+        if (start < 0) return string.Empty;
-+        var end = css.IndexOf('}', start);
-+        return end < 0 ? css[start..] : css[start..(end + 1)];
-+    }
-+
-+    private static string ReadRepoFile(params string[] segments)
-+    {
-+        var root = ResolveRepoRoot();
-+        return File.ReadAllText(Path.Combine(new[] { root }.Concat(segments).ToArray()));
-+    }
-+
-+    private static string ResolveRepoRoot()
-+    {
-+        var current = new DirectoryInfo(AppContext.BaseDirectory);
-+        while (current is not null)
-+        {
-+            if (File.Exists(Path.Combine(current.FullName, "ProjectManagement.csproj"))) return current.FullName;
-+            current = current.Parent;
-+        }
-+        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
-+    }
-+}
-diff --git a/wwwroot/css/project-office-reports/arpp-workspace.css b/wwwroot/css/project-office-reports/arpp-workspace.css
-index 3e00a51..a9f4531 100644
+ 
+             <div class="arpp-workspace-v2__search" role="search">
+@@ -181,9 +181,9 @@
+                         </button>
+                     </div>
+                     <div class="arpp-workspace-v2__issue-list" data-arpp-validation-items></div>
+-                    <div class="arpp-workspace-v2__issue-actions">
++                    <div class="arpp-workspace-v2__issue-actions d-none" data-arpp-validation-actions>
+                         <button type="button" class="btn btn-link btn-sm d-none" data-arpp-validation-more>View all</button>
+-                        <button type="button" class="btn btn-outline-danger btn-sm" data-arpp-validation-first>Go to first issue</button>
++                        <button type="button" class="btn btn-outline-danger btn-sm d-none" data-arpp-validation-first>Go to first issue</button>
+                     </div>
+                 </section>
+ 
 --- a/wwwroot/css/project-office-reports/arpp-workspace.css
 +++ b/wwwroot/css/project-office-reports/arpp-workspace.css
-@@ -1153,3 +1153,41 @@ body.arpp-workspace-active {
- .arpp-workspace-v2__table-viewport.is-scrolled-end .arpp-actions-cell {
-     box-shadow: -.35rem 0 .65rem rgba(23, 32, 51, .05);
+@@ -1191,3 +1191,46 @@
+         grid-column: 1;
+     }
  }
 +
-+/* Workspace defect stabilisation ---------------------------------- */
-+.arpp-workspace-v2__navigator {
-+    grid-column: 1;
++
++/* Final workspace interaction polish ------------------------------ */
++.arpp-workspace-v2__header [data-arpp-save-button]:disabled {
++    opacity: .56;
++    cursor: not-allowed;
++    box-shadow: none;
++    filter: saturate(.62);
 +}
 +
-+.arpp-workspace-v2__grid-shell {
-+    grid-column: 2;
++.arpp-workspace-v2__navigator-toggle[aria-expanded="false"] {
++    border-color: var(--arpp-border-strong);
++    background: var(--arpp-surface);
++    color: var(--arpp-text-secondary);
 +}
 +
-+.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__body {
-+    grid-template-columns: minmax(0, 1fr);
++.arpp-workspace-v2__issue-actions.d-none {
++    display: none !important;
 +}
 +
-+.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell {
-+    grid-column: 1;
++/* The right-side cue terminates at the fixed Actions strip rather than
++   painting over the row controls. */
++.arpp-workspace-v2__table-viewport::after {
++    right: 4.5rem;
 +}
 +
-+.arpp-workspace-v2__navigator-toggle.is-active {
-+    border-color: color-mix(in srgb, var(--arpp-primary) 30%, var(--arpp-border));
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
++/* The Actions strip should read as part of the row. A boundary shadow is
++   introduced only after the user has moved horizontally away from the start. */
++.arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-col-actions,
++.arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-actions-cell {
++    box-shadow: -.22rem 0 .5rem rgba(23, 32, 51, .035);
 +}
 +
-+.arpp-workspace-v2__table tr.has-validation-issue td:nth-child(2) {
-+    box-shadow: inset .18rem 0 0 color-mix(in srgb, var(--arpp-danger) 78%, transparent);
++.arpp-workspace-v2__table-viewport:not(.is-scrolled-start) .arpp-col-actions,
++.arpp-workspace-v2__table-viewport:not(.is-scrolled-start) .arpp-actions-cell {
++    box-shadow: none;
 +}
 +
-+.arpp-workspace-v2__table tr.is-validation-target td:nth-child(2) {
-+    box-shadow: inset .28rem 0 0 var(--arpp-danger);
-+}
-+
-+@media (max-width: 1023.98px) {
-+    .arpp-workspace-v2__grid-shell,
-+    .arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell {
-+        grid-column: 1;
++@media (max-width: 767.98px) {
++    .arpp-workspace-v2__table-viewport::after {
++        right: 0;
 +    }
 +}
-diff --git a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-index 7263a41..59604a2 100644
 --- a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
 +++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-@@ -19,6 +19,7 @@
-     let dirty = false;
-     let saving = false;
-     let validationIssueCount = 0;
-+    let validationIssueRowCount = 0;
-     let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
-     let baselineSnapshot = "";
-     let validationExpanded = false;
-@@ -27,6 +28,7 @@
-     let jumpMatches = [];
-     let jumpMatchIndex = -1;
-     let scrollSyncInProgress = false;
-+    let derivedStateRefreshPending = false;
-     let activeRowFilter = "all";
-     const navigatorMedia = window.matchMedia("(max-width: 1023.98px)");
-     const navigatorStorageKey = "prism.arpp.workspace.navigatorCollapsed";
-@@ -92,12 +94,12 @@
- 
-         const validationToggle = root.querySelector("[data-arpp-validation-toggle]");
-         const validationCount = root.querySelector("[data-arpp-validation-count]");
--        if (validationCount) validationCount.textContent = String(validationIssueCount);
-+        if (validationCount) validationCount.textContent = String(validationIssueRowCount);
-         if (validationToggle instanceof HTMLButtonElement) {
-             validationToggle.classList.toggle("d-none", validationIssueCount === 0);
-             validationToggle.setAttribute("aria-expanded", validationTrayOpen ? "true" : "false");
-             validationToggle.title = validationIssueCount > 0
--                ? `Review ${validationIssueCount} validation ${validationIssueCount === 1 ? "issue" : "issues"}`
-+                ? `Review ${validationIssueCount} ${validationIssueCount === 1 ? "field" : "fields"} across ${validationIssueRowCount} ${validationIssueRowCount === 1 ? "row" : "rows"}`
-                 : "No validation issues";
-         }
- 
-@@ -148,10 +150,10 @@
-         updateScrollEdgeState();
-     }
- 
--    const scrollRowIntoWorkspace = (row, target = null) => {
-+    const scrollRowIntoWorkspace = (row, target = null, validationTarget = false) => {
-         if (!(row instanceof HTMLElement)) return;
-         rows().forEach(candidate => candidate.classList.remove("arpp-row--jump-target", "is-validation-target"));
--        row.classList.add(target ? "is-validation-target" : "arpp-row--jump-target");
-+        row.classList.add(validationTarget ? "is-validation-target" : "arpp-row--jump-target");
- 
-         if (row.hidden) {
-             activeRowFilter = "all";
-@@ -283,13 +285,24 @@
-         });
+@@ -132,8 +132,10 @@
+     const updateScrollEdgeState = () => {
+         if (!(tableWrap instanceof HTMLElement) || !(tableViewport instanceof HTMLElement)) return;
+         const maxScroll = Math.max(0, tableWrap.scrollWidth - tableWrap.clientWidth);
+-        tableViewport.classList.toggle("is-scrolled-start", tableWrap.scrollLeft > 2);
+-        tableViewport.classList.toggle("is-scrolled-end", tableWrap.scrollLeft < maxScroll - 2);
++        const hasOverflow = maxScroll > 2;
++        tableViewport.classList.toggle("has-horizontal-overflow", hasOverflow);
++        tableViewport.classList.toggle("is-scrolled-start", hasOverflow && tableWrap.scrollLeft > 2);
++        tableViewport.classList.toggle("is-scrolled-end", hasOverflow && tableWrap.scrollLeft < maxScroll - 2);
      };
  
--    const rowHasValidationIssue = row => collectValidationIssues().some(issue => issue.row === row);
-+    const validationRowsFrom = issues => new Set(issues
-+        .map(issue => issue.row)
-+        .filter(row => row instanceof HTMLElement));
- 
--    const updateRowNavigator = () => {
-+    const syncInvalidRowClasses = issueRows => {
-+        rows().forEach(row => row.classList.toggle("has-validation-issue", issueRows.has(row)));
-+    };
-+
-+    const updateRowNavigator = (issues = collectValidationIssues()) => {
-         const currentRows = rows();
-+        const issueRows = validationRowsFrom(issues);
-+        validationIssueCount = issues.length;
-+        validationIssueRowCount = issueRows.size;
-+        syncInvalidRowClasses(issueRows);
-+
-         const counts = {
-             all: currentRows.length,
--            issues: currentRows.filter(rowHasValidationIssue).length,
-+            issues: issueRows.size,
-             unlinked: currentRows.filter(row => !Number(getField(row, "ProjectId")?.value || 0)).length,
-             delisted: currentRows.filter(isDelisted).length
-         };
-@@ -299,10 +312,11 @@
-                 element.textContent = String(value);
-             });
-         });
--        applyRowFilter(false);
-+        applyRowFilter(false, issueRows);
-+        syncWorkspaceStatus();
+     function syncTableScrollbars() {
+@@ -350,11 +352,14 @@
+         const toggle = root.querySelector("[data-arpp-navigator-toggle]");
+         if (!(toggle instanceof HTMLButtonElement)) return;
+         const isVisible = Boolean(visible);
+-        const label = isVisible ? "Hide row navigator" : "Show row navigator";
++        const actionLabel = isVisible ? "Hide row navigator" : "Show row navigator";
++        const visibleLabel = toggle.querySelector("[data-arpp-navigator-label]");
+         toggle.setAttribute("aria-expanded", isVisible ? "true" : "false");
+-        toggle.setAttribute("aria-label", label);
+-        toggle.title = label;
++        toggle.setAttribute("aria-pressed", isVisible ? "true" : "false");
++        toggle.setAttribute("aria-label", actionLabel);
++        toggle.title = actionLabel;
+         toggle.classList.toggle("is-active", isVisible);
++        if (visibleLabel) visibleLabel.textContent = isVisible ? "Rows" : "Show rows";
      };
  
--    function applyRowFilter(closeNavigator = false) {
-+    function applyRowFilter(closeNavigator = false, issueRows = validationRowsFrom(collectValidationIssues())) {
-         const labels = {
-             all: "All rows",
-             issues: "Needs attention",
-@@ -312,7 +326,7 @@
-         let visible = 0;
-         rows().forEach(row => {
-             const matches = activeRowFilter === "all"
--                || (activeRowFilter === "issues" && rowHasValidationIssue(row))
-+                || (activeRowFilter === "issues" && issueRows.has(row))
-                 || (activeRowFilter === "unlinked" && !Number(getField(row, "ProjectId")?.value || 0))
-                 || (activeRowFilter === "delisted" && isDelisted(row));
-             const keepActiveEditorVisible = activeRowFilter !== "all" && row.contains(document.activeElement);
-@@ -332,16 +346,30 @@
-         if (closeNavigator && window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
-     }
- 
-+    const syncNavigatorToggleState = visible => {
-+        const toggle = root.querySelector("[data-arpp-navigator-toggle]");
-+        if (!(toggle instanceof HTMLButtonElement)) return;
-+        const isVisible = Boolean(visible);
-+        const label = isVisible ? "Hide row navigator" : "Show row navigator";
-+        toggle.setAttribute("aria-expanded", isVisible ? "true" : "false");
-+        toggle.setAttribute("aria-label", label);
-+        toggle.title = label;
-+        toggle.classList.toggle("is-active", isVisible);
-+    };
-+
      const setDesktopNavigatorCollapsed = collapsed => {
-         const shouldCollapse = Boolean(collapsed);
-         root.classList.toggle("is-navigator-collapsed", shouldCollapse);
--        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
-+        syncNavigatorToggleState(!shouldCollapse);
-         try {
-             window.localStorage.setItem(navigatorStorageKey, shouldCollapse ? "true" : "false");
-         } catch {
-             // Persistence is optional in private or hardened browser contexts.
-         }
--        window.requestAnimationFrame(syncTableScrollbars);
-+        window.requestAnimationFrame(() => {
-+            syncTableScrollbars();
-+            updateScrollEdgeState();
-+        });
-     };
+@@ -432,6 +437,7 @@
+         const items = root.querySelector("[data-arpp-validation-items]");
+         const firstButton = root.querySelector("[data-arpp-validation-first]");
+         const moreButton = root.querySelector("[data-arpp-validation-more]");
++        const actions = root.querySelector("[data-arpp-validation-actions]");
+         if (!(navigator instanceof HTMLElement) || !(items instanceof HTMLElement)) return [];
  
-     const setNavigatorOpen = open => {
-@@ -351,7 +379,7 @@
-             navigator?.classList.toggle("is-open", enabled);
-             root.classList.toggle("has-navigator-open", enabled);
-             root.classList.remove("is-navigator-collapsed");
--            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", enabled ? "true" : "false");
-+            syncNavigatorToggleState(enabled);
-             return;
-         }
- 
-@@ -363,9 +391,7 @@
-     const restoreNavigatorLayout = () => {
-         if (navigatorMedia.matches) {
-             root.classList.remove("is-navigator-collapsed");
--            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute(
--                "aria-expanded",
--                root.classList.contains("has-navigator-open") ? "true" : "false");
-+            syncNavigatorToggleState(root.classList.contains("has-navigator-open"));
-             return;
-         }
- 
-@@ -378,7 +404,7 @@
-             collapsed = false;
-         }
-         root.classList.toggle("is-navigator-collapsed", collapsed);
--        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", collapsed ? "false" : "true");
-+        syncNavigatorToggleState(!collapsed);
-     };
- 
-     const setDetailsOpen = open => {
-@@ -420,8 +446,7 @@
+         const issues = collectValidationIssues();
+@@ -446,6 +452,8 @@
              validationExpanded = false;
              validationTrayOpen = false;
              moreButton?.classList.add("d-none");
--            updateRowNavigator();
--            syncWorkspaceStatus();
-+            updateRowNavigator(issues);
++            firstButton?.classList.add("d-none");
++            actions?.classList.add("d-none");
+             updateRowNavigator(issues);
              return issues;
          }
+@@ -501,14 +509,34 @@
+         }
  
-@@ -456,7 +481,7 @@
-             button.title = group.issues.map(issue => `${fieldDisplayName(issue.control)}: ${issue.message}`).join("\n");
-             button.addEventListener("click", () => {
-                 const first = group.issues[0];
--                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
-+                if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
-                 else {
-                     setDetailsOpen(true);
-                     window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
-@@ -478,18 +503,26 @@
          if (firstButton instanceof HTMLButtonElement) {
++            const first = issues[0];
++            const firstRow = first?.row;
++            const firstOutsideCurrentFilter = !firstRow
++                || (activeRowFilter !== "all"
++                    && activeRowFilter !== "issues"
++                    && !(activeRowFilter === "unlinked" && !Number(getField(firstRow, "ProjectId")?.value || 0))
++                    && !(activeRowFilter === "delisted" && isDelisted(firstRow)));
++            const showFirstShortcut = groups.length > 5 || firstOutsideCurrentFilter;
++            firstButton.classList.toggle("d-none", !showFirstShortcut);
              firstButton.onclick = () => {
-                 const first = issues[0];
--                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
-+                if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
+-                const first = issues[0];
+                 if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
                  else first.control.focus();
                  setValidationTrayOpen(false);
              };
          }
-         if (focusFirst) firstButton?.focus({ preventScroll: true });
-         setValidationTrayOpen(validationTrayOpen);
--        updateRowNavigator();
--        syncWorkspaceStatus();
-+        updateRowNavigator(issues);
-         return issues;
-     };
- 
-+    const scheduleDerivedStateRefresh = () => {
-+        if (derivedStateRefreshPending) return;
-+        derivedStateRefreshPending = true;
-+        window.requestAnimationFrame(() => {
-+            derivedStateRefreshPending = false;
-+            updateValidationNavigator(false);
-+        });
-+    };
+-        if (focusFirst) firstButton?.focus({ preventScroll: true });
 +
-     const updateIssueSequence = () => {
-         const kind = root.querySelector("[data-arpp-issue-kind]");
-         const sequence = root.querySelector("[data-arpp-issue-sequence]");
-@@ -595,7 +628,7 @@
-         updateEmptyState();
-         refreshRowWarnings();
-         refreshUnobtrusiveValidation();
--        window.requestAnimationFrame(updateRowNavigator);
-+        scheduleDerivedStateRefresh();
-     };
++        if (actions instanceof HTMLElement) {
++            const hasVisibleAction = [moreButton, firstButton].some(button =>
++                button instanceof HTMLElement && !button.classList.contains("d-none"));
++            actions.classList.toggle("d-none", !hasVisibleAction);
++        }
++
++        if (focusFirst) {
++            const focusTarget = firstButton instanceof HTMLElement && !firstButton.classList.contains("d-none")
++                ? firstButton
++                : items.querySelector("button");
++            focusTarget?.focus({ preventScroll: true });
++        }
+         setValidationTrayOpen(validationTrayOpen);
+         updateRowNavigator(issues);
+         return issues;
+@@ -1287,17 +1315,14 @@
  
-     const parseMoney = value => {
-@@ -772,7 +805,7 @@
-             category.addEventListener("change", () => {
-                 syncIssuedIdentifiers(row);
-                 refreshRowWarnings();
--                updateRowNavigator();
-+                scheduleDerivedStateRefresh();
-                 markDirty();
-             });
-             syncIssuedIdentifiers(row);
-@@ -799,12 +832,12 @@
-                     autosizeReference(projectReference);
-                 }
-                 refreshRowWarnings();
--                updateRowNavigator();
-+                scheduleDerivedStateRefresh();
-                 markDirty();
-             });
-             picker.addEventListener("arpp:project-cleared", () => {
-                 refreshRowWarnings();
--                updateRowNavigator();
-+                scheduleDerivedStateRefresh();
-                 markDirty();
-             });
-         }
-@@ -840,7 +873,13 @@
-             dfpdsScheduleId: Number(getField(previous, "DfpdsScheduleId")?.value || 0),
-             category: "1"
-         } : { category: "1" });
--        getField(row, "SerialNumber")?.focus();
-+        const firstControl = getField(row, "SerialNumber");
-+        window.requestAnimationFrame(() => {
-+            window.requestAnimationFrame(() => {
-+                updateValidationNavigator(false);
-+                scrollRowIntoWorkspace(row, firstControl, false);
-+            });
-+        });
-     };
+     const entryGuidance = root.querySelector("[data-arpp-entry-guidance]");
+     if (entryGuidance) {
+-        const storageKey = "prism.arpp.entryGuidance.open";
+-        try {
+-            const stored = window.localStorage.getItem(storageKey);
+-            if (stored === "false" || stored === "seen") entryGuidance.removeAttribute("open");
+-        } catch {
+-            // Storage can be unavailable in hardened or private browser contexts.
+-        }
+-
++        const storageKey = "prism.arpp.entryGuidance.seen";
++        // Entry guidance is intentionally collapsed on every visit. It remains
++        // immediately available without consuming navigator space for returning users.
++        entryGuidance.removeAttribute("open");
+         entryGuidance.addEventListener("toggle", () => {
++            if (entryGuidance.open) return;
+             try {
+-                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "seen");
++                window.localStorage.setItem(storageKey, "true");
+             } catch {
+                 // Guidance remains fully functional without persistence.
+             }
+--- a/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
++++ b/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
+@@ -39,19 +39,57 @@
+     }
  
-     const categoryValue = value => {
-@@ -1091,19 +1130,19 @@
-         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
-         refreshRowWarnings();
-         refreshDirtyState();
--        window.setTimeout(() => updateValidationNavigator(false), 0);
-+        scheduleDerivedStateRefresh();
-     });
-     form.addEventListener("change", event => {
-         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
-         refreshRowWarnings();
-         refreshDirtyState();
--        window.setTimeout(() => updateValidationNavigator(false), 0);
-+        scheduleDerivedStateRefresh();
-     });
-     form.addEventListener("invalid", () => {
--        window.setTimeout(() => updateValidationNavigator(false), 0);
-+        scheduleDerivedStateRefresh();
-     }, true);
-     form.addEventListener("focusout", () => {
--        window.setTimeout(() => applyRowFilter(false), 0);
-+        scheduleDerivedStateRefresh();
-     });
-     form.addEventListener("submit", event => {
-         root.querySelectorAll("[data-arpp-money]").forEach(normaliseMoneyInput);
-@@ -1165,7 +1204,7 @@
-     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
-     root.querySelector("[data-arpp-navigator-toggle]")?.addEventListener("click", () => {
-         if (navigatorMedia.matches) {
--            setNavigatorOpen(true);
-+            setNavigatorOpen(!root.classList.contains("has-navigator-open"));
-             return;
-         }
-         setNavigatorOpen(root.classList.contains("is-navigator-collapsed"));
-@@ -1269,7 +1308,6 @@
-     updateIssueSequence();
-     reindexRows();
-     syncTableScrollbars();
--    updateRowNavigator();
-     baselineSnapshot = createFormSnapshot();
-     updateValidationNavigator(false);
-     if (serverRejectedChanges) setDirty(true);
+     [Fact]
+-    public void NavigatorToggle_CommunicatesItsCurrentAction()
++    public void NavigatorToggle_CommunicatesStateAndCurrentAction()
+     {
+         var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
+         var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
+ 
+-        Assert.Contains("aria-label=\"Hide row navigator\"", markup, StringComparison.Ordinal);
+-        Assert.Contains("const label = isVisible ? \"Hide row navigator\" : \"Show row navigator\";", script, StringComparison.Ordinal);
+-        Assert.Contains("toggle.setAttribute(\"aria-label\", label);", script, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-navigator-label", markup, StringComparison.Ordinal);
++        Assert.Contains("const actionLabel = isVisible ? \"Hide row navigator\" : \"Show row navigator\";", script, StringComparison.Ordinal);
++        Assert.Contains("toggle.setAttribute(\"aria-pressed\", isVisible ? \"true\" : \"false\");", script, StringComparison.Ordinal);
++        Assert.Contains("visibleLabel.textContent = isVisible ? \"Rows\" : \"Show rows\";", script, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void ValidationTray_ShowsShortcutOnlyForLongOrFilteredIssueSets()
++    {
++        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++
++        Assert.Contains("data-arpp-validation-actions", markup, StringComparison.Ordinal);
++        Assert.Contains("data-arpp-validation-first", markup, StringComparison.Ordinal);
++        Assert.Contains("const showFirstShortcut = groups.length > 5 || firstOutsideCurrentFilter;", script, StringComparison.Ordinal);
++        Assert.Contains("firstButton.classList.toggle(\"d-none\", !showFirstShortcut);", script, StringComparison.Ordinal);
++        Assert.Contains("actions.classList.toggle(\"d-none\", !hasVisibleAction);", script, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void HorizontalScrollCuesAndActionsBoundary_AreContextual()
++    {
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
++
++        Assert.Contains("tableViewport.classList.toggle(\"has-horizontal-overflow\", hasOverflow);", script, StringComparison.Ordinal);
++        Assert.Contains("hasOverflow && tableWrap.scrollLeft > 2", script, StringComparison.Ordinal);
++        Assert.Contains(".arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-actions-cell", css, StringComparison.Ordinal);
++        Assert.Contains(".arpp-workspace-v2__table-viewport::after {\n    right: 4.5rem;", css, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void DisabledSaveAndEntryGuidance_AreUnambiguousAndCompact()
++    {
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
++
++        var disabledRule = ExtractRule(css, ".arpp-workspace-v2__header [data-arpp-save-button]:disabled");
++        Assert.Contains("cursor: not-allowed;", disabledRule, StringComparison.Ordinal);
++        Assert.Contains("opacity: .56;", disabledRule, StringComparison.Ordinal);
++        Assert.Contains("entryGuidance.removeAttribute(\"open\");", script, StringComparison.Ordinal);
+     }
+ 
+     private static string ExtractRule(string css, string selector)
+     {
+-        var start = css.IndexOf(selector, StringComparison.Ordinal);
++        var start = css.LastIndexOf(selector, StringComparison.Ordinal);
+         if (start < 0) return string.Empty;
+         var end = css.IndexOf('}', start);
+         return end < 0 ? css[start..] : css[start..(end + 1)];

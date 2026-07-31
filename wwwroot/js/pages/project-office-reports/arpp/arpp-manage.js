@@ -132,8 +132,10 @@
     const updateScrollEdgeState = () => {
         if (!(tableWrap instanceof HTMLElement) || !(tableViewport instanceof HTMLElement)) return;
         const maxScroll = Math.max(0, tableWrap.scrollWidth - tableWrap.clientWidth);
-        tableViewport.classList.toggle("is-scrolled-start", tableWrap.scrollLeft > 2);
-        tableViewport.classList.toggle("is-scrolled-end", tableWrap.scrollLeft < maxScroll - 2);
+        const hasOverflow = maxScroll > 2;
+        tableViewport.classList.toggle("has-horizontal-overflow", hasOverflow);
+        tableViewport.classList.toggle("is-scrolled-start", hasOverflow && tableWrap.scrollLeft > 2);
+        tableViewport.classList.toggle("is-scrolled-end", hasOverflow && tableWrap.scrollLeft < maxScroll - 2);
     };
 
     function syncTableScrollbars() {
@@ -350,11 +352,14 @@
         const toggle = root.querySelector("[data-arpp-navigator-toggle]");
         if (!(toggle instanceof HTMLButtonElement)) return;
         const isVisible = Boolean(visible);
-        const label = isVisible ? "Hide row navigator" : "Show row navigator";
+        const actionLabel = isVisible ? "Hide row navigator" : "Show row navigator";
+        const visibleLabel = toggle.querySelector("[data-arpp-navigator-label]");
         toggle.setAttribute("aria-expanded", isVisible ? "true" : "false");
-        toggle.setAttribute("aria-label", label);
-        toggle.title = label;
+        toggle.setAttribute("aria-pressed", isVisible ? "true" : "false");
+        toggle.setAttribute("aria-label", actionLabel);
+        toggle.title = actionLabel;
         toggle.classList.toggle("is-active", isVisible);
+        if (visibleLabel) visibleLabel.textContent = isVisible ? "Rows" : "Show rows";
     };
 
     const setDesktopNavigatorCollapsed = collapsed => {
@@ -432,6 +437,7 @@
         const items = root.querySelector("[data-arpp-validation-items]");
         const firstButton = root.querySelector("[data-arpp-validation-first]");
         const moreButton = root.querySelector("[data-arpp-validation-more]");
+        const actions = root.querySelector("[data-arpp-validation-actions]");
         if (!(navigator instanceof HTMLElement) || !(items instanceof HTMLElement)) return [];
 
         const issues = collectValidationIssues();
@@ -446,6 +452,8 @@
             validationExpanded = false;
             validationTrayOpen = false;
             moreButton?.classList.add("d-none");
+            firstButton?.classList.add("d-none");
+            actions?.classList.add("d-none");
             updateRowNavigator(issues);
             return issues;
         }
@@ -501,14 +509,34 @@
         }
 
         if (firstButton instanceof HTMLButtonElement) {
+            const first = issues[0];
+            const firstRow = first?.row;
+            const firstOutsideCurrentFilter = !firstRow
+                || (activeRowFilter !== "all"
+                    && activeRowFilter !== "issues"
+                    && !(activeRowFilter === "unlinked" && !Number(getField(firstRow, "ProjectId")?.value || 0))
+                    && !(activeRowFilter === "delisted" && isDelisted(firstRow)));
+            const showFirstShortcut = groups.length > 5 || firstOutsideCurrentFilter;
+            firstButton.classList.toggle("d-none", !showFirstShortcut);
             firstButton.onclick = () => {
-                const first = issues[0];
                 if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
                 else first.control.focus();
                 setValidationTrayOpen(false);
             };
         }
-        if (focusFirst) firstButton?.focus({ preventScroll: true });
+
+        if (actions instanceof HTMLElement) {
+            const hasVisibleAction = [moreButton, firstButton].some(button =>
+                button instanceof HTMLElement && !button.classList.contains("d-none"));
+            actions.classList.toggle("d-none", !hasVisibleAction);
+        }
+
+        if (focusFirst) {
+            const focusTarget = firstButton instanceof HTMLElement && !firstButton.classList.contains("d-none")
+                ? firstButton
+                : items.querySelector("button");
+            focusTarget?.focus({ preventScroll: true });
+        }
         setValidationTrayOpen(validationTrayOpen);
         updateRowNavigator(issues);
         return issues;
@@ -1287,17 +1315,14 @@
 
     const entryGuidance = root.querySelector("[data-arpp-entry-guidance]");
     if (entryGuidance) {
-        const storageKey = "prism.arpp.entryGuidance.open";
-        try {
-            const stored = window.localStorage.getItem(storageKey);
-            if (stored === "false" || stored === "seen") entryGuidance.removeAttribute("open");
-        } catch {
-            // Storage can be unavailable in hardened or private browser contexts.
-        }
-
+        const storageKey = "prism.arpp.entryGuidance.seen";
+        // Entry guidance is intentionally collapsed on every visit. It remains
+        // immediately available without consuming navigator space for returning users.
+        entryGuidance.removeAttribute("open");
         entryGuidance.addEventListener("toggle", () => {
+            if (entryGuidance.open) return;
             try {
-                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "seen");
+                window.localStorage.setItem(storageKey, "true");
             } catch {
                 // Guidance remains fully functional without persistence.
             }

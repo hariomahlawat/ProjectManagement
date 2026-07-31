@@ -1,19 +1,17 @@
-PRISM ARPP/PPP Workspace Defect Stabilisation — Validation
+PRISM ARPP/PPP Workspace Final Polish — Validation
 
-PASSED
-- JavaScript syntax: node --check
-- CSS brace balance
-- Navigator-collapsed grid contract present
-- Shared validation-derived state contract present
-- New-row scroll/focus contract present
-- Consistent invalid-row class contract present
-- Accessible navigator toggle state contract present
-- Exact project-relative replacement paths verified
-- ZIP integrity verified after creation
+PASS  JavaScript syntax checked with Node.js (`node --check`).
+PASS  CSS opening and closing braces are balanced.
+PASS  Razor markup contains the dynamic navigator label and compact validation-actions hooks.
+PASS  Navigator state updates aria-expanded, aria-pressed, title, accessible label and visible text.
+PASS  Horizontal-overflow state is derived from the actual scroll range.
+PASS  Actions-strip shadow is tied to horizontal displacement rather than remaining permanently visible.
+PASS  Short issue lists hide the redundant Go to first issue shortcut.
+PASS  Validation action area hides when no action remains visible.
+PASS  Entry guidance is forced to the collapsed initial state.
+PASS  Disabled Save styling includes reduced emphasis and a not-allowed cursor.
+PASS  IMPLEMENTATION.patch dry-ran and applied cleanly against the latest defect-stabilisation baseline.
+PASS  Patched files exactly matched the replacement files after patch application.
+PASS  No migrations, model, service, resolver or business-rule files are included.
 
-NOT RUN IN THIS ENVIRONMENT
-- .NET Release build
-- xUnit suite
-- Browser/Playwright tests
-
-Reason: .NET SDK is not installed in the execution environment.
+NOT RUN  .NET Release build and xUnit execution: the .NET SDK is unavailable in this execution environment.

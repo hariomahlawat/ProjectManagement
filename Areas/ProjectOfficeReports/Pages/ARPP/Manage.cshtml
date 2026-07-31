@@ -81,7 +81,7 @@
                     aria-label="Hide row navigator"
                     title="Hide row navigator">
                 <span class="bi bi-layout-sidebar" aria-hidden="true"></span>
-                <span>Rows</span>
+                <span data-arpp-navigator-label>Rows</span>
             </button>
 
             <div class="arpp-workspace-v2__search" role="search">
@@ -181,9 +181,9 @@
                         </button>
                     </div>
                     <div class="arpp-workspace-v2__issue-list" data-arpp-validation-items></div>
-                    <div class="arpp-workspace-v2__issue-actions">
+                    <div class="arpp-workspace-v2__issue-actions d-none" data-arpp-validation-actions>
                         <button type="button" class="btn btn-link btn-sm d-none" data-arpp-validation-more>View all</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" data-arpp-validation-first>Go to first issue</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm d-none" data-arpp-validation-first>Go to first issue</button>
                     </div>
                 </section>
 
