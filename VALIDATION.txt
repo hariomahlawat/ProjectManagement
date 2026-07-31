@@ -1,17 +1,17 @@
-PRISM ARPP/PPP Workspace Final Polish — Validation
+ARPP/PPP Published Position Semantics — Validation
 
-PASS  JavaScript syntax checked with Node.js (`node --check`).
-PASS  CSS opening and closing braces are balanced.
-PASS  Razor markup contains the dynamic navigator label and compact validation-actions hooks.
-PASS  Navigator state updates aria-expanded, aria-pressed, title, accessible label and visible text.
-PASS  Horizontal-overflow state is derived from the actual scroll range.
-PASS  Actions-strip shadow is tied to horizontal displacement rather than remaining permanently visible.
-PASS  Short issue lists hide the redundant Go to first issue shortcut.
-PASS  Validation action area hides when no action remains visible.
-PASS  Entry guidance is forced to the collapsed initial state.
-PASS  Disabled Save styling includes reduced emphasis and a not-allowed cursor.
-PASS  IMPLEMENTATION.patch dry-ran and applied cleanly against the latest defect-stabilisation baseline.
-PASS  Patched files exactly matched the replacement files after patch application.
-PASS  No migrations, model, service, resolver or business-rule files are included.
+PASSED
+- Authoritative values are sourced through IArppLibraryService.GetCurrentPositionAsync.
+- Published-position retrieval is deliberately called with query: null.
+- Financial-year headings no longer reference working aggregate fields.
+- Precise structured-row and record-count wording is present.
+- No-published-position and under-correction states are present.
+- CSS braces are balanced.
+- Implementation patch applies cleanly to the supplied baseline files.
+- Replacement manifest and SHA-256 checksums generated.
 
-NOT RUN  .NET Release build and xUnit execution: the .NET SDK is unavailable in this execution environment.
+NOT EXECUTED IN THIS ENVIRONMENT
+- dotnet build
+- xUnit test suite
+
+Reason: .NET SDK is not installed in the execution environment.

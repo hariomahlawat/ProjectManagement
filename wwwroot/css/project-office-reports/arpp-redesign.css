@@ -1243,3 +1243,67 @@
         padding: .45rem .6rem;
     }
 }
+
+/* Published-position semantics ------------------------------------- */
+.arpp-v2-year__position-label,
+.arpp-v2-year__position-empty {
+    color: var(--arpp-text-muted);
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.arpp-v2-year__position-empty {
+    color: var(--arpp-text-secondary);
+}
+
+.arpp-v2-year__record-count,
+.arpp-v2-year__position-note {
+    color: var(--arpp-text-muted);
+    white-space: nowrap;
+}
+
+.arpp-v2-year__position-note {
+    padding-left: .85rem;
+    border-left: 1px solid var(--arpp-border);
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-v2-year__position {
+        row-gap: .35rem;
+    }
+
+    .arpp-v2-year__position-note {
+        padding-left: 0;
+        border-left: 0;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-v2-year__record-count,
+    .arpp-v2-year__position-note {
+        white-space: normal;
+    }
+}
+
+.arpp-v2-year__position-label,
+.arpp-v2-year__position-empty,
+.arpp-v2-year__record-count,
+.arpp-v2-year__position-note {
+    display: inline-flex;
+    grid-template-columns: none;
+    align-items: baseline;
+}
+
+.arpp-v2-year__position-label {
+    padding-left: .85rem;
+    border-left: 1px solid var(--arpp-border);
+}
+
+@media (max-width: 1199.98px) {
+    .arpp-v2-year__position-label {
+        padding-left: 0;
+        border-left: 0;
+    }
+}

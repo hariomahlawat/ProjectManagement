@@ -8,7 +8,7 @@
     ViewData["ArppSection"] = "administration";
     ViewData["CanManageArpp"] = Model.CanManage;
     var allIssues = Model.Register.FinancialYears.SelectMany(group => group.Issues).ToArray();
-    var publishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
+    var activePublishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
     var workingRecordCount = allIssues.Count(issue => !issue.IsVerified);
 }
 
@@ -42,8 +42,8 @@
     }
 
     <section class="arpp-v2-summary" aria-label="Administration summary">
-        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "row" : "rows") across all records</small></article>
-        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@publishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
+        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries structured @(Model.Register.TotalEntries == 1 ? "row" : "rows") across @Model.Register.TotalIssues @(Model.Register.TotalIssues == 1 ? "record" : "records")</small></article>
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@activePublishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
         <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Records under work</span><strong>@workingRecordCount</strong><small>Setup, correction or verification is in progress</small></article>
         <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>
     </section>
@@ -63,13 +63,37 @@
     {
         @foreach (var group in Model.Register.FinancialYears)
         {
+            var hasPublishedPosition = Model.PublishedPositions.TryGetValue(group.FinancialYearStart, out var publishedPosition);
+            var correctionCount = group.Issues.Count(issue => !issue.IsVerified && issue.HasPublishedSnapshot);
+            var underWorkCount = group.Issues.Count(issue => !issue.IsVerified);
+
             <section class="arpp-v2-year" aria-labelledby="arpp-year-@group.FinancialYearStart">
                 <header class="arpp-v2-year__header">
                     <div class="arpp-v2-year__title"><span>Financial year</span><strong id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</strong></div>
                     <div class="arpp-v2-year__position">
-                        <span>@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
-                        <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(group.ApprovedLinkedIpaCost)</strong> approved · @group.ApprovedLinkedProjectCount @(group.ApprovedLinkedProjectCount == 1 ? "project" : "projects")</span>
-                        <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(group.DelistedLinkedIpaCost)</strong> delisted · @group.DelistedLinkedProjectCount @(group.DelistedLinkedProjectCount == 1 ? "project" : "projects")</span>
+                        <span class="arpp-v2-year__record-count">@group.EntryCount structured @(group.EntryCount == 1 ? "row" : "rows") across @group.Issues.Count @(group.Issues.Count == 1 ? "record" : "records")</span>
+                        @if (hasPublishedPosition && publishedPosition is not null)
+                        {
+                            <span class="arpp-v2-year__position-label">Published position</span>
+                            <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(publishedPosition.ApprovedIpaValue)</strong> approved · @publishedPosition.ApprovedProjectCount @(publishedPosition.ApprovedProjectCount == 1 ? "project" : "projects")</span>
+                            <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(publishedPosition.DelistedIpaValue)</strong> delisted · @publishedPosition.DelistedProjectCount @(publishedPosition.DelistedProjectCount == 1 ? "project" : "projects")</span>
+                            @if (publishedPosition.UnlinkedDocumentRowCount > 0)
+                            {
+                                <span class="arpp-v2-year__position-note">@publishedPosition.UnlinkedDocumentRowCount unlinked published @(publishedPosition.UnlinkedDocumentRowCount == 1 ? "row" : "rows")</span>
+                            }
+                            @if (correctionCount > 0)
+                            {
+                                <span class="arpp-v2-year__position-note">@correctionCount @(correctionCount == 1 ? "record" : "records") under correction</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="arpp-v2-year__position-empty">No published position</span>
+                            @if (underWorkCount > 0)
+                            {
+                                <span class="arpp-v2-year__position-note">@underWorkCount @(underWorkCount == 1 ? "record" : "records") under work</span>
+                            }
+                        }
                     </div>
                 </header>
 

@@ -1,248 +1,273 @@
---- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-@@ -81,7 +81,7 @@
-                     aria-label="Hide row navigator"
-                     title="Hide row navigator">
-                 <span class="bi bi-layout-sidebar" aria-hidden="true"></span>
--                <span>Rows</span>
-+                <span data-arpp-navigator-label>Rows</span>
-             </button>
+diff -ruN baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
+--- baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml	2026-07-31 02:14:42.809978255 +0000
++++ current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml	2026-07-31 02:14:43.881978229 +0000
+@@ -8,7 +8,7 @@
+     ViewData["ArppSection"] = "administration";
+     ViewData["CanManageArpp"] = Model.CanManage;
+     var allIssues = Model.Register.FinancialYears.SelectMany(group => group.Issues).ToArray();
+-    var publishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
++    var activePublishedRecordCount = allIssues.Count(issue => issue.HasPublishedSnapshot);
+     var workingRecordCount = allIssues.Count(issue => !issue.IsVerified);
+ }
  
-             <div class="arpp-workspace-v2__search" role="search">
-@@ -181,9 +181,9 @@
-                         </button>
-                     </div>
-                     <div class="arpp-workspace-v2__issue-list" data-arpp-validation-items></div>
--                    <div class="arpp-workspace-v2__issue-actions">
-+                    <div class="arpp-workspace-v2__issue-actions d-none" data-arpp-validation-actions>
-                         <button type="button" class="btn btn-link btn-sm d-none" data-arpp-validation-more>View all</button>
--                        <button type="button" class="btn btn-outline-danger btn-sm" data-arpp-validation-first>Go to first issue</button>
-+                        <button type="button" class="btn btn-outline-danger btn-sm d-none" data-arpp-validation-first>Go to first issue</button>
-                     </div>
-                 </section>
+@@ -42,8 +42,8 @@
+     }
  
---- a/wwwroot/css/project-office-reports/arpp-workspace.css
-+++ b/wwwroot/css/project-office-reports/arpp-workspace.css
-@@ -1191,3 +1191,46 @@
-         grid-column: 1;
+     <section class="arpp-v2-summary" aria-label="Administration summary">
+-        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "row" : "rows") across all records</small></article>
+-        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@publishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
++        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries structured @(Model.Register.TotalEntries == 1 ? "row" : "rows") across @Model.Register.TotalIssues @(Model.Register.TotalIssues == 1 ? "record" : "records")</small></article>
++        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@activePublishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
+         <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Records under work</span><strong>@workingRecordCount</strong><small>Setup, correction or verification is in progress</small></article>
+         <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>
+     </section>
+@@ -63,13 +63,37 @@
+     {
+         @foreach (var group in Model.Register.FinancialYears)
+         {
++            var hasPublishedPosition = Model.PublishedPositions.TryGetValue(group.FinancialYearStart, out var publishedPosition);
++            var correctionCount = group.Issues.Count(issue => !issue.IsVerified && issue.HasPublishedSnapshot);
++            var underWorkCount = group.Issues.Count(issue => !issue.IsVerified);
++
+             <section class="arpp-v2-year" aria-labelledby="arpp-year-@group.FinancialYearStart">
+                 <header class="arpp-v2-year__header">
+                     <div class="arpp-v2-year__title"><span>Financial year</span><strong id="arpp-year-@group.FinancialYearStart">@FinancialYearHelper.Format(group.FinancialYearStart)</strong></div>
+                     <div class="arpp-v2-year__position">
+-                        <span>@group.EntryCount @(group.EntryCount == 1 ? "document row" : "document rows")</span>
+-                        <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(group.ApprovedLinkedIpaCost)</strong> approved · @group.ApprovedLinkedProjectCount @(group.ApprovedLinkedProjectCount == 1 ? "project" : "projects")</span>
+-                        <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(group.DelistedLinkedIpaCost)</strong> delisted · @group.DelistedLinkedProjectCount @(group.DelistedLinkedProjectCount == 1 ? "project" : "projects")</span>
++                        <span class="arpp-v2-year__record-count">@group.EntryCount structured @(group.EntryCount == 1 ? "row" : "rows") across @group.Issues.Count @(group.Issues.Count == 1 ? "record" : "records")</span>
++                        @if (hasPublishedPosition && publishedPosition is not null)
++                        {
++                            <span class="arpp-v2-year__position-label">Published position</span>
++                            <span><strong class="text-success-emphasis">@IndianCurrencyFormatter.FormatCompact(publishedPosition.ApprovedIpaValue)</strong> approved · @publishedPosition.ApprovedProjectCount @(publishedPosition.ApprovedProjectCount == 1 ? "project" : "projects")</span>
++                            <span><strong class="text-warning-emphasis">@IndianCurrencyFormatter.FormatCompact(publishedPosition.DelistedIpaValue)</strong> delisted · @publishedPosition.DelistedProjectCount @(publishedPosition.DelistedProjectCount == 1 ? "project" : "projects")</span>
++                            @if (publishedPosition.UnlinkedDocumentRowCount > 0)
++                            {
++                                <span class="arpp-v2-year__position-note">@publishedPosition.UnlinkedDocumentRowCount unlinked published @(publishedPosition.UnlinkedDocumentRowCount == 1 ? "row" : "rows")</span>
++                            }
++                            @if (correctionCount > 0)
++                            {
++                                <span class="arpp-v2-year__position-note">@correctionCount @(correctionCount == 1 ? "record" : "records") under correction</span>
++                            }
++                        }
++                        else
++                        {
++                            <span class="arpp-v2-year__position-empty">No published position</span>
++                            @if (underWorkCount > 0)
++                            {
++                                <span class="arpp-v2-year__position-note">@underWorkCount @(underWorkCount == 1 ? "record" : "records") under work</span>
++                            }
++                        }
+                     </div>
+                 </header>
+ 
+diff -ruN baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs
+--- baseline/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs	2026-07-31 02:14:42.809978255 +0000
++++ current/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs	2026-07-31 02:14:43.361978242 +0000
+@@ -10,13 +10,16 @@
+ public sealed class IndexModel : PageModel
+ {
+     private readonly IArppReadService _readService;
++    private readonly IArppLibraryService _libraryService;
+     private readonly IAuthorizationService _authorizationService;
+ 
+     public IndexModel(
+         IArppReadService readService,
++        IArppLibraryService libraryService,
+         IAuthorizationService authorizationService)
+     {
+         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
++        _libraryService = libraryService ?? throw new ArgumentNullException(nameof(libraryService));
+         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
+     }
+ 
+@@ -31,6 +34,15 @@
+ 
+     public bool CanManage { get; private set; }
+ 
++    /// <summary>
++    /// Authoritative, organisation-visible position derived only from verified published
++    /// snapshots. It is deliberately independent of working-copy values and free-text
++    /// administration filters so the financial-year heading never presents editable data
++    /// as the published position.
++    /// </summary>
++    public IReadOnlyDictionary<int, PublishedFinancialYearSummary> PublishedPositions { get; private set; }
++        = new Dictionary<int, PublishedFinancialYearSummary>();
++
+     public async Task OnGetAsync(CancellationToken cancellationToken)
+     {
+         Register = await _readService.GetRegisterAsync(
+@@ -38,9 +50,40 @@
+             Query,
+             cancellationToken);
+ 
++        var publishedPositions = new Dictionary<int, PublishedFinancialYearSummary>();
++        foreach (var group in Register.FinancialYears)
++        {
++            var currentPosition = await _libraryService.GetCurrentPositionAsync(
++                group.FinancialYearStart,
++                query: null,
++                cancellationToken);
++
++            if (currentPosition is null)
++            {
++                continue;
++            }
++
++            publishedPositions[group.FinancialYearStart] = new PublishedFinancialYearSummary(
++                currentPosition.ApprovedIpaValue,
++                currentPosition.DelistedIpaValue,
++                currentPosition.ApprovedRows.Count,
++                currentPosition.DelistedRows.Count,
++                currentPosition.TotalUnlinkedDocumentRows);
++        }
++
++        PublishedPositions = publishedPositions;
++
+         CanManage = (await _authorizationService.AuthorizeAsync(
+             User,
+             resource: null,
+             ProjectOfficeReportsPolicies.ManageArpp)).Succeeded;
      }
  }
 +
 +
-+/* Final workspace interaction polish ------------------------------ */
-+.arpp-workspace-v2__header [data-arpp-save-button]:disabled {
-+    opacity: .56;
-+    cursor: not-allowed;
-+    box-shadow: none;
-+    filter: saturate(.62);
++public sealed record PublishedFinancialYearSummary(
++    decimal ApprovedIpaValue,
++    decimal DelistedIpaValue,
++    int ApprovedProjectCount,
++    int DelistedProjectCount,
++    int UnlinkedDocumentRowCount);
+diff -ruN baseline/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs current/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs
+--- baseline/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs	1970-01-01 00:00:00.000000000 +0000
++++ current/ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs	2026-07-31 02:14:43.985978226 +0000
+@@ -0,0 +1,57 @@
++using Xunit;
++
++namespace ProjectManagement.Tests.Arpp;
++
++public sealed class ArppAdministrationPublishedPositionContractTests
++{
++    [Fact]
++    public void AdministrationRegister_UsesPublishedLibraryPosition_NotWorkingAggregates()
++    {
++        var pageModel = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml.cs");
++        var page = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml");
++
++        Assert.Contains("IArppLibraryService libraryService", pageModel, StringComparison.Ordinal);
++        Assert.Contains("GetCurrentPositionAsync", pageModel, StringComparison.Ordinal);
++        Assert.Contains("query: null", pageModel, StringComparison.Ordinal);
++        Assert.Contains("PublishedPositions", pageModel, StringComparison.Ordinal);
++
++        Assert.Contains("Published position", page, StringComparison.Ordinal);
++        Assert.Contains("publishedPosition.ApprovedIpaValue", page, StringComparison.Ordinal);
++        Assert.Contains("publishedPosition.DelistedIpaValue", page, StringComparison.Ordinal);
++        Assert.DoesNotContain("group.ApprovedLinkedIpaCost", page, StringComparison.Ordinal);
++        Assert.DoesNotContain("group.DelistedLinkedIpaCost", page, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void AdministrationRegister_StatesRecordAndRowBasisPrecisely()
++    {
++        var page = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml");
++
++        Assert.Contains("structured", page, StringComparison.Ordinal);
++        Assert.Contains("across @group.Issues.Count", page, StringComparison.Ordinal);
++        Assert.Contains("No published position", page, StringComparison.Ordinal);
++        Assert.Contains("under correction", page, StringComparison.Ordinal);
++    }
++
++    private static string ReadRepoFile(params string[] relativePath)
++    {
++        var root = FindRepositoryRoot();
++        return File.ReadAllText(Path.Combine(new[] { root }.Concat(relativePath).ToArray()));
++    }
++
++    private static string FindRepositoryRoot()
++    {
++        var directory = new DirectoryInfo(AppContext.BaseDirectory);
++        while (directory is not null)
++        {
++            if (File.Exists(Path.Combine(directory.FullName, "ProjectManagement.csproj")))
++            {
++                return directory.FullName;
++            }
++
++            directory = directory.Parent;
++        }
++
++        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
++    }
++}
+diff -ruN baseline/wwwroot/css/project-office-reports/arpp-redesign.css current/wwwroot/css/project-office-reports/arpp-redesign.css
+--- baseline/wwwroot/css/project-office-reports/arpp-redesign.css	2026-07-31 02:14:42.809978255 +0000
++++ current/wwwroot/css/project-office-reports/arpp-redesign.css	2026-07-31 02:15:30.045977074 +0000
+@@ -1243,3 +1243,67 @@
+         padding: .45rem .6rem;
+     }
+ }
++
++/* Published-position semantics ------------------------------------- */
++.arpp-v2-year__position-label,
++.arpp-v2-year__position-empty {
++    color: var(--arpp-text-muted);
++    font-size: .65rem;
++    font-weight: 700;
++    letter-spacing: .055em;
++    text-transform: uppercase;
 +}
 +
-+.arpp-workspace-v2__navigator-toggle[aria-expanded="false"] {
-+    border-color: var(--arpp-border-strong);
-+    background: var(--arpp-surface);
++.arpp-v2-year__position-empty {
 +    color: var(--arpp-text-secondary);
 +}
 +
-+.arpp-workspace-v2__issue-actions.d-none {
-+    display: none !important;
++.arpp-v2-year__record-count,
++.arpp-v2-year__position-note {
++    color: var(--arpp-text-muted);
++    white-space: nowrap;
 +}
 +
-+/* The right-side cue terminates at the fixed Actions strip rather than
-+   painting over the row controls. */
-+.arpp-workspace-v2__table-viewport::after {
-+    right: 4.5rem;
++.arpp-v2-year__position-note {
++    padding-left: .85rem;
++    border-left: 1px solid var(--arpp-border);
 +}
 +
-+/* The Actions strip should read as part of the row. A boundary shadow is
-+   introduced only after the user has moved horizontally away from the start. */
-+.arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-col-actions,
-+.arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-actions-cell {
-+    box-shadow: -.22rem 0 .5rem rgba(23, 32, 51, .035);
-+}
++@media (max-width: 1199.98px) {
++    .arpp-v2-year__position {
++        row-gap: .35rem;
++    }
 +
-+.arpp-workspace-v2__table-viewport:not(.is-scrolled-start) .arpp-col-actions,
-+.arpp-workspace-v2__table-viewport:not(.is-scrolled-start) .arpp-actions-cell {
-+    box-shadow: none;
++    .arpp-v2-year__position-note {
++        padding-left: 0;
++        border-left: 0;
++    }
 +}
 +
 +@media (max-width: 767.98px) {
-+    .arpp-workspace-v2__table-viewport::after {
-+        right: 0;
++    .arpp-v2-year__record-count,
++    .arpp-v2-year__position-note {
++        white-space: normal;
 +    }
 +}
---- a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-+++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-@@ -132,8 +132,10 @@
-     const updateScrollEdgeState = () => {
-         if (!(tableWrap instanceof HTMLElement) || !(tableViewport instanceof HTMLElement)) return;
-         const maxScroll = Math.max(0, tableWrap.scrollWidth - tableWrap.clientWidth);
--        tableViewport.classList.toggle("is-scrolled-start", tableWrap.scrollLeft > 2);
--        tableViewport.classList.toggle("is-scrolled-end", tableWrap.scrollLeft < maxScroll - 2);
-+        const hasOverflow = maxScroll > 2;
-+        tableViewport.classList.toggle("has-horizontal-overflow", hasOverflow);
-+        tableViewport.classList.toggle("is-scrolled-start", hasOverflow && tableWrap.scrollLeft > 2);
-+        tableViewport.classList.toggle("is-scrolled-end", hasOverflow && tableWrap.scrollLeft < maxScroll - 2);
-     };
- 
-     function syncTableScrollbars() {
-@@ -350,11 +352,14 @@
-         const toggle = root.querySelector("[data-arpp-navigator-toggle]");
-         if (!(toggle instanceof HTMLButtonElement)) return;
-         const isVisible = Boolean(visible);
--        const label = isVisible ? "Hide row navigator" : "Show row navigator";
-+        const actionLabel = isVisible ? "Hide row navigator" : "Show row navigator";
-+        const visibleLabel = toggle.querySelector("[data-arpp-navigator-label]");
-         toggle.setAttribute("aria-expanded", isVisible ? "true" : "false");
--        toggle.setAttribute("aria-label", label);
--        toggle.title = label;
-+        toggle.setAttribute("aria-pressed", isVisible ? "true" : "false");
-+        toggle.setAttribute("aria-label", actionLabel);
-+        toggle.title = actionLabel;
-         toggle.classList.toggle("is-active", isVisible);
-+        if (visibleLabel) visibleLabel.textContent = isVisible ? "Rows" : "Show rows";
-     };
- 
-     const setDesktopNavigatorCollapsed = collapsed => {
-@@ -432,6 +437,7 @@
-         const items = root.querySelector("[data-arpp-validation-items]");
-         const firstButton = root.querySelector("[data-arpp-validation-first]");
-         const moreButton = root.querySelector("[data-arpp-validation-more]");
-+        const actions = root.querySelector("[data-arpp-validation-actions]");
-         if (!(navigator instanceof HTMLElement) || !(items instanceof HTMLElement)) return [];
- 
-         const issues = collectValidationIssues();
-@@ -446,6 +452,8 @@
-             validationExpanded = false;
-             validationTrayOpen = false;
-             moreButton?.classList.add("d-none");
-+            firstButton?.classList.add("d-none");
-+            actions?.classList.add("d-none");
-             updateRowNavigator(issues);
-             return issues;
-         }
-@@ -501,14 +509,34 @@
-         }
- 
-         if (firstButton instanceof HTMLButtonElement) {
-+            const first = issues[0];
-+            const firstRow = first?.row;
-+            const firstOutsideCurrentFilter = !firstRow
-+                || (activeRowFilter !== "all"
-+                    && activeRowFilter !== "issues"
-+                    && !(activeRowFilter === "unlinked" && !Number(getField(firstRow, "ProjectId")?.value || 0))
-+                    && !(activeRowFilter === "delisted" && isDelisted(firstRow)));
-+            const showFirstShortcut = groups.length > 5 || firstOutsideCurrentFilter;
-+            firstButton.classList.toggle("d-none", !showFirstShortcut);
-             firstButton.onclick = () => {
--                const first = issues[0];
-                 if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
-                 else first.control.focus();
-                 setValidationTrayOpen(false);
-             };
-         }
--        if (focusFirst) firstButton?.focus({ preventScroll: true });
 +
-+        if (actions instanceof HTMLElement) {
-+            const hasVisibleAction = [moreButton, firstButton].some(button =>
-+                button instanceof HTMLElement && !button.classList.contains("d-none"));
-+            actions.classList.toggle("d-none", !hasVisibleAction);
-+        }
++.arpp-v2-year__position-label,
++.arpp-v2-year__position-empty,
++.arpp-v2-year__record-count,
++.arpp-v2-year__position-note {
++    display: inline-flex;
++    grid-template-columns: none;
++    align-items: baseline;
++}
 +
-+        if (focusFirst) {
-+            const focusTarget = firstButton instanceof HTMLElement && !firstButton.classList.contains("d-none")
-+                ? firstButton
-+                : items.querySelector("button");
-+            focusTarget?.focus({ preventScroll: true });
-+        }
-         setValidationTrayOpen(validationTrayOpen);
-         updateRowNavigator(issues);
-         return issues;
-@@ -1287,17 +1315,14 @@
- 
-     const entryGuidance = root.querySelector("[data-arpp-entry-guidance]");
-     if (entryGuidance) {
--        const storageKey = "prism.arpp.entryGuidance.open";
--        try {
--            const stored = window.localStorage.getItem(storageKey);
--            if (stored === "false" || stored === "seen") entryGuidance.removeAttribute("open");
--        } catch {
--            // Storage can be unavailable in hardened or private browser contexts.
--        }
--
-+        const storageKey = "prism.arpp.entryGuidance.seen";
-+        // Entry guidance is intentionally collapsed on every visit. It remains
-+        // immediately available without consuming navigator space for returning users.
-+        entryGuidance.removeAttribute("open");
-         entryGuidance.addEventListener("toggle", () => {
-+            if (entryGuidance.open) return;
-             try {
--                window.localStorage.setItem(storageKey, entryGuidance.open ? "true" : "seen");
-+                window.localStorage.setItem(storageKey, "true");
-             } catch {
-                 // Guidance remains fully functional without persistence.
-             }
---- a/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
-+++ b/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
-@@ -39,19 +39,57 @@
-     }
- 
-     [Fact]
--    public void NavigatorToggle_CommunicatesItsCurrentAction()
-+    public void NavigatorToggle_CommunicatesStateAndCurrentAction()
-     {
-         var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
-         var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
- 
--        Assert.Contains("aria-label=\"Hide row navigator\"", markup, StringComparison.Ordinal);
--        Assert.Contains("const label = isVisible ? \"Hide row navigator\" : \"Show row navigator\";", script, StringComparison.Ordinal);
--        Assert.Contains("toggle.setAttribute(\"aria-label\", label);", script, StringComparison.Ordinal);
-+        Assert.Contains("data-arpp-navigator-label", markup, StringComparison.Ordinal);
-+        Assert.Contains("const actionLabel = isVisible ? \"Hide row navigator\" : \"Show row navigator\";", script, StringComparison.Ordinal);
-+        Assert.Contains("toggle.setAttribute(\"aria-pressed\", isVisible ? \"true\" : \"false\");", script, StringComparison.Ordinal);
-+        Assert.Contains("visibleLabel.textContent = isVisible ? \"Rows\" : \"Show rows\";", script, StringComparison.Ordinal);
++.arpp-v2-year__position-label {
++    padding-left: .85rem;
++    border-left: 1px solid var(--arpp-border);
++}
++
++@media (max-width: 1199.98px) {
++    .arpp-v2-year__position-label {
++        padding-left: 0;
++        border-left: 0;
 +    }
-+
-+    [Fact]
-+    public void ValidationTray_ShowsShortcutOnlyForLongOrFilteredIssueSets()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+
-+        Assert.Contains("data-arpp-validation-actions", markup, StringComparison.Ordinal);
-+        Assert.Contains("data-arpp-validation-first", markup, StringComparison.Ordinal);
-+        Assert.Contains("const showFirstShortcut = groups.length > 5 || firstOutsideCurrentFilter;", script, StringComparison.Ordinal);
-+        Assert.Contains("firstButton.classList.toggle(\"d-none\", !showFirstShortcut);", script, StringComparison.Ordinal);
-+        Assert.Contains("actions.classList.toggle(\"d-none\", !hasVisibleAction);", script, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void HorizontalScrollCuesAndActionsBoundary_AreContextual()
-+    {
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
-+
-+        Assert.Contains("tableViewport.classList.toggle(\"has-horizontal-overflow\", hasOverflow);", script, StringComparison.Ordinal);
-+        Assert.Contains("hasOverflow && tableWrap.scrollLeft > 2", script, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-workspace-v2__table-viewport.is-scrolled-start .arpp-actions-cell", css, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-workspace-v2__table-viewport::after {\n    right: 4.5rem;", css, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void DisabledSaveAndEntryGuidance_AreUnambiguousAndCompact()
-+    {
-+        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
-+
-+        var disabledRule = ExtractRule(css, ".arpp-workspace-v2__header [data-arpp-save-button]:disabled");
-+        Assert.Contains("cursor: not-allowed;", disabledRule, StringComparison.Ordinal);
-+        Assert.Contains("opacity: .56;", disabledRule, StringComparison.Ordinal);
-+        Assert.Contains("entryGuidance.removeAttribute(\"open\");", script, StringComparison.Ordinal);
-     }
- 
-     private static string ExtractRule(string css, string selector)
-     {
--        var start = css.IndexOf(selector, StringComparison.Ordinal);
-+        var start = css.LastIndexOf(selector, StringComparison.Ordinal);
-         if (start < 0) return string.Empty;
-         var end = css.IndexOf('}', start);
-         return end < 0 ? css[start..] : css[start..(end + 1)];
++}

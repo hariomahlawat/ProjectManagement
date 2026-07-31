@@ -1,4 +1,10 @@
-Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-wwwroot/css/project-office-reports/arpp-workspace.css
-wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
-ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
+REPLACE
+Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
+Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml.cs
+wwwroot/css/project-office-reports/arpp-redesign.css
+
+ADD
+ProjectManagement.Tests/Arpp/ArppAdministrationPublishedPositionContractTests.cs
+
+NO DATABASE MIGRATION REQUIRED
+NO ENTITY OR BUSINESS-RULE CHANGE

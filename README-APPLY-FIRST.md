@@ -1,41 +1,24 @@
-# PRISM ARPP/PPP Workspace Final Polish
+# PRISM ARPP/PPP — Published Position Semantics
 
-This package is a focused UI/UX finishing pass for the latest ARPP working-copy workspace.
-It must be applied **after** the ARPP Workspace Defect Stabilisation phase currently installed in the project.
+## Purpose
 
-## Scope
+This focused patch corrects the Administration register so that each financial-year heading displays the **authoritative published position** from verified ARPP snapshots. Editable working-copy values remain visible only against their individual records and are no longer mixed into the financial-year headline.
 
-The package refines the existing workspace without changing its architecture or business behaviour:
+## What changes
 
-- The **Rows** control now communicates whether the row navigator is visible and what clicking the control will do.
-- Horizontal-scroll edge cues are shown only when applicable.
-- The fixed Actions strip uses a restrained contextual boundary shadow and visually remains part of each row.
-- **Save working copy** is unmistakably disabled while the form is clean.
-- The validation tray no longer shows a redundant **Go to first issue** action for short, already-visible issue lists.
-- Validation actions are hidden entirely when they add no value.
-- Entry guidance always opens in the collapsed state for an uncluttered returning-user experience.
-- UI contract tests cover the refined interaction behaviour.
+- Financial-year summaries use `IArppLibraryService.GetCurrentPositionAsync`, the same published source used by the organisation-wide ARPP library.
+- The published summary is intentionally independent of free-text administration filters, so a working or historical row cannot become the apparent authoritative position.
+- Working-copy and published values remain clearly separated at record level.
+- Empty financial years show **No published position** instead of authoritative-looking zero totals.
+- The header shows precise scope wording such as **3 structured rows across 2 records**.
+- Unlinked published rows and records under correction are surfaced as secondary context.
+- The top KPI now states the number of structured rows and records explicitly.
 
-## Replacement method
+## Apply
 
-Copy the four project-relative files from this folder into the project root and replace the existing files:
+Copy the files in this package to the same relative locations in the project, replacing the three existing files and adding the test file.
 
-1. `Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml`
-2. `wwwroot/css/project-office-reports/arpp-workspace.css`
-3. `wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js`
-4. `ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs`
-
-The supplied `IMPLEMENTATION.patch` is an alternative to manual replacement. It is generated against the latest ARPP Workspace Defect Stabilisation baseline.
-
-## Database and backend impact
-
-- No migration
-- No entity-model change
-- No service change
-- No publication-rule change
-- No IPA resolver or stage-synchronisation change
-
-## Recommended local validation
+Then run:
 
 ```powershell
 dotnet restore
@@ -43,13 +26,23 @@ dotnet build ProjectManagement.sln -c Release
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj -c Release --no-build
 ```
 
-Then verify in a browser:
+## Database and business logic
 
-- Rows navigator expanded and collapsed
-- Search at the far-left and far-right grid positions
-- Issues tray with 1–5 issues and with more than 5 issues
-- Issues tray while a non-issue filter is active
-- Disabled and enabled Save states
-- Actions column while horizontally scrolling
-- Entry guidance after page reload
-- 1366×768 at 125% Windows scaling
+- No migration is required.
+- No entity or schema is changed.
+- No verification, publication, reconciliation or IPA-stage rule is changed.
+- The patch reuses the existing published-library service as the authoritative source.
+
+## Expected UI
+
+For a financial year with published data:
+
+- `3 structured rows across 2 records`
+- `Published position`
+- authoritative approved and delisted totals
+- optional notes such as `1 record under correction`
+
+For a financial year without a verified published snapshot:
+
+- `No published position`
+- the number of records currently under work
