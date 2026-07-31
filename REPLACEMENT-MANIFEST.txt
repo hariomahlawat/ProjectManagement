@@ -1,15 +1,4 @@
-Areas/ProjectOfficeReports/Pages/ARPP/Create.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
-Pages/Projects/Arpp/Index.cshtml
-ProjectManagement.Tests/Arpp/ArppVisualSystemCompletionContractTests.cs
-wwwroot/css/project-office-reports/arpp-print.css
-wwwroot/css/project-office-reports/arpp-redesign.css
-wwwroot/css/project-office-reports/arpp-tokens.css
-wwwroot/css/project-office-reports/arpp-workspace.css
-wwwroot/css/project-office-reports/arpp.css
-wwwroot/css/projects/arpp-library.css
+REPLACE Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+REPLACE wwwroot/css/project-office-reports/arpp-workspace.css
+REPLACE wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+ADD ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs

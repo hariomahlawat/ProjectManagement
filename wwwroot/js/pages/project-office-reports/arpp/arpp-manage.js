@@ -19,6 +19,7 @@
     let dirty = false;
     let saving = false;
     let validationIssueCount = 0;
+    let validationIssueRowCount = 0;
     let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
     let baselineSnapshot = "";
     let validationExpanded = false;
@@ -27,6 +28,7 @@
     let jumpMatches = [];
     let jumpMatchIndex = -1;
     let scrollSyncInProgress = false;
+    let derivedStateRefreshPending = false;
     let activeRowFilter = "all";
     const navigatorMedia = window.matchMedia("(max-width: 1023.98px)");
     const navigatorStorageKey = "prism.arpp.workspace.navigatorCollapsed";
@@ -92,12 +94,12 @@
 
         const validationToggle = root.querySelector("[data-arpp-validation-toggle]");
         const validationCount = root.querySelector("[data-arpp-validation-count]");
-        if (validationCount) validationCount.textContent = String(validationIssueCount);
+        if (validationCount) validationCount.textContent = String(validationIssueRowCount);
         if (validationToggle instanceof HTMLButtonElement) {
             validationToggle.classList.toggle("d-none", validationIssueCount === 0);
             validationToggle.setAttribute("aria-expanded", validationTrayOpen ? "true" : "false");
             validationToggle.title = validationIssueCount > 0
-                ? `Review ${validationIssueCount} validation ${validationIssueCount === 1 ? "issue" : "issues"}`
+                ? `Review ${validationIssueCount} ${validationIssueCount === 1 ? "field" : "fields"} across ${validationIssueRowCount} ${validationIssueRowCount === 1 ? "row" : "rows"}`
                 : "No validation issues";
         }
 
@@ -148,10 +150,10 @@
         updateScrollEdgeState();
     }
 
-    const scrollRowIntoWorkspace = (row, target = null) => {
+    const scrollRowIntoWorkspace = (row, target = null, validationTarget = false) => {
         if (!(row instanceof HTMLElement)) return;
         rows().forEach(candidate => candidate.classList.remove("arpp-row--jump-target", "is-validation-target"));
-        row.classList.add(target ? "is-validation-target" : "arpp-row--jump-target");
+        row.classList.add(validationTarget ? "is-validation-target" : "arpp-row--jump-target");
 
         if (row.hidden) {
             activeRowFilter = "all";
@@ -283,13 +285,24 @@
         });
     };
 
-    const rowHasValidationIssue = row => collectValidationIssues().some(issue => issue.row === row);
+    const validationRowsFrom = issues => new Set(issues
+        .map(issue => issue.row)
+        .filter(row => row instanceof HTMLElement));
 
-    const updateRowNavigator = () => {
+    const syncInvalidRowClasses = issueRows => {
+        rows().forEach(row => row.classList.toggle("has-validation-issue", issueRows.has(row)));
+    };
+
+    const updateRowNavigator = (issues = collectValidationIssues()) => {
         const currentRows = rows();
+        const issueRows = validationRowsFrom(issues);
+        validationIssueCount = issues.length;
+        validationIssueRowCount = issueRows.size;
+        syncInvalidRowClasses(issueRows);
+
         const counts = {
             all: currentRows.length,
-            issues: currentRows.filter(rowHasValidationIssue).length,
+            issues: issueRows.size,
             unlinked: currentRows.filter(row => !Number(getField(row, "ProjectId")?.value || 0)).length,
             delisted: currentRows.filter(isDelisted).length
         };
@@ -299,10 +312,11 @@
                 element.textContent = String(value);
             });
         });
-        applyRowFilter(false);
+        applyRowFilter(false, issueRows);
+        syncWorkspaceStatus();
     };
 
-    function applyRowFilter(closeNavigator = false) {
+    function applyRowFilter(closeNavigator = false, issueRows = validationRowsFrom(collectValidationIssues())) {
         const labels = {
             all: "All rows",
             issues: "Needs attention",
@@ -312,7 +326,7 @@
         let visible = 0;
         rows().forEach(row => {
             const matches = activeRowFilter === "all"
-                || (activeRowFilter === "issues" && rowHasValidationIssue(row))
+                || (activeRowFilter === "issues" && issueRows.has(row))
                 || (activeRowFilter === "unlinked" && !Number(getField(row, "ProjectId")?.value || 0))
                 || (activeRowFilter === "delisted" && isDelisted(row));
             const keepActiveEditorVisible = activeRowFilter !== "all" && row.contains(document.activeElement);
@@ -332,16 +346,30 @@
         if (closeNavigator && window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
     }
 
+    const syncNavigatorToggleState = visible => {
+        const toggle = root.querySelector("[data-arpp-navigator-toggle]");
+        if (!(toggle instanceof HTMLButtonElement)) return;
+        const isVisible = Boolean(visible);
+        const label = isVisible ? "Hide row navigator" : "Show row navigator";
+        toggle.setAttribute("aria-expanded", isVisible ? "true" : "false");
+        toggle.setAttribute("aria-label", label);
+        toggle.title = label;
+        toggle.classList.toggle("is-active", isVisible);
+    };
+
     const setDesktopNavigatorCollapsed = collapsed => {
         const shouldCollapse = Boolean(collapsed);
         root.classList.toggle("is-navigator-collapsed", shouldCollapse);
-        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
+        syncNavigatorToggleState(!shouldCollapse);
         try {
             window.localStorage.setItem(navigatorStorageKey, shouldCollapse ? "true" : "false");
         } catch {
             // Persistence is optional in private or hardened browser contexts.
         }
-        window.requestAnimationFrame(syncTableScrollbars);
+        window.requestAnimationFrame(() => {
+            syncTableScrollbars();
+            updateScrollEdgeState();
+        });
     };
 
     const setNavigatorOpen = open => {
@@ -351,7 +379,7 @@
             navigator?.classList.toggle("is-open", enabled);
             root.classList.toggle("has-navigator-open", enabled);
             root.classList.remove("is-navigator-collapsed");
-            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", enabled ? "true" : "false");
+            syncNavigatorToggleState(enabled);
             return;
         }
 
@@ -363,9 +391,7 @@
     const restoreNavigatorLayout = () => {
         if (navigatorMedia.matches) {
             root.classList.remove("is-navigator-collapsed");
-            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute(
-                "aria-expanded",
-                root.classList.contains("has-navigator-open") ? "true" : "false");
+            syncNavigatorToggleState(root.classList.contains("has-navigator-open"));
             return;
         }
 
@@ -378,7 +404,7 @@
             collapsed = false;
         }
         root.classList.toggle("is-navigator-collapsed", collapsed);
-        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        syncNavigatorToggleState(!collapsed);
     };
 
     const setDetailsOpen = open => {
@@ -420,8 +446,7 @@
             validationExpanded = false;
             validationTrayOpen = false;
             moreButton?.classList.add("d-none");
-            updateRowNavigator();
-            syncWorkspaceStatus();
+            updateRowNavigator(issues);
             return issues;
         }
 
@@ -456,7 +481,7 @@
             button.title = group.issues.map(issue => `${fieldDisplayName(issue.control)}: ${issue.message}`).join("\n");
             button.addEventListener("click", () => {
                 const first = group.issues[0];
-                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
+                if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
                 else {
                     setDetailsOpen(true);
                     window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
@@ -478,16 +503,24 @@
         if (firstButton instanceof HTMLButtonElement) {
             firstButton.onclick = () => {
                 const first = issues[0];
-                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
+                if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
                 else first.control.focus();
                 setValidationTrayOpen(false);
             };
         }
         if (focusFirst) firstButton?.focus({ preventScroll: true });
         setValidationTrayOpen(validationTrayOpen);
-        updateRowNavigator();
-        syncWorkspaceStatus();
+        updateRowNavigator(issues);
         return issues;
+    };
+
+    const scheduleDerivedStateRefresh = () => {
+        if (derivedStateRefreshPending) return;
+        derivedStateRefreshPending = true;
+        window.requestAnimationFrame(() => {
+            derivedStateRefreshPending = false;
+            updateValidationNavigator(false);
+        });
     };
 
     const updateIssueSequence = () => {
@@ -595,7 +628,7 @@
         updateEmptyState();
         refreshRowWarnings();
         refreshUnobtrusiveValidation();
-        window.requestAnimationFrame(updateRowNavigator);
+        scheduleDerivedStateRefresh();
     };
 
     const parseMoney = value => {
@@ -772,7 +805,7 @@
             category.addEventListener("change", () => {
                 syncIssuedIdentifiers(row);
                 refreshRowWarnings();
-                updateRowNavigator();
+                scheduleDerivedStateRefresh();
                 markDirty();
             });
             syncIssuedIdentifiers(row);
@@ -799,12 +832,12 @@
                     autosizeReference(projectReference);
                 }
                 refreshRowWarnings();
-                updateRowNavigator();
+                scheduleDerivedStateRefresh();
                 markDirty();
             });
             picker.addEventListener("arpp:project-cleared", () => {
                 refreshRowWarnings();
-                updateRowNavigator();
+                scheduleDerivedStateRefresh();
                 markDirty();
             });
         }
@@ -840,7 +873,13 @@
             dfpdsScheduleId: Number(getField(previous, "DfpdsScheduleId")?.value || 0),
             category: "1"
         } : { category: "1" });
-        getField(row, "SerialNumber")?.focus();
+        const firstControl = getField(row, "SerialNumber");
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                updateValidationNavigator(false);
+                scrollRowIntoWorkspace(row, firstControl, false);
+            });
+        });
     };
 
     const categoryValue = value => {
@@ -1091,19 +1130,19 @@
         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
         refreshRowWarnings();
         refreshDirtyState();
-        window.setTimeout(() => updateValidationNavigator(false), 0);
+        scheduleDerivedStateRefresh();
     });
     form.addEventListener("change", event => {
         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
         refreshRowWarnings();
         refreshDirtyState();
-        window.setTimeout(() => updateValidationNavigator(false), 0);
+        scheduleDerivedStateRefresh();
     });
     form.addEventListener("invalid", () => {
-        window.setTimeout(() => updateValidationNavigator(false), 0);
+        scheduleDerivedStateRefresh();
     }, true);
     form.addEventListener("focusout", () => {
-        window.setTimeout(() => applyRowFilter(false), 0);
+        scheduleDerivedStateRefresh();
     });
     form.addEventListener("submit", event => {
         root.querySelectorAll("[data-arpp-money]").forEach(normaliseMoneyInput);
@@ -1165,7 +1204,7 @@
     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
     root.querySelector("[data-arpp-navigator-toggle]")?.addEventListener("click", () => {
         if (navigatorMedia.matches) {
-            setNavigatorOpen(true);
+            setNavigatorOpen(!root.classList.contains("has-navigator-open"));
             return;
         }
         setNavigatorOpen(root.classList.contains("is-navigator-collapsed"));
@@ -1269,7 +1308,6 @@
     updateIssueSequence();
     reindexRows();
     syncTableScrollbars();
-    updateRowNavigator();
     baselineSnapshot = createFormSnapshot();
     updateValidationNavigator(false);
     if (serverRejectedChanges) setDirty(true);

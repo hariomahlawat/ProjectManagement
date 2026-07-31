@@ -1,25 +1,19 @@
-PRISM ARPP/PPP Visual System and Density Completion
-Validation summary
+PRISM ARPP/PPP Workspace Defect Stabilisation — Validation
 
-PASS  Shared arpp-tokens.css is linked exactly once by all eight ARPP view surfaces.
-PASS  Light and dark surface, border, text, semantic-state and focus tokens are defined.
-PASS  CSS parsed successfully with PostCSS:
-      - arpp-tokens.css
-      - arpp.css
-      - arpp-redesign.css
-      - arpp-workspace.css
-      - arpp-print.css
-      - arpp-library.css
-PASS  arpp-manage.js passed Node.js syntax validation.
-PASS  Record page uses compact tab introductions and no longer repeats the Issued rows heading.
-PASS  Record navigation wording is standardised to Back to administration.
-PASS  Workspace rows use white surfaces, stronger control borders and horizontal edge cues.
-PASS  Workspace search uses a standard search icon.
-PASS  Print view distinguishes Working and Published values.
-PASS  Print view displays em dashes for absent Serial/PPP values.
-PASS  Print view discloses incomplete working-copy fields.
-PASS  Static UI contract checks passed.
-PASS  Patch applies cleanly to the latest Fresh Experience + Production Finishing baseline.
-PASS  Applied-patch files match the packaged replacement files.
+PASSED
+- JavaScript syntax: node --check
+- CSS brace balance
+- Navigator-collapsed grid contract present
+- Shared validation-derived state contract present
+- New-row scroll/focus contract present
+- Consistent invalid-row class contract present
+- Accessible navigator toggle state contract present
+- Exact project-relative replacement paths verified
+- ZIP integrity verified after creation
 
-NOT RUN  dotnet build / xUnit execution: .NET SDK is not installed in this environment.
+NOT RUN IN THIS ENVIRONMENT
+- .NET Release build
+- xUnit suite
+- Browser/Playwright tests
+
+Reason: .NET SDK is not installed in the execution environment.

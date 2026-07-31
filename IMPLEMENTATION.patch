@@ -1,373 +1,72 @@
---- a/Areas/ProjectOfficeReports/Pages/ARPP/Create.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/Create.cshtml
-@@ -12,11 +12,12 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
- }
- 
--<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
-+<div class="container-fluid px-3 px-lg-4 py-1 arpp-page">
-     <partial name="_ModuleNav" />
-     <div class="arpp-v2-form-shell">
-     <header class="arpp-v2-page-header">
-@@ -27,7 +28,7 @@
-         </div>
-         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
-             <span class="bi bi-arrow-left" aria-hidden="true"></span>
--            Back to register
-+            Back to administration
-         </a>
-     </header>
- 
---- a/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
-@@ -25,12 +25,13 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
- }
- 
--<div class="container-fluid px-3 px-lg-4 py-2 arpp-record-v2"
-+<div class="container-fluid px-3 px-lg-4 py-1 arpp-record-v2"
-      data-arpp-details
-      data-arpp-reopen-unlock-modal="@(Model.ReopenUnlockModal ? "true" : "false")">
-     <partial name="_ModuleNav" />
-@@ -55,7 +56,7 @@
-                 <span class="bi bi-printer" aria-hidden="true"></span> Print / PDF
-             </a>
-             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
--                <span class="bi bi-arrow-left" aria-hidden="true"></span> Register
-+                <span class="bi bi-arrow-left" aria-hidden="true"></span> Back to administration
-             </a>
-         </div>
-     </header>
-@@ -131,7 +132,7 @@
- 
-     <div class="tab-content">
-         <section class="tab-pane fade show active arpp-record-v2__panel" id="arpp-overview" role="tabpanel" aria-labelledby="arpp-overview-tab" tabindex="0">
--            <div class="arpp-record-v2__panel-header"><div><h2>Document overview</h2><p>Working values, publication readiness and linkage at a glance.</p></div></div>
-+            <h2 class="visually-hidden">Document overview</h2>
-             <div class="arpp-record-v2__panel-body">
-                 <div class="arpp-record-v2__overview-grid">
-                     <article class="arpp-record-v2__metric"><span>Rows</span><strong>@Model.Issue.Entries.Count</strong><small>New @Model.Issue.CategorySummary[ArppCategory.New].Count · CL @Model.Issue.CategorySummary[ArppCategory.CommittedLiability].Count · CF @Model.Issue.CategorySummary[ArppCategory.CarryForward].Count · Delisted @Model.Issue.CategorySummary[ArppCategory.Delisted].Count</small></article>
-@@ -160,7 +161,8 @@
-         </section>
- 
-         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-rows" role="tabpanel" aria-labelledby="arpp-rows-tab" tabindex="0">
--            <div class="arpp-record-v2__panel-header"><div><h2>Issued rows</h2><p>Wording and order are preserved from the HQ document.</p></div></div>
-+            <h2 class="visually-hidden">Issued rows</h2>
-+            <div class="arpp-record-v2__tab-intro">Wording and order are preserved from the HQ document.</div>
-             @if (Model.Issue.Entries.Count == 0)
-             {
-                 <div class="arpp-record-v2__panel-body text-center py-5">
-@@ -183,8 +185,8 @@
-                                 var sameProjectName = entry.ProjectId.HasValue && !string.IsNullOrWhiteSpace(linkedName) && string.Equals(issuedName, linkedName, StringComparison.OrdinalIgnoreCase);
-                                 <tr class="@(entry.Category == ArppCategory.Delisted ? "arpp-row--delisted" : string.Empty)">
-                                     <td data-label="#" class="text-body-secondary">@entry.SortOrder</td>
--                                    <td data-label="Serial"><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</span></td>
--                                    <td data-label="PPP No."><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</span></td>
-+                                    <td data-label="Serial"><span class="arpp-serial">@(entry.Category == ArppCategory.Delisted || string.IsNullOrWhiteSpace(entry.SerialNumber) ? "—" : entry.SerialNumber)</span></td>
-+                                    <td data-label="PPP No."><span class="arpp-ppp">@(entry.Category == ArppCategory.Delisted || string.IsNullOrWhiteSpace(entry.PppNumber) ? "—" : entry.PppNumber)</span></td>
-                                     <td data-label="Project" class="arpp-v2-project-cell">
-                                         @if (sameProjectName)
-                                         {
-@@ -219,7 +221,8 @@
-         </section>
- 
-         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-document" role="tabpanel" aria-labelledby="arpp-document-tab" tabindex="0">
--            <div class="arpp-record-v2__panel-header"><div><h2>Issued HQ document</h2><p>Evidentiary source for the structured record.</p></div></div>
-+            <h2 class="visually-hidden">Issued HQ document</h2>
-+            <div class="arpp-record-v2__tab-intro">Evidentiary source for the structured record.</div>
-             <div class="arpp-record-v2__panel-body">
-                 @if (Model.Issue.Attachment is not null)
-                 {
-@@ -258,7 +261,8 @@
-         </section>
- 
-         <section class="tab-pane fade arpp-record-v2__panel" id="arpp-audit" role="tabpanel" aria-labelledby="arpp-audit-tab" tabindex="0">
--            <div class="arpp-record-v2__panel-header"><div><h2>Audit and publication</h2><p>Record provenance and current publication information.</p></div></div>
-+            <h2 class="visually-hidden">Audit and publication</h2>
-+            <div class="arpp-record-v2__tab-intro">Record provenance and current publication information.</div>
-             <div class="arpp-record-v2__panel-body arpp-v2-audit">
-                 <section class="arpp-v2-audit__group"><h3>Record history</h3><dl><div><dt>Created</dt><dd>@Model.FormatIst(Model.Issue.CreatedAtUtc)</dd></div><div><dt>Last updated</dt><dd>@Model.FormatIst(Model.Issue.UpdatedAtUtc)</dd></div><div><dt>Current state</dt><dd>@statusLabel</dd></div></dl></section>
-                 <section class="arpp-v2-audit__group"><h3>Publication</h3><dl><div><dt>Revision</dt><dd>@(Model.Issue.PublishedRevisionNumber.HasValue ? $"Revision {Model.Issue.PublishedRevisionNumber}" : "Not published")</dd></div>@if (Model.Issue.VerifiedAtUtc.HasValue) { <div><dt>Verified on</dt><dd>@Model.FormatIst(Model.Issue.VerifiedAtUtc.Value)</dd></div> }@if (!string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName) || !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByUserId)) { <div><dt>Verified by</dt><dd>@(Model.Issue.VerifiedByDisplayName ?? Model.Issue.VerifiedByUserId)</dd></div> }@if (!string.IsNullOrWhiteSpace(Model.Issue.VerificationNote)) { <div><dt>Verification note</dt><dd>@Model.Issue.VerificationNote</dd></div> }</dl></section>
---- a/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
-@@ -13,11 +13,12 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
- }
- 
--<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
-+<div class="container-fluid px-3 px-lg-4 py-1 arpp-page">
-     <partial name="_ModuleNav" />
- 
-     <header class="arpp-v2-page-header">
-@@ -41,7 +42,7 @@
-     }
- 
-     <section class="arpp-v2-summary" aria-label="Administration summary">
--        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small></article>
-+        <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries @(Model.Register.TotalEntries == 1 ? "row" : "rows") across all records</small></article>
-         <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@publishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
-         <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Records under work</span><strong>@workingRecordCount</strong><small>Setup, correction or verification is in progress</small></article>
-         <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>
+diff --git a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
+index 6afb44d..5a72105 100644
 --- a/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-@@ -13,6 +13,7 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-workspace.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
-@@ -93,7 +94,7 @@
-                        data-arpp-jump-input
-                        data-arpp-ui-only />
-                 <button type="button" class="btn btn-outline-secondary" data-arpp-jump-next title="Find next match" aria-label="Find next matching row">
--                    <span class="bi bi-arrow-return-right" aria-hidden="true"></span>
-+                    <span class="bi bi-search" aria-hidden="true"></span>
-                 </button>
-                 <span class="arpp-workspace-v2__search-status" data-arpp-jump-status aria-live="polite"></span>
-             </div>
---- a/Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
-@@ -17,6 +17,23 @@
-     var delistedRowValue = Model.Issue.CategorySummary[ArppCategory.Delisted].TotalIpaCost;
-     var referenceDataReady = Model.Issue.Entries.All(entry => !entry.HasUnresolvedReferenceData);
-     var setupIncomplete = Model.Issue.Entries.Count == 0 || Model.Issue.Attachment is null;
-+    var valueStateLabel = Model.Issue.IsVerified ? "Published" : "Working";
-+    var validationIssueCount = Model.Issue.Entries.Sum(entry =>
-+    {
-+        var count = 0;
-+        if (string.IsNullOrWhiteSpace(entry.ProjectReference)) count++;
-+        if (entry.Category != ArppCategory.Delisted)
-+        {
-+            if (string.IsNullOrWhiteSpace(entry.SerialNumber)) count++;
-+            if (string.IsNullOrWhiteSpace(entry.PppNumber)) count++;
-+        }
-+        if (string.IsNullOrWhiteSpace(entry.Cfa)) count++;
-+        if (string.IsNullOrWhiteSpace(entry.Fund)) count++;
-+        if (string.IsNullOrWhiteSpace(entry.DfpdsSchedule)) count++;
-+        return count;
-+    });
-+
-+    string DisplayOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
- 
-     string FormatPrintCurrency(decimal amount)
-     {
-@@ -51,6 +68,7 @@
-     <meta charset="utf-8" />
-     <meta name="viewport" content="width=device-width, initial-scale=1" />
-     <title>@Model.Issue.Name · @financialYear</title>
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-print.css" asp-append-version="true" />
- </head>
- <body>
-@@ -76,12 +94,12 @@
-                 <small>Issued document rows</small>
-             </div>
-             <div class="arpp-print-summary__metric arpp-print-summary__metric--approved">
--                <span>Approved row value</span>
-+                <span>@valueStateLabel approved value</span>
-                 <strong>@FormatPrintCurrency(approvedRowValue)</strong>
-                 <small>New, CL and CF</small>
-             </div>
-             <div class="arpp-print-summary__metric arpp-print-summary__metric--delisted">
--                <span>Delisted row value</span>
-+                <span>@valueStateLabel delisted value</span>
-                 <strong>@FormatPrintCurrency(delistedRowValue)</strong>
-                 <small>Recorded separately</small>
-             </div>
-@@ -143,6 +161,14 @@
-                 </div>
-             }
- 
-+            @if (!Model.Issue.IsVerified && validationIssueCount > 0)
-+            {
-+                <div class="arpp-print-source__line arpp-print-source__line--attention">
-+                    <strong>Working-copy completeness:</strong>
-+                    <span>@validationIssueCount @(validationIssueCount == 1 ? "field requires" : "fields require") attention</span>
-+                </div>
-+            }
-+
-             <div class="arpp-print-source__line">
-                 <strong>Issued source PDF:</strong>
-                 @if (Model.Issue.Attachment is null)
-@@ -195,8 +221,8 @@
- 
-                     <tr class="@(entry.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
-                         <td class="number">@entry.SortOrder</td>
--                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</td>
--                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</td>
-+                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : DisplayOrDash(entry.SerialNumber))</td>
-+                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : DisplayOrDash(entry.PppNumber))</td>
-                         <td class="arpp-print-project">
-                             <strong>@issuedName</strong>
-                             @if (entry.ProjectId.HasValue && !sameProjectName)
-@@ -218,9 +244,9 @@
-                         </td>
-                         <td>@CategoryShortLabel(entry.Category)</td>
-                         <td class="money">@FormatPrintCurrency(entry.IpaCost).TrimStart('₹')</td>
--                        <td>@entry.Cfa</td>
--                        <td>@entry.Fund</td>
--                        <td>@entry.DfpdsSchedule</td>
-+                        <td>@DisplayOrDash(entry.Cfa)</td>
-+                        <td>@DisplayOrDash(entry.Fund)</td>
-+                        <td>@DisplayOrDash(entry.DfpdsSchedule)</td>
-                     </tr>
-                 }
-             </tbody>
---- a/Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
-@@ -10,11 +10,12 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
- }
- 
--<div class="container-fluid px-3 px-lg-4 py-2 arpp-page">
-+<div class="container-fluid px-3 px-lg-4 py-1 arpp-page">
-     <partial name="_ModuleNav" />
-     <header class="arpp-v2-page-header">
-         <div>
-@@ -32,7 +33,7 @@
-             <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@Model.History.ProjectId" class="btn btn-outline-primary btn-sm">Project overview</a>
-             <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
-                 <span class="bi bi-arrow-left" aria-hidden="true"></span>
--                ARPP register
-+                Back to administration
-             </a>
-         </div>
-     </header>
---- a/Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
-@@ -10,11 +10,12 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
- }
- 
--<div class="container-fluid px-3 px-lg-4 py-2 arpp-page"
-+<div class="container-fluid px-3 px-lg-4 py-1 arpp-page"
-      data-arpp-project-lookup-url="@lookupUrl"
-      data-arpp-reconcile>
-     <partial name="_ModuleNav" />
-@@ -26,7 +27,7 @@
-         </div>
-         <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Index" class="btn btn-outline-secondary btn-sm">
-             <span class="bi bi-arrow-left" aria-hidden="true"></span>
--            Register
-+            Back to administration
-         </a>
-     </header>
- 
---- a/Pages/Projects/Arpp/Index.cshtml
-+++ b/Pages/Projects/Arpp/Index.cshtml
-@@ -20,6 +20,7 @@
- }
- 
- @section Styles {
-+    <link rel="stylesheet" href="~/css/project-office-reports/arpp-tokens.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/projects/arpp-library.css" asp-append-version="true" />
-     <link rel="stylesheet" href="~/css/project-office-reports/arpp-redesign.css" asp-append-version="true" />
- }
+@@ -78,7 +78,8 @@
+                     data-arpp-navigator-toggle
+                     aria-controls="arppWorkspaceNavigator"
+                     aria-expanded="true"
+-                    title="Show or hide the row navigator">
++                    aria-label="Hide row navigator"
++                    title="Hide row navigator">
+                 <span class="bi bi-layout-sidebar" aria-hidden="true"></span>
+                 <span>Rows</span>
+             </button>
+diff --git a/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs b/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
+new file mode 100644
+index 0000000..aa82c1b
 --- /dev/null
-+++ b/ProjectManagement.Tests/Arpp/ArppVisualSystemCompletionContractTests.cs
-@@ -0,0 +1,101 @@
++++ b/ProjectManagement.Tests/Arpp/ArppWorkspaceDefectStabilizationContractTests.cs
+@@ -0,0 +1,76 @@
 +using Xunit;
 +
 +namespace ProjectManagement.Tests.Arpp;
 +
-+public sealed class ArppVisualSystemCompletionContractTests
++public sealed class ArppWorkspaceDefectStabilizationContractTests
 +{
 +    [Fact]
-+    public void AllArppSurfaces_LoadTheSharedTokenLayer()
++    public void CollapsingNavigator_LeavesGridMountedAtFullWidth()
 +    {
-+        var files = new[]
-+        {
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Index.cshtml"),
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Create.cshtml"),
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Details.cshtml"),
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml"),
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Reconcile.cshtml"),
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "ProjectHistory.cshtml"),
-+            ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Print.cshtml"),
-+            ReadRepoFile("Pages", "Projects", "Arpp", "Index.cshtml")
-+        };
-+
-+        Assert.All(files, markup => Assert.Contains("arpp-tokens.css", markup, StringComparison.Ordinal));
-+    }
-+
-+    [Fact]
-+    public void TokenLayer_DefinesClearCanvasSurfaceBorderAndTextHierarchy()
-+    {
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-tokens.css");
-+
-+        Assert.Contains("--arpp-canvas: #f4f6fa;", css, StringComparison.OrdinalIgnoreCase);
-+        Assert.Contains("--arpp-surface: #ffffff;", css, StringComparison.OrdinalIgnoreCase);
-+        Assert.Contains("--arpp-surface-muted: #eef2f7;", css, StringComparison.OrdinalIgnoreCase);
-+        Assert.Contains("--arpp-border-strong: #c9d2df;", css, StringComparison.OrdinalIgnoreCase);
-+        Assert.Contains("--arpp-text-muted: #667085;", css, StringComparison.OrdinalIgnoreCase);
-+        Assert.Contains("[data-bs-theme=\"dark\"]", css, StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void RecordReader_UsesCompactTabsAndDoesNotRepeatIssuedRowsHeading()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Details.cshtml");
-+        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-redesign.css");
-+
-+        Assert.Contains("Back to administration", markup, StringComparison.Ordinal);
-+        Assert.Contains("arpp-record-v2__tab-intro", markup, StringComparison.Ordinal);
-+        Assert.DoesNotContain("<div class=\"arpp-record-v2__panel-header\"><div><h2>Issued rows</h2>", markup, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-record-v2__tab-intro", css, StringComparison.Ordinal);
-+        Assert.Contains("min-height: 2.55rem;", ExtractRule(css, ".arpp-record-v2__tabs"), StringComparison.Ordinal);
-+    }
-+
-+    [Fact]
-+    public void Workspace_UsesWhiteRowsStrongControlsAndEdgeScrollCues()
-+    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
 +        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
 +
-+        Assert.Contains("bi bi-search", markup, StringComparison.Ordinal);
-+        Assert.Contains("background: var(--arpp-surface);", ExtractRule(css, ".arpp-workspace-v2__table tbody td"), StringComparison.Ordinal);
-+        Assert.Contains("border-color: var(--arpp-border-strong);", css, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-workspace-v2__table-viewport.is-scrolled-start::before", css, StringComparison.Ordinal);
-+        Assert.Contains(".arpp-workspace-v2__table-viewport.is-scrolled-end::after", css, StringComparison.Ordinal);
-+        Assert.Contains("display: none;", ExtractRule(css, ".arpp-workspace-v2__navigator-header .btn"), StringComparison.Ordinal);
++        Assert.Contains(".arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__body", css, StringComparison.Ordinal);
++        Assert.Contains("grid-template-columns: minmax(0, 1fr);", css, StringComparison.Ordinal);
++        Assert.Contains(".arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell", css, StringComparison.Ordinal);
++        Assert.Contains("grid-column: 1;", ExtractRule(css, ".arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell"), StringComparison.Ordinal);
 +    }
 +
 +    [Fact]
-+    public void PrintView_LabelsWorkingValuesAndExposesIncompleteWorkingCopy()
++    public void ValidationCountsAndInvalidRows_UseOneDerivedIssueSet()
 +    {
-+        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Print.cshtml");
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++        var css = ReadRepoFile("wwwroot", "css", "project-office-reports", "arpp-workspace.css");
 +
-+        Assert.Contains("@valueStateLabel approved value", markup, StringComparison.Ordinal);
-+        Assert.Contains("@valueStateLabel delisted value", markup, StringComparison.Ordinal);
-+        Assert.Contains("Working-copy completeness:", markup, StringComparison.Ordinal);
-+        Assert.Contains("DisplayOrDash(entry.PppNumber)", markup, StringComparison.Ordinal);
-+        Assert.Contains("DisplayOrDash(entry.SerialNumber)", markup, StringComparison.Ordinal);
++        Assert.Contains("const validationRowsFrom = issues => new Set", script, StringComparison.Ordinal);
++        Assert.Contains("validationIssueRowCount = issueRows.size;", script, StringComparison.Ordinal);
++        Assert.Contains("syncInvalidRowClasses(issueRows);", script, StringComparison.Ordinal);
++        Assert.Contains("updateRowNavigator(issues);", script, StringComparison.Ordinal);
++        Assert.Contains("tr.has-validation-issue td:nth-child(2)", css, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void AddRow_RefreshesValidationThenScrollsAndFocusesTheNewRow()
++    {
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++
++        Assert.Contains("updateValidationNavigator(false);", script, StringComparison.Ordinal);
++        Assert.Contains("scrollRowIntoWorkspace(row, firstControl, false);", script, StringComparison.Ordinal);
++        Assert.Contains("target.focus({ preventScroll: true });", script, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void NavigatorToggle_CommunicatesItsCurrentAction()
++    {
++        var markup = ReadRepoFile("Areas", "ProjectOfficeReports", "Pages", "ARPP", "Manage.cshtml");
++        var script = ReadRepoFile("wwwroot", "js", "pages", "project-office-reports", "arpp", "arpp-manage.js");
++
++        Assert.Contains("aria-label=\"Hide row navigator\"", markup, StringComparison.Ordinal);
++        Assert.Contains("const label = isVisible ? \"Hide row navigator\" : \"Show row navigator\";", script, StringComparison.Ordinal);
++        Assert.Contains("toggle.setAttribute(\"aria-label\", label);", script, StringComparison.Ordinal);
 +    }
 +
 +    private static string ExtractRule(string css, string selector)
@@ -395,1893 +94,348 @@
 +        throw new DirectoryNotFoundException("Could not locate the ProjectManagement repository root.");
 +    }
 +}
---- a/wwwroot/css/project-office-reports/arpp-print.css
-+++ b/wwwroot/css/project-office-reports/arpp-print.css
-@@ -239,3 +239,11 @@
-     .arpp-print-table tr { break-inside: avoid; page-break-inside: avoid; }
-     .arpp-print-footer { break-inside: avoid; page-break-inside: avoid; }
- }
-+
-+.arpp-print-source__line--attention {
-+    color: #7a4d00;
-+}
-+
-+.arpp-print-source__line--attention strong {
-+    color: #6a4300;
-+}
---- a/wwwroot/css/project-office-reports/arpp-redesign.css
-+++ b/wwwroot/css/project-office-reports/arpp-redesign.css
-@@ -4,13 +4,13 @@
-    ============================================================ */
- 
- :root {
--    --arpp-v2-surface: var(--bs-body-bg);
--    --arpp-v2-surface-soft: color-mix(in srgb, var(--bs-tertiary-bg) 70%, var(--bs-body-bg));
--    --arpp-v2-border: color-mix(in srgb, var(--bs-border-color) 88%, transparent);
--    --arpp-v2-muted: var(--bs-secondary-color);
--    --arpp-v2-primary: var(--bs-primary);
--    --arpp-v2-radius: .75rem;
--    --arpp-v2-shadow: 0 .35rem 1.1rem rgba(15, 23, 42, .055);
-+    --arpp-v2-surface: var(--arpp-surface);
-+    --arpp-v2-surface-soft: var(--arpp-surface-subtle);
-+    --arpp-v2-border: var(--arpp-border);
-+    --arpp-v2-muted: var(--arpp-text-muted);
-+    --arpp-v2-primary: var(--arpp-primary);
-+    --arpp-v2-radius: var(--arpp-radius-lg);
-+    --arpp-v2-shadow: var(--arpp-shadow-soft);
- }
- 
- /* Module navigation ------------------------------------------------ */
-@@ -19,12 +19,13 @@
-     align-items: center;
-     justify-content: space-between;
-     gap: 1rem;
--    margin: 0 0 1rem;
--    padding: .45rem .55rem;
-+    min-height: 2.75rem;
-+    margin: 0 0 .65rem;
-+    padding: .28rem .42rem;
-     border: 1px solid var(--arpp-v2-border);
--    border-radius: .75rem;
-+    border-radius: var(--arpp-radius-lg);
-     background: var(--arpp-v2-surface);
--    box-shadow: 0 .18rem .65rem rgba(15, 23, 42, .04);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .arpp-module-nav__identity {
-@@ -32,7 +33,7 @@
-     align-items: center;
-     gap: .5rem;
-     padding: 0 .35rem;
--    color: var(--bs-emphasis-color);
-+    color: var(--arpp-text);
-     font-size: .82rem;
-     font-weight: 700;
-     letter-spacing: .02em;
-@@ -54,10 +55,10 @@
-     display: inline-flex;
-     align-items: center;
-     gap: .42rem;
--    min-height: 2.15rem;
--    padding: .38rem .72rem;
-+    min-height: 2rem;
-+    padding: .3rem .65rem;
-     border: 1px solid transparent;
--    border-radius: .55rem;
-+    border-radius: var(--arpp-radius-sm);
-     color: var(--arpp-v2-muted);
-     font-size: .8rem;
-     font-weight: 600;
-@@ -69,7 +70,7 @@
- .arpp-module-nav__link:hover {
-     border-color: var(--arpp-v2-border);
-     background: var(--arpp-v2-surface-soft);
--    color: var(--bs-emphasis-color);
-+    color: var(--arpp-text);
- }
- 
- .arpp-module-nav__link.is-active {
-@@ -84,8 +85,8 @@
-     align-items: flex-start;
-     justify-content: space-between;
-     gap: 1.25rem;
--    margin-bottom: 1rem;
--    padding-bottom: .9rem;
-+    margin-bottom: .7rem;
-+    padding-bottom: .6rem;
-     border-bottom: 1px solid var(--arpp-v2-border);
- }
- 
-@@ -111,9 +112,9 @@
- 
- .arpp-v2-page-header p {
-     max-width: 54rem;
--    margin: .35rem 0 0;
--    color: var(--arpp-v2-muted);
--    font-size: .875rem;
-+    margin: .25rem 0 0;
-+    color: var(--arpp-text-secondary);
-+    font-size: .84rem;
- }
- 
- .arpp-v2-page-header__actions {
-@@ -127,16 +128,17 @@
- .arpp-v2-summary {
-     display: grid;
-     grid-template-columns: repeat(4, minmax(0, 1fr));
--    gap: .75rem;
--    margin-bottom: .9rem;
-+    gap: .65rem;
-+    margin-bottom: .7rem;
- }
- 
- .arpp-v2-summary__item {
-     min-width: 0;
--    padding: .85rem .95rem;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: var(--arpp-v2-radius);
--    background: var(--arpp-v2-surface);
-+    padding: .72rem .85rem;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .arpp-v2-summary__item > span {
-@@ -151,21 +153,21 @@
- .arpp-v2-summary__item > strong {
-     display: block;
-     margin-top: .25rem;
--    color: var(--bs-emphasis-color);
-+    color: var(--arpp-text);
-     font-size: 1.45rem;
-     line-height: 1.1;
- }
- 
- .arpp-v2-summary__item > small {
-     display: block;
--    margin-top: .3rem;
--    color: var(--arpp-v2-muted);
-+    margin-top: .25rem;
-+    color: var(--arpp-text-muted);
-     font-size: .75rem;
-     line-height: 1.35;
- }
- 
--.arpp-v2-summary__item--published > strong { color: var(--bs-success-text-emphasis); }
--.arpp-v2-summary__item--working > strong { color: var(--bs-warning-text-emphasis); }
-+.arpp-v2-summary__item--published > strong { color: var(--arpp-success); }
-+.arpp-v2-summary__item--working > strong { color: var(--arpp-warning); }
- .arpp-v2-summary__item--reconcile > strong { color: var(--arpp-v2-primary); }
- 
- .arpp-v2-filterbar {
-@@ -173,11 +175,12 @@
-     grid-template-columns: minmax(18rem, 1fr) minmax(12rem, 17rem) auto auto;
-     align-items: center;
-     gap: .55rem;
--    margin-bottom: .9rem;
--    padding: .65rem;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: var(--arpp-v2-radius);
--    background: var(--arpp-v2-surface);
-+    margin-bottom: .7rem;
-+    padding: .55rem;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .arpp-v2-search {
-@@ -199,11 +202,12 @@
- 
- /* Register groups ------------------------------------------------- */
- .arpp-v2-year {
--    margin-bottom: 1rem;
-+    margin-bottom: .85rem;
-     overflow: hidden;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: .85rem;
--    background: var(--arpp-v2-surface);
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius-lg);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .arpp-v2-year__header {
-@@ -211,9 +215,9 @@
-     align-items: center;
-     justify-content: space-between;
-     gap: 1rem;
--    padding: .75rem 1rem;
--    border-bottom: 1px solid var(--arpp-v2-border);
--    background: var(--arpp-v2-surface-soft);
-+    padding: .65rem .9rem;
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
- }
- 
- .arpp-v2-year__title span {
-@@ -248,7 +252,7 @@
- }
- 
- .arpp-v2-year__position strong {
--    color: var(--bs-emphasis-color);
-+    color: var(--arpp-text);
-     font-size: .95rem;
- }
- 
-@@ -262,8 +266,9 @@
-     grid-template-columns: minmax(0, 1fr) minmax(11rem, auto) auto;
-     gap: 1rem;
-     align-items: center;
--    padding: .9rem 1rem;
--    border-bottom: 1px solid var(--arpp-v2-border);
-+    padding: .72rem .9rem;
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-v2-record:last-child {
-@@ -340,8 +345,8 @@
-     font-size: .95rem;
- }
- 
--.arpp-v2-record__value--approved strong { color: var(--bs-success-text-emphasis); }
--.arpp-v2-record__value--delisted strong { color: var(--bs-warning-text-emphasis); }
-+.arpp-v2-record__value--approved strong { color: var(--arpp-success); }
-+.arpp-v2-record__value--delisted strong { color: var(--arpp-warning); }
- 
- .arpp-v2-record__actions {
-     display: flex;
-@@ -360,8 +365,8 @@
-     align-items: flex-start;
-     justify-content: space-between;
-     gap: 1rem;
--    padding-bottom: .85rem;
--    border-bottom: 1px solid var(--arpp-v2-border);
-+    padding-bottom: .55rem;
-+    border-bottom: 1px solid var(--arpp-border);
- }
- 
- .arpp-record-v2__header h1 {
-@@ -388,22 +393,22 @@
-     align-items: center;
-     justify-content: space-between;
-     gap: 1rem;
--    margin: .8rem 0;
--    padding: .75rem .9rem;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: .7rem;
--    background: var(--arpp-v2-surface);
-+    margin: .65rem 0;
-+    padding: .58rem .78rem;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-record-v2__state.is-published {
--    border-color: color-mix(in srgb, var(--bs-success) 25%, var(--arpp-v2-border));
--    background: color-mix(in srgb, var(--bs-success-bg-subtle) 45%, var(--arpp-v2-surface));
-+    border-color: var(--arpp-success-border);
-+    background: var(--arpp-success-soft);
- }
- 
- .arpp-record-v2__state.is-correction,
- .arpp-record-v2__state.is-pending {
--    border-color: color-mix(in srgb, var(--bs-warning) 30%, var(--arpp-v2-border));
--    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 42%, var(--arpp-v2-surface));
-+    border-color: var(--arpp-warning-border);
-+    background: var(--arpp-warning-soft);
- }
- 
- .arpp-record-v2__state-copy {
-@@ -415,7 +420,7 @@
- 
- .arpp-record-v2__state-copy > .bi {
-     margin-top: .15rem;
--    color: var(--bs-emphasis-color);
-+    color: var(--arpp-text);
- }
- 
- .arpp-record-v2__state-copy strong {
-@@ -454,20 +459,21 @@
-     display: flex;
-     align-items: center;
-     gap: .25rem;
--    margin: .9rem 0 .65rem;
--    padding: .3rem;
-+    min-height: 2.55rem;
-+    margin: .65rem 0 .45rem;
-+    padding: .18rem;
-     overflow-x: auto;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: .65rem;
--    background: var(--arpp-v2-surface-soft);
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-record-v2__tabs .nav-link {
-     display: inline-flex;
-     align-items: center;
-     gap: .4rem;
--    min-height: 2.15rem;
--    padding: .38rem .7rem;
-+    min-height: 2.05rem;
-+    padding: .3rem .62rem;
-     border: 0;
-     border-radius: .48rem;
-     color: var(--arpp-v2-muted);
-@@ -477,15 +483,17 @@
- }
- 
- .arpp-record-v2__tabs .nav-link.active {
--    background: var(--arpp-v2-surface);
--    color: var(--arpp-v2-primary);
--    box-shadow: 0 .15rem .5rem rgba(15, 23, 42, .08);
-+    border: 1px solid var(--arpp-primary-border);
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
-+    box-shadow: none;
- }
- 
- .arpp-record-v2__panel {
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: .75rem;
--    background: var(--arpp-v2-surface);
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius-lg);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .arpp-record-v2__panel-header {
-@@ -493,8 +501,8 @@
-     align-items: flex-start;
-     justify-content: space-between;
-     gap: 1rem;
--    padding: .75rem .9rem;
--    border-bottom: 1px solid var(--arpp-v2-border);
-+    padding: .58rem .75rem;
-+    border-bottom: 1px solid var(--arpp-border);
- }
- 
- .arpp-record-v2__panel-header h2 {
-@@ -509,20 +517,20 @@
- }
- 
- .arpp-record-v2__panel-body {
--    padding: .9rem;
-+    padding: .72rem;
- }
- 
- .arpp-record-v2__overview-grid {
-     display: grid;
-     grid-template-columns: repeat(4, minmax(0, 1fr));
--    gap: .7rem;
-+    gap: .6rem;
- }
- 
- .arpp-record-v2__metric {
--    padding: .75rem;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: .65rem;
--    background: var(--arpp-v2-surface-soft);
-+    padding: .68rem .72rem;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-record-v2__metric span {
-@@ -547,8 +555,8 @@
-     font-size: .73rem;
- }
- 
--.arpp-record-v2__metric--approved strong { color: var(--bs-success-text-emphasis); }
--.arpp-record-v2__metric--delisted strong { color: var(--bs-warning-text-emphasis); }
-+.arpp-record-v2__metric--approved strong { color: var(--arpp-success); }
-+.arpp-record-v2__metric--delisted strong { color: var(--arpp-warning); }
- 
- .arpp-record-v2__overview-section {
-     margin-top: .8rem;
-@@ -599,8 +607,8 @@
- .arpp-v2-table thead th {
-     padding: .58rem .65rem;
-     border-bottom: 1px solid var(--arpp-v2-border);
--    background: var(--arpp-v2-surface-soft);
--    color: var(--arpp-v2-muted);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text-muted);
-     font-size: .69rem;
-     font-weight: 700;
-     letter-spacing: .035em;
-@@ -616,7 +624,7 @@
- 
- .arpp-v2-table tbody tr:last-child td { border-bottom: 0; }
- .arpp-v2-table tbody tr.arpp-row--delisted td {
--    background: color-mix(in srgb, var(--bs-warning-bg-subtle) 34%, var(--arpp-v2-surface));
-+    background: var(--arpp-warning-soft);
- }
- 
- .arpp-v2-project-cell {
-@@ -674,10 +682,10 @@
-     grid-template-columns: auto minmax(0, 1fr) auto;
-     align-items: center;
-     gap: .75rem;
--    padding: .75rem;
--    border: 1px solid var(--arpp-v2-border);
--    border-radius: .65rem;
--    background: var(--arpp-v2-surface-soft);
-+    padding: .68rem .72rem;
-+    border: 1px solid var(--arpp-border);
-+    border-radius: var(--arpp-radius);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-v2-file__icon {
-@@ -999,8 +1007,8 @@
-     display: flex;
-     flex-wrap: wrap;
-     gap: .45rem 1.2rem;
--    margin-top: .75rem;
--    padding: .58rem .72rem;
-+    margin-top: .6rem;
-+    padding: .48rem .65rem;
-     border-top: 1px solid var(--arpp-v2-border);
-     color: var(--arpp-v2-muted);
-     font-size: .75rem;
-@@ -1027,3 +1035,211 @@
-         gap: .35rem;
-     }
- }
-+
-+
-+/* Visual-system and density completion --------------------------- */
-+.arpp-page,
-+.arpp-record-v2 {
-+    min-height: calc(100dvh - 7rem);
-+}
-+
-+.arpp-v2-page-header h1,
-+.arpp-record-v2__header h1 {
-+    color: var(--arpp-text);
-+    letter-spacing: -.02em;
-+}
-+
-+.arpp-v2-page-header__eyebrow,
-+.arpp-v2-summary__item > span,
-+.arpp-v2-year__title span,
-+.arpp-v2-record__value span,
-+.arpp-record-v2__metric span,
-+.arpp-record-v2__identity-strip strong {
-+    color: var(--arpp-text-muted);
-+}
-+
-+.arpp-v2-record__continuity,
-+.arpp-v2-record__meta,
-+.arpp-v2-record__categories,
-+.arpp-record-v2__header p,
-+.arpp-record-v2__state-copy p,
-+.arpp-record-v2__readiness,
-+.arpp-record-v2__metric small,
-+.arpp-v2-project-cell__meta,
-+.arpp-v2-file__identity span {
-+    color: var(--arpp-text-muted);
-+}
-+
-+.arpp-v2-summary__item > strong,
-+.arpp-v2-year__position strong,
-+.arpp-v2-record h3,
-+.arpp-record-v2__state-copy strong,
-+.arpp-record-v2__metric strong {
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-v2-summary__item--published > strong,
-+.arpp-v2-record__value--approved strong,
-+.arpp-record-v2__metric--approved strong {
-+    color: var(--arpp-success);
-+}
-+
-+.arpp-v2-summary__item--working > strong,
-+.arpp-v2-record__value--delisted strong,
-+.arpp-record-v2__metric--delisted strong {
-+    color: var(--arpp-warning);
-+}
-+
-+.arpp-v2-search .form-control,
-+.arpp-v2-filterbar .form-select {
-+    min-height: 2.35rem;
-+}
-+
-+.arpp-v2-record:hover {
-+    background: var(--arpp-surface-hover);
-+}
-+
-+.arpp-v2-record__categories span {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-+    color: var(--arpp-text-secondary);
-+}
-+
-+.arpp-record-v2__state-copy > .bi {
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-record-v2__readiness .is-ready .bi { color: var(--arpp-success); }
-+.arpp-record-v2__readiness .is-pending .bi { color: var(--arpp-warning); }
-+
-+.arpp-record-v2__tab-intro {
-+    padding: .48rem .72rem;
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-+    color: var(--arpp-text-muted);
-+    font-size: .75rem;
-+    line-height: 1.35;
-+}
-+
-+.arpp-record-v2__panel > .arpp-v2-table-wrap:first-of-type {
-+    border-radius: inherit;
-+}
-+
-+.arpp-v2-table thead th {
-+    border-bottom-color: var(--arpp-border-strong);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text-secondary);
-+}
-+
-+.arpp-v2-table tbody td {
-+    border-bottom-color: var(--arpp-border);
-+    background: var(--arpp-surface);
-+    color: var(--arpp-text-secondary);
-+}
-+
-+.arpp-v2-table tbody tr:hover td {
-+    background: var(--arpp-surface-hover);
-+}
-+
-+.arpp-v2-table tbody tr.arpp-row--delisted td {
-+    background: var(--arpp-warning-soft);
-+}
-+
-+.arpp-v2-project-cell__title,
-+.arpp-v2-project-cell__issued,
-+.arpp-v2-project-cell__linked {
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-v2-project-cell__issued strong,
-+.arpp-v2-project-cell__linked strong {
-+    color: var(--arpp-text-muted);
-+}
-+
-+.arpp-v2-file {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-+}
-+
-+.arpp-v2-audit__group,
-+.arpp-record-v2__overview-section,
-+.arpp-v2-form-panel {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface);
-+}
-+
-+.arpp-v2-form-panel__header {
-+    border-bottom-color: var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-+}
-+
-+/* Published library consumes the same neutral hierarchy. */
-+.project-arpp-page .project-arpp-rail,
-+.project-arpp-page .project-arpp-reader__header,
-+.project-arpp-page .project-arpp-summary > div,
-+.project-arpp-page .project-arpp-table-card {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
-+}
-+
-+.project-arpp-page .project-arpp-search input {
-+    border-color: var(--arpp-border-strong);
-+    background: var(--arpp-surface);
-+    color: var(--arpp-text);
-+}
-+
-+.project-arpp-page .project-arpp-search input:focus {
-+    border-color: var(--arpp-primary);
-+    box-shadow: var(--arpp-focus-ring);
-+}
-+
-+.project-arpp-page .project-arpp-reader__header {
-+    background: var(--arpp-surface);
-+}
-+
-+.project-arpp-page .project-arpp-table-card__head,
-+.project-arpp-page .project-arpp-table thead th {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text-secondary);
-+}
-+
-+.project-arpp-page .project-arpp-table tbody td {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface);
-+}
-+
-+.project-arpp-page .project-arpp-table tbody tr:hover td {
-+    background: var(--arpp-surface-hover);
-+}
-+
-+.project-arpp-page .project-arpp-nav__item {
-+    color: var(--arpp-text-secondary);
-+}
-+
-+.project-arpp-page .project-arpp-nav__item:hover,
-+.project-arpp-page .project-arpp-nav__item.is-active {
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
-+}
-+
-+.project-arpp-page .project-arpp-nav__item.is-active {
-+    box-shadow: inset 3px 0 0 var(--arpp-primary);
-+}
-+
-+@media (max-width: 1199.98px) {
-+    .arpp-v2-page-header {
-+        gap: .85rem;
-+    }
-+
-+    .arpp-v2-record {
-+        gap: .75rem;
-+    }
-+}
-+
-+@media (max-width: 767.98px) {
-+    .arpp-record-v2__tab-intro {
-+        padding: .45rem .6rem;
-+    }
-+}
---- /dev/null
-+++ b/wwwroot/css/project-office-reports/arpp-tokens.css
-@@ -0,0 +1,117 @@
-+/* ============================================================
-+   ARPP / PPP visual foundation
-+   Authoritative light and dark surface, border, text and state tokens.
-+   ============================================================ */
-+
-+:root,
-+[data-bs-theme="light"] {
-+    --arpp-canvas: #f4f6fa;
-+    --arpp-surface: #ffffff;
-+    --arpp-surface-subtle: #f7f9fc;
-+    --arpp-surface-muted: #eef2f7;
-+    --arpp-surface-hover: #f8fafd;
-+
-+    --arpp-border: #d7dee9;
-+    --arpp-border-strong: #c9d2df;
-+
-+    --arpp-text: #172033;
-+    --arpp-text-secondary: #475467;
-+    --arpp-text-muted: #667085;
-+
-+    --arpp-primary: #3165e8;
-+    --arpp-primary-soft: #edf3ff;
-+    --arpp-primary-border: #b9ccfb;
-+
-+    --arpp-success: #087443;
-+    --arpp-success-soft: #eaf6ef;
-+    --arpp-success-border: #b9ddc9;
-+
-+    --arpp-warning: #946200;
-+    --arpp-warning-soft: #fff7df;
-+    --arpp-warning-border: #ead38b;
-+
-+    --arpp-danger: #c92a3a;
-+    --arpp-danger-soft: #fff0f2;
-+    --arpp-danger-border: #efb8c0;
-+
-+    --arpp-radius-sm: .5rem;
-+    --arpp-radius: .625rem;
-+    --arpp-radius-lg: .75rem;
-+    --arpp-shadow-soft: 0 1px 3px rgba(16, 24, 40, .05);
-+    --arpp-focus-ring: 0 0 0 .2rem rgba(49, 101, 232, .14);
-+}
-+
-+[data-bs-theme="dark"] {
-+    --arpp-canvas: #111827;
-+    --arpp-surface: #182235;
-+    --arpp-surface-subtle: #1d293d;
-+    --arpp-surface-muted: #243249;
-+    --arpp-surface-hover: #223049;
-+
-+    --arpp-border: #34435a;
-+    --arpp-border-strong: #46566e;
-+
-+    --arpp-text: #f1f5f9;
-+    --arpp-text-secondary: #d4dbe6;
-+    --arpp-text-muted: #aeb9c9;
-+
-+    --arpp-primary: #83a7ff;
-+    --arpp-primary-soft: #1e315f;
-+    --arpp-primary-border: #3d5e9f;
-+
-+    --arpp-success: #63d39a;
-+    --arpp-success-soft: #173b2d;
-+    --arpp-success-border: #2f6f52;
-+
-+    --arpp-warning: #f1c75b;
-+    --arpp-warning-soft: #403419;
-+    --arpp-warning-border: #76622c;
-+
-+    --arpp-danger: #ff8795;
-+    --arpp-danger-soft: #48232a;
-+    --arpp-danger-border: #82404b;
-+
-+    --arpp-shadow-soft: 0 1px 4px rgba(0, 0, 0, .24);
-+    --arpp-focus-ring: 0 0 0 .2rem rgba(131, 167, 255, .22);
-+}
-+
-+/* Shared application-level treatment. Keep this scoped to ARPP roots. */
-+.arpp-page,
-+.arpp-record-v2,
-+.project-arpp-page {
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-page .form-control,
-+.arpp-page .form-select,
-+.arpp-record-v2 .form-control,
-+.arpp-record-v2 .form-select,
-+.arpp-workspace-v2 .form-control,
-+.arpp-workspace-v2 .form-select {
-+    border-color: var(--arpp-border-strong);
-+    background-color: var(--arpp-surface);
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-page .form-control:focus,
-+.arpp-page .form-select:focus,
-+.arpp-record-v2 .form-control:focus,
-+.arpp-record-v2 .form-select:focus,
-+.arpp-workspace-v2 .form-control:focus,
-+.arpp-workspace-v2 .form-select:focus {
-+    border-color: var(--arpp-primary);
-+    box-shadow: var(--arpp-focus-ring);
-+}
-+
-+.arpp-page .form-control::placeholder,
-+.arpp-record-v2 .form-control::placeholder,
-+.arpp-workspace-v2 .form-control::placeholder {
-+    color: color-mix(in srgb, var(--arpp-text-muted) 82%, transparent);
-+    opacity: 1;
-+}
-+
-+.arpp-page .form-text,
-+.arpp-record-v2 .form-text,
-+.arpp-workspace-v2 .form-text {
-+    color: var(--arpp-text-muted);
-+}
+diff --git a/wwwroot/css/project-office-reports/arpp-workspace.css b/wwwroot/css/project-office-reports/arpp-workspace.css
+index 3e00a51..a9f4531 100644
 --- a/wwwroot/css/project-office-reports/arpp-workspace.css
 +++ b/wwwroot/css/project-office-reports/arpp-workspace.css
-@@ -8,9 +8,9 @@
- }
- 
- .arpp-workspace-v2 {
--    --arpp-workspace-border: color-mix(in srgb, var(--bs-border-color) 88%, transparent);
--    --arpp-workspace-muted: var(--bs-secondary-color);
--    --arpp-workspace-soft: color-mix(in srgb, var(--bs-tertiary-bg) 74%, var(--bs-body-bg));
-+    --arpp-workspace-border: var(--arpp-border);
-+    --arpp-workspace-muted: var(--arpp-text-muted);
-+    --arpp-workspace-soft: var(--arpp-surface-subtle);
-     --arpp-workspace-sidebar: 15rem;
-     position: fixed;
-     inset: 0;
-@@ -18,8 +18,8 @@
-     width: 100%;
-     height: 100dvh;
-     overflow: hidden;
--    background: var(--bs-body-bg);
--    color: var(--bs-body-color);
-+    background: var(--arpp-canvas);
-+    color: var(--arpp-text);
- }
- 
- .arpp-workspace-v2__form {
-@@ -38,8 +38,8 @@
-     gap: 1rem;
-     min-height: 4.35rem;
-     padding: .65rem .9rem;
--    border-bottom: 1px solid var(--arpp-workspace-border);
--    background: var(--bs-body-bg);
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-workspace-v2__document {
-@@ -49,7 +49,7 @@
- .arpp-workspace-v2__product {
-     display: block;
-     margin-bottom: .1rem;
--    color: var(--bs-primary);
-+    color: var(--arpp-primary);
-     font-size: .67rem;
-     font-weight: 700;
-     letter-spacing: .065em;
-@@ -114,7 +114,7 @@
- 
- .arpp-workspace-v2__toolbar.is-dirty ~ * .arpp-workspace-v2__save-state,
- .arpp-workspace-v2__toolbar.is-dirty .arpp-workspace-v2__save-state {
--    color: var(--bs-primary);
-+    color: var(--arpp-primary);
- }
- 
- .arpp-workspace-v2__header .btn {
-@@ -158,8 +158,8 @@
-     gap: .45rem;
-     min-height: 3.4rem;
-     padding: .48rem .75rem;
--    border-bottom: 1px solid var(--arpp-workspace-border);
--    background: var(--arpp-workspace-soft);
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-workspace-v2__toolbar .btn {
-@@ -236,8 +236,8 @@
- .arpp-workspace-v2__navigator {
-     min-height: 0;
-     overflow-y: auto;
--    border-right: 1px solid var(--arpp-workspace-border);
--    background: var(--bs-body-bg);
-+    border-right: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-     scrollbar-width: thin;
- }
- 
-@@ -265,7 +265,7 @@
- }
- 
- .arpp-workspace-v2__navigator-header .btn {
--    display: inline-grid;
-+    display: none;
-     width: 2rem;
-     height: 2rem;
-     padding: 0;
-@@ -304,21 +304,21 @@
-     min-width: 1.5rem;
-     padding: .08rem .35rem;
-     border-radius: 999px;
--    background: var(--arpp-workspace-soft);
--    color: var(--bs-emphasis-color);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text);
-     font-size: .68rem;
-     text-align: center;
- }
- 
- .arpp-workspace-v2__filters button:hover {
--    background: var(--arpp-workspace-soft);
--    color: var(--bs-emphasis-color);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text);
- }
- 
- .arpp-workspace-v2__filters button.is-active {
-     border-color: color-mix(in srgb, var(--bs-primary) 25%, var(--arpp-workspace-border));
--    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 60%, var(--bs-body-bg));
--    color: var(--bs-primary);
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
-     font-weight: 600;
- }
- 
-@@ -360,8 +360,8 @@
-     overflow: hidden;
-     padding: .35rem .45rem;
-     border-color: color-mix(in srgb, var(--bs-danger) 30%, var(--arpp-workspace-border));
--    background: var(--bs-body-bg);
--    color: var(--bs-danger-text-emphasis);
-+    background: var(--arpp-surface);
-+    color: var(--arpp-danger);
-     font-size: .7rem;
-     text-align: left;
-     text-overflow: ellipsis;
-@@ -419,7 +419,7 @@
-     min-width: 0;
-     min-height: 0;
-     overflow: hidden;
--    background: var(--arpp-workspace-soft);
-+    background: var(--arpp-canvas);
- }
- 
- .arpp-workspace-v2__empty {
-@@ -435,7 +435,7 @@
- 
- .arpp-workspace-v2__empty > .bi {
-     margin-bottom: .65rem;
--    color: var(--bs-primary);
-+    color: var(--arpp-primary);
-     font-size: 2rem;
- }
- 
-@@ -468,8 +468,8 @@
-     height: .52rem;
-     overflow-x: auto;
-     overflow-y: hidden;
--    border-bottom: 1px solid var(--arpp-workspace-border);
--    background: color-mix(in srgb, var(--bs-tertiary-bg) 58%, var(--bs-body-bg));
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface-muted);
-     scrollbar-color: color-mix(in srgb, var(--bs-secondary-color) 45%, transparent) transparent;
-     scrollbar-width: thin;
- }
-@@ -482,7 +482,7 @@
-     min-width: 0;
-     min-height: 0;
-     overflow: auto;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     overscroll-behavior: contain;
-     scrollbar-gutter: stable;
- }
-@@ -500,9 +500,9 @@
-     top: 0;
-     z-index: 8;
-     padding: .58rem .48rem;
--    border-bottom: 1px solid var(--arpp-workspace-border);
--    background: color-mix(in srgb, var(--bs-tertiary-bg) 88%, var(--bs-body-bg));
--    color: var(--arpp-workspace-muted);
-+    border-bottom: 1px solid var(--arpp-border-strong);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text-secondary);
-     font-size: .68rem;
-     font-weight: 700;
-     letter-spacing: .035em;
-@@ -512,8 +512,8 @@
- 
- .arpp-workspace-v2__table tbody td {
-     padding: .5rem .4rem;
--    border-bottom: 1px solid var(--arpp-workspace-border);
--    background: var(--bs-body-bg);
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface);
-     vertical-align: top;
- }
- 
-@@ -522,7 +522,7 @@
- }
- 
- .arpp-workspace-v2__table tbody tr:hover td {
--    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 18%, var(--bs-body-bg));
-+    background: var(--arpp-surface-hover);
- }
- 
- .arpp-workspace-v2__table tbody tr[hidden] {
-@@ -597,11 +597,11 @@
- }
- 
- .arpp-workspace-v2__table .arpp-row--jump-target td {
--    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 62%, var(--bs-body-bg));
-+    background: var(--arpp-primary-soft);
- }
- 
- .arpp-workspace-v2__table tr.is-validation-target td {
--    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 34%, var(--bs-body-bg));
-+    background: var(--arpp-surface);
- }
- 
- .arpp-workspace-v2__table tr.is-validation-target {
-@@ -620,7 +620,7 @@
-     width: min(27rem, 92vw);
-     transform: translateX(102%);
-     border-left: 1px solid var(--arpp-workspace-border);
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     box-shadow: -1rem 0 2.4rem rgba(15, 23, 42, .18);
-     transition: transform .2s ease;
- }
-@@ -846,7 +846,7 @@
-         overflow: hidden;
-         border: 1px solid var(--arpp-workspace-border);
-         border-radius: .7rem;
--        background: var(--bs-body-bg);
-+        background: var(--arpp-surface);
-     }
- 
-     .arpp-workspace-v2__table tbody td {
-@@ -923,12 +923,12 @@
- /* State emphasis is applied at the workspace root so the header remains
-    independent from the toolbar DOM order. */
- .arpp-workspace-v2.is-dirty .arpp-workspace-v2__save-state {
--    color: var(--bs-primary);
-+    color: var(--arpp-primary);
-     font-weight: 600;
- }
- 
- .arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
--    color: var(--bs-warning-text-emphasis);
-+    color: var(--arpp-warning);
- }
- 
- 
-@@ -957,13 +957,13 @@
-     position: sticky;
-     right: 0;
-     border-left: 1px solid var(--arpp-workspace-border);
--    background: var(--bs-body-bg);
--    box-shadow: -.35rem 0 .65rem rgba(15, 23, 42, .045);
-+    background: var(--arpp-surface);
-+    box-shadow: -.35rem 0 .65rem rgba(15, 23, 42, .035);
- }
- 
- .arpp-workspace-v2__table .arpp-col-actions {
-     z-index: 10;
--    background: color-mix(in srgb, var(--bs-tertiary-bg) 94%, var(--bs-body-bg));
-+    background: var(--arpp-surface-muted);
- }
- 
- .arpp-workspace-v2__table .arpp-actions-cell {
-@@ -971,11 +971,11 @@
- }
- 
- .arpp-workspace-v2__table tbody tr:hover .arpp-actions-cell {
--    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 18%, var(--bs-body-bg));
-+    background: var(--arpp-surface-hover);
- }
- 
- .arpp-workspace-v2__table tr.is-validation-target .arpp-actions-cell {
--    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 34%, var(--bs-body-bg));
-+    background: var(--arpp-surface);
- }
- 
- .arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
-@@ -1001,3 +1001,155 @@
-         box-shadow: none;
-     }
+@@ -1153,3 +1153,41 @@ body.arpp-workspace-active {
+ .arpp-workspace-v2__table-viewport.is-scrolled-end .arpp-actions-cell {
+     box-shadow: -.35rem 0 .65rem rgba(23, 32, 51, .05);
  }
 +
-+
-+/* Visual-system and density completion --------------------------- */
-+.arpp-workspace-v2__product {
-+    color: var(--arpp-primary);
++/* Workspace defect stabilisation ---------------------------------- */
++.arpp-workspace-v2__navigator {
++    grid-column: 1;
 +}
 +
-+.arpp-workspace-v2__document-type {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-+    color: var(--arpp-text-muted);
++.arpp-workspace-v2__grid-shell {
++    grid-column: 2;
 +}
 +
-+.arpp-workspace-v2__toolbar {
-+    box-shadow: 0 1px 0 rgba(16, 24, 40, .025);
++.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__body {
++    grid-template-columns: minmax(0, 1fr);
 +}
 +
-+.arpp-workspace-v2__navigator-toggle {
-+    border-color: var(--arpp-border-strong);
-+    background: var(--arpp-surface);
++.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell {
++    grid-column: 1;
 +}
 +
-+.arpp-workspace-v2__filters button:hover {
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-workspace-v2__filters button.is-active {
-+    border-color: var(--arpp-primary-border);
++.arpp-workspace-v2__navigator-toggle.is-active {
++    border-color: color-mix(in srgb, var(--arpp-primary) 30%, var(--arpp-border));
 +    background: var(--arpp-primary-soft);
 +    color: var(--arpp-primary);
 +}
 +
-+.arpp-workspace-v2__issues {
-+    border-color: var(--arpp-danger-border);
-+    background: var(--arpp-danger-soft);
-+}
-+
-+.arpp-workspace-v2__issue-list .btn {
-+    border-color: var(--arpp-danger-border);
-+    background: var(--arpp-surface);
-+    color: var(--arpp-danger);
-+}
-+
-+.arpp-workspace-v2__table .form-control,
-+.arpp-workspace-v2__table .form-select {
-+    border-color: var(--arpp-border-strong);
-+    background: var(--arpp-surface);
-+    color: var(--arpp-text);
-+}
-+
-+.arpp-workspace-v2__table .form-control:focus,
-+.arpp-workspace-v2__table .form-select:focus {
-+    border-color: var(--arpp-primary);
-+    box-shadow: var(--arpp-focus-ring);
-+}
-+
-+.arpp-workspace-v2__table .form-control.is-invalid,
-+.arpp-workspace-v2__table .form-select.is-invalid,
-+.arpp-workspace-v2__table .input-validation-error {
-+    border-color: var(--arpp-danger);
-+    box-shadow: 0 0 0 .12rem color-mix(in srgb, var(--arpp-danger) 10%, transparent);
-+}
-+
-+.arpp-workspace-v2__table tr.is-validation-target td {
-+    background: var(--arpp-surface);
++.arpp-workspace-v2__table tr.has-validation-issue td:nth-child(2) {
++    box-shadow: inset .18rem 0 0 color-mix(in srgb, var(--arpp-danger) 78%, transparent);
 +}
 +
 +.arpp-workspace-v2__table tr.is-validation-target td:nth-child(2) {
-+    box-shadow: inset .2rem 0 0 var(--arpp-danger);
-+}
-+
-+.arpp-workspace-v2__table .arpp-issued-identifier--not-applicable {
-+    border-color: var(--arpp-border);
-+    background: var(--arpp-surface-subtle);
-+    color: var(--arpp-text-muted);
-+}
-+
-+.arpp-workspace-v2__table .arpp-col-actions,
-+.arpp-workspace-v2__table .arpp-actions-cell {
-+    border-left-color: var(--arpp-border);
-+    background: var(--arpp-surface);
-+}
-+
-+.arpp-workspace-v2__table .arpp-col-actions {
-+    background: var(--arpp-surface-muted);
-+}
-+
-+.arpp-workspace-v2__table tbody tr:hover .arpp-actions-cell {
-+    background: var(--arpp-surface-hover);
-+}
-+
-+.arpp-workspace-v2__table tr.is-validation-target .arpp-actions-cell {
-+    background: var(--arpp-surface);
-+}
-+
-+.arpp-workspace-v2__table-viewport::before,
-+.arpp-workspace-v2__table-viewport::after {
-+    position: absolute;
-+    top: .52rem;
-+    bottom: 0;
-+    z-index: 12;
-+    width: .8rem;
-+    content: "";
-+    opacity: 0;
-+    pointer-events: none;
-+    transition: opacity .15s ease;
-+}
-+
-+.arpp-workspace-v2__table-viewport::before {
-+    left: 0;
-+    background: linear-gradient(90deg, rgba(23, 32, 51, .12), transparent);
-+}
-+
-+.arpp-workspace-v2__table-viewport::after {
-+    right: 0;
-+    background: linear-gradient(270deg, rgba(23, 32, 51, .12), transparent);
-+}
-+
-+.arpp-workspace-v2__table-viewport.is-scrolled-start::before,
-+.arpp-workspace-v2__table-viewport.is-scrolled-end::after {
-+    opacity: 1;
-+}
-+
-+.arpp-workspace-v2__top-scrollbar[hidden] {
-+    display: none !important;
++    box-shadow: inset .28rem 0 0 var(--arpp-danger);
 +}
 +
 +@media (max-width: 1023.98px) {
-+    .arpp-workspace-v2__navigator-header .btn {
-+        display: inline-grid;
++    .arpp-workspace-v2__grid-shell,
++    .arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell {
++        grid-column: 1;
 +    }
 +}
-+
-+@media (max-width: 767.98px) {
-+    .arpp-workspace-v2__table-viewport::before,
-+    .arpp-workspace-v2__table-viewport::after {
-+        display: none;
-+    }
-+}
-+
-+/* The fixed Actions strip only casts a boundary shadow while columns remain
-+   hidden to its left; at the far-right edge it visually rejoins the grid. */
-+.arpp-workspace-v2__table .arpp-col-actions,
-+.arpp-workspace-v2__table .arpp-actions-cell {
-+    box-shadow: none;
-+}
-+
-+.arpp-workspace-v2__table-viewport.is-scrolled-end .arpp-col-actions,
-+.arpp-workspace-v2__table-viewport.is-scrolled-end .arpp-actions-cell {
-+    box-shadow: -.35rem 0 .65rem rgba(23, 32, 51, .05);
-+}
---- a/wwwroot/css/project-office-reports/arpp.css
-+++ b/wwwroot/css/project-office-reports/arpp.css
-@@ -1,9 +1,8 @@
- .arpp-page {
--    --arpp-border: rgba(33, 37, 41, .12);
--    --arpp-muted: #68707a;
--    --arpp-soft: #f5f7fa;
--    --arpp-navy: #17345f;
--    --arpp-amber: #9a6700;
-+    --arpp-muted: var(--arpp-text-muted);
-+    --arpp-soft: var(--arpp-surface-subtle);
-+    --arpp-navy: var(--arpp-text);
-+    --arpp-amber: var(--arpp-warning);
-     max-width: 1920px;
-     margin-inline: auto;
- }
-@@ -58,7 +57,7 @@
-     padding: .85rem 1rem;
-     border: 1px solid var(--arpp-border);
-     border-radius: .75rem;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
- }
- 
-@@ -87,11 +86,11 @@
- }
- 
- .arpp-kpi--approved strong {
--    color: #146c43;
-+    color: var(--arpp-success);
- }
- 
- .arpp-kpi--delisted {
--    border-color: rgba(154, 103, 0, .24);
-+    border-color: var(--arpp-warning-border);
-     background: linear-gradient(135deg, rgba(255, 193, 7, .075), var(--bs-body-bg) 62%);
- }
- 
-@@ -148,7 +147,7 @@
-     border: 1px solid var(--arpp-border);
-     border-radius: .85rem;
-     overflow: hidden;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-year-group__header {
-@@ -207,7 +206,7 @@
- 
- .arpp-year-position--approved > span,
- .arpp-year-position--approved > strong {
--    color: #146c43;
-+    color: var(--arpp-success);
- }
- 
- .arpp-year-position--delisted > span,
-@@ -288,8 +287,8 @@
- }
- 
- .arpp-category-chips .arpp-category-chip--delisted {
--    border-color: rgba(154, 103, 0, .24);
--    background: rgba(255, 193, 7, .1);
-+    border-color: var(--arpp-warning-border);
-+    background: var(--arpp-warning-soft);
-     color: var(--arpp-amber);
- }
- 
-@@ -322,7 +321,7 @@
- }
- 
- .arpp-issue-card__value-line--approved > strong {
--    color: #146c43;
-+    color: var(--arpp-success);
- }
- 
- .arpp-issue-card__value-line--delisted > strong {
-@@ -342,19 +341,19 @@
- }
- 
- .arpp-badge--issue {
--    background: rgba(13, 110, 253, .1);
--    color: #0b5ed7;
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
- }
- 
- .arpp-badge--new {
--    background: rgba(25, 135, 84, .1);
--    color: #146c43;
-+    background: var(--arpp-success-soft);
-+    color: var(--arpp-success);
- }
- 
- .arpp-badge--committedliability,
- .arpp-badge--carryforward {
--    background: rgba(13, 110, 253, .1);
--    color: #0b5ed7;
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
- }
- 
- .arpp-badge--delisted {
-@@ -364,7 +363,7 @@
- 
- .arpp-badge--authoritative {
-     background: rgba(13, 110, 253, .13);
--    color: #0b5ed7;
-+    color: var(--arpp-primary);
- }
- 
- .arpp-sequence {
-@@ -376,7 +375,7 @@
-     margin-bottom: 1rem;
-     border: 1px solid var(--arpp-border);
-     border-radius: .85rem;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     box-shadow: 0 1px 3px rgba(16, 24, 40, .04);
- }
- 
-@@ -535,7 +534,7 @@
-     overflow-y: auto;
-     border: 1px solid var(--arpp-border);
-     border-radius: .45rem;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12);
- }
- 
-@@ -801,8 +800,8 @@
-     gap: .35rem;
-     padding: .25rem .55rem;
-     border-radius: 999px;
--    background: rgba(25, 135, 84, .1);
--    color: #146c43;
-+    background: var(--arpp-success-soft);
-+    color: var(--arpp-success);
-     font-size: .75rem;
-     font-weight: 700;
- }
-@@ -942,7 +941,7 @@
- .arpp-badge--verified {
-     gap: .28rem;
-     background: rgba(25, 135, 84, .12);
--    color: #146c43;
-+    color: var(--arpp-success);
- }
- 
- .arpp-badge--unverified {
-@@ -1048,7 +1047,7 @@
- .arpp-entry-table .arpp-sticky-right {
-     position: sticky;
-     z-index: 4;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
- }
- 
- .arpp-entry-table thead .arpp-sticky-left,
-@@ -1106,7 +1105,7 @@
-     overscroll-behavior: contain;
-     border: 1px solid var(--arpp-border, rgba(33, 37, 41, .15));
-     border-radius: .5rem;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     box-shadow: 0 .75rem 1.5rem rgba(0, 0, 0, .18);
- }
- 
-@@ -1171,7 +1170,7 @@
-     padding: 1rem;
-     border: 1px solid var(--arpp-border);
-     border-radius: .8rem;
--    background: var(--bs-body-bg);
-+    background: var(--arpp-surface);
-     box-shadow: 0 1px 3px rgba(16, 24, 40, .04);
- }
- 
-@@ -1363,7 +1362,7 @@
- }
- 
- .arpp-readiness-list .is-ready {
--    color: #146c43;
-+    color: var(--arpp-success);
- }
- 
- .arpp-readiness-list .is-pending {
---- a/wwwroot/css/projects/arpp-library.css
-+++ b/wwwroot/css/projects/arpp-library.css
-@@ -1,9 +1,9 @@
- .project-arpp-page {
--    --arpp-reader-border: #d9e1ec;
--    --arpp-reader-muted: #66758b;
--    --arpp-reader-navy: #102b55;
--    --arpp-reader-green: #176b43;
--    --arpp-reader-amber: #9a6300;
-+    --arpp-reader-border: var(--arpp-border);
-+    --arpp-reader-muted: var(--arpp-text-muted);
-+    --arpp-reader-navy: var(--arpp-text);
-+    --arpp-reader-green: var(--arpp-success);
-+    --arpp-reader-amber: var(--arpp-warning);
-     min-width: 0;
- }
- 
-@@ -30,7 +30,7 @@
- 
- .project-arpp-page__header h1 {
-     margin: 0;
--    color: #0c1e3d;
-+    color: var(--arpp-text);
-     font-size: clamp(1.48rem, 1.8vw, 1.8rem);
-     font-weight: 800;
-     line-height: 1.05;
-@@ -95,8 +95,8 @@
-     overflow: auto;
-     border: 1px solid var(--arpp-reader-border);
-     border-radius: 14px;
--    background: #fff;
--    box-shadow: 0 8px 24px rgba(20, 40, 72, .06);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .project-arpp-search {
-@@ -109,7 +109,7 @@
-     position: absolute;
-     left: 1.45rem;
-     top: 50%;
--    color: #77869b;
-+    color: var(--arpp-text-muted);
-     transform: translateY(-50%);
- }
- 
-@@ -117,15 +117,15 @@
-     width: 100%;
-     min-height: 42px;
-     padding: .55rem 2.25rem .55rem 2.35rem;
--    border: 1px solid #cfd8e6;
-+    border: 1px solid var(--arpp-border-strong);
-     border-radius: 10px;
--    background: #f8faff;
--    color: #14233f;
-+    background: var(--arpp-surface);
-+    color: var(--arpp-text);
-     outline: none;
- }
- 
- .project-arpp-search input:focus {
--    border-color: #5d83e8;
-+    border-color: var(--arpp-primary);
-     box-shadow: 0 0 0 .2rem rgba(67, 111, 230, .12);
- }
- 
-@@ -133,7 +133,7 @@
-     position: absolute;
-     right: 1.35rem;
-     top: 50%;
--    color: #64748b;
-+    color: var(--arpp-text-muted);
-     transform: translateY(-50%);
- }
- 
-@@ -143,7 +143,7 @@
- 
- .project-arpp-nav__year h2 {
-     margin: .8rem .9rem .35rem;
--    color: #5e6d82;
-+    color: var(--arpp-text-muted);
-     font-size: .76rem;
-     font-weight: 800;
-     letter-spacing: .08em;
-@@ -153,7 +153,7 @@
- .project-arpp-nav__year + .project-arpp-nav__year {
-     margin-top: .5rem;
-     padding-top: .35rem;
--    border-top: 1px solid #edf1f7;
-+    border-top: 1px solid var(--arpp-border);
- }
- 
- .project-arpp-nav__item {
-@@ -164,19 +164,19 @@
-     margin: .15rem .5rem;
-     padding: .55rem .6rem;
-     border-radius: 9px;
--    color: #23344f;
-+    color: var(--arpp-text-secondary);
-     text-decoration: none;
- }
- 
- .project-arpp-nav__item:hover {
--    background: #f2f6ff;
--    color: #1746ad;
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
- }
- 
- .project-arpp-nav__item.is-active {
--    background: #e9f0ff;
--    color: #1746ad;
--    box-shadow: inset 3px 0 0 #3e6fe6;
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
-+    box-shadow: inset 3px 0 0 var(--arpp-primary);
- }
- 
- .project-arpp-nav__icon {
-@@ -186,8 +186,8 @@
-     width: 30px;
-     height: 30px;
-     border-radius: 8px;
--    background: #eef3fb;
--    color: #53709d;
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text-secondary);
- }
- 
- .project-arpp-nav__item strong,
-@@ -204,7 +204,7 @@
- 
- .project-arpp-nav__item small {
-     margin-top: .1rem;
--    color: #718096;
-+    color: var(--arpp-text-muted);
-     font-size: .72rem;
- }
- 
-@@ -220,12 +220,13 @@
-     padding: .72rem .9rem;
-     border: 1px solid var(--arpp-reader-border);
-     border-radius: 12px;
--    background: linear-gradient(135deg, #fff 0%, #f7f9fd 100%);
-+    background: var(--arpp-surface);
-+    box-shadow: var(--arpp-shadow-soft);
- }
- 
- .project-arpp-reader__header h2 {
-     margin: 0;
--    color: #0c1e3d;
-+    color: var(--arpp-text);
-     font-size: clamp(1.3rem, 1.65vw, 1.62rem);
-     font-weight: 800;
-     line-height: 1.12;
-@@ -246,11 +247,11 @@
-     padding: .58rem .78rem;
-     border: 1px solid var(--arpp-reader-border);
-     border-radius: 11px;
--    background: #fff;
-+    background: var(--arpp-surface);
- }
- 
- .project-arpp-summary span {
--    color: #66758b;
-+    color: var(--arpp-text-muted);
-     font-size: .75rem;
-     font-weight: 700;
-     letter-spacing: .04em;
-@@ -259,14 +260,14 @@
- 
- .project-arpp-summary strong {
-     margin-top: .12rem;
--    color: #0f1f3b;
-+    color: var(--arpp-text);
-     font-size: 1.24rem;
-     line-height: 1.12;
- }
- 
- .project-arpp-summary small {
-     margin-top: .2rem;
--    color: #718096;
-+    color: var(--arpp-text-muted);
- }
- 
- .project-arpp-money--delisted {
-@@ -278,7 +279,7 @@
-     overflow: hidden;
-     border: 1px solid var(--arpp-reader-border);
-     border-radius: 14px;
--    background: #fff;
-+    background: var(--arpp-surface);
- }
- 
- .project-arpp-table-card__head {
-@@ -288,7 +289,7 @@
- 
- .project-arpp-table-card__head h3 {
-     margin: 0;
--    color: #14233f;
-+    color: var(--arpp-text);
-     font-size: 1rem;
-     font-weight: 800;
- }
-@@ -310,9 +311,9 @@
- 
- .project-arpp-table th {
-     padding: .65rem .7rem;
--    border-bottom: 1px solid #dce3ed;
--    background: #f5f7fb;
--    color: #4e5e74;
-+    border-bottom: 1px solid var(--arpp-border);
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text-secondary);
-     font-size: .72rem;
-     font-weight: 800;
-     letter-spacing: .035em;
-@@ -322,8 +323,8 @@
- 
- .project-arpp-table td {
-     padding: .72rem .7rem;
--    border-bottom: 1px solid #e8edf4;
--    color: #1d2a40;
-+    border-bottom: 1px solid var(--arpp-border);
-+    color: var(--arpp-text-secondary);
-     vertical-align: top;
- }
- 
-@@ -332,12 +333,12 @@
- }
- 
- .project-arpp-table tbody tr.is-delisted td {
--    background: #fffbef;
-+    background: var(--arpp-warning-soft);
- }
- 
- .project-arpp-table__order {
-     width: 44px;
--    color: #6b788b !important;
-+    color: var(--arpp-text-muted) !important;
- }
- 
- .project-arpp-table__serial {
-@@ -353,29 +354,29 @@
- }
- 
- .project-arpp-table__project {
--    color: #101d33;
-+    color: var(--arpp-text);
-     font-weight: 700;
- }
- 
- .project-arpp-table__linked {
-     margin-top: .2rem;
--    color: #718096;
-+    color: var(--arpp-text-muted);
-     font-size: .75rem;
- }
- 
- .project-arpp-table__linked a {
--    color: #3264d8;
-+    color: var(--arpp-primary);
- }
- 
- .project-arpp-table td small {
-     display: block;
-     margin-top: .18rem;
--    color: #718096;
-+    color: var(--arpp-text-muted);
- }
- 
- .project-arpp-table-empty {
-     padding: 1.35rem;
--    color: #718096;
-+    color: var(--arpp-text-muted);
-     text-align: center;
- }
- 
-@@ -385,7 +386,7 @@
-     flex-direction: column;
-     align-items: center;
-     justify-content: center;
--    color: #718096;
-+    color: var(--arpp-text-muted);
-     text-align: center;
- }
- 
-@@ -395,7 +396,7 @@
- }
- 
- .project-arpp-empty h2 {
--    color: #14233f;
-+    color: var(--arpp-text);
-     font-size: 1.15rem;
- }
- 
-@@ -409,7 +410,7 @@
- 
- .project-arpp-empty--inside {
-     min-height: 320px;
--    border: 1px dashed #cfd8e6;
-+    border: 1px dashed var(--arpp-border-strong);
-     border-radius: 14px;
- }
- 
-@@ -495,10 +496,10 @@
-     font-weight: 800;
-     white-space: nowrap;
- }
--.project-arpp-page .arpp-badge--new { background: #e5f4eb; color: #17683f; }
--.project-arpp-page .arpp-badge--committedliability { background: #e8efff; color: #2859be; }
--.project-arpp-page .arpp-badge--carryforward { background: #e8efff; color: #2859be; }
--.project-arpp-page .arpp-badge--delisted { background: #fff1c8; color: #976100; }
-+.project-arpp-page .arpp-badge--new { background: var(--arpp-success-soft); color: var(--arpp-success); }
-+.project-arpp-page .arpp-badge--committedliability { background: var(--arpp-primary-soft); color: var(--arpp-primary); }
-+.project-arpp-page .arpp-badge--carryforward { background: var(--arpp-primary-soft); color: var(--arpp-primary); }
-+.project-arpp-page .arpp-badge--delisted { background: var(--arpp-warning-soft); color: var(--arpp-warning); }
- 
- /* Phase 9: current-position completeness, history and responsive navigation */
- .project-arpp-rail__mobile-header {
-@@ -508,7 +509,7 @@
-     gap: .75rem;
-     padding: .7rem .75rem;
-     border-bottom: 1px solid var(--arpp-reader-border);
--    color: #14233f;
-+    color: var(--arpp-text);
- }
- 
- .project-arpp-rail__mobile-header strong {
-@@ -524,7 +525,7 @@
-     padding: .75rem .85rem;
-     border: 1px solid #e8ca7a;
-     border-radius: 12px;
--    background: #fffbef;
-+    background: var(--arpp-warning-soft);
-     color: #6c4a00;
- }
- 
-@@ -563,7 +564,7 @@
- .project-arpp-history-link::before {
-     content: "·";
-     margin-right: .35rem;
--    color: #9aa6b8;
-+    color: var(--arpp-text-muted);
-     font-weight: 400;
- }
- 
-@@ -579,7 +580,7 @@
- .project-arpp-table-card__head h2,
- .project-arpp-table-card__head h3 {
-     margin: 0;
--    color: #14233f;
-+    color: var(--arpp-text);
-     font-size: 1rem;
-     font-weight: 800;
- }
-@@ -602,7 +603,7 @@
-     gap: .25rem;
-     padding: .12rem .42rem;
-     border-radius: 999px;
--    background: #e5f4eb;
-+    background: var(--arpp-success-soft);
-     color: var(--arpp-reader-green);
-     font-size: .7rem;
-     font-weight: 800;
-@@ -618,7 +619,7 @@
-         position: sticky;
-         z-index: 2;
-         top: 0;
--        background: #fff;
-+        background: var(--arpp-surface);
+diff --git a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+index 7263a41..59604a2 100644
+--- a/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
++++ b/wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js
+@@ -19,6 +19,7 @@
+     let dirty = false;
+     let saving = false;
+     let validationIssueCount = 0;
++    let validationIssueRowCount = 0;
+     let serverRejectedChanges = root.dataset.arppHasServerErrors === "true";
+     let baselineSnapshot = "";
+     let validationExpanded = false;
+@@ -27,6 +28,7 @@
+     let jumpMatches = [];
+     let jumpMatchIndex = -1;
+     let scrollSyncInProgress = false;
++    let derivedStateRefreshPending = false;
+     let activeRowFilter = "all";
+     const navigatorMedia = window.matchMedia("(max-width: 1023.98px)");
+     const navigatorStorageKey = "prism.arpp.workspace.navigatorCollapsed";
+@@ -92,12 +94,12 @@
+ 
+         const validationToggle = root.querySelector("[data-arpp-validation-toggle]");
+         const validationCount = root.querySelector("[data-arpp-validation-count]");
+-        if (validationCount) validationCount.textContent = String(validationIssueCount);
++        if (validationCount) validationCount.textContent = String(validationIssueRowCount);
+         if (validationToggle instanceof HTMLButtonElement) {
+             validationToggle.classList.toggle("d-none", validationIssueCount === 0);
+             validationToggle.setAttribute("aria-expanded", validationTrayOpen ? "true" : "false");
+             validationToggle.title = validationIssueCount > 0
+-                ? `Review ${validationIssueCount} validation ${validationIssueCount === 1 ? "issue" : "issues"}`
++                ? `Review ${validationIssueCount} ${validationIssueCount === 1 ? "field" : "fields"} across ${validationIssueRowCount} ${validationIssueRowCount === 1 ? "row" : "rows"}`
+                 : "No validation issues";
+         }
+ 
+@@ -148,10 +150,10 @@
+         updateScrollEdgeState();
      }
  
-     .project-arpp-completeness {
-@@ -659,7 +660,7 @@
-     z-index: 1;
-     left: .78rem;
-     top: 50%;
--    color: #77869b;
-+    color: var(--arpp-text-muted);
-     transform: translateY(-50%);
-     pointer-events: none;
- }
-@@ -686,31 +687,31 @@
+-    const scrollRowIntoWorkspace = (row, target = null) => {
++    const scrollRowIntoWorkspace = (row, target = null, validationTarget = false) => {
+         if (!(row instanceof HTMLElement)) return;
+         rows().forEach(candidate => candidate.classList.remove("arpp-row--jump-target", "is-validation-target"));
+-        row.classList.add(target ? "is-validation-target" : "arpp-row--jump-target");
++        row.classList.add(validationTarget ? "is-validation-target" : "arpp-row--jump-target");
  
- .project-arpp-search__clear {
-     right: 2.55rem;
--    color: #64748b;
-+    color: var(--arpp-text-muted);
-     text-decoration: none;
- }
+         if (row.hidden) {
+             activeRowFilter = "all";
+@@ -283,13 +285,24 @@
+         });
+     };
  
- .project-arpp-search__clear:hover {
--    background: #e9eef7;
--    color: #243a5d;
-+    background: var(--arpp-surface-muted);
-+    color: var(--arpp-text);
- }
+-    const rowHasValidationIssue = row => collectValidationIssues().some(issue => issue.row === row);
++    const validationRowsFrom = issues => new Set(issues
++        .map(issue => issue.row)
++        .filter(row => row instanceof HTMLElement));
  
- .project-arpp-search__submit {
-     right: .34rem;
-     border: 0;
--    background: #e8efff;
--    color: #2859be;
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
- }
+-    const updateRowNavigator = () => {
++    const syncInvalidRowClasses = issueRows => {
++        rows().forEach(row => row.classList.toggle("has-validation-issue", issueRows.has(row)));
++    };
++
++    const updateRowNavigator = (issues = collectValidationIssues()) => {
+         const currentRows = rows();
++        const issueRows = validationRowsFrom(issues);
++        validationIssueCount = issues.length;
++        validationIssueRowCount = issueRows.size;
++        syncInvalidRowClasses(issueRows);
++
+         const counts = {
+             all: currentRows.length,
+-            issues: currentRows.filter(rowHasValidationIssue).length,
++            issues: issueRows.size,
+             unlinked: currentRows.filter(row => !Number(getField(row, "ProjectId")?.value || 0)).length,
+             delisted: currentRows.filter(isDelisted).length
+         };
+@@ -299,10 +312,11 @@
+                 element.textContent = String(value);
+             });
+         });
+-        applyRowFilter(false);
++        applyRowFilter(false, issueRows);
++        syncWorkspaceStatus();
+     };
  
- .project-arpp-search__submit:hover {
--    background: #dbe6ff;
--    color: #1746ad;
-+    background: var(--arpp-primary-soft);
-+    color: var(--arpp-primary);
- }
+-    function applyRowFilter(closeNavigator = false) {
++    function applyRowFilter(closeNavigator = false, issueRows = validationRowsFrom(collectValidationIssues())) {
+         const labels = {
+             all: "All rows",
+             issues: "Needs attention",
+@@ -312,7 +326,7 @@
+         let visible = 0;
+         rows().forEach(row => {
+             const matches = activeRowFilter === "all"
+-                || (activeRowFilter === "issues" && rowHasValidationIssue(row))
++                || (activeRowFilter === "issues" && issueRows.has(row))
+                 || (activeRowFilter === "unlinked" && !Number(getField(row, "ProjectId")?.value || 0))
+                 || (activeRowFilter === "delisted" && isDelisted(row));
+             const keepActiveEditorVisible = activeRowFilter !== "all" && row.contains(document.activeElement);
+@@ -332,16 +346,30 @@
+         if (closeNavigator && window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
+     }
  
- .project-arpp-search > small {
-     display: block;
-     margin: .38rem .12rem 0;
--    color: #7a8798;
-+    color: var(--arpp-text-muted);
-     font-size: .66rem;
-     line-height: 1.35;
- }
-@@ -722,7 +723,7 @@
- .project-arpp-nav__year + .project-arpp-nav__year {
-     margin-top: .45rem;
-     padding-top: .35rem;
--    border-top: 1px solid #edf1f7;
-+    border-top: 1px solid var(--arpp-border);
- }
++    const syncNavigatorToggleState = visible => {
++        const toggle = root.querySelector("[data-arpp-navigator-toggle]");
++        if (!(toggle instanceof HTMLButtonElement)) return;
++        const isVisible = Boolean(visible);
++        const label = isVisible ? "Hide row navigator" : "Show row navigator";
++        toggle.setAttribute("aria-expanded", isVisible ? "true" : "false");
++        toggle.setAttribute("aria-label", label);
++        toggle.title = label;
++        toggle.classList.toggle("is-active", isVisible);
++    };
++
+     const setDesktopNavigatorCollapsed = collapsed => {
+         const shouldCollapse = Boolean(collapsed);
+         root.classList.toggle("is-navigator-collapsed", shouldCollapse);
+-        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
++        syncNavigatorToggleState(!shouldCollapse);
+         try {
+             window.localStorage.setItem(navigatorStorageKey, shouldCollapse ? "true" : "false");
+         } catch {
+             // Persistence is optional in private or hardened browser contexts.
+         }
+-        window.requestAnimationFrame(syncTableScrollbars);
++        window.requestAnimationFrame(() => {
++            syncTableScrollbars();
++            updateScrollEdgeState();
++        });
+     };
  
- .project-arpp-nav__year > summary {
-@@ -733,7 +734,7 @@
-     margin: .35rem .5rem .2rem;
-     padding: .48rem .55rem;
-     border-radius: 8px;
--    color: #536278;
-+    color: var(--arpp-text-muted);
-     cursor: pointer;
-     list-style: none;
-     user-select: none;
-@@ -744,12 +745,12 @@
- }
+     const setNavigatorOpen = open => {
+@@ -351,7 +379,7 @@
+             navigator?.classList.toggle("is-open", enabled);
+             root.classList.toggle("has-navigator-open", enabled);
+             root.classList.remove("is-navigator-collapsed");
+-            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", enabled ? "true" : "false");
++            syncNavigatorToggleState(enabled);
+             return;
+         }
  
- .project-arpp-nav__year > summary:hover {
--    background: #f4f7fc;
--    color: #243a5d;
-+    background: var(--arpp-surface-subtle);
-+    color: var(--arpp-text);
- }
+@@ -363,9 +391,7 @@
+     const restoreNavigatorLayout = () => {
+         if (navigatorMedia.matches) {
+             root.classList.remove("is-navigator-collapsed");
+-            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute(
+-                "aria-expanded",
+-                root.classList.contains("has-navigator-open") ? "true" : "false");
++            syncNavigatorToggleState(root.classList.contains("has-navigator-open"));
+             return;
+         }
  
- .project-arpp-nav__year > summary:focus-visible {
--    outline: 2px solid #5d83e8;
-+    outline: 2px solid var(--arpp-primary);
-     outline-offset: 2px;
- }
+@@ -378,7 +404,7 @@
+             collapsed = false;
+         }
+         root.classList.toggle("is-navigator-collapsed", collapsed);
+-        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", collapsed ? "false" : "true");
++        syncNavigatorToggleState(!collapsed);
+     };
  
-@@ -761,7 +762,7 @@
- }
+     const setDetailsOpen = open => {
+@@ -420,8 +446,7 @@
+             validationExpanded = false;
+             validationTrayOpen = false;
+             moreButton?.classList.add("d-none");
+-            updateRowNavigator();
+-            syncWorkspaceStatus();
++            updateRowNavigator(issues);
+             return issues;
+         }
  
- .project-arpp-nav__year > summary small {
--    color: #8793a5;
-+    color: var(--arpp-text-muted);
-     font-size: .66rem;
-     white-space: nowrap;
- }
-@@ -794,7 +795,7 @@
-     max-width: 100%;
-     align-items: baseline;
-     gap: .28rem;
--    color: #245fce;
-+    color: var(--arpp-primary);
-     font-weight: 750;
-     text-decoration: underline;
-     text-decoration-color: rgba(36, 95, 206, .34);
-@@ -803,13 +804,13 @@
- }
+@@ -456,7 +481,7 @@
+             button.title = group.issues.map(issue => `${fieldDisplayName(issue.control)}: ${issue.message}`).join("\n");
+             button.addEventListener("click", () => {
+                 const first = group.issues[0];
+-                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
++                if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
+                 else {
+                     setDetailsOpen(true);
+                     window.setTimeout(() => first.control.focus({ preventScroll: true }), 180);
+@@ -478,18 +503,26 @@
+         if (firstButton instanceof HTMLButtonElement) {
+             firstButton.onclick = () => {
+                 const first = issues[0];
+-                if (first.row) scrollRowIntoWorkspace(first.row, first.control);
++                if (first.row) scrollRowIntoWorkspace(first.row, first.control, true);
+                 else first.control.focus();
+                 setValidationTrayOpen(false);
+             };
+         }
+         if (focusFirst) firstButton?.focus({ preventScroll: true });
+         setValidationTrayOpen(validationTrayOpen);
+-        updateRowNavigator();
+-        syncWorkspaceStatus();
++        updateRowNavigator(issues);
+         return issues;
+     };
  
- .project-arpp-table__project-link:hover {
--    color: #1746ad;
-+    color: var(--arpp-primary);
-     text-decoration-color: currentColor;
- }
++    const scheduleDerivedStateRefresh = () => {
++        if (derivedStateRefreshPending) return;
++        derivedStateRefreshPending = true;
++        window.requestAnimationFrame(() => {
++            derivedStateRefreshPending = false;
++            updateValidationNavigator(false);
++        });
++    };
++
+     const updateIssueSequence = () => {
+         const kind = root.querySelector("[data-arpp-issue-kind]");
+         const sequence = root.querySelector("[data-arpp-issue-sequence]");
+@@ -595,7 +628,7 @@
+         updateEmptyState();
+         refreshRowWarnings();
+         refreshUnobtrusiveValidation();
+-        window.requestAnimationFrame(updateRowNavigator);
++        scheduleDerivedStateRefresh();
+     };
  
- .project-arpp-table__project-link:focus-visible {
-     border-radius: 3px;
--    outline: 2px solid #5d83e8;
-+    outline: 2px solid var(--arpp-primary);
-     outline-offset: 2px;
- }
+     const parseMoney = value => {
+@@ -772,7 +805,7 @@
+             category.addEventListener("change", () => {
+                 syncIssuedIdentifiers(row);
+                 refreshRowWarnings();
+-                updateRowNavigator();
++                scheduleDerivedStateRefresh();
+                 markDirty();
+             });
+             syncIssuedIdentifiers(row);
+@@ -799,12 +832,12 @@
+                     autosizeReference(projectReference);
+                 }
+                 refreshRowWarnings();
+-                updateRowNavigator();
++                scheduleDerivedStateRefresh();
+                 markDirty();
+             });
+             picker.addEventListener("arpp:project-cleared", () => {
+                 refreshRowWarnings();
+-                updateRowNavigator();
++                scheduleDerivedStateRefresh();
+                 markDirty();
+             });
+         }
+@@ -840,7 +873,13 @@
+             dfpdsScheduleId: Number(getField(previous, "DfpdsScheduleId")?.value || 0),
+             category: "1"
+         } : { category: "1" });
+-        getField(row, "SerialNumber")?.focus();
++        const firstControl = getField(row, "SerialNumber");
++        window.requestAnimationFrame(() => {
++            window.requestAnimationFrame(() => {
++                updateValidationNavigator(false);
++                scrollRowIntoWorkspace(row, firstControl, false);
++            });
++        });
+     };
  
-@@ -831,7 +832,7 @@
- 
- .project-arpp-table__issued-reference {
-     margin-top: .16rem;
--    color: #718096;
-+    color: var(--arpp-text-muted);
-     font-size: .75rem;
-     line-height: 1.35;
- }
+     const categoryValue = value => {
+@@ -1091,19 +1130,19 @@
+         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
+         refreshRowWarnings();
+         refreshDirtyState();
+-        window.setTimeout(() => updateValidationNavigator(false), 0);
++        scheduleDerivedStateRefresh();
+     });
+     form.addEventListener("change", event => {
+         if (event.target instanceof Element && event.target.closest("[data-arpp-ui-only]")) return;
+         refreshRowWarnings();
+         refreshDirtyState();
+-        window.setTimeout(() => updateValidationNavigator(false), 0);
++        scheduleDerivedStateRefresh();
+     });
+     form.addEventListener("invalid", () => {
+-        window.setTimeout(() => updateValidationNavigator(false), 0);
++        scheduleDerivedStateRefresh();
+     }, true);
+     form.addEventListener("focusout", () => {
+-        window.setTimeout(() => applyRowFilter(false), 0);
++        scheduleDerivedStateRefresh();
+     });
+     form.addEventListener("submit", event => {
+         root.querySelectorAll("[data-arpp-money]").forEach(normaliseMoneyInput);
+@@ -1165,7 +1204,7 @@
+     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
+     root.querySelector("[data-arpp-navigator-toggle]")?.addEventListener("click", () => {
+         if (navigatorMedia.matches) {
+-            setNavigatorOpen(true);
++            setNavigatorOpen(!root.classList.contains("has-navigator-open"));
+             return;
+         }
+         setNavigatorOpen(root.classList.contains("is-navigator-collapsed"));
+@@ -1269,7 +1308,6 @@
+     updateIssueSequence();
+     reindexRows();
+     syncTableScrollbars();
+-    updateRowNavigator();
+     baselineSnapshot = createFormSnapshot();
+     updateValidationNavigator(false);
+     if (serverRejectedChanges) setDirty(true);

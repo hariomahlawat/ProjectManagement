@@ -1153,3 +1153,41 @@ body.arpp-workspace-active {
 .arpp-workspace-v2__table-viewport.is-scrolled-end .arpp-actions-cell {
     box-shadow: -.35rem 0 .65rem rgba(23, 32, 51, .05);
 }
+
+/* Workspace defect stabilisation ---------------------------------- */
+.arpp-workspace-v2__navigator {
+    grid-column: 1;
+}
+
+.arpp-workspace-v2__grid-shell {
+    grid-column: 2;
+}
+
+.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__body {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell {
+    grid-column: 1;
+}
+
+.arpp-workspace-v2__navigator-toggle.is-active {
+    border-color: color-mix(in srgb, var(--arpp-primary) 30%, var(--arpp-border));
+    background: var(--arpp-primary-soft);
+    color: var(--arpp-primary);
+}
+
+.arpp-workspace-v2__table tr.has-validation-issue td:nth-child(2) {
+    box-shadow: inset .18rem 0 0 color-mix(in srgb, var(--arpp-danger) 78%, transparent);
+}
+
+.arpp-workspace-v2__table tr.is-validation-target td:nth-child(2) {
+    box-shadow: inset .28rem 0 0 var(--arpp-danger);
+}
+
+@media (max-width: 1023.98px) {
+    .arpp-workspace-v2__grid-shell,
+    .arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__grid-shell {
+        grid-column: 1;
+    }
+}
