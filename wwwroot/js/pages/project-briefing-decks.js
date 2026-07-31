@@ -76,9 +76,7 @@ if (root) {
   let restoringSettingsSections = false;
   const currentSettingsLayout = () => root.querySelector('input[name="Layout"]:checked')?.value || 'StandardBriefing';
   const settingsSectionStorageKey = () => `${storagePrefix}settingsSections:${currentSettingsLayout()}`;
-  const defaultOpenSettingsSections = () => currentSettingsLayout() === 'ProjectUpdateSheet'
-    ? new Set(['appearance', 'summary'])
-    : new Set(['content']);
+  const defaultOpenSettingsSections = () => new Set(['content']);
 
   const persistSettingsSectionState = () => {
     if (restoringSettingsSections) return;
@@ -111,6 +109,137 @@ if (root) {
 
   settingsCollapsibleSections.forEach((section) => section.addEventListener('toggle', persistSettingsSectionState));
 
+  const updateRowList = root.querySelector('[data-pbd-update-row-list]');
+  const updateRowOrderInput = root.querySelector('[data-pbd-update-row-order]');
+  const updateRowValidation = root.querySelector('[data-pbd-update-rows-validation]');
+  const updateRowSelectAll = root.querySelector('[data-pbd-update-rows-select-all]');
+  const updateRowReset = root.querySelector('[data-pbd-update-rows-reset]');
+  const updateRowInitialOrder = updateRowOrderInput?.value || '';
+  const updateRowRecommendedOrder = updateRowOrderInput?.dataset.recommendedOrder || updateRowInitialOrder;
+  let settingsValid = true;
+  let draggedUpdateRow = null;
+
+  const updateRowElements = () => updateRowList
+    ? [...updateRowList.querySelectorAll('[data-pbd-update-row]')]
+    : [];
+  const selectedUpdateSheetRowKeys = () => new Set(updateRowElements()
+    .filter((row) => row.querySelector('input[name="UpdateSheetRows"]')?.checked)
+    .map((row) => row.dataset.rowKey || '')
+    .filter(Boolean));
+  const updateSheetRowIsSelected = (key) => selectedUpdateSheetRowKeys().has(key);
+
+  const syncUpdateRowOrder = () => {
+    const rows = updateRowElements();
+    if (updateRowOrderInput) {
+      updateRowOrderInput.value = rows.map((row) => row.dataset.rowKey || '').filter(Boolean).join(',');
+    }
+    rows.forEach((row, index) => {
+      row.classList.toggle('is-selected', Boolean(row.querySelector('input[name="UpdateSheetRows"]')?.checked));
+      const up = row.querySelector('[data-pbd-update-row-up]');
+      const down = row.querySelector('[data-pbd-update-row-down]');
+      if (up instanceof HTMLButtonElement) up.disabled = index === 0;
+      if (down instanceof HTMLButtonElement) down.disabled = index === rows.length - 1;
+      row.setAttribute('aria-posinset', String(index + 1));
+      row.setAttribute('aria-setsize', String(rows.length));
+    });
+  };
+
+  const restoreUpdateRowOrder = (orderValue) => {
+    if (!updateRowList) return;
+    const keys = String(orderValue || '').split(',').map((value) => value.trim()).filter(Boolean);
+    const byKey = new Map(updateRowElements().map((row) => [row.dataset.rowKey || '', row]));
+    keys.forEach((key) => {
+      const row = byKey.get(key);
+      if (row) updateRowList.append(row);
+    });
+    byKey.forEach((row, key) => {
+      if (!keys.includes(key)) updateRowList.append(row);
+    });
+    syncUpdateRowOrder();
+  };
+
+  const validateUpdateSheetRows = ({ focus = false } = {}) => {
+    const updateLayout = currentSettingsLayout() === 'ProjectUpdateSheet';
+    const valid = !updateLayout || selectedUpdateSheetRowKeys().size > 0;
+    settingsValid = valid;
+    updateRowValidation?.toggleAttribute('hidden', valid);
+    updateRowList?.classList.toggle('has-validation-error', !valid);
+    updateRowList?.setAttribute('aria-invalid', String(!valid));
+    if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
+    if (!valid && focus) {
+      updateRowElements()[0]?.querySelector('input[name="UpdateSheetRows"]')?.focus();
+    }
+    return valid;
+  };
+
+  const moveUpdateRow = (row, direction) => {
+    if (!updateRowList || !row) return;
+    const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (direction < 0) updateRowList.insertBefore(row, sibling);
+    else updateRowList.insertBefore(sibling, row);
+    syncUpdateRowOrder();
+    refreshSettingsDirtyState();
+  };
+
+  updateRowElements().forEach((row) => {
+    row.draggable = true;
+    row.querySelector('[data-pbd-update-row-up]')?.addEventListener('click', () => moveUpdateRow(row, -1));
+    row.querySelector('[data-pbd-update-row-down]')?.addEventListener('click', () => moveUpdateRow(row, 1));
+    row.querySelector('input[name="UpdateSheetRows"]')?.addEventListener('change', () => {
+      syncUpdateRowOrder();
+      validateUpdateSheetRows();
+      syncPreflightRequirementVisibility();
+    });
+    row.addEventListener('dragstart', (event) => {
+      draggedUpdateRow = row;
+      row.classList.add('is-dragging');
+      event.dataTransfer?.setData('text/plain', row.dataset.rowKey || '');
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      draggedUpdateRow = null;
+      row.classList.remove('is-dragging');
+      updateRowElements().forEach((candidate) => candidate.classList.remove('is-drag-over'));
+      syncUpdateRowOrder();
+      refreshSettingsDirtyState();
+    });
+    row.addEventListener('dragover', (event) => {
+      if (!draggedUpdateRow || draggedUpdateRow === row || !updateRowList) return;
+      event.preventDefault();
+      const rect = row.getBoundingClientRect();
+      const after = event.clientY > rect.top + (rect.height / 2);
+      updateRowList.insertBefore(draggedUpdateRow, after ? row.nextElementSibling : row);
+      row.classList.add('is-drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('is-drag-over'));
+  });
+
+  updateRowSelectAll?.addEventListener('click', () => {
+    updateRowElements().forEach((row) => {
+      const checkbox = row.querySelector('input[name="UpdateSheetRows"]');
+      if (checkbox instanceof HTMLInputElement) checkbox.checked = true;
+    });
+    syncUpdateRowOrder();
+    validateUpdateSheetRows();
+    refreshSettingsDirtyState();
+  });
+
+  updateRowReset?.addEventListener('click', () => {
+    restoreUpdateRowOrder(updateRowRecommendedOrder);
+    updateRowElements().forEach((row) => {
+      const checkbox = row.querySelector('input[name="UpdateSheetRows"]');
+      if (checkbox instanceof HTMLInputElement) checkbox.checked = true;
+    });
+    const hideEmpty = root.querySelector('input[name="HideEmptyUpdateSheetValues"]');
+    if (hideEmpty instanceof HTMLInputElement) hideEmpty.checked = false;
+    syncUpdateRowOrder();
+    validateUpdateSheetRows();
+    refreshSettingsDirtyState();
+  });
+
+  syncUpdateRowOrder();
+
   const serializeSettings = () => {
     if (!(settingsForm instanceof HTMLFormElement)) return '';
     return [...new FormData(settingsForm).entries()]
@@ -123,7 +252,7 @@ if (root) {
   const setSettingsDirty = (dirty) => {
     settingsDirty = dirty;
     settingsDirtyBadge?.toggleAttribute('hidden', !dirty);
-    if (settingsSave) settingsSave.disabled = !dirty;
+    if (settingsSave) settingsSave.disabled = !dirty || !settingsValid;
     if (settingsStatus) {
       settingsStatus.textContent = dirty ? 'Unsaved settings' : 'No unsaved changes';
       settingsStatus.classList.toggle('is-dirty', dirty);
@@ -155,7 +284,9 @@ if (root) {
     if (settingsDirty && !force && !window.confirm('Discard unsaved deck settings?')) return false;
     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
       settingsForm.reset();
+      restoreUpdateRowOrder(updateRowInitialOrder);
       syncTemplateSettings();
+      validateUpdateSheetRows();
       setSettingsDirty(false);
     }
     settingsDrawer.classList.remove('is-open');
@@ -192,6 +323,14 @@ if (root) {
   settingsForm?.addEventListener('input', refreshSettingsDirtyState);
   settingsForm?.addEventListener('change', refreshSettingsDirtyState);
   settingsForm?.addEventListener('submit', (event) => {
+    if (!validateUpdateSheetRows({ focus: true })) {
+      event.preventDefault();
+      if (settingsStatus) {
+        settingsStatus.textContent = 'Select at least one Project Update Sheet information row.';
+        settingsStatus.classList.add('is-dirty');
+      }
+      return;
+    }
     if (!settingsDirty) {
       event.preventDefault();
       return;
@@ -348,7 +487,13 @@ if (root) {
     const value = root.querySelector('input[name="PresentationMode"]:checked')?.value;
     return value === 'DetailedProjects' || value === 'Combined';
   };
-  const includesCostRd = () => isUpdateSheet() || ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
+  const hidesEmptyUpdateRows = () => isUpdateSheet()
+    && Boolean(root.querySelector('input[name="HideEmptyUpdateSheetValues"]')?.checked);
+  const includesStatus = () => !isUpdateSheet()
+    || (updateSheetRowIsSelected('PresentStatus') && !hidesEmptyUpdateRows());
+  const includesCostRd = () => isUpdateSheet()
+    ? updateSheetRowIsSelected('ProjectCost') && !hidesEmptyUpdateRows()
+    : ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
   const includesProliferation = () => !isUpdateSheet() && ['ProliferationOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
   const narrativeMode = () => isUpdateSheet() ? 'ProjectBrief' : (root.querySelector('input[name="NarrativeMode"]:checked')?.value || 'CapabilityOverview');
   const includesCapabilities = () => !isUpdateSheet() && ['CapabilityOverview', 'Both'].includes(narrativeMode());
@@ -356,7 +501,7 @@ if (root) {
 
   const syncPreflightRequirementVisibility = () => {
     const visibility = {
-      status: true,
+      status: includesStatus(),
       'cost-rd': includesCostRd(),
       proliferation: includesProliferation(),
       capability: includesDetailedSlides() && includesCapabilities(),
@@ -375,13 +520,14 @@ if (root) {
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
-    const appearanceTitle = root.querySelector('[data-pbd-settings-appearance-title]');
-    if (appearanceTitle) appearanceTitle.textContent = updateSheet ? 'Header branding' : 'Appearance';
     restoreSettingsSectionState();
+    validateUpdateSheetRows();
     syncPreflightRequirementVisibility();
   };
   root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
     .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
+  root.querySelector('input[name="HideEmptyUpdateSheetValues"]')
+    ?.addEventListener('change', syncPreflightRequirementVisibility);
   syncTemplateSettings();
   settingsInitialState = serializeSettings();
   setSettingsDirty(false);
@@ -498,7 +644,7 @@ if (root) {
     const missingProjectBriefs = total - Number(readiness.projectBriefAvailableCount || 0);
 
     const usedGaps = [];
-    if (missingStatus > 0) usedGaps.push({ icon: 'bi-chat-left-text', label: 'External status', count: missingStatus, filter: 'missing-status' });
+    if (includesStatus() && missingStatus > 0) usedGaps.push({ icon: 'bi-chat-left-text', label: 'External status', count: missingStatus, filter: 'missing-status' });
     if (includesCostRd() && missingCost > 0) usedGaps.push({ icon: 'bi-currency-rupee', label: 'Cost (R&D)', count: missingCost, filter: 'missing-cost-rd' });
     if (includesProliferation() && missingProliferation > 0) usedGaps.push({ icon: 'bi-boxes', label: 'Proliferation cost', count: missingProliferation, filter: 'missing-proliferation' });
     if (includesDetailedSlides() && missingPhoto > 0) usedGaps.push({ icon: 'bi-image', label: 'PowerPoint-ready photograph', count: missingPhoto, filter: 'missing-photo' });
@@ -507,20 +653,37 @@ if (root) {
 
     const additionalGaps = [];
     if (isUpdateSheet(deck)) {
-      const missingArpp = total - Number(readiness.arppDetailsAvailableCount || 0);
-      const missingAon = total - Number(readiness.aonDateAvailableCount || 0);
-      const missingSo = total - Number(readiness.supplyOrderDateAvailableCount || 0);
-      const missingJdp = total - Number(readiness.jdpAvailableCount || 0);
+      const hideEmpty = Boolean(root.querySelector('input[name="HideEmptyUpdateSheetValues"]')?.checked);
+      const projects = deck?.projects || [];
+      const hasText = (value) => Boolean(String(value || '').trim());
+      const hasFirm = (project) => Array.isArray(project?.jdpNames) && project.jdpNames.some(hasText);
+      const hasFundingValue = (project) => hasText(project?.fund) || hasText(project?.dfpdsSchedule) || hasText(project?.cfa);
+      const missingArppNumber = hideEmpty
+        ? 0
+        : total - Number(readiness.arppReferenceAvailableCount || 0);
+      const missingFunding = hideEmpty
+        ? projects.filter((project) => hasFundingValue(project) && !project.hasCompleteArppDetails).length
+        : total - Number(readiness.arppDetailsAvailableCount || 0);
+      const missingAon = hideEmpty ? 0 : total - Number(readiness.aonDateAvailableCount || 0);
+      const missingSo = hideEmpty
+        ? projects.filter((project) => !project.supplyOrderDate && hasFirm(project)).length
+        : total - Number(readiness.supplyOrderDateAvailableCount || 0);
+      const missingJdp = hideEmpty
+        ? projects.filter((project) => Boolean(project.supplyOrderDate) && !hasFirm(project)).length
+        : total - Number(readiness.jdpAvailableCount || 0);
       const missingPdc = Math.max(0, Number(readiness.developmentProjectCount || 0) - Number(readiness.developmentPdcAvailableCount || 0));
-      const missingOfficer = total - Number(readiness.projectOfficerAvailableCount || 0);
-      const missingLine = total - Number(readiness.lineDirectorateAvailableCount || 0);
-      if (missingArpp > 0) additionalGaps.push({ icon: 'bi-journal-text', label: 'Complete ARPP/PPP details', count: missingArpp });
-      if (missingAon > 0) additionalGaps.push({ icon: 'bi-calendar-check', label: 'AoN date', count: missingAon });
-      if (missingSo > 0) additionalGaps.push({ icon: 'bi-calendar2-event', label: 'Supply-order date', count: missingSo });
-      if (missingJdp > 0) additionalGaps.push({ icon: 'bi-building', label: 'Linked JDP', count: missingJdp });
-      if (missingPdc > 0) additionalGaps.push({ icon: 'bi-calendar-x', label: 'Development PDC', count: missingPdc });
-      if (missingOfficer > 0) additionalGaps.push({ icon: 'bi-person-badge', label: 'Project Officer rank and full name', count: missingOfficer });
-      if (missingLine > 0) additionalGaps.push({ icon: 'bi-diagram-3', label: 'Line Directorate', count: missingLine });
+      const missingOfficer = hideEmpty
+        ? projects.filter((project) => hasText(project.projectOfficer) && !project.projectOfficerIsComplete).length
+        : total - Number(readiness.projectOfficerAvailableCount || 0);
+      const missingLine = hideEmpty ? 0 : total - Number(readiness.lineDirectorateAvailableCount || 0);
+      if (updateSheetRowIsSelected('ArppPppNumber') && missingArppNumber > 0) additionalGaps.push({ icon: 'bi-journal-text', label: 'ARPP/PPP number', count: missingArppNumber });
+      if (updateSheetRowIsSelected('FundingAuthority') && missingFunding > 0) additionalGaps.push({ icon: 'bi-bank', label: 'Fund, DFPDS schedule and CFA', count: missingFunding });
+      if (updateSheetRowIsSelected('AonDate') && missingAon > 0) additionalGaps.push({ icon: 'bi-calendar-check', label: 'AoN date', count: missingAon });
+      if (updateSheetRowIsSelected('SupplyOrder') && missingSo > 0) additionalGaps.push({ icon: 'bi-calendar2-event', label: 'Supply-order date', count: missingSo });
+      if (updateSheetRowIsSelected('SupplyOrder') && missingJdp > 0) additionalGaps.push({ icon: 'bi-building', label: 'Linked firm/JDP', count: missingJdp });
+      if (updateSheetRowIsSelected('PdcOrCompletionStatus') && missingPdc > 0) additionalGaps.push({ icon: 'bi-calendar-x', label: 'Development PDC', count: missingPdc });
+      if (updateSheetRowIsSelected('ProjectOfficer') && missingOfficer > 0) additionalGaps.push({ icon: 'bi-person-badge', label: 'Project Officer rank and full name', count: missingOfficer });
+      if (updateSheetRowIsSelected('LineDirectorate') && missingLine > 0) additionalGaps.push({ icon: 'bi-diagram-3', label: 'Line Directorate', count: missingLine });
     }
 
     renderGapList(usedGapList, usedGaps, 'All selected-layout content is available.');
@@ -532,7 +695,7 @@ if (root) {
 
     const projects = deck?.projects || [];
     const affectedProjectCount = projects.filter((project) => {
-      const statusMissing = !String(project.externalStatus || '').trim();
+      const statusMissing = includesStatus() && !String(project.externalStatus || '').trim();
       const costMissing = includesCostRd() && !project.costRd?.isAvailable;
       const proliferationMissing = includesProliferation() && !project.proliferationCost?.isAvailable;
       const photoMissing = includesDetailedSlides() && !project.hasCoverPhoto;

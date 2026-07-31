@@ -168,6 +168,8 @@ public sealed class IndexModel : PageModel
                     IncludeStageSummary = input.IncludeStageSummary,
                     IncludeProjectCategorySummary = input.IncludeProjectCategorySummary,
                     IncludeTechnicalCategorySummary = input.IncludeTechnicalCategorySummary,
+                    UpdateSheetRows = ResolveUpdateSheetRows(input.UpdateSheetRows, input.UpdateSheetRowOrder),
+                    HideEmptyUpdateSheetValues = input.HideEmptyUpdateSheetValues,
                     HandlingMarking = input.HandlingMarking,
                     RowVersion = input.RowVersion
                 },
@@ -518,6 +520,25 @@ public sealed class IndexModel : PageModel
         public string? Description { get; set; }
     }
 
+    private static IReadOnlyList<ProjectBriefingUpdateSheetRow> ResolveUpdateSheetRows(
+        IReadOnlyCollection<ProjectBriefingUpdateSheetRow>? selectedRows,
+        string? orderedRows)
+    {
+        var selected = (selectedRows ?? Array.Empty<ProjectBriefingUpdateSheetRow>())
+            .Where(Enum.IsDefined)
+            .ToHashSet();
+        var ordered = (orderedRows ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => Enum.TryParse<ProjectBriefingUpdateSheetRow>(value, ignoreCase: true, out var row) ? row : (ProjectBriefingUpdateSheetRow?)null)
+            .Where(row => row.HasValue && Enum.IsDefined(row.Value) && selected.Contains(row.Value))
+            .Select(row => row!.Value)
+            .Distinct()
+            .ToList();
+
+        ordered.AddRange(selected.Where(row => !ordered.Contains(row)));
+        return ordered;
+    }
+
     public sealed class SaveDeckSettingsInput
     {
         [Required]
@@ -552,6 +573,12 @@ public sealed class IndexModel : PageModel
         public bool IncludeStageSummary { get; set; }
         public bool IncludeProjectCategorySummary { get; set; }
         public bool IncludeTechnicalCategorySummary { get; set; }
+
+        public List<ProjectBriefingUpdateSheetRow> UpdateSheetRows { get; set; } = new();
+
+        public string? UpdateSheetRowOrder { get; set; }
+
+        public bool HideEmptyUpdateSheetValues { get; set; }
 
         [StringLength(80)]
         [RegularExpression(@"^[^\r\n]*$", ErrorMessage = "The handling/classification marking must be entered on one line.")]

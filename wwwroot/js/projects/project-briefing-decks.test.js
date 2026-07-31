@@ -129,11 +129,9 @@ test('deck settings hide standard-only sections for update sheets and persist co
   assert.match(source, /defaultOpenSettingsSections/);
 });
 
-test('settings drawer uses template-aware appearance naming and compact default section states', () => {
-  assert.match(source, /appearanceTitle/);
-  assert.match(source, /updateSheet \? 'Header branding' : 'Appearance'/);
-  assert.match(source, /ProjectUpdateSheet'[\s\S]*new Set\(\['appearance', 'summary'\]\)/);
-  assert.match(source, /new Set\(\['content'\]\)/);
+test('settings drawer keeps a consistent appearance section and compact default state', () => {
+  assert.doesNotMatch(source, /appearanceTitle\.textContent/);
+  assert.match(source, /defaultOpenSettingsSections = \(\) => new Set\(\['content'\]\)/);
 });
 
 test('readiness indicators expose accessible labels and professional hover-focus tooltips', () => {
@@ -151,4 +149,24 @@ test('unsaved settings protect explicit navigation as well as browser and genera
   assert.match(source, /document\.addEventListener\('submit'/);
   assert.match(source, /beforeunload/);
   assert.match(source, /Save or discard settings before generating/);
+});
+
+
+test('Project Update Sheet rows can be selected, reordered, validated and reset professionally', () => {
+  assert.match(source, /selectedUpdateSheetRowKeys/);
+  assert.match(source, /syncUpdateRowOrder/);
+  assert.match(source, /restoreUpdateRowOrder/);
+  assert.match(source, /validateUpdateSheetRows/);
+  assert.match(source, /data-pbd-update-row-up/);
+  assert.match(source, /data-pbd-update-row-down/);
+  assert.match(source, /dragstart/);
+  assert.match(source, /updateRowRecommendedOrder/);
+});
+
+test('Project Update Sheet preflight follows selected rows and hide-empty policy', () => {
+  assert.match(source, /updateSheetRowIsSelected\('PresentStatus'\)/);
+  assert.match(source, /updateSheetRowIsSelected\('ProjectCost'\)/);
+  assert.match(source, /HideEmptyUpdateSheetValues/);
+  assert.match(source, /arppReferenceAvailableCount/);
+  assert.match(source, /PdcOrCompletionStatus/);
 });

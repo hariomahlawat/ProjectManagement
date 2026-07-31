@@ -66,6 +66,8 @@ public sealed class ProjectBriefingDeckVm
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
+    public ProjectBriefingUpdateSheetOptions UpdateSheetOptions { get; init; }
+        = ProjectBriefingUpdateSheetOptions.Default;
     public string? HandlingMarking { get; init; }
     public string RowVersion { get; init; } = string.Empty;
     public DateTimeOffset UpdatedAtUtc { get; init; }
@@ -110,6 +112,7 @@ public sealed class ProjectBriefingProjectVm
     public DateOnly? AonDate { get; init; }
     public DateOnly? SupplyOrderDate { get; init; }
     public DateOnly? DevelopmentPdcDate { get; init; }
+    public string? CompletionStatusDisplay { get; init; }
     public IReadOnlyList<string> JdpNames { get; init; } = Array.Empty<string>();
     public string? ProjectOfficer { get; init; }
     public bool ProjectOfficerIsComplete { get; init; }
@@ -135,6 +138,7 @@ public sealed class ProjectBriefingReadinessVm
     public int CapabilityOverviewAvailableCount { get; init; }
     public int ProjectBriefAvailableCount { get; init; }
     public int UpdateSheetCoreFactsAvailableCount { get; init; }
+    public int ArppReferenceAvailableCount { get; init; }
     public int ArppDetailsAvailableCount { get; init; }
     public int AonDateAvailableCount { get; init; }
     public int SupplyOrderDateAvailableCount { get; init; }
@@ -229,6 +233,9 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
+    public IReadOnlyList<ProjectBriefingUpdateSheetRow> UpdateSheetRows { get; init; }
+        = ProjectBriefingUpdateSheetOptions.RecommendedRows;
+    public bool HideEmptyUpdateSheetValues { get; init; }
     public string? HandlingMarking { get; init; }
     public string RowVersion { get; init; } = string.Empty;
 }
@@ -258,6 +265,8 @@ public sealed class ProjectBriefingPresentationData
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
+    public ProjectBriefingUpdateSheetOptions UpdateSheetOptions { get; init; }
+        = ProjectBriefingUpdateSheetOptions.Default;
     public string? HandlingMarking { get; init; }
     public DateTimeOffset GeneratedAtUtc { get; init; }
     public IReadOnlyList<ProjectBriefingPresentationProject> Projects { get; init; }
@@ -292,6 +301,7 @@ public sealed class ProjectBriefingPresentationProject
     public DateOnly? AonDate { get; init; }
     public DateOnly? SupplyOrderDate { get; init; }
     public DateOnly? DevelopmentPdcDate { get; init; }
+    public string? CompletionStatusDisplay { get; init; }
     public IReadOnlyList<string> JdpNames { get; init; } = Array.Empty<string>();
     public string? ProjectOfficer { get; init; }
     public string? LineDirectorate { get; init; }

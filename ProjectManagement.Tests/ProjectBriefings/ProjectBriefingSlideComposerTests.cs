@@ -508,6 +508,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         Assert.DoesNotContain("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
         Assert.Contains("Touch Screen Based Simulator", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Name of Project", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("PROJECT COST", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("₹0.74 Cr", text, StringComparison.Ordinal);
         Assert.Contains("ARPP/IR&D/CU/2026-27/14", text, StringComparison.Ordinal);
@@ -520,8 +521,9 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("BRIEF OF THE PROJECT", text, StringComparison.Ordinal);
         Assert.Contains("without expenditure of operational ammunition", text, StringComparison.Ordinal);
         Assert.DoesNotContain("₹0.62 Cr", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("B5122B", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("15181E", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("5B7CFA", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("8F0D21", slide.Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Left formation insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
         Assert.Contains("Right division insignia", slide.Slide.OuterXml, StringComparison.Ordinal);
 
@@ -637,6 +639,158 @@ public sealed class ProjectBriefingSlideComposerTests
         var text = SlideText(slide);
         Assert.Contains("PDC Date", text, StringComparison.Ordinal);
         Assert.DoesNotContain("15 Jan 30", text, StringComparison.Ordinal);
+        var table = Assert.Single(slide.Slide.Descendants<A.Table>());
+        var pdcRow = table.Elements<A.TableRow>()
+            .Single(row => row.Descendants<A.Text>().Any(value => value.Text == "PDC Date"));
+        var pdcCells = pdcRow.Elements<A.TableCell>().ToArray();
+        Assert.Equal(string.Empty, string.Concat(pdcCells[2].Descendants<A.Text>().Select(value => value.Text)));
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_CompletedProjectUsesCompletionStatus()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 704,
+            ProjectName = "Completed Simulator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            LifecycleDisplay = "Completed",
+            PresentStageCode = ProjectBriefingStageOrder.CompletedCode,
+            PresentStage = "Completed",
+            PresentStageOrder = ProjectBriefingStageOrder.Completed,
+            CompletionStatusDisplay = "Project completed on 18 Jun 2026",
+            ProjectBrief = "Completed project brief.",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 704,
+            DeckName = "Completion Rule",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                new[] { ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus },
+                HideEmptyValues: false),
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 31, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, CompletedCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(1, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var text = SlideText(slide);
+        Assert.Contains("Completion Status", text, StringComparison.Ordinal);
+        Assert.Contains("Project completed on 18 Jun 2026", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PDC Date", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_UsesSelectedRowOrderAndHidesUnselectedRows()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 705,
+            ProjectName = "Selectable Rows Project",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.AON,
+            PresentStage = "Acceptance of Necessity",
+            PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            CostRd = new ProjectBriefingCostValue(20_000_000m, ProjectBriefingCostBasis.AoN, "₹2 Cr", "AoN"),
+            ExternalStatus = "AoN accorded.",
+            LineDirectorate = "Inf",
+            ProjectBrief = "Selectable rows project brief.",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 705,
+            DeckName = "Selectable Rows",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                new[]
+                {
+                    ProjectBriefingUpdateSheetRow.LineDirectorate,
+                    ProjectBriefingUpdateSheetRow.PresentStatus,
+                    ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus
+                },
+                HideEmptyValues: false),
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 31, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var table = Assert.Single(slide.Slide.Descendants<A.Table>());
+        var labels = table.Elements<A.TableRow>()
+            .Select(row => string.Concat(row.Elements<A.TableCell>().ElementAt(1).Descendants<A.Text>().Select(text => text.Text)))
+            .ToArray();
+
+        Assert.Equal(new[] { "Line Directorate", "Present Status", "PDC Date" }, labels);
+        Assert.DoesNotContain("Project Cost", labels);
+        Assert.DoesNotContain("Name of Project", labels);
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_HideEmptyStillKeepsEditablePdcRow()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 706,
+            ProjectName = "Editable Blank PDC",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.AON,
+            PresentStage = "Acceptance of Necessity",
+            PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            ProjectBrief = "Brief.",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 706,
+            DeckName = "Hide Empty",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                new[]
+                {
+                    ProjectBriefingUpdateSheetRow.ProjectCost,
+                    ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus
+                },
+                HideEmptyValues: true),
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 31, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var text = SlideText(slide);
+        Assert.Contains("PDC Date", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Project Cost", text, StringComparison.Ordinal);
     }
 
     [Fact]

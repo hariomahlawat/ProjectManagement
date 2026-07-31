@@ -2710,3 +2710,198 @@ body.pbd-settings-drawer-open {
         grid-row: 1 / 4;
     }
 }
+
+/* Adaptive Project Update Sheet composition controls */
+.pbd-update-sheet-composition {
+    display: grid;
+    gap: .65rem;
+}
+
+.pbd-update-sheet-composition__intro {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .8rem;
+}
+
+.pbd-update-sheet-composition__intro > div:first-child {
+    display: grid;
+    min-width: 0;
+    gap: .14rem;
+}
+
+.pbd-update-sheet-composition__intro strong {
+    color: var(--pbd-ink);
+    font-size: .76rem;
+}
+
+.pbd-update-sheet-composition__intro small,
+.pbd-update-row-option label small,
+.pbd-update-sheet-hide-empty small {
+    color: var(--pbd-muted);
+    font-size: .63rem;
+    line-height: 1.35;
+}
+
+.pbd-update-sheet-composition__actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: .35rem;
+}
+
+.pbd-update-row-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .42rem;
+    padding: .45rem;
+    border: 1px solid #dce4ef;
+    border-radius: .58rem;
+    background: #f8fafd;
+}
+
+.pbd-update-row-list.has-validation-error {
+    border-color: #d92d48;
+    box-shadow: 0 0 0 3px rgba(217, 45, 72, .08);
+}
+
+.pbd-update-row-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    min-width: 0;
+    min-height: 3.35rem;
+    gap: .35rem;
+    padding: .4rem .42rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .5rem;
+    background: #fff;
+    transition: border-color .14s ease, background .14s ease, box-shadow .14s ease, opacity .14s ease;
+}
+
+.pbd-update-row-option.is-selected {
+    border-color: #a8c4f8;
+    background: #f2f6ff;
+}
+
+.pbd-update-row-option.is-dragging {
+    opacity: .56;
+    box-shadow: 0 .45rem 1rem rgba(15, 23, 42, .12);
+}
+
+.pbd-update-row-option.is-drag-over {
+    border-color: var(--pbd-blue);
+}
+
+.pbd-update-row-option__handle {
+    display: grid;
+    width: 1.25rem;
+    height: 2rem;
+    place-items: center;
+    color: #8a98ad;
+    cursor: grab;
+}
+
+.pbd-update-row-option:active .pbd-update-row-option__handle {
+    cursor: grabbing;
+}
+
+.pbd-update-row-option label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    min-width: 0;
+    gap: .45rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.pbd-update-row-option label > span {
+    display: grid;
+    min-width: 0;
+    gap: .08rem;
+}
+
+.pbd-update-row-option label strong {
+    overflow: hidden;
+    color: #24364f;
+    font-size: .7rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+}
+
+.pbd-update-row-option label input {
+    margin: 0;
+    accent-color: var(--pbd-blue);
+}
+
+.pbd-update-row-option__move {
+    display: flex;
+    gap: .16rem;
+}
+
+.pbd-update-row-option__move .btn {
+    display: grid;
+    width: 1.75rem;
+    height: 1.75rem;
+    place-items: center;
+    padding: 0;
+    border-color: #e3e8f0;
+    background: #fff;
+    color: #526174;
+}
+
+.pbd-update-row-option__move .btn:disabled {
+    opacity: .32;
+}
+
+.pbd-update-sheet-hide-empty {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .5rem;
+    margin: 0;
+    padding: .48rem .58rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .5rem;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pbd-update-sheet-hide-empty > span {
+    display: grid;
+    gap: .08rem;
+}
+
+.pbd-update-sheet-hide-empty strong {
+    color: #344054;
+    font-size: .7rem;
+}
+
+.pbd-update-sheet-composition__validation {
+    margin: -.15rem 0 0;
+    color: #c81e3a;
+    font-size: .66rem;
+    font-weight: 700;
+}
+
+@media (max-width: 960px) {
+    .pbd-update-row-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 760px) {
+    .pbd-update-sheet-composition__intro {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .pbd-update-sheet-composition__actions,
+    .pbd-update-sheet-composition__actions .btn {
+        width: 100%;
+    }
+
+    .pbd-update-sheet-composition__actions .btn {
+        flex: 1 1 0;
+    }
+}

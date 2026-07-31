@@ -1,33 +1,57 @@
-# Project Briefing Deck — Settings Density Refinement
+# PRISM Project Briefing Deck — Adaptive Project Update Sheets
+
+This package is ready to paste over the latest PRISM source used for this implementation.
+
+## Scope
+
+The package adds a production-oriented Project Update Sheet configuration without changing the database schema:
+
+- Project Update Sheets support **Editorial Light** and **Graphite Dark** themes.
+- The facts table is user-configurable: rows can be selected, reordered, reset and optionally hidden when completely empty.
+- Project name remains the slide title and is no longer duplicated in the facts table.
+- Slide geometry adapts to the selected and visible facts rows.
+- The PDC/completion row resolves contextually:
+  - ongoing + Development: recorded PDC, otherwise a blank editable cell;
+  - ongoing + another stage: blank editable PDC cell;
+  - completed: `Completion Status` with `Project completed` and the recorded completion date/precision when available;
+  - cancelled: `Project Status` with `Project cancelled`.
+- Preflight follows the selected rows and the hide-empty policy.
+- Existing legacy deck selection-rule JSON is read safely and upgraded only when deck settings are saved.
 
 ## Apply
 
-Copy the five project-relative replacement files into the project root, preserving their folders. Review `REPLACEMENT-MANIFEST.txt` before copying.
+1. Back up the solution.
+2. Extract this ZIP into the solution root—the folder that contains `ProjectManagement.csproj`.
+3. Allow the listed files to overwrite the existing files.
+4. New files must also be copied:
+   - `Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs`
+   - `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs`
+5. No EF migration or database update is required.
+6. Build and test locally:
 
-Alternatively, apply `IMPLEMENTATION.patch` from the project root:
-
-```bash
-git apply IMPLEMENTATION.patch
-```
-
-## What changes
-
-- Standard Briefing `Deck format` and `Project content` choices use three equal columns in the settings drawer.
-- Editorial Light and Graphite Dark are compared side by side.
-- Header-branding choices use one compact three-column row.
-- Project Update Sheets labels the section `Header branding`; Standard Briefing labels it `Appearance`.
-- Standard Briefing opens only `Content and layout` by default; secondary sections remain collapsed unless restored from the current session.
-- `Handling / classification marking` is shortened to `Classification marking (optional)`.
-- Mobile/narrow drawers continue to stack all choices into one column.
-- Existing template-specific settings, dirty-state protection, drawer state memory, project ordering, readiness logic, and PowerPoint generation are preserved.
-
-## Local verification
-
-```bash
-node --check wwwroot/js/pages/project-briefing-decks.js
-node --test wwwroot/js/projects/project-briefing-decks.test.js
+```powershell
+dotnet restore
 dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The package was produced without database changes.
+7. Restart the application and perform a hard browser refresh.
+
+## Acceptance checks
+
+- Open a Project Update Sheet deck and verify both theme choices.
+- Select and reorder facts rows, save, reopen and confirm the order persists.
+- Generate a completed project: the row must show `Completion Status` and `Project completed...`.
+- Generate an ongoing Development project: the PDC row must show its recorded PDC or remain blank.
+- Generate an ongoing non-Development project: the PDC row must remain present with a blank editable value.
+- Enable **Hide fields with no recorded value**: fully empty optional rows disappear, partially completed rows remain reportable, and PDC/completion remains present.
+- Confirm no document-level horizontal scrollbar appears in the builder/settings drawer.
+
+## Alternate application method
+
+`IMPLEMENTATION.patch` contains the same changes and can be applied from the solution root:
+
+```bash
+git apply --check IMPLEMENTATION.patch
+git apply IMPLEMENTATION.patch
+```

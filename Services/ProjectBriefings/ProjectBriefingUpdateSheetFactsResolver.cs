@@ -26,11 +26,14 @@ public sealed record ProjectBriefingUpdateSheetFacts(
     string? LineDirectorate,
     bool IsDelistedArppPosition)
 {
-    public bool HasCompleteArppDetails =>
-        (IsDelistedArppPosition || !string.IsNullOrWhiteSpace(ArppReference))
-        && !string.IsNullOrWhiteSpace(Fund)
+    public bool HasCompleteFundingAuthorityDetails =>
+        !string.IsNullOrWhiteSpace(Fund)
         && !string.IsNullOrWhiteSpace(DfpdsSchedule)
         && !string.IsNullOrWhiteSpace(Cfa);
+
+    public bool HasCompleteArppDetails =>
+        (IsDelistedArppPosition || !string.IsNullOrWhiteSpace(ArppReference))
+        && HasCompleteFundingAuthorityDetails;
 }
 
 /// <summary>

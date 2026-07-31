@@ -44,6 +44,23 @@ public enum ProjectBriefingBrandingScope
     AllSlides = 2
 }
 
+/// <summary>
+/// Logical information rows available on each formal Project Update Sheet.
+/// Project name is always rendered as the slide title and is therefore not a selectable table row.
+/// </summary>
+public enum ProjectBriefingUpdateSheetRow
+{
+    ProjectCost = 1,
+    ArppPppNumber = 2,
+    FundingAuthority = 3,
+    AonDate = 4,
+    SupplyOrder = 5,
+    PdcOrCompletionStatus = 6,
+    PresentStatus = 7,
+    ProjectOfficer = 8,
+    LineDirectorate = 9
+}
+
 public sealed class ProjectBriefingDeck
 {
     public long Id { get; set; }

@@ -1,15 +1,20 @@
-Validation performed in the generation environment:
+PRISM Project Briefing Deck — Adaptive Project Update Sheets
+Validation summary
 
-PASS  JavaScript syntax: node --check
-PASS  Targeted JavaScript tests: 21/21
-PASS  CSS brace balance: 493 opening / 493 closing
-PASS  Patch clean-application check against the immediately preceding Final Workflow Polish package
-PASS  Patched files reproduce replacement files byte-for-byte
-PASS  ZIP integrity
-PASS  Replacement scope limited to Razor, CSS, JavaScript and contract tests
+PASSED
+- git diff whitespace/error check
+- JavaScript syntax check with Node.js
+- 23 targeted JavaScript contract tests
+- ProjectManagement.Tests.csproj XML parse
+- Razor structural counts for details/section/fieldset/form/aside/div
+- C# delimiter/state scan over every changed and added C# file
+- Clean patch applicability against the exact baseline commit
+- Byte-for-byte comparison of every patched file with the packaged replacement file
+- ZIP integrity test
+- Confirmed that no migration file or database model column was added
 
-Not run:
+NOT RUN IN THIS ENVIRONMENT
 - .NET Release build
-- xUnit suite
+- xUnit/.NET test suite
 
-Reason: the .NET SDK is not installed in the generation environment.
+Reason: the .NET SDK is not installed in the execution environment. Run the commands in README-APPLY-FIRST.md after replacement.

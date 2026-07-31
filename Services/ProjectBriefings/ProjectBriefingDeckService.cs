@@ -285,6 +285,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.NarrativeMode,
             command.PresentationTheme,
             command.BrandingScope);
+        var updateSheetOptions = ValidateUpdateSheetOptions(
+            command.UpdateSheetRows,
+            command.HideEmptyUpdateSheetValues);
         var normalizedName = NormalizeName(command.Name);
         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
 
@@ -307,6 +310,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.IncludeStageSummary = command.IncludeStageSummary;
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(
+            deck.SelectionRulesJson,
+            updateSheetOptions);
         deck.HandlingMarking = NormalizeMarking(command.HandlingMarking);
         Touch(deck, userId);
 
@@ -355,7 +361,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         if (!string.IsNullOrWhiteSpace(selectionRulesJson))
         {
-            deck.SelectionRulesJson = selectionRulesJson;
+            deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(
+                deck.SelectionRulesJson,
+                selectionRulesJson);
         }
         Touch(deck, userId);
 
@@ -628,6 +636,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string message,
         IDictionary<string, string?>? extra = null)
     {
+        var updateSheetOptions = ProjectBriefingDeckConfigurationCodec
+            .Read(deck.SelectionRulesJson)
+            .UpdateSheetOptions;
         var data = new Dictionary<string, string?>
         {
             ["DeckId"] = deck.Id.ToString(),
@@ -639,7 +650,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["PresentationTheme"] = deck.PresentationTheme.ToString(),
             ["BrandingScope"] = deck.BrandingScope.ToString(),
             ["IncludeCoverSlide"] = deck.IncludeCoverSlide.ToString(),
-            ["IncludePortfolioSummarySlide"] = deck.IncludePortfolioSummarySlide.ToString()
+            ["IncludePortfolioSummarySlide"] = deck.IncludePortfolioSummarySlide.ToString(),
+            ["UpdateSheetRows"] = string.Join(",", updateSheetOptions.Rows),
+            ["HideEmptyUpdateSheetValues"] = updateSheetOptions.HideEmptyValues.ToString()
         };
         if (extra is not null)
         {
@@ -707,6 +720,22 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         {
             throw new InvalidOperationException("The presentation template, deck format, project content, theme or branding setting is invalid.");
         }
+    }
+
+    private static ProjectBriefingUpdateSheetOptions ValidateUpdateSheetOptions(
+        IReadOnlyList<ProjectBriefingUpdateSheetRow>? rows,
+        bool hideEmptyValues)
+    {
+        var selected = (rows ?? Array.Empty<ProjectBriefingUpdateSheetRow>())
+            .Where(Enum.IsDefined)
+            .Distinct()
+            .ToArray();
+        if (selected.Length == 0)
+        {
+            throw new InvalidOperationException("Select at least one information row for Project Update Sheets.");
+        }
+
+        return new ProjectBriefingUpdateSheetOptions(selected, hideEmptyValues);
     }
 
     private static string NormalizeUserId(string value)

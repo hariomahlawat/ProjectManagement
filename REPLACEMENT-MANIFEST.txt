@@ -1,9 +1,17 @@
-Replace these project-relative files:
-
+Models/ProjectBriefings/ProjectBriefingDeck.cs
 Pages/Workspace/BriefingDecks/Index.cshtml
+Pages/Workspace/BriefingDecks/Index.cshtml.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectManagement.Tests.csproj
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+Services/ProjectBriefings/ProjectBriefingContracts.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
+Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+Services/ProjectBriefings/ProjectBriefingDeckService.cs
+Services/ProjectBriefings/ProjectBriefingUpdateSheetFactsResolver.cs
 wwwroot/css/pages/project-briefing-decks.css
 wwwroot/js/pages/project-briefing-decks.js
 wwwroot/js/projects/project-briefing-decks.test.js
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-
-No database migration, entity, service, project-selection, ordering, or PowerPoint-generation file is included.

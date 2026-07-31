@@ -60,7 +60,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
-        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, cancellationToken);
+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
         return new ProjectBriefingDeckVm
         {
             Id = snapshot.Id,
@@ -77,6 +77,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             IncludeStageSummary = snapshot.IncludeStageSummary,
             IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
+            UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
             RowVersion = Encode(snapshot.RowVersion),
             UpdatedAtUtc = snapshot.UpdatedAtUtc,
@@ -97,7 +98,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
-        var projectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, cancellationToken);
+        var projectVms = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
         if (projectVms.Count == 0)
         {
             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
@@ -131,6 +132,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 AonDate = project.AonDate,
                 SupplyOrderDate = project.SupplyOrderDate,
                 DevelopmentPdcDate = project.DevelopmentPdcDate,
+                CompletionStatusDisplay = project.CompletionStatusDisplay,
                 JdpNames = project.JdpNames,
                 ProjectOfficer = project.ProjectOfficer,
                 LineDirectorate = project.LineDirectorate,
@@ -153,15 +155,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             NarrativeMode = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
                 ? ProjectBriefingNarrativeMode.ProjectBrief
                 : snapshot.NarrativeMode,
-            PresentationTheme = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-                ? ProjectBriefingPresentationTheme.EditorialLight
-                : snapshot.PresentationTheme,
+            PresentationTheme = snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
             IncludeStageSummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeStageSummary,
             IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeTechnicalCategorySummary,
+            UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
             Projects = projects,
@@ -198,6 +199,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 candidate.IncludeStageSummary,
                 candidate.IncludeProjectCategorySummary,
                 candidate.IncludeTechnicalCategorySummary,
+                candidate.SelectionRulesJson,
                 candidate.HandlingMarking,
                 candidate.UpdatedAtUtc,
                 candidate.OwnerUser.FullName != string.Empty
@@ -217,6 +219,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
+        var updateSheetOptions = ProjectBriefingDeckConfigurationCodec
+            .Read(deck.SelectionRulesJson)
+            .UpdateSheetOptions;
+
         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
             .AsNoTracking()
             .Where(item => item.DeckId == deckId)
@@ -231,6 +237,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.Project.Description,
                 item.Project.ProjectBrief,
                 item.Project.LifecycleStatus,
+                item.Project.CompletedOn,
+                item.Project.CompletedYear,
+                item.Project.CompletedMonth,
                 item.Project.IsDeleted,
                 item.Project.IsArchived,
                 item.Project.WorkflowVersion,
@@ -256,6 +265,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.IncludeStageSummary,
                 deck.IncludeProjectCategorySummary,
                 deck.IncludeTechnicalCategorySummary,
+                updateSheetOptions,
                 deck.HandlingMarking,
                 deck.UpdatedAtUtc,
                 deck.CreatedByDisplay,
@@ -335,6 +345,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.ProjectDescription,
                 item.ProjectBrief,
                 item.LifecycleStatus,
+                item.CompletedOn,
+                item.CompletedYear,
+                item.CompletedMonth,
                 item.IsDeleted,
                 item.IsArchived,
                 item.WorkflowVersion,
@@ -361,6 +374,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.IncludeStageSummary,
             deck.IncludeProjectCategorySummary,
             deck.IncludeTechnicalCategorySummary,
+            updateSheetOptions,
             deck.HandlingMarking,
             deck.UpdatedAtUtc,
             deck.CreatedByDisplay,
@@ -372,6 +386,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private async Task<IReadOnlyList<ProjectBriefingProjectVm>> BuildProjectsAsync(
         IReadOnlyList<DeckItemSnapshot> items,
         ProjectBriefingLayout layout,
+        ProjectBriefingUpdateSheetOptions updateSheetOptions,
         CancellationToken cancellationToken)
     {
         if (items.Count == 0)
@@ -410,15 +425,18 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 var stageCode = ResolveStageCode(item);
                 updateSheetFacts.TryGetValue(item.ProjectId, out var updateFacts);
                 var requiresDevelopmentPdc = string.Equals(stageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase);
-                var hasCompleteArppDetails = updateFacts?.HasCompleteArppDetails == true;
-                var updateSheetCoreFactsReady = updateFacts is not null
-                    && hasCompleteArppDetails
-                    && updateFacts.AonDate.HasValue
-                    && updateFacts.SupplyOrderDate.HasValue
-                    && updateFacts.JdpNames.Count > 0
-                    && updateFacts.ProjectOfficerIsComplete
-                    && !string.IsNullOrWhiteSpace(updateFacts.LineDirectorate)
-                    && (!requiresDevelopmentPdc || updateFacts.DevelopmentPdcDate.HasValue);
+                var hasCompleteArppDetails = updateFacts?.HasCompleteFundingAuthorityDetails == true;
+                var resolvedCostRd = costRd.GetValueOrDefault(item.ProjectId)
+                    ?? ProjectBriefingCostValue.Missing();
+                var resolvedExternalStatus = external?.Body;
+                var updateSheetCoreFactsReady = layout != ProjectBriefingLayout.ProjectUpdateSheet
+                    || AreSelectedUpdateSheetRowsReady(
+                        updateSheetOptions,
+                        item.LifecycleStatus,
+                        requiresDevelopmentPdc,
+                        resolvedCostRd,
+                        resolvedExternalStatus,
+                        updateFacts);
                 return new ProjectBriefingProjectVm
                 {
                     ProjectId = item.ProjectId,
@@ -430,7 +448,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),
                     ProjectCategory = item.ProjectCategory,
                     TechnicalCategory = item.TechnicalCategory,
-                    CostRd = costRd.GetValueOrDefault(item.ProjectId) ?? ProjectBriefingCostValue.Missing(),
+                    CostRd = resolvedCostRd,
                     IpaCost = ipaCost.GetValueOrDefault(item.ProjectId)
                         ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.IPA),
                     ProliferationCost = proliferation.GetValueOrDefault(item.ProjectId)
@@ -457,6 +475,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     AonDate = updateFacts?.AonDate,
                     SupplyOrderDate = updateFacts?.SupplyOrderDate,
                     DevelopmentPdcDate = requiresDevelopmentPdc ? updateFacts?.DevelopmentPdcDate : null,
+                    CompletionStatusDisplay = BuildCompletionStatusDisplay(item),
                     JdpNames = updateFacts?.JdpNames ?? Array.Empty<string>(),
                     ProjectOfficer = updateFacts?.ProjectOfficer,
                     ProjectOfficerIsComplete = updateFacts?.ProjectOfficerIsComplete == true,
@@ -470,6 +489,88 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             });
 
         return ProjectBriefingProjectOrdering.OrderProjects(projectedProjects);
+    }
+
+
+    private static bool AreSelectedUpdateSheetRowsReady(
+        ProjectBriefingUpdateSheetOptions options,
+        ProjectLifecycleStatus lifecycleStatus,
+        bool requiresDevelopmentPdc,
+        ProjectBriefingCostValue costRd,
+        string? externalStatus,
+        ProjectBriefingUpdateSheetFacts? facts)
+    {
+        foreach (var row in options.Rows)
+        {
+            var ready = row switch
+            {
+                ProjectBriefingUpdateSheetRow.ProjectCost => costRd.IsAvailable,
+                ProjectBriefingUpdateSheetRow.ArppPppNumber => facts?.IsDelistedArppPosition == true
+                    || !string.IsNullOrWhiteSpace(facts?.ArppReference),
+                ProjectBriefingUpdateSheetRow.FundingAuthority => facts?.HasCompleteFundingAuthorityDetails == true,
+                ProjectBriefingUpdateSheetRow.AonDate => facts?.AonDate.HasValue == true,
+                ProjectBriefingUpdateSheetRow.SupplyOrder => facts is not null
+                    && facts.SupplyOrderDate.HasValue
+                    && facts.JdpNames.Count > 0,
+                ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus => lifecycleStatus is ProjectLifecycleStatus.Completed
+                    or ProjectLifecycleStatus.Cancelled
+                    || !requiresDevelopmentPdc
+                    || facts?.DevelopmentPdcDate.HasValue == true,
+                ProjectBriefingUpdateSheetRow.PresentStatus => !string.IsNullOrWhiteSpace(externalStatus),
+                ProjectBriefingUpdateSheetRow.ProjectOfficer => facts?.ProjectOfficerIsComplete == true,
+                ProjectBriefingUpdateSheetRow.LineDirectorate => !string.IsNullOrWhiteSpace(facts?.LineDirectorate),
+                _ => true
+            };
+
+            // Hidden rows suppress only wholly empty optional values. Partially populated rows remain
+            // visible and must still be reported as incomplete. The contextual PDC/completion row is
+            // always retained, so a missing Development-stage PDC also continues to need attention.
+            var rowWillRender = row switch
+            {
+                ProjectBriefingUpdateSheetRow.ProjectCost => costRd.IsAvailable,
+                ProjectBriefingUpdateSheetRow.ArppPppNumber => facts?.IsDelistedArppPosition != true
+                    && !string.IsNullOrWhiteSpace(facts?.ArppReference),
+                ProjectBriefingUpdateSheetRow.FundingAuthority => facts is not null
+                    && (!string.IsNullOrWhiteSpace(facts.Fund)
+                        || !string.IsNullOrWhiteSpace(facts.DfpdsSchedule)
+                        || !string.IsNullOrWhiteSpace(facts.Cfa)),
+                ProjectBriefingUpdateSheetRow.AonDate => facts?.AonDate.HasValue == true,
+                ProjectBriefingUpdateSheetRow.SupplyOrder => facts is not null
+                    && (facts.SupplyOrderDate.HasValue || facts.JdpNames.Count > 0),
+                ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus => true,
+                ProjectBriefingUpdateSheetRow.PresentStatus => !string.IsNullOrWhiteSpace(externalStatus),
+                ProjectBriefingUpdateSheetRow.ProjectOfficer => !string.IsNullOrWhiteSpace(facts?.ProjectOfficer),
+                ProjectBriefingUpdateSheetRow.LineDirectorate => !string.IsNullOrWhiteSpace(facts?.LineDirectorate),
+                _ => false
+            };
+
+            if (!ready && (!options.HideEmptyValues || rowWillRender))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string? BuildCompletionStatusDisplay(DeckItemSnapshot item)
+    {
+        if (item.LifecycleStatus != ProjectLifecycleStatus.Completed) return null;
+
+        var completion = ProjectCompletionFormatter.Format(
+            item.CompletedOn,
+            item.CompletedYear,
+            item.CompletedMonth,
+            unknownText: string.Empty);
+        if (string.IsNullOrWhiteSpace(completion)) return "Project completed";
+
+        var precision = ProjectCompletionFormatter.InferPrecision(
+            item.CompletedOn,
+            item.CompletedYear,
+            item.CompletedMonth);
+        return precision == ProjectCompletionPrecision.ExactDate
+            ? $"Project completed on {completion}"
+            : $"Project completed in {completion}";
     }
 
     private static string ResolveLifecycleDisplay(DeckItemSnapshot item)
@@ -499,6 +600,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             CapabilityOverviewAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription)),
             ProjectBriefAvailableCount = projects.Count(project => HasProjectBrief(project.ProjectBrief)),
             UpdateSheetCoreFactsAvailableCount = projects.Count(project => project.IsUpdateSheetCoreFactsReady),
+            ArppReferenceAvailableCount = projects.Count(project => !project.ArppPppNumberApplicable || !string.IsNullOrWhiteSpace(project.ArppReference)),
             ArppDetailsAvailableCount = projects.Count(project => project.HasCompleteArppDetails),
             AonDateAvailableCount = projects.Count(project => project.AonDate.HasValue),
             SupplyOrderDateAvailableCount = projects.Count(project => project.SupplyOrderDate.HasValue),
@@ -708,6 +810,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool IncludeStageSummary,
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,
+        string? SelectionRulesJson,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
         string CreatedByDisplay,
@@ -723,6 +826,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? ProjectDescription,
         string? ProjectBrief,
         ProjectLifecycleStatus LifecycleStatus,
+        DateOnly? CompletedOn,
+        int? CompletedYear,
+        short? CompletedMonth,
         bool IsDeleted,
         bool IsArchived,
         string WorkflowVersion,
@@ -745,6 +851,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool IncludeStageSummary,
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,
+        ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
         string CreatedByDisplay,
@@ -761,6 +868,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? ProjectDescription,
         string? ProjectBrief,
         ProjectLifecycleStatus LifecycleStatus,
+        DateOnly? CompletedOn,
+        int? CompletedYear,
+        short? CompletedMonth,
         bool IsDeleted,
         bool IsArchived,
         string WorkflowVersion,

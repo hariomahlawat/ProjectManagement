@@ -68,10 +68,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             }
 
             uint nextSlideId = 256;
-            var theme = ProjectBriefingThemeCatalog.Resolve(
-                data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
-                    ? ProjectBriefingPresentationTheme.EditorialLight
-                    : data.PresentationTheme);
+            var theme = ProjectBriefingThemeCatalog.Resolve(data.PresentationTheme);
             var branding = new ProjectBriefingBrandingAssets(
                 ReadAsset(_leftLogoPath),
                 ReadAsset(_rightLogoPath));

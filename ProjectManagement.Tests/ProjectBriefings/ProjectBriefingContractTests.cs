@@ -89,7 +89,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("data-pbd-settings-appearance-title", page, StringComparison.Ordinal);
         Assert.Contains("Classification marking <small>optional</small>", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Handling / classification marking", page, StringComparison.Ordinal);
-        Assert.Contains("appearanceTitle.textContent = updateSheet ? 'Header branding' : 'Appearance'", script, StringComparison.Ordinal);
+        Assert.Contains("Presentation theme", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("appearanceTitle.textContent", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
         Assert.Contains(".pbd-settings-drawer .pbd-theme-cards", css, StringComparison.Ordinal);
@@ -144,7 +145,9 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("Project Update Sheets", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectUpdateSheet\"", page, StringComparison.Ordinal);
-        Assert.Contains("Project Cost is always the authoritative R&amp;D cost", page, StringComparison.Ordinal);
+        Assert.Contains("Information shown on each project sheet", page, StringComparison.Ordinal);
+        Assert.Contains("Project name remains the slide title", page, StringComparison.Ordinal);
+        Assert.Contains("Hide fields with no recorded value", page, StringComparison.Ordinal);
         Assert.Contains("Include cover slide", page, StringComparison.Ordinal);
         Assert.Contains("Include portfolio-summary slide", page, StringComparison.Ordinal);
 
@@ -184,6 +187,35 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("TOTAL R&D COST", composer, StringComparison.Ordinal);
         Assert.Contains("TOTAL IPA COST", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingLayout.ProjectUpdateSheet", composer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectUpdateSheet_SupportsThemeAndAdaptiveSelectableRowsWithoutMigration()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var css = Read("project-briefing-decks.css");
+        var dataSource = Read("ProjectBriefingDataService.cs");
+        var service = Read("ProjectBriefingDeckService.cs");
+        var composer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
+
+        Assert.Contains("name=\"PresentationTheme\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"UpdateSheetRows\"", page, StringComparison.Ordinal);
+        Assert.Contains("UpdateSheetRowOrder", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-update-row-list", page, StringComparison.Ordinal);
+        Assert.Contains("selectedUpdateSheetRowKeys", script, StringComparison.Ordinal);
+        Assert.Contains("restoreUpdateRowOrder", script, StringComparison.Ordinal);
+        Assert.Contains("validateUpdateSheetRows", script, StringComparison.Ordinal);
+        Assert.Contains(".pbd-update-row-list", css, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions", service, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithSelectionRules", service, StringComparison.Ordinal);
+        Assert.Contains("SelectionRulesJson", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ResolveProjectUpdateRows", composer, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp", composer, StringComparison.Ordinal);
+        Assert.Contains("Completion Status", composer, StringComparison.Ordinal);
+        Assert.Contains("Project completed", composer, StringComparison.Ordinal);
+        Assert.Contains("StageCodes.DEVP", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("Name of Project", composer, StringComparison.Ordinal);
     }
 
     [Fact]

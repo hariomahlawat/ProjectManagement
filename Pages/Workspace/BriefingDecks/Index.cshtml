@@ -40,14 +40,57 @@
         ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
         _ => "Presentation theme"
     };
+    var selectedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows).ToHashSet();
+    var orderedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows)
+        .Concat(ProjectBriefingUpdateSheetOptions.RecommendedRows)
+        .Distinct()
+        .ToArray();
+    var updateSheetRowOrder = string.Join(",", orderedUpdateSheetRows);
+    string UpdateSheetRowLabel(ProjectBriefingUpdateSheetRow row) => row switch
+    {
+        ProjectBriefingUpdateSheetRow.ProjectCost => "Project cost",
+        ProjectBriefingUpdateSheetRow.ArppPppNumber => "ARPP/PPP number",
+        ProjectBriefingUpdateSheetRow.FundingAuthority => "Fund, DFPDS schedule and CFA",
+        ProjectBriefingUpdateSheetRow.AonDate => "AoN date",
+        ProjectBriefingUpdateSheetRow.SupplyOrder => "Supply-order date and firm",
+        ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus => "PDC / completion status",
+        ProjectBriefingUpdateSheetRow.PresentStatus => "Present status",
+        ProjectBriefingUpdateSheetRow.ProjectOfficer => "Project Officer",
+        ProjectBriefingUpdateSheetRow.LineDirectorate => "Line Directorate",
+        _ => row.ToString()
+    };
+    string UpdateSheetRowDescription(ProjectBriefingUpdateSheetRow row) => row switch
+    {
+        ProjectBriefingUpdateSheetRow.ProjectCost => "Authoritative R&D cost",
+        ProjectBriefingUpdateSheetRow.ArppPppNumber => "Latest published ARPP/PPP reference",
+        ProjectBriefingUpdateSheetRow.FundingAuthority => "Combined in one compact row",
+        ProjectBriefingUpdateSheetRow.AonDate => "Recorded approval-of-necessity date",
+        ProjectBriefingUpdateSheetRow.SupplyOrder => "SO date and linked firm/JDP",
+        ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus => "Development-stage PDC; blank editable cell at other ongoing stages; completion status when completed",
+        ProjectBriefingUpdateSheetRow.PresentStatus => "Latest external status or editable placeholder",
+        ProjectBriefingUpdateSheetRow.ProjectOfficer => "Rank and full name where recorded",
+        ProjectBriefingUpdateSheetRow.LineDirectorate => "Responsible line directorate",
+        _ => string.Empty
+    };
     var standardIncludesDetailedSlides = deck?.PresentationMode
         is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
     var standardIncludesCostRd = deck?.CostMode
         is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
     var standardIncludesProliferationCost = deck?.CostMode
         is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+    var hideEmptyUpdateSheetValues = isUpdateSheet && (deck?.UpdateSheetOptions.HideEmptyValues ?? false);
+    var updateNeedsStatus = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.PresentStatus);
+    var updateNeedsCost = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.ProjectCost);
+    var updateNeedsArppNumber = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.ArppPppNumber);
+    var updateNeedsFunding = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.FundingAuthority);
+    var updateNeedsAon = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.AonDate);
+    var updateNeedsSupplyOrder = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.SupplyOrder);
+    var updateNeedsPdc = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus);
+    var updateNeedsProjectOfficer = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.ProjectOfficer);
+    var updateNeedsLineDirectorate = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.LineDirectorate);
     var includesDetailedSlides = isUpdateSheet || standardIncludesDetailedSlides;
-    var includesCostRd = isUpdateSheet || standardIncludesCostRd;
+    var includesStatus = !isUpdateSheet || (updateNeedsStatus && !hideEmptyUpdateSheetValues);
+    var includesCostRd = isUpdateSheet ? updateNeedsCost && !hideEmptyUpdateSheetValues : standardIncludesCostRd;
     var includesProliferationCost = !isUpdateSheet && standardIncludesProliferationCost;
     var missingStatusCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ExternalStatusAvailableCount;
     var missingCostRdCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CostRdAvailableCount;
@@ -61,22 +104,52 @@
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
     var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
     var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
-    var missingArppCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
+    var missingArppNumberCount = deck?.Projects.Count(project =>
+        project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
+    var missingFundingCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
     var missingAonDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.AonDateAvailableCount;
     var missingSupplyOrderDateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.SupplyOrderDateAvailableCount;
     var missingJdpCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.JdpAvailableCount;
     var missingDevelopmentPdcCount = deck is null ? 0 : deck.Readiness.DevelopmentProjectCount - deck.Readiness.DevelopmentPdcAvailableCount;
     var missingProjectOfficerCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProjectOfficerAvailableCount;
     var missingLineDirectorateCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.LineDirectorateAvailableCount;
-    var usedContentGapCount = missingStatusCount
+
+    // When empty optional rows are hidden, only incomplete rows that will still be rendered remain
+    // reportable. The PDC/completion row is intentionally always retained.
+    var reportedMissingArppNumberCount = hideEmptyUpdateSheetValues ? 0 : missingArppNumberCount;
+    var reportedMissingFundingCount = hideEmptyUpdateSheetValues
+        ? deck?.Projects.Count(project =>
+            (!string.IsNullOrWhiteSpace(project.Fund)
+                || !string.IsNullOrWhiteSpace(project.DfpdsSchedule)
+                || !string.IsNullOrWhiteSpace(project.Cfa))
+            && !project.HasCompleteArppDetails) ?? 0
+        : missingFundingCount;
+    var reportedMissingAonDateCount = hideEmptyUpdateSheetValues ? 0 : missingAonDateCount;
+    var reportedMissingSupplyOrderDateCount = hideEmptyUpdateSheetValues
+        ? deck?.Projects.Count(project => !project.SupplyOrderDate.HasValue && project.JdpNames.Count > 0) ?? 0
+        : missingSupplyOrderDateCount;
+    var reportedMissingJdpCount = hideEmptyUpdateSheetValues
+        ? deck?.Projects.Count(project => project.SupplyOrderDate.HasValue && project.JdpNames.Count == 0) ?? 0
+        : missingJdpCount;
+    var reportedMissingProjectOfficerCount = hideEmptyUpdateSheetValues
+        ? deck?.Projects.Count(project =>
+            !string.IsNullOrWhiteSpace(project.ProjectOfficer) && !project.ProjectOfficerIsComplete) ?? 0
+        : missingProjectOfficerCount;
+    var reportedMissingLineDirectorateCount = hideEmptyUpdateSheetValues ? 0 : missingLineDirectorateCount;
+    var usedContentGapCount = (includesStatus ? missingStatusCount : 0)
         + (includesCostRd ? missingCostRdCount : 0)
         + (includesProliferationCost ? missingProliferationCount : 0)
         + (includesDetailedSlides ? missingPhotoCount : 0)
         + (includesDetailedSlides && needsCapabilities ? missingCapabilityCount : 0)
         + (includesDetailedSlides && needsProjectBrief ? missingProjectBriefCount : 0);
     var additionalMetadataGapCount = isUpdateSheet
-        ? missingArppCount + missingAonDateCount + missingSupplyOrderDateCount + missingJdpCount
-            + Math.Max(0, missingDevelopmentPdcCount) + missingProjectOfficerCount + missingLineDirectorateCount
+        ? (updateNeedsArppNumber ? reportedMissingArppNumberCount : 0)
+            + (updateNeedsFunding ? reportedMissingFundingCount : 0)
+            + (updateNeedsAon ? reportedMissingAonDateCount : 0)
+            + (updateNeedsSupplyOrder ? reportedMissingSupplyOrderDateCount + reportedMissingJdpCount : 0)
+            + (updateNeedsPdc ? Math.Max(0, missingDevelopmentPdcCount) : 0)
+            + (updateNeedsProjectOfficer ? reportedMissingProjectOfficerCount : 0)
+            + (updateNeedsLineDirectorate ? reportedMissingLineDirectorateCount : 0)
         : 0;
     var affectedProjectCount = deck?.Projects.Count(project =>
     {
@@ -88,7 +161,7 @@
         var hasBrief = !string.IsNullOrWhiteSpace(briefText)
             && !string.Equals(briefText, "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
 
-        return string.IsNullOrWhiteSpace(project.ExternalStatus)
+        return (includesStatus && string.IsNullOrWhiteSpace(project.ExternalStatus))
             || (includesCostRd && !project.CostRd.IsAvailable)
             || (includesProliferationCost && !project.ProliferationCost.IsAvailable)
             || (includesDetailedSlides && !project.HasCoverPhoto)
@@ -96,7 +169,7 @@
             || (includesDetailedSlides && needsProjectBrief && !hasBrief);
     }) ?? 0;
     var usedGapSummaryParts = new System.Collections.Generic.List<string>();
-    if (missingStatusCount > 0) usedGapSummaryParts.Add($"{missingStatusCount} missing external status");
+    if (includesStatus && missingStatusCount > 0) usedGapSummaryParts.Add($"{missingStatusCount} missing external status");
     if (includesCostRd && missingCostRdCount > 0) usedGapSummaryParts.Add($"{missingCostRdCount} missing R&D cost");
     if (includesProliferationCost && missingProliferationCount > 0) usedGapSummaryParts.Add($"{missingProliferationCount} missing proliferation cost");
     if (includesDetailedSlides && needsCapabilities && missingCapabilityCount > 0) usedGapSummaryParts.Add($"{missingCapabilityCount} missing capability overview");
@@ -266,7 +339,7 @@
                                     aria-controls="pbd-settings-drawer"
                                     aria-expanded="false">
                                 <span class="pbd-settings-summary__title"><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
-                                <small data-pbd-settings-summary-text>@layoutLabel@(isUpdateSheet ? " · 16:9 · R&D cost" : $" · {presentationModeLabel} · {narrativeModeLabel} · {themeLabel} · {costModeLabel}")</small>
+                                <small data-pbd-settings-summary-text>@layoutLabel@(isUpdateSheet ? $" · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost" : $" · {presentationModeLabel} · {narrativeModeLabel} · {themeLabel} · {costModeLabel}")</small>
                                 <span class="pbd-settings-summary__dirty" data-pbd-settings-dirty hidden>Unsaved settings</span>
                                 <i class="bi bi-chevron-right pbd-settings-summary__chevron" aria-hidden="true"></i>
                             </button>
@@ -317,7 +390,7 @@
                                         </label>
                                         <label class="pbd-choice-card pbd-choice-card--template">
                                             <input type="radio" name="Layout" value="ProjectUpdateSheet" checked="@(deck.Layout == ProjectBriefingLayout.ProjectUpdateSheet)" data-pbd-layout-choice />
-                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Project Update Sheets</strong><small>Formal 16:9 project sheets with R&amp;D cost, latest external status, project brief and photograph.</small></span>
+                                            <span><i class="bi bi-card-heading" aria-hidden="true"></i><strong>Project Update Sheets</strong><small>Formal 16:9 project sheets with configurable facts, project brief and photograph.</small></span>
                                         </label>
                                     </div>
                                 </fieldset>
@@ -326,8 +399,6 @@
                                     <details class="pbd-settings-section pbd-settings-section--collapsible"
                                              data-pbd-settings-collapsible
                                              data-pbd-settings-section="content"
-                                             data-pbd-standard-section
-                                             hidden="@isUpdateSheet"
                                              open>
                                         <summary id="pbd-settings-content-title">
                                             <span>Content and layout</span>
@@ -371,6 +442,40 @@
                                         </div>
                                     </fieldset>
                                 </div>
+                                <div class="pbd-update-sheet-composition" data-pbd-update-settings hidden="@(!isUpdateSheet)">
+                                    <div class="pbd-update-sheet-composition__intro">
+                                        <div>
+                                            <strong>Information shown on each project sheet</strong>
+                                            <small>Project name remains the slide title. Select and order the editable table rows; the photograph and brief areas adapt automatically.</small>
+                                        </div>
+                                        <div class="pbd-update-sheet-composition__actions">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-update-rows-select-all>Select all</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-update-rows-reset>Recommended defaults</button>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" name="UpdateSheetRowOrder" value="@updateSheetRowOrder" data-recommended-order="@string.Join(",", ProjectBriefingUpdateSheetOptions.RecommendedRows)" data-pbd-update-row-order />
+                                    <div class="pbd-update-row-list" data-pbd-update-row-list>
+                                        @foreach (var row in orderedUpdateSheetRows)
+                                        {
+                                            <div class="pbd-update-row-option" data-pbd-update-row data-row-key="@row">
+                                                <span class="pbd-update-row-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                <label>
+                                                    <input type="checkbox" name="UpdateSheetRows" value="@row" checked="@selectedUpdateSheetRows.Contains(row)" />
+                                                    <span><strong>@UpdateSheetRowLabel(row)</strong><small>@UpdateSheetRowDescription(row)</small></span>
+                                                </label>
+                                                <span class="pbd-update-row-option__move">
+                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-update-row-up aria-label="Move @UpdateSheetRowLabel(row) up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-update-row-down aria-label="Move @UpdateSheetRowLabel(row) down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                                                </span>
+                                            </div>
+                                        }
+                                    </div>
+                                    <label class="pbd-update-sheet-hide-empty">
+                                        <input type="checkbox" name="HideEmptyUpdateSheetValues" value="true" checked="@deck.UpdateSheetOptions.HideEmptyValues" />
+                                        <span><strong>Hide fields with no recorded value</strong><small>The PDC/completion row remains available as an intentional editable cell.</small></span>
+                                    </label>
+                                    <p class="pbd-update-sheet-composition__validation" data-pbd-update-rows-validation hidden>Select at least one information row.</p>
+                                </div>
                                         </div>
                                     </details>
 
@@ -378,12 +483,12 @@
                                              data-pbd-settings-collapsible
                                              data-pbd-settings-section="appearance">
                                         <summary id="pbd-settings-appearance-title">
-                                            <span data-pbd-settings-appearance-title>@(isUpdateSheet ? "Header branding" : "Appearance")</span>
+                                            <span data-pbd-settings-appearance-title>Appearance</span>
                                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
                                         </summary>
                                         <div class="pbd-settings-section__body">
                                 <div class="pbd-presentation-design @(isUpdateSheet ? "is-update-sheet" : null)" data-pbd-presentation-design>
-                                    <fieldset class="pbd-choice-group" data-pbd-standard-settings hidden="@isUpdateSheet">
+                                    <fieldset class="pbd-choice-group">
                                         <legend>Presentation theme</legend>
                                         <div class="pbd-theme-cards">
                                             <label class="pbd-theme-card">
@@ -484,7 +589,7 @@
                                     <legend>Project Update Sheet options</legend>
                                     <div class="pbd-update-sheet-note">
                                         <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                        <span>Each project is generated as one editable 16:9 sheet. Project Cost is always the authoritative R&amp;D cost. Project Brief and latest external status are used automatically.</span>
+                                        <span>Each project is generated as one editable 16:9 sheet. Project brief and photograph remain structural; selected information rows determine the facts-table composition.</span>
                                     </div>
                                     <div class="pbd-checks pbd-checks--inline">
                                         <label><input type="checkbox" name="IncludeCoverSlide" value="true" checked="@deck.IncludeCoverSlide" /> Include cover slide</label>
@@ -552,7 +657,7 @@
                             </header>
 
                             <div class="pbd-preflight-metrics" data-pbd-preflight-metrics>
-                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="status" data-pbd-readiness-filter="missing-status" disabled="@(missingStatusCount == 0)">
+                                <button type="button" class="pbd-preflight-metric" data-pbd-requirement="status" data-pbd-readiness-filter="missing-status" hidden="@(!includesStatus)" disabled="@(missingStatusCount == 0)">
                                     <strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong>
                                     <span>External status</span>
                                     <small>Show missing</small>
@@ -602,7 +707,7 @@
                                             }
                                             else
                                             {
-                                                @if (missingStatusCount > 0)
+                                                @if (includesStatus && missingStatusCount > 0)
                                                 {
                                                     <li><button type="button" data-pbd-readiness-filter="missing-status"><i class="bi bi-chat-left-text" aria-hidden="true"></i><span>External status</span><strong>@missingStatusCount missing</strong></button></li>
                                                 }
@@ -642,33 +747,41 @@
                                             }
                                             else
                                             {
-                                                @if (missingArppCount > 0)
+                                                @if (updateNeedsArppNumber && reportedMissingArppNumberCount > 0)
                                                 {
-                                                    <li><i class="bi bi-journal-text" aria-hidden="true"></i><span>Complete ARPP/PPP details</span><strong>@missingArppCount missing</strong></li>
+                                                    <li><i class="bi bi-journal-text" aria-hidden="true"></i><span>ARPP/PPP number</span><strong>@reportedMissingArppNumberCount missing</strong></li>
                                                 }
-                                                @if (missingAonDateCount > 0)
+                                                @if (updateNeedsFunding && reportedMissingFundingCount > 0)
                                                 {
-                                                    <li><i class="bi bi-calendar-check" aria-hidden="true"></i><span>AoN date</span><strong>@missingAonDateCount missing</strong></li>
+                                                    <li><i class="bi bi-bank" aria-hidden="true"></i><span>Fund, DFPDS schedule and CFA</span><strong>@reportedMissingFundingCount incomplete</strong></li>
                                                 }
-                                                @if (missingSupplyOrderDateCount > 0)
+                                                @if (updateNeedsAon && reportedMissingAonDateCount > 0)
                                                 {
-                                                    <li><i class="bi bi-calendar2-event" aria-hidden="true"></i><span>Supply-order date</span><strong>@missingSupplyOrderDateCount missing</strong></li>
+                                                    <li><i class="bi bi-calendar-check" aria-hidden="true"></i><span>AoN date</span><strong>@reportedMissingAonDateCount missing</strong></li>
                                                 }
-                                                @if (missingJdpCount > 0)
+                                                @if (updateNeedsSupplyOrder && reportedMissingSupplyOrderDateCount > 0)
                                                 {
-                                                    <li><i class="bi bi-building" aria-hidden="true"></i><span>Linked JDP</span><strong>@missingJdpCount missing</strong></li>
+                                                    <li><i class="bi bi-calendar2-event" aria-hidden="true"></i><span>Supply-order date</span><strong>@reportedMissingSupplyOrderDateCount missing</strong></li>
                                                 }
-                                                @if (missingDevelopmentPdcCount > 0)
+                                                @if (updateNeedsSupplyOrder && reportedMissingJdpCount > 0)
+                                                {
+                                                    <li><i class="bi bi-building" aria-hidden="true"></i><span>Linked firm/JDP</span><strong>@reportedMissingJdpCount missing</strong></li>
+                                                }
+                                                @if (updateNeedsPdc && missingDevelopmentPdcCount > 0)
                                                 {
                                                     <li><i class="bi bi-calendar-x" aria-hidden="true"></i><span>Development PDC</span><strong>@missingDevelopmentPdcCount missing</strong></li>
                                                 }
-                                                @if (missingProjectOfficerCount > 0)
+                                                @if (updateNeedsProjectOfficer && reportedMissingProjectOfficerCount > 0)
                                                 {
-                                                    <li><i class="bi bi-person-badge" aria-hidden="true"></i><span>Project Officer rank and full name</span><strong>@missingProjectOfficerCount missing</strong></li>
+                                                    <li><i class="bi bi-person-badge" aria-hidden="true"></i><span>Project Officer rank and full name</span><strong>@reportedMissingProjectOfficerCount missing</strong></li>
                                                 }
-                                                @if (missingLineDirectorateCount > 0)
+                                                @if (updateNeedsLineDirectorate && reportedMissingLineDirectorateCount > 0)
                                                 {
-                                                    <li><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Line Directorate</span><strong>@missingLineDirectorateCount missing</strong></li>
+                                                    <li><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Line Directorate</span><strong>@reportedMissingLineDirectorateCount missing</strong></li>
+                                                }
+                                                @if (hideEmptyUpdateSheetValues && additionalMetadataGapCount == 0)
+                                                {
+                                                    <li class="is-neutral"><i class="bi bi-eye-slash" aria-hidden="true"></i><span>Empty optional rows are hidden. Only a missing Development PDC remains reportable because that row stays editable.</span></li>
                                                 }
                                                 @if (additionalMetadataGapCount == 0)
                                                 {
