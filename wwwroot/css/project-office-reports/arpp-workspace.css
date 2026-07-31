@@ -168,7 +168,9 @@ body.arpp-workspace-active {
 }
 
 .arpp-workspace-v2__navigator-toggle {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
 }
 
 .arpp-workspace-v2__search {
@@ -263,7 +265,11 @@ body.arpp-workspace-active {
 }
 
 .arpp-workspace-v2__navigator-header .btn {
-    display: none;
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    place-items: center;
 }
 
 .arpp-workspace-v2__filters {
@@ -459,11 +465,11 @@ body.arpp-workspace-active {
 }
 
 .arpp-workspace-v2__top-scrollbar {
-    height: .82rem;
+    height: .52rem;
     overflow-x: auto;
     overflow-y: hidden;
     border-bottom: 1px solid var(--arpp-workspace-border);
-    background: var(--bs-body-bg);
+    background: color-mix(in srgb, var(--bs-tertiary-bg) 58%, var(--bs-body-bg));
     scrollbar-color: color-mix(in srgb, var(--bs-secondary-color) 45%, transparent) transparent;
     scrollbar-width: thin;
 }
@@ -923,4 +929,75 @@ body.arpp-workspace-active {
 
 .arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
     color: var(--bs-warning-text-emphasis);
+}
+
+
+/* Production finishing refinements ------------------------------- */
+.arpp-workspace-v2__issues-toggle {
+    width: auto;
+    min-width: 6.2rem;
+    justify-content: center;
+    gap: .38rem;
+}
+
+.arpp-workspace-v2__issues-toggle .badge {
+    min-width: 1.35rem;
+}
+
+.arpp-workspace-v2.is-navigator-collapsed {
+    --arpp-workspace-sidebar: 0rem;
+}
+
+.arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__navigator {
+    display: none;
+}
+
+.arpp-workspace-v2__table .arpp-col-actions,
+.arpp-workspace-v2__table .arpp-actions-cell {
+    position: sticky;
+    right: 0;
+    border-left: 1px solid var(--arpp-workspace-border);
+    background: var(--bs-body-bg);
+    box-shadow: -.35rem 0 .65rem rgba(15, 23, 42, .045);
+}
+
+.arpp-workspace-v2__table .arpp-col-actions {
+    z-index: 10;
+    background: color-mix(in srgb, var(--bs-tertiary-bg) 94%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2__table .arpp-actions-cell {
+    z-index: 4;
+}
+
+.arpp-workspace-v2__table tbody tr:hover .arpp-actions-cell {
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle) 18%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2__table tr.is-validation-target .arpp-actions-cell {
+    background: color-mix(in srgb, var(--bs-danger-bg-subtle) 34%, var(--bs-body-bg));
+}
+
+.arpp-workspace-v2.has-validation:not(.is-dirty) .arpp-workspace-v2__save-state {
+    color: var(--arpp-workspace-muted);
+    font-weight: 400;
+}
+
+@media (max-width: 1023.98px) {
+    .arpp-workspace-v2.is-navigator-collapsed .arpp-workspace-v2__navigator {
+        display: block;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .arpp-workspace-v2__issues-toggle {
+        min-width: 2.5rem;
+    }
+
+    .arpp-workspace-v2__table .arpp-col-actions,
+    .arpp-workspace-v2__table .arpp-actions-cell {
+        position: static;
+        border-left: 0;
+        box-shadow: none;
+    }
 }

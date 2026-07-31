@@ -14,7 +14,8 @@ public sealed class ArppUiUxStabilisationContractTests
         Assert.Contains("data-arpp-save-state", markup, StringComparison.Ordinal);
         Assert.Contains("data-arpp-filter-count=\"issues\"", markup, StringComparison.Ordinal);
         Assert.Contains("baselineSnapshot = createFormSnapshot()", script, StringComparison.Ordinal);
-        Assert.Contains("No unsaved changes ·", script, StringComparison.Ordinal);
+        Assert.Contains("else state.textContent = \"No unsaved changes\";", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("No unsaved changes ·", script, StringComparison.Ordinal);
         Assert.Contains("activeRowFilter", script, StringComparison.Ordinal);
         Assert.Contains("applyRowFilter", script, StringComparison.Ordinal);
         Assert.DoesNotContain("if (initialIssues.length || hasServerValidationErrors) markDirty()", script, StringComparison.Ordinal);
@@ -46,8 +47,8 @@ public sealed class ArppUiUxStabilisationContractTests
         Assert.Contains("Published revision @Model.Issue.PublishedRevisionNumber remains visible", record, StringComparison.Ordinal);
         Assert.Contains("@valueStateLabel approved value", record, StringComparison.Ordinal);
         Assert.Contains("@valueStateLabel delisted value", record, StringComparison.Ordinal);
-        Assert.Contains("Published positions", register, StringComparison.Ordinal);
-        Assert.Contains("Working copies", register, StringComparison.Ordinal);
+        Assert.Contains("Active published records", register, StringComparison.Ordinal);
+        Assert.Contains("Records under work", register, StringComparison.Ordinal);
         Assert.Contains("Verified and published", register, StringComparison.Ordinal);
         Assert.Contains("Unlocked for correction", register, StringComparison.Ordinal);
         Assert.Contains("Ready for verification", register, StringComparison.Ordinal);

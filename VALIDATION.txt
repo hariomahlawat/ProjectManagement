@@ -1,32 +1,25 @@
-PRISM ARPP/PPP Fresh Experience Redesign - Validation
-=====================================================
+PRISM ARPP/PPP Production Finishing - Validation
+================================================
 
-Scope checks
-------------
-PASS  No database migration included.
-PASS  No model/entity replacement included.
-PASS  No service, resolver or IPA synchronisation replacement included.
-PASS  Package contains only Razor presentation, CSS, JavaScript and UI contract tests.
+Validated against the ARPP/PPP Fresh Experience Redesign baseline.
 
-Static validation
------------------
-PASS  arpp-manage.js parsed successfully with Node.js 22 (`node --check`).
-PASS  Existing ARPP page scripts parsed successfully with Node.js 22.
-PASS  CSS brace balance passed for arpp-redesign.css and arpp-workspace.css.
-PASS  Razor structural tag counts passed for all changed views.
-PASS  Dedicated workspace contains no legacy sticky-left or sticky-right columns.
-PASS  Workspace uses one fixed viewport and one controlled grid scroll container.
-PASS  Record reader uses a conventional non-sticky read-only table.
-PASS  Module navigation is present across Published, Administration and Reconciliation.
-PASS  Working/published status wording is consistent across register and record pages.
-PASS  Dirty state remains independent of validation state.
+PASS  Patch dry-run against clean baseline
+PASS  Patch applied against clean baseline
+PASS  JavaScript syntax: arpp-manage.js (node --check)
+PASS  CSS brace balance: arpp-print.css
+PASS  CSS brace balance: arpp-redesign.css
+PASS  CSS brace balance: arpp-workspace.css
+PASS  Print view contains exactly nine explicit columns and nine headers
+PASS  Print status distinguishes unlocked working copy and published revision
+PASS  Print table removes separate PRISM-project column
+PASS  Published search placeholder restored
+PASS  Duplicate Administration Reconciliation button removed
+PASS  Workspace save-state text separated from validation count
+PASS  Workspace navigator collapse and persistence contract present
+PASS  Desktop sticky row-actions contract present
+PASS  UI contract tests added/updated
 
-Patch validation
-----------------
-PASS  IMPLEMENTATION.patch was generated against the latest supplied UI/UX baseline.
-PASS  Patch application and file comparison were verified against a clean baseline copy.
-
-Environment limitation
-----------------------
-The .NET SDK is not installed in this execution environment. A Release build and xUnit run
-must therefore be completed in the development environment using the commands in the README.
+NOT RUN
+-------
+The .NET SDK is not installed in the packaging environment. A Release build and
+xUnit execution must be completed locally using the commands in README-APPLY-FIRST.md.

@@ -1,13 +1,11 @@
-Areas/ProjectOfficeReports/Pages/ARPP/Create.cshtml
 Areas/ProjectOfficeReports/Pages/ARPP/Details.cshtml
 Areas/ProjectOfficeReports/Pages/ARPP/Index.cshtml
 Areas/ProjectOfficeReports/Pages/ARPP/Manage.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/ProjectHistory.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/Reconcile.cshtml
-Areas/ProjectOfficeReports/Pages/ARPP/_ModuleNav.cshtml
+Areas/ProjectOfficeReports/Pages/ARPP/Print.cshtml
 Pages/Projects/Arpp/Index.cshtml
-ProjectManagement.Tests/Arpp/ArppFinalUiUxCompletionContractTests.cs
+ProjectManagement.Tests/Arpp/ArppProductionFinishingContractTests.cs
 ProjectManagement.Tests/Arpp/ArppUiUxStabilisationContractTests.cs
+wwwroot/css/project-office-reports/arpp-print.css
 wwwroot/css/project-office-reports/arpp-redesign.css
 wwwroot/css/project-office-reports/arpp-workspace.css
 wwwroot/js/pages/project-office-reports/arpp/arpp-manage.js

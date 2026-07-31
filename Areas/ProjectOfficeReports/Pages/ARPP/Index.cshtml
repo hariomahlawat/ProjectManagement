@@ -29,10 +29,6 @@
         @if (Model.CanManage)
         {
             <div class="arpp-v2-page-header__actions">
-                <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Reconcile" class="btn btn-outline-primary btn-sm">
-                    <span class="bi bi-link-45deg" aria-hidden="true"></span> Reconciliation
-                    @if (Model.Register.UnlinkedEntries > 0) { <span class="badge text-bg-primary">@Model.Register.UnlinkedEntries</span> }
-                </a>
                 <a asp-area="ProjectOfficeReports" asp-page="/ARPP/Create" class="btn btn-primary btn-sm"><span class="bi bi-plus-lg" aria-hidden="true"></span> New ARPP / Addendum</a>
             </div>
         }
@@ -46,8 +42,8 @@
 
     <section class="arpp-v2-summary" aria-label="Administration summary">
         <article class="arpp-v2-summary__item"><span>ARPP records</span><strong>@Model.Register.TotalIssues</strong><small>@Model.Register.TotalEntries recorded @(Model.Register.TotalEntries == 1 ? "row" : "rows")</small></article>
-        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Published positions</span><strong>@publishedRecordCount</strong><small>Verified records and active published revisions</small></article>
-        <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Working copies</span><strong>@workingRecordCount</strong><small>Setup, correction or verification in progress</small></article>
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--published"><span>Active published records</span><strong>@publishedRecordCount</strong><small>Includes unlocked records whose earlier revision remains published</small></article>
+        <article class="arpp-v2-summary__item arpp-v2-summary__item--working"><span>Records under work</span><strong>@workingRecordCount</strong><small>Setup, correction or verification is in progress</small></article>
         <article class="arpp-v2-summary__item arpp-v2-summary__item--reconcile"><span>Reconciliation pending</span><strong>@Model.Register.UnlinkedEntries</strong><small>Document-row value @IndianCurrencyFormatter.FormatCompact(Model.Register.UnlinkedDocumentRowValue)</small></article>
     </section>
 

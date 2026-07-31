@@ -34,7 +34,7 @@ body { margin: 0; background: #eef1f4; }
     width: min(100%, 297mm);
     min-height: 210mm;
     margin: 1rem auto;
-    padding: 12mm;
+    padding: 11mm 12mm;
     background: #fff;
     box-shadow: 0 3px 16px rgba(17, 24, 39, .16);
 }
@@ -67,12 +67,12 @@ body { margin: 0; background: #eef1f4; }
 
 .arpp-print-summary {
     display: grid;
-    grid-template-columns: 22mm 40mm 40mm 1fr;
+    grid-template-columns: 22mm repeat(2, minmax(38mm, 1fr)) minmax(42mm, 1fr);
     gap: 2mm;
-    margin: 4mm 0;
+    margin: 4mm 0 3mm;
 }
 
-.arpp-print-summary > div {
+.arpp-print-summary__metric {
     min-height: 17mm;
     padding: 2.5mm;
     border: 1px solid #c9d2dc;
@@ -91,34 +91,86 @@ body { margin: 0; background: #eef1f4; }
     margin-top: 1mm;
     color: #17202a;
     font-size: 11pt;
+    line-height: 1.15;
 }
+
+.arpp-print-summary__metric--approved strong { color: #146c43; }
+.arpp-print-summary__metric--delisted strong { color: #8a5a00; }
 
 .arpp-print-summary__categories {
+    grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1mm 3mm;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #c9d2dc;
+    background: #fff;
 }
 
-.arpp-print-summary__categories span { color: #17202a; }
+.arpp-print-summary__categories > div {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 1.5mm;
+    min-width: 0;
+    padding: 2mm 2.5mm;
+    border-right: 1px solid #d7dee6;
+}
+
+.arpp-print-summary__categories > div:last-child { border-right: 0; }
+.arpp-print-summary__categories span {
+    color: #17365d;
+    font-weight: 700;
+}
+.arpp-print-summary__categories strong {
+    margin: 0;
+    font-size: 9pt;
+}
+.arpp-print-summary__categories small {
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 .arpp-print-source {
+    display: grid;
+    gap: .7mm;
     margin-bottom: 3mm;
     padding: 2mm 2.5mm;
     border-left: 3px solid #17365d;
     background: #f7f9fb;
     font-size: 8pt;
+    line-height: 1.35;
+}
+
+.arpp-print-source__line {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .arpp-print-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 7.4pt;
+    font-size: 7.35pt;
 }
+
+.arpp-print-table col.arpp-print-col--number { width: 3%; }
+.arpp-print-table col.arpp-print-col--serial { width: 5%; }
+.arpp-print-table col.arpp-print-col--ppp { width: 14%; }
+.arpp-print-table col.arpp-print-col--project { width: 33%; }
+.arpp-print-table col.arpp-print-col--category { width: 8%; }
+.arpp-print-table col.arpp-print-col--cost { width: 10%; }
+.arpp-print-table col.arpp-print-col--cfa { width: 11%; }
+.arpp-print-table col.arpp-print-col--fund { width: 8%; }
+.arpp-print-table col.arpp-print-col--dfpds { width: 8%; }
 
 .arpp-print-table th,
 .arpp-print-table td {
-    padding: 1.5mm;
+    padding: 1.45mm 1.5mm;
     border: 1px solid #aeb9c5;
     vertical-align: top;
     overflow-wrap: anywhere;
@@ -131,20 +183,26 @@ body { margin: 0; background: #eef1f4; }
     text-align: left;
 }
 
-.arpp-print-table th:nth-child(1) { width: 8mm; }
-.arpp-print-table th:nth-child(2) { width: 14mm; }
-.arpp-print-table th:nth-child(3) { width: 48mm; }
-.arpp-print-table th:nth-child(4) { width: 34mm; }
-.arpp-print-table th:nth-child(5) { width: 19mm; }
-.arpp-print-table th:nth-child(6) { width: 24mm; }
-.arpp-print-table th:nth-child(7) { width: 28mm; }
-.arpp-print-table th:nth-child(8) { width: 20mm; }
-.arpp-print-table th:nth-child(9) { width: 20mm; }
-
 .arpp-print-table tr.delisted td { background: #fff4d6; }
 .arpp-print-table .number { text-align: center; }
-.arpp-print-table .money { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.arpp-print-table small { display: block; color: #526174; }
+.arpp-print-table .money {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.arpp-print-table small {
+    display: block;
+    margin-top: .6mm;
+    color: #526174;
+    font-size: 6.8pt;
+    line-height: 1.25;
+}
+.arpp-print-table .arpp-print-project > strong {
+    display: block;
+    color: #17202a;
+    font-weight: 600;
+    line-height: 1.3;
+}
 .muted { color: #6b7280; }
 
 .arpp-print-footer {
@@ -173,7 +231,11 @@ body { margin: 0; background: #eef1f4; }
         padding: 0;
         box-shadow: none;
     }
+    .arpp-print-header { break-after: avoid; page-break-after: avoid; }
+    .arpp-print-summary,
+    .arpp-print-source { break-inside: avoid; page-break-inside: avoid; }
     .arpp-print-table thead { display: table-header-group; }
+    .arpp-print-table tfoot { display: table-footer-group; }
     .arpp-print-table tr { break-inside: avoid; page-break-inside: avoid; }
-    .arpp-print-footer { break-inside: avoid; }
+    .arpp-print-footer { break-inside: avoid; page-break-inside: avoid; }
 }

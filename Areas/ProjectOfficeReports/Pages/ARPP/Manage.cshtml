@@ -76,9 +76,10 @@
                     class="btn btn-outline-secondary arpp-workspace-v2__navigator-toggle"
                     data-arpp-navigator-toggle
                     aria-controls="arppWorkspaceNavigator"
-                    aria-expanded="false">
+                    aria-expanded="true"
+                    title="Show or hide the row navigator">
                 <span class="bi bi-layout-sidebar" aria-hidden="true"></span>
-                Navigator
+                <span>Rows</span>
             </button>
 
             <div class="arpp-workspace-v2__search" role="search">
@@ -88,7 +89,7 @@
                        type="search"
                        class="form-control"
                        autocomplete="off"
-                       placeholder="Find row, project, PPP or serial"
+                       placeholder="Find row or project"
                        data-arpp-jump-input
                        data-arpp-ui-only />
                 <button type="button" class="btn btn-outline-secondary" data-arpp-jump-next title="Find next match" aria-label="Find next matching row">
@@ -98,7 +99,7 @@
             </div>
 
             <button type="button"
-                    class="btn btn-outline-danger d-none"
+                    class="btn btn-outline-danger arpp-workspace-v2__issues-toggle d-none"
                     data-arpp-validation-toggle
                     aria-expanded="false"
                     aria-controls="arppWorkspaceIssues">
@@ -139,8 +140,8 @@
                         <span>Row navigator</span>
                         <strong data-arpp-visible-row-status>All rows</strong>
                     </div>
-                    <button type="button" class="btn btn-sm btn-light" data-arpp-navigator-close aria-label="Close row navigator">
-                        <span class="bi bi-x-lg" aria-hidden="true"></span>
+                    <button type="button" class="btn btn-sm btn-light" data-arpp-navigator-close aria-label="Collapse row navigator" title="Collapse row navigator">
+                        <span class="bi bi-chevron-left" aria-hidden="true"></span>
                     </button>
                 </div>
 

@@ -15,6 +15,35 @@
         Model.Issue.CategorySummary[ArppCategory.CommittedLiability].TotalIpaCost +
         Model.Issue.CategorySummary[ArppCategory.CarryForward].TotalIpaCost;
     var delistedRowValue = Model.Issue.CategorySummary[ArppCategory.Delisted].TotalIpaCost;
+    var referenceDataReady = Model.Issue.Entries.All(entry => !entry.HasUnresolvedReferenceData);
+    var setupIncomplete = Model.Issue.Entries.Count == 0 || Model.Issue.Attachment is null;
+
+    string FormatPrintCurrency(decimal amount)
+    {
+        const decimal crore = 10_000_000m;
+        const decimal lakh = 100_000m;
+
+        if (Math.Abs(amount) >= crore)
+        {
+            return $"₹{amount / crore:N2} Cr";
+        }
+
+        if (Math.Abs(amount) >= lakh)
+        {
+            return $"₹{amount / lakh:N2} Lakh";
+        }
+
+        return $"₹{amount:N0}";
+    }
+
+    string CategoryShortLabel(ArppCategory category) => category switch
+    {
+        ArppCategory.New => "New",
+        ArppCategory.CommittedLiability => "CL",
+        ArppCategory.CarryForward => "CF",
+        ArppCategory.Delisted => "Delisted",
+        _ => ArppDisplayNames.For(category)
+    };
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -41,53 +70,113 @@
         </header>
 
         <section class="arpp-print-summary" aria-label="Issue summary">
-            <div><span>Rows</span><strong>@Model.Issue.Entries.Count</strong></div>
-            <div><span>Approved row value</span><strong>@IndianCurrencyFormatter.FormatRupees(approvedRowValue)</strong><small>New, CL and CF</small></div>
-            <div><span>Delisted row value</span><strong>@IndianCurrencyFormatter.FormatRupees(delistedRowValue)</strong><small>Recorded separately</small></div>
-            <div><span>Project linkage</span><strong>@Model.Issue.LinkedCount linked</strong><small>@Model.Issue.UnlinkedCount pending</small></div>
-            <div class="arpp-print-summary__categories">
+            <div class="arpp-print-summary__metric">
+                <span>Rows</span>
+                <strong>@Model.Issue.Entries.Count</strong>
+                <small>Issued document rows</small>
+            </div>
+            <div class="arpp-print-summary__metric arpp-print-summary__metric--approved">
+                <span>Approved row value</span>
+                <strong>@FormatPrintCurrency(approvedRowValue)</strong>
+                <small>New, CL and CF</small>
+            </div>
+            <div class="arpp-print-summary__metric arpp-print-summary__metric--delisted">
+                <span>Delisted row value</span>
+                <strong>@FormatPrintCurrency(delistedRowValue)</strong>
+                <small>Recorded separately</small>
+            </div>
+            <div class="arpp-print-summary__metric">
+                <span>Project linkage</span>
+                <strong>@Model.Issue.LinkedCount / @Model.Issue.Entries.Count</strong>
+                <small>@Model.Issue.UnlinkedCount pending</small>
+            </div>
+
+            <div class="arpp-print-summary__categories" aria-label="Category breakdown">
                 @foreach (var category in Enum.GetValues<ArppCategory>())
                 {
                     var summary = Model.Issue.CategorySummary[category];
-                    <span><b>@ArppDisplayNames.For(category)</b> @summary.Count · @IndianCurrencyFormatter.FormatRupees(summary.TotalIpaCost)</span>
+                    <div>
+                        <span>@CategoryShortLabel(category)</span>
+                        <strong>@summary.Count</strong>
+                        <small>@FormatPrintCurrency(summary.TotalIpaCost)</small>
+                    </div>
                 }
             </div>
         </section>
 
-        <section class="arpp-print-source">
-            <strong>Record status:</strong>
-            <span>@(Model.Issue.IsVerified ? "Verified and locked" : "Unverified")</span>
-            @if (Model.Issue.IsVerified && Model.Issue.VerifiedAtUtc.HasValue)
+        <section class="arpp-print-source" aria-label="Record and source status">
+            @if (Model.Issue.IsVerified)
             {
-                <span> · Verified @IstClock.ToIst(Model.Issue.VerifiedAtUtc.Value).ToString("dd MMM yyyy, hh:mm tt") IST</span>
+                <div class="arpp-print-source__line">
+                    <strong>Record status:</strong>
+                    <span>Verified and published</span>
+                    @if (Model.Issue.VerifiedAtUtc.HasValue)
+                    {
+                        <span> · @IstClock.ToIst(Model.Issue.VerifiedAtUtc.Value).ToString("dd MMM yyyy, hh:mm tt") IST</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName))
+                    {
+                        <span> · By @Model.Issue.VerifiedByDisplayName</span>
+                    }
+                </div>
             }
-            @if (Model.Issue.IsVerified && !string.IsNullOrWhiteSpace(Model.Issue.VerifiedByDisplayName))
+            else if (Model.Issue.HasPublishedSnapshot)
             {
-                <span> · By @Model.Issue.VerifiedByDisplayName</span>
-            }
-            <br />
-            <strong>Issued source PDF:</strong>
-            @if (Model.Issue.Attachment is null)
-            {
-                <span>Not attached in PRISM</span>
+                <div class="arpp-print-source__line">
+                    <strong>Working-copy status:</strong>
+                    <span>Unlocked for correction</span>
+                </div>
+                <div class="arpp-print-source__line">
+                    <strong>Published position:</strong>
+                    <span>Revision @(Model.Issue.PublishedRevisionNumber?.ToString() ?? "1") remains active</span>
+                    @if (Model.Issue.PublishedAtUtc.HasValue)
+                    {
+                        <span> · Published @IstClock.ToIst(Model.Issue.PublishedAtUtc.Value).ToString("dd MMM yyyy, hh:mm tt") IST</span>
+                    }
+                </div>
             }
             else
             {
-                <span>
-                    @Model.Issue.Attachment.OriginalFileName · @FileSizeFormatter.FormatFileSize(Model.Issue.Attachment.SizeBytes)
-                    · SHA-256 @(Model.Issue.Attachment.Sha256[..12])…
-                </span>
+                <div class="arpp-print-source__line">
+                    <strong>Working-copy status:</strong>
+                    <span>@(setupIncomplete ? "Setup incomplete" : !referenceDataReady ? "Reference review required" : "Ready for verification")</span>
+                </div>
             }
+
+            <div class="arpp-print-source__line">
+                <strong>Issued source PDF:</strong>
+                @if (Model.Issue.Attachment is null)
+                {
+                    <span>Not attached in PRISM</span>
+                }
+                else
+                {
+                    <span>
+                        @Model.Issue.Attachment.OriginalFileName · @FileSizeFormatter.FormatFileSize(Model.Issue.Attachment.SizeBytes)
+                        · SHA-256 @(Model.Issue.Attachment.Sha256[..Math.Min(12, Model.Issue.Attachment.Sha256.Length)])…
+                    </span>
+                }
+            </div>
         </section>
 
         <table class="arpp-print-table">
+            <colgroup>
+                <col class="arpp-print-col--number" />
+                <col class="arpp-print-col--serial" />
+                <col class="arpp-print-col--ppp" />
+                <col class="arpp-print-col--project" />
+                <col class="arpp-print-col--category" />
+                <col class="arpp-print-col--cost" />
+                <col class="arpp-print-col--cfa" />
+                <col class="arpp-print-col--fund" />
+                <col class="arpp-print-col--dfpds" />
+            </colgroup>
             <thead>
                 <tr>
                     <th class="number">#</th>
                     <th>Serial</th>
                     <th>PPP No.</th>
-                    <th>Project reference as issued</th>
-                    <th>PRISM project</th>
+                    <th>Project reference</th>
                     <th>Category</th>
                     <th class="money">IPA cost (₹)</th>
                     <th>CFA</th>
@@ -98,31 +187,37 @@
             <tbody>
                 @foreach (var entry in Model.Issue.Entries.OrderBy(entry => entry.SortOrder).ThenBy(entry => entry.Id))
                 {
+                    var issuedName = entry.ProjectReference?.Trim() ?? string.Empty;
+                    var linkedName = entry.ProjectName?.Trim() ?? string.Empty;
+                    var sameProjectName = entry.ProjectId.HasValue &&
+                        !string.IsNullOrWhiteSpace(linkedName) &&
+                        string.Equals(issuedName, linkedName, StringComparison.OrdinalIgnoreCase);
+
                     <tr class="@(entry.Category == ArppCategory.Delisted ? "delisted" : string.Empty)">
                         <td class="number">@entry.SortOrder</td>
-                        <td>@(entry.Category == ArppCategory.Delisted ? string.Empty : entry.SerialNumber)</td>
-                        <td>@(entry.Category == ArppCategory.Delisted ? string.Empty : entry.PppNumber)</td>
-                        <td>@entry.ProjectReference</td>
-                        <td>
-                            @if (entry.ProjectId.HasValue)
+                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : entry.SerialNumber)</td>
+                        <td>@(entry.Category == ArppCategory.Delisted ? "—" : entry.PppNumber)</td>
+                        <td class="arpp-print-project">
+                            <strong>@issuedName</strong>
+                            @if (entry.ProjectId.HasValue && !sameProjectName)
                             {
-                                <span>@entry.ProjectName</span>
-                                @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
-                                {
-                                    <small>@entry.ProjectCaseFileNumber</small>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
-                                {
-                                    <small>PRISM status: @entry.ProjectStatus</small>
-                                }
+                                <small><b>Linked:</b> @linkedName</small>
                             }
-                            else
+                            @if (!string.IsNullOrWhiteSpace(entry.ProjectCaseFileNumber))
                             {
-                                <span class="muted">Linkage pending</span>
+                                <small>@entry.ProjectCaseFileNumber</small>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(entry.ProjectStatus))
+                            {
+                                <small>PRISM status: @entry.ProjectStatus</small>
+                            }
+                            else if (!entry.ProjectId.HasValue)
+                            {
+                                <small class="muted">PRISM linkage pending</small>
                             }
                         </td>
-                        <td>@ArppDisplayNames.For(entry.Category)</td>
-                        <td class="money">@IndianCurrencyFormatter.FormatRupees(entry.IpaCost).TrimStart('₹')</td>
+                        <td>@CategoryShortLabel(entry.Category)</td>
+                        <td class="money">@FormatPrintCurrency(entry.IpaCost).TrimStart('₹')</td>
                         <td>@entry.Cfa</td>
                         <td>@entry.Fund</td>
                         <td>@entry.DfpdsSchedule</td>

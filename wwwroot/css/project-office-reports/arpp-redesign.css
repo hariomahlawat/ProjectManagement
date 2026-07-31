@@ -993,3 +993,37 @@
         transition: none;
     }
 }
+
+/* Production finishing refinements ------------------------------ */
+.arpp-record-v2__identity-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem 1.2rem;
+    margin-top: .75rem;
+    padding: .58rem .72rem;
+    border-top: 1px solid var(--arpp-v2-border);
+    color: var(--arpp-v2-muted);
+    font-size: .75rem;
+}
+
+.arpp-record-v2__identity-strip span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .35rem;
+}
+
+.arpp-record-v2__identity-strip strong {
+    color: var(--bs-body-color);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 767.98px) {
+    .arpp-record-v2__identity-strip {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .35rem;
+    }
+}

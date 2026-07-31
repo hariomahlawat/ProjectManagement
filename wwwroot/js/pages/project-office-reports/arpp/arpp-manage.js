@@ -28,6 +28,8 @@
     let jumpMatchIndex = -1;
     let scrollSyncInProgress = false;
     let activeRowFilter = "all";
+    const navigatorMedia = window.matchMedia("(max-width: 1023.98px)");
+    const navigatorStorageKey = "prism.arpp.workspace.navigatorCollapsed";
 
     const rows = () => Array.from(body.querySelectorAll("[data-arpp-entry-row]"));
     const getField = (row, suffix) => row.querySelector(`[name$=".${suffix}"]`);
@@ -84,9 +86,7 @@
         const state = root.querySelector("[data-arpp-save-state]");
         if (state) {
             if (saving) state.textContent = "Saving…";
-            else if (dirty && validationIssueCount > 0) state.textContent = `Unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
             else if (dirty) state.textContent = "Unsaved changes";
-            else if (validationIssueCount > 0) state.textContent = `No unsaved changes · ${validationIssueCount} ${validationIssueCount === 1 ? "field requires" : "fields require"} attention`;
             else state.textContent = "No unsaved changes";
         }
 
@@ -332,12 +332,53 @@
         if (closeNavigator && window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
     }
 
+    const setDesktopNavigatorCollapsed = collapsed => {
+        const shouldCollapse = Boolean(collapsed);
+        root.classList.toggle("is-navigator-collapsed", shouldCollapse);
+        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
+        try {
+            window.localStorage.setItem(navigatorStorageKey, shouldCollapse ? "true" : "false");
+        } catch {
+            // Persistence is optional in private or hardened browser contexts.
+        }
+        window.requestAnimationFrame(syncTableScrollbars);
+    };
+
     const setNavigatorOpen = open => {
         const navigator = root.querySelector("[data-arpp-navigator]");
         const enabled = Boolean(open);
-        navigator?.classList.toggle("is-open", enabled);
-        root.classList.toggle("has-navigator-open", enabled);
-        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", enabled ? "true" : "false");
+        if (navigatorMedia.matches) {
+            navigator?.classList.toggle("is-open", enabled);
+            root.classList.toggle("has-navigator-open", enabled);
+            root.classList.remove("is-navigator-collapsed");
+            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", enabled ? "true" : "false");
+            return;
+        }
+
+        navigator?.classList.remove("is-open");
+        root.classList.remove("has-navigator-open");
+        setDesktopNavigatorCollapsed(!enabled);
+    };
+
+    const restoreNavigatorLayout = () => {
+        if (navigatorMedia.matches) {
+            root.classList.remove("is-navigator-collapsed");
+            root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute(
+                "aria-expanded",
+                root.classList.contains("has-navigator-open") ? "true" : "false");
+            return;
+        }
+
+        root.querySelector("[data-arpp-navigator]")?.classList.remove("is-open");
+        root.classList.remove("has-navigator-open");
+        let collapsed = false;
+        try {
+            collapsed = window.localStorage.getItem(navigatorStorageKey) === "true";
+        } catch {
+            collapsed = false;
+        }
+        root.classList.toggle("is-navigator-collapsed", collapsed);
+        root.querySelector("[data-arpp-navigator-toggle]")?.setAttribute("aria-expanded", collapsed ? "false" : "true");
     };
 
     const setDetailsOpen = open => {
@@ -1122,7 +1163,13 @@
         jumpToMatch(true);
     });
     root.querySelector("[data-arpp-jump-next]")?.addEventListener("click", () => jumpToMatch(true));
-    root.querySelector("[data-arpp-navigator-toggle]")?.addEventListener("click", () => setNavigatorOpen(true));
+    root.querySelector("[data-arpp-navigator-toggle]")?.addEventListener("click", () => {
+        if (navigatorMedia.matches) {
+            setNavigatorOpen(true);
+            return;
+        }
+        setNavigatorOpen(root.classList.contains("is-navigator-collapsed"));
+    });
     root.querySelector("[data-arpp-navigator-close]")?.addEventListener("click", () => setNavigatorOpen(false));
     root.querySelector("[data-arpp-navigator-backdrop]")?.addEventListener("click", () => setNavigatorOpen(false));
     root.querySelectorAll("[data-arpp-details-toggle]").forEach(button => button.addEventListener("click", () => setDetailsOpen(true)));
@@ -1186,8 +1233,8 @@
     });
 
     window.addEventListener("resize", () => {
+        restoreNavigatorLayout();
         syncTableScrollbars();
-        if (!window.matchMedia("(max-width: 1023.98px)").matches) setNavigatorOpen(false);
     }, { passive: true });
 
     if (window.ResizeObserver) {
@@ -1218,6 +1265,7 @@
         });
     }
 
+    restoreNavigatorLayout();
     updateIssueSequence();
     reindexRows();
     syncTableScrollbars();

@@ -140,14 +140,11 @@
                     <article class="arpp-record-v2__metric"><span>Project linkage</span><strong>@Model.Issue.LinkedCount / @Model.Issue.Entries.Count</strong><small>@Model.Issue.UnlinkedCount pending</small></article>
                 </div>
 
-                <section class="arpp-record-v2__overview-section">
-                    <h3>Document identity</h3>
-                    <dl>
-                        <div><dt>Financial year</dt><dd>@FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</dd></div>
-                        <div><dt>Issue type</dt><dd>@issueTypeLabel</dd></div>
-                        <div><dt>Issue date</dt><dd>@Model.Issue.IssueDate.ToString("dd MMM yyyy")</dd></div>
-                    </dl>
-                </section>
+                <div class="arpp-record-v2__identity-strip" aria-label="Document identity">
+                    <span><strong>Financial year</strong> @FinancialYearHelper.Format(Model.Issue.FinancialYearStart)</span>
+                    <span><strong>Issue type</strong> @issueTypeLabel</span>
+                    <span><strong>Issue date</strong> @Model.Issue.IssueDate.ToString("dd MMM yyyy")</span>
+                </div>
 
                 @if (Model.Issue.UnlinkedCount > 0 && Model.CanManage)
                 {
