@@ -238,6 +238,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 
 /* Records workbench */
 .ipr-record-toolbar {
+    scroll-margin-top: 68px;
     justify-content: space-between;
     gap: 16px;
     min-height: 48px;
@@ -252,6 +253,48 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-page-size-control,
 .ipr-density-control { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--ipr-muted); font-size: .72rem; }
 .ipr-page-size-control .form-select { width: 70px; }
+.ipr-pagination-compact {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    gap: 3px;
+    padding: 2px;
+    border: 1px solid var(--ipr-border);
+    border-radius: 8px;
+    background: #f7f9fc;
+}
+.ipr-pagination-compact__button {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 6px;
+    color: var(--ipr-blue);
+    text-decoration: none;
+}
+.ipr-pagination-compact__button:hover,
+.ipr-pagination-compact__button:focus-visible {
+    background: #fff;
+    color: #244fc2;
+    box-shadow: 0 1px 4px rgba(16, 33, 63, .12);
+}
+.ipr-pagination-compact__button:focus-visible {
+    outline: 2px solid rgba(63, 110, 232, .35);
+    outline-offset: 1px;
+}
+.ipr-pagination-compact__button.is-disabled {
+    color: #a8b3c4;
+    cursor: default;
+}
+.ipr-pagination-compact__position {
+    min-width: 84px;
+    padding: 0 7px;
+    color: var(--ipr-muted);
+    font-size: .7rem;
+    text-align: center;
+    white-space: nowrap;
+}
+.ipr-pagination-compact__position strong { color: #243652; }
 .ipr-density-toggle { display: inline-flex; padding: 2px; border: 1px solid var(--ipr-border); border-radius: 8px; background: #f7f9fc; }
 .ipr-density-toggle .btn { display: inline-flex; width: auto; height: 28px; align-items: center; gap: 5px; padding: 0 9px; border: 0; color: #6e7d94; font-size: .68rem; font-weight: 650; }
 .ipr-density-toggle .btn.is-active { background: #fff; color: var(--ipr-blue); box-shadow: 0 1px 4px rgba(16, 33, 63, .12); }
@@ -317,6 +360,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-register-page.density-comfortable .ipr-record-title > span { font-size: .87rem; }
 
 .ipr-pagination-bar { justify-content: space-between; gap: 16px; min-height: 48px; padding: 9px 13px; border-top: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .76rem; }
+.ipr-pagination-bar .page-link { min-width: 32px; text-align: center; }
+.ipr-pagination-bar .page-link:focus-visible { outline: 2px solid rgba(63, 110, 232, .35); outline-offset: 1px; box-shadow: none; }
+.ipr-pagination-bar .page-item.disabled .page-link { cursor: default; }
 
 /* Persistent record inspector */
 .ipr-inspector-resize-handle { position: relative; z-index: 2; cursor: col-resize; background: #f4f7fb; touch-action: none; }
@@ -635,7 +681,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
     .ipr-project-filter-picker .ipr-project-picker__panel { min-width: 0; }
     .ipr-record-toolbar { align-items: flex-start; flex-direction: column; }
     .ipr-record-toolbar__actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
-    .ipr-density-control { width: 100%; justify-content: space-between; }
+    .ipr-pagination-compact { order: 1; }
+    .ipr-page-size-control { order: 2; }
+    .ipr-density-control { width: 100%; order: 3; justify-content: space-between; }
     .ipr-register-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
     .ipr-register-table { min-width: 790px; }
     .ipr-record-inspector { max-height: none; overflow: visible; }
@@ -694,6 +742,10 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 [data-bs-theme="dark"] .ipr-project-groups,
 [data-bs-theme="dark"] .ipr-project-toolbar,
 [data-bs-theme="dark"] .ipr-record-toolbar { background: #111827; }
+[data-bs-theme="dark"] .ipr-pagination-compact { border-color: #34425a; background: #172033; }
+[data-bs-theme="dark"] .ipr-pagination-compact__button:hover,
+[data-bs-theme="dark"] .ipr-pagination-compact__button:focus-visible { background: #26354d; color: #8fb0ff; }
+[data-bs-theme="dark"] .ipr-pagination-compact__position strong { color: #e6edf7; }
 [data-bs-theme="dark"] .ipr-register-table thead th,
 [data-bs-theme="dark"] .ipr-project-record-head { background: #1d293d; color: #afbdd0; }
 [data-bs-theme="dark"] .ipr-register-table td,

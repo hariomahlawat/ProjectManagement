@@ -66,7 +66,7 @@ public sealed partial class IndexModel
             var entity = ToEntity(Input);
             var created = await _writeService.CreateAsync(entity, cancellationToken);
             TempData["ToastMessage"] = "IPR record created.";
-            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = created.Id, mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
         }
         catch (IprValidationException ex)
         {
@@ -88,6 +88,7 @@ public sealed partial class IndexModel
         if (Input.Id.HasValue)
         {
             Id = Input.Id;
+            SelectedRecordId = Input.Id;
         }
 
         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
@@ -134,7 +135,7 @@ public sealed partial class IndexModel
             }
 
             TempData["ToastMessage"] = "IPR record updated.";
-            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = updated.Id, mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
         }
         catch (IprValidationException ex)
         {
@@ -186,6 +187,7 @@ public sealed partial class IndexModel
         }
 
         Mode = null;
+        SelectedRecordId = null;
         Id = null;
         return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
     }

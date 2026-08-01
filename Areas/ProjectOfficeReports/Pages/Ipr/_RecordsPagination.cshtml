@@ -1,0 +1,115 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+@{
+    var compact = ViewData["IprPaginationCompact"] is true;
+    var firstItem = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize) + 1;
+    var lastItem = Model.TotalCount == 0 ? 0 : Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize);
+}
+
+@if (Model.TotalPages > 1)
+{
+    if (compact)
+    {
+        <nav class="ipr-pagination-compact" aria-label="IPR register page navigation">
+            @if (Model.PageNumber <= 1)
+            {
+                <span class="ipr-pagination-compact__button is-disabled" aria-disabled="true" title="Previous page">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                </span>
+            }
+            else
+            {
+                <a class="ipr-pagination-compact__button"
+                   asp-page="./Index"
+                   asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber - 1)"
+                   asp-fragment="ipr-records"
+                   aria-label="Previous page"
+                   title="Previous page">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                </a>
+            }
+
+            <span class="ipr-pagination-compact__position">Page <strong>@Model.PageNumber</strong> of @Model.TotalPages</span>
+
+            @if (Model.PageNumber >= Model.TotalPages)
+            {
+                <span class="ipr-pagination-compact__button is-disabled" aria-disabled="true" title="Next page">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </span>
+            }
+            else
+            {
+                <a class="ipr-pagination-compact__button"
+                   asp-page="./Index"
+                   asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber + 1)"
+                   asp-fragment="ipr-records"
+                   aria-label="Next page"
+                   title="Next page">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            }
+        </nav>
+    }
+    else
+    {
+        <div class="ipr-pagination-bar">
+            <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
+            <nav aria-label="IPR register pages">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
+                        @if (Model.PageNumber <= 1)
+                        {
+                            <span class="page-link" aria-disabled="true" aria-label="Previous page">
+                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                            </span>
+                        }
+                        else
+                        {
+                            <a class="page-link"
+                               asp-page="./Index"
+                               asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber - 1)"
+                               asp-fragment="ipr-records"
+                               aria-label="Previous page">
+                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                            </a>
+                        }
+                    </li>
+                    @for (var pageNumber = Math.Max(1, Model.PageNumber - 2); pageNumber <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                            @if (pageNumber == Model.PageNumber)
+                            {
+                                <span class="page-link" aria-current="page">@pageNumber</span>
+                            }
+                            else
+                            {
+                                <a class="page-link"
+                                   asp-page="./Index"
+                                   asp-all-route-data="@Model.BuildPageRoute(pageNumber)"
+                                   asp-fragment="ipr-records"
+                                   aria-label="Page @pageNumber">@pageNumber</a>
+                            }
+                        </li>
+                    }
+                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+                        @if (Model.PageNumber >= Model.TotalPages)
+                        {
+                            <span class="page-link" aria-disabled="true" aria-label="Next page">
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </span>
+                        }
+                        else
+                        {
+                            <a class="page-link"
+                               asp-page="./Index"
+                               asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber + 1)"
+                               asp-fragment="ipr-records"
+                               aria-label="Next page">
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </a>
+                        }
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+}

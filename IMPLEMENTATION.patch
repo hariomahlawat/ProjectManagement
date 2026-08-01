@@ -1,436 +1,1284 @@
-diff --git a/Pages/Projects/Remarks/Index.cshtml b/Pages/Projects/Remarks/Index.cshtml
-index 16b2ebd..b442700 100644
---- a/Pages/Projects/Remarks/Index.cshtml
-+++ b/Pages/Projects/Remarks/Index.cshtml
-@@ -8,6 +8,12 @@
-     ViewData["Title"] = $"Remarks - {projectName}";
-     ViewData["UseFullWidth"] = true;
-     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-+    var defaultConferenceRemark = Model.RemarksPanel.AllowConference
-+        && string.Equals(Model.RemarksPanel.DefaultType, "Conference", StringComparison.OrdinalIgnoreCase);
-+    var defaultExternalRemark = !defaultConferenceRemark
-+        && Model.RemarksPanel.AllowExternal
-+        && string.Equals(Model.RemarksPanel.DefaultType, "External", StringComparison.OrdinalIgnoreCase);
-+    var defaultInternalRemark = !defaultConferenceRemark && !defaultExternalRemark;
- }
+diff --git a/Application/Ipr/IIprReadService.cs b/Application/Ipr/IIprReadService.cs
+index f3a9f295ff08f9958e36d6ec2a872d5bda92ee7e..5145d930423cc5876e4181e67c25a9284c1830cd 100644
+--- a/Application/Ipr/IIprReadService.cs
++++ b/Application/Ipr/IIprReadService.cs
+@@ -9,6 +9,11 @@ public interface IIprReadService
+ {
+     Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default);
  
- <div class="project-remarks-page">
-@@ -122,18 +128,18 @@
-                             <div class="project-remarks-option-group">
-                                 <span>Type</span>
-                                 <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
--                                    <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
-+                                    <button type="button" class="btn btn-outline-secondary@(defaultInternalRemark ? " active" : string.Empty)" data-remarks-composer-option="Internal" aria-pressed="@(defaultInternalRemark ? "true" : "false")">Internal</button>
-                                     @if (Model.RemarksPanel.AllowExternal)
-                                     {
--                                        <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
-+                                        <button type="button" class="btn btn-outline-secondary@(defaultExternalRemark ? " active" : string.Empty)" data-remarks-composer-option="External" aria-pressed="@(defaultExternalRemark ? "true" : "false")">External</button>
-                                     }
-                                     @if (Model.RemarksPanel.AllowConference)
-                                     {
--                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
-+                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option@(defaultConferenceRemark ? " active" : string.Empty)" data-remarks-composer-option="Conference" aria-pressed="@(defaultConferenceRemark ? "true" : "false")">Conference</button>
-                                     }
-                                 </div>
-                             </div>
--                            <div class="remarks-composer-external project-remarks-external d-none" data-remarks-external-fields>
-+                            <div class="remarks-composer-external project-remarks-external@(defaultExternalRemark ? string.Empty : " d-none")" data-remarks-external-fields>
-                                 <div>
-                                     <label for="remark-event-date">Event date</label>
-                                     <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
-diff --git a/Pages/Projects/_ProjectLifecycleWorkspace.cshtml b/Pages/Projects/_ProjectLifecycleWorkspace.cshtml
-index dd01c36..c2c1475 100644
---- a/Pages/Projects/_ProjectLifecycleWorkspace.cshtml
-+++ b/Pages/Projects/_ProjectLifecycleWorkspace.cshtml
-@@ -50,6 +50,12 @@
++    Task<int?> GetPageNumberForRecordAsync(
++        IprFilter filter,
++        int recordId,
++        CancellationToken cancellationToken = default);
++
+     Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default);
+ 
+     Task<IprKpis> GetKpisAsync(IprFilter filter, CancellationToken cancellationToken = default);
+diff --git a/Application/Ipr/IprReadService.cs b/Application/Ipr/IprReadService.cs
+index b0ca688e7160b88f7941687d3938502ae2f16310..2db9f0b950bd0b5f98ee75d02c2d845c66f62985 100644
+--- a/Application/Ipr/IprReadService.cs
++++ b/Application/Ipr/IprReadService.cs
+@@ -27,10 +27,10 @@ public sealed class IprReadService : IIprReadService
+ 
+         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+         var total = await query.CountAsync(cancellationToken);
++        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
++        page = Math.Clamp(page, 1, totalPages);
+ 
+-        var queryResults = await query
+-            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
+-            .ThenBy(x => x.Id)
++        var queryResults = await ApplyRegisterOrdering(query)
+             .Skip((page - 1) * pageSize)
+             .Take(pageSize)
+             .Select(x => new
+@@ -90,6 +90,40 @@ public sealed class IprReadService : IIprReadService
+         return new PagedResult<IprListRowDto>(items, total, page, pageSize);
      }
  
-     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-+    var defaultConferenceRemark = Model.RemarksPanel.AllowConference
-+        && string.Equals(Model.RemarksPanel.DefaultType, "Conference", StringComparison.OrdinalIgnoreCase);
-+    var defaultExternalRemark = !defaultConferenceRemark
-+        && Model.RemarksPanel.AllowExternal
-+        && string.Equals(Model.RemarksPanel.DefaultType, "External", StringComparison.OrdinalIgnoreCase);
-+    var defaultInternalRemark = !defaultConferenceRemark && !defaultExternalRemark;
- }
-             <div class="card pm-card project-lifecycle-panel"
-                  data-panel-project-id="@Model.Project!.Id"
-@@ -412,17 +418,17 @@
-                                                 </div>
-                                             }
-                                             <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
--                                                <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
-+                                                <button type="button" class="btn btn-outline-secondary@(defaultInternalRemark ? " active" : string.Empty)" data-remarks-composer-option="Internal" aria-pressed="@(defaultInternalRemark ? "true" : "false")">Internal</button>
-                                                 @if (Model.RemarksPanel.AllowExternal)
-                                                 {
--                                                    <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
-+                                                    <button type="button" class="btn btn-outline-secondary@(defaultExternalRemark ? " active" : string.Empty)" data-remarks-composer-option="External" aria-pressed="@(defaultExternalRemark ? "true" : "false")">External</button>
-                                                 }
-                                                 @if (Model.RemarksPanel.AllowConference)
-                                                 {
--                                                    <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
-+                                                    <button type="button" class="btn btn-outline-secondary remarks-conference-option@(defaultConferenceRemark ? " active" : string.Empty)" data-remarks-composer-option="Conference" aria-pressed="@(defaultConferenceRemark ? "true" : "false")">Conference</button>
-                                                 }
-                                             </div>
--                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
-+                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2@(defaultExternalRemark ? string.Empty : " d-none")" data-remarks-external-fields>
-                                                 <div>
-                                                     <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
-                                                     <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
-diff --git a/ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs b/ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs
++    public async Task<int?> GetPageNumberForRecordAsync(
++        IprFilter filter,
++        int recordId,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(filter);
++        if (recordId <= 0)
++        {
++            return null;
++        }
++
++        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
++        var target = await query
++            .Where(record => record.Id == recordId)
++            .Select(record => new
++            {
++                record.Id,
++                SortDate = record.FiledAtUtc ?? DateTimeOffset.MinValue
++            })
++            .SingleOrDefaultAsync(cancellationToken);
++
++        if (target is null)
++        {
++            return null;
++        }
++
++        var precedingCount = await query.CountAsync(record =>
++            (record.FiledAtUtc ?? DateTimeOffset.MinValue) > target.SortDate ||
++            ((record.FiledAtUtc ?? DateTimeOffset.MinValue) == target.SortDate && record.Id < target.Id),
++            cancellationToken);
++
++        return (precedingCount / filter.PageSize) + 1;
++    }
++
+     public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
+     {
+         return _db.IprRecords
+@@ -126,9 +160,7 @@ public sealed class IprReadService : IIprReadService
+ 
+         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+ 
+-        var items = await query
+-            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
+-            .ThenBy(x => x.Id)
++        var items = await ApplyRegisterOrdering(query)
+             .Select(x => new IprExportRowDto(
+                 x.IprFilingNumber,
+                 x.Title,
+@@ -159,6 +191,11 @@ public sealed class IprReadService : IIprReadService
+         return fallback;
+     }
+ 
++    private static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)
++        => query
++            .OrderByDescending(record => record.FiledAtUtc ?? DateTimeOffset.MinValue)
++            .ThenBy(record => record.Id);
++
+     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
+     {
+         // The public register contains only filed and granted IPRs. Legacy
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
+index 4c6ad93778e3377243c4aa9df02336faf2472eca..3be717339013af9627aef91653b8a7aeaf7b7f71 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
+@@ -12,6 +12,7 @@ using Microsoft.Net.Http.Headers;
+ using ProjectManagement.Application.Ipr;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Data;
++using ProjectManagement.Infrastructure.Data;
+ 
+ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
+ 
+@@ -47,7 +48,10 @@ public sealed class DownloadModel : PageModel
+             .FirstOrDefaultAsync(
+                 x => x.IprRecordId == iprRecordId &&
+                      x.Id == attachmentId &&
+-                     !x.IsArchived,
++                     !x.IsArchived &&
++                     (x.Record.Status == IprStatus.FilingUnderProcess ||
++                      x.Record.Status == IprStatus.Filed ||
++                      x.Record.Status == IprStatus.Granted),
+                 cancellationToken);
+ 
+         if (attachment is null || string.IsNullOrWhiteSpace(attachment.StorageKey))
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
+index c0d038f05c3d2785a67a68529568e5da1e1adac3..a8a2e6ae1e0730685a972de9aa50b6ae5b62b78a 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
+@@ -14,6 +14,7 @@ public sealed partial class IndexModel
+         if (UploadInput.RecordId.HasValue)
+         {
+             Id = UploadInput.RecordId;
++            SelectedRecordId = UploadInput.RecordId;
+         }
+ 
+         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
+@@ -58,7 +59,7 @@ public sealed partial class IndexModel
+                 cancellationToken);
+ 
+             TempData["ToastMessage"] = "Attachment uploaded.";
+-            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = UploadInput.RecordId.Value }, includePage: true, includeModeAndId: false));
++            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = UploadInput.RecordId.Value, mode = "edit", id = UploadInput.RecordId.Value }, includePage: true, includeModeAndId: false));
+         }
+         catch (InvalidOperationException ex)
+         {
+@@ -74,6 +75,7 @@ public sealed partial class IndexModel
+         if (RemoveAttachment.RecordId.HasValue)
+         {
+             Id = RemoveAttachment.RecordId;
++            SelectedRecordId = RemoveAttachment.RecordId;
+         }
+ 
+         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
+@@ -95,7 +97,7 @@ public sealed partial class IndexModel
+         if (rowVersion is null)
+         {
+             TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
+-            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
++            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
+         }
+ 
+         try
+@@ -115,7 +117,7 @@ public sealed partial class IndexModel
+             TempData["ToastError"] = ex.Message;
+         }
+ 
+-        return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
++        return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
+     }
+ 
+ 
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
+index 61a0ae51efcc11ce606555639e57ef02a0607cef..7a1debf1c574e137f68b66374d8bb4cbd5a10aba 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
+@@ -160,6 +160,7 @@ public sealed partial class IndexModel
+                 await LoadAnalyticsAsync(cancellationToken);
+                 break;
+             default:
++                await ResolveSelectedRecordPageAsync(cancellationToken);
+                 await LoadRecordsAsync(cancellationToken);
+                 break;
+         }
+@@ -192,6 +193,27 @@ public sealed partial class IndexModel
+         ActiveFilterChips = BuildActiveFilterChips();
+     }
+ 
++    private async Task ResolveSelectedRecordPageAsync(CancellationToken cancellationToken)
++    {
++        if (!SelectedRecordId.HasValue)
++        {
++            return;
++        }
++
++        var resolvedPageNumber = await _readService.GetPageNumberForRecordAsync(
++            BuildFilter(),
++            SelectedRecordId.Value,
++            cancellationToken);
++
++        if (resolvedPageNumber.HasValue)
++        {
++            PageNumber = resolvedPageNumber.Value;
++            return;
++        }
++
++        SelectedRecordId = null;
++    }
++
+     private async Task LoadRecordsAsync(CancellationToken cancellationToken)
+     {
+         var result = await _readService.SearchAsync(BuildFilter(), cancellationToken);
+@@ -199,9 +221,20 @@ public sealed partial class IndexModel
+         TotalCount = result.Total;
+         PageNumber = result.Page;
+         PageSize = result.PageSize;
+-        TotalPages = PageSize > 0
+-            ? (int)Math.Ceiling(result.Total / (double)PageSize)
+-            : 0;
++        TotalPages = result.Total == 0 || PageSize <= 0
++            ? 0
++            : (int)Math.Ceiling(result.Total / (double)PageSize);
++
++        if (Records.Count == 0)
++        {
++            SelectedRecordId = null;
++            return;
++        }
++
++        if (!SelectedRecordId.HasValue || Records.All(record => record.Id != SelectedRecordId.Value))
++        {
++            SelectedRecordId = Records[0].Id;
++        }
+     }
+ 
+     private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
+index d9a76f1c5c1d30ff1b24ec50a2ed2e43923bdc73..c6f157dc922c666a7d7ee23f8d3e62e6b31ed0cb 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
+@@ -66,7 +66,7 @@ public sealed partial class IndexModel
+             var entity = ToEntity(Input);
+             var created = await _writeService.CreateAsync(entity, cancellationToken);
+             TempData["ToastMessage"] = "IPR record created.";
+-            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
++            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = created.Id, mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
+         }
+         catch (IprValidationException ex)
+         {
+@@ -88,6 +88,7 @@ public sealed partial class IndexModel
+         if (Input.Id.HasValue)
+         {
+             Id = Input.Id;
++            SelectedRecordId = Input.Id;
+         }
+ 
+         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
+@@ -134,7 +135,7 @@ public sealed partial class IndexModel
+             }
+ 
+             TempData["ToastMessage"] = "IPR record updated.";
+-            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
++            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = updated.Id, mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
+         }
+         catch (IprValidationException ex)
+         {
+@@ -186,6 +187,7 @@ public sealed partial class IndexModel
+         }
+ 
+         Mode = null;
++        SelectedRecordId = null;
+         Id = null;
+         return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
+     }
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
+index e44b188c7f89d4d269272dfe3da6cdc26d2b8920..d6354a61fb156e6ac8852d77b05b6b06dabe42ee 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
+@@ -160,6 +160,11 @@ public sealed partial class IndexModel
+             Year = null;
+         }
+ 
++        if (SelectedRecordId.HasValue && SelectedRecordId.Value <= 0)
++        {
++            SelectedRecordId = null;
++        }
++
+         if (Id.HasValue && Id.Value <= 0)
+         {
+             Id = null;
+@@ -180,6 +185,13 @@ public sealed partial class IndexModel
+         {
+             _mode = null;
+         }
++
++        if (string.Equals(_mode, "edit", StringComparison.OrdinalIgnoreCase) &&
++            string.Equals(Tab, "records", StringComparison.Ordinal) &&
++            Id.HasValue)
++        {
++            SelectedRecordId ??= Id.Value;
++        }
+     }
+ 
+     private void NormalizePaging()
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
+index ccd49de186eec6a690693ef205b8d7c6f3e46bf4..922e01b3364a878d76d67ead8a13a0fe67c38f94 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
+@@ -50,11 +50,11 @@
+     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
+     var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
+     var recordsJson = JsonSerializer.Serialize(Model.Records);
+-    var selectedRecord = Model.Records.FirstOrDefault();
+-    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", page = 1 }, includePage: false, includeModeAndId: false);
+-    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", page = 1 }, includePage: false, includeModeAndId: false);
+-    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", page = 1 }, includePage: false, includeModeAndId: false);
+-    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
++    var selectedRecord = Model.SelectedRecord;
++    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+     var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
+     var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
+     var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
+@@ -220,12 +220,15 @@
+                 }
+             </form>
+ 
+-            <div class="ipr-record-toolbar">
++            <div class="ipr-record-toolbar" id="ipr-records">
+                 <div>
+                     <strong>IPR records</strong>
+                     <span>@(hasRecords ? $"{firstItem}–{lastItem} of {Model.TotalCount}" : "No matching records")</span>
+                 </div>
+                 <div class="ipr-record-toolbar__actions">
++                    @{ ViewData["IprPaginationCompact"] = true; }
++                    <partial name="_RecordsPagination" model="Model" />
++                    @{ ViewData.Remove("IprPaginationCompact"); }
+                     <label class="ipr-page-size-control">
+                         <span>Rows</span>
+                         <select class="form-select form-select-sm" data-ipr-page-size aria-label="Records per page">
+@@ -278,12 +281,12 @@
+                                 @for (var index = 0; index < Model.Records.Count; index++)
+                                 {
+                                     var row = Model.Records[index];
+-                                    var editRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = row.Id }, includeModeAndId: false);
+-                                    <tr class="ipr-record-row @(index == 0 ? "is-selected" : string.Empty)"
++                                    var editRoutes = Model.BuildEditRoute(row.Id);
++                                    <tr class="ipr-record-row @(row.Id == Model.SelectedRecordId ? "is-selected" : string.Empty)"
+                                         data-ipr-record-row
+                                         data-record-id="@row.Id"
+-                                        tabindex="@(index == 0 ? "0" : "-1")"
+-                                        aria-selected="@(index == 0 ? "true" : "false")"
++                                        tabindex="@(row.Id == Model.SelectedRecordId ? "0" : "-1")"
++                                        aria-selected="@(row.Id == Model.SelectedRecordId ? "true" : "false")"
+                                         aria-controls="iprRecordInspector">
+                                         <td>
+                                             <button type="button" class="ipr-record-title" data-ipr-select-record data-record-id="@row.Id" title="Inspect @row.Title" tabindex="-1">
+@@ -326,21 +329,7 @@
+                             </table>
+                         </div>
+ 
+-                        @if (Model.TotalPages > 1)
+-                        {
+-                            var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize, tab = "records" }, includePage: false, includeModeAndId: false);
+-                            <div class="ipr-pagination-bar">
+-                                <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
+-                                <nav aria-label="IPR register pages"><ul class="pagination pagination-sm mb-0">
+-                                    <li class="page-item @(Model.PageNumber == 1 ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber - 1)">‹</a></li>
+-                                    @for (var pageNo = Math.Max(1, Model.PageNumber - 2); pageNo <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNo++)
+-                                    {
+-                                        <li class="page-item @(pageNo == Model.PageNumber ? "active" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@pageNo">@pageNo</a></li>
+-                                    }
+-                                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber + 1)">›</a></li>
+-                                </ul></nav>
+-                            </div>
+-                        }
++                        <partial name="_RecordsPagination" model="Model" />
+                     </div>
+ 
+                     <div class="ipr-inspector-resize-handle"
+@@ -353,11 +342,12 @@
+                     <aside class="ipr-record-inspector"
+                            id="iprRecordInspector"
+                            data-ipr-record-inspector
++                           data-ipr-selected-record-id="@Model.SelectedRecordId"
+                            data-ipr-project-base-url="@Url.Content("~/Projects/Overview")"
+                            aria-live="polite">
+                         @if (selectedRecord is not null)
+                         {
+-                            var selectedEditRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = selectedRecord.Id }, includeModeAndId: false);
++                            var selectedEditRoutes = Model.BuildEditRoute(selectedRecord.Id);
+                             <div class="ipr-inspector-header">
+                                 <div>
+                                     <span class="ipr-inspector-eyebrow">Selected filing</span>
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
+index 090695e7e24d8c169ff048ba200cea8dd88bdc27..d7cd7d46a68bdc3c978fef2b9262bdd5b21b20bc 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
+@@ -79,7 +79,7 @@ public sealed partial class IndexModel : PageModel
+     [BindProperty(SupportsGet = true)]
+     public string Tab { get; set; } = "records";
+ 
+-    [BindProperty(Name = "page", SupportsGet = true)]
++    [BindProperty(Name = "pageNumber", SupportsGet = true)]
+     public int PageNumber { get; set; } = 1;
+ 
+     [BindProperty(SupportsGet = true)]
+@@ -92,6 +92,9 @@ public sealed partial class IndexModel : PageModel
+         set => _mode = value;
+     }
+ 
++    [BindProperty(SupportsGet = true)]
++    public int? SelectedRecordId { get; set; }
++
+     [BindProperty(SupportsGet = true)]
+     public int? Id { get; set; }
+ 
+@@ -127,6 +130,11 @@ public sealed partial class IndexModel : PageModel
+ 
+     public IReadOnlyList<IprRecordRowViewModel> Records { get; private set; } = Array.Empty<IprRecordRowViewModel>();
+ 
++    public IprRecordRowViewModel? SelectedRecord
++        => SelectedRecordId.HasValue
++            ? Records.FirstOrDefault(record => record.Id == SelectedRecordId.Value)
++            : Records.FirstOrDefault();
++
+     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
+ 
+     public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
+@@ -202,7 +210,19 @@ public sealed partial class IndexModel : PageModel
+         NormalizeFilters();
+         await EvaluateAuthorizationAsync();
+         NormalizeMode();
++
++        var requestedPageNumber = PageNumber;
++        var requestedSelectedRecordId = SelectedRecordId;
++
+         await LoadPageAsync(cancellationToken, loadRecordInput: true);
++
++        if (string.Equals(Tab, "records", StringComparison.Ordinal) &&
++            (requestedPageNumber != PageNumber ||
++             (requestedSelectedRecordId.HasValue && requestedSelectedRecordId != SelectedRecordId)))
++        {
++            return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: true));
++        }
++
+         return Page();
+     }
+ 
+@@ -259,12 +279,17 @@ public sealed partial class IndexModel : PageModel
+ 
+         if (includePage)
+         {
+-            values["page"] = PageNumber;
++            values["pageNumber"] = PageNumber;
+             values["pageSize"] = PageSize;
+         }
+ 
+         if (includeModeAndId)
+         {
++            if (SelectedRecordId.HasValue)
++            {
++                values["selectedRecordId"] = SelectedRecordId.Value;
++            }
++
+             if (!string.IsNullOrEmpty(Mode))
+             {
+                 values["mode"] = Mode;
+@@ -320,6 +345,24 @@ public sealed partial class IndexModel : PageModel
+         return result;
+     }
+ 
++    public IDictionary<string, string?> BuildPageRoute(int pageNumber)
++        => GetRouteValuesForLinks(
++            new { tab = "records", pageNumber, pageSize = PageSize },
++            includePage: false,
++            includeModeAndId: false);
++
++    public IDictionary<string, string?> BuildSelectedRecordRoute(int recordId)
++        => GetRouteValuesForLinks(
++            new { tab = "records", selectedRecordId = recordId },
++            includePage: true,
++            includeModeAndId: false);
++
++    public IDictionary<string, string?> BuildEditRoute(int recordId)
++        => GetRouteValuesForLinks(
++            new { tab = "records", selectedRecordId = recordId, mode = "edit", id = recordId },
++            includePage: true,
++            includeModeAndId: false);
++
+     private static void AddIndexedValues(IDictionary<string, string?> destination, string key, IEnumerable<string> values)
+     {
+         var index = 0;
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
+index 2f86949e00de2070533510215cef76326b55aef2..cbc9704cef2bfbd2fbbabc79b4aff94a17a80e20 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
+@@ -15,6 +15,7 @@ public sealed class ManageModel : PageModel
+         return RedirectToPage("./Index", new
+         {
+             tab = "records",
++            selectedRecordId = recordId,
+             mode = recordId.HasValue ? "edit" : "create",
+             id = recordId,
+             query
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
+index a78d6ac5ea733334b34f9697444fafec0bcfb63a..6f5c42ed23f0241ee0d375b0ec779699879fccf6 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
+@@ -73,7 +73,7 @@
+                    asp-page="/Ipr/Index"
+                    asp-route-mode="edit"
+                    asp-route-id="@Model.Id">
+-                    Edit in patent tracker
++                    Edit in IPR Register
+                 </a>
+             </li> *@
+             <li>
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml
 new file mode 100644
-index 0000000..2120fde
+index 0000000000000000000000000000000000000000..0ae00002479b2998cd908a96df198116aab33e1a
 --- /dev/null
-+++ b/ProjectManagement.Tests/ProjectRemarkDefaultTypeContractTests.cs
-@@ -0,0 +1,84 @@
-+using System;
-+using System.IO;
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml
+@@ -0,0 +1,115 @@
++@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
++@{
++    var compact = ViewData["IprPaginationCompact"] is true;
++    var firstItem = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize) + 1;
++    var lastItem = Model.TotalCount == 0 ? 0 : Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize);
++}
++
++@if (Model.TotalPages > 1)
++{
++    if (compact)
++    {
++        <nav class="ipr-pagination-compact" aria-label="IPR register page navigation">
++            @if (Model.PageNumber <= 1)
++            {
++                <span class="ipr-pagination-compact__button is-disabled" aria-disabled="true" title="Previous page">
++                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
++                </span>
++            }
++            else
++            {
++                <a class="ipr-pagination-compact__button"
++                   asp-page="./Index"
++                   asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber - 1)"
++                   asp-fragment="ipr-records"
++                   aria-label="Previous page"
++                   title="Previous page">
++                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
++                </a>
++            }
++
++            <span class="ipr-pagination-compact__position">Page <strong>@Model.PageNumber</strong> of @Model.TotalPages</span>
++
++            @if (Model.PageNumber >= Model.TotalPages)
++            {
++                <span class="ipr-pagination-compact__button is-disabled" aria-disabled="true" title="Next page">
++                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
++                </span>
++            }
++            else
++            {
++                <a class="ipr-pagination-compact__button"
++                   asp-page="./Index"
++                   asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber + 1)"
++                   asp-fragment="ipr-records"
++                   aria-label="Next page"
++                   title="Next page">
++                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
++                </a>
++            }
++        </nav>
++    }
++    else
++    {
++        <div class="ipr-pagination-bar">
++            <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
++            <nav aria-label="IPR register pages">
++                <ul class="pagination pagination-sm mb-0">
++                    <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
++                        @if (Model.PageNumber <= 1)
++                        {
++                            <span class="page-link" aria-disabled="true" aria-label="Previous page">
++                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
++                            </span>
++                        }
++                        else
++                        {
++                            <a class="page-link"
++                               asp-page="./Index"
++                               asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber - 1)"
++                               asp-fragment="ipr-records"
++                               aria-label="Previous page">
++                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
++                            </a>
++                        }
++                    </li>
++                    @for (var pageNumber = Math.Max(1, Model.PageNumber - 2); pageNumber <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNumber++)
++                    {
++                        <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
++                            @if (pageNumber == Model.PageNumber)
++                            {
++                                <span class="page-link" aria-current="page">@pageNumber</span>
++                            }
++                            else
++                            {
++                                <a class="page-link"
++                                   asp-page="./Index"
++                                   asp-all-route-data="@Model.BuildPageRoute(pageNumber)"
++                                   asp-fragment="ipr-records"
++                                   aria-label="Page @pageNumber">@pageNumber</a>
++                            }
++                        </li>
++                    }
++                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
++                        @if (Model.PageNumber >= Model.TotalPages)
++                        {
++                            <span class="page-link" aria-disabled="true" aria-label="Next page">
++                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
++                            </span>
++                        }
++                        else
++                        {
++                            <a class="page-link"
++                               asp-page="./Index"
++                               asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber + 1)"
++                               asp-fragment="ipr-records"
++                               aria-label="Next page">
++                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
++                            </a>
++                        }
++                    </li>
++                </ul>
++            </nav>
++        </div>
++    }
++}
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
+index ae748105d2dc1b82be6ae7f69d335ddacf478646..6701eceb68d690947200d8d6a935ef3e29deeffa 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
+@@ -21,5 +21,9 @@
+     <input type="hidden" name="Year" value="@Model.Year.Value" />
+ }
+ <input type="hidden" name="Tab" value="@Model.Tab" />
+-<input type="hidden" name="page" value="@Model.PageNumber" />
++@if (Model.SelectedRecordId.HasValue)
++{
++    <input type="hidden" name="SelectedRecordId" value="@Model.SelectedRecordId.Value" />
++}
++<input type="hidden" name="pageNumber" value="@Model.PageNumber" />
+ <input type="hidden" name="PageSize" value="@Model.PageSize" />
+diff --git a/Configuration/Policies.cs b/Configuration/Policies.cs
+index 098932647a311ba0d30d1f8d17ac13e641179549..0c49ecaf00bbcd87fd0bfcbb7c1a30faabfed9ee 100644
+--- a/Configuration/Policies.cs
++++ b/Configuration/Policies.cs
+@@ -229,16 +229,6 @@ public static class Policies
+         public const string View = "Ipr.View";
+         public const string Edit = "Ipr.Edit";
+ 
+-        public static readonly string[] ViewAllowedRoles =
+-        {
+-            "Admin",
+-            "HoD",
+-            "ProjectOffice",
+-            "Project Office",
+-            "Comdt",
+-            "MCO"
+-        };
+-
+         public static readonly string[] EditAllowedRoles =
+         {
+             "Admin",
+diff --git a/Program.cs b/Program.cs
+index d833e5da00dadddd45e1a79fc15952a32baa60bd..f44862110a64fe97c07aca1242af0149ca85f0b4 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -256,7 +256,7 @@ builder.Services.AddAuthorization(options =>
+     options.AddPolicy(ProjectOfficeReportsPolicies.UnlockArpp, policy =>
+         policy.RequireArppUnlocker());
+     options.AddPolicy(Policies.Ipr.View, policy =>
+-        policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
++        policy.RequireAuthenticatedUser());
+     options.AddPolicy(Policies.Ipr.Edit, policy =>
+         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
+     // SECTION: Industry partner authorization policies
+diff --git a/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs b/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
+index 4d66fd58a15f10308213ccb233f272fb21f86e98..34eb763d5f1f6521408e109734f07a9a5d8d7a28 100644
+--- a/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
++++ b/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
+@@ -10,35 +10,38 @@ namespace ProjectManagement.Tests;
+ public sealed class IprAuthorizationPolicyTests
+ {
+     [Theory]
+-    [MemberData(nameof(ViewAllowedRoles))]
+-    public async Task ViewPolicy_AllowsExpectedRoles(string role)
++    [InlineData("Project Officer")]
++    [InlineData("TA")]
++    [InlineData("ITO")]
++    [InlineData("Main Office Clerk")]
++    [InlineData("MC Cell Clerk")]
++    [InlineData("IT Cell Clerk")]
++    [InlineData(null)]
++    public async Task ViewPolicy_AllowsEveryAuthenticatedUser(string? role)
+     {
+         var policy = new AuthorizationPolicyBuilder()
+-            .RequireRole(Policies.Ipr.ViewAllowedRoles)
++            .RequireAuthenticatedUser()
+             .Build();
+ 
+         await using var provider = CreateProvider();
+         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+-        var user = CreatePrincipalWithRole(role);
++        var user = CreatePrincipal(role, authenticated: true);
+ 
+         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+ 
+         Assert.True(result.Succeeded);
+     }
+ 
+-    [Theory]
+-    [InlineData("Project Officer")]
+-    [InlineData("TA")]
+-    [InlineData(null)]
+-    public async Task ViewPolicy_DeniesUnauthorizedRoles(string? role)
++    [Fact]
++    public async Task ViewPolicy_DeniesAnonymousUser()
+     {
+         var policy = new AuthorizationPolicyBuilder()
+-            .RequireRole(Policies.Ipr.ViewAllowedRoles)
++            .RequireAuthenticatedUser()
+             .Build();
+ 
+         await using var provider = CreateProvider();
+         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+-        var user = CreatePrincipalWithRole(role);
++        var user = CreatePrincipal(role: null, authenticated: false);
+ 
+         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+ 
+@@ -55,7 +58,7 @@ public sealed class IprAuthorizationPolicyTests
+ 
+         await using var provider = CreateProvider();
+         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+-        var user = CreatePrincipalWithRole(role);
++        var user = CreatePrincipal(role, authenticated: true);
+ 
+         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+ 
+@@ -75,24 +78,13 @@ public sealed class IprAuthorizationPolicyTests
+ 
+         await using var provider = CreateProvider();
+         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+-        var user = CreatePrincipalWithRole(role);
++        var user = CreatePrincipal(role, authenticated: true);
+ 
+         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+ 
+         Assert.False(result.Succeeded);
+     }
+ 
+-    public static TheoryData<string> ViewAllowedRoles()
+-    {
+-        var data = new TheoryData<string>();
+-        foreach (var role in Policies.Ipr.ViewAllowedRoles)
+-        {
+-            data.Add(role);
+-        }
+-
+-        return data;
+-    }
+-
+     public static TheoryData<string> EditAllowedRoles()
+     {
+         var data = new TheoryData<string>();
+@@ -104,15 +96,17 @@ public sealed class IprAuthorizationPolicyTests
+         return data;
+     }
+ 
+-    private static ClaimsPrincipal CreatePrincipalWithRole(string? role)
++    private static ClaimsPrincipal CreatePrincipal(string? role, bool authenticated)
+     {
+-        if (string.IsNullOrWhiteSpace(role))
++        var identity = authenticated
++            ? new ClaimsIdentity(authenticationType: "Test")
++            : new ClaimsIdentity();
++
++        if (!string.IsNullOrWhiteSpace(role))
+         {
+-            return new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "Test"));
++            identity.AddClaim(new Claim(ClaimTypes.Role, role));
+         }
+ 
+-        var identity = new ClaimsIdentity(authenticationType: "Test");
+-        identity.AddClaim(new Claim(ClaimTypes.Role, role));
+         return new ClaimsPrincipal(identity);
+     }
+ 
+diff --git a/ProjectManagement.Tests/IprExportServiceTests.cs b/ProjectManagement.Tests/IprExportServiceTests.cs
+index fb3b15bb91c7c59032d6389d8c56c9ad7dbb340e..3f78ccd7bb44ca8f6579cc0973d50d4d4deabe66 100644
+--- a/ProjectManagement.Tests/IprExportServiceTests.cs
++++ b/ProjectManagement.Tests/IprExportServiceTests.cs
+@@ -109,6 +109,9 @@ public sealed class IprExportServiceTests
+         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
+             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, 1, 25));
+ 
++        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
++            => Task.FromResult<int?>(null);
++
+         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
+             => Task.FromResult<IprRecord?>(null);
+ 
+diff --git a/ProjectManagement.Tests/IprIndexPageTests.cs b/ProjectManagement.Tests/IprIndexPageTests.cs
+index 5ef7d7f1da48e02de7800700f3ba4ba759059636..f441ec57e3f9b6a6e96cd246b6f2a91beb1a9be2 100644
+--- a/ProjectManagement.Tests/IprIndexPageTests.cs
++++ b/ProjectManagement.Tests/IprIndexPageTests.cs
+@@ -116,6 +116,7 @@ public sealed class IprIndexPageTests
+             Assert.Equal("./Index", redirect.PageName);
+             Assert.Equal("edit", redirect.RouteValues?["mode"]);
+             var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
++            Assert.Equal(createdId, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
+             Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
+ 
+             var created = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == createdId);
+@@ -191,6 +192,7 @@ public sealed class IprIndexPageTests
+             Assert.Equal("./Index", redirect.PageName);
+             Assert.Equal("edit", redirect.RouteValues?["mode"]);
+             Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["id"]));
++            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
+             Assert.Equal("IPR record updated.", page.TempData["ToastMessage"]);
+             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("DeleteRequest", StringComparison.Ordinal));
+             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("RemoveAttachment", StringComparison.Ordinal));
+@@ -587,6 +589,9 @@ public sealed class IprIndexPageTests
+         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
+             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, filter.Page, filter.PageSize));
+ 
++        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
++            => Task.FromResult<int?>(null);
++
+         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
+             => Task.FromResult<IprRecord?>(null);
+ 
+diff --git a/ProjectManagement.Tests/IprNavigationUrlTests.cs b/ProjectManagement.Tests/IprNavigationUrlTests.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2452f2c1df9b865c9bcb7fc3f300f32a9a491ba3
+--- /dev/null
++++ b/ProjectManagement.Tests/IprNavigationUrlTests.cs
+@@ -0,0 +1,28 @@
++using ProjectManagement.Services.Navigation;
 +using Xunit;
 +
 +namespace ProjectManagement.Tests;
 +
-+public sealed class ProjectRemarkDefaultTypeContractTests
++public sealed class IprNavigationUrlTests
 +{
 +    [Fact]
-+    public void ProjectRemarkComposers_RenderTheServerResolvedDefaultType()
++    public void IprRecordView_UsesNeutralSelectionRoute()
 +    {
-+        var standalone = ReadRepoFile("Pages", "Projects", "Remarks", "Index.cshtml");
-+        var workspace = ReadRepoFile("Pages", "Projects", "_ProjectLifecycleWorkspace.cshtml");
++        var builder = new UrlBuilder();
 +
-+        Assert.Contains("Model.RemarksPanel.DefaultType", standalone, StringComparison.Ordinal);
-+        Assert.Contains("defaultConferenceRemark", standalone, StringComparison.Ordinal);
-+        Assert.Contains("defaultConferenceRemark", workspace, StringComparison.Ordinal);
-+        Assert.DoesNotContain(
-+            "class=\"btn btn-outline-secondary active\" data-remarks-composer-option=\"Internal\"",
-+            standalone,
-+            StringComparison.Ordinal);
-+        Assert.DoesNotContain(
-+            "class=\"btn btn-outline-secondary active\" data-remarks-composer-option=\"Internal\"",
-+            workspace,
-+            StringComparison.Ordinal);
++        var url = builder.IprRecordView(42);
++
++        Assert.Equal("/ProjectOfficeReports/Ipr?tab=records&selectedRecordId=42", url);
++        Assert.DoesNotContain("mode=edit", url);
 +    }
 +
 +    [Fact]
-+    public void RemarksClientInitialisesAndResetsToTheConfiguredDefaultType()
++    public void IprRecordManage_KeepsSelectionAndEditStateSeparate()
 +    {
-+        var script = ReadRepoFile("wwwroot", "js", "projects", "remarks-panel.js");
++        var builder = new UrlBuilder();
 +
-+        Assert.Contains(
-+            "this.defaultComposerType = this.resolveComposerType(this.config.defaultType);",
-+            script,
-+            StringComparison.Ordinal);
-+        Assert.Contains("resolveComposerType(type)", script, StringComparison.Ordinal);
-+        Assert.Equal(2, CountOccurrences(script, "this.setComposerType(this.defaultComposerType);"));
-+    }
++        var url = builder.IprRecordManage(42);
 +
-+    [Fact]
-+    public void DefaultTypePolicyIsResolvedOnTheServerForCommandantOnly()
-+    {
-+        var viewModel = ReadRepoFile("ViewModels", "ProjectRemarksPanelViewModel.cs");
-+        var service = ReadRepoFile("Services", "Projects", "ProjectRemarksPanelService.cs");
-+
-+        Assert.Contains("public string DefaultType", viewModel, StringComparison.Ordinal);
-+        Assert.Contains("SelectDefaultRemarkType(actorRole, allowConference)", service, StringComparison.Ordinal);
-+        Assert.Contains("actorRole == RemarkActorRole.Commandant && allowConference", service, StringComparison.Ordinal);
-+        Assert.Contains("? RemarkType.Conference", service, StringComparison.Ordinal);
-+        Assert.Contains(": RemarkType.Internal", service, StringComparison.Ordinal);
-+    }
-+
-+    private static string ReadRepoFile(params string[] relativePath)
-+    {
-+        var current = new DirectoryInfo(AppContext.BaseDirectory);
-+        while (current is not null)
-+        {
-+            var candidate = Path.Combine(current.FullName, Path.Combine(relativePath));
-+            if (File.Exists(candidate))
-+            {
-+                return File.ReadAllText(candidate);
-+            }
-+
-+            current = current.Parent;
-+        }
-+
-+        throw new FileNotFoundException(
-+            $"Could not locate repository file: {Path.Combine(relativePath)}");
-+    }
-+
-+    private static int CountOccurrences(string value, string search)
-+    {
-+        var count = 0;
-+        var index = 0;
-+        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
-+        {
-+            count++;
-+            index += search.Length;
-+        }
-+
-+        return count;
++        Assert.Equal("/ProjectOfficeReports/Ipr?tab=records&selectedRecordId=42&mode=edit&id=42", url);
 +    }
 +}
-diff --git a/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs b/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
-index 1a4faba..b41ddf4 100644
---- a/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
-+++ b/ProjectManagement.Tests/ProjectRemarksPanelServiceTests.cs
-@@ -109,6 +109,84 @@ public sealed class ProjectRemarksPanelServiceTests
-         Assert.Equal(expected, viewModel.AllowConference);
+diff --git a/ProjectManagement.Tests/IprReadServiceTests.cs b/ProjectManagement.Tests/IprReadServiceTests.cs
+index 813ad4744caf50da40cab7fdb73920934bcfbf21..2b0f7c3b945a5c3aba76181c5619f744b814ed03 100644
+--- a/ProjectManagement.Tests/IprReadServiceTests.cs
++++ b/ProjectManagement.Tests/IprReadServiceTests.cs
+@@ -297,6 +297,77 @@ public sealed class IprReadServiceTests
+         Assert.Equal(new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero), item.Attachments[0].UploadedAtUtc);
      }
  
-+    [Theory]
-+    [InlineData(RoleNames.Comdt, RemarkType.Conference)]
-+    [InlineData(RoleNames.HoD, RemarkType.Internal)]
-+    [InlineData(RoleNames.Admin, RemarkType.Internal)]
-+    [InlineData(RoleNames.Mco, RemarkType.Internal)]
-+    [InlineData(RoleNames.ProjectOfficer, RemarkType.Internal)]
-+    public async Task BuildAsync_DefaultRemarkTypeFollowsEffectiveActorRole(
-+        string role,
-+        RemarkType expected)
++    [Fact]
++    public async Task SearchAsync_ClampsOutOfRangePageToLastAvailablePage()
 +    {
-+        await using var db = CreateContext();
-+        using var userManager = CreateUserManager(db);
-+        var service = new ProjectRemarksPanelService(
-+            userManager,
-+            new FixedClock(DateTimeOffset.UtcNow),
-+            new WorkflowStageMetadataProvider());
++        await using var db = CreateDbContext();
 +
-+        var user = new ApplicationUser { Id = $"default-{role}", UserName = $"default-{role}@example.com" };
-+        await userManager.CreateAsync(user);
++        db.IprRecords.AddRange(
++            new IprRecord { IprFilingNumber = "IPR-301", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero) },
++            new IprRecord { IprFilingNumber = "IPR-302", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero) },
++            new IprRecord { IprFilingNumber = "IPR-303", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) });
++        await db.SaveChangesAsync();
 +
-+        var project = new Project
-+        {
-+            Id = 21,
-+            Name = "Project Default Type",
-+            LeadPoUserId = role == RoleNames.ProjectOfficer ? user.Id : null
-+        };
-+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
-+            new[]
-+            {
-+                new Claim(ClaimTypes.NameIdentifier, user.Id),
-+                new Claim(ClaimTypes.Role, role)
-+            },
-+            "TestAuth"));
++        var filter = new IprFilter { Page = 99, PageSize = 2 };
++        var result = await new IprReadService(db).SearchAsync(filter);
 +
-+        var viewModel = await service.BuildAsync(
-+            project,
-+            Array.Empty<ProjectStage>(),
-+            principal,
-+            CancellationToken.None);
-+
-+        Assert.Equal(expected.ToString(), viewModel.DefaultType);
++        Assert.Equal(2, result.Page);
++        Assert.Equal(3, result.Total);
++        Assert.Single(result.Items);
++        Assert.Equal("IPR-303", result.Items[0].FilingNumber);
 +    }
 +
 +    [Fact]
-+    public async Task BuildAsync_MultiRoleCommandantStillDefaultsToConference()
++    public async Task GetPageNumberForRecordAsync_UsesFilteredRegisterOrdering()
 +    {
-+        await using var db = CreateContext();
-+        using var userManager = CreateUserManager(db);
-+        var service = new ProjectRemarksPanelService(
-+            userManager,
-+            new FixedClock(DateTimeOffset.UtcNow),
-+            new WorkflowStageMetadataProvider());
++        await using var db = CreateDbContext();
 +
-+        var user = new ApplicationUser { Id = "multi-role-commandant", UserName = "multi-role-commandant@example.com" };
-+        await userManager.CreateAsync(user);
-+
-+        var project = new Project { Id = 22, Name = "Project Multi Role" };
-+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
-+            new[]
++        var records = Enumerable.Range(1, 5)
++            .Select(index => new IprRecord
 +            {
-+                new Claim(ClaimTypes.NameIdentifier, user.Id),
-+                new Claim(ClaimTypes.Role, RoleNames.HoD),
-+                new Claim(ClaimTypes.Role, RoleNames.Comdt),
-+                new Claim(ClaimTypes.Role, RoleNames.Admin)
-+            },
-+            "TestAuth"));
++                IprFilingNumber = $"IPR-40{index}",
++                Type = IprType.Patent,
++                Status = IprStatus.Filed,
++                FiledAtUtc = new DateTimeOffset(2026, 6 - index, 1, 0, 0, 0, TimeSpan.Zero)
++            })
++            .ToArray();
 +
-+        var viewModel = await service.BuildAsync(
-+            project,
-+            Array.Empty<ProjectStage>(),
-+            principal,
-+            CancellationToken.None);
++        db.IprRecords.AddRange(records);
++        await db.SaveChangesAsync();
 +
-+        Assert.Equal(RemarkActorRole.Commandant.ToString(), viewModel.ActorRole);
-+        Assert.True(viewModel.AllowConference);
-+        Assert.Equal(RemarkType.Conference.ToString(), viewModel.DefaultType);
++        var filter = new IprFilter { PageSize = 2 };
++        var pageNumber = await new IprReadService(db)
++            .GetPageNumberForRecordAsync(filter, records[2].Id);
++
++        Assert.Equal(2, pageNumber);
 +    }
 +
-     [Fact]
-     public async Task BuildAsync_WhenNoStages_UsesAllStageCodes()
++    [Fact]
++    public async Task GetPageNumberForRecordAsync_ReturnsNullWhenRecordDoesNotMatchFilter()
++    {
++        await using var db = CreateDbContext();
++
++        var patent = new IprRecord
++        {
++            IprFilingNumber = "IPR-501",
++            Type = IprType.Patent,
++            Status = IprStatus.Filed
++        };
++        db.IprRecords.Add(patent);
++        await db.SaveChangesAsync();
++
++        var filter = new IprFilter
++        {
++            Types = new[] { IprType.Copyright },
++            PageSize = 15
++        };
++
++        var pageNumber = await new IprReadService(db)
++            .GetPageNumberForRecordAsync(filter, patent.Id);
++
++        Assert.Null(pageNumber);
++    }
++
+     private static ApplicationDbContext CreateDbContext()
      {
-diff --git a/Services/Projects/ProjectRemarksPanelService.cs b/Services/Projects/ProjectRemarksPanelService.cs
-index c156b25..474a8d6 100644
---- a/Services/Projects/ProjectRemarksPanelService.cs
-+++ b/Services/Projects/ProjectRemarksPanelService.cs
-@@ -149,6 +149,7 @@ public sealed class ProjectRemarksPanelService
-         var allowExternal = !viewerOnly && canPostAsHoDOrAbove;
-         var allowConference = !viewerOnly && remarkRoleSet.Any(role =>
-             role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant);
-+        var defaultType = SelectDefaultRemarkType(actorRole, allowConference);
+         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+diff --git a/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs b/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
+index 08542949da1116808c4393d263cca5a0d92a5d50..6461fe8c9653bb231d1c6fca7b33d227b23633bc 100644
+--- a/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
++++ b/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
+@@ -125,7 +125,7 @@ public class RoleBasedNavigationProviderTests
+             },
+             item =>
+             {
+-                Assert.Equal("Patent tracker", item.Text);
++                Assert.Equal("IPR Register", item.Text);
+                 Assert.Equal(Policies.Ipr.View, item.AuthorizationPolicy);
+             },
+             item =>
+diff --git a/Services/Admin/AdminRoleAccessCatalog.cs b/Services/Admin/AdminRoleAccessCatalog.cs
+index 91cc872137c83ba47d52b5660607c63681cffa97..3790550b455fa93ef6586c7c5de6a9e418ec1239 100644
+--- a/Services/Admin/AdminRoleAccessCatalog.cs
++++ b/Services/Admin/AdminRoleAccessCatalog.cs
+@@ -320,11 +320,10 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
+                 ProjectOfficeReportsPolicies.ArppUnlockRoles,
+                 Group.Reports,
+                 140),
+-            Access(
++            AllRoles(
+                 "reports-ipr-view",
+-                "View the IPR tracker",
+-                "Review patent and copyright records.",
+-                Policies.Ipr.ViewAllowedRoles,
++                "View the IPR Register",
++                "Review patent and copyright records, supporting evidence, projects, follow-up and analytics.",
+                 Group.Reports,
+                 150),
+             Access(
+diff --git a/Services/Navigation/IUrlBuilder.cs b/Services/Navigation/IUrlBuilder.cs
+index 88a1ffc8573b54bd0e1325b66690925f0e326827..8672be374ae2e0e9bc7df9ba2cc5eec73e148fc7 100644
+--- a/Services/Navigation/IUrlBuilder.cs
++++ b/Services/Navigation/IUrlBuilder.cs
+@@ -11,6 +11,7 @@ public interface IUrlBuilder
+     string DocumentRepositoryDownload(Guid documentId);
+     string FfcRecordManage(long recordId);
+     string FfcAttachmentView(long attachmentId);
++    string IprRecordView(int recordId);
+     string IprRecordManage(int recordId);
+     string IprAttachmentDownload(int recordId, int attachmentId);
+     string ActivityDetails(int activityId);
+diff --git a/Services/Navigation/RoleBasedNavigationProvider.cs b/Services/Navigation/RoleBasedNavigationProvider.cs
+index 0000b57b16eeff6d219644f6a2cbc84096d0e71d..8b04a7cb49677456719fc71f3a9c3dc123437e5e 100644
+--- a/Services/Navigation/RoleBasedNavigationProvider.cs
++++ b/Services/Navigation/RoleBasedNavigationProvider.cs
+@@ -262,7 +262,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
+             },
+             new()
+             {
+-                Text = "Patent tracker",
++                Text = "IPR Register",
+                 Area = "ProjectOfficeReports",
+                 Page = "/Ipr/Index",
+                 AuthorizationPolicy = Policies.Ipr.View,
+diff --git a/Services/Navigation/UrlBuilder.cs b/Services/Navigation/UrlBuilder.cs
+index a25e752db0b2c25af0708e51837ced8cf8dc33b1..8f7f499f113a6b926a3ff07f24497572ab5269f0 100644
+--- a/Services/Navigation/UrlBuilder.cs
++++ b/Services/Navigation/UrlBuilder.cs
+@@ -20,8 +20,11 @@ public sealed class UrlBuilder : IUrlBuilder
+     public string FfcAttachmentView(long attachmentId)
+         => $"/ProjectOfficeReports/FFC/Attachments/View?id={attachmentId.ToString(CultureInfo.InvariantCulture)}";
  
-         return new ProjectRemarksPanelViewModel
-         {
-@@ -162,6 +163,7 @@ public sealed class ProjectRemarksPanelService
-             AllowInternal = showComposer,
-             AllowExternal = allowExternal,
-             AllowConference = allowConference,
-+            DefaultType = defaultType.ToString(),
-             ShowDeletedToggle = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Administrator),
-             ActorHasOverride = canOverride,
-             StageOptions = stageOptions,
-@@ -265,6 +267,13 @@ public sealed class ProjectRemarksPanelService
-         return latestCompleted?.StageCode ?? string.Empty;
-     }
- 
-+    private static RemarkType SelectDefaultRemarkType(
-+        RemarkActorRole actorRole,
-+        bool allowConference)
-+        => actorRole == RemarkActorRole.Commandant && allowConference
-+            ? RemarkType.Conference
-+            : RemarkType.Internal;
++    public string IprRecordView(int recordId)
++        => $"/ProjectOfficeReports/Ipr?tab=records&selectedRecordId={recordId.ToString(CultureInfo.InvariantCulture)}";
 +
-     private static RemarkActorRole SelectDefaultRemarkRole(IReadOnlyCollection<RemarkActorRole> roles)
-     {
-         foreach (var candidate in new[]
-diff --git a/ViewModels/ProjectRemarksPanelViewModel.cs b/ViewModels/ProjectRemarksPanelViewModel.cs
-index e12eb5e..575e047 100644
---- a/ViewModels/ProjectRemarksPanelViewModel.cs
-+++ b/ViewModels/ProjectRemarksPanelViewModel.cs
-@@ -29,6 +29,8 @@ public sealed class ProjectRemarksPanelViewModel
+     public string IprRecordManage(int recordId)
+-        => $"/ProjectOfficeReports/Ipr?tab=records&mode=edit&id={recordId.ToString(CultureInfo.InvariantCulture)}";
++        => $"/ProjectOfficeReports/Ipr?tab=records&selectedRecordId={recordId.ToString(CultureInfo.InvariantCulture)}&mode=edit&id={recordId.ToString(CultureInfo.InvariantCulture)}";
  
-     public bool AllowConference { get; init; }
+     public string IprAttachmentDownload(int recordId, int attachmentId)
+         => $"/ProjectOfficeReports/Ipr/Download?iprRecordId={recordId.ToString(CultureInfo.InvariantCulture)}&attachmentId={attachmentId.ToString(CultureInfo.InvariantCulture)}";
+diff --git a/Services/Search/GlobalIprSearchService.cs b/Services/Search/GlobalIprSearchService.cs
+index ce7adc6d77651e3a6fa75e975a83b53e354c42c9..7ec8b11df0257bc6a200714fdda6b3df617e30c6 100644
+--- a/Services/Search/GlobalIprSearchService.cs
++++ b/Services/Search/GlobalIprSearchService.cs
+@@ -5,6 +5,7 @@ using System.Threading;
+ using System.Threading.Tasks;
+ using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Data;
++using ProjectManagement.Infrastructure.Data;
+ using ProjectManagement.Services.Navigation;
  
-+    public string DefaultType { get; init; } = RemarkType.Internal.ToString();
+ namespace ProjectManagement.Services.Search
+@@ -45,10 +46,13 @@ namespace ProjectManagement.Services.Search
+             var records = await _dbContext.IprRecords
+                 .AsNoTracking()
+                 .Where(record =>
+-                    EF.Functions.ILike(record.IprFilingNumber, pattern) ||
+-                    EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
+-                    EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
+-                    EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern))
++                    (record.Status == IprStatus.FilingUnderProcess ||
++                     record.Status == IprStatus.Filed ||
++                     record.Status == IprStatus.Granted) &&
++                    (EF.Functions.ILike(record.IprFilingNumber, pattern) ||
++                     EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
++                     EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
++                     EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern)))
+                 .OrderByDescending(record => record.GrantedAtUtc ?? record.FiledAtUtc ?? DateTimeOffset.MinValue)
+                 .Take(recordLimit)
+                 .ToListAsync(cancellationToken);
+@@ -65,7 +69,7 @@ namespace ProjectManagement.Services.Search
+                     Source: "IPR",
+                     Title: title ?? $"IPR {record.Id}",
+                     Snippet: record.Notes,
+-                    Url: _urlBuilder.IprRecordManage(record.Id),
++                    Url: _urlBuilder.IprRecordView(record.Id),
+                     Date: date,
+                     Score: 0.6m,
+                     FileType: null,
+@@ -79,7 +83,10 @@ namespace ProjectManagement.Services.Search
+                 .AsNoTracking()
+                 .Where(attachment =>
+                     !attachment.IsArchived &&
+-                    attachment.ContentType == "application/pdf" && // <-- fixed
++                    (attachment.Record.Status == IprStatus.FilingUnderProcess ||
++                     attachment.Record.Status == IprStatus.Filed ||
++                     attachment.Record.Status == IprStatus.Granted) &&
++                    attachment.ContentType == "application/pdf" &&
+                     (
+                         EF.Functions.ILike(attachment.OriginalFileName ?? string.Empty, pattern) ||
+                         EF.Functions.ILike(attachment.ContentType ?? string.Empty, pattern)
+diff --git a/wwwroot/css/site-ipr.css b/wwwroot/css/site-ipr.css
+index 6a21d1004a45b4077c5dc3f5d1d5c7670240a9b7..eafca005a37bd5838ec9b03961b78bff226c1920 100644
+--- a/wwwroot/css/site-ipr.css
++++ b/wwwroot/css/site-ipr.css
+@@ -238,6 +238,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ 
+ /* Records workbench */
+ .ipr-record-toolbar {
++    scroll-margin-top: 68px;
+     justify-content: space-between;
+     gap: 16px;
+     min-height: 48px;
+@@ -252,6 +253,48 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ .ipr-page-size-control,
+ .ipr-density-control { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--ipr-muted); font-size: .72rem; }
+ .ipr-page-size-control .form-select { width: 70px; }
++.ipr-pagination-compact {
++    display: inline-flex;
++    min-height: 32px;
++    align-items: center;
++    gap: 3px;
++    padding: 2px;
++    border: 1px solid var(--ipr-border);
++    border-radius: 8px;
++    background: #f7f9fc;
++}
++.ipr-pagination-compact__button {
++    display: inline-grid;
++    width: 28px;
++    height: 28px;
++    place-items: center;
++    border-radius: 6px;
++    color: var(--ipr-blue);
++    text-decoration: none;
++}
++.ipr-pagination-compact__button:hover,
++.ipr-pagination-compact__button:focus-visible {
++    background: #fff;
++    color: #244fc2;
++    box-shadow: 0 1px 4px rgba(16, 33, 63, .12);
++}
++.ipr-pagination-compact__button:focus-visible {
++    outline: 2px solid rgba(63, 110, 232, .35);
++    outline-offset: 1px;
++}
++.ipr-pagination-compact__button.is-disabled {
++    color: #a8b3c4;
++    cursor: default;
++}
++.ipr-pagination-compact__position {
++    min-width: 84px;
++    padding: 0 7px;
++    color: var(--ipr-muted);
++    font-size: .7rem;
++    text-align: center;
++    white-space: nowrap;
++}
++.ipr-pagination-compact__position strong { color: #243652; }
+ .ipr-density-toggle { display: inline-flex; padding: 2px; border: 1px solid var(--ipr-border); border-radius: 8px; background: #f7f9fc; }
+ .ipr-density-toggle .btn { display: inline-flex; width: auto; height: 28px; align-items: center; gap: 5px; padding: 0 9px; border: 0; color: #6e7d94; font-size: .68rem; font-weight: 650; }
+ .ipr-density-toggle .btn.is-active { background: #fff; color: var(--ipr-blue); box-shadow: 0 1px 4px rgba(16, 33, 63, .12); }
+@@ -317,6 +360,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ .ipr-register-page.density-comfortable .ipr-record-title > span { font-size: .87rem; }
+ 
+ .ipr-pagination-bar { justify-content: space-between; gap: 16px; min-height: 48px; padding: 9px 13px; border-top: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .76rem; }
++.ipr-pagination-bar .page-link { min-width: 32px; text-align: center; }
++.ipr-pagination-bar .page-link:focus-visible { outline: 2px solid rgba(63, 110, 232, .35); outline-offset: 1px; box-shadow: none; }
++.ipr-pagination-bar .page-item.disabled .page-link { cursor: default; }
+ 
+ /* Persistent record inspector */
+ .ipr-inspector-resize-handle { position: relative; z-index: 2; cursor: col-resize; background: #f4f7fb; touch-action: none; }
+@@ -635,7 +681,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+     .ipr-project-filter-picker .ipr-project-picker__panel { min-width: 0; }
+     .ipr-record-toolbar { align-items: flex-start; flex-direction: column; }
+     .ipr-record-toolbar__actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+-    .ipr-density-control { width: 100%; justify-content: space-between; }
++    .ipr-pagination-compact { order: 1; }
++    .ipr-page-size-control { order: 2; }
++    .ipr-density-control { width: 100%; order: 3; justify-content: space-between; }
+     .ipr-register-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
+     .ipr-register-table { min-width: 790px; }
+     .ipr-record-inspector { max-height: none; overflow: visible; }
+@@ -694,6 +742,10 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ [data-bs-theme="dark"] .ipr-project-groups,
+ [data-bs-theme="dark"] .ipr-project-toolbar,
+ [data-bs-theme="dark"] .ipr-record-toolbar { background: #111827; }
++[data-bs-theme="dark"] .ipr-pagination-compact { border-color: #34425a; background: #172033; }
++[data-bs-theme="dark"] .ipr-pagination-compact__button:hover,
++[data-bs-theme="dark"] .ipr-pagination-compact__button:focus-visible { background: #26354d; color: #8fb0ff; }
++[data-bs-theme="dark"] .ipr-pagination-compact__position strong { color: #e6edf7; }
+ [data-bs-theme="dark"] .ipr-register-table thead th,
+ [data-bs-theme="dark"] .ipr-project-record-head { background: #1d293d; color: #afbdd0; }
+ [data-bs-theme="dark"] .ipr-register-table td,
+diff --git a/wwwroot/js/project-office-reports/ipr/index.js b/wwwroot/js/project-office-reports/ipr/index.js
+index a1baecba42115efb69a6fec06ea0f07eac47f843..4797442ca0c9ec47fc7aaafaf16f966e26f7b2f9 100644
+--- a/wwwroot/js/project-office-reports/ipr/index.js
++++ b/wwwroot/js/project-office-reports/ipr/index.js
+@@ -394,7 +394,7 @@
+     const byId = new Map(records.map(record => [String(record.Id ?? record.id), record]));
+     const rows = Array.from(document.querySelectorAll('[data-ipr-record-row]'));
+     const projectBaseUrl = inspector.dataset.iprProjectBaseUrl || '/Projects/Overview';
+-    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('page') || '1'}`;
++    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('pageNumber') || '1'}`;
+ 
+     const setText = (selector, value) => {
+       const element = inspector.querySelector(selector);
+@@ -495,6 +495,10 @@
+       if (editLink && rowEdit) editLink.href = rowEdit.href;
+ 
+       try { sessionStorage.setItem(storageKey, String(id)); } catch { /* storage is optional */ }
 +
-     public bool ShowDeletedToggle { get; init; }
++      const url = new URL(window.location.href);
++      url.searchParams.set('selectedRecordId', String(id));
++      history.replaceState({}, document.title, url.toString());
+     };
  
-     public bool ActorHasOverride { get; init; }
-diff --git a/wwwroot/js/projects/remarks-panel.js b/wwwroot/js/projects/remarks-panel.js
-index edbcf90..90a4a24 100644
---- a/wwwroot/js/projects/remarks-panel.js
-+++ b/wwwroot/js/projects/remarks-panel.js
-@@ -326,6 +326,7 @@
-             this.actorHasOverride = !!this.config.actorHasOverride;
-             this.allowExternal = !!this.config.allowExternal;
-             this.allowConference = !!this.config.allowConference;
-+            this.defaultComposerType = this.resolveComposerType(this.config.defaultType);
-             this.viewerOnly = !!this.config.viewerOnly;
-             const parsedPageSize = Number.parseInt(this.config.pageSize, 10);
-             this.pageSize = Number.isFinite(parsedPageSize) && parsedPageSize > 0 ? parsedPageSize : 20;
-@@ -654,7 +655,7 @@
-                     });
-                 }
+     document.querySelectorAll('[data-ipr-select-record]').forEach(button => {
+@@ -525,11 +529,18 @@
+       });
+     });
  
--                this.setComposerType('Internal');
-+                this.setComposerType(this.defaultComposerType);
-                 this.validateComposer();
- 
-                 if (this.bodyField) {
-@@ -2244,13 +2245,21 @@
-             return headers;
-         }
- 
--        setComposerType(type) {
-+        resolveComposerType(type) {
-             const requested = String(type || 'Internal').toLowerCase();
--            const target = requested === 'external' && this.allowExternal
--                ? 'External'
--                : requested === 'conference' && this.allowConference
--                    ? 'Conference'
--                    : 'Internal';
-+            if (requested === 'external' && this.allowExternal) {
-+                return 'External';
-+            }
+-    let initialId = rows[0]?.dataset.recordId;
+-    try {
+-      const saved = sessionStorage.getItem(storageKey);
+-      if (saved && byId.has(saved)) initialId = saved;
+-    } catch { /* storage is optional */ }
++    const serverSelectedId = inspector.dataset.iprSelectedRecordId;
++    let initialId = serverSelectedId && byId.has(serverSelectedId)
++      ? serverSelectedId
++      : rows[0]?.dataset.recordId;
 +
-+            if (requested === 'conference' && this.allowConference) {
-+                return 'Conference';
-+            }
++    if (!serverSelectedId) {
++      try {
++        const saved = sessionStorage.getItem(storageKey);
++        if (saved && byId.has(saved)) initialId = saved;
++      } catch { /* storage is optional */ }
++    }
 +
-+            return 'Internal';
-+        }
-+
-+        setComposerType(type) {
-+            const target = this.resolveComposerType(type);
-             this.composerType = target;
+     if (initialId) selectRecord(initialId);
+   };
  
-             if (this.composerForm) {
-@@ -2308,7 +2317,7 @@
-             }
+@@ -650,9 +661,11 @@
+     select.addEventListener('change', () => {
+       const url = new URL(window.location.href);
+       url.searchParams.set('pageSize', select.value);
+-      url.searchParams.set('page', '1');
++      url.searchParams.set('pageNumber', '1');
++      url.searchParams.delete('selectedRecordId');
+       url.searchParams.delete('mode');
+       url.searchParams.delete('id');
++      url.hash = 'ipr-records';
+       window.location.assign(url.toString());
+     });
+   };
+diff --git a/wwwroot/js/project-office-reports/ipr/index.test.js b/wwwroot/js/project-office-reports/ipr/index.test.js
+index 6ca5e9c46602c7f94a21ee22f2e06f58f0011847..046f699470570a8b510fbb906d312b164a31ce66 100644
+--- a/wwwroot/js/project-office-reports/ipr/index.test.js
++++ b/wwwroot/js/project-office-reports/ipr/index.test.js
+@@ -20,6 +20,10 @@ const cssSource = fs.readFileSync(
+   path.resolve(__dirname, '../../../css/site-ipr.css'),
+   'utf8'
+ );
++const paginationSource = fs.readFileSync(
++  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml'),
++  'utf8'
++);
  
-             this.setComposerScope(this.defaultScope);
--            this.setComposerType('Internal');
-+            this.setComposerType(this.defaultComposerType);
-             this.clearFeedback();
-             this.validateComposer();
-         }
-diff --git a/wwwroot/js/projects/remarks-panel.test.js b/wwwroot/js/projects/remarks-panel.test.js
-index b69c31d..03c4c36 100644
---- a/wwwroot/js/projects/remarks-panel.test.js
-+++ b/wwwroot/js/projects/remarks-panel.test.js
-@@ -31,6 +31,12 @@ function createPanelDom(config = {}) {
-         })
-         .join('');
-     const configJson = escapeHtml(JSON.stringify(config));
-+    const externalOptionHtml = config.allowExternal
-+        ? '<button type="button" data-remarks-composer-option="External" aria-pressed="false">External</button>'
-+        : '';
-+    const conferenceOptionHtml = config.allowConference
-+        ? '<button type="button" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>'
-+        : '';
- 
-     const dom = new JSDOM(`<!DOCTYPE html><html><body>
-         <div data-panel-project-id="1" data-config="${configJson}">
-@@ -39,6 +45,11 @@ function createPanelDom(config = {}) {
-             <div data-remarks-pagination></div>
-             <form data-remarks-composer>
-                 <textarea data-remarks-body></textarea>
-+                <div data-remarks-composer-type>
-+                    <button type="button" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
-+                    ${externalOptionHtml}
-+                    ${conferenceOptionHtml}
-+                </div>
-                 <div data-remarks-external-fields>
-                     <input data-remarks-event-date type="date" />
-                     <select data-remarks-stage>
-@@ -395,3 +406,43 @@ test('conference composer type is accepted only when enabled', () => {
-     disabled.setComposerType('Conference');
-     assert.equal(disabled.composerType, 'Internal');
+ test('IPR drawer uses a container-aware two-column form instead of Bootstrap viewport columns', () => {
+   assert.match(cssSource, /\.ipr-form-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+@@ -33,7 +37,7 @@ test('IPR mutation forms explicitly target the Index Razor Page and named handle
+   assert.match(formSource, /asp-page-handler="RemoveAttachment"/);
+   assert.match(formSource, /asp-page-handler="Delete"/);
+   assert.doesNotMatch(formSource, /asp-all-route-data="formRoutes"/);
+-  assert.match(stateSource, /name="page"/);
++  assert.match(stateSource, /name="pageNumber"/);
+   assert.match(stateSource, /name="PageSize"/);
+   assert.match(stateSource, /name="Tab"/);
  });
+@@ -206,3 +210,21 @@ test('IPR summary exposes patent and copyright splits for filed, protected and p
+   assert.match(cssSource, /\.ipr-insight__bar/);
+ });
+ 
 +
-+test('configured conference default is selected on initialisation when allowed', () => {
-+    const { panel, document } = createPanelDom({
-+        allowConference: true,
-+        defaultType: 'Conference'
-+    });
 +
-+    assert.equal(panel.defaultComposerType, 'Conference');
-+    assert.equal(panel.composerType, 'Conference');
-+    assert.equal(
-+        document.querySelector('[data-remarks-composer-option="Conference"]').getAttribute('aria-pressed'),
-+        'true');
-+    assert.equal(
-+        document.querySelector('[data-remarks-composer-option="Internal"]').getAttribute('aria-pressed'),
-+        'false');
++test('IPR pagination uses a non-reserved pageNumber query key in both controls', () => {
++  assert.match(paginationSource, /BuildPageRoute/);
++  assert.match(paginationSource, /aria-current="page"/);
++  assert.match(paginationSource, /Previous page/);
++  assert.match(paginationSource, /Next page/);
++  assert.doesNotMatch(paginationSource, /asp-route-page=/);
++  assert.match(source, /searchParams\.set\('pageNumber', '1'\)/);
++  assert.doesNotMatch(source, /searchParams\.set\('page', '1'\)/);
 +});
 +
-+test('conference default safely falls back to internal when conference is unavailable', () => {
-+    const { panel } = createPanelDom({
-+        allowConference: false,
-+        defaultType: 'Conference'
-+    });
-+
-+    assert.equal(panel.defaultComposerType, 'Internal');
-+    assert.equal(panel.composerType, 'Internal');
-+});
-+
-+test('resetComposer restores the configured conference default', () => {
-+    const { panel } = createPanelDom({
-+        allowConference: true,
-+        defaultType: 'Conference'
-+    });
-+
-+    panel.setComposerType('Internal');
-+    assert.equal(panel.composerType, 'Internal');
-+
-+    panel.resetComposer();
-+
-+    assert.equal(panel.composerType, 'Conference');
++test('IPR selected filing state is explicit and independent from edit mode', () => {
++  assert.match(stateSource, /name="SelectedRecordId"/);
++  assert.match(source, /dataset\.iprSelectedRecordId/);
++  assert.match(source, /searchParams\.set\('selectedRecordId'/);
++  assert.match(source, /searchParams\.delete\('selectedRecordId'\)/);
 +});

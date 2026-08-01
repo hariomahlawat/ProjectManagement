@@ -1,15 +1,15 @@
-Validation completed in the packaging environment:
+Validation performed in the preparation environment
+===================================================
 
-- remarks-panel.js JavaScript syntax check passed.
-- 3/3 focused source-contract Node tests passed against the actual resolver implementation.
-- The resolver preserves Conference and External permission boundaries.
-- Initialisation and reset both use the server-configured default composer type.
-- Targeted Razor button/tag structural checks passed.
-- Modified/new C# delimiter and policy contract checks passed.
-- No project remark composer retains a hard-coded active Internal button.
-- Git diff whitespace validation passed.
-- Implementation patch applied cleanly to the latest Conference Completion Carryover baseline.
-- Patched files matched the replacement package byte-for-byte.
-- ZIP integrity test passed.
+PASS  JavaScript syntax: node --check wwwroot/js/project-office-reports/ipr/index.js
+PASS  Targeted front-end tests: 19/19
+PASS  git diff --check
+PASS  C# delimiter/static structural checks for all modified C# files
+PASS  Razor paired-tag/static structural checks for modified IPR views
+PASS  CSS brace balance
+PASS  No obsolete production references to Ipr.ViewAllowedRoles, asp-route-page, name="page", or Patent tracker
+PASS  Implementation patch applies cleanly to the latest integrated source baseline
+PASS  Applied patch reproduces all 29 replacement files byte-for-byte
+PASS  ZIP integrity check
 
-The complete remarks-panel Node suite could not be executed because the jsdom dependency was not installed and the available npm registry did not contain one transitive package. The .NET SDK was also unavailable, so the Release build and xUnit suite must be run after replacement in Visual Studio or another .NET-enabled environment.
+NOT RUN  .NET Release build and xUnit suite: .NET SDK is not installed in the preparation environment.

@@ -15,6 +15,7 @@ public sealed class ManageModel : PageModel
         return RedirectToPage("./Index", new
         {
             tab = "records",
+            selectedRecordId = recordId,
             mode = recordId.HasValue ? "edit" : "create",
             id = recordId,
             query

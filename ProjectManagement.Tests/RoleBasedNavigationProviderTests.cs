@@ -125,7 +125,7 @@ public class RoleBasedNavigationProviderTests
             },
             item =>
             {
-                Assert.Equal("Patent tracker", item.Text);
+                Assert.Equal("IPR Register", item.Text);
                 Assert.Equal(Policies.Ipr.View, item.AuthorizationPolicy);
             },
             item =>

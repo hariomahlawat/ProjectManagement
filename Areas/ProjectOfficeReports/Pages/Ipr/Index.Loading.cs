@@ -160,6 +160,7 @@ public sealed partial class IndexModel
                 await LoadAnalyticsAsync(cancellationToken);
                 break;
             default:
+                await ResolveSelectedRecordPageAsync(cancellationToken);
                 await LoadRecordsAsync(cancellationToken);
                 break;
         }
@@ -192,6 +193,27 @@ public sealed partial class IndexModel
         ActiveFilterChips = BuildActiveFilterChips();
     }
 
+    private async Task ResolveSelectedRecordPageAsync(CancellationToken cancellationToken)
+    {
+        if (!SelectedRecordId.HasValue)
+        {
+            return;
+        }
+
+        var resolvedPageNumber = await _readService.GetPageNumberForRecordAsync(
+            BuildFilter(),
+            SelectedRecordId.Value,
+            cancellationToken);
+
+        if (resolvedPageNumber.HasValue)
+        {
+            PageNumber = resolvedPageNumber.Value;
+            return;
+        }
+
+        SelectedRecordId = null;
+    }
+
     private async Task LoadRecordsAsync(CancellationToken cancellationToken)
     {
         var result = await _readService.SearchAsync(BuildFilter(), cancellationToken);
@@ -199,9 +221,20 @@ public sealed partial class IndexModel
         TotalCount = result.Total;
         PageNumber = result.Page;
         PageSize = result.PageSize;
-        TotalPages = PageSize > 0
-            ? (int)Math.Ceiling(result.Total / (double)PageSize)
-            : 0;
+        TotalPages = result.Total == 0 || PageSize <= 0
+            ? 0
+            : (int)Math.Ceiling(result.Total / (double)PageSize);
+
+        if (Records.Count == 0)
+        {
+            SelectedRecordId = null;
+            return;
+        }
+
+        if (!SelectedRecordId.HasValue || Records.All(record => record.Id != SelectedRecordId.Value))
+        {
+            SelectedRecordId = Records[0].Id;
+        }
     }
 
     private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)

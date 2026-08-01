@@ -320,11 +320,10 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
                 ProjectOfficeReportsPolicies.ArppUnlockRoles,
                 Group.Reports,
                 140),
-            Access(
+            AllRoles(
                 "reports-ipr-view",
-                "View the IPR tracker",
-                "Review patent and copyright records.",
-                Policies.Ipr.ViewAllowedRoles,
+                "View the IPR Register",
+                "Review patent and copyright records, supporting evidence, projects, follow-up and analytics.",
                 Group.Reports,
                 150),
             Access(

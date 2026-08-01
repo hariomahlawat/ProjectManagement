@@ -21,5 +21,9 @@
     <input type="hidden" name="Year" value="@Model.Year.Value" />
 }
 <input type="hidden" name="Tab" value="@Model.Tab" />
-<input type="hidden" name="page" value="@Model.PageNumber" />
+@if (Model.SelectedRecordId.HasValue)
+{
+    <input type="hidden" name="SelectedRecordId" value="@Model.SelectedRecordId.Value" />
+}
+<input type="hidden" name="pageNumber" value="@Model.PageNumber" />
 <input type="hidden" name="PageSize" value="@Model.PageSize" />

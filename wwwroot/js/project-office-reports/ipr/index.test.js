@@ -20,6 +20,10 @@ const cssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/site-ipr.css'),
   'utf8'
 );
+const paginationSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml'),
+  'utf8'
+);
 
 test('IPR drawer uses a container-aware two-column form instead of Bootstrap viewport columns', () => {
   assert.match(cssSource, /\.ipr-form-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
@@ -33,7 +37,7 @@ test('IPR mutation forms explicitly target the Index Razor Page and named handle
   assert.match(formSource, /asp-page-handler="RemoveAttachment"/);
   assert.match(formSource, /asp-page-handler="Delete"/);
   assert.doesNotMatch(formSource, /asp-all-route-data="formRoutes"/);
-  assert.match(stateSource, /name="page"/);
+  assert.match(stateSource, /name="pageNumber"/);
   assert.match(stateSource, /name="PageSize"/);
   assert.match(stateSource, /name="Tab"/);
 });
@@ -206,3 +210,21 @@ test('IPR summary exposes patent and copyright splits for filed, protected and p
   assert.match(cssSource, /\.ipr-insight__bar/);
 });
 
+
+
+test('IPR pagination uses a non-reserved pageNumber query key in both controls', () => {
+  assert.match(paginationSource, /BuildPageRoute/);
+  assert.match(paginationSource, /aria-current="page"/);
+  assert.match(paginationSource, /Previous page/);
+  assert.match(paginationSource, /Next page/);
+  assert.doesNotMatch(paginationSource, /asp-route-page=/);
+  assert.match(source, /searchParams\.set\('pageNumber', '1'\)/);
+  assert.doesNotMatch(source, /searchParams\.set\('page', '1'\)/);
+});
+
+test('IPR selected filing state is explicit and independent from edit mode', () => {
+  assert.match(stateSource, /name="SelectedRecordId"/);
+  assert.match(source, /dataset\.iprSelectedRecordId/);
+  assert.match(source, /searchParams\.set\('selectedRecordId'/);
+  assert.match(source, /searchParams\.delete\('selectedRecordId'\)/);
+});

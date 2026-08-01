@@ -11,6 +11,7 @@ public interface IUrlBuilder
     string DocumentRepositoryDownload(Guid documentId);
     string FfcRecordManage(long recordId);
     string FfcAttachmentView(long attachmentId);
+    string IprRecordView(int recordId);
     string IprRecordManage(int recordId);
     string IprAttachmentDownload(int recordId, int attachmentId);
     string ActivityDetails(int activityId);

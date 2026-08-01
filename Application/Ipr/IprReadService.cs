@@ -27,10 +27,10 @@ public sealed class IprReadService : IIprReadService
 
         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
         var total = await query.CountAsync(cancellationToken);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
 
-        var queryResults = await query
-            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
-            .ThenBy(x => x.Id)
+        var queryResults = await ApplyRegisterOrdering(query)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new
@@ -90,6 +90,40 @@ public sealed class IprReadService : IIprReadService
         return new PagedResult<IprListRowDto>(items, total, page, pageSize);
     }
 
+    public async Task<int?> GetPageNumberForRecordAsync(
+        IprFilter filter,
+        int recordId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        if (recordId <= 0)
+        {
+            return null;
+        }
+
+        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+        var target = await query
+            .Where(record => record.Id == recordId)
+            .Select(record => new
+            {
+                record.Id,
+                SortDate = record.FiledAtUtc ?? DateTimeOffset.MinValue
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (target is null)
+        {
+            return null;
+        }
+
+        var precedingCount = await query.CountAsync(record =>
+            (record.FiledAtUtc ?? DateTimeOffset.MinValue) > target.SortDate ||
+            ((record.FiledAtUtc ?? DateTimeOffset.MinValue) == target.SortDate && record.Id < target.Id),
+            cancellationToken);
+
+        return (precedingCount / filter.PageSize) + 1;
+    }
+
     public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
     {
         return _db.IprRecords
@@ -126,9 +160,7 @@ public sealed class IprReadService : IIprReadService
 
         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
 
-        var items = await query
-            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
-            .ThenBy(x => x.Id)
+        var items = await ApplyRegisterOrdering(query)
             .Select(x => new IprExportRowDto(
                 x.IprFilingNumber,
                 x.Title,
@@ -158,6 +190,11 @@ public sealed class IprReadService : IIprReadService
 
         return fallback;
     }
+
+    private static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)
+        => query
+            .OrderByDescending(record => record.FiledAtUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(record => record.Id);
 
     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
     {

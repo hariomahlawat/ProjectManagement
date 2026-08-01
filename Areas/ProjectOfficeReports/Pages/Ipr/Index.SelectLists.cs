@@ -160,6 +160,11 @@ public sealed partial class IndexModel
             Year = null;
         }
 
+        if (SelectedRecordId.HasValue && SelectedRecordId.Value <= 0)
+        {
+            SelectedRecordId = null;
+        }
+
         if (Id.HasValue && Id.Value <= 0)
         {
             Id = null;
@@ -179,6 +184,13 @@ public sealed partial class IndexModel
         else
         {
             _mode = null;
+        }
+
+        if (string.Equals(_mode, "edit", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(Tab, "records", StringComparison.Ordinal) &&
+            Id.HasValue)
+        {
+            SelectedRecordId ??= Id.Value;
         }
     }
 

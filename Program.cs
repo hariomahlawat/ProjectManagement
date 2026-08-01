@@ -256,7 +256,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ProjectOfficeReportsPolicies.UnlockArpp, policy =>
         policy.RequireArppUnlocker());
     options.AddPolicy(Policies.Ipr.View, policy =>
-        policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
+        policy.RequireAuthenticatedUser());
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
     // SECTION: Industry partner authorization policies

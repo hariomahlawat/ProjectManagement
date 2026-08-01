@@ -109,6 +109,9 @@ public sealed class IprExportServiceTests
         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, 1, 25));
 
+        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
+            => Task.FromResult<int?>(null);
+
         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult<IprRecord?>(null);
 

@@ -79,7 +79,7 @@ public sealed partial class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Tab { get; set; } = "records";
 
-    [BindProperty(Name = "page", SupportsGet = true)]
+    [BindProperty(Name = "pageNumber", SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
 
     [BindProperty(SupportsGet = true)]
@@ -91,6 +91,9 @@ public sealed partial class IndexModel : PageModel
         get => _mode;
         set => _mode = value;
     }
+
+    [BindProperty(SupportsGet = true)]
+    public int? SelectedRecordId { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public int? Id { get; set; }
@@ -126,6 +129,11 @@ public sealed partial class IndexModel : PageModel
     private static readonly TimeZoneInfo IstTimeZone = TimeZoneHelper.GetIst();
 
     public IReadOnlyList<IprRecordRowViewModel> Records { get; private set; } = Array.Empty<IprRecordRowViewModel>();
+
+    public IprRecordRowViewModel? SelectedRecord
+        => SelectedRecordId.HasValue
+            ? Records.FirstOrDefault(record => record.Id == SelectedRecordId.Value)
+            : Records.FirstOrDefault();
 
     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
@@ -202,7 +210,19 @@ public sealed partial class IndexModel : PageModel
         NormalizeFilters();
         await EvaluateAuthorizationAsync();
         NormalizeMode();
+
+        var requestedPageNumber = PageNumber;
+        var requestedSelectedRecordId = SelectedRecordId;
+
         await LoadPageAsync(cancellationToken, loadRecordInput: true);
+
+        if (string.Equals(Tab, "records", StringComparison.Ordinal) &&
+            (requestedPageNumber != PageNumber ||
+             (requestedSelectedRecordId.HasValue && requestedSelectedRecordId != SelectedRecordId)))
+        {
+            return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: true));
+        }
+
         return Page();
     }
 
@@ -259,12 +279,17 @@ public sealed partial class IndexModel : PageModel
 
         if (includePage)
         {
-            values["page"] = PageNumber;
+            values["pageNumber"] = PageNumber;
             values["pageSize"] = PageSize;
         }
 
         if (includeModeAndId)
         {
+            if (SelectedRecordId.HasValue)
+            {
+                values["selectedRecordId"] = SelectedRecordId.Value;
+            }
+
             if (!string.IsNullOrEmpty(Mode))
             {
                 values["mode"] = Mode;
@@ -319,6 +344,24 @@ public sealed partial class IndexModel : PageModel
 
         return result;
     }
+
+    public IDictionary<string, string?> BuildPageRoute(int pageNumber)
+        => GetRouteValuesForLinks(
+            new { tab = "records", pageNumber, pageSize = PageSize },
+            includePage: false,
+            includeModeAndId: false);
+
+    public IDictionary<string, string?> BuildSelectedRecordRoute(int recordId)
+        => GetRouteValuesForLinks(
+            new { tab = "records", selectedRecordId = recordId },
+            includePage: true,
+            includeModeAndId: false);
+
+    public IDictionary<string, string?> BuildEditRoute(int recordId)
+        => GetRouteValuesForLinks(
+            new { tab = "records", selectedRecordId = recordId, mode = "edit", id = recordId },
+            includePage: true,
+            includeModeAndId: false);
 
     private static void AddIndexedValues(IDictionary<string, string?> destination, string key, IEnumerable<string> values)
     {

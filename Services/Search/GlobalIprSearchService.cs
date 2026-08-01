@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Services.Search
@@ -45,10 +46,13 @@ namespace ProjectManagement.Services.Search
             var records = await _dbContext.IprRecords
                 .AsNoTracking()
                 .Where(record =>
-                    EF.Functions.ILike(record.IprFilingNumber, pattern) ||
-                    EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
-                    EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
-                    EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern))
+                    (record.Status == IprStatus.FilingUnderProcess ||
+                     record.Status == IprStatus.Filed ||
+                     record.Status == IprStatus.Granted) &&
+                    (EF.Functions.ILike(record.IprFilingNumber, pattern) ||
+                     EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
+                     EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
+                     EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern)))
                 .OrderByDescending(record => record.GrantedAtUtc ?? record.FiledAtUtc ?? DateTimeOffset.MinValue)
                 .Take(recordLimit)
                 .ToListAsync(cancellationToken);
@@ -65,7 +69,7 @@ namespace ProjectManagement.Services.Search
                     Source: "IPR",
                     Title: title ?? $"IPR {record.Id}",
                     Snippet: record.Notes,
-                    Url: _urlBuilder.IprRecordManage(record.Id),
+                    Url: _urlBuilder.IprRecordView(record.Id),
                     Date: date,
                     Score: 0.6m,
                     FileType: null,
@@ -79,7 +83,10 @@ namespace ProjectManagement.Services.Search
                 .AsNoTracking()
                 .Where(attachment =>
                     !attachment.IsArchived &&
-                    attachment.ContentType == "application/pdf" && // <-- fixed
+                    (attachment.Record.Status == IprStatus.FilingUnderProcess ||
+                     attachment.Record.Status == IprStatus.Filed ||
+                     attachment.Record.Status == IprStatus.Granted) &&
+                    attachment.ContentType == "application/pdf" &&
                     (
                         EF.Functions.ILike(attachment.OriginalFileName ?? string.Empty, pattern) ||
                         EF.Functions.ILike(attachment.ContentType ?? string.Empty, pattern)

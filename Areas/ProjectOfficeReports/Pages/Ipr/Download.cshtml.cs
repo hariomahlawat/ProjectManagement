@@ -12,6 +12,7 @@ using Microsoft.Net.Http.Headers;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure.Data;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
@@ -47,7 +48,10 @@ public sealed class DownloadModel : PageModel
             .FirstOrDefaultAsync(
                 x => x.IprRecordId == iprRecordId &&
                      x.Id == attachmentId &&
-                     !x.IsArchived,
+                     !x.IsArchived &&
+                     (x.Record.Status == IprStatus.FilingUnderProcess ||
+                      x.Record.Status == IprStatus.Filed ||
+                      x.Record.Status == IprStatus.Granted),
                 cancellationToken);
 
         if (attachment is null || string.IsNullOrWhiteSpace(attachment.StorageKey))

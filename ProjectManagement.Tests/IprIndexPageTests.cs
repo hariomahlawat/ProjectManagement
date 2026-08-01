@@ -116,6 +116,7 @@ public sealed class IprIndexPageTests
             Assert.Equal("./Index", redirect.PageName);
             Assert.Equal("edit", redirect.RouteValues?["mode"]);
             var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
+            Assert.Equal(createdId, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
             Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
 
             var created = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == createdId);
@@ -191,6 +192,7 @@ public sealed class IprIndexPageTests
             Assert.Equal("./Index", redirect.PageName);
             Assert.Equal("edit", redirect.RouteValues?["mode"]);
             Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["id"]));
+            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
             Assert.Equal("IPR record updated.", page.TempData["ToastMessage"]);
             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("DeleteRequest", StringComparison.Ordinal));
             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("RemoveAttachment", StringComparison.Ordinal));
@@ -586,6 +588,9 @@ public sealed class IprIndexPageTests
     {
         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, filter.Page, filter.PageSize));
+
+        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
+            => Task.FromResult<int?>(null);
 
         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult<IprRecord?>(null);

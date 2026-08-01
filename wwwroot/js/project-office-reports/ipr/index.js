@@ -394,7 +394,7 @@
     const byId = new Map(records.map(record => [String(record.Id ?? record.id), record]));
     const rows = Array.from(document.querySelectorAll('[data-ipr-record-row]'));
     const projectBaseUrl = inspector.dataset.iprProjectBaseUrl || '/Projects/Overview';
-    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('page') || '1'}`;
+    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('pageNumber') || '1'}`;
 
     const setText = (selector, value) => {
       const element = inspector.querySelector(selector);
@@ -495,6 +495,10 @@
       if (editLink && rowEdit) editLink.href = rowEdit.href;
 
       try { sessionStorage.setItem(storageKey, String(id)); } catch { /* storage is optional */ }
+
+      const url = new URL(window.location.href);
+      url.searchParams.set('selectedRecordId', String(id));
+      history.replaceState({}, document.title, url.toString());
     };
 
     document.querySelectorAll('[data-ipr-select-record]').forEach(button => {
@@ -525,11 +529,18 @@
       });
     });
 
-    let initialId = rows[0]?.dataset.recordId;
-    try {
-      const saved = sessionStorage.getItem(storageKey);
-      if (saved && byId.has(saved)) initialId = saved;
-    } catch { /* storage is optional */ }
+    const serverSelectedId = inspector.dataset.iprSelectedRecordId;
+    let initialId = serverSelectedId && byId.has(serverSelectedId)
+      ? serverSelectedId
+      : rows[0]?.dataset.recordId;
+
+    if (!serverSelectedId) {
+      try {
+        const saved = sessionStorage.getItem(storageKey);
+        if (saved && byId.has(saved)) initialId = saved;
+      } catch { /* storage is optional */ }
+    }
+
     if (initialId) selectRecord(initialId);
   };
 
@@ -650,9 +661,11 @@
     select.addEventListener('change', () => {
       const url = new URL(window.location.href);
       url.searchParams.set('pageSize', select.value);
-      url.searchParams.set('page', '1');
+      url.searchParams.set('pageNumber', '1');
+      url.searchParams.delete('selectedRecordId');
       url.searchParams.delete('mode');
       url.searchParams.delete('id');
+      url.hash = 'ipr-records';
       window.location.assign(url.toString());
     });
   };

@@ -10,35 +10,38 @@ namespace ProjectManagement.Tests;
 public sealed class IprAuthorizationPolicyTests
 {
     [Theory]
-    [MemberData(nameof(ViewAllowedRoles))]
-    public async Task ViewPolicy_AllowsExpectedRoles(string role)
+    [InlineData("Project Officer")]
+    [InlineData("TA")]
+    [InlineData("ITO")]
+    [InlineData("Main Office Clerk")]
+    [InlineData("MC Cell Clerk")]
+    [InlineData("IT Cell Clerk")]
+    [InlineData(null)]
+    public async Task ViewPolicy_AllowsEveryAuthenticatedUser(string? role)
     {
         var policy = new AuthorizationPolicyBuilder()
-            .RequireRole(Policies.Ipr.ViewAllowedRoles)
+            .RequireAuthenticatedUser()
             .Build();
 
         await using var provider = CreateProvider();
         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
-        var user = CreatePrincipalWithRole(role);
+        var user = CreatePrincipal(role, authenticated: true);
 
         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
 
         Assert.True(result.Succeeded);
     }
 
-    [Theory]
-    [InlineData("Project Officer")]
-    [InlineData("TA")]
-    [InlineData(null)]
-    public async Task ViewPolicy_DeniesUnauthorizedRoles(string? role)
+    [Fact]
+    public async Task ViewPolicy_DeniesAnonymousUser()
     {
         var policy = new AuthorizationPolicyBuilder()
-            .RequireRole(Policies.Ipr.ViewAllowedRoles)
+            .RequireAuthenticatedUser()
             .Build();
 
         await using var provider = CreateProvider();
         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
-        var user = CreatePrincipalWithRole(role);
+        var user = CreatePrincipal(role: null, authenticated: false);
 
         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
 
@@ -55,7 +58,7 @@ public sealed class IprAuthorizationPolicyTests
 
         await using var provider = CreateProvider();
         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
-        var user = CreatePrincipalWithRole(role);
+        var user = CreatePrincipal(role, authenticated: true);
 
         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
 
@@ -75,22 +78,11 @@ public sealed class IprAuthorizationPolicyTests
 
         await using var provider = CreateProvider();
         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
-        var user = CreatePrincipalWithRole(role);
+        var user = CreatePrincipal(role, authenticated: true);
 
         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
 
         Assert.False(result.Succeeded);
-    }
-
-    public static TheoryData<string> ViewAllowedRoles()
-    {
-        var data = new TheoryData<string>();
-        foreach (var role in Policies.Ipr.ViewAllowedRoles)
-        {
-            data.Add(role);
-        }
-
-        return data;
     }
 
     public static TheoryData<string> EditAllowedRoles()
@@ -104,15 +96,17 @@ public sealed class IprAuthorizationPolicyTests
         return data;
     }
 
-    private static ClaimsPrincipal CreatePrincipalWithRole(string? role)
+    private static ClaimsPrincipal CreatePrincipal(string? role, bool authenticated)
     {
-        if (string.IsNullOrWhiteSpace(role))
+        var identity = authenticated
+            ? new ClaimsIdentity(authenticationType: "Test")
+            : new ClaimsIdentity();
+
+        if (!string.IsNullOrWhiteSpace(role))
         {
-            return new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "Test"));
+            identity.AddClaim(new Claim(ClaimTypes.Role, role));
         }
 
-        var identity = new ClaimsIdentity(authenticationType: "Test");
-        identity.AddClaim(new Claim(ClaimTypes.Role, role));
         return new ClaimsPrincipal(identity);
     }
 

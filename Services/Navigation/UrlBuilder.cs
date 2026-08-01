@@ -20,8 +20,11 @@ public sealed class UrlBuilder : IUrlBuilder
     public string FfcAttachmentView(long attachmentId)
         => $"/ProjectOfficeReports/FFC/Attachments/View?id={attachmentId.ToString(CultureInfo.InvariantCulture)}";
 
+    public string IprRecordView(int recordId)
+        => $"/ProjectOfficeReports/Ipr?tab=records&selectedRecordId={recordId.ToString(CultureInfo.InvariantCulture)}";
+
     public string IprRecordManage(int recordId)
-        => $"/ProjectOfficeReports/Ipr?tab=records&mode=edit&id={recordId.ToString(CultureInfo.InvariantCulture)}";
+        => $"/ProjectOfficeReports/Ipr?tab=records&selectedRecordId={recordId.ToString(CultureInfo.InvariantCulture)}&mode=edit&id={recordId.ToString(CultureInfo.InvariantCulture)}";
 
     public string IprAttachmentDownload(int recordId, int attachmentId)
         => $"/ProjectOfficeReports/Ipr/Download?iprRecordId={recordId.ToString(CultureInfo.InvariantCulture)}&attachmentId={attachmentId.ToString(CultureInfo.InvariantCulture)}";

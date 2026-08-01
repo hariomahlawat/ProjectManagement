@@ -297,6 +297,77 @@ public sealed class IprReadServiceTests
         Assert.Equal(new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero), item.Attachments[0].UploadedAtUtc);
     }
 
+    [Fact]
+    public async Task SearchAsync_ClampsOutOfRangePageToLastAvailablePage()
+    {
+        await using var db = CreateDbContext();
+
+        db.IprRecords.AddRange(
+            new IprRecord { IprFilingNumber = "IPR-301", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-302", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero) },
+            new IprRecord { IprFilingNumber = "IPR-303", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) });
+        await db.SaveChangesAsync();
+
+        var filter = new IprFilter { Page = 99, PageSize = 2 };
+        var result = await new IprReadService(db).SearchAsync(filter);
+
+        Assert.Equal(2, result.Page);
+        Assert.Equal(3, result.Total);
+        Assert.Single(result.Items);
+        Assert.Equal("IPR-303", result.Items[0].FilingNumber);
+    }
+
+    [Fact]
+    public async Task GetPageNumberForRecordAsync_UsesFilteredRegisterOrdering()
+    {
+        await using var db = CreateDbContext();
+
+        var records = Enumerable.Range(1, 5)
+            .Select(index => new IprRecord
+            {
+                IprFilingNumber = $"IPR-40{index}",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2026, 6 - index, 1, 0, 0, 0, TimeSpan.Zero)
+            })
+            .ToArray();
+
+        db.IprRecords.AddRange(records);
+        await db.SaveChangesAsync();
+
+        var filter = new IprFilter { PageSize = 2 };
+        var pageNumber = await new IprReadService(db)
+            .GetPageNumberForRecordAsync(filter, records[2].Id);
+
+        Assert.Equal(2, pageNumber);
+    }
+
+    [Fact]
+    public async Task GetPageNumberForRecordAsync_ReturnsNullWhenRecordDoesNotMatchFilter()
+    {
+        await using var db = CreateDbContext();
+
+        var patent = new IprRecord
+        {
+            IprFilingNumber = "IPR-501",
+            Type = IprType.Patent,
+            Status = IprStatus.Filed
+        };
+        db.IprRecords.Add(patent);
+        await db.SaveChangesAsync();
+
+        var filter = new IprFilter
+        {
+            Types = new[] { IprType.Copyright },
+            PageSize = 15
+        };
+
+        var pageNumber = await new IprReadService(db)
+            .GetPageNumberForRecordAsync(filter, patent.Id);
+
+        Assert.Null(pageNumber);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

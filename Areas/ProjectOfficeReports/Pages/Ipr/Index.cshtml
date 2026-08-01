@@ -50,11 +50,11 @@
     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
     var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
     var recordsJson = JsonSerializer.Serialize(Model.Records);
-    var selectedRecord = Model.Records.FirstOrDefault();
-    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", page = 1 }, includePage: false, includeModeAndId: false);
-    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", page = 1 }, includePage: false, includeModeAndId: false);
-    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", page = 1 }, includePage: false, includeModeAndId: false);
-    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
+    var selectedRecord = Model.SelectedRecord;
+    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", pageNumber = 1 }, includePage: false, includeModeAndId: false);
     var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
     var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
     var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
@@ -220,12 +220,15 @@
                 }
             </form>
 
-            <div class="ipr-record-toolbar">
+            <div class="ipr-record-toolbar" id="ipr-records">
                 <div>
                     <strong>IPR records</strong>
                     <span>@(hasRecords ? $"{firstItem}–{lastItem} of {Model.TotalCount}" : "No matching records")</span>
                 </div>
                 <div class="ipr-record-toolbar__actions">
+                    @{ ViewData["IprPaginationCompact"] = true; }
+                    <partial name="_RecordsPagination" model="Model" />
+                    @{ ViewData.Remove("IprPaginationCompact"); }
                     <label class="ipr-page-size-control">
                         <span>Rows</span>
                         <select class="form-select form-select-sm" data-ipr-page-size aria-label="Records per page">
@@ -278,12 +281,12 @@
                                 @for (var index = 0; index < Model.Records.Count; index++)
                                 {
                                     var row = Model.Records[index];
-                                    var editRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = row.Id }, includeModeAndId: false);
-                                    <tr class="ipr-record-row @(index == 0 ? "is-selected" : string.Empty)"
+                                    var editRoutes = Model.BuildEditRoute(row.Id);
+                                    <tr class="ipr-record-row @(row.Id == Model.SelectedRecordId ? "is-selected" : string.Empty)"
                                         data-ipr-record-row
                                         data-record-id="@row.Id"
-                                        tabindex="@(index == 0 ? "0" : "-1")"
-                                        aria-selected="@(index == 0 ? "true" : "false")"
+                                        tabindex="@(row.Id == Model.SelectedRecordId ? "0" : "-1")"
+                                        aria-selected="@(row.Id == Model.SelectedRecordId ? "true" : "false")"
                                         aria-controls="iprRecordInspector">
                                         <td>
                                             <button type="button" class="ipr-record-title" data-ipr-select-record data-record-id="@row.Id" title="Inspect @row.Title" tabindex="-1">
@@ -326,21 +329,7 @@
                             </table>
                         </div>
 
-                        @if (Model.TotalPages > 1)
-                        {
-                            var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize, tab = "records" }, includePage: false, includeModeAndId: false);
-                            <div class="ipr-pagination-bar">
-                                <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
-                                <nav aria-label="IPR register pages"><ul class="pagination pagination-sm mb-0">
-                                    <li class="page-item @(Model.PageNumber == 1 ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber - 1)">‹</a></li>
-                                    @for (var pageNo = Math.Max(1, Model.PageNumber - 2); pageNo <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNo++)
-                                    {
-                                        <li class="page-item @(pageNo == Model.PageNumber ? "active" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@pageNo">@pageNo</a></li>
-                                    }
-                                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber + 1)">›</a></li>
-                                </ul></nav>
-                            </div>
-                        }
+                        <partial name="_RecordsPagination" model="Model" />
                     </div>
 
                     <div class="ipr-inspector-resize-handle"
@@ -353,11 +342,12 @@
                     <aside class="ipr-record-inspector"
                            id="iprRecordInspector"
                            data-ipr-record-inspector
+                           data-ipr-selected-record-id="@Model.SelectedRecordId"
                            data-ipr-project-base-url="@Url.Content("~/Projects/Overview")"
                            aria-live="polite">
                         @if (selectedRecord is not null)
                         {
-                            var selectedEditRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = selectedRecord.Id }, includeModeAndId: false);
+                            var selectedEditRoutes = Model.BuildEditRoute(selectedRecord.Id);
                             <div class="ipr-inspector-header">
                                 <div>
                                     <span class="ipr-inspector-eyebrow">Selected filing</span>
