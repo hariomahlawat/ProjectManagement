@@ -342,6 +342,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("RenderStandardProjectBrief", composer, StringComparison.Ordinal);
         Assert.Contains("RenderPhotoEmphasisProjectBrief", composer, StringComparison.Ordinal);
         Assert.Contains("CostCards(canvas, data.CostMode, project)", composer, StringComparison.Ordinal);
+        Assert.Contains("AddProjectBriefInformationStrip", composer, StringComparison.Ordinal);
+        Assert.Contains("ResolvePresentStatusValue", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("normalized = \"No external status recorded\"", composer, StringComparison.Ordinal);
     }
 
 

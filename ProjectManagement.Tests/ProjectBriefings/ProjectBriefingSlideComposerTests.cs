@@ -1161,6 +1161,167 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void Compose_ProjectBrief_UsesOnePresentStatusHeadingAndOnlyAuthoritativeValues()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 804,
+            ProjectName = "CONSOLIDATED STATUS PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            ExternalStatus = "Integration trials are underway.",
+            ProjectBrief = "A project brief used to verify the consolidated status treatment.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 804,
+            DeckName = "Consolidated Status",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.Standard,
+                ShowPresentStage: true,
+                ShowPresentStatus: true),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var text = SlideText(slide);
+
+        Assert.Equal(1, text.Split("PRESENT STATUS", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("PRESENT STAGE", text, StringComparison.Ordinal);
+        Assert.Contains("Development · Integration trials are underway.", text, StringComparison.Ordinal);
+        Assert.NotNull(ShapeByName(slide, "Project brief information strip"));
+    }
+
+    [Fact]
+    public void Compose_ProjectBrief_OmitsMissingExternalStatusWithoutInventingRemarks()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 805,
+            ProjectName = "STAGE ONLY PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            LifecycleDisplay = "Completed",
+            PresentStageCode = ProjectBriefingStageOrder.CompletedCode,
+            PresentStage = "Completed",
+            PresentStageOrder = ProjectBriefingStageOrder.Completed,
+            ExternalStatus = "No external status recorded",
+            ProjectBrief = "A project brief used to verify that missing status text is silently omitted.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 805,
+            DeckName = "Missing Status",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.PhotoEmphasis,
+                ShowPresentStage: true,
+                ShowPresentStatus: true),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, CompletedCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var text = SlideText(slide);
+
+        Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.Contains("Completed", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("No external status recorded", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Available for proliferation", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Compose_ProjectBrief_PlacesStatusAndSelectedCostsInOneSleekBottomStrip()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 806,
+            ProjectName = "BOTTOM STRIP PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            ExternalStatus = "Prototype validation is in progress.",
+            ProjectBrief = "A concise brief used to verify the unified bottom information strip.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            CostRd = new ProjectBriefingCostValue(5_000_000m, ProjectBriefingCostBasis.L1, "₹50 Lakh", "L1"),
+            ProliferationCost = new ProjectBriefingCostValue(400_000m, ProjectBriefingCostBasis.Proliferation, "₹4 Lakh", "Proliferation"),
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 806,
+            DeckName = "Bottom Strip",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.Both,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.PhotoEmphasis,
+                ShowPresentStage: true,
+                ShowPresentStatus: true),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var strip = ShapeByName(slide, "Project brief information strip");
+        var photograph = ShapeByName(slide, "Photo-emphasis project photograph");
+        var brief = ShapeByName(slide, "Project brief panel");
+        var text = SlideText(slide);
+
+        Assert.True(ShapeWidth(strip) >= 12.0 * 914400, "The combined status-and-cost strip should span the usable slide width.");
+        Assert.True(ShapeHeight(strip) <= 1.05 * 914400, "The bottom information strip should remain sleek.");
+        Assert.True(ShapeY(strip) >= ShapeY(photograph) + ShapeHeight(photograph));
+        Assert.True(ShapeY(strip) >= ShapeY(brief) + ShapeHeight(brief));
+        Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
+        Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compose_AutomaticProjectBriefLayout_UsesPhotoEmphasisForConciseVisualProject()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

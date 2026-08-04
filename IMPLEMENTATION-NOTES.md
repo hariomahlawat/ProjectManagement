@@ -1,58 +1,50 @@
-# PRISM Standard Briefing — Project Brief Layouts
+# PRISM Standard Briefing — Consolidated Status Strip
 
 ## Scope
 
-This package adds professional layout control to **Standard PRISM Briefing** detailed slides while retaining the existing cost behaviour.
+This update refines the **Project Brief** slides in both Standard and Photo-emphasis layouts.
 
-### Project Brief layout
+### Implemented behaviour
 
-- **Automatic — recommended:** selects Photo Emphasis for a suitable photograph with concise/medium narrative content; otherwise uses Standard.
-- **Standard:** retains the compact photograph/context rail and wide narrative panel.
-- **Photo Emphasis:** allocates approximately 45% of the usable slide width to a substantially larger photograph and places the brief, selected context and cost information in the remaining column.
+- Replaces the separate Present Stage, Present Status and Status treatments with one heading: **PRESENT STATUS**.
+- Displays only the source values selected in deck settings:
+  - stage only;
+  - external status only;
+  - stage and external status together;
+  - neither, in which case the status cell is omitted.
+- Does not derive, infer or append any additional status, qualifier or remark.
+- Silently suppresses the existing `No external status recorded` placeholder in generated slides.
+- Moves Present Status and the selected cost fields into one slim bottom information strip.
+- Preserves the existing cost choices: R&D only, proliferation only, both or none.
+- Automatically redistributes the bottom strip:
+  - status plus selected cost cells spans the usable width;
+  - cost-only configurations remain compact and right-aligned;
+  - when neither status nor cost is selected, the strip is omitted and the photograph/brief panels use the released space.
+- Applies the same single-heading status treatment to Capability Overview context cards for visual consistency.
 
-### Project context
+## Files to replace
 
-Users can independently select:
+1. `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs`
+2. `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs`
+3. `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs`
 
-- Show present stage
-- Show present status
+The two test files are recommended for source-controlled deployments but are not required on a published production server.
 
-These choices apply to Capability Overview and Project Brief slides. When either field is not selected, its space is released automatically. Preflight requires external status only when a generated section actually uses status; executive tables continue to require it.
+## Prerequisite
 
-### Cost information
+Apply this package over the code containing the earlier **Standard Briefing Photo Layouts** implementation. It relies on the existing `ProjectBriefLayout`, `ShowPresentStage` and `ShowPresentStatus` configuration introduced there.
 
-The established deck-level Cost Mode remains authoritative and unchanged:
+## Database
 
-- R&D cost only
-- Proliferation cost only
-- Both costs
-- No cost
+No database migration or data conversion is required.
 
-Both Standard and Photo Emphasis layouts use the same Cost Mode. No duplicate or competing cost control has been introduced.
+## Verification
 
-## Persistence and compatibility
-
-- New options are stored in the existing deck configuration JSON field under `standardBriefing`.
-- Existing saved decks open with `Automatic`, Present Stage enabled and Present Status enabled.
-- Existing project selection provenance and Project Update Sheet configuration are preserved.
-- No database migration is required.
-- This package is based on the uploaded source with the previously supplied **Adaptive Project Update Sheet Layouts** package applied.
-
-## Application
-
-Copy the folders in this package into the `ProjectManagement` project root and replace the matching files. Then:
-
-1. Clean the solution.
-2. Rebuild in Visual Studio.
-3. Run the `ProjectBriefings` test group.
-4. Open a Standard PRISM Briefing deck and save the desired Project Brief layout/context settings.
-5. Generate a test PowerPoint with R&D only, proliferation only, both and no-cost modes.
-
-## Validation completed here
-
-- JavaScript syntax check passed.
-- Targeted briefing-deck JavaScript tests: **25 passed**.
-- Unified patch dry-run and application verification passed.
-- Changed-file integrity and SHA-256 checks completed.
-
-The .NET SDK is not installed in this execution environment, so C# compilation and xUnit execution must be completed in Visual Studio before deployment.
+1. Clean and rebuild the solution.
+2. Run the `ProjectBriefings` test suite.
+3. Generate one Standard and one Photo-emphasis Project Brief deck with:
+   - both stage and status enabled;
+   - stage enabled but no external status present;
+   - both costs selected;
+   - no status and no costs selected.
+4. Confirm the output contains no generated status wording and no `No external status recorded` text.

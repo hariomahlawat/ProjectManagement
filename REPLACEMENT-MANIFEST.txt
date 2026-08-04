@@ -1,14 +1,7 @@
-Models/ProjectBriefings/ProjectBriefingDeck.cs
-Pages/Workspace/BriefingDecks/Index.cshtml
-Pages/Workspace/BriefingDecks/Index.cshtml.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+Replace these files relative to the ProjectManagement solution root:
+
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/ProjectBriefingContracts.cs
-Services/ProjectBriefings/ProjectBriefingDataService.cs
-Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
-Services/ProjectBriefings/ProjectBriefingDeckService.cs
-wwwroot/css/pages/project-briefing-decks.css
-wwwroot/js/pages/project-briefing-decks.js
-wwwroot/js/projects/project-briefing-decks.test.js
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+
+No database migration is required.

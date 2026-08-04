@@ -865,7 +865,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         if (data.CostMode == ProjectBriefingCostMode.Both) threshold -= 100;
 
         var statusLength = data.StandardSlideOptions.ShowPresentStatus
-            ? NormalizePresentationText(project.ExternalStatus).Length
+            ? NormalizeExternalStatus(project.ExternalStatus).Length
             : 0;
         if (statusLength > 260) threshold -= Math.Min(260, (statusLength - 260) / 2);
 
@@ -892,24 +892,16 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         const double top = 1.28;
         const double bottom = 6.70;
         const double gap = .16;
+        const double fullWidth = 12.13;
 
-        var hasPhoto = project.CoverPhoto is { Length: > 0 };
         var costCards = CostCards(canvas, data.CostMode, project);
-        var costHeight = costCards.Count == 0 ? 0d : .98;
-        var costY = bottom - costHeight;
-        var contextBottom = costCards.Count == 0 ? bottom : costY - gap;
-        var layout = CalculateDetailedLayout(
+        var presentStatus = ResolvePresentStatusValue(
             project,
-            hasPhoto,
-            top,
-            contextBottom,
-            gap,
             data.StandardSlideOptions.ShowPresentStage,
-            data.StandardSlideOptions.ShowPresentStatus,
-            statusCharactersPerLine: 38,
-            minimumPhotoHeight: 1.48,
-            minimumPlaceholderHeight: 1.25,
-            maximumContextHeight: 2.65);
+            data.StandardSlideOptions.ShowPresentStatus);
+        var stripHeight = ResolveProjectBriefInformationStripHeight(presentStatus, costCards.Count);
+        var stripY = stripHeight > 0 ? bottom - stripHeight : bottom;
+        var contentBottom = stripHeight > 0 ? stripY - gap : bottom;
 
         AddProjectPhoto(
             canvas,
@@ -917,39 +909,25 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             leftX,
             top,
             leftWidth,
-            layout.PhotoHeight,
+            contentBottom - top,
             "Project brief photograph frame");
-
-        if (layout.ContextHeight > 0)
-        {
-            var contextY = top + layout.PhotoHeight + gap;
-            AddProjectContextCard(
-                canvas,
-                leftX,
-                contextY,
-                leftWidth,
-                layout.ContextHeight,
-                project,
-                data.StandardSlideOptions.ShowPresentStage,
-                data.StandardSlideOptions.ShowPresentStatus);
-        }
-
-        AddCostCards(
-            canvas,
-            costCards,
-            leftX,
-            costY,
-            leftWidth,
-            costHeight,
-            gap);
 
         AddProjectBriefPanel(
             canvas,
             rightX,
             top,
             rightWidth,
-            bottom - top,
+            contentBottom - top,
             project.ProjectBrief);
+
+        AddProjectBriefInformationStrip(
+            canvas,
+            leftX,
+            stripY,
+            fullWidth,
+            stripHeight,
+            presentStatus,
+            costCards);
     }
 
     private static void RenderPhotoEmphasisProjectBrief(
@@ -964,7 +942,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         const double rightWidth = 12.73 - rightX;
         const double top = 1.28;
         const double bottom = 6.70;
-        const double sectionGap = .14;
+        const double sectionGap = .16;
+        const double fullWidth = 12.13;
+
+        var costCards = CostCards(canvas, data.CostMode, project);
+        var presentStatus = ResolvePresentStatusValue(
+            project,
+            data.StandardSlideOptions.ShowPresentStage,
+            data.StandardSlideOptions.ShowPresentStatus);
+        var stripHeight = ResolveProjectBriefInformationStripHeight(presentStatus, costCards.Count);
+        var stripY = stripHeight > 0 ? bottom - stripHeight : bottom;
+        var contentBottom = stripHeight > 0 ? stripY - sectionGap : bottom;
 
         AddProjectPhoto(
             canvas,
@@ -972,53 +960,205 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             leftX,
             top,
             leftWidth,
-            bottom - top,
+            contentBottom - top,
             "Photo-emphasis project photograph");
-
-        var costCards = CostCards(canvas, data.CostMode, project);
-        var costHeight = costCards.Count == 0 ? 0d : .90;
-        var costY = bottom - costHeight;
-        var contextBottom = costCards.Count == 0 ? bottom : costY - sectionGap;
-        var contextHeight = CalculateProjectContextHeight(
-            project,
-            data.StandardSlideOptions.ShowPresentStage,
-            data.StandardSlideOptions.ShowPresentStatus,
-            statusCharactersPerLine: 58,
-            maximumHeight: 1.95);
-        var contextY = contextHeight > 0 ? contextBottom - contextHeight : contextBottom;
-        var briefBottom = contextHeight > 0 ? contextY - sectionGap : contextBottom;
-        var briefHeight = Math.Max(.80, briefBottom - top);
 
         AddProjectBriefPanel(
             canvas,
             rightX,
             top,
             rightWidth,
-            briefHeight,
+            contentBottom - top,
             project.ProjectBrief);
 
-        if (contextHeight > 0)
+        AddProjectBriefInformationStrip(
+            canvas,
+            leftX,
+            stripY,
+            fullWidth,
+            stripHeight,
+            presentStatus,
+            costCards);
+    }
+
+    private static string ResolvePresentStatusValue(
+        ProjectBriefingPresentationProject project,
+        bool showPresentStage,
+        bool showPresentStatus)
+    {
+        var stage = showPresentStage
+            ? NormalizePresentationText(project.PresentStage)
+            : string.Empty;
+        var status = showPresentStatus
+            ? NormalizeExternalStatus(project.ExternalStatus)
+            : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(stage)) return status;
+        if (string.IsNullOrWhiteSpace(status)) return stage;
+        if (string.Equals(stage, status, StringComparison.OrdinalIgnoreCase)) return stage;
+
+        return $"{stage} · {status}";
+    }
+
+    private static double ResolveProjectBriefInformationStripHeight(
+        string presentStatus,
+        int costCardCount)
+    {
+        if (string.IsNullOrWhiteSpace(presentStatus) && costCardCount == 0) return 0d;
+        if (presentStatus.Length > 150) return 1.02;
+        if (presentStatus.Length > 82) return .94;
+        return .86;
+    }
+
+    private static void AddProjectBriefInformationStrip(
+        SlideCanvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        string presentStatus,
+        IReadOnlyList<CostCard> costCards)
+    {
+        if (height <= 0) return;
+
+        const double gap = .02;
+        var hasStatus = !string.IsNullOrWhiteSpace(presentStatus);
+        var costWidth = costCards.Count switch
         {
-            AddProjectContextCard(
+            2 => 2.62,
+            1 => 3.05,
+            _ => 0d
+        };
+        var costsTotalWidth = costCards.Count == 0
+            ? 0d
+            : (costWidth * costCards.Count) + (gap * Math.Max(0, costCards.Count - 1));
+        var stripX = hasStatus ? x : x + width - costsTotalWidth;
+        var stripWidth = hasStatus ? width : costsTotalWidth;
+        canvas.AddRoundedRect(
+            stripX,
+            y,
+            stripWidth,
+            height,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            .06,
+            "Project brief information strip");
+
+        var statusWidth = hasStatus
+            ? width - costsTotalWidth - (costCards.Count > 0 ? gap : 0d)
+            : 0d;
+        var currentX = stripX;
+
+        if (hasStatus)
+        {
+            AddProjectBriefStripCell(
                 canvas,
-                rightX,
-                contextY,
-                rightWidth,
-                contextHeight,
-                project,
-                data.StandardSlideOptions.ShowPresentStage,
-                data.StandardSlideOptions.ShowPresentStatus,
-                compact: true);
+                currentX,
+                y,
+                statusWidth,
+                height,
+                "PRESENT STATUS",
+                presentStatus,
+                canvas.Theme.OperationalAccent,
+                null,
+                "Project brief present status");
+            currentX += statusWidth + (costCards.Count > 0 ? gap : 0d);
         }
 
-        AddCostCards(
-            canvas,
-            costCards,
-            rightX,
-            costY,
-            rightWidth,
-            costHeight,
-            sectionGap);
+        for (var index = 0; index < costCards.Count; index++)
+        {
+            var card = costCards[index];
+            AddProjectBriefStripCell(
+                canvas,
+                currentX,
+                y,
+                costWidth,
+                height,
+                card.Title,
+                card.Value,
+                card.Accent,
+                card.Note,
+                $"Project brief cost cell {index + 1}");
+            currentX += costWidth + gap;
+        }
+    }
+
+    private static void AddProjectBriefStripCell(
+        SlideCanvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        string title,
+        string value,
+        string accent,
+        string? note,
+        string name)
+    {
+        if (width <= 0) return;
+
+        canvas.AddRect(
+            x,
+            y + .08,
+            .045,
+            Math.Max(.20, height - .16),
+            accent,
+            name: $"{name} accent");
+
+        var titleWidth = Math.Max(.60, width - .30);
+        canvas.AddText(
+            x + .17,
+            y + .12,
+            titleWidth,
+            .18,
+            title,
+            width < 2.8 ? 7.2 : 7.7,
+            accent,
+            true,
+            "l",
+            "t");
+
+        var valueWidth = Math.Max(.60, width - .30);
+        var valueFont = title == "PRESENT STATUS"
+            ? value.Length switch
+            {
+                <= 56 => 10.6,
+                <= 105 => 9.7,
+                _ => 8.8
+            }
+            : width < 2.8
+                ? 11.2
+                : 12.0;
+        var valueHeight = string.IsNullOrWhiteSpace(note)
+            ? height - .38
+            : Math.Max(.24, height - .53);
+
+        canvas.AddText(
+            x + .17,
+            y + .34,
+            valueWidth,
+            valueHeight,
+            TruncateAtWord(value, title == "PRESENT STATUS" ? 260 : 72),
+            valueFont,
+            canvas.Theme.TextPrimary,
+            true,
+            "l",
+            "t");
+
+        if (!string.IsNullOrWhiteSpace(note))
+        {
+            canvas.AddText(
+                x + .17,
+                y + height - .21,
+                valueWidth,
+                .13,
+                note!,
+                6.8,
+                canvas.Theme.TextMuted,
+                false,
+                "l",
+                "t");
+        }
     }
 
     private static void AddProjectPhoto(
@@ -1414,11 +1554,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         if (photoHeight < minimumPhoto && contextHeight > 0)
         {
-            var minimumContext = showPresentStage && showPresentStatus
-                ? 1.62
-                : showPresentStatus
-                    ? 1.04
-                    : .84;
+            const double minimumContext = .92;
             var transferable = Math.Max(0d, contextHeight - minimumContext);
             var transfer = Math.Min(minimumPhoto - photoHeight, transferable);
             contextHeight -= transfer;
@@ -1436,26 +1572,16 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         int statusCharactersPerLine,
         double maximumHeight)
     {
-        if (!showPresentStage && !showPresentStatus) return 0d;
-        if (showPresentStage && !showPresentStatus) return .92;
+        var value = ResolvePresentStatusValue(project, showPresentStage, showPresentStatus);
+        if (string.IsNullOrWhiteSpace(value)) return 0d;
 
-        var normalized = NormalizePresentationText(project.ExternalStatus);
         var estimatedLines = Math.Clamp(
-            EstimateWrappedLines(normalized, statusCharactersPerLine),
+            EstimateWrappedLines(value, statusCharactersPerLine),
             1,
             8);
-
-        if (!showPresentStage)
-        {
-            return Math.Clamp(
-                .82 + (estimatedLines * .19),
-                1.12,
-                maximumHeight);
-        }
-
         return Math.Clamp(
-            1.40 + (estimatedLines * .19),
-            1.76,
+            .62 + (estimatedLines * .21),
+            .92,
             maximumHeight);
     }
 
@@ -1470,7 +1596,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         bool showPresentStatus,
         bool compact = false)
     {
-        if ((!showPresentStage && !showPresentStatus) || height <= 0) return;
+        var value = ResolvePresentStatusValue(project, showPresentStage, showPresentStatus);
+        if (string.IsNullOrWhiteSpace(value) || height <= 0) return;
 
         canvas.AddRoundedRect(
             x,
@@ -1480,75 +1607,21 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             canvas.Theme.Surface,
             canvas.Theme.Border,
             .08,
-            showPresentStatus ? "Present status panel" : "Present stage panel");
+            "Present status panel");
 
-        if (showPresentStage && showPresentStatus)
+        var estimatedLines = EstimateWrappedLines(value, compact ? 58 : 48);
+        var valueFont = estimatedLines switch
         {
-            AddCombinedProjectContext(canvas, x, y, width, height, project, compact);
-            return;
-        }
+            <= 1 => compact ? 10.0 : 10.5,
+            <= 3 => compact ? 9.3 : 9.8,
+            _ => compact ? 8.6 : 9.0
+        };
 
-        if (showPresentStage)
-        {
-            canvas.AddText(
-                x + .21,
-                y + .14,
-                width - .42,
-                .22,
-                "PRESENT STAGE",
-                compact ? 8.2 : 8.7,
-                canvas.Theme.OperationalAccent,
-                true,
-                "l",
-                "t");
-            canvas.AddTextShape(
-                x + .21,
-                y + .42,
-                width - .42,
-                Math.Max(.34, height - .56),
-                canvas.Theme.OperationalAccentSoft,
-                canvas.Theme.OperationalAccent,
-                .75,
-                "roundRect",
-                new[]
-                {
-                    new RichTextParagraph(
-                        new[]
-                        {
-                            new RichTextRun(
-                                TruncateAtWord(project.PresentStage, compact ? 58 : 42),
-                                compact ? 10.0 : 10.3,
-                                canvas.Theme.TextPrimary,
-                                Bold: true)
-                        })
-                },
-                "Present stage",
-                verticalAnchor: "ctr",
-                allowAutoFit: true,
-                leftInset: .12,
-                rightInset: .10,
-                topInset: .02,
-                bottomInset: .02);
-            return;
-        }
-
-        AddStatusOnlyContext(canvas, x, y, width, height, project, compact);
-    }
-
-    private static void AddCombinedProjectContext(
-        SlideCanvas canvas,
-        double x,
-        double y,
-        double width,
-        double height,
-        ProjectBriefingPresentationProject project,
-        bool compact)
-    {
         canvas.AddRichTextBox(
             x + .21,
-            y + .13,
+            y + .14,
             width - .42,
-            .47,
+            Math.Max(.40, height - .28),
             new[]
             {
                 new RichTextParagraph(
@@ -1556,173 +1629,41 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     {
                         new RichTextRun(
                             "PRESENT STATUS",
-                            compact ? 8.7 : 9.5,
+                            compact ? 8.4 : 9.0,
                             canvas.Theme.OperationalAccent,
                             Bold: true)
                     },
-                    SpaceAfterPoints: 5.0,
-                    LineSpacingPoints: compact ? 10.2 : 11.2),
+                    SpaceAfterPoints: compact ? 5.0 : 6.0,
+                    LineSpacingPoints: compact ? 9.8 : 10.5),
                 new RichTextParagraph(
                     new[]
                     {
                         new RichTextRun(
-                            "PRESENT STAGE",
-                            compact ? 7.2 : 7.8,
-                            canvas.Theme.TextMuted,
+                            TruncateAtWord(value, compact ? 320 : 260),
+                            valueFont,
+                            canvas.Theme.TextPrimary,
                             Bold: true)
                     },
-                    LineSpacingPoints: compact ? 8.6 : 9.4)
+                    LineSpacingPoints: valueFont * 1.18)
             },
             "Present status labels",
             verticalAnchor: "t",
-            allowAutoFit: false,
-            leftInset: .02,
-            rightInset: .02,
-            topInset: 0,
-            bottomInset: 0);
-
-        var stageWidth = compact ? width - .42 : Math.Min(width - .50, 2.92);
-        canvas.AddTextShape(
-            x + .21,
-            y + .66,
-            stageWidth,
-            .36,
-            canvas.Theme.OperationalAccentSoft,
-            canvas.Theme.OperationalAccent,
-            .75,
-            "roundRect",
-            new[]
-            {
-                new RichTextParagraph(
-                    new[]
-                    {
-                        new RichTextRun(
-                            TruncateAtWord(project.PresentStage, compact ? 62 : 42),
-                            compact ? 9.7 : 10.3,
-                            canvas.Theme.TextPrimary,
-                            Bold: true)
-                    })
-            },
-            "Present stage",
-            verticalAnchor: "ctr",
-            allowAutoFit: true,
-            leftInset: .12,
-            rightInset: .10,
-            topInset: .02,
-            bottomInset: .02);
-
-        var statusTop = 1.10;
-        AddStatusText(
-            canvas,
-            x + .21,
-            y + statusTop,
-            width - .42,
-            Math.Max(.28, height - statusTop - .10),
-            project,
-            compact ? 58 : 48,
-            compact);
-    }
-
-    private static void AddStatusOnlyContext(
-        SlideCanvas canvas,
-        double x,
-        double y,
-        double width,
-        double height,
-        ProjectBriefingPresentationProject project,
-        bool compact)
-    {
-        canvas.AddText(
-            x + .21,
-            y + .14,
-            width - .42,
-            .24,
-            project.ExternalStatusDate.HasValue
-                ? $"PRESENT STATUS · {project.ExternalStatusDate.Value:dd MMM yyyy}"
-                : "PRESENT STATUS",
-            compact ? 8.4 : 9.0,
-            canvas.Theme.OperationalAccent,
-            true,
-            "l",
-            "t");
-
-        AddStatusText(
-            canvas,
-            x + .21,
-            y + .43,
-            width - .42,
-            Math.Max(.28, height - .53),
-            project,
-            compact ? 58 : 48,
-            compact,
-            includeLabel: false);
-    }
-
-    private static void AddStatusText(
-        SlideCanvas canvas,
-        double x,
-        double y,
-        double width,
-        double height,
-        ProjectBriefingPresentationProject project,
-        int charactersPerLine,
-        bool compact,
-        bool includeLabel = true)
-    {
-        var statusLabel = project.ExternalStatusDate.HasValue
-            ? $"STATUS · {project.ExternalStatusDate.Value:dd MMM yyyy}"
-            : "STATUS";
-        var normalized = NormalizePresentationText(project.ExternalStatus);
-        if (string.IsNullOrWhiteSpace(normalized)) normalized = "No external status recorded";
-        var availableLines = Math.Max(1, (int)Math.Floor(height / (compact ? .19 : .205)));
-        var maximumCharacters = Math.Max(56, availableLines * charactersPerLine);
-        var fitted = TruncateAtWord(normalized, maximumCharacters);
-        var estimatedLines = EstimateWrappedLines(fitted, charactersPerLine);
-        var statusFont = estimatedLines switch
-        {
-            <= 2 => compact ? 9.7 : 10.2,
-            <= 4 => compact ? 9.1 : 9.5,
-            _ => compact ? 8.5 : 8.9
-        };
-
-        var paragraphs = new List<RichTextParagraph>();
-        if (includeLabel)
-        {
-            paragraphs.Add(new RichTextParagraph(
-                new[]
-                {
-                    new RichTextRun(
-                        statusLabel,
-                        compact ? 7.7 : 8.2,
-                        canvas.Theme.OperationalAccent,
-                        Bold: true)
-                },
-                SpaceAfterPoints: compact ? 4.0 : 6.0,
-                LineSpacingPoints: compact ? 9.0 : 9.8));
-        }
-        paragraphs.Add(new RichTextParagraph(
-            new[]
-            {
-                new RichTextRun(
-                    fitted,
-                    statusFont,
-                    canvas.Theme.TextPrimary)
-            },
-            LineSpacingPoints: statusFont * 1.20));
-
-        canvas.AddRichTextBox(
-            x,
-            y,
-            width,
-            height,
-            paragraphs,
-            "External status",
-            verticalAnchor: "t",
             allowAutoFit: true,
             leftInset: .02,
             rightInset: .02,
             topInset: 0,
             bottomInset: 0);
+    }
+
+    private static string NormalizeExternalStatus(string? value)
+    {
+        var normalized = NormalizePresentationText(value);
+        return string.Equals(
+            normalized,
+            "No external status recorded",
+            StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : normalized;
     }
 
     private static string NormalizePresentationText(string? value)
