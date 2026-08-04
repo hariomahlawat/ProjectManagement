@@ -610,7 +610,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
 
         Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Slide title")));
-        Assert.Equal("A33A4E", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
+        Assert.Equal("8A3042", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
         Assert.Equal("4FA6A8", ShapeFillColor(ShapeByName(slide, "Capability accent")));
         Assert.Equal("5B7CFA", ShapeTextColor(ShapeByName(slide, "Present status labels")));
     }
@@ -1327,6 +1327,95 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
         Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
         Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_ProjectBrief_LongCombinedStatusUsesTwoReadableLinesWithoutChangingAuthoritativeText()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 807,
+            ProjectName = "LONG STATUS PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            ExternalStatus = "SO placed on 03 Feb 2026. Development is in progress. PDC is 03 Oct 2026.",
+            ProjectBrief = "A concise project brief used to verify readable status-strip typography.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 807,
+            DeckName = "Long Status",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.Both,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.PhotoEmphasis,
+                ShowPresentStage: true,
+                ShowPresentStatus: true),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var statusValue = ShapeByName(slide, "Project brief present status value");
+        var paragraphs = statusValue.Descendants<A.Paragraph>().ToArray();
+        var text = SlideText(slide);
+
+        Assert.Equal(2, paragraphs.Length);
+        Assert.Equal("Development", string.Concat(paragraphs[0].Descendants<A.Text>().Select(node => node.Text)));
+        Assert.Equal(project.ExternalStatus, string.Concat(paragraphs[1].Descendants<A.Text>().Select(node => node.Text)));
+        Assert.DoesNotContain("Available for proliferation", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("No external status recorded", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Compose_GraphiteProjectSlideUsesMutedMaroonHeaderAndCompactDarkBrandingPlates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"pbd-dark-branding-{Guid.NewGuid():N}");
+        var logoDirectory = Path.Combine(root, "wwwroot", "img", "logos");
+        Directory.CreateDirectory(logoDirectory);
+        File.WriteAllBytes(Path.Combine(logoDirectory, "artrac.png"), TinyPng());
+        File.WriteAllBytes(Path.Combine(logoDirectory, "sdd.png"), TinyPng());
+
+        try
+        {
+            var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+            var (content, _) = composer.Compose(BuildData(ProjectBriefingPresentationTheme.GraphiteDark));
+
+            using var stream = new MemoryStream(content, writable: false);
+            using var document = PresentationDocument.Open(stream, false);
+            var slide = Assert.IsType<PresentationPart>(document.PresentationPart)
+                .SlideParts
+                .Single(part => SlideText(part).Contains("AURA", StringComparison.Ordinal)
+                    && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
+            var leftPlate = ShapeByName(slide, "Left branding plate");
+            var rightPlate = ShapeByName(slide, "Right branding plate");
+
+            Assert.Equal("8A3042", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
+            Assert.Equal("242A34", ShapeFillColor(leftPlate));
+            Assert.Equal("242A34", ShapeFillColor(rightPlate));
+            Assert.True(ShapeWidth(leftPlate) <= .60 * 914400, "The dark left logo backing plate should remain optically compact.");
+            Assert.True(ShapeWidth(rightPlate) <= .50 * 914400, "The dark right logo backing plate should remain optically compact.");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

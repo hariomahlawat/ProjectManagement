@@ -1558,8 +1558,13 @@
 
 .pbd-theme-preview--dark { background: #15181e; border-color: #343b46; }
 .pbd-theme-preview--dark::before,
-.pbd-theme-preview--dark::after { background: #eef1f5; }
-.pbd-theme-preview--dark .pbd-theme-preview__header { background: #a33a4e; }
+.pbd-theme-preview--dark::after {
+    width: .31rem;
+    height: .31rem;
+    background: #242a34;
+    border: 1px solid #4a5260;
+}
+.pbd-theme-preview--dark .pbd-theme-preview__header { background: #8a3042; }
 .pbd-theme-preview--dark .pbd-theme-preview__title { background: #f3f4f6; }
 .pbd-theme-preview--dark .pbd-theme-preview__content i { background: #242a34; border: 1px solid #353c47; }
 .pbd-theme-preview--dark .pbd-theme-preview__content i:nth-child(2) { background: #263659; }

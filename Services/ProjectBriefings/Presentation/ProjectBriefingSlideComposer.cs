@@ -996,7 +996,13 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         if (string.IsNullOrWhiteSpace(status)) return stage;
         if (string.Equals(stage, status, StringComparison.OrdinalIgnoreCase)) return stage;
 
-        return $"{stage} · {status}";
+        // Keep short values on one line. For a substantive external status, preserve the
+        // exact authoritative values but place the stage and remark on separate lines so
+        // the bottom strip remains readable without reducing the type excessively.
+        var inlineValue = $"{stage} · {status}";
+        return inlineValue.Length > 58
+            ? $"{stage}\n{status}"
+            : inlineValue;
     }
 
     private static double ResolveProjectBriefInformationStripHeight(
@@ -1004,6 +1010,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         int costCardCount)
     {
         if (string.IsNullOrWhiteSpace(presentStatus) && costCardCount == 0) return 0d;
+        if (presentStatus.Contains('\n')) return 1.02;
         if (presentStatus.Length > 150) return 1.02;
         if (presentStatus.Length > 82) return .94;
         return .86;
@@ -1115,16 +1122,30 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             accent,
             true,
             "l",
-            "t");
+            "t",
+            $"{name} title");
 
         var valueWidth = Math.Max(.60, width - .30);
+        var valueLines = value
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Split('\n');
+        var longestValueLine = valueLines.Length == 0
+            ? value.Length
+            : valueLines.Max(line => line.Length);
         var valueFont = title == "PRESENT STATUS"
-            ? value.Length switch
-            {
-                <= 56 => 10.6,
-                <= 105 => 9.7,
-                _ => 8.8
-            }
+            ? valueLines.Length > 1
+                ? longestValueLine switch
+                {
+                    <= 72 => 10.4,
+                    <= 118 => 9.6,
+                    _ => 8.9
+                }
+                : value.Length switch
+                {
+                    <= 56 => 10.6,
+                    <= 105 => 9.7,
+                    _ => 8.8
+                }
             : width < 2.8
                 ? 11.2
                 : 12.0;
@@ -1142,7 +1163,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             canvas.Theme.TextPrimary,
             true,
             "l",
-            "t");
+            "t",
+            $"{name} value");
 
         if (!string.IsNullOrWhiteSpace(note))
         {
@@ -1156,7 +1178,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 canvas.Theme.TextMuted,
                 false,
                 "l",
-                "t");
+                "t",
+                $"{name} note");
         }
     }
 
@@ -2227,13 +2250,29 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             {
                 if (_branding.LeftLogo is { Length: > 0 })
                 {
-                    AddRoundedRect(.24, .13, .78, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06);
-                    AddImageContained(_branding.LeftLogo, .32, .20, .62, .62, "Left formation insignia");
+                    if (Theme.IsDark)
+                    {
+                        AddRoundedRect(.28, .17, .68, .68, Theme.BrandingPlate, Theme.BrandingPlateBorder, .05, "Left branding plate");
+                        AddImageContained(_branding.LeftLogo, .36, .25, .52, .52, "Left formation insignia");
+                    }
+                    else
+                    {
+                        AddRoundedRect(.24, .13, .78, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06, "Left branding plate");
+                        AddImageContained(_branding.LeftLogo, .32, .20, .62, .62, "Left formation insignia");
+                    }
                 }
                 if (_branding.RightLogo is { Length: > 0 })
                 {
-                    AddRoundedRect(12.28, .12, .70, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06);
-                    AddImageContained(_branding.RightLogo, 12.35, .17, .56, .68, "Right division insignia");
+                    if (Theme.IsDark)
+                    {
+                        AddRoundedRect(12.33, .16, .60, .70, Theme.BrandingPlate, Theme.BrandingPlateBorder, .05, "Right branding plate");
+                        AddImageContained(_branding.RightLogo, 12.40, .21, .46, .60, "Right division insignia");
+                    }
+                    else
+                    {
+                        AddRoundedRect(12.28, .12, .70, .78, Theme.BrandingPlate, Theme.BrandingPlateBorder, .06, "Right branding plate");
+                        AddImageContained(_branding.RightLogo, 12.35, .17, .56, .68, "Right division insignia");
+                    }
                 }
                 return;
             }
@@ -2259,18 +2298,26 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             {
                 if (Theme.IsDark)
                 {
-                    AddRoundedRect(.24, .13, .64, .64, Theme.BrandingPlate, Theme.BrandingPlateBorder, .05);
+                    AddRoundedRect(.27, .16, .58, .58, Theme.BrandingPlate, Theme.BrandingPlateBorder, .045, "Left branding plate");
+                    AddImageContained(_branding.LeftLogo, .34, .23, .44, .44, "Left formation insignia");
                 }
-                AddImageContained(_branding.LeftLogo, .32, .20, .48, .48, "Left formation insignia");
+                else
+                {
+                    AddImageContained(_branding.LeftLogo, .32, .20, .48, .48, "Left formation insignia");
+                }
             }
 
             if (_branding.RightLogo is { Length: > 0 })
             {
                 if (Theme.IsDark)
                 {
-                    AddRoundedRect(12.40, .11, .54, .66, Theme.BrandingPlate, Theme.BrandingPlateBorder, .05);
+                    AddRoundedRect(12.43, .14, .48, .60, Theme.BrandingPlate, Theme.BrandingPlateBorder, .045, "Right branding plate");
+                    AddImageContained(_branding.RightLogo, 12.50, .18, .34, .52, "Right division insignia");
                 }
-                AddImageContained(_branding.RightLogo, 12.49, .16, .36, .56, "Right division insignia");
+                else
+                {
+                    AddImageContained(_branding.RightLogo, 12.49, .16, .36, .56, "Right division insignia");
+                }
             }
         }
 

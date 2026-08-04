@@ -94,7 +94,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("preview.classList.toggle('is-update-sheet'", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-theme-preview--light.is-update-sheet", css, StringComparison.Ordinal);
         Assert.Contains(".pbd-theme-preview--light .pbd-theme-preview__header { background: #7a263a; }", css, StringComparison.Ordinal);
-        Assert.Contains(".pbd-theme-preview--dark .pbd-theme-preview__header { background: #a33a4e; }", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-theme-preview--dark .pbd-theme-preview__header { background: #8a3042; }", css, StringComparison.Ordinal);
+        Assert.Contains("background: #242a34;", css, StringComparison.Ordinal);
+        Assert.Contains("border: 1px solid #4a5260;", css, StringComparison.Ordinal);
         Assert.DoesNotContain("appearanceTitle.textContent", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
