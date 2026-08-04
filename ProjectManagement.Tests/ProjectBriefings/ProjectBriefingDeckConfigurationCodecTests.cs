@@ -20,6 +20,25 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     }
 
     [Fact]
+    public void RecommendedRows_AreCompactSubsetOfAllAvailableRows()
+    {
+        Assert.Equal(9, ProjectBriefingUpdateSheetOptions.AllRows.Count);
+        Assert.Equal(
+            new[]
+            {
+                ProjectBriefingUpdateSheetRow.ProjectCost,
+                ProjectBriefingUpdateSheetRow.AonDate,
+                ProjectBriefingUpdateSheetRow.SupplyOrder,
+                ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus,
+                ProjectBriefingUpdateSheetRow.PresentStatus
+            },
+            ProjectBriefingUpdateSheetOptions.RecommendedRows);
+        Assert.All(
+            ProjectBriefingUpdateSheetOptions.RecommendedRows,
+            row => Assert.Contains(row, ProjectBriefingUpdateSheetOptions.AllRows));
+    }
+
+    [Fact]
     public void WithUpdateSheetOptions_PreservesSelectionRulesAndRowOrder()
     {
         const string legacy = "{\"kind\":\"TechnicalCategory\",\"technicalCategoryIds\":[4]}";

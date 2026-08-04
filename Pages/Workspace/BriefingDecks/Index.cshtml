@@ -42,7 +42,7 @@
     };
     var selectedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows).ToHashSet();
     var orderedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows)
-        .Concat(ProjectBriefingUpdateSheetOptions.RecommendedRows)
+        .Concat(ProjectBriefingUpdateSheetOptions.AllRows)
         .Distinct()
         .ToArray();
     var updateSheetRowOrder = string.Join(",", orderedUpdateSheetRows);

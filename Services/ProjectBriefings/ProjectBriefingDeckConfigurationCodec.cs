@@ -12,7 +12,7 @@ public sealed record ProjectBriefingUpdateSheetOptions(
     IReadOnlyList<ProjectBriefingUpdateSheetRow> Rows,
     bool HideEmptyValues)
 {
-    public static IReadOnlyList<ProjectBriefingUpdateSheetRow> RecommendedRows { get; } =
+    public static IReadOnlyList<ProjectBriefingUpdateSheetRow> AllRows { get; } =
         new[]
         {
             ProjectBriefingUpdateSheetRow.ProjectCost,
@@ -24,6 +24,20 @@ public sealed record ProjectBriefingUpdateSheetOptions(
             ProjectBriefingUpdateSheetRow.PresentStatus,
             ProjectBriefingUpdateSheetRow.ProjectOfficer,
             ProjectBriefingUpdateSheetRow.LineDirectorate
+        };
+
+    /// <summary>
+    /// Compact command-update set used for new decks and by the Recommended defaults action.
+    /// Optional ARPP/PPP, funding-authority and appointment rows remain available through AllRows.
+    /// </summary>
+    public static IReadOnlyList<ProjectBriefingUpdateSheetRow> RecommendedRows { get; } =
+        new[]
+        {
+            ProjectBriefingUpdateSheetRow.ProjectCost,
+            ProjectBriefingUpdateSheetRow.AonDate,
+            ProjectBriefingUpdateSheetRow.SupplyOrder,
+            ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus,
+            ProjectBriefingUpdateSheetRow.PresentStatus
         };
 
     public static ProjectBriefingUpdateSheetOptions Default { get; } =

@@ -47,80 +47,205 @@ public sealed partial class ProjectBriefingSlideComposer
             variant: ProjectSlideHeaderVariant.ProjectUpdateSheet);
 
         var rows = ResolveProjectUpdateRows(project, data.UpdateSheetOptions, theme.TextPrimary, theme.TextMuted);
-        var rowHeights = BuildProjectUpdateRowHeights(rows);
-        var tableHeight = rowHeights.Sum();
-        var factsZoneHeight = Math.Clamp(Math.Max(tableHeight, 2.85), 2.85, 4.35);
+        var layout = ResolveProjectUpdateSheetLayout(rows, project.ProjectBrief);
+        var layoutName = UpdateSheetLayoutName(layout.Variant);
 
-        const double contentY = 1.08;
-        const double factsX = .50;
-        const double factsWidth = 6.27;
         canvas.AddRect(
-            factsX,
-            contentY,
-            factsWidth,
-            factsZoneHeight,
+            layout.FactsX,
+            layout.FactsY,
+            layout.FactsWidth,
+            layout.FactsHeight,
             theme.Surface,
             theme.Border,
             .8,
-            "Project facts panel");
+            $"Project facts panel - {layoutName}");
         canvas.AddNativeTable(
-            factsX,
+            layout.FactsX,
+            layout.FactsY,
+            layout.TableColumnWidths,
+            layout.RowHeights,
+            BuildProjectUpdateTableRows(rows, theme.TextPrimary, theme.TextMuted, serialFill, labelFill, bodyFill),
+            $"Project update facts table - {layoutName}");
+
+        RenderProjectUpdateSheetPhoto(canvas, project, layout, layoutName);
+        RenderProjectUpdateSheetBrief(canvas, project, layout, labelFill, layoutName);
+    }
+
+    private static ProjectUpdateSheetLayout ResolveProjectUpdateSheetLayout(
+        IReadOnlyList<UpdateSheetResolvedRow> rows,
+        string? projectBrief)
+    {
+        const double contentY = 1.08;
+        const double contentX = .50;
+        const double contentWidth = 12.33;
+        const double contentBottom = 6.93;
+        const double gap = .16;
+
+        // The user selects information, not a visual template. Choose a stable layout family
+        // automatically, while promoting unusually tall tables to the detailed geometry.
+        var naturalTableHeight = rows.Sum(row => row.Height);
+        var variant = rows.Count <= 2 && naturalTableHeight <= 1.55
+            ? ProjectUpdateSheetLayoutVariant.Compact
+            : rows.Count >= 6 || naturalTableHeight > 3.05
+                ? ProjectUpdateSheetLayoutVariant.Detailed
+                : ProjectUpdateSheetLayoutVariant.Standard;
+        var rowHeights = BuildProjectUpdateRowHeights(rows, variant);
+        var tableHeight = rowHeights.Sum();
+
+        if (variant == ProjectUpdateSheetLayoutVariant.Compact)
+        {
+            var factsHeight = tableHeight;
+            var lowerY = contentY + factsHeight + gap;
+            var lowerHeight = contentBottom - lowerY;
+            var photoWidth = CompactPhotoWidth(projectBrief);
+            var briefX = contentX + photoWidth + gap;
+            var briefWidth = contentWidth - photoWidth - gap;
+
+            return new ProjectUpdateSheetLayout(
+                variant,
+                contentX,
+                contentY,
+                contentWidth,
+                factsHeight,
+                new[] { .38, 2.45, 9.50 },
+                rowHeights,
+                contentX,
+                lowerY,
+                photoWidth,
+                lowerHeight,
+                briefX,
+                lowerY,
+                briefWidth,
+                lowerHeight);
+        }
+
+        if (variant == ProjectUpdateSheetLayoutVariant.Detailed)
+        {
+            const double factsWidth = 7.18;
+            const double photoX = 7.93;
+            const double photoWidth = 4.90;
+            var factsHeight = Math.Clamp(Math.Max(tableHeight, 3.15), 3.15, 4.30);
+            var briefY = contentY + factsHeight + gap;
+
+            return new ProjectUpdateSheetLayout(
+                variant,
+                contentX,
+                contentY,
+                factsWidth,
+                factsHeight,
+                new[] { .34, 2.15, 4.69 },
+                rowHeights,
+                photoX,
+                contentY,
+                photoWidth,
+                factsHeight,
+                contentX,
+                briefY,
+                contentWidth,
+                contentBottom - briefY);
+        }
+
+        const double standardFactsWidth = 6.27;
+        const double standardPhotoX = 7.02;
+        const double standardPhotoWidth = 5.81;
+        var standardFactsHeight = Math.Clamp(Math.Max(tableHeight, 2.85), 2.85, 3.70);
+        var standardBriefY = contentY + standardFactsHeight + gap;
+        return new ProjectUpdateSheetLayout(
+            variant,
+            contentX,
             contentY,
+            standardFactsWidth,
+            standardFactsHeight,
             new[] { .34, 1.88, 4.05 },
             rowHeights,
-            BuildProjectUpdateTableRows(rows, theme.TextPrimary, theme.TextMuted, serialFill, labelFill, bodyFill),
-            "Project update facts table");
-
-        const double photoX = 7.02;
-        const double photoWidth = 5.81;
-        canvas.AddRect(
-            photoX,
+            standardPhotoX,
             contentY,
-            photoWidth,
-            factsZoneHeight,
+            standardPhotoWidth,
+            standardFactsHeight,
+            contentX,
+            standardBriefY,
+            contentWidth,
+            contentBottom - standardBriefY);
+    }
+
+    private static void RenderProjectUpdateSheetPhoto(
+        SlideCanvas canvas,
+        ProjectBriefingPresentationProject project,
+        ProjectUpdateSheetLayout layout,
+        string layoutName)
+    {
+        var theme = canvas.Theme;
+        canvas.AddRect(
+            layout.PhotoX,
+            layout.PhotoY,
+            layout.PhotoWidth,
+            layout.PhotoHeight,
             theme.Placeholder,
             theme.Border,
             .8,
-            "Project photograph frame");
+            $"Project photograph frame - {layoutName}");
+
         if (project.CoverPhoto is { Length: > 0 })
         {
             const double inset = .10;
-            var maximumWidth = photoWidth - (inset * 2);
-            var maximumHeight = factsZoneHeight - (inset * 2);
+            var maximumWidth = layout.PhotoWidth - (inset * 2);
+            var maximumHeight = layout.PhotoHeight - (inset * 2);
             var imageWidth = Math.Min(maximumWidth, maximumHeight * 16d / 9d);
             var imageHeight = imageWidth * 9d / 16d;
             canvas.AddImage(
                 project.CoverPhoto,
                 project.CoverPhotoContentType,
-                photoX + ((photoWidth - imageWidth) / 2d),
-                contentY + ((factsZoneHeight - imageHeight) / 2d),
+                layout.PhotoX + ((layout.PhotoWidth - imageWidth) / 2d),
+                layout.PhotoY + ((layout.PhotoHeight - imageHeight) / 2d),
                 imageWidth,
                 imageHeight,
                 $"{project.ProjectName} photograph");
-        }
-        else
-        {
-            canvas.AddText(
-                photoX + .35,
-                contentY + Math.Max(.35, (factsZoneHeight - .55) / 2d),
-                photoWidth - .70,
-                .55,
-                "PHOTOGRAPH NOT AVAILABLE",
-                10.5,
-                theme.TextMuted,
-                true,
-                "ctr",
-                name: "Photograph not available");
+            return;
         }
 
-        var briefY = contentY + factsZoneHeight + .16;
-        var briefHeight = 6.93 - briefY;
-        canvas.AddRect(.50, briefY, 12.33, briefHeight, theme.Surface, theme.Border, .8, "Project brief panel");
-        canvas.AddRect(.50, briefY, 12.33, .31, labelFill, theme.Border, .8, "Project brief heading");
         canvas.AddText(
-            .68,
-            briefY + .02,
-            11.95,
+            layout.PhotoX + .35,
+            layout.PhotoY + Math.Max(.35, (layout.PhotoHeight - .55) / 2d),
+            layout.PhotoWidth - .70,
+            .55,
+            "PHOTOGRAPH NOT AVAILABLE",
+            10.5,
+            theme.TextMuted,
+            true,
+            "ctr",
+            name: "Photograph not available");
+    }
+
+    private static void RenderProjectUpdateSheetBrief(
+        SlideCanvas canvas,
+        ProjectBriefingPresentationProject project,
+        ProjectUpdateSheetLayout layout,
+        string labelFill,
+        string layoutName)
+    {
+        var theme = canvas.Theme;
+        canvas.AddRect(
+            layout.BriefX,
+            layout.BriefY,
+            layout.BriefWidth,
+            layout.BriefHeight,
+            theme.Surface,
+            theme.Border,
+            .8,
+            $"Project brief panel - {layoutName}");
+        canvas.AddRect(
+            layout.BriefX,
+            layout.BriefY,
+            layout.BriefWidth,
+            .31,
+            labelFill,
+            theme.Border,
+            .8,
+            "Project brief heading");
+        canvas.AddText(
+            layout.BriefX + .18,
+            layout.BriefY + .02,
+            layout.BriefWidth - .36,
             .26,
             "BRIEF OF THE PROJECT",
             10.2,
@@ -129,10 +254,10 @@ public sealed partial class ProjectBriefingSlideComposer
             "l",
             name: "Project brief heading text");
         canvas.AddRichTextBox(
-            .66,
-            briefY + .39,
-            12.02,
-            briefHeight - .49,
+            layout.BriefX + .16,
+            layout.BriefY + .39,
+            layout.BriefWidth - .32,
+            layout.BriefHeight - .49,
             BuildUpdateSheetBriefParagraphs(project.ProjectBrief, theme.TextPrimary, theme.TextMuted),
             "Project brief",
             verticalAnchor: "t",
@@ -142,6 +267,27 @@ public sealed partial class ProjectBriefingSlideComposer
             topInset: .01,
             bottomInset: .01);
     }
+
+    private static double CompactPhotoWidth(string? projectBrief)
+    {
+        var length = string.IsNullOrWhiteSpace(projectBrief)
+            ? 0
+            : string.Join(" ", projectBrief.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Length;
+        return length switch
+        {
+            <= 550 => 6.45,
+            <= 900 => 6.00,
+            _ => 5.55
+        };
+    }
+
+    private static string UpdateSheetLayoutName(ProjectUpdateSheetLayoutVariant variant)
+        => variant switch
+        {
+            ProjectUpdateSheetLayoutVariant.Compact => "Compact",
+            ProjectUpdateSheetLayoutVariant.Detailed => "Detailed",
+            _ => "Standard"
+        };
 
     private static IReadOnlyList<UpdateSheetResolvedRow> ResolveProjectUpdateRows(
         ProjectBriefingPresentationProject project,
@@ -266,21 +412,29 @@ public sealed partial class ProjectBriefingSlideComposer
             Cell(row.Value, row.FontSize, row.TextColor, false, "l", bodyFill)
         }).ToArray();
 
-    private static double[] BuildProjectUpdateRowHeights(IReadOnlyList<UpdateSheetResolvedRow> rows)
+    private static double[] BuildProjectUpdateRowHeights(
+        IReadOnlyList<UpdateSheetResolvedRow> rows,
+        ProjectUpdateSheetLayoutVariant variant)
     {
         if (rows.Count == 0) return new[] { .46 };
 
         var heights = rows.Select(row => row.Height).ToArray();
         var total = heights.Sum();
-        var targetMinimum = rows.Count switch
+        var targetMinimum = variant switch
         {
-            <= 4 => 2.00,
-            <= 6 => 2.55,
-            _ => total
+            ProjectUpdateSheetLayoutVariant.Compact => rows.Count == 1 ? .64 : 1.08,
+            ProjectUpdateSheetLayoutVariant.Detailed => 3.10,
+            _ => rows.Count <= 4 ? 2.00 : 2.55
         };
         if (total >= targetMinimum) return heights;
 
-        var extraPerRow = Math.Min(.16, (targetMinimum - total) / rows.Count);
+        var maximumExtra = variant switch
+        {
+            ProjectUpdateSheetLayoutVariant.Compact => .28,
+            ProjectUpdateSheetLayoutVariant.Detailed => .10,
+            _ => .16
+        };
+        var extraPerRow = Math.Min(maximumExtra, (targetMinimum - total) / rows.Count);
         return heights.Select(height => height + extraPerRow).ToArray();
     }
 
@@ -431,6 +585,30 @@ public sealed partial class ProjectBriefingSlideComposer
             <= 250 => .68,
             _ => .80
         };
+
+    private enum ProjectUpdateSheetLayoutVariant
+    {
+        Compact,
+        Standard,
+        Detailed
+    }
+
+    private sealed record ProjectUpdateSheetLayout(
+        ProjectUpdateSheetLayoutVariant Variant,
+        double FactsX,
+        double FactsY,
+        double FactsWidth,
+        double FactsHeight,
+        IReadOnlyList<double> TableColumnWidths,
+        IReadOnlyList<double> RowHeights,
+        double PhotoX,
+        double PhotoY,
+        double PhotoWidth,
+        double PhotoHeight,
+        double BriefX,
+        double BriefY,
+        double BriefWidth,
+        double BriefHeight);
 
     private sealed record UpdateSheetResolvedRow(
         ProjectBriefingUpdateSheetRow Key,

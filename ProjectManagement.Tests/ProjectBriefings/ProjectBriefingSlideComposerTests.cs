@@ -482,6 +482,9 @@ public sealed class ProjectBriefingSlideComposerTests
             BrandingScope = ProjectBriefingBrandingScope.AllSlides,
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                ProjectBriefingUpdateSheetOptions.AllRows,
+                HideEmptyValues: false),
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
             Projects = new[] { project },
             Summary = new ProjectBriefingPresentationSummary
@@ -654,6 +657,9 @@ public sealed class ProjectBriefingSlideComposerTests
             BrandingScope = ProjectBriefingBrandingScope.None,
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                new[] { ProjectBriefingUpdateSheetRow.ArppPppNumber },
+                HideEmptyValues: false),
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 29, 2, 0, 0, TimeSpan.Zero),
             Projects = new[] { project },
             Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1 }
@@ -870,6 +876,132 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
+    public void Compose_ProjectUpdateSheet_OneOrTwoRowsUsesCompactBalancedLayout()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            707,
+            "Compact update sheet",
+            StageCodes.AON,
+            ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            1,
+            projectBrief: "A concise project brief that should remain beside the photograph when only one information field is selected.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 707,
+            DeckName = "Compact Update",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                new[] { ProjectBriefingUpdateSheetRow.ProjectCost },
+                HideEmptyValues: false),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var facts = ShapeByName(slide, "Project facts panel - Compact");
+        var photo = ShapeByName(slide, "Project photograph frame - Compact");
+        var brief = ShapeByName(slide, "Project brief panel - Compact");
+
+        Assert.True(ShapeWidth(facts) > 12.0 * 914400, "Compact facts should form a full-width information band.");
+        Assert.Equal(ShapeY(photo), ShapeY(brief));
+        Assert.Equal(ShapeHeight(photo), ShapeHeight(brief));
+        Assert.True(ShapeX(photo) < ShapeX(brief));
+        Assert.True(ShapeY(photo) > ShapeY(facts));
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_ThreeToFiveRowsUsesStandardLayout()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            708,
+            "Standard update sheet",
+            StageCodes.DEVP,
+            ProjectBriefingStageOrder.Development,
+            1,
+            projectBrief: "A standard project brief for the recommended five-row command-update design.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 708,
+            DeckName = "Standard Update",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                ProjectBriefingUpdateSheetOptions.RecommendedRows,
+                HideEmptyValues: false),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var facts = ShapeByName(slide, "Project facts panel - Standard");
+        var photo = ShapeByName(slide, "Project photograph frame - Standard");
+        var brief = ShapeByName(slide, "Project brief panel - Standard");
+
+        Assert.Equal(ShapeY(facts), ShapeY(photo));
+        Assert.Equal(ShapeHeight(facts), ShapeHeight(photo));
+        Assert.True(ShapeX(photo) > ShapeX(facts));
+        Assert.True(ShapeY(brief) > ShapeY(facts));
+        Assert.True(ShapeWidth(facts) < 7.0 * 914400);
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_SixOrMoreRowsUsesDetailedLayout()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = BriefingProject(
+            709,
+            "Detailed update sheet",
+            StageCodes.DEVP,
+            ProjectBriefingStageOrder.Development,
+            1,
+            projectBrief: "A detailed project brief for the complete nine-row project update sheet.");
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 709,
+            DeckName = "Detailed Update",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                ProjectBriefingUpdateSheetOptions.AllRows,
+                HideEmptyValues: false),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var facts = ShapeByName(slide, "Project facts panel - Detailed");
+        var photo = ShapeByName(slide, "Project photograph frame - Detailed");
+        var brief = ShapeByName(slide, "Project brief panel - Detailed");
+
+        Assert.Equal(ShapeY(facts), ShapeY(photo));
+        Assert.Equal(ShapeHeight(facts), ShapeHeight(photo));
+        Assert.True(ShapeWidth(facts) > 7.0 * 914400, "Detailed layout should allocate additional width to the facts table.");
+        Assert.True(ShapeWidth(photo) < 5.0 * 914400, "Detailed layout should use a narrower photograph column.");
+        Assert.True(ShapeY(brief) > ShapeY(facts));
+    }
+
+    [Fact]
     public void Compose_ProjectUpdateSheet_RespectsOptionalIntroductorySlides()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
@@ -966,6 +1098,15 @@ public sealed class ProjectBriefingSlideComposerTests
                .FirstOrDefault()?
                .Val?.Value
            ?? string.Empty;
+
+    private static long ShapeX(P.Shape shape)
+        => shape.ShapeProperties?.Transform2D?.Offset?.X?.Value ?? 0L;
+
+    private static long ShapeY(P.Shape shape)
+        => shape.ShapeProperties?.Transform2D?.Offset?.Y?.Value ?? 0L;
+
+    private static long ShapeWidth(P.Shape shape)
+        => shape.ShapeProperties?.Transform2D?.Extents?.Cx?.Value ?? 0L;
 
     private static long ShapeHeight(P.Shape shape)
         => shape.ShapeProperties?.Transform2D?.Extents?.Cy?.Value ?? 0L;

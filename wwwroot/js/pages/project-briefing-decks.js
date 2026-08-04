@@ -222,19 +222,27 @@ if (root) {
     });
     syncUpdateRowOrder();
     validateUpdateSheetRows();
+    syncPreflightRequirementVisibility();
     refreshSettingsDirtyState();
   });
 
   updateRowReset?.addEventListener('click', () => {
     restoreUpdateRowOrder(updateRowRecommendedOrder);
+    const recommendedKeys = new Set(String(updateRowRecommendedOrder || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean));
     updateRowElements().forEach((row) => {
       const checkbox = row.querySelector('input[name="UpdateSheetRows"]');
-      if (checkbox instanceof HTMLInputElement) checkbox.checked = true;
+      if (checkbox instanceof HTMLInputElement) {
+        checkbox.checked = recommendedKeys.has(row.dataset.rowKey || '');
+      }
     });
     const hideEmpty = root.querySelector('input[name="HideEmptyUpdateSheetValues"]');
     if (hideEmpty instanceof HTMLInputElement) hideEmpty.checked = false;
     syncUpdateRowOrder();
     validateUpdateSheetRows();
+    syncPreflightRequirementVisibility();
     refreshSettingsDirtyState();
   });
 
