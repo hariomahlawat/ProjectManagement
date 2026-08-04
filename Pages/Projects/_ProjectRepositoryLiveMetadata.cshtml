@@ -1,0 +1,13 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+@using System.Linq
+
+<div data-project-live-metadata
+     data-new-build-count="@Model.NewBuildCount"
+     data-repeat-build-count="@Model.RepeatBuildCount"
+     data-unclassified-count="@Model.ProjectTypeUnclassifiedCount"
+     hidden>
+    @foreach (var count in Model.ProjectTypeCounts.OrderBy(item => item.Key))
+    {
+        <span data-project-type-count-value="@count.Key" data-count="@count.Value"></span>
+    }
+</div>

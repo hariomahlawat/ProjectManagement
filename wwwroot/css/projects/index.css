@@ -1037,3 +1037,48 @@
 .projects-results-header__order-reset:focus-visible {
     text-decoration: underline;
 }
+
+/* SECTION: Live repository search */
+.projects-search .form-control {
+    padding-right: 2.55rem;
+}
+
+.projects-search__activity {
+    position: absolute;
+    right: 0.82rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--projects-primary);
+    pointer-events: none;
+}
+
+.projects-search__activity[hidden] {
+    display: none;
+}
+
+.projects-search__activity .spinner-border {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.13em;
+}
+
+[data-project-results-region] {
+    transition: opacity 0.16s ease;
+}
+
+.projects-repository.is-live-loading [data-project-results-region] {
+    opacity: 0.58;
+    pointer-events: none;
+}
+
+.projects-repository.is-live-loading .projects-search .form-control {
+    background-image: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-project-results-region] {
+        transition: none;
+    }
+}

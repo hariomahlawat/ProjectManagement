@@ -1,0 +1,2080 @@
+--- a/Pages/Projects/Index.cshtml
++++ b/Pages/Projects/Index.cshtml
+@@ -2,76 +2,16 @@
+ @model ProjectManagement.Pages.Projects.IndexModel
+ @using System
+ @using System.Linq
+-@using System.Globalization
+ @using ProjectManagement.Models
+ @using ProjectManagement.Services.Projects
+-@using ProjectManagement.ViewModels
+ @{
+     ViewData["Title"] = "Projects";
+ 
+-    var activeLifecycle = Model.LifecycleTabs.FirstOrDefault(t => t.IsActive);
+-    var activeLifecycleLabel = Model.LegacyArchive.IsActive
+-        ? Model.LegacyArchive.Label
+-        : (string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label);
+-    var projectCountLabel = Model.FilteredTotal == 1 ? "project" : "projects";
+     var projectTypeChips = Model.ProjectTypeChips
+         .OrderByDescending(chip => chip.Count)
+         .ThenBy(chip => chip.Name, StringComparer.OrdinalIgnoreCase)
+         .ToList();
+ 
+-    IDictionary<string, string?> BaseRouteValues()
+-    {
+-        var values = new Dictionary<string, string?>();
+-        void AddValue(string key, object? value)
+-        {
+-            if (value is null) return;
+-            var text = value.ToString();
+-            if (!string.IsNullOrWhiteSpace(text)) values[key] = text;
+-        }
+-
+-        AddValue("Query", Model.Query);
+-        AddValue("CategoryId", Model.CategoryId);
+-        AddValue("TechnicalCategoryId", Model.TechnicalCategoryId);
+-        AddValue("LeadPoUserId", Model.LeadPoUserId);
+-        AddValue("HodUserId", Model.HodUserId);
+-        AddValue("Lifecycle", Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString());
+-        AddValue("CompletedYear", Model.CompletedYear);
+-        AddValue("TotStatus", Model.TotStatus?.ToString());
+-        AddValue("IncludeArchived", Model.IncludeArchived ? "true" : null);
+-        AddValue("StageCode", Model.StageCode);
+-        AddValue("StageCompletedMonth", Model.StageCompletedMonth);
+-        AddValue("SlipBucket", Model.SlipBucket);
+-        AddValue("IncludeCategoryDescendants", Model.IncludeCategoryDescendants ? "true" : null);
+-        AddValue("Build", Model.Build);
+-        AddValue("ProjectTypeId", Model.ProjectTypeId);
+-        AddValue("ProjectTypeUnclassified", Model.ProjectTypeUnclassified ? "true" : null);
+-        AddValue("PageSize", Model.PageSize);
+-        if (Model.Sort != ProjectRepositorySort.Operational)
+-        {
+-            AddValue("Sort", Model.Sort);
+-            AddValue("Dir", Model.Dir);
+-        }
+-        return values;
+-    }
+-
+-    IDictionary<string, string?> SortRoute(ProjectRepositorySort sort)
+-    {
+-        var values = BaseRouteValues();
+-        values["Sort"] = sort.ToString();
+-        values["Dir"] = Model.NextSortDirection(sort).ToString();
+-        values["p"] = "1";
+-        return values;
+-    }
+-
+-    IDictionary<string, string?> OperationalOrderRoute()
+-    {
+-        var values = BaseRouteValues();
+-        values.Remove("Sort");
+-        values.Remove("Dir");
+-        values["p"] = "1";
+-        return values;
+-    }
+-
+     var activeFilters = new List<string>();
+     if (!string.IsNullOrWhiteSpace(Model.Query)) activeFilters.Add($"Search: {Model.Query}");
+     var selectedCategory = Model.CategoryOptions.FirstOrDefault(o => o.Selected && !string.IsNullOrEmpty(o.Value))?.Text;
+@@ -106,11 +46,7 @@
+             <div class="projects-header__identity">
+                 <div>
+                     <h1 class="projects-header__title">Projects</h1>
+-                    <p class="projects-header__summary">
+-                        <strong>@Model.FilteredTotal</strong> @projectCountLabel
+-                        <span aria-hidden="true">·</span>
+-                        <span>@activeLifecycleLabel</span>
+-                    </p>
++                    <partial name="_ProjectRepositoryHeaderSummary" model="Model" />
+                 </div>
+             </div>
+             <div class="projects-header__actions">
+@@ -125,46 +61,14 @@
+             </div>
+         </header>
+ 
+-        <div class="projects-classification-bar">
+-            <nav class="projects-lifecycle" aria-label="Project lifecycle filters">
+-                @foreach (var lifecycle in Model.LifecycleTabs)
+-                {
+-                    var routeValues = BaseRouteValues();
+-                    routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
+-                    routeValues["p"] = "1";
+-                    <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
+-                       asp-page="./Index"
+-                       asp-all-route-data="routeValues"
+-                       aria-current="@(lifecycle.IsActive ? "page" : null)">
+-                        <span>@lifecycle.Label</span>
+-                        <span class="projects-lifecycle__count">@lifecycle.Count</span>
+-                    </a>
+-                }
+-            </nav>
+-            @{
+-                var legacyRouteValues = BaseRouteValues();
+-                legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
+-                legacyRouteValues["p"] = "1";
+-            }
+-            <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
+-               asp-page="./Index"
+-               asp-all-route-data="legacyRouteValues"
+-               aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
+-               title="Projects retained as institutional records">
+-                <i class="bi bi-archive" aria-hidden="true"></i>
+-                <span>@Model.LegacyArchive.Label</span>
+-                <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
+-            </a>
+-        </div>
++
++        <partial name="_ProjectRepositoryLifecycle" model="Model" />
+ 
+         <form method="get" class="projects-toolbar" data-project-filter-form>
+             <input type="hidden" name="p" value="1" />
+             <input type="hidden" name="Lifecycle" value="@(Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString())" />
+-            @if (Model.Sort != ProjectRepositorySort.Operational)
+-            {
+-                <input type="hidden" name="Sort" value="@Model.Sort" />
+-                <input type="hidden" name="Dir" value="@Model.Dir" />
+-            }
++            <input type="hidden" name="Sort" value="@Model.Sort" data-project-sort-field />
++            <input type="hidden" name="Dir" value="@Model.Dir" data-project-sort-direction-field />
+             @if (!string.IsNullOrWhiteSpace(Model.StageCode)) { <input type="hidden" name="StageCode" value="@Model.StageCode" /> }
+             @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth)) { <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" /> }
+             @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" /> }
+@@ -173,17 +77,28 @@
+             <div class="projects-toolbar__main">
+                 <label class="projects-search" for="Query">
+                     <i class="bi bi-search" aria-hidden="true"></i>
+-                    <input asp-for="Query" class="form-control" placeholder="Search by project, case file, officer or keyword" autocomplete="off" data-project-search />
++                    <input asp-for="Query"
++                           class="form-control"
++                           placeholder="Search by project, case file, officer or keyword"
++                           autocomplete="off"
++                           aria-controls="projectRepositoryResults"
++                           aria-describedby="projectSearchStatus"
++                           data-project-search />
++                    <span class="projects-search__activity" data-project-search-activity hidden aria-hidden="true">
++                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
++                    </span>
+                     <span class="visually-hidden">Search projects</span>
+                 </label>
+ 
+                 <button class="btn btn-outline-secondary projects-toolbar__filter-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#projectFilters" aria-controls="projectFilters">
+                     <i class="bi bi-sliders" aria-hidden="true"></i>
+                     <span>Filters</span>
+-                    @if (activeFilters.Count > 0)
+-                    {
+-                        <span class="projects-toolbar__filter-count">@activeFilters.Count</span>
+-                    }
++                    <span data-project-filter-count-host>
++                        @if (activeFilters.Count > 0)
++                        {
++                            <span class="projects-toolbar__filter-count" data-project-filter-count>@activeFilters.Count</span>
++                        }
++                    </span>
+                 </button>
+ 
+                 <label class="projects-toolbar__page-size">
+@@ -228,11 +143,11 @@
+                                 </label>
+                                 <label class="projects-filter-choice">
+                                     <input type="radio" name="Build" value="New" checked="@(Model.Build == "New")" />
+-                                    <span>New development <small>@Model.NewBuildCount</small></span>
++                                    <span>New development <small data-project-build-count="New">@Model.NewBuildCount</small></span>
+                                 </label>
+                                 <label class="projects-filter-choice">
+                                     <input type="radio" name="Build" value="Repeat" checked="@(Model.Build == "Repeat")" />
+-                                    <span>Repeat build <small>@Model.RepeatBuildCount</small></span>
++                                    <span>Repeat build <small data-project-build-count="Repeat">@Model.RepeatBuildCount</small></span>
+                                 </label>
+                             </div>
+                         </div>
+@@ -248,14 +163,14 @@
+                                 {
+                                     <label class="projects-filter-choice">
+                                         <input type="radio" name="ProjectTypeUnclassified" value="true" checked="@Model.ProjectTypeUnclassified" data-project-type-unclassified />
+-                                        <span>Unclassified <small>@Model.ProjectTypeUnclassifiedCount</small></span>
++                                        <span>Unclassified <small data-project-type-unclassified-count>@Model.ProjectTypeUnclassifiedCount</small></span>
+                                     </label>
+                                 }
+                                 @foreach (var chip in projectTypeChips)
+                                 {
+                                     <label class="projects-filter-choice">
+                                         <input type="radio" name="ProjectTypeId" value="@chip.Id" checked="@(Model.ProjectTypeId == chip.Id)" data-project-type />
+-                                        <span>@chip.Name <small>@chip.Count</small></span>
++                                        <span>@chip.Name <small data-project-type-count-display="@chip.Id">@chip.Count</small></span>
+                                     </label>
+                                 }
+                             </div>
+@@ -304,271 +219,33 @@
+             </div>
+         </form>
+ 
+-        @if (activeFilters.Count > 0)
+-        {
+-            <div class="projects-filter-summary" aria-label="Active filters">
+-                <div class="projects-filter-summary__chips">
+-                    @foreach (var filter in activeFilters)
+-                    {
+-                        <span class="projects-filter-chip">@filter</span>
+-                    }
+-                </div>
+-                <a asp-page="./Index" asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())" class="projects-filter-summary__clear">Clear filters</a>
+-            </div>
+-        }
+-
+-        <div class="projects-results-header">
+-            <div>
+-                <strong>@Model.FilteredTotal @projectCountLabel</strong>
+-                @if (Model.TotalPages > 1)
++        <div class="projects-filter-summary @(activeFilters.Count == 0 ? "d-none" : null)"
++             aria-label="Active filters"
++             data-project-filter-summary>
++            <div class="projects-filter-summary__chips" data-project-filter-chips>
++                @foreach (var filter in activeFilters)
+                 {
+-                    <span>Showing @Model.ResultsStart–@Model.ResultsEnd</span>
++                    <span class="projects-filter-chip">@filter</span>
+                 }
+             </div>
+-            <span class="projects-results-header__order" title="The order is applied to the complete filtered result before pagination.">
+-                <i class="bi bi-sort-down" aria-hidden="true"></i>
+-                <span>@Model.OrderDescription</span>
+-                @if (Model.Sort != ProjectRepositorySort.Operational)
+-                {
+-                    <a asp-page="./Index"
+-                       asp-all-route-data="OperationalOrderRoute()"
+-                       class="projects-results-header__order-reset">Reset order</a>
+-                }
+-            </span>
++            <a asp-page="/Projects/Index"
++               asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
++               class="projects-filter-summary__clear"
++               data-project-clear-filters>Clear filters</a>
+         </div>
+ 
+-        @if (!Model.Projects.Any())
+-        {
+-            <section class="projects-empty-state">
+-                <div class="projects-empty-state__icon"><i class="bi bi-inboxes" aria-hidden="true"></i></div>
+-                <h2>No projects found</h2>
+-                <p>Try a different search, remove a filter or select another lifecycle.</p>
+-                <a asp-page="./Index" class="btn btn-outline-primary">View all projects</a>
+-            </section>
+-        }
+-        else
+-        {
+-            <div class="projects-results-view is-active" data-project-results="cards">
+-                <div class="projects-grid">
+-                    @foreach (var project in Model.Projects)
+-                    {
+-                        var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
+-                            ? resolvedStageDisplay
+-                            : ProjectRepositoryStagePositionVm.Missing;
+-                        var totStatus = FormatTotStatusShort(project);
+-                        string? coverPhotoUrl = null;
+-                        if (project.CoverPhotoId.HasValue)
+-                        {
+-                            coverPhotoUrl = Url.Page("/Projects/Photos/View", new { id = project.Id, photoId = project.CoverPhotoId, size = "sm", v = project.CurrentCoverPhotoVersion ?? project.CoverPhotoVersion });
+-                        }
+-                        var officerName = project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned";
+-                        var categoryName = project.Category?.Name ?? "Uncategorised";
+-                        var caseFile = string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber;
+-                        <article class="project-card @(project.IsLegacy ? "project-card--legacy" : null) @(project.IsArchived ? "project-card--archived" : null)">
+-                            <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="project-card__link" aria-label="Open @project.Name"></a>
+-                            <div class="project-card__topline">
+-                                <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)"
+-                                     data-project-card-cover>
+-                                    <i class="bi bi-kanban project-card__visual-fallback"
+-                                       aria-hidden="true"
+-                                       data-project-card-cover-fallback></i>
+-                                    @if (!string.IsNullOrEmpty(coverPhotoUrl))
+-                                    {
+-                                        <img src="@coverPhotoUrl"
+-                                             alt=""
+-                                             loading="lazy"
+-                                             decoding="async"
+-                                             data-project-card-cover-image />
+-                                    }
+-                                </div>
+-                                <div class="project-card__heading">
+-                                    <h2>@project.Name</h2>
+-                                    <div class="project-card__badges">
+-                                        <span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)@if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedYear.HasValue){<text> @project.CompletedYear</text>}</span>
+-                                        @if (project.IsLegacy) { <span class="badge rounded-pill project-badge--legacy">Legacy archive</span> }
+-                                        @if (project.IsArchived) { <span class="badge rounded-pill text-bg-secondary">Archived</span> }
+-                                    </div>
+-                                </div>
+-                                <i class="bi bi-chevron-right project-card__open-icon" aria-hidden="true"></i>
+-                            </div>
+-                            <dl class="project-card__metadata">
+-                                <div><dt>Category</dt><dd>@categoryName</dd></div>
+-                                <div class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "is-missing" : null)"><dt>Case file</dt><dd>@caseFile</dd></div>
+-                                <div class="@((project.LeadPoUser is null) ? "is-missing" : null)"><dt>Project Officer</dt><dd>@officerName</dd></div>
+-                            </dl>
+-                            <div class="project-card__stage @(stageDisplay.IsMissing ? "is-missing" : null)">
+-                                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+-                                <span>
+-                                    <strong>@stageDisplay.Primary</strong>
+-                                    @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary))
+-                                    {
+-                                        <small>@stageDisplay.Secondary</small>
+-                                    }
+-                                </span>
+-                            </div>
+-                            @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
+-                            {
+-                                <div class="project-card__tot"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>@totStatus</span></div>
+-                            }
+-                        </article>
+-                    }
+-                </div>
+-            </div>
+-
+-            <div class="projects-results-view" data-project-results="table" hidden>
+-                <div class="projects-table-wrap">
+-                    <table class="table projects-table align-middle">
+-                        <thead>
+-                            <tr>
+-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Project)">
+-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Project) ? "is-active" : null)"
+-                                       asp-page="./Index"
+-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Project)"
+-                                       title="Sort the complete result by project name">
+-                                        Project <i class="@Model.GetSortIconClass(ProjectRepositorySort.Project)" aria-hidden="true"></i>
+-                                    </a>
+-                                </th>
+-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Status)">
+-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Status) ? "is-active" : null)"
+-                                       asp-page="./Index"
+-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Status)"
+-                                       title="Sort the complete result by lifecycle status">
+-                                        Status <i class="@Model.GetSortIconClass(ProjectRepositorySort.Status)" aria-hidden="true"></i>
+-                                    </a>
+-                                </th>
+-                                <th scope="col">Current position</th>
+-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Officer)">
+-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Officer) ? "is-active" : null)"
+-                                       asp-page="./Index"
+-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Officer)"
+-                                       title="Sort the complete result by project officer">
+-                                        Project Officer <i class="@Model.GetSortIconClass(ProjectRepositorySort.Officer)" aria-hidden="true"></i>
+-                                    </a>
+-                                </th>
+-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Category)">
+-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Category) ? "is-active" : null)"
+-                                       asp-page="./Index"
+-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Category)"
+-                                       title="Sort the complete result by category">
+-                                        Category <i class="@Model.GetSortIconClass(ProjectRepositorySort.Category)" aria-hidden="true"></i>
+-                                    </a>
+-                                </th>
+-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.CaseFile)">
+-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.CaseFile) ? "is-active" : null)"
+-                                       asp-page="./Index"
+-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.CaseFile)"
+-                                       title="Sort the complete result by case file">
+-                                        Case file <i class="@Model.GetSortIconClass(ProjectRepositorySort.CaseFile)" aria-hidden="true"></i>
+-                                    </a>
+-                                </th>
+-                                <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
+-                            </tr>
+-                        </thead>
+-                        <tbody>
+-                            @foreach (var project in Model.Projects)
+-                            {
+-                                var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
+-                                    ? resolvedStageDisplay
+-                                    : ProjectRepositoryStagePositionVm.Missing;
+-                                var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
+-                                <tr class="projects-table__row @(project.IsLegacy ? "is-legacy" : null)" data-project-row data-href="@rowHref" tabindex="0">
+-                                    <td data-sort-value="@project.Name"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
+-                                    <td data-sort-value="@FormatLifecycleStatus(project.LifecycleStatus)"><span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)</span></td>
+-                                    <td class="projects-table__stage">
+-                                        <strong>@stageDisplay.Primary</strong>
+-                                        @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary)) { <small>@stageDisplay.Secondary</small> }
+-                                    </td>
+-                                    <td data-sort-value="@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")">@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</td>
+-                                    <td data-sort-value="@(project.Category?.Name ?? "Uncategorised")">@(project.Category?.Name ?? "Uncategorised")</td>
+-                                    <td data-sort-value="@(project.CaseFileNumber ?? string.Empty)" class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "projects-table__missing" : null)">@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber)</td>
+-                                    <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+-                                </tr>
+-                            }
+-                        </tbody>
+-                    </table>
+-                </div>
+-            </div>
++        <partial name="_ProjectRepositoryResults" model="Model" />
++        <partial name="_ProjectRepositoryLiveMetadata" model="Model" />
+ 
+-            @if (Model.TotalPages > 1)
+-            {
+-                <nav class="projects-pagination" aria-label="Project pagination">
+-                    <div class="projects-pagination__summary">Page @Model.CurrentPage of @Model.TotalPages</div>
+-                    <ul class="pagination pagination-sm mb-0">
+-                        @{ var prevRoute = BaseRouteValues(); prevRoute["p"] = Math.Max(1, Model.CurrentPage - 1).ToString(CultureInfo.InvariantCulture); }
+-                        <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="prevRoute" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a></li>
+-                        @for (var i = 1; i <= Model.TotalPages; i++)
+-                        {
+-                            if (i == 1 || i == Model.TotalPages || Math.Abs(i - Model.CurrentPage) <= 2)
+-                            {
+-                                var pageRoute = BaseRouteValues(); pageRoute["p"] = i.ToString(CultureInfo.InvariantCulture);
+-                                <li class="page-item @(i == Model.CurrentPage ? "active" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="pageRoute">@i</a></li>
+-                            }
+-                            else if (i == Model.CurrentPage - 3 || i == Model.CurrentPage + 3)
+-                            {
+-                                <li class="page-item disabled"><span class="page-link">…</span></li>
+-                            }
+-                        }
+-                        @{ var nextRoute = BaseRouteValues(); nextRoute["p"] = Math.Min(Model.TotalPages, Model.CurrentPage + 1).ToString(CultureInfo.InvariantCulture); }
+-                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="nextRoute" aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></li>
+-                    </ul>
+-                </nav>
+-            }
+-        }
++        <div id="projectSearchStatus"
++             class="visually-hidden"
++             role="status"
++             aria-live="polite"
++             aria-atomic="true"
++             data-project-live-status></div>
+     </div>
+ </div>
+ 
+ @section Scripts {
+     <script src="~/js/pages/projects-index.js" asp-append-version="true"></script>
+ }
+-
+-@functions
+-{
+-    private static string? FormatTotStatusShort(Project project)
+-    {
+-        if (project.Tot is not { } tot)
+-        {
+-            return null;
+-        }
+-
+-        return tot.Status switch
+-        {
+-            ProjectTotStatus.NotRequired => "ToT not required",
+-            ProjectTotStatus.NotStarted => "ToT not started",
+-            ProjectTotStatus.InProgress => "ToT in progress",
+-            ProjectTotStatus.Completed => "ToT completed",
+-            _ => null
+-        };
+-    }
+-
+-    private static string FormatLifecycleStatus(ProjectLifecycleStatus status)
+-    {
+-        return status switch
+-        {
+-            ProjectLifecycleStatus.Active => "Active",
+-            ProjectLifecycleStatus.Completed => "Completed",
+-            ProjectLifecycleStatus.Cancelled => "Cancelled",
+-            _ => status.ToString()
+-        };
+-    }
+-
+-    private static string GetLifecycleBadgeClass(ProjectLifecycleStatus status) => status switch
+-    {
+-        ProjectLifecycleStatus.Active => "text-bg-primary",
+-        ProjectLifecycleStatus.Completed => "text-bg-success",
+-        ProjectLifecycleStatus.Cancelled => "project-lifecycle-badge project-lifecycle-badge--cancelled",
+-        _ => "project-lifecycle-badge project-lifecycle-badge--unknown"
+-    };
+-
+-    private static string FormatTotStatus(ProjectTotStatus status)
+-    {
+-        return status switch
+-        {
+-            ProjectTotStatus.NotRequired => "ToT not required",
+-            ProjectTotStatus.NotStarted => "ToT not started",
+-            ProjectTotStatus.InProgress => "ToT in progress",
+-            ProjectTotStatus.Completed => "ToT completed",
+-            _ => status.ToString()
+-        };
+-    }
+-
+-}
+--- a/Pages/Projects/Index.cshtml.cs
++++ b/Pages/Projects/Index.cshtml.cs
+@@ -119,6 +119,9 @@
+         public IReadOnlyList<ProjectTypeChipViewModel> ProjectTypeChips { get; private set; }
+             = Array.Empty<ProjectTypeChipViewModel>();
+ 
++        public IReadOnlyDictionary<int, int> ProjectTypeCounts { get; private set; }
++            = new Dictionary<int, int>();
++
+         public int ProjectTypeUnclassifiedCount { get; private set; }
+ 
+         public int TotalPages { get; private set; }
+@@ -163,15 +166,51 @@
+ 
+         public string OrderDescription => BuildOrderDescription();
+ 
++        public string ProjectCountLabel => FilteredTotal == 1 ? "project" : "projects";
++
++        public string ActiveLifecycleLabel
++        {
++            get
++            {
++                if (LegacyArchive.IsActive)
++                {
++                    return LegacyArchive.Label;
++                }
++
++                var activeLifecycle = LifecycleTabs.FirstOrDefault(tab => tab.IsActive);
++                return string.IsNullOrWhiteSpace(activeLifecycle?.Label)
++                    ? "All"
++                    : activeLifecycle!.Label;
++            }
++        }
++
+         public async Task OnGetAsync()
+         {
++            await LoadRepositoryAsync(loadFilterOptions: true);
++        }
++
++        public async Task<PartialViewResult> OnGetLiveAsync()
++        {
++            Response.Headers["Cache-Control"] = "no-store, no-cache";
++            await LoadRepositoryAsync(loadFilterOptions: false);
++            return Partial("_ProjectRepositoryLive", this);
++        }
++
++        private async Task LoadRepositoryAsync(bool loadFilterOptions)
++        {
++            var cancellationToken = HttpContext.RequestAborted;
++
+             // Section: Normalize query parameters
+             NormalizeProjectTypeFilters();
+             NormalizeOrdering();
+             var buildFilter = NormalizeBuildFilter();
+ 
+-            // Section: Filter option loading
+-            await LoadFilterOptionsAsync();
++            // Full page loads need the selectable option lists. Live result
++            // refreshes retain the existing form and therefore skip these queries.
++            if (loadFilterOptions)
++            {
++                await LoadFilterOptionsAsync(cancellationToken);
++            }
+ 
+             var stageMonth = ParseStageMonth(StageCompletedMonth);
+ 
+@@ -179,7 +218,7 @@
+             if (IncludeCategoryDescendants && CategoryId.HasValue)
+             {
+                 resolvedCategoryIds = await _categoryHierarchy
+-                    .GetCategoryAndDescendantIdsAsync(CategoryId.Value, HttpContext.RequestAborted);
++                    .GetCategoryAndDescendantIdsAsync(CategoryId.Value, cancellationToken);
+             }
+ 
+             var baseFilters = new ProjectSearchFilters(
+@@ -198,24 +237,37 @@
+                 IncludeCategoryDescendants,
+                 resolvedCategoryIds);
+ 
+-            var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters, buildFilter);
++            var lifecycleCounts = await CountProjectsByLifecycleAsync(
++                baseFilters,
++                buildFilter,
++                cancellationToken);
+             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
+             LegacyArchive = CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy archive", lifecycleCounts);
+ 
+             var filters = baseFilters with { Lifecycle = Lifecycle };
+ 
+-            // Section: KPI counts for filtered dataset
+-            var baseQuery = await BuildFilteredQueryAsync(filters, buildFilter, applyBuildFilter: true, applyProjectTypeFilter: false);
+-            var baseQueryNoBuild = await BuildFilteredQueryAsync(filters, buildFilter, applyBuildFilter: false, applyProjectTypeFilter: false);
+-
+-            ProjectTypeChips = await BuildProjectTypeChipsAsync(baseQuery);
+-            ProjectTypeUnclassifiedCount = await baseQuery.Where(p => p.ProjectTypeId == null).CountAsync();
+-
+-            RepeatBuildCount = await baseQueryNoBuild.Where(p => p.IsBuild).CountAsync();
+-            NewBuildCount = await baseQueryNoBuild.Where(p => !p.IsBuild).CountAsync();
++            // Section: Filter counters and filtered dataset
++            var baseQuery = await BuildFilteredQueryAsync(
++                filters,
++                buildFilter,
++                applyBuildFilter: true,
++                applyProjectTypeFilter: false,
++                cancellationToken: cancellationToken);
++            var baseQueryNoBuild = await BuildFilteredQueryAsync(
++                filters,
++                buildFilter,
++                applyBuildFilter: false,
++                applyProjectTypeFilter: false,
++                cancellationToken: cancellationToken);
++
++            await LoadFilterCountsAsync(
++                baseQuery,
++                baseQueryNoBuild,
++                loadProjectTypeDefinitions: loadFilterOptions,
++                cancellationToken: cancellationToken);
+ 
+             var filteredQuery = ApplyProjectTypeFilter(baseQuery);
+-            FilteredTotal = await filteredQuery.CountAsync();
++            FilteredTotal = await filteredQuery.CountAsync(cancellationToken);
+             TotalCount = FilteredTotal;
+ 
+             // Section: Results query setup
+@@ -278,8 +330,8 @@
+             }
+ 
+             Projects = isAll
+-                ? await query.ToListAsync()
+-                : await query.Skip(skip).Take(PageSize).ToListAsync();
++                ? await query.ToListAsync(cancellationToken)
++                : await query.Skip(skip).Take(PageSize).ToListAsync(cancellationToken);
+ 
+             StagePositions = Projects.ToDictionary(
+                 project => project.Id,
+@@ -328,6 +380,69 @@
+                 : "bi bi-sort-alpha-up";
+         }
+ 
++        public IDictionary<string, string?> BuildBaseRouteValues()
++        {
++            var values = new Dictionary<string, string?>();
++
++            static void AddValue(IDictionary<string, string?> target, string key, object? value)
++            {
++                if (value is null)
++                {
++                    return;
++                }
++
++                var text = value.ToString();
++                if (!string.IsNullOrWhiteSpace(text))
++                {
++                    target[key] = text;
++                }
++            }
++
++            AddValue(values, "Query", Query);
++            AddValue(values, "CategoryId", CategoryId);
++            AddValue(values, "TechnicalCategoryId", TechnicalCategoryId);
++            AddValue(values, "LeadPoUserId", LeadPoUserId);
++            AddValue(values, "HodUserId", HodUserId);
++            AddValue(values, "Lifecycle", Lifecycle == ProjectLifecycleFilter.All ? null : Lifecycle.ToString());
++            AddValue(values, "CompletedYear", CompletedYear);
++            AddValue(values, "TotStatus", TotStatus?.ToString());
++            AddValue(values, "IncludeArchived", IncludeArchived ? "true" : null);
++            AddValue(values, "StageCode", StageCode);
++            AddValue(values, "StageCompletedMonth", StageCompletedMonth);
++            AddValue(values, "SlipBucket", SlipBucket);
++            AddValue(values, "IncludeCategoryDescendants", IncludeCategoryDescendants ? "true" : null);
++            AddValue(values, "Build", Build);
++            AddValue(values, "ProjectTypeId", ProjectTypeId);
++            AddValue(values, "ProjectTypeUnclassified", ProjectTypeUnclassified ? "true" : null);
++            AddValue(values, "PageSize", PageSize);
++
++            if (Sort != ProjectRepositorySort.Operational)
++            {
++                AddValue(values, "Sort", Sort);
++                AddValue(values, "Dir", Dir);
++            }
++
++            return values;
++        }
++
++        public IDictionary<string, string?> BuildSortRoute(ProjectRepositorySort sort)
++        {
++            var values = BuildBaseRouteValues();
++            values["Sort"] = sort.ToString();
++            values["Dir"] = NextSortDirection(sort).ToString();
++            values["p"] = "1";
++            return values;
++        }
++
++        public IDictionary<string, string?> BuildOperationalOrderRoute()
++        {
++            var values = BuildBaseRouteValues();
++            values.Remove("Sort");
++            values.Remove("Dir");
++            values["p"] = "1";
++            return values;
++        }
++
+         private void NormalizeOrdering()
+         {
+             if (!Enum.IsDefined(Sort))
+@@ -380,39 +495,61 @@
+         }
+ 
+         // Section: KPI helpers
+-        private async Task<IReadOnlyList<ProjectTypeChipViewModel>> BuildProjectTypeChipsAsync(IQueryable<Project> baseQuery)
+-        {
+-            var counts = await baseQuery
+-                .Where(p => p.ProjectTypeId.HasValue)
+-                .GroupBy(p => p.ProjectTypeId)
+-                .Select(g => new
++        private async Task LoadFilterCountsAsync(
++            IQueryable<Project> baseQuery,
++            IQueryable<Project> baseQueryNoBuild,
++            bool loadProjectTypeDefinitions,
++            CancellationToken cancellationToken)
++        {
++            var typeCounts = await baseQuery
++                .GroupBy(project => project.ProjectTypeId)
++                .Select(group => new
+                 {
+-                    Id = g.Key!.Value,
+-                    Count = g.Count()
++                    ProjectTypeId = group.Key,
++                    Count = group.Count()
+                 })
+-                .ToListAsync();
+-
+-            var countLookup = counts.ToDictionary(item => item.Id, item => item.Count);
++                .ToListAsync(cancellationToken);
+ 
+-            var types = await _db.ProjectTypes
+-                .AsNoTracking()
+-                .OrderBy(t => t.SortOrder)
+-                .ThenBy(t => t.Name)
+-                .ToListAsync();
+-
+-            return types
+-                .Select(t => new ProjectTypeChipViewModel(
+-                    t.Id,
+-                    t.Name,
+-                    countLookup.TryGetValue(t.Id, out var count) ? count : 0))
+-                .ToList();
++            ProjectTypeUnclassifiedCount = typeCounts
++                .Where(item => !item.ProjectTypeId.HasValue)
++                .Select(item => item.Count)
++                .FirstOrDefault();
++
++            ProjectTypeCounts = typeCounts
++                .Where(item => item.ProjectTypeId.HasValue)
++                .ToDictionary(item => item.ProjectTypeId!.Value, item => item.Count);
++
++            if (loadProjectTypeDefinitions)
++            {
++                var types = await _db.ProjectTypes
++                    .AsNoTracking()
++                    .OrderBy(type => type.SortOrder)
++                    .ThenBy(type => type.Name)
++                    .ToListAsync(cancellationToken);
++
++                ProjectTypeChips = types
++                    .Select(type => new ProjectTypeChipViewModel(
++                        type.Id,
++                        type.Name,
++                        ProjectTypeCounts.TryGetValue(type.Id, out var count) ? count : 0))
++                    .ToList();
++            }
++
++            RepeatBuildCount = await baseQueryNoBuild
++                .Where(project => project.IsBuild)
++                .CountAsync(cancellationToken);
++
++            NewBuildCount = await baseQueryNoBuild
++                .Where(project => !project.IsBuild)
++                .CountAsync(cancellationToken);
+         }
+ 
+         private async Task<IQueryable<Project>> BuildFilteredQueryAsync(
+             ProjectSearchFilters filters,
+             BuildFilter? buildFilter,
+             bool applyBuildFilter,
+-            bool applyProjectTypeFilter)
++            bool applyProjectTypeFilter,
++            CancellationToken cancellationToken)
+         {
+             var query = _db.Projects
+                 .AsNoTracking()
+@@ -426,7 +563,7 @@
+                         filters.CategoryId,
+                         filters.TechnicalCategoryId,
+                         filters.SlipBucket!,
+-                        cancellationToken: HttpContext.RequestAborted,
++                        cancellationToken: cancellationToken,
+                         expandedCategoryIds: filters.CategoryIds);
+ 
+                 if (slipIds.Count == 0)
+@@ -534,13 +671,13 @@
+             return null;
+         }
+ 
+-        private async Task LoadFilterOptionsAsync()
++        private async Task LoadFilterOptionsAsync(CancellationToken cancellationToken)
+         {
+             var categories = await _db.ProjectCategories
+                 .AsNoTracking()
+                 .OrderBy(c => c.Name)
+                 .Select(c => new CategoryOption(c.Id, c.Name))
+-                .ToListAsync();
++                .ToListAsync(cancellationToken);
+ 
+             CategoryOptions = BuildCategoryOptions(categories, CategoryId);
+ 
+@@ -549,7 +686,7 @@
+                 .OrderBy(c => c.SortOrder)
+                 .ThenBy(c => c.Name)
+                 .Select(c => new TechnicalCategoryOption(c.Id, c.Name, c.ParentId, c.IsActive))
+-                .ToListAsync();
++                .ToListAsync(cancellationToken);
+ 
+             TechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, TechnicalCategoryId);
+ 
+@@ -560,7 +697,7 @@
+                     p.HodUserId!,
+                     p.HodUser != null ? p.HodUser.FullName : null,
+                     p.HodUser != null ? p.HodUser.UserName : null))
+-                .ToListAsync();
++                .ToListAsync(cancellationToken);
+ 
+             HodOptions = BuildUserOptions(hodUsers, HodUserId, "Any HoD");
+ 
+@@ -571,7 +708,7 @@
+                     p.LeadPoUserId!,
+                     p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
+                     p.LeadPoUser != null ? p.LeadPoUser.UserName : null))
+-                .ToListAsync();
++                .ToListAsync(cancellationToken);
+ 
+             LeadPoOptions = BuildUserOptions(leadPoUsers, LeadPoUserId, "Any Project Officer");
+ 
+@@ -581,7 +718,7 @@
+                 .Select(p => p.CompletedYear!.Value)
+                 .Distinct()
+                 .OrderByDescending(year => year)
+-                .ToListAsync();
++                .ToListAsync(cancellationToken);
+ 
+             CompletionYearOptions = BuildCompletionYearOptions(completionYears, CompletedYear);
+ 
+@@ -686,7 +823,8 @@
+ 
+         private async Task<IReadOnlyDictionary<ProjectLifecycleFilter, int>> CountProjectsByLifecycleAsync(
+             ProjectSearchFilters baseFilters,
+-            BuildFilter? buildFilter)
++            BuildFilter? buildFilter,
++            CancellationToken cancellationToken)
+         {
+             var counts = new Dictionary<ProjectLifecycleFilter, int>();
+ 
+@@ -704,9 +842,10 @@
+                     countFilters,
+                     buildFilter,
+                     applyBuildFilter: true,
+-                    applyProjectTypeFilter: true);
++                    applyProjectTypeFilter: true,
++                    cancellationToken: cancellationToken);
+ 
+-                counts[filter] = await query.CountAsync();
++                counts[filter] = await query.CountAsync(cancellationToken);
+             }
+ 
+             return counts;
+@@ -773,6 +912,45 @@
+             };
+         }
+ 
++        public string? FormatTotStatusShort(Project project)
++        {
++            if (project.Tot is not { } tot)
++            {
++                return null;
++            }
++
++            return tot.Status switch
++            {
++                ProjectTotStatus.NotRequired => "ToT not required",
++                ProjectTotStatus.NotStarted => "ToT not started",
++                ProjectTotStatus.InProgress => "ToT in progress",
++                ProjectTotStatus.Completed => "ToT completed",
++                _ => null
++            };
++        }
++
++        public string FormatLifecycleStatus(ProjectLifecycleStatus status)
++        {
++            return status switch
++            {
++                ProjectLifecycleStatus.Active => "Active",
++                ProjectLifecycleStatus.Completed => "Completed",
++                ProjectLifecycleStatus.Cancelled => "Cancelled",
++                _ => status.ToString()
++            };
++        }
++
++        public string GetLifecycleBadgeClass(ProjectLifecycleStatus status)
++        {
++            return status switch
++            {
++                ProjectLifecycleStatus.Active => "text-bg-primary",
++                ProjectLifecycleStatus.Completed => "text-bg-success",
++                ProjectLifecycleStatus.Cancelled => "project-lifecycle-badge project-lifecycle-badge--cancelled",
++                _ => "project-lifecycle-badge project-lifecycle-badge--unknown"
++            };
++        }
++
+         public sealed record LifecycleFilterTab(ProjectLifecycleFilter Filter, string Label, string? RouteValue, bool IsActive, int Count);
+ 
+         private sealed record UserOption(string Id, string? FullName, string? UserName);
+--- /dev/null
++++ b/Pages/Projects/_ProjectRepositoryHeaderSummary.cshtml
+@@ -0,0 +1,7 @@
++@model ProjectManagement.Pages.Projects.IndexModel
++
++<p class="projects-header__summary" data-project-header-summary>
++    <strong>@Model.FilteredTotal</strong> @Model.ProjectCountLabel
++    <span aria-hidden="true">·</span>
++    <span>@Model.ActiveLifecycleLabel</span>
++</p>
+--- /dev/null
++++ b/Pages/Projects/_ProjectRepositoryLifecycle.cshtml
+@@ -0,0 +1,34 @@
++@model ProjectManagement.Pages.Projects.IndexModel
++@using ProjectManagement.Services.Projects
++
++        <div class="projects-classification-bar" data-project-lifecycle-region>
++            <nav class="projects-lifecycle" aria-label="Project lifecycle filters">
++                @foreach (var lifecycle in Model.LifecycleTabs)
++                {
++                    var routeValues = Model.BuildBaseRouteValues();
++                    routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
++                    routeValues["p"] = "1";
++                    <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
++                       asp-page="/Projects/Index"
++                       asp-all-route-data="routeValues"
++                       aria-current="@(lifecycle.IsActive ? "page" : null)">
++                        <span>@lifecycle.Label</span>
++                        <span class="projects-lifecycle__count">@lifecycle.Count</span>
++                    </a>
++                }
++            </nav>
++            @{
++                var legacyRouteValues = Model.BuildBaseRouteValues();
++                legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
++                legacyRouteValues["p"] = "1";
++            }
++            <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
++               asp-page="/Projects/Index"
++               asp-all-route-data="legacyRouteValues"
++               aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
++               title="Projects retained as institutional records">
++                <i class="bi bi-archive" aria-hidden="true"></i>
++                <span>@Model.LegacyArchive.Label</span>
++                <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
++            </a>
++        </div>
+--- /dev/null
++++ b/Pages/Projects/_ProjectRepositoryResults.cshtml
+@@ -0,0 +1,210 @@
++@model ProjectManagement.Pages.Projects.IndexModel
++@using System
++@using System.Globalization
++@using System.Linq
++@using ProjectManagement.Models
++@using ProjectManagement.Services.Projects
++@using ProjectManagement.ViewModels
++
++<div id="projectRepositoryResults"
++     data-project-results-region
++     data-project-result-count="@Model.FilteredTotal"
++     data-project-result-label="@Model.ProjectCountLabel">
++            <div class="projects-results-header">
++                <div>
++                    <strong>@Model.FilteredTotal @Model.ProjectCountLabel</strong>
++                    @if (Model.TotalPages > 1)
++                    {
++                        <span>Showing @Model.ResultsStart–@Model.ResultsEnd</span>
++                    }
++                </div>
++                <span class="projects-results-header__order" title="The order is applied to the complete filtered result before pagination.">
++                    <i class="bi bi-sort-down" aria-hidden="true"></i>
++                    <span>@Model.OrderDescription</span>
++                    @if (Model.Sort != ProjectRepositorySort.Operational)
++                    {
++                        <a asp-page="/Projects/Index"
++                           asp-all-route-data="Model.BuildOperationalOrderRoute()"
++                           class="projects-results-header__order-reset">Reset order</a>
++                    }
++                </span>
++            </div>
++
++            @if (!Model.Projects.Any())
++            {
++                <section class="projects-empty-state">
++                    <div class="projects-empty-state__icon"><i class="bi bi-inboxes" aria-hidden="true"></i></div>
++                    <h2>No projects found</h2>
++                    <p>Try a different search, remove a filter or select another lifecycle.</p>
++                    <a asp-page="/Projects/Index" class="btn btn-outline-primary">View all projects</a>
++                </section>
++            }
++            else
++            {
++                <div class="projects-results-view is-active" data-project-results="cards">
++                    <div class="projects-grid">
++                        @foreach (var project in Model.Projects)
++                        {
++                            var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
++                                ? resolvedStageDisplay
++                                : ProjectRepositoryStagePositionVm.Missing;
++                            var totStatus = Model.FormatTotStatusShort(project);
++                            string? coverPhotoUrl = null;
++                            if (project.CoverPhotoId.HasValue)
++                            {
++                                coverPhotoUrl = Url.Page("/Projects/Photos/View", new { id = project.Id, photoId = project.CoverPhotoId, size = "sm", v = project.CurrentCoverPhotoVersion ?? project.CoverPhotoVersion });
++                            }
++                            var officerName = project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned";
++                            var categoryName = project.Category?.Name ?? "Uncategorised";
++                            var caseFile = string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber;
++                            <article class="project-card @(project.IsLegacy ? "project-card--legacy" : null) @(project.IsArchived ? "project-card--archived" : null)">
++                                <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="project-card__link" aria-label="Open @project.Name"></a>
++                                <div class="project-card__topline">
++                                    <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)"
++                                         data-project-card-cover>
++                                        <i class="bi bi-kanban project-card__visual-fallback"
++                                           aria-hidden="true"
++                                           data-project-card-cover-fallback></i>
++                                        @if (!string.IsNullOrEmpty(coverPhotoUrl))
++                                        {
++                                            <img src="@coverPhotoUrl"
++                                                 alt=""
++                                                 loading="lazy"
++                                                 decoding="async"
++                                                 data-project-card-cover-image />
++                                        }
++                                    </div>
++                                    <div class="project-card__heading">
++                                        <h2>@project.Name</h2>
++                                        <div class="project-card__badges">
++                                            <span class="badge rounded-pill @Model.GetLifecycleBadgeClass(project.LifecycleStatus)">@Model.FormatLifecycleStatus(project.LifecycleStatus)@if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedYear.HasValue){<text> @project.CompletedYear</text>}</span>
++                                            @if (project.IsLegacy) { <span class="badge rounded-pill project-badge--legacy">Legacy archive</span> }
++                                            @if (project.IsArchived) { <span class="badge rounded-pill text-bg-secondary">Archived</span> }
++                                        </div>
++                                    </div>
++                                    <i class="bi bi-chevron-right project-card__open-icon" aria-hidden="true"></i>
++                                </div>
++                                <dl class="project-card__metadata">
++                                    <div><dt>Category</dt><dd>@categoryName</dd></div>
++                                    <div class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "is-missing" : null)"><dt>Case file</dt><dd>@caseFile</dd></div>
++                                    <div class="@((project.LeadPoUser is null) ? "is-missing" : null)"><dt>Project Officer</dt><dd>@officerName</dd></div>
++                                </dl>
++                                <div class="project-card__stage @(stageDisplay.IsMissing ? "is-missing" : null)">
++                                    <i class="bi bi-signpost-split" aria-hidden="true"></i>
++                                    <span>
++                                        <strong>@stageDisplay.Primary</strong>
++                                        @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary))
++                                        {
++                                            <small>@stageDisplay.Secondary</small>
++                                        }
++                                    </span>
++                                </div>
++                                @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
++                                {
++                                    <div class="project-card__tot"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>@totStatus</span></div>
++                                }
++                            </article>
++                        }
++                    </div>
++                </div>
++
++                <div class="projects-results-view" data-project-results="table" hidden>
++                    <div class="projects-table-wrap">
++                        <table class="table projects-table align-middle">
++                            <thead>
++                                <tr>
++                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Project)">
++                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Project) ? "is-active" : null)"
++                                           asp-page="/Projects/Index"
++                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Project)"
++                                           title="Sort the complete result by project name">
++                                            Project <i class="@Model.GetSortIconClass(ProjectRepositorySort.Project)" aria-hidden="true"></i>
++                                        </a>
++                                    </th>
++                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Status)">
++                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Status) ? "is-active" : null)"
++                                           asp-page="/Projects/Index"
++                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Status)"
++                                           title="Sort the complete result by lifecycle status">
++                                            Status <i class="@Model.GetSortIconClass(ProjectRepositorySort.Status)" aria-hidden="true"></i>
++                                        </a>
++                                    </th>
++                                    <th scope="col">Current position</th>
++                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Officer)">
++                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Officer) ? "is-active" : null)"
++                                           asp-page="/Projects/Index"
++                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Officer)"
++                                           title="Sort the complete result by project officer">
++                                            Project Officer <i class="@Model.GetSortIconClass(ProjectRepositorySort.Officer)" aria-hidden="true"></i>
++                                        </a>
++                                    </th>
++                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Category)">
++                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Category) ? "is-active" : null)"
++                                           asp-page="/Projects/Index"
++                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.Category)"
++                                           title="Sort the complete result by category">
++                                            Category <i class="@Model.GetSortIconClass(ProjectRepositorySort.Category)" aria-hidden="true"></i>
++                                        </a>
++                                    </th>
++                                    <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.CaseFile)">
++                                        <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.CaseFile) ? "is-active" : null)"
++                                           asp-page="/Projects/Index"
++                                           asp-all-route-data="Model.BuildSortRoute(ProjectRepositorySort.CaseFile)"
++                                           title="Sort the complete result by case file">
++                                            Case file <i class="@Model.GetSortIconClass(ProjectRepositorySort.CaseFile)" aria-hidden="true"></i>
++                                        </a>
++                                    </th>
++                                    <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
++                                </tr>
++                            </thead>
++                            <tbody>
++                                @foreach (var project in Model.Projects)
++                                {
++                                    var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
++                                        ? resolvedStageDisplay
++                                        : ProjectRepositoryStagePositionVm.Missing;
++                                    var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
++                                    <tr class="projects-table__row @(project.IsLegacy ? "is-legacy" : null)" data-project-row data-href="@rowHref" tabindex="0">
++                                        <td data-sort-value="@project.Name"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
++                                        <td data-sort-value="@Model.FormatLifecycleStatus(project.LifecycleStatus)"><span class="badge rounded-pill @Model.GetLifecycleBadgeClass(project.LifecycleStatus)">@Model.FormatLifecycleStatus(project.LifecycleStatus)</span></td>
++                                        <td class="projects-table__stage">
++                                            <strong>@stageDisplay.Primary</strong>
++                                            @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary)) { <small>@stageDisplay.Secondary</small> }
++                                        </td>
++                                        <td data-sort-value="@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")">@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</td>
++                                        <td data-sort-value="@(project.Category?.Name ?? "Uncategorised")">@(project.Category?.Name ?? "Uncategorised")</td>
++                                        <td data-sort-value="@(project.CaseFileNumber ?? string.Empty)" class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "projects-table__missing" : null)">@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber)</td>
++                                        <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
++                                    </tr>
++                                }
++                            </tbody>
++                        </table>
++                    </div>
++                </div>
++
++                @if (Model.TotalPages > 1)
++                {
++                    <nav class="projects-pagination" aria-label="Project pagination">
++                        <div class="projects-pagination__summary">Page @Model.CurrentPage of @Model.TotalPages</div>
++                        <ul class="pagination pagination-sm mb-0">
++                            @{ var prevRoute = Model.BuildBaseRouteValues(); prevRoute["p"] = Math.Max(1, Model.CurrentPage - 1).ToString(CultureInfo.InvariantCulture); }
++                            <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-page="/Projects/Index" asp-all-route-data="prevRoute" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a></li>
++                            @for (var i = 1; i <= Model.TotalPages; i++)
++                            {
++                                if (i == 1 || i == Model.TotalPages || Math.Abs(i - Model.CurrentPage) <= 2)
++                                {
++                                    var pageRoute = Model.BuildBaseRouteValues(); pageRoute["p"] = i.ToString(CultureInfo.InvariantCulture);
++                                    <li class="page-item @(i == Model.CurrentPage ? "active" : null)"><a class="page-link" asp-page="/Projects/Index" asp-all-route-data="pageRoute">@i</a></li>
++                                }
++                                else if (i == Model.CurrentPage - 3 || i == Model.CurrentPage + 3)
++                                {
++                                    <li class="page-item disabled"><span class="page-link">…</span></li>
++                                }
++                            }
++                            @{ var nextRoute = Model.BuildBaseRouteValues(); nextRoute["p"] = Math.Min(Model.TotalPages, Model.CurrentPage + 1).ToString(CultureInfo.InvariantCulture); }
++                            <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-page="/Projects/Index" asp-all-route-data="nextRoute" aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></li>
++                        </ul>
++                    </nav>
++                }
++            }
++</div>
+--- /dev/null
++++ b/Pages/Projects/_ProjectRepositoryLiveMetadata.cshtml
+@@ -0,0 +1,13 @@
++@model ProjectManagement.Pages.Projects.IndexModel
++@using System.Linq
++
++<div data-project-live-metadata
++     data-new-build-count="@Model.NewBuildCount"
++     data-repeat-build-count="@Model.RepeatBuildCount"
++     data-unclassified-count="@Model.ProjectTypeUnclassifiedCount"
++     hidden>
++    @foreach (var count in Model.ProjectTypeCounts.OrderBy(item => item.Key))
++    {
++        <span data-project-type-count-value="@count.Key" data-count="@count.Value"></span>
++    }
++</div>
+--- /dev/null
++++ b/Pages/Projects/_ProjectRepositoryLive.cshtml
+@@ -0,0 +1,6 @@
++@model ProjectManagement.Pages.Projects.IndexModel
++
++<partial name="_ProjectRepositoryHeaderSummary" model="Model" />
++<partial name="_ProjectRepositoryLifecycle" model="Model" />
++<partial name="_ProjectRepositoryResults" model="Model" />
++<partial name="_ProjectRepositoryLiveMetadata" model="Model" />
+--- a/wwwroot/js/pages/projects-index.js
++++ b/wwwroot/js/pages/projects-index.js
+@@ -6,126 +6,596 @@
+ 
+     const form = root.querySelector('[data-project-filter-form]');
+     const search = root.querySelector('[data-project-search]');
+-    const autoSubmitControls = root.querySelectorAll('[data-project-auto-submit]');
++    const liveStatus = root.querySelector('[data-project-live-status]');
++    const searchActivity = root.querySelector('[data-project-search-activity]');
+     const viewButtons = root.querySelectorAll('[data-project-view]');
+-    const resultViews = root.querySelectorAll('[data-project-results]');
+     const storageKey = 'prism.projects.view';
+-    let searchTimer = 0;
+-
+-    const submitForm = () => {
+-        if (!form) return;
+-        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+-        else form.submit();
+-    };
++    const debounceMilliseconds = 300;
++    const replaceableSelectors = [
++        '[data-project-header-summary]',
++        '[data-project-lifecycle-region]',
++        '[data-project-results-region]',
++        '[data-project-live-metadata]'
++    ];
+ 
+-    if (search) {
+-        search.addEventListener('input', () => {
+-            window.clearTimeout(searchTimer);
+-            searchTimer = window.setTimeout(submitForm, 450);
+-        });
++    if (!form || !search) return;
+ 
+-        search.addEventListener('keydown', event => {
+-            if (event.key === 'Enter') {
+-                window.clearTimeout(searchTimer);
+-            }
+-        });
++    let searchTimer = 0;
++    let isComposing = false;
++    let activeController = null;
++    let requestSequence = 0;
++    let preferredView = readPreferredView();
++
++    const supportsLiveSearch =
++        typeof window.fetch === 'function' &&
++        typeof window.AbortController === 'function' &&
++        typeof window.DOMParser === 'function' &&
++        typeof window.URL === 'function' &&
++        typeof window.URLSearchParams === 'function' &&
++        typeof window.history?.replaceState === 'function';
++
++    function readPreferredView() {
++        try {
++            return window.localStorage.getItem(storageKey) || 'cards';
++        } catch {
++            return 'cards';
++        }
+     }
+ 
+-    autoSubmitControls.forEach(control => {
+-        control.addEventListener('change', submitForm);
+-    });
+-
+-    const setView = view => {
++    function setView(view, persist = true) {
+         const resolved = view === 'table' ? 'table' : 'cards';
++        preferredView = resolved;
++
+         viewButtons.forEach(button => {
+             const isActive = button.dataset.projectView === resolved;
+             button.classList.toggle('is-active', isActive);
+             button.setAttribute('aria-pressed', String(isActive));
+         });
+-        resultViews.forEach(container => {
++
++        root.querySelectorAll('[data-project-results]').forEach(container => {
+             const isActive = container.dataset.projectResults === resolved;
+             container.classList.toggle('is-active', isActive);
+             container.hidden = !isActive;
+         });
+-        try { window.localStorage.setItem(storageKey, resolved); } catch { /* storage is optional */ }
+-    };
+ 
+-    viewButtons.forEach(button => {
+-        button.addEventListener('click', () => setView(button.dataset.projectView));
+-    });
++        if (!persist) return;
+ 
+-    let preferredView = 'cards';
+-    try { preferredView = window.localStorage.getItem(storageKey) || 'cards'; } catch { /* storage is optional */ }
+-    setView(preferredView);
++        try {
++            window.localStorage.setItem(storageKey, resolved);
++        } catch {
++            // Local storage is an optional enhancement.
++        }
++    }
+ 
+-    const typeRadios = root.querySelectorAll('[data-project-type]');
+-    const unclassified = root.querySelector('[data-project-type-unclassified]');
+-    const clearUnclassified = root.querySelector('[data-clear-unclassified]');
++    function submitNormally() {
++        window.clearTimeout(searchTimer);
++        HTMLFormElement.prototype.submit.call(form);
++    }
+ 
+-    typeRadios.forEach(radio => {
+-        radio.addEventListener('change', () => {
+-            if (radio.checked && unclassified) unclassified.checked = false;
++    function formToPublicUrl({ resetPage = false } = {}) {
++        const url = new URL(form.action || window.location.href, window.location.href);
++        url.search = '';
++        url.hash = '';
++
++        const checkboxNames = new Set(
++            Array.from(form.elements)
++                .filter(element => element instanceof HTMLInputElement && element.type === 'checkbox' && element.name)
++                .map(element => element.name)
++        );
++
++        const params = new URLSearchParams();
++        Array.from(form.elements).forEach(element => {
++            if (!(element instanceof HTMLElement) || !('name' in element)) return;
++            if (!element.name || element.disabled) return;
++
++            const type = (element.type || '').toLowerCase();
++            if (['submit', 'button', 'reset', 'file'].includes(type)) return;
++            if (type === 'hidden' && checkboxNames.has(element.name)) return;
++
++            if ((type === 'checkbox' || type === 'radio') && !element.checked) return;
++
++            const value = typeof element.value === 'string' ? element.value.trim() : '';
++            if (!value || value.toLowerCase() === 'false') return;
++            params.set(element.name, value);
+         });
+-    });
+ 
+-    if (unclassified) {
+-        unclassified.addEventListener('change', () => {
+-            if (!unclassified.checked) return;
+-            typeRadios.forEach(radio => { radio.checked = false; });
+-            if (clearUnclassified) clearUnclassified.checked = false;
++        if (resetPage) {
++            params.delete('p');
++        }
++
++        if ((params.get('Sort') || '').toLowerCase() === 'operational') {
++            params.delete('Sort');
++            params.delete('Dir');
++        }
++
++        if (params.get('p') === '1') {
++            params.delete('p');
++        }
++
++        params.delete('handler');
++        url.search = params.toString();
++        return url;
++    }
++
++    function createLiveRequestUrl(publicUrl) {
++        const requestUrl = new URL(publicUrl.toString());
++        requestUrl.searchParams.set('handler', 'Live');
++        return requestUrl;
++    }
++
++    function setLoading(isLoading) {
++        root.classList.toggle('is-live-loading', isLoading);
++        root.setAttribute('aria-busy', String(isLoading));
++        search.setAttribute('aria-busy', String(isLoading));
++
++        const results = root.querySelector('[data-project-results-region]');
++        if (results) {
++            results.setAttribute('aria-busy', String(isLoading));
++        }
++
++        if (searchActivity) {
++            searchActivity.hidden = !isLoading;
++        }
++    }
++
++    function announce(message) {
++        if (!liveStatus) return;
++        liveStatus.textContent = '';
++        window.requestAnimationFrame(() => {
++            liveStatus.textContent = message;
+         });
+     }
+ 
+-    if (clearUnclassified) {
+-        clearUnclassified.addEventListener('change', () => {
+-            if (clearUnclassified.checked && unclassified) unclassified.checked = false;
++    function replaceLiveFragments(documentFragment) {
++        const replacements = replaceableSelectors.map(selector => {
++            const current = root.querySelector(selector);
++            const incoming = documentFragment.querySelector(selector);
++            if (!current || !incoming) {
++                throw new Error(`Live project response is missing ${selector}.`);
++            }
++            return { current, incoming };
++        });
++
++        replacements.forEach(({ current, incoming }) => {
++            current.replaceWith(document.importNode(incoming, true));
+         });
+     }
+ 
+-    root.querySelectorAll('[data-project-card-cover-image]').forEach(image => {
+-        const host = image.closest('[data-project-card-cover]');
+-        if (!host) return;
++    function getChoiceLabel(input) {
++        const label = input.closest('label');
++        const source = label?.querySelector('span');
++        if (!source) return '';
++
++        const clone = source.cloneNode(true);
++        clone.querySelectorAll('small').forEach(node => node.remove());
++        return clone.textContent.trim();
++    }
+ 
+-        const showFallback = () => {
+-            image.hidden = true;
+-            image.removeAttribute('srcset');
+-            host.classList.add('project-card__visual--icon');
+-        };
++    function selectedOptionText(name) {
++        const select = form.elements.namedItem(name);
++        if (!(select instanceof HTMLSelectElement) || !select.value) return '';
++        return select.selectedOptions[0]?.textContent?.trim() || '';
++    }
+ 
+-        image.addEventListener('error', showFallback, { once: true });
++    function updateFilterSummary() {
++        const chips = [];
++        const query = search.value.trim();
++        if (query) chips.push(`Search: ${query}`);
++
++        const selectFilters = [
++            ['CategoryId', 'Category'],
++            ['TechnicalCategoryId', 'Technical category'],
++            ['HodUserId', 'HoD'],
++            ['LeadPoUserId', 'Project Officer'],
++            ['CompletedYear', 'Completion year'],
++            ['TotStatus', 'ToT']
++        ];
++
++        selectFilters.forEach(([name, label]) => {
++            const value = selectedOptionText(name);
++            if (value) chips.push(`${label}: ${value}`);
++        });
+ 
+-        // The image can fail before this deferred page script attaches its
+-        // listener. naturalWidth is the reliable post-load failure check.
+-        if (image.complete && image.naturalWidth === 0) {
+-            showFallback();
++        const unclassified = form.querySelector('[data-project-type-unclassified]');
++        const selectedType = form.querySelector('[data-project-type]:checked');
++        if (unclassified instanceof HTMLInputElement && unclassified.checked) {
++            chips.push('Project type: Unclassified');
++        } else if (selectedType instanceof HTMLInputElement && selectedType.value) {
++            const label = getChoiceLabel(selectedType);
++            if (label) chips.push(`Project type: ${label}`);
++        }
++
++        const selectedBuild = form.querySelector('input[name="Build"]:checked');
++        if (selectedBuild instanceof HTMLInputElement && selectedBuild.value) {
++            chips.push(selectedBuild.value.toLowerCase() === 'repeat' ? 'Repeat build' : 'New development');
++        }
++
++        const includeArchived = form.querySelector('input[type="checkbox"][name="IncludeArchived"]');
++        if (includeArchived instanceof HTMLInputElement && includeArchived.checked) {
++            chips.push('Archived included');
++        }
++
++        const summary = root.querySelector('[data-project-filter-summary]');
++        const chipHost = root.querySelector('[data-project-filter-chips]');
++        const countHost = root.querySelector('[data-project-filter-count-host]');
++
++        if (summary) summary.classList.toggle('d-none', chips.length === 0);
++
++        if (chipHost) {
++            chipHost.replaceChildren(...chips.map(text => {
++                const chip = document.createElement('span');
++                chip.className = 'projects-filter-chip';
++                chip.textContent = text;
++                return chip;
++            }));
+         }
+-    });
+-})();
+ 
+-// Enhancement block: full-row keyboard/mouse navigation. Sorting is handled
+-// server-side so that card view, table view and every page share one order.
+-(() => {
+-    'use strict';
+-
+-    const rows = document.querySelectorAll('[data-project-row]');
+-    if (!rows.length) return;
+-
+-    rows.forEach(row => {
+-        const open = () => {
+-            const href = row.dataset.href;
+-            if (href) window.location.assign(href);
+-        };
+-
+-        row.addEventListener('click', event => {
+-            if (event.target.closest('a, button, input, select, textarea, label')) return;
+-            open();
+-        });
+-
+-        row.addEventListener('keydown', event => {
+-            if (event.key === 'Enter' || event.key === ' ') {
+-                event.preventDefault();
+-                open();
++        if (countHost) {
++            countHost.replaceChildren();
++            if (chips.length > 0) {
++                const count = document.createElement('span');
++                count.className = 'projects-toolbar__filter-count';
++                count.dataset.projectFilterCount = '';
++                count.textContent = String(chips.length);
++                countHost.append(count);
+             }
++        }
++
++        const clearLink = root.querySelector('[data-project-clear-filters]');
++        if (clearLink instanceof HTMLAnchorElement) {
++            const clearUrl = new URL(form.action || window.location.href, window.location.href);
++            clearUrl.search = '';
++            const lifecycle = form.elements.namedItem('Lifecycle');
++            if (lifecycle && typeof lifecycle.value === 'string' && lifecycle.value) {
++                clearUrl.searchParams.set('Lifecycle', lifecycle.value);
++            }
++            clearLink.href = clearUrl.toString();
++        }
++    }
++
++    function updateFilterCounts() {
++        const metadata = root.querySelector('[data-project-live-metadata]');
++        if (!(metadata instanceof HTMLElement)) return;
++
++        root.querySelectorAll('[data-project-build-count]').forEach(element => {
++            const build = element.dataset.projectBuildCount;
++            const count = build === 'Repeat'
++                ? metadata.dataset.repeatBuildCount
++                : metadata.dataset.newBuildCount;
++            element.textContent = count || '0';
+         });
++
++        const unclassified = root.querySelector('[data-project-type-unclassified-count]');
++        if (unclassified) {
++            unclassified.textContent = metadata.dataset.unclassifiedCount || '0';
++        }
++
++        const counts = new Map();
++        metadata.querySelectorAll('[data-project-type-count-value]').forEach(element => {
++            counts.set(element.dataset.projectTypeCountValue, element.dataset.count || '0');
++        });
++
++        root.querySelectorAll('[data-project-type-count-display]').forEach(element => {
++            element.textContent = counts.get(element.dataset.projectTypeCountDisplay) || '0';
++        });
++    }
++
++    function initialiseCoverImages() {
++        root.querySelectorAll('[data-project-card-cover-image]').forEach(image => {
++            if (!(image instanceof HTMLImageElement) || image.dataset.projectCoverInitialised === 'true') return;
++            image.dataset.projectCoverInitialised = 'true';
++
++            const host = image.closest('[data-project-card-cover]');
++            if (!host) return;
++
++            const showFallback = () => {
++                image.hidden = true;
++                image.removeAttribute('srcset');
++                host.classList.add('project-card__visual--icon');
++            };
++
++            image.addEventListener('error', showFallback, { once: true });
++            if (image.complete && image.naturalWidth === 0) {
++                showFallback();
++            }
++        });
++    }
++
++    function closeFilterDrawer() {
++        const drawer = root.querySelector('#projectFilters');
++        if (!drawer || !window.bootstrap?.Offcanvas) return;
++        const instance = window.bootstrap.Offcanvas.getInstance(drawer);
++        instance?.hide();
++    }
++
++    function normaliseProjectTypeControls() {
++        const unclassified = form.querySelector('[data-project-type-unclassified]');
++        const clearUnclassified = form.querySelector('[data-clear-unclassified]');
++        const selectedType = form.querySelector('[data-project-type]:checked');
++
++        if (unclassified instanceof HTMLInputElement && unclassified.checked) {
++            form.querySelectorAll('[data-project-type]').forEach(radio => {
++                radio.checked = false;
++            });
++            if (clearUnclassified instanceof HTMLInputElement) {
++                clearUnclassified.checked = false;
++            }
++        } else if (selectedType instanceof HTMLInputElement && selectedType.checked) {
++            if (unclassified instanceof HTMLInputElement) {
++                unclassified.checked = false;
++            }
++        } else if (clearUnclassified instanceof HTMLInputElement) {
++            clearUnclassified.checked = true;
++        }
++    }
++
++    function syncFormFromUrl(url) {
++        const params = url.searchParams;
++        const radioGroups = new Map();
++
++        Array.from(form.elements).forEach(element => {
++            if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return;
++            if (!element.name || element.disabled) return;
++
++            if (element instanceof HTMLInputElement && element.type === 'radio') {
++                if (!radioGroups.has(element.name)) radioGroups.set(element.name, []);
++                radioGroups.get(element.name).push(element);
++                return;
++            }
++
++            if (element instanceof HTMLInputElement && element.type === 'checkbox') {
++                const values = params.getAll(element.name);
++                element.checked = values.some(value => value.toLowerCase() !== 'false');
++                return;
++            }
++
++            const defaults = {
++                p: '1',
++                Sort: 'Operational',
++                Dir: 'Asc',
++                PageSize: '25'
++            };
++            element.value = params.has(element.name)
++                ? params.get(element.name) || ''
++                : (defaults[element.name] || '');
++        });
++
++        radioGroups.forEach((radios, name) => {
++            const selectedValue = params.get(name) || '';
++            let matched = false;
++            radios.forEach(radio => {
++                radio.checked = radio.value === selectedValue;
++                matched ||= radio.checked;
++            });
++            if (!matched) {
++                const empty = radios.find(radio => radio.value === '');
++                if (empty) empty.checked = true;
++            }
++        });
++
++        normaliseProjectTypeControls();
++        updateFilterSummary();
++    }
++
++    function updateHistory(publicUrl, mode) {
++        if (mode === 'none') return;
++        const relativeUrl = `${publicUrl.pathname}${publicUrl.search}${publicUrl.hash}`;
++        if (mode === 'push') {
++            window.history.pushState({ prismProjects: true }, '', relativeUrl);
++        } else {
++            window.history.replaceState({ prismProjects: true }, '', relativeUrl);
++        }
++    }
++
++    async function refreshProjects(publicUrl, options = {}) {
++        const {
++            historyMode = 'replace',
++            closeFilters = false,
++            announceResults = true
++        } = options;
++
++        if (!supportsLiveSearch) {
++            window.location.assign(publicUrl.toString());
++            return false;
++        }
++
++        window.clearTimeout(searchTimer);
++        activeController?.abort();
++        activeController = new AbortController();
++        const sequence = ++requestSequence;
++        setLoading(true);
++
++        try {
++            const response = await window.fetch(createLiveRequestUrl(publicUrl), {
++                method: 'GET',
++                credentials: 'same-origin',
++                cache: 'no-store',
++                signal: activeController.signal,
++                headers: {
++                    Accept: 'text/html',
++                    'X-Requested-With': 'XMLHttpRequest'
++                }
++            });
++
++            if (!response.ok) {
++                throw new Error(`Project search failed with HTTP ${response.status}.`);
++            }
++
++            const html = await response.text();
++            if (sequence !== requestSequence) return false;
++
++            const documentFragment = new DOMParser().parseFromString(html, 'text/html');
++            replaceLiveFragments(documentFragment);
++            updateFilterCounts();
++            updateFilterSummary();
++            setView(preferredView, false);
++            initialiseCoverImages();
++            updateHistory(publicUrl, historyMode);
++
++            if (closeFilters) closeFilterDrawer();
++
++            if (announceResults) {
++                const results = root.querySelector('[data-project-results-region]');
++                const count = results?.dataset.projectResultCount || '0';
++                const label = results?.dataset.projectResultLabel || 'projects';
++                announce(`${count} ${label} found.`);
++            }
++
++            return true;
++        } catch (error) {
++            if (error?.name === 'AbortError') return false;
++            console.error('PRISM project live search failed.', error);
++            announce('Unable to update project results. Your current results have been retained.');
++            return false;
++        } finally {
++            if (sequence === requestSequence) {
++                setLoading(false);
++                activeController = null;
++            }
++        }
++    }
++
++    function cancelActiveRequest() {
++        if (!activeController) return;
++
++        // Invalidate the in-flight response immediately when the user types
++        // again. Waiting for the next debounce interval would allow an older
++        // result set to flash briefly while a newer query is already present.
++        requestSequence += 1;
++        activeController.abort();
++        activeController = null;
++        setLoading(false);
++    }
++
++    function scheduleSearch() {
++        if (!supportsLiveSearch || isComposing) return;
++        window.clearTimeout(searchTimer);
++        cancelActiveRequest();
++        searchTimer = window.setTimeout(() => {
++            const url = formToPublicUrl({ resetPage: true });
++            refreshProjects(url, { historyMode: 'replace' });
++        }, debounceMilliseconds);
++    }
++
++    function isLiveNavigationClick(event, link) {
++        if (event.defaultPrevented || event.button !== 0) return false;
++        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
++        if (link.target && link.target !== '_self') return false;
++        if (link.hasAttribute('download')) return false;
++        if (link.closest('.page-item.disabled')) return false;
++
++        const url = new URL(link.href, window.location.href);
++        return url.origin === window.location.origin && url.pathname === new URL(form.action, window.location.href).pathname;
++    }
++
++    function openProjectRow(row) {
++        const href = row.dataset.href;
++        if (href) window.location.assign(href);
++    }
++
++    // View preference and result-only enhancements are independent of live search.
++    viewButtons.forEach(button => {
++        button.addEventListener('click', () => setView(button.dataset.projectView));
++    });
++    setView(preferredView, false);
++    initialiseCoverImages();
++
++    root.addEventListener('click', event => {
++        const row = event.target.closest('[data-project-row]');
++        if (row && !event.target.closest('a, button, input, select, textarea, label')) {
++            openProjectRow(row);
++            return;
++        }
++
++        const link = event.target.closest([
++            '.projects-lifecycle__tab',
++            '.projects-archive-filter',
++            '.projects-sort',
++            '.projects-results-header__order-reset',
++            '.projects-pagination a.page-link',
++            '[data-project-clear-filters]',
++            '.projects-empty-state a.btn'
++        ].join(','));
++
++        if (!supportsLiveSearch || !(link instanceof HTMLAnchorElement) || !isLiveNavigationClick(event, link)) return;
++
++        event.preventDefault();
++        const url = new URL(link.href, window.location.href);
++        syncFormFromUrl(url);
++        refreshProjects(url, { historyMode: 'push' });
+     });
++
++    root.addEventListener('keydown', event => {
++        const row = event.target.closest('[data-project-row]');
++        if (!row || (event.key !== 'Enter' && event.key !== ' ')) return;
++        event.preventDefault();
++        openProjectRow(row);
++    });
++
++    root.addEventListener('change', event => {
++        const target = event.target;
++
++        if (target.matches('[data-project-type]') && target.checked) {
++            const unclassified = form.querySelector('[data-project-type-unclassified]');
++            if (unclassified) unclassified.checked = false;
++        }
++
++        if (target.matches('[data-project-type-unclassified]') && target.checked) {
++            form.querySelectorAll('[data-project-type]').forEach(radio => {
++                radio.checked = false;
++            });
++            const clearUnclassified = form.querySelector('[data-clear-unclassified]');
++            if (clearUnclassified) clearUnclassified.checked = false;
++        }
++
++        if (target.matches('[data-clear-unclassified]') && target.checked) {
++            const unclassified = form.querySelector('[data-project-type-unclassified]');
++            if (unclassified) unclassified.checked = false;
++        }
++
++        if (supportsLiveSearch && target.matches('[data-project-auto-submit]')) {
++            const url = formToPublicUrl({ resetPage: true });
++            refreshProjects(url, { historyMode: 'push' });
++        }
++    });
++
++    search.addEventListener('compositionstart', () => {
++        isComposing = true;
++        window.clearTimeout(searchTimer);
++        cancelActiveRequest();
++    });
++
++    search.addEventListener('compositionend', () => {
++        isComposing = false;
++        scheduleSearch();
++    });
++
++    search.addEventListener('input', scheduleSearch);
++
++    form.addEventListener('submit', event => {
++        if (!supportsLiveSearch) return;
++        event.preventDefault();
++        const url = formToPublicUrl({ resetPage: true });
++        const fromFilterDrawer = event.submitter?.matches('[data-project-filter-apply]') === true;
++        refreshProjects(url, {
++            historyMode: fromFilterDrawer ? 'push' : 'replace',
++            closeFilters: fromFilterDrawer
++        });
++    });
++
++    window.addEventListener('popstate', () => {
++        const url = new URL(window.location.href);
++        syncFormFromUrl(url);
++        refreshProjects(url, { historyMode: 'none' });
++    });
++
++    // Progressive fallback: retain a predictable submit path if a required
++    // browser API is unavailable instead of attaching a disruptive live handler.
++    if (!supportsLiveSearch) {
++        search.removeEventListener('input', scheduleSearch);
++        search.addEventListener('change', submitNormally);
++        root.querySelectorAll('[data-project-auto-submit]').forEach(control => {
++            control.addEventListener('change', submitNormally);
++        });
++    }
+ })();
+--- a/wwwroot/css/projects/index.css
++++ b/wwwroot/css/projects/index.css
+@@ -1037,3 +1037,48 @@
+ .projects-results-header__order-reset:focus-visible {
+     text-decoration: underline;
+ }
++
++/* SECTION: Live repository search */
++.projects-search .form-control {
++    padding-right: 2.55rem;
++}
++
++.projects-search__activity {
++    position: absolute;
++    right: 0.82rem;
++    z-index: 2;
++    display: inline-flex;
++    align-items: center;
++    justify-content: center;
++    color: var(--projects-primary);
++    pointer-events: none;
++}
++
++.projects-search__activity[hidden] {
++    display: none;
++}
++
++.projects-search__activity .spinner-border {
++    width: 1rem;
++    height: 1rem;
++    border-width: 0.13em;
++}
++
++[data-project-results-region] {
++    transition: opacity 0.16s ease;
++}
++
++.projects-repository.is-live-loading [data-project-results-region] {
++    opacity: 0.58;
++    pointer-events: none;
++}
++
++.projects-repository.is-live-loading .projects-search .form-control {
++    background-image: none;
++}
++
++@media (prefers-reduced-motion: reduce) {
++    [data-project-results-region] {
++        transition: none;
++    }
++}
+--- a/ProjectManagement.Tests/ProjectRepositoryPresentationContractTests.cs
++++ b/ProjectManagement.Tests/ProjectRepositoryPresentationContractTests.cs
+@@ -9,22 +9,22 @@
+     [Fact]
+     public void Repository_UsesServerResolvedLifecyclePositions()
+     {
+-        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
++        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+         var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
+ 
+-        Assert.Contains("Model.StagePositions.TryGetValue", view, StringComparison.Ordinal);
+-        Assert.DoesNotContain("FormatStageDisplay(", view, StringComparison.Ordinal);
++        Assert.Contains("Model.StagePositions.TryGetValue", results, StringComparison.Ordinal);
++        Assert.DoesNotContain("FormatStageDisplay(", results, StringComparison.Ordinal);
+         Assert.Contains("ProjectRepositoryStagePositionVm.Create", model, StringComparison.Ordinal);
+     }
+ 
+     [Fact]
+     public void Repository_CoverImagesHaveDeterministicFailureFallback()
+     {
+-        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
++        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+ 
+-        Assert.Contains("data-project-card-cover-image", view, StringComparison.Ordinal);
+-        Assert.Contains("data-project-card-cover-fallback", view, StringComparison.Ordinal);
++        Assert.Contains("data-project-card-cover-image", results, StringComparison.Ordinal);
++        Assert.Contains("data-project-card-cover-fallback", results, StringComparison.Ordinal);
+         Assert.Contains("image.naturalWidth === 0", script, StringComparison.Ordinal);
+         Assert.Contains("project-card__visual--icon", script, StringComparison.Ordinal);
+     }
+@@ -33,26 +33,27 @@
+     public void Repository_HasOneCreateActionAndSeparatesLegacyArchive()
+     {
+         var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
++        var lifecycle = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryLifecycle.cshtml");
+ 
+         Assert.DoesNotContain("projects-header__create", view, StringComparison.Ordinal);
+-        Assert.Contains("projects-archive-filter", view, StringComparison.Ordinal);
+-        Assert.Contains("aria-label=\"Project lifecycle filters\"", view, StringComparison.Ordinal);
++        Assert.Contains("projects-archive-filter", lifecycle, StringComparison.Ordinal);
++        Assert.Contains("aria-label=\"Project lifecycle filters\"", lifecycle, StringComparison.Ordinal);
+     }
+ 
+     [Fact]
+     public void Repository_UsesServerSideOrderingAcrossViewsAndPagination()
+     {
+-        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
++        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
+         var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
+         var query = ReadRepoFile("Services", "Projects", "ProjectSearchFilters.cs");
+         var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
+ 
+         Assert.Contains("query.ApplyProjectOrdering(filters, Sort, Dir)", model, StringComparison.Ordinal);
+         Assert.Contains("OperationalLifecycleRank", query, StringComparison.Ordinal);
+-        Assert.Contains("asp-all-route-data=\"SortRoute(ProjectRepositorySort.Project)\"", view, StringComparison.Ordinal);
+-        Assert.Contains("The order is applied to the complete filtered result before pagination.", view, StringComparison.Ordinal);
++        Assert.Contains("asp-all-route-data=\"Model.BuildSortRoute(ProjectRepositorySort.Project)\"", results, StringComparison.Ordinal);
++        Assert.Contains("The order is applied to the complete filtered result before pagination.", results, StringComparison.Ordinal);
+         Assert.DoesNotContain("sortTable", script, StringComparison.Ordinal);
+-        Assert.DoesNotContain("data-project-sort-table", view, StringComparison.Ordinal);
++        Assert.DoesNotContain("data-project-sort-table", results, StringComparison.Ordinal);
+     }
+ 
+     [Fact]
+@@ -69,14 +70,50 @@
+     [Fact]
+     public void Repository_UsesSharedCountGrammarAndSemanticCancelledBadge()
+     {
+-        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
++        var header = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryHeaderSummary.cshtml");
++        var results = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryResults.cshtml");
++        var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
+         var css = ReadRepoFile("wwwroot", "css", "projects", "index.css");
+ 
+-        Assert.Contains("var projectCountLabel = Model.FilteredTotal == 1 ? \"project\" : \"projects\";", view, StringComparison.Ordinal);
+-        Assert.Equal(2, CountOccurrences(view, "@projectCountLabel"));
+-        Assert.Contains("ProjectLifecycleStatus.Cancelled => \"project-lifecycle-badge project-lifecycle-badge--cancelled\"", view, StringComparison.Ordinal);
++        Assert.Contains("public string ProjectCountLabel => FilteredTotal == 1 ? \"project\" : \"projects\";", model, StringComparison.Ordinal);
++        Assert.Contains("@Model.ProjectCountLabel", header, StringComparison.Ordinal);
++        Assert.Contains("@Model.ProjectCountLabel", results, StringComparison.Ordinal);
++        Assert.Contains("ProjectLifecycleStatus.Cancelled => \"project-lifecycle-badge project-lifecycle-badge--cancelled\"", model, StringComparison.Ordinal);
+         Assert.Contains(".project-lifecycle-badge--cancelled", css, StringComparison.Ordinal);
+-        Assert.DoesNotContain("ProjectLifecycleStatus.Cancelled => \"text-bg-secondary\"", view, StringComparison.Ordinal);
++        Assert.DoesNotContain("ProjectLifecycleStatus.Cancelled => \"text-bg-secondary\"", model, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Repository_LiveSearchKeepsTheInputStableAndCancelsStaleRequests()
++    {
++        var view = ReadRepoFile("Pages", "Projects", "Index.cshtml");
++        var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
++        var livePartial = ReadRepoFile("Pages", "Projects", "_ProjectRepositoryLive.cshtml");
++        var script = ReadRepoFile("wwwroot", "js", "pages", "projects-index.js");
++
++        Assert.Contains("data-project-search", view, StringComparison.Ordinal);
++        Assert.Contains("data-project-live-status", view, StringComparison.Ordinal);
++        Assert.Contains("OnGetLiveAsync", model, StringComparison.Ordinal);
++        Assert.Contains("LoadRepositoryAsync(loadFilterOptions: false)", model, StringComparison.Ordinal);
++        Assert.Contains("Partial(\"_ProjectRepositoryLive\", this)", model, StringComparison.Ordinal);
++        Assert.Contains("_ProjectRepositoryResults", livePartial, StringComparison.Ordinal);
++        Assert.Contains("AbortController", script, StringComparison.Ordinal);
++        Assert.Contains("activeController?.abort()", script, StringComparison.Ordinal);
++        Assert.Contains("window.fetch", script, StringComparison.Ordinal);
++        Assert.Contains("replaceLiveFragments", script, StringComparison.Ordinal);
++        Assert.DoesNotContain("requestSubmit", script, StringComparison.Ordinal);
++        Assert.DoesNotContain("setTimeout(submitForm, 450)", script, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Repository_LiveResponseDoesNotReloadStaticFilterOptions()
++    {
++        var model = ReadRepoFile("Pages", "Projects", "Index.cshtml.cs");
++
++        Assert.Contains("if (loadFilterOptions)", model, StringComparison.Ordinal);
++        Assert.Contains("await LoadFilterOptionsAsync(cancellationToken);", model, StringComparison.Ordinal);
++        Assert.Contains("loadProjectTypeDefinitions: loadFilterOptions", model, StringComparison.Ordinal);
++        Assert.Contains("LoadFilterCountsAsync", model, StringComparison.Ordinal);
+     }
+ 
+     private static string ReadRepoFile(params string[] relativePath)
+@@ -95,18 +132,4 @@
+ 
+         throw new FileNotFoundException($"Could not locate repository file: {Path.Combine(relativePath)}");
+     }
+-
+-    private static int CountOccurrences(string value, string search)
+-    {
+-        var count = 0;
+-        var index = 0;
+-
+-        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
+-        {
+-            count++;
+-            index += search.Length;
+-        }
+-
+-        return count;
+-    }
+ }

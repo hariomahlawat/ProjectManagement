@@ -2,75 +2,15 @@
 @model ProjectManagement.Pages.Projects.IndexModel
 @using System
 @using System.Linq
-@using System.Globalization
 @using ProjectManagement.Models
 @using ProjectManagement.Services.Projects
-@using ProjectManagement.ViewModels
 @{
     ViewData["Title"] = "Projects";
 
-    var activeLifecycle = Model.LifecycleTabs.FirstOrDefault(t => t.IsActive);
-    var activeLifecycleLabel = Model.LegacyArchive.IsActive
-        ? Model.LegacyArchive.Label
-        : (string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label);
-    var projectCountLabel = Model.FilteredTotal == 1 ? "project" : "projects";
     var projectTypeChips = Model.ProjectTypeChips
         .OrderByDescending(chip => chip.Count)
         .ThenBy(chip => chip.Name, StringComparer.OrdinalIgnoreCase)
         .ToList();
-
-    IDictionary<string, string?> BaseRouteValues()
-    {
-        var values = new Dictionary<string, string?>();
-        void AddValue(string key, object? value)
-        {
-            if (value is null) return;
-            var text = value.ToString();
-            if (!string.IsNullOrWhiteSpace(text)) values[key] = text;
-        }
-
-        AddValue("Query", Model.Query);
-        AddValue("CategoryId", Model.CategoryId);
-        AddValue("TechnicalCategoryId", Model.TechnicalCategoryId);
-        AddValue("LeadPoUserId", Model.LeadPoUserId);
-        AddValue("HodUserId", Model.HodUserId);
-        AddValue("Lifecycle", Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString());
-        AddValue("CompletedYear", Model.CompletedYear);
-        AddValue("TotStatus", Model.TotStatus?.ToString());
-        AddValue("IncludeArchived", Model.IncludeArchived ? "true" : null);
-        AddValue("StageCode", Model.StageCode);
-        AddValue("StageCompletedMonth", Model.StageCompletedMonth);
-        AddValue("SlipBucket", Model.SlipBucket);
-        AddValue("IncludeCategoryDescendants", Model.IncludeCategoryDescendants ? "true" : null);
-        AddValue("Build", Model.Build);
-        AddValue("ProjectTypeId", Model.ProjectTypeId);
-        AddValue("ProjectTypeUnclassified", Model.ProjectTypeUnclassified ? "true" : null);
-        AddValue("PageSize", Model.PageSize);
-        if (Model.Sort != ProjectRepositorySort.Operational)
-        {
-            AddValue("Sort", Model.Sort);
-            AddValue("Dir", Model.Dir);
-        }
-        return values;
-    }
-
-    IDictionary<string, string?> SortRoute(ProjectRepositorySort sort)
-    {
-        var values = BaseRouteValues();
-        values["Sort"] = sort.ToString();
-        values["Dir"] = Model.NextSortDirection(sort).ToString();
-        values["p"] = "1";
-        return values;
-    }
-
-    IDictionary<string, string?> OperationalOrderRoute()
-    {
-        var values = BaseRouteValues();
-        values.Remove("Sort");
-        values.Remove("Dir");
-        values["p"] = "1";
-        return values;
-    }
 
     var activeFilters = new List<string>();
     if (!string.IsNullOrWhiteSpace(Model.Query)) activeFilters.Add($"Search: {Model.Query}");
@@ -106,11 +46,7 @@
             <div class="projects-header__identity">
                 <div>
                     <h1 class="projects-header__title">Projects</h1>
-                    <p class="projects-header__summary">
-                        <strong>@Model.FilteredTotal</strong> @projectCountLabel
-                        <span aria-hidden="true">·</span>
-                        <span>@activeLifecycleLabel</span>
-                    </p>
+                    <partial name="_ProjectRepositoryHeaderSummary" model="Model" />
                 </div>
             </div>
             <div class="projects-header__actions">
@@ -125,46 +61,14 @@
             </div>
         </header>
 
-        <div class="projects-classification-bar">
-            <nav class="projects-lifecycle" aria-label="Project lifecycle filters">
-                @foreach (var lifecycle in Model.LifecycleTabs)
-                {
-                    var routeValues = BaseRouteValues();
-                    routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
-                    routeValues["p"] = "1";
-                    <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
-                       asp-page="./Index"
-                       asp-all-route-data="routeValues"
-                       aria-current="@(lifecycle.IsActive ? "page" : null)">
-                        <span>@lifecycle.Label</span>
-                        <span class="projects-lifecycle__count">@lifecycle.Count</span>
-                    </a>
-                }
-            </nav>
-            @{
-                var legacyRouteValues = BaseRouteValues();
-                legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
-                legacyRouteValues["p"] = "1";
-            }
-            <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
-               asp-page="./Index"
-               asp-all-route-data="legacyRouteValues"
-               aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
-               title="Projects retained as institutional records">
-                <i class="bi bi-archive" aria-hidden="true"></i>
-                <span>@Model.LegacyArchive.Label</span>
-                <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
-            </a>
-        </div>
+
+        <partial name="_ProjectRepositoryLifecycle" model="Model" />
 
         <form method="get" class="projects-toolbar" data-project-filter-form>
             <input type="hidden" name="p" value="1" />
             <input type="hidden" name="Lifecycle" value="@(Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString())" />
-            @if (Model.Sort != ProjectRepositorySort.Operational)
-            {
-                <input type="hidden" name="Sort" value="@Model.Sort" />
-                <input type="hidden" name="Dir" value="@Model.Dir" />
-            }
+            <input type="hidden" name="Sort" value="@Model.Sort" data-project-sort-field />
+            <input type="hidden" name="Dir" value="@Model.Dir" data-project-sort-direction-field />
             @if (!string.IsNullOrWhiteSpace(Model.StageCode)) { <input type="hidden" name="StageCode" value="@Model.StageCode" /> }
             @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth)) { <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" /> }
             @if (!string.IsNullOrWhiteSpace(Model.SlipBucket)) { <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" /> }
@@ -173,17 +77,28 @@
             <div class="projects-toolbar__main">
                 <label class="projects-search" for="Query">
                     <i class="bi bi-search" aria-hidden="true"></i>
-                    <input asp-for="Query" class="form-control" placeholder="Search by project, case file, officer or keyword" autocomplete="off" data-project-search />
+                    <input asp-for="Query"
+                           class="form-control"
+                           placeholder="Search by project, case file, officer or keyword"
+                           autocomplete="off"
+                           aria-controls="projectRepositoryResults"
+                           aria-describedby="projectSearchStatus"
+                           data-project-search />
+                    <span class="projects-search__activity" data-project-search-activity hidden aria-hidden="true">
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    </span>
                     <span class="visually-hidden">Search projects</span>
                 </label>
 
                 <button class="btn btn-outline-secondary projects-toolbar__filter-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#projectFilters" aria-controls="projectFilters">
                     <i class="bi bi-sliders" aria-hidden="true"></i>
                     <span>Filters</span>
-                    @if (activeFilters.Count > 0)
-                    {
-                        <span class="projects-toolbar__filter-count">@activeFilters.Count</span>
-                    }
+                    <span data-project-filter-count-host>
+                        @if (activeFilters.Count > 0)
+                        {
+                            <span class="projects-toolbar__filter-count" data-project-filter-count>@activeFilters.Count</span>
+                        }
+                    </span>
                 </button>
 
                 <label class="projects-toolbar__page-size">
@@ -228,11 +143,11 @@
                                 </label>
                                 <label class="projects-filter-choice">
                                     <input type="radio" name="Build" value="New" checked="@(Model.Build == "New")" />
-                                    <span>New development <small>@Model.NewBuildCount</small></span>
+                                    <span>New development <small data-project-build-count="New">@Model.NewBuildCount</small></span>
                                 </label>
                                 <label class="projects-filter-choice">
                                     <input type="radio" name="Build" value="Repeat" checked="@(Model.Build == "Repeat")" />
-                                    <span>Repeat build <small>@Model.RepeatBuildCount</small></span>
+                                    <span>Repeat build <small data-project-build-count="Repeat">@Model.RepeatBuildCount</small></span>
                                 </label>
                             </div>
                         </div>
@@ -248,14 +163,14 @@
                                 {
                                     <label class="projects-filter-choice">
                                         <input type="radio" name="ProjectTypeUnclassified" value="true" checked="@Model.ProjectTypeUnclassified" data-project-type-unclassified />
-                                        <span>Unclassified <small>@Model.ProjectTypeUnclassifiedCount</small></span>
+                                        <span>Unclassified <small data-project-type-unclassified-count>@Model.ProjectTypeUnclassifiedCount</small></span>
                                     </label>
                                 }
                                 @foreach (var chip in projectTypeChips)
                                 {
                                     <label class="projects-filter-choice">
                                         <input type="radio" name="ProjectTypeId" value="@chip.Id" checked="@(Model.ProjectTypeId == chip.Id)" data-project-type />
-                                        <span>@chip.Name <small>@chip.Count</small></span>
+                                        <span>@chip.Name <small data-project-type-count-display="@chip.Id">@chip.Count</small></span>
                                     </label>
                                 }
                             </div>
@@ -304,271 +219,33 @@
             </div>
         </form>
 
-        @if (activeFilters.Count > 0)
-        {
-            <div class="projects-filter-summary" aria-label="Active filters">
-                <div class="projects-filter-summary__chips">
-                    @foreach (var filter in activeFilters)
-                    {
-                        <span class="projects-filter-chip">@filter</span>
-                    }
-                </div>
-                <a asp-page="./Index" asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())" class="projects-filter-summary__clear">Clear filters</a>
-            </div>
-        }
-
-        <div class="projects-results-header">
-            <div>
-                <strong>@Model.FilteredTotal @projectCountLabel</strong>
-                @if (Model.TotalPages > 1)
+        <div class="projects-filter-summary @(activeFilters.Count == 0 ? "d-none" : null)"
+             aria-label="Active filters"
+             data-project-filter-summary>
+            <div class="projects-filter-summary__chips" data-project-filter-chips>
+                @foreach (var filter in activeFilters)
                 {
-                    <span>Showing @Model.ResultsStart–@Model.ResultsEnd</span>
+                    <span class="projects-filter-chip">@filter</span>
                 }
             </div>
-            <span class="projects-results-header__order" title="The order is applied to the complete filtered result before pagination.">
-                <i class="bi bi-sort-down" aria-hidden="true"></i>
-                <span>@Model.OrderDescription</span>
-                @if (Model.Sort != ProjectRepositorySort.Operational)
-                {
-                    <a asp-page="./Index"
-                       asp-all-route-data="OperationalOrderRoute()"
-                       class="projects-results-header__order-reset">Reset order</a>
-                }
-            </span>
+            <a asp-page="/Projects/Index"
+               asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
+               class="projects-filter-summary__clear"
+               data-project-clear-filters>Clear filters</a>
         </div>
 
-        @if (!Model.Projects.Any())
-        {
-            <section class="projects-empty-state">
-                <div class="projects-empty-state__icon"><i class="bi bi-inboxes" aria-hidden="true"></i></div>
-                <h2>No projects found</h2>
-                <p>Try a different search, remove a filter or select another lifecycle.</p>
-                <a asp-page="./Index" class="btn btn-outline-primary">View all projects</a>
-            </section>
-        }
-        else
-        {
-            <div class="projects-results-view is-active" data-project-results="cards">
-                <div class="projects-grid">
-                    @foreach (var project in Model.Projects)
-                    {
-                        var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
-                            ? resolvedStageDisplay
-                            : ProjectRepositoryStagePositionVm.Missing;
-                        var totStatus = FormatTotStatusShort(project);
-                        string? coverPhotoUrl = null;
-                        if (project.CoverPhotoId.HasValue)
-                        {
-                            coverPhotoUrl = Url.Page("/Projects/Photos/View", new { id = project.Id, photoId = project.CoverPhotoId, size = "sm", v = project.CurrentCoverPhotoVersion ?? project.CoverPhotoVersion });
-                        }
-                        var officerName = project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned";
-                        var categoryName = project.Category?.Name ?? "Uncategorised";
-                        var caseFile = string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber;
-                        <article class="project-card @(project.IsLegacy ? "project-card--legacy" : null) @(project.IsArchived ? "project-card--archived" : null)">
-                            <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="project-card__link" aria-label="Open @project.Name"></a>
-                            <div class="project-card__topline">
-                                <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)"
-                                     data-project-card-cover>
-                                    <i class="bi bi-kanban project-card__visual-fallback"
-                                       aria-hidden="true"
-                                       data-project-card-cover-fallback></i>
-                                    @if (!string.IsNullOrEmpty(coverPhotoUrl))
-                                    {
-                                        <img src="@coverPhotoUrl"
-                                             alt=""
-                                             loading="lazy"
-                                             decoding="async"
-                                             data-project-card-cover-image />
-                                    }
-                                </div>
-                                <div class="project-card__heading">
-                                    <h2>@project.Name</h2>
-                                    <div class="project-card__badges">
-                                        <span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)@if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedYear.HasValue){<text> @project.CompletedYear</text>}</span>
-                                        @if (project.IsLegacy) { <span class="badge rounded-pill project-badge--legacy">Legacy archive</span> }
-                                        @if (project.IsArchived) { <span class="badge rounded-pill text-bg-secondary">Archived</span> }
-                                    </div>
-                                </div>
-                                <i class="bi bi-chevron-right project-card__open-icon" aria-hidden="true"></i>
-                            </div>
-                            <dl class="project-card__metadata">
-                                <div><dt>Category</dt><dd>@categoryName</dd></div>
-                                <div class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "is-missing" : null)"><dt>Case file</dt><dd>@caseFile</dd></div>
-                                <div class="@((project.LeadPoUser is null) ? "is-missing" : null)"><dt>Project Officer</dt><dd>@officerName</dd></div>
-                            </dl>
-                            <div class="project-card__stage @(stageDisplay.IsMissing ? "is-missing" : null)">
-                                <i class="bi bi-signpost-split" aria-hidden="true"></i>
-                                <span>
-                                    <strong>@stageDisplay.Primary</strong>
-                                    @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary))
-                                    {
-                                        <small>@stageDisplay.Secondary</small>
-                                    }
-                                </span>
-                            </div>
-                            @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
-                            {
-                                <div class="project-card__tot"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>@totStatus</span></div>
-                            }
-                        </article>
-                    }
-                </div>
-            </div>
+        <partial name="_ProjectRepositoryResults" model="Model" />
+        <partial name="_ProjectRepositoryLiveMetadata" model="Model" />
 
-            <div class="projects-results-view" data-project-results="table" hidden>
-                <div class="projects-table-wrap">
-                    <table class="table projects-table align-middle">
-                        <thead>
-                            <tr>
-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Project)">
-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Project) ? "is-active" : null)"
-                                       asp-page="./Index"
-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Project)"
-                                       title="Sort the complete result by project name">
-                                        Project <i class="@Model.GetSortIconClass(ProjectRepositorySort.Project)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Status)">
-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Status) ? "is-active" : null)"
-                                       asp-page="./Index"
-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Status)"
-                                       title="Sort the complete result by lifecycle status">
-                                        Status <i class="@Model.GetSortIconClass(ProjectRepositorySort.Status)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col">Current position</th>
-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Officer)">
-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Officer) ? "is-active" : null)"
-                                       asp-page="./Index"
-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Officer)"
-                                       title="Sort the complete result by project officer">
-                                        Project Officer <i class="@Model.GetSortIconClass(ProjectRepositorySort.Officer)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.Category)">
-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.Category) ? "is-active" : null)"
-                                       asp-page="./Index"
-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.Category)"
-                                       title="Sort the complete result by category">
-                                        Category <i class="@Model.GetSortIconClass(ProjectRepositorySort.Category)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col" aria-sort="@Model.GetSortAria(ProjectRepositorySort.CaseFile)">
-                                    <a class="projects-sort @(Model.IsSortActive(ProjectRepositorySort.CaseFile) ? "is-active" : null)"
-                                       asp-page="./Index"
-                                       asp-all-route-data="SortRoute(ProjectRepositorySort.CaseFile)"
-                                       title="Sort the complete result by case file">
-                                        Case file <i class="@Model.GetSortIconClass(ProjectRepositorySort.CaseFile)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var project in Model.Projects)
-                            {
-                                var stageDisplay = Model.StagePositions.TryGetValue(project.Id, out var resolvedStageDisplay)
-                                    ? resolvedStageDisplay
-                                    : ProjectRepositoryStagePositionVm.Missing;
-                                var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
-                                <tr class="projects-table__row @(project.IsLegacy ? "is-legacy" : null)" data-project-row data-href="@rowHref" tabindex="0">
-                                    <td data-sort-value="@project.Name"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
-                                    <td data-sort-value="@FormatLifecycleStatus(project.LifecycleStatus)"><span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)</span></td>
-                                    <td class="projects-table__stage">
-                                        <strong>@stageDisplay.Primary</strong>
-                                        @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary)) { <small>@stageDisplay.Secondary</small> }
-                                    </td>
-                                    <td data-sort-value="@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")">@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</td>
-                                    <td data-sort-value="@(project.Category?.Name ?? "Uncategorised")">@(project.Category?.Name ?? "Uncategorised")</td>
-                                    <td data-sort-value="@(project.CaseFileNumber ?? string.Empty)" class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "projects-table__missing" : null)">@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber)</td>
-                                    <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            @if (Model.TotalPages > 1)
-            {
-                <nav class="projects-pagination" aria-label="Project pagination">
-                    <div class="projects-pagination__summary">Page @Model.CurrentPage of @Model.TotalPages</div>
-                    <ul class="pagination pagination-sm mb-0">
-                        @{ var prevRoute = BaseRouteValues(); prevRoute["p"] = Math.Max(1, Model.CurrentPage - 1).ToString(CultureInfo.InvariantCulture); }
-                        <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="prevRoute" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a></li>
-                        @for (var i = 1; i <= Model.TotalPages; i++)
-                        {
-                            if (i == 1 || i == Model.TotalPages || Math.Abs(i - Model.CurrentPage) <= 2)
-                            {
-                                var pageRoute = BaseRouteValues(); pageRoute["p"] = i.ToString(CultureInfo.InvariantCulture);
-                                <li class="page-item @(i == Model.CurrentPage ? "active" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="pageRoute">@i</a></li>
-                            }
-                            else if (i == Model.CurrentPage - 3 || i == Model.CurrentPage + 3)
-                            {
-                                <li class="page-item disabled"><span class="page-link">…</span></li>
-                            }
-                        }
-                        @{ var nextRoute = BaseRouteValues(); nextRoute["p"] = Math.Min(Model.TotalPages, Model.CurrentPage + 1).ToString(CultureInfo.InvariantCulture); }
-                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="nextRoute" aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></li>
-                    </ul>
-                </nav>
-            }
-        }
+        <div id="projectSearchStatus"
+             class="visually-hidden"
+             role="status"
+             aria-live="polite"
+             aria-atomic="true"
+             data-project-live-status></div>
     </div>
 </div>
 
 @section Scripts {
     <script src="~/js/pages/projects-index.js" asp-append-version="true"></script>
-}
-
-@functions
-{
-    private static string? FormatTotStatusShort(Project project)
-    {
-        if (project.Tot is not { } tot)
-        {
-            return null;
-        }
-
-        return tot.Status switch
-        {
-            ProjectTotStatus.NotRequired => "ToT not required",
-            ProjectTotStatus.NotStarted => "ToT not started",
-            ProjectTotStatus.InProgress => "ToT in progress",
-            ProjectTotStatus.Completed => "ToT completed",
-            _ => null
-        };
-    }
-
-    private static string FormatLifecycleStatus(ProjectLifecycleStatus status)
-    {
-        return status switch
-        {
-            ProjectLifecycleStatus.Active => "Active",
-            ProjectLifecycleStatus.Completed => "Completed",
-            ProjectLifecycleStatus.Cancelled => "Cancelled",
-            _ => status.ToString()
-        };
-    }
-
-    private static string GetLifecycleBadgeClass(ProjectLifecycleStatus status) => status switch
-    {
-        ProjectLifecycleStatus.Active => "text-bg-primary",
-        ProjectLifecycleStatus.Completed => "text-bg-success",
-        ProjectLifecycleStatus.Cancelled => "project-lifecycle-badge project-lifecycle-badge--cancelled",
-        _ => "project-lifecycle-badge project-lifecycle-badge--unknown"
-    };
-
-    private static string FormatTotStatus(ProjectTotStatus status)
-    {
-        return status switch
-        {
-            ProjectTotStatus.NotRequired => "ToT not required",
-            ProjectTotStatus.NotStarted => "ToT not started",
-            ProjectTotStatus.InProgress => "ToT in progress",
-            ProjectTotStatus.Completed => "ToT completed",
-            _ => status.ToString()
-        };
-    }
-
 }

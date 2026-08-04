@@ -1,0 +1,7 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+
+<p class="projects-header__summary" data-project-header-summary>
+    <strong>@Model.FilteredTotal</strong> @Model.ProjectCountLabel
+    <span aria-hidden="true">·</span>
+    <span>@Model.ActiveLifecycleLabel</span>
+</p>

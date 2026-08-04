@@ -1,38 +1,44 @@
-PRISM Procurement Journey — Final Operational Refinement
-Date: 30 Jul 2026
+PRISM ERP — Projects Repository Live Search Fix
+================================================
 
-APPLICATION
-1. Copy the folders in this package into the ProjectManagement project root.
-2. Preserve the relative folder structure and replace the four existing files.
-3. Run:
-     dotnet build
-     dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
-4. Hard-refresh /Process once with Ctrl+F5.
+Application method
+------------------
+1. Close the running application.
+2. Copy the contents of this folder into the ProjectManagement project root.
+3. Allow the existing files to be replaced and the five new Razor partials to be added.
+4. Clean and rebuild the solution.
+5. Start the application and perform a hard browser refresh once so the versioned JavaScript and CSS assets are reloaded.
 
-NO DATABASE MIGRATION IS REQUIRED.
+Files replaced
+--------------
+Pages/Projects/Index.cshtml
+Pages/Projects/Index.cshtml.cs
+wwwroot/js/pages/projects-index.js
+wwwroot/css/projects/index.css
+ProjectManagement.Tests/ProjectRepositoryPresentationContractTests.cs
 
-IMPLEMENTED
-- Removes the synthetic “Capability complete” endpoint.
-- Keeps Payment as the final mandatory procurement stage.
-- Shows Transfer of Technology as one simple optional continuation from Payment, with no return loop.
-- Softens the light-theme vignette and active-stage halo for prolonged office use.
-- Makes second-level contextual stages more legible while retaining progressive focus.
-- Uses a compact current-stage locator in normal mode; full identity returns in full-screen mode.
-- Renders checklist items as structured content with headings, paragraphs, numbered lists and bullet lists.
-- Automatically restructures legacy single-line entries such as:
-    Documents required 1. Drawings 2. User manual 3. Technical manual
-- Retains plain-text storage and existing APIs; no data conversion or migration is required.
-- Adds editing guidance for blank lines, numbered lists and bullet lists.
-- Retains safe HTML escaping before formatting.
+Files added
+-----------
+Pages/Projects/_ProjectRepositoryHeaderSummary.cshtml
+Pages/Projects/_ProjectRepositoryLifecycle.cshtml
+Pages/Projects/_ProjectRepositoryResults.cshtml
+Pages/Projects/_ProjectRepositoryLiveMetadata.cshtml
+Pages/Projects/_ProjectRepositoryLive.cshtml
 
-CHECKLIST AUTHORING EXAMPLE
-Documents required
+Implementation
+--------------
+- The search input remains permanently in the DOM, so focus and caret position are retained.
+- Search requests are debounced by 300 ms and sent through a dedicated Razor Pages GET handler.
+- Previous requests are cancelled immediately when the query changes.
+- Only the repository header summary, lifecycle counts, results, pagination and live metadata are replaced.
+- Card/table preference, row navigation, image fallback, sorting, lifecycle tabs, pagination and filter actions continue to work after every live refresh.
+- Browser URL and Back/Forward history remain synchronized.
+- Static filter-option queries are skipped for live result requests.
+- Normal GET form submission remains the progressive fallback.
+- No database migration or configuration change is required.
 
-1. Drawings
-2. User manual
-3. Technical manual
-4. Circuit diagrams
-5. Parts list
-6. MET documents
-
-Bold emphasis may be entered as **important text**.
+Validation performed
+--------------------
+- JavaScript syntax validation passed with Node.js (`node --check`).
+- Static implementation contract checks passed.
+- A .NET compile was not run in the generation environment because the .NET SDK was not installed. Build the solution once in Visual Studio before deployment.

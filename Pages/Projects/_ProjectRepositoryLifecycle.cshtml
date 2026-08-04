@@ -1,0 +1,34 @@
+@model ProjectManagement.Pages.Projects.IndexModel
+@using ProjectManagement.Services.Projects
+
+        <div class="projects-classification-bar" data-project-lifecycle-region>
+            <nav class="projects-lifecycle" aria-label="Project lifecycle filters">
+                @foreach (var lifecycle in Model.LifecycleTabs)
+                {
+                    var routeValues = Model.BuildBaseRouteValues();
+                    routeValues["Lifecycle"] = lifecycle.Filter == ProjectLifecycleFilter.All ? null : lifecycle.RouteValue;
+                    routeValues["p"] = "1";
+                    <a class="projects-lifecycle__tab @(lifecycle.IsActive ? "is-active" : null)"
+                       asp-page="/Projects/Index"
+                       asp-all-route-data="routeValues"
+                       aria-current="@(lifecycle.IsActive ? "page" : null)">
+                        <span>@lifecycle.Label</span>
+                        <span class="projects-lifecycle__count">@lifecycle.Count</span>
+                    </a>
+                }
+            </nav>
+            @{
+                var legacyRouteValues = Model.BuildBaseRouteValues();
+                legacyRouteValues["Lifecycle"] = Model.LegacyArchive.RouteValue;
+                legacyRouteValues["p"] = "1";
+            }
+            <a class="projects-archive-filter @(Model.LegacyArchive.IsActive ? "is-active" : null)"
+               asp-page="/Projects/Index"
+               asp-all-route-data="legacyRouteValues"
+               aria-current="@(Model.LegacyArchive.IsActive ? "page" : null)"
+               title="Projects retained as institutional records">
+                <i class="bi bi-archive" aria-hidden="true"></i>
+                <span>@Model.LegacyArchive.Label</span>
+                <span class="projects-lifecycle__count">@Model.LegacyArchive.Count</span>
+            </a>
+        </div>
