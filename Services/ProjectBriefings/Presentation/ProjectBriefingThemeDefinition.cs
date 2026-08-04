@@ -17,6 +17,7 @@ public sealed record ProjectBriefingThemeDefinition(
     string AccentSoft,
     string SecondaryAccent,
     string SecondaryAccentSoft,
+    string HeaderAccent,
     string ProjectUpdateAccent,
     string ProjectUpdateLabelFill,
     string Positive,
@@ -40,6 +41,7 @@ public sealed record ProjectBriefingThemeDefinition(
 
     // Semantic aliases keep presentation code aligned with the visual language.
     // Accent is reserved for operational/status emphasis; SecondaryAccent for narrative content.
+    // HeaderAccent is reserved for the thin institutional rule across standard briefing slides.
     public string OperationalAccent => Accent;
     public string OperationalAccentSoft => AccentSoft;
     public string NarrativeAccent => SecondaryAccent;
@@ -63,6 +65,7 @@ public static class ProjectBriefingThemeCatalog
         AccentSoft: "E8EEF7",
         SecondaryAccent: "2D7F82",
         SecondaryAccentSoft: "E7F1F0",
+        HeaderAccent: "7A263A",
         ProjectUpdateAccent: "8F0D21",
         ProjectUpdateLabelFill: "EDF1F6",
         Positive: "39765A",
@@ -100,6 +103,7 @@ public static class ProjectBriefingThemeCatalog
         AccentSoft: "263659",
         SecondaryAccent: "4FA6A8",
         SecondaryAccentSoft: "203B3C",
+        HeaderAccent: "A33A4E",
         ProjectUpdateAccent: "5B7CFA",
         ProjectUpdateLabelFill: "242A34",
         Positive: "69B889",

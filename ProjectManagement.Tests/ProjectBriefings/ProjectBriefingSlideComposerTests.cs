@@ -91,14 +91,22 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Equal(3, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
-            .SlideParts
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var text = string.Join("\n", slides
             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
             .Select(node => node.Text));
+        var projectSlide = Assert.Single(slides.Where(slide =>
+            SlideText(slide).Contains("PROJECT BRIEF MODE", StringComparison.Ordinal)));
 
         Assert.Contains("PROJECT BRIEF", text, StringComparison.Ordinal);
         Assert.Contains("operational need", text, StringComparison.Ordinal);
         Assert.DoesNotContain("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROJECT BRIEF ·", SlideText(projectSlide), StringComparison.Ordinal);
+        Assert.Empty(projectSlide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
+            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
+            "Slide subtitle",
+            StringComparison.Ordinal)));
+        Assert.Equal("7A263A", ShapeFillColor(ShapeByName(projectSlide, "Slide top accent")));
     }
 
     [Fact]
@@ -602,7 +610,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 && SlideText(part).Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal));
 
         Assert.Equal("F3F4F6", ShapeTextColor(ShapeByName(slide, "Slide title")));
-        Assert.Equal("5B7CFA", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
+        Assert.Equal("A33A4E", ShapeFillColor(ShapeByName(slide, "Slide top accent")));
         Assert.Equal("4FA6A8", ShapeFillColor(ShapeByName(slide, "Capability accent")));
         Assert.Equal("5B7CFA", ShapeTextColor(ShapeByName(slide, "Present status labels")));
     }

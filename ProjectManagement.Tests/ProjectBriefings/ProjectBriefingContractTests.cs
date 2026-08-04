@@ -93,6 +93,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("data-pbd-theme-preview", page, StringComparison.Ordinal);
         Assert.Contains("preview.classList.toggle('is-update-sheet'", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-theme-preview--light.is-update-sheet", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-theme-preview--light .pbd-theme-preview__header { background: #7a263a; }", css, StringComparison.Ordinal);
+        Assert.Contains(".pbd-theme-preview--dark .pbd-theme-preview__header { background: #a33a4e; }", css, StringComparison.Ordinal);
         Assert.DoesNotContain("appearanceTitle.textContent", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-settings-drawer .pbd-choice-cards--three", css, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
@@ -236,6 +238,7 @@ public sealed class ProjectBriefingContractTests
         var updateComposer = Read("ProjectBriefingSlideComposer.UpdateSheet.cs");
         var typography = Read("ProjectBriefingNarrativeTypography.cs");
 
+        Assert.Contains("HeaderAccent", theme, StringComparison.Ordinal);
         Assert.Contains("ProjectUpdateAccent", theme, StringComparison.Ordinal);
         Assert.Contains("ProjectUpdateLabelFill", theme, StringComparison.Ordinal);
         Assert.Contains("OperationalAccent", theme, StringComparison.Ordinal);

@@ -1,7 +1,10 @@
-Replace these files relative to the ProjectManagement solution root:
-
+REPLACE THESE FILES
+===================
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
+wwwroot/css/pages/project-briefing-decks.css
+
+OPTIONAL TEST FILES
+===================
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-
-No database migration is required.

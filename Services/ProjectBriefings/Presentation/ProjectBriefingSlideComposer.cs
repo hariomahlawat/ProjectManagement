@@ -196,7 +196,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         var theme = canvas.Theme;
         canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.CoverCanvas);
-        canvas.AddRect(0, 0, SlideWidth, .10, theme.Accent);
+        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent);
         canvas.AddBrandingImages(HeaderVariant.Cover);
 
         canvas.AddText(.78, .48, 11.77, .34,
@@ -822,8 +822,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         AddSlideTitle(
             canvas,
-            Truncate(project.ProjectName, 82),
-            $"PROJECT BRIEF · {project.LifecycleDisplay} · {CategoryLine(project)}");
+            Truncate(project.ProjectName, 82));
 
         var layout = ResolveProjectBriefLayout(data, project);
         if (layout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)
@@ -1936,7 +1935,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         var titleAlign = canvas.ShowBranding ? "ctr" : "l";
         return new ProjectSlideHeaderStyle(
             HeaderVariant.Standard,
-            canvas.Theme.OperationalAccent,
+            canvas.Theme.HeaderAccent,
             canvas.Theme.TextPrimary,
             canvas.Theme.TextMuted,
             TopRuleHeight: .10,

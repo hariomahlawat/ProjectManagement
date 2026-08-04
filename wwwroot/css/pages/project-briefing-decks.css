@@ -1551,7 +1551,7 @@
 .pbd-theme-preview--light { background: #f7f7f5; }
 .pbd-theme-preview--light::before,
 .pbd-theme-preview--light::after { background: #d9dde2; }
-.pbd-theme-preview--light .pbd-theme-preview__header { background: #315fa8; }
+.pbd-theme-preview--light .pbd-theme-preview__header { background: #7a263a; }
 .pbd-theme-preview--light .pbd-theme-preview__title { background: #262a31; }
 .pbd-theme-preview--light .pbd-theme-preview__content i { background: #fff; border: 1px solid #d7dade; }
 .pbd-theme-preview--light .pbd-theme-preview__content i:nth-child(2) { background: #e8eef7; }
@@ -1559,7 +1559,7 @@
 .pbd-theme-preview--dark { background: #15181e; border-color: #343b46; }
 .pbd-theme-preview--dark::before,
 .pbd-theme-preview--dark::after { background: #eef1f5; }
-.pbd-theme-preview--dark .pbd-theme-preview__header { background: #5b7cfa; }
+.pbd-theme-preview--dark .pbd-theme-preview__header { background: #a33a4e; }
 .pbd-theme-preview--dark .pbd-theme-preview__title { background: #f3f4f6; }
 .pbd-theme-preview--dark .pbd-theme-preview__content i { background: #242a34; border: 1px solid #353c47; }
 .pbd-theme-preview--dark .pbd-theme-preview__content i:nth-child(2) { background: #263659; }
