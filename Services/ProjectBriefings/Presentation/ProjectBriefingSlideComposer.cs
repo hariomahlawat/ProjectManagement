@@ -210,38 +210,25 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.CoverCanvas, name: "Closing slide canvas");
         canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "Closing slide top accent");
         canvas.AddRect(0, 7.40, SlideWidth, .10, theme.HeaderAccent, name: "Closing slide bottom accent");
-        canvas.AddBrandingImages(HeaderVariant.Cover);
+        canvas.AddBrandingImages(HeaderVariant.Closing);
 
-        canvas.AddLine(.78, 1.12, 12.55, 1.12, theme.Divider, .70);
-        canvas.AddLine(.78, 6.38, 12.55, 6.38, theme.Divider, .70);
-
-        canvas.AddRoundedRect(
-            1.14,
-            1.58,
-            11.05,
-            4.34,
+        // The closing slide intentionally avoids the normal deck dividers and dashboard-like
+        // card treatment. A wider, near-rectangular ceremonial field gives the final message
+        // visual authority while remaining consistent with the institutional maroon palette.
+        canvas.AddSubtleRoundedRect(
+            .78,
+            1.48,
+            11.77,
+            4.55,
             theme.HeaderAccent,
             theme.HeaderAccent,
-            .10,
             "Closing ceremonial panel");
 
         canvas.AddText(
-            1.64,
-            2.08,
-            10.05,
-            .28,
-            "SIMULATOR DEVELOPMENT DIVISION",
-            12.0,
-            "F5ECEF",
-            true,
-            "ctr",
-            name: "Closing organisation");
-
-        canvas.AddText(
-            1.52,
-            2.62,
-            10.29,
-            1.16,
+            1.48,
+            2.52,
+            10.37,
+            1.08,
             closingText,
             closingText.Length > 8 ? 39.0 : 44.0,
             "FFFFFF",
@@ -249,25 +236,26 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             "ctr",
             name: "Closing message");
 
-        // A restrained tricolour rule supplies ceremonial emphasis without introducing
-        // flags, gradients or non-editable decorative artwork.
-        const double ruleY = 4.12;
-        const double segmentWidth = 1.40;
-        canvas.AddRect(4.57, ruleY, segmentWidth, .055, "FF9933", name: "Closing saffron accent");
-        canvas.AddRect(5.97, ruleY, segmentWidth, .055, "F7F7F5", name: "Closing white accent");
-        canvas.AddRect(7.37, ruleY, segmentWidth, .055, "138808", name: "Closing green accent");
+        // A short, fine tricolour rule provides ceremonial emphasis without resembling
+        // a progress indicator or introducing non-editable artwork.
+        const double ruleY = 4.08;
+        const double segmentWidth = 1.10;
+        const double ruleHeight = .040;
+        canvas.AddRect(5.02, ruleY, segmentWidth, ruleHeight, "FF9933", name: "Closing saffron accent");
+        canvas.AddRect(6.12, ruleY, segmentWidth, ruleHeight, "F7F7F5", name: "Closing white accent");
+        canvas.AddRect(7.22, ruleY, segmentWidth, ruleHeight, "138808", name: "Closing green accent");
 
         canvas.AddText(
-            2.22,
-            4.55,
-            8.89,
-            .27,
-            "PROJECT BRIEFING DECK",
-            10.5,
-            "E7D6DB",
+            2.02,
+            4.48,
+            9.29,
+            .30,
+            "SIMULATOR DEVELOPMENT DIVISION",
+            11.5,
+            "F5ECEF",
             true,
             "ctr",
-            name: "Closing deck descriptor");
+            name: "Closing organisation");
     }
 
     private static void RenderCover(
@@ -2191,6 +2179,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private enum HeaderVariant
     {
         Cover,
+        Closing,
         Standard,
         ProjectUpdateSheet
     }
@@ -2323,9 +2312,62 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 name ?? "Rounded rectangle",
                 isTextBox: false);
 
+        public void AddSubtleRoundedRect(
+            double x,
+            double y,
+            double width,
+            double height,
+            string fill,
+            string? line,
+            string? name = null)
+            => AddShapeXml(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                .75,
+                "roundRect",
+                string.Empty,
+                name ?? "Subtly rounded rectangle",
+                isTextBox: false,
+                geometryAdjustmentsXml: "<a:gd name=\"adj\" fmla=\"val 6000\"/>");
+
         public void AddBrandingImages(HeaderVariant variant)
         {
             if (!ShowBranding) return;
+
+            if (variant == HeaderVariant.Closing)
+            {
+                if (_branding.LeftLogo is { Length: > 0 })
+                {
+                    if (Theme.IsDark)
+                    {
+                        AddRoundedRect(.29, .15, .64, .64, Theme.BrandingPlate, null, .045, "Left branding plate");
+                        AddImageContained(_branding.LeftLogo, .36, .22, .50, .50, "Left formation insignia");
+                    }
+                    else
+                    {
+                        AddImageContained(_branding.LeftLogo, .32, .18, .56, .56, "Left formation insignia");
+                    }
+                }
+
+                if (_branding.RightLogo is { Length: > 0 })
+                {
+                    if (Theme.IsDark)
+                    {
+                        AddRoundedRect(12.39, .15, .58, .66, Theme.BrandingPlate, null, .045, "Right branding plate");
+                        AddImageContained(_branding.RightLogo, 12.46, .20, .44, .56, "Right division insignia");
+                    }
+                    else
+                    {
+                        AddImageContained(_branding.RightLogo, 12.43, .16, .44, .58, "Right division insignia");
+                    }
+                }
+
+                return;
+            }
 
             if (variant == HeaderVariant.Cover)
             {
@@ -2737,7 +2779,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             string geometry,
             string textXml,
             string name,
-            bool isTextBox)
+            bool isTextBox,
+            string? geometryAdjustmentsXml = null)
         {
             var id = _nextShapeId++;
             var fillXml = string.IsNullOrWhiteSpace(fill)
@@ -2749,11 +2792,14 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             var nonVisualShapeProperties = isTextBox
                 ? "<p:cNvSpPr txBox=\"1\"/>"
                 : "<p:cNvSpPr/>";
+            var geometryXml = string.IsNullOrWhiteSpace(geometryAdjustmentsXml)
+                ? $"<a:prstGeom prst=\"{geometry}\"><a:avLst/></a:prstGeom>"
+                : $"<a:prstGeom prst=\"{geometry}\"><a:avLst>{geometryAdjustmentsXml}</a:avLst></a:prstGeom>";
 
             _elements.Add($"""
 <p:sp>
   <p:nvSpPr><p:cNvPr id="{id}" name="{Escape(name)}"/>{nonVisualShapeProperties}<p:nvPr/></p:nvSpPr>
-  <p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm><a:prstGeom prst="{geometry}"><a:avLst/></a:prstGeom>{fillXml}{lineXml}</p:spPr>
+  <p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm>{geometryXml}{fillXml}{lineXml}</p:spPr>
   {textXml}
 </p:sp>
 """);

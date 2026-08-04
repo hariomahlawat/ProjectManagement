@@ -1,22 +1,17 @@
-READY-TO-REPLACE FILES
-======================
+REPLACEMENT FILE MANIFEST
+=========================
 
 Production
 ----------
-Models/ProjectBriefings/ProjectBriefingDeck.cs
-Pages/Workspace/BriefingDecks/Index.cshtml
-Pages/Workspace/BriefingDecks/Index.cshtml.cs
-Services/ProjectBriefings/ProjectBriefingContracts.cs
-Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
-Services/ProjectBriefings/ProjectBriefingDeckService.cs
-Services/ProjectBriefings/ProjectBriefingDataService.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-wwwroot/js/pages/project-briefing-decks.js
 
 Tests
 -----
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 
-No database migration is required.
+Reference
+---------
+PRISM-Briefing-Deck-Ceremonial-Closing-Refinement.patch
+README-FIRST.txt
+SHA256SUMS.txt

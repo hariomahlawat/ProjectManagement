@@ -366,7 +366,11 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("One ceremonial closing slide is always appended", page, StringComparison.Ordinal);
         Assert.Contains("SlidePlanKind.Closing", composer, StringComparison.Ordinal);
         Assert.Contains("RenderClosingSlide", composer, StringComparison.Ordinal);
+        Assert.Contains("HeaderVariant.Closing", composer, StringComparison.Ordinal);
+        Assert.Contains("AddSubtleRoundedRect", composer, StringComparison.Ordinal);
         Assert.Contains("Closing ceremonial panel", composer, StringComparison.Ordinal);
+        Assert.Contains("Closing organisation", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("Closing deck descriptor", composer, StringComparison.Ordinal);
         Assert.Contains("Closing saffron accent", composer, StringComparison.Ordinal);
         Assert.Contains("Closing white accent", composer, StringComparison.Ordinal);
         Assert.Contains("Closing green accent", composer, StringComparison.Ordinal);

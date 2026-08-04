@@ -1548,12 +1548,64 @@ public sealed class ProjectBriefingSlideComposerTests
 
         Assert.Equal("JAI HIND", ShapeByName(closing, "Closing message")
             .Descendants<A.Text>().Single().Text);
-        Assert.Equal("7A263A", ShapeFillColor(ShapeByName(closing, "Closing ceremonial panel")));
-        Assert.NotNull(ShapeByName(closing, "Closing saffron accent"));
-        Assert.NotNull(ShapeByName(closing, "Closing white accent"));
-        Assert.NotNull(ShapeByName(closing, "Closing green accent"));
+
+        var panel = ShapeByName(closing, "Closing ceremonial panel");
+        var organisation = ShapeByName(closing, "Closing organisation");
+        var saffron = ShapeByName(closing, "Closing saffron accent");
+        var white = ShapeByName(closing, "Closing white accent");
+        var green = ShapeByName(closing, "Closing green accent");
+        var panelAdjustment = Assert.Single(panel.ShapeProperties!
+            .PresetGeometry!
+            .AdjustValueList!
+            .Elements<A.ShapeGuide>());
+
+        Assert.Equal("7A263A", ShapeFillColor(panel));
+        Assert.True(ShapeWidth(panel) >= 11.70 * 914400, "The ceremonial field should use the slide width confidently.");
+        Assert.Equal("val 6000", panelAdjustment.Formula?.Value);
+        Assert.Equal(ShapeWidth(saffron), ShapeWidth(white));
+        Assert.Equal(ShapeWidth(white), ShapeWidth(green));
+        Assert.True(ShapeWidth(saffron) <= 1.12 * 914400, "The tricolour accent should remain short and ceremonial.");
+        Assert.True(ShapeHeight(saffron) <= .045 * 914400, "The tricolour accent should remain fine rather than bar-like.");
+        Assert.True(ShapeY(organisation) > ShapeY(green), "The organisation name should follow the tricolour accent.");
+        Assert.DoesNotContain("PROJECT BRIEFING DECK", SlideText(closing), StringComparison.Ordinal);
+        Assert.DoesNotContain(closing.Slide.Descendants<P.NonVisualDrawingProperties>(), properties =>
+            string.Equals(properties.Name?.Value, "Left branding plate", StringComparison.Ordinal)
+            || string.Equals(properties.Name?.Value, "Right branding plate", StringComparison.Ordinal));
         Assert.DoesNotContain("2/2", SlideText(closing), StringComparison.Ordinal);
         Assert.DoesNotContain("SIMULATOR DEVELOPMENT DIVISION\n2/2", SlideText(closing), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_GraphiteClosingSlideUsesCompactBorderlessLogoPlates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"pbd-closing-branding-{Guid.NewGuid():N}");
+        var logoDirectory = Path.Combine(root, "wwwroot", "img", "logos");
+        Directory.CreateDirectory(logoDirectory);
+        File.WriteAllBytes(Path.Combine(logoDirectory, "artrac.png"), TinyPng());
+        File.WriteAllBytes(Path.Combine(logoDirectory, "sdd.png"), TinyPng());
+
+        try
+        {
+            var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+            var (content, _) = composer.Compose(BuildData(ProjectBriefingPresentationTheme.GraphiteDark));
+
+            using var stream = new MemoryStream(content, writable: false);
+            using var document = PresentationDocument.Open(stream, false);
+            var closing = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.Last();
+            var leftPlate = ShapeByName(closing, "Left branding plate");
+            var rightPlate = ShapeByName(closing, "Right branding plate");
+
+            Assert.Equal("242A34", ShapeFillColor(leftPlate));
+            Assert.Equal("242A34", ShapeFillColor(rightPlate));
+            Assert.True(ShapeWidth(leftPlate) <= .65 * 914400, "The closing-slide left logo plate should remain compact.");
+            Assert.True(ShapeWidth(rightPlate) <= .60 * 914400, "The closing-slide right logo plate should remain compact.");
+            Assert.NotEmpty(leftPlate.Descendants<A.NoFill>());
+            Assert.NotEmpty(rightPlate.Descendants<A.NoFill>());
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
