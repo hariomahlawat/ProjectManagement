@@ -161,6 +161,9 @@ public sealed class IndexModel : PageModel
                     PresentationMode = input.PresentationMode,
                     CostMode = input.CostMode,
                     NarrativeMode = input.NarrativeMode,
+                    ProjectBriefLayout = input.ProjectBriefLayout,
+                    ShowPresentStage = input.ShowPresentStage,
+                    ShowPresentStatus = input.ShowPresentStatus,
                     PresentationTheme = input.PresentationTheme,
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
@@ -561,6 +564,13 @@ public sealed class IndexModel : PageModel
 
         [Required]
         public ProjectBriefingNarrativeMode NarrativeMode { get; set; }
+
+        [Required]
+        public ProjectBriefingProjectBriefLayout ProjectBriefLayout { get; set; }
+            = ProjectBriefingProjectBriefLayout.Automatic;
+
+        public bool ShowPresentStage { get; set; } = true;
+        public bool ShowPresentStatus { get; set; } = true;
 
         [Required]
         public ProjectBriefingPresentationTheme PresentationTheme { get; set; }

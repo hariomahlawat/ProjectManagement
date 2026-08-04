@@ -213,7 +213,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("recommendedKeys.has", script, StringComparison.Ordinal);
         Assert.Contains("validateUpdateSheetRows", script, StringComparison.Ordinal);
         Assert.Contains(".pbd-update-row-list", css, StringComparison.Ordinal);
-        Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions", service, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithPresentationOptions", service, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingDeckConfigurationCodec.WithSelectionRules", service, StringComparison.Ordinal);
         Assert.Contains("SelectionRulesJson", dataSource, StringComparison.Ordinal);
         Assert.Contains("ResolveProjectUpdateRows", composer, StringComparison.Ordinal);
@@ -315,6 +315,33 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("item.Project.ProjectBrief", dataSource, StringComparison.Ordinal);
         Assert.Contains("RenderProjectBrief", composer, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingNarrativeMode.Both", composer, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void StandardBriefing_OffersTwoProjectBriefDesignsAndIndependentContextControls()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+
+        Assert.Contains("Project Brief layout", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ProjectBriefLayout\" value=\"Automatic\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ProjectBriefLayout\" value=\"Standard\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ProjectBriefLayout\" value=\"PhotoEmphasis\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ShowPresentStage\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ShowPresentStatus\"", page, StringComparison.Ordinal);
+        Assert.Contains("Financial information", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"CostRdOnly\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"ProliferationOnly\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"None\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-project-brief-layout-settings", page, StringComparison.Ordinal);
+        Assert.Contains("ShowPresentStatus", script, StringComparison.Ordinal);
+        Assert.Contains("ResolveProjectBriefLayout", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderStandardProjectBrief", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderPhotoEmphasisProjectBrief", composer, StringComparison.Ordinal);
+        Assert.Contains("CostCards(canvas, data.CostMode, project)", composer, StringComparison.Ordinal);
     }
 
 

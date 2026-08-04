@@ -1052,6 +1052,208 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("Update sheet project", slideTexts[2], StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Compose_ProjectBriefPhotoEmphasis_UsesLargePhotographAndIndependentContextChoices()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 801,
+            ProjectName = "PHOTO EMPHASIS PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            ExternalStatus = "Status recorded.",
+            ProjectBrief = "A concise project brief that allows the photograph to remain the primary visual element on the slide.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            CostRd = new ProjectBriefingCostValue(5_000_000m, ProjectBriefingCostBasis.L1, "₹50 Lakh", "L1"),
+            ProliferationCost = new ProjectBriefingCostValue(400_000m, ProjectBriefingCostBasis.Proliferation, "₹4 Lakh", "Proliferation"),
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 801,
+            DeckName = "Photo Emphasis",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.Both,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.PhotoEmphasis,
+                ShowPresentStage: false,
+                ShowPresentStatus: false),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 8, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(1, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var photographFrame = ShapeByName(slide, "Photo-emphasis project photograph");
+        var text = SlideText(slide);
+
+        Assert.True(ShapeWidth(photographFrame) >= 5.4 * 914400, "Photo-emphasis layout should allocate approximately half the slide to the photograph.");
+        Assert.DoesNotContain("PRESENT STAGE", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
+        Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_ProjectBriefStandard_CanShowStatusWithoutPresentStage()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 802,
+            ProjectName = "STATUS ONLY PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.AON,
+            PresentStage = "Acceptance of Necessity",
+            PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+            ExternalStatus = "Current external status retained without displaying the present-stage field.",
+            ProjectBrief = "The standard project-brief layout retains its wide narrative panel while project context remains configurable.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 802,
+            DeckName = "Status Only",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.Standard,
+                ShowPresentStage: false,
+                ShowPresentStatus: true),
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 8, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(1, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var text = SlideText(slide);
+
+        Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.Contains("Current external status retained", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRESENT STAGE", text, StringComparison.Ordinal);
+        Assert.NotNull(ShapeByName(slide, "Project brief photograph frame"));
+    }
+
+    [Fact]
+    public void Compose_AutomaticProjectBriefLayout_UsesPhotoEmphasisForConciseVisualProject()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 803,
+            ProjectName = "AUTOMATIC VISUAL PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            ExternalStatus = "Status recorded.",
+            ProjectBrief = "A concise visual project brief suitable for the automatic photo-emphasis composition.",
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 803,
+            DeckName = "Automatic Layout",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 8, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        Assert.NotNull(ShapeByName(slide, "Photo-emphasis project photograph"));
+    }
+
+    [Fact]
+    public void Compose_AutomaticProjectBriefLayout_UsesStandardDesignForLongNarrative()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 804,
+            ProjectName = "AUTOMATIC NARRATIVE PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = StageCodes.DEVP,
+            PresentStage = "Development",
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
+            ExternalStatus = "A detailed current status is recorded for the project.",
+            ProjectBrief = string.Join(" ", Enumerable.Repeat(
+                "This detailed project narrative records the operational requirement, development approach, integration activities, validation methodology and intended employment.",
+                14)),
+            CoverPhoto = TinyPng(),
+            CoverPhotoContentType = "image/png",
+            SortOrder = 1
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 804,
+            DeckName = "Automatic Standard Layout",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            StandardSlideOptions = ProjectBriefingStandardSlideOptions.Default,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 8, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        Assert.NotNull(ShapeByName(slide, "Project brief photograph frame"));
+        Assert.DoesNotContain(
+            slide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Photo-emphasis project photograph", StringComparison.Ordinal));
+    }
+
+    private static byte[] TinyPng()
+        => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1ZsAAAAASUVORK5CYII=");
+
     private static ProjectBriefingPresentationProject BriefingProject(
         int id,
         string name,

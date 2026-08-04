@@ -58,12 +58,40 @@ public sealed record ProjectBriefingUpdateSheetOptions(
     }
 }
 
+/// <summary>
+/// Detailed-slide preferences for the Standard PRISM Briefing template.
+/// Cost remains governed independently by ProjectBriefingCostMode.
+/// </summary>
+public sealed record ProjectBriefingStandardSlideOptions(
+    ProjectBriefingProjectBriefLayout ProjectBriefLayout,
+    bool ShowPresentStage,
+    bool ShowPresentStatus)
+{
+    public static ProjectBriefingStandardSlideOptions Default { get; } =
+        new(
+            ProjectBriefingProjectBriefLayout.Automatic,
+            ShowPresentStage: true,
+            ShowPresentStatus: true);
+
+    public static ProjectBriefingStandardSlideOptions Normalize(
+        ProjectBriefingProjectBriefLayout projectBriefLayout,
+        bool showPresentStage,
+        bool showPresentStatus)
+        => new(
+            Enum.IsDefined(projectBriefLayout)
+                ? projectBriefLayout
+                : ProjectBriefingProjectBriefLayout.Automatic,
+            showPresentStage,
+            showPresentStatus);
+}
+
 public sealed record ProjectBriefingDeckConfiguration(
     string? SelectionRulesJson,
-    ProjectBriefingUpdateSheetOptions UpdateSheetOptions);
+    ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
+    ProjectBriefingStandardSlideOptions StandardSlideOptions);
 
 /// <summary>
-/// Stores selection provenance and update-sheet preferences in the existing JSONB deck configuration field.
+/// Stores selection provenance and presentation preferences in the existing JSONB deck configuration field.
 /// Legacy selection-rule JSON remains readable and is upgraded only when settings are next saved.
 /// </summary>
 public static class ProjectBriefingDeckConfigurationCodec
@@ -74,7 +102,7 @@ public static class ProjectBriefingDeckConfigurationCodec
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return new ProjectBriefingDeckConfiguration(null, ProjectBriefingUpdateSheetOptions.Default);
+            return Defaults(selectionRulesJson: null);
         }
 
         try
@@ -83,55 +111,33 @@ public static class ProjectBriefingDeckConfigurationCodec
             if (root is null
                 || !string.Equals(root["schema"]?.GetValue<string>(), Schema, StringComparison.Ordinal))
             {
-                return new ProjectBriefingDeckConfiguration(json, ProjectBriefingUpdateSheetOptions.Default);
+                return Defaults(json);
             }
 
             var selectionRules = root["selectionRules"]?.ToJsonString(JsonOptions);
-            var updateSheet = root["updateSheet"] as JsonObject;
-            var hideEmptyValues = updateSheet?["hideEmptyValues"]?.GetValue<bool>() ?? false;
-            var rows = new List<ProjectBriefingUpdateSheetRow>();
-            if (updateSheet?["rows"] is JsonArray rowArray)
-            {
-                foreach (var node in rowArray)
-                {
-                    if (node is null) continue;
-                    if (node is JsonValue value
-                        && value.TryGetValue<string>(out var text)
-                        && Enum.TryParse<ProjectBriefingUpdateSheetRow>(text, ignoreCase: true, out var parsed)
-                        && Enum.IsDefined(parsed))
-                    {
-                        rows.Add(parsed);
-                        continue;
-                    }
-
-                    if (node is JsonValue numericValue
-                        && numericValue.TryGetValue<int>(out var number)
-                        && Enum.IsDefined(typeof(ProjectBriefingUpdateSheetRow), number))
-                    {
-                        rows.Add((ProjectBriefingUpdateSheetRow)number);
-                    }
-                }
-            }
+            var updateSheetOptions = ReadUpdateSheetOptions(root["updateSheet"] as JsonObject);
+            var standardSlideOptions = ReadStandardSlideOptions(root["standardBriefing"] as JsonObject);
 
             return new ProjectBriefingDeckConfiguration(
                 selectionRules,
-                ProjectBriefingUpdateSheetOptions.Normalize(rows, hideEmptyValues));
+                updateSheetOptions,
+                standardSlideOptions);
         }
         catch (JsonException)
         {
             // The legacy value should not block deck use. Treat it as opaque selection provenance.
-            return new ProjectBriefingDeckConfiguration(json, ProjectBriefingUpdateSheetOptions.Default);
+            return Defaults(json);
         }
         catch (InvalidOperationException)
         {
-            return new ProjectBriefingDeckConfiguration(json, ProjectBriefingUpdateSheetOptions.Default);
+            return Defaults(json);
         }
     }
 
     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
     {
         var current = Read(existingJson);
-        return Write(selectionRulesJson, current.UpdateSheetOptions);
+        return Write(selectionRulesJson, current.UpdateSheetOptions, current.StandardSlideOptions);
     }
 
     public static string WithUpdateSheetOptions(
@@ -139,24 +145,116 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingUpdateSheetOptions options)
     {
         var current = Read(existingJson);
-        return Write(current.SelectionRulesJson, options);
+        return Write(current.SelectionRulesJson, options, current.StandardSlideOptions);
+    }
+
+    public static string WithStandardSlideOptions(
+        string? existingJson,
+        ProjectBriefingStandardSlideOptions options)
+    {
+        var current = Read(existingJson);
+        return Write(current.SelectionRulesJson, current.UpdateSheetOptions, options);
+    }
+
+    public static string WithPresentationOptions(
+        string? existingJson,
+        ProjectBriefingUpdateSheetOptions updateSheetOptions,
+        ProjectBriefingStandardSlideOptions standardSlideOptions)
+    {
+        var current = Read(existingJson);
+        return Write(current.SelectionRulesJson, updateSheetOptions, standardSlideOptions);
+    }
+
+    private static ProjectBriefingDeckConfiguration Defaults(string? selectionRulesJson)
+        => new(
+            selectionRulesJson,
+            ProjectBriefingUpdateSheetOptions.Default,
+            ProjectBriefingStandardSlideOptions.Default);
+
+    private static ProjectBriefingUpdateSheetOptions ReadUpdateSheetOptions(JsonObject? updateSheet)
+    {
+        var hideEmptyValues = updateSheet?["hideEmptyValues"]?.GetValue<bool>() ?? false;
+        var rows = new List<ProjectBriefingUpdateSheetRow>();
+        if (updateSheet?["rows"] is JsonArray rowArray)
+        {
+            foreach (var node in rowArray)
+            {
+                if (node is null) continue;
+                if (node is JsonValue value
+                    && value.TryGetValue<string>(out var text)
+                    && Enum.TryParse<ProjectBriefingUpdateSheetRow>(text, ignoreCase: true, out var parsed)
+                    && Enum.IsDefined(parsed))
+                {
+                    rows.Add(parsed);
+                    continue;
+                }
+
+                if (node is JsonValue numericValue
+                    && numericValue.TryGetValue<int>(out var number)
+                    && Enum.IsDefined(typeof(ProjectBriefingUpdateSheetRow), number))
+                {
+                    rows.Add((ProjectBriefingUpdateSheetRow)number);
+                }
+            }
+        }
+
+        return ProjectBriefingUpdateSheetOptions.Normalize(rows, hideEmptyValues);
+    }
+
+    private static ProjectBriefingStandardSlideOptions ReadStandardSlideOptions(JsonObject? standard)
+    {
+        var layout = ProjectBriefingProjectBriefLayout.Automatic;
+        var layoutNode = standard?["projectBriefLayout"];
+        if (layoutNode is JsonValue layoutValue)
+        {
+            if (layoutValue.TryGetValue<string>(out var layoutText)
+                && Enum.TryParse<ProjectBriefingProjectBriefLayout>(layoutText, ignoreCase: true, out var parsed)
+                && Enum.IsDefined(parsed))
+            {
+                layout = parsed;
+            }
+            else if (layoutValue.TryGetValue<int>(out var layoutNumber)
+                     && Enum.IsDefined(typeof(ProjectBriefingProjectBriefLayout), layoutNumber))
+            {
+                layout = (ProjectBriefingProjectBriefLayout)layoutNumber;
+            }
+        }
+
+        return ProjectBriefingStandardSlideOptions.Normalize(
+            layout,
+            standard?["showPresentStage"]?.GetValue<bool>() ?? true,
+            standard?["showPresentStatus"]?.GetValue<bool>() ?? true);
     }
 
     private static string Write(
         string? selectionRulesJson,
-        ProjectBriefingUpdateSheetOptions options)
+        ProjectBriefingUpdateSheetOptions updateSheetOptions,
+        ProjectBriefingStandardSlideOptions standardSlideOptions)
     {
-        var normalized = ProjectBriefingUpdateSheetOptions.Normalize(options.Rows, options.HideEmptyValues);
+        var normalizedUpdateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
+            updateSheetOptions.Rows,
+            updateSheetOptions.HideEmptyValues);
+        var normalizedStandard = ProjectBriefingStandardSlideOptions.Normalize(
+            standardSlideOptions.ProjectBriefLayout,
+            standardSlideOptions.ShowPresentStage,
+            standardSlideOptions.ShowPresentStatus);
+
         var root = new JsonObject
         {
             ["schema"] = Schema,
             ["selectionRules"] = ParseOptionalNode(selectionRulesJson),
             ["updateSheet"] = new JsonObject
             {
-                ["rows"] = new JsonArray(normalized.Rows
+                ["rows"] = new JsonArray(normalizedUpdateSheet.Rows
                     .Select(row => (JsonNode?)JsonValue.Create(row.ToString()))
                     .ToArray()),
-                ["hideEmptyValues"] = normalized.HideEmptyValues
+                ["hideEmptyValues"] = normalizedUpdateSheet.HideEmptyValues
+            },
+            ["standardBriefing"] = new JsonObject
+            {
+                ["projectBriefLayout"] = normalizedStandard.ProjectBriefLayout.ToString(),
+                ["showPresentStage"] = normalizedStandard.ShowPresentStage,
+                ["showPresentStatus"] = normalizedStandard.ShowPresentStatus
             }
         };
 

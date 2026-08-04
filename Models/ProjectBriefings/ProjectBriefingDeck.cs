@@ -37,6 +37,17 @@ public enum ProjectBriefingPresentationTheme
     GraphiteDark = 2
 }
 
+/// <summary>
+/// Composition used by Standard PRISM Briefing project-brief slides.
+/// Automatic selects one of the two concrete designs per project.
+/// </summary>
+public enum ProjectBriefingProjectBriefLayout
+{
+    Automatic = 1,
+    Standard = 2,
+    PhotoEmphasis = 3
+}
+
 public enum ProjectBriefingBrandingScope
 {
     None = 0,

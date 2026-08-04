@@ -2433,6 +2433,20 @@ body.pbd-settings-drawer-open {
     grid-template-columns: minmax(0, 1fr);
 }
 
+.pbd-standard-detail-options {
+    display: grid;
+    gap: .85rem;
+    margin-top: .85rem;
+}
+
+.pbd-standard-detail-options[hidden] {
+    display: none !important;
+}
+
+.pbd-standard-detail-options .pbd-choice-group {
+    margin-top: 0;
+}
+
 .pbd-settings-drawer .pbd-theme-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }

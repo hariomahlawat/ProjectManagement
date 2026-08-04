@@ -497,8 +497,17 @@ if (root) {
   };
   const hidesEmptyUpdateRows = () => isUpdateSheet()
     && Boolean(root.querySelector('input[name="HideEmptyUpdateSheetValues"]')?.checked);
-  const includesStatus = () => !isUpdateSheet()
-    || (updateSheetRowIsSelected('PresentStatus') && !hidesEmptyUpdateRows());
+  const includesStatus = () => {
+    if (isUpdateSheet()) {
+      return updateSheetRowIsSelected('PresentStatus') && !hidesEmptyUpdateRows();
+    }
+
+    const presentationMode = root.querySelector('input[name="PresentationMode"]:checked')?.value || '';
+    const executiveUsesStatus = presentationMode === 'ExecutiveTable' || presentationMode === 'Combined';
+    const detailedUsesStatus = includesDetailedSlides()
+      && Boolean(root.querySelector('input[name="ShowPresentStatus"]')?.checked);
+    return executiveUsesStatus || detailedUsesStatus;
+  };
   const includesCostRd = () => isUpdateSheet()
     ? updateSheetRowIsSelected('ProjectCost') && !hidesEmptyUpdateRows()
     : ['CostRdOnly', 'Both'].includes(root.querySelector('input[name="CostMode"]:checked')?.value || '');
@@ -526,6 +535,15 @@ if (root) {
     root.querySelectorAll('[data-pbd-standard-section]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelectorAll('[data-pbd-standard-settings]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelectorAll('[data-pbd-update-settings]').forEach((element) => { element.hidden = !updateSheet; });
+
+    const detailedSettings = root.querySelector('[data-pbd-detailed-settings]');
+    if (detailedSettings) detailedSettings.hidden = updateSheet || !includesDetailedSlides();
+    const projectBriefLayoutSettings = root.querySelector('[data-pbd-project-brief-layout-settings]');
+    if (projectBriefLayoutSettings) {
+      projectBriefLayoutSettings.hidden = updateSheet
+        || !includesDetailedSlides()
+        || !includesProjectBrief();
+    }
     root.querySelectorAll('[data-pbd-proliferation-column]').forEach((element) => { element.hidden = updateSheet; });
     root.querySelector('[data-pbd-presentation-design]')?.classList.toggle('is-update-sheet', updateSheet);
     root.querySelectorAll('[data-pbd-theme-preview]').forEach((preview) => {
@@ -538,6 +556,8 @@ if (root) {
   root.querySelectorAll('[data-pbd-layout-choice], input[name="PresentationMode"], input[name="CostMode"], input[name="NarrativeMode"]')
     .forEach((choice) => choice.addEventListener('change', syncTemplateSettings));
   root.querySelector('input[name="HideEmptyUpdateSheetValues"]')
+    ?.addEventListener('change', syncPreflightRequirementVisibility);
+  root.querySelector('input[name="ShowPresentStatus"]')
     ?.addEventListener('change', syncPreflightRequirementVisibility);
   syncTemplateSettings();
   settingsInitialState = serializeSettings();

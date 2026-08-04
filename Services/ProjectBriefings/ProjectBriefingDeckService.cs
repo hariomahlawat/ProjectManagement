@@ -283,11 +283,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.PresentationMode,
             command.CostMode,
             command.NarrativeMode,
+            command.ProjectBriefLayout,
             command.PresentationTheme,
             command.BrandingScope);
         var updateSheetOptions = ValidateUpdateSheetOptions(
             command.UpdateSheetRows,
             command.HideEmptyUpdateSheetValues);
+        var standardSlideOptions = ProjectBriefingStandardSlideOptions.Normalize(
+            command.ProjectBriefLayout,
+            command.ShowPresentStage,
+            command.ShowPresentStatus);
         var normalizedName = NormalizeName(command.Name);
         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
 
@@ -310,9 +315,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.IncludeStageSummary = command.IncludeStageSummary;
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
             deck.SelectionRulesJson,
-            updateSheetOptions);
+            updateSheetOptions,
+            standardSlideOptions);
         deck.HandlingMarking = NormalizeMarking(command.HandlingMarking);
         Touch(deck, userId);
 
@@ -636,9 +642,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string message,
         IDictionary<string, string?>? extra = null)
     {
-        var updateSheetOptions = ProjectBriefingDeckConfigurationCodec
-            .Read(deck.SelectionRulesJson)
-            .UpdateSheetOptions;
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var updateSheetOptions = configuration.UpdateSheetOptions;
+        var standardSlideOptions = configuration.StandardSlideOptions;
         var data = new Dictionary<string, string?>
         {
             ["DeckId"] = deck.Id.ToString(),
@@ -652,7 +658,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["IncludeCoverSlide"] = deck.IncludeCoverSlide.ToString(),
             ["IncludePortfolioSummarySlide"] = deck.IncludePortfolioSummarySlide.ToString(),
             ["UpdateSheetRows"] = string.Join(",", updateSheetOptions.Rows),
-            ["HideEmptyUpdateSheetValues"] = updateSheetOptions.HideEmptyValues.ToString()
+            ["HideEmptyUpdateSheetValues"] = updateSheetOptions.HideEmptyValues.ToString(),
+            ["ProjectBriefLayout"] = standardSlideOptions.ProjectBriefLayout.ToString(),
+            ["ShowPresentStage"] = standardSlideOptions.ShowPresentStage.ToString(),
+            ["ShowPresentStatus"] = standardSlideOptions.ShowPresentStatus.ToString()
         };
         if (extra is not null)
         {
@@ -708,6 +717,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         ProjectBriefingPresentationMode presentationMode,
         ProjectBriefingCostMode costMode,
         ProjectBriefingNarrativeMode narrativeMode,
+        ProjectBriefingProjectBriefLayout projectBriefLayout,
         ProjectBriefingPresentationTheme presentationTheme,
         ProjectBriefingBrandingScope brandingScope)
     {
@@ -715,10 +725,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             || !Enum.IsDefined(presentationMode)
             || !Enum.IsDefined(costMode)
             || !Enum.IsDefined(narrativeMode)
+            || !Enum.IsDefined(projectBriefLayout)
             || !Enum.IsDefined(presentationTheme)
             || !Enum.IsDefined(brandingScope))
         {
-            throw new InvalidOperationException("The presentation template, deck format, project content, theme or branding setting is invalid.");
+            throw new InvalidOperationException("The presentation template, deck format, project content, project-brief layout, theme or branding setting is invalid.");
         }
     }
 

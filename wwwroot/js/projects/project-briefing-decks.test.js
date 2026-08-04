@@ -175,3 +175,12 @@ test('presentation theme previews follow the selected Standard or Project Update
   assert.match(source, /data-pbd-theme-preview/);
   assert.match(source, /preview\.classList\.toggle\('is-update-sheet', updateSheet\)/);
 });
+
+test('Standard detailed slides expose project-brief design and independent context choices', () => {
+  assert.match(source, /data-pbd-detailed-settings/);
+  assert.match(source, /data-pbd-project-brief-layout-settings/);
+  assert.match(source, /ShowPresentStatus/);
+  assert.match(source, /executiveUsesStatus/);
+  assert.match(source, /includesDetailedSlides\(\)/);
+  assert.match(source, /includesProjectBrief\(\)/);
+});

@@ -57,6 +57,8 @@ public sealed class ProjectBriefingDeckVm
     public ProjectBriefingCostMode CostMode { get; init; }
     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
         = ProjectBriefingNarrativeMode.CapabilityOverview;
+    public ProjectBriefingStandardSlideOptions StandardSlideOptions { get; init; }
+        = ProjectBriefingStandardSlideOptions.Default;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
@@ -226,6 +228,10 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
+    public ProjectBriefingProjectBriefLayout ProjectBriefLayout { get; init; }
+        = ProjectBriefingProjectBriefLayout.Automatic;
+    public bool ShowPresentStage { get; init; } = true;
+    public bool ShowPresentStatus { get; init; } = true;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
     public bool IncludeCoverSlide { get; init; } = true;
@@ -256,6 +262,8 @@ public sealed class ProjectBriefingPresentationData
     public ProjectBriefingCostMode CostMode { get; init; }
     public ProjectBriefingNarrativeMode NarrativeMode { get; init; }
         = ProjectBriefingNarrativeMode.CapabilityOverview;
+    public ProjectBriefingStandardSlideOptions StandardSlideOptions { get; init; }
+        = ProjectBriefingStandardSlideOptions.Default;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }

@@ -1,32 +1,58 @@
-# PRISM Project Briefing Deck — Adaptive Update-Sheet Layouts
+# PRISM Standard Briefing — Project Brief Layouts
 
-## Replace
-Copy the included files over the same relative paths in the PRISM project.
+## Scope
 
-## Implemented behaviour
+This package adds professional layout control to **Standard PRISM Briefing** detailed slides while retaining the existing cost behaviour.
 
-- **Compact layout:** automatically used when 1–2 information rows are rendered.
-  - Full-width information band below the title.
-  - Photograph and project brief use balanced side-by-side panels.
-  - The photo/brief split adapts moderately to project-brief length.
-- **Standard layout:** automatically used for the normal 3–5-row case.
-  - Retains the established facts-left, photograph-right and brief-below design.
-- **Detailed layout:** automatically used for 6–9 rows, or when actual row content needs additional height.
-  - Wider facts table, narrower photograph column and bounded brief area.
-- Layout selection is automatic. The user continues to select information only.
-- **Recommended defaults** now selects the compact five-row command-update set:
-  1. Project cost
-  2. AoN date
-  3. Supply-order date and firm
-  4. PDC / completion status
-  5. Present status
-- **Select all** continues to select all nine available rows.
-- Existing saved decks retain their saved row selection and order.
-- No database migration or configuration change is required.
+### Project Brief layout
 
-## Validation performed
+- **Automatic — recommended:** selects Photo Emphasis for a suitable photograph with concise/medium narrative content; otherwise uses Standard.
+- **Standard:** retains the compact photograph/context rail and wide narrative panel.
+- **Photo Emphasis:** allocates approximately 45% of the usable slide width to a substantially larger photograph and places the brief, selected context and cost information in the remaining column.
 
-- JavaScript syntax validated with Node.js `--check`.
-- Modified C# files passed structural delimiter and string/comment-state checks.
-- Regression tests were updated for the three layout variants and recommended-row behaviour.
-- Run Clean/Rebuild and the ProjectBriefings test suite in Visual Studio before deployment; the .NET SDK was not available in the packaging environment.
+### Project context
+
+Users can independently select:
+
+- Show present stage
+- Show present status
+
+These choices apply to Capability Overview and Project Brief slides. When either field is not selected, its space is released automatically. Preflight requires external status only when a generated section actually uses status; executive tables continue to require it.
+
+### Cost information
+
+The established deck-level Cost Mode remains authoritative and unchanged:
+
+- R&D cost only
+- Proliferation cost only
+- Both costs
+- No cost
+
+Both Standard and Photo Emphasis layouts use the same Cost Mode. No duplicate or competing cost control has been introduced.
+
+## Persistence and compatibility
+
+- New options are stored in the existing deck configuration JSON field under `standardBriefing`.
+- Existing saved decks open with `Automatic`, Present Stage enabled and Present Status enabled.
+- Existing project selection provenance and Project Update Sheet configuration are preserved.
+- No database migration is required.
+- This package is based on the uploaded source with the previously supplied **Adaptive Project Update Sheet Layouts** package applied.
+
+## Application
+
+Copy the folders in this package into the `ProjectManagement` project root and replace the matching files. Then:
+
+1. Clean the solution.
+2. Rebuild in Visual Studio.
+3. Run the `ProjectBriefings` test group.
+4. Open a Standard PRISM Briefing deck and save the desired Project Brief layout/context settings.
+5. Generate a test PowerPoint with R&D only, proliferation only, both and no-cost modes.
+
+## Validation completed here
+
+- JavaScript syntax check passed.
+- Targeted briefing-deck JavaScript tests: **25 passed**.
+- Unified patch dry-run and application verification passed.
+- Changed-file integrity and SHA-256 checks completed.
+
+The .NET SDK is not installed in this execution environment, so C# compilation and xUnit execution must be completed in Visual Studio before deployment.

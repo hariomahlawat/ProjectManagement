@@ -70,6 +70,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             PresentationMode = snapshot.PresentationMode,
             CostMode = snapshot.CostMode,
             NarrativeMode = snapshot.NarrativeMode,
+            StandardSlideOptions = snapshot.StandardSlideOptions,
             PresentationTheme = snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
@@ -155,6 +156,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             NarrativeMode = snapshot.Layout == ProjectBriefingLayout.ProjectUpdateSheet
                 ? ProjectBriefingNarrativeMode.ProjectBrief
                 : snapshot.NarrativeMode,
+            StandardSlideOptions = snapshot.StandardSlideOptions,
             PresentationTheme = snapshot.PresentationTheme,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
@@ -219,9 +221,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
-        var updateSheetOptions = ProjectBriefingDeckConfigurationCodec
-            .Read(deck.SelectionRulesJson)
-            .UpdateSheetOptions;
+        var deckConfiguration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var updateSheetOptions = deckConfiguration.UpdateSheetOptions;
+        var standardSlideOptions = deckConfiguration.StandardSlideOptions;
 
         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
             .AsNoTracking()
@@ -266,6 +268,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.IncludeProjectCategorySummary,
                 deck.IncludeTechnicalCategorySummary,
                 updateSheetOptions,
+                standardSlideOptions,
                 deck.HandlingMarking,
                 deck.UpdatedAtUtc,
                 deck.CreatedByDisplay,
@@ -375,6 +378,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.IncludeProjectCategorySummary,
             deck.IncludeTechnicalCategorySummary,
             updateSheetOptions,
+            standardSlideOptions,
             deck.HandlingMarking,
             deck.UpdatedAtUtc,
             deck.CreatedByDisplay,
@@ -852,6 +856,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,
         ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
+        ProjectBriefingStandardSlideOptions StandardSlideOptions,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
         string CreatedByDisplay,

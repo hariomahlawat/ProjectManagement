@@ -40,6 +40,13 @@
         ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
         _ => "Presentation theme"
     };
+    var projectBriefLayoutLabel = deck?.StandardSlideOptions.ProjectBriefLayout switch
+    {
+        ProjectBriefingProjectBriefLayout.Automatic => "Automatic brief layout",
+        ProjectBriefingProjectBriefLayout.Standard => "Standard brief layout",
+        ProjectBriefingProjectBriefLayout.PhotoEmphasis => "Photo-emphasis brief layout",
+        _ => "Project brief layout"
+    };
     var selectedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows).ToHashSet();
     var orderedUpdateSheetRows = (deck?.UpdateSheetOptions.Rows ?? ProjectBriefingUpdateSheetOptions.RecommendedRows)
         .Concat(ProjectBriefingUpdateSheetOptions.AllRows)
@@ -89,7 +96,13 @@
     var updateNeedsProjectOfficer = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.ProjectOfficer);
     var updateNeedsLineDirectorate = selectedUpdateSheetRows.Contains(ProjectBriefingUpdateSheetRow.LineDirectorate);
     var includesDetailedSlides = isUpdateSheet || standardIncludesDetailedSlides;
-    var includesStatus = !isUpdateSheet || (updateNeedsStatus && !hideEmptyUpdateSheetValues);
+    var standardIncludesExecutiveTable = deck?.PresentationMode
+        is ProjectBriefingPresentationMode.ExecutiveTable or ProjectBriefingPresentationMode.Combined;
+    var standardDetailedUsesStatus = standardIncludesDetailedSlides
+        && (deck?.StandardSlideOptions.ShowPresentStatus ?? true);
+    var includesStatus = isUpdateSheet
+        ? updateNeedsStatus && !hideEmptyUpdateSheetValues
+        : standardIncludesExecutiveTable || standardDetailedUsesStatus;
     var includesCostRd = isUpdateSheet ? updateNeedsCost && !hideEmptyUpdateSheetValues : standardIncludesCostRd;
     var includesProliferationCost = !isUpdateSheet && standardIncludesProliferationCost;
     var missingStatusCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ExternalStatusAvailableCount;
@@ -104,6 +117,11 @@
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
     var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
     var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
+    var settingsSummaryLabel = isUpdateSheet
+        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost"
+        : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
+          + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
+          + $" · {themeLabel} · {costModeLabel}";
     var missingArppNumberCount = deck?.Projects.Count(project =>
         project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
     var missingFundingCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
@@ -339,7 +357,7 @@
                                     aria-controls="pbd-settings-drawer"
                                     aria-expanded="false">
                                 <span class="pbd-settings-summary__title"><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
-                                <small data-pbd-settings-summary-text>@layoutLabel@(isUpdateSheet ? $" · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost" : $" · {presentationModeLabel} · {narrativeModeLabel} · {themeLabel} · {costModeLabel}")</small>
+                                <small data-pbd-settings-summary-text>@settingsSummaryLabel</small>
                                 <span class="pbd-settings-summary__dirty" data-pbd-settings-dirty hidden>Unsaved settings</span>
                                 <i class="bi bi-chevron-right pbd-settings-summary__chevron" aria-hidden="true"></i>
                             </button>
@@ -415,7 +433,7 @@
                                             </label>
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
-                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>One professional slide per project</small></span>
+                                                <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>Project slides based on the selected content; continuation slides are added when required</small></span>
                                             </label>
                                             <label class="pbd-choice-card">
                                                 <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
@@ -441,6 +459,43 @@
                                             </label>
                                         </div>
                                     </fieldset>
+
+                                    <div class="pbd-standard-detail-options" data-pbd-detailed-settings hidden="@(!standardIncludesDetailedSlides)">
+                                        <fieldset class="pbd-choice-group" data-pbd-project-brief-layout-settings hidden="@(!standardNeedsProjectBrief)">
+                                            <legend>Project Brief layout</legend>
+                                            <div class="pbd-choice-cards pbd-choice-cards--three">
+                                                <label class="pbd-choice-card">
+                                                    <input type="radio" name="ProjectBriefLayout" value="Automatic" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Automatic)" />
+                                                    <span><i class="bi bi-magic" aria-hidden="true"></i><strong>Automatic</strong><small>Recommended. Uses photo emphasis when the photograph and content are suitable; otherwise uses the standard design.</small></span>
+                                                </label>
+                                                <label class="pbd-choice-card">
+                                                    <input type="radio" name="ProjectBriefLayout" value="Standard" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.Standard)" />
+                                                    <span><i class="bi bi-layout-sidebar" aria-hidden="true"></i><strong>Standard</strong><small>Compact photograph and context rail with a wide narrative panel.</small></span>
+                                                </label>
+                                                <label class="pbd-choice-card">
+                                                    <input type="radio" name="ProjectBriefLayout" value="PhotoEmphasis" checked="@(deck.StandardSlideOptions.ProjectBriefLayout == ProjectBriefingProjectBriefLayout.PhotoEmphasis)" />
+                                                    <span><i class="bi bi-image" aria-hidden="true"></i><strong>Photo emphasis</strong><small>Large photograph on approximately half the slide with brief and context alongside.</small></span>
+                                                </label>
+                                            </div>
+                                        </fieldset>
+
+                                        <fieldset class="pbd-choice-group">
+                                            <legend>Project context on detailed slides</legend>
+                                            <div class="pbd-checks pbd-checks--inline">
+                                                <label>
+                                                    <input type="checkbox" name="ShowPresentStage" value="true" checked="@deck.StandardSlideOptions.ShowPresentStage" />
+                                                    <input type="hidden" name="ShowPresentStage" value="false" />
+                                                    Show present stage
+                                                </label>
+                                                <label>
+                                                    <input type="checkbox" name="ShowPresentStatus" value="true" checked="@deck.StandardSlideOptions.ShowPresentStatus" />
+                                                    <input type="hidden" name="ShowPresentStatus" value="false" />
+                                                    Show present status
+                                                </label>
+                                            </div>
+                                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> These choices apply to Capability Overview and Project Brief slides. Cost remains controlled independently under Financial information.</p>
+                                        </fieldset>
+                                    </div>
                                 </div>
                                 <div class="pbd-update-sheet-composition" data-pbd-update-settings hidden="@(!isUpdateSheet)">
                                     <div class="pbd-update-sheet-composition__intro">
