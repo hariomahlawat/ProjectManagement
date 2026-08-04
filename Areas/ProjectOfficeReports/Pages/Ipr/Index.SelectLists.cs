@@ -76,13 +76,6 @@ public sealed partial class IndexModel
                 GetProjectLifecycleLabel(project.LifecycleStatus, project.IsArchived)))
             .ToList();
 
-        var projectItems = ProjectPickerOptions
-            .Select(project => new SelectListItem(project.Name, project.Id.ToString(CultureInfo.InvariantCulture))
-            {
-                Selected = ProjectId.HasValue && ProjectId.Value == project.Id
-            })
-            .ToList();
-
         var projectOptions = new List<SelectListItem>
         {
             new("All projects", string.Empty)
@@ -90,15 +83,49 @@ public sealed partial class IndexModel
                 Selected = !ProjectId.HasValue
             }
         };
-        projectOptions.AddRange(projectItems);
+        projectOptions.AddRange(ProjectPickerOptions.Select(project =>
+            new SelectListItem(project.Name, project.Id.ToString(CultureInfo.InvariantCulture))
+            {
+                Selected = ProjectId.HasValue && ProjectId.Value == project.Id
+            }));
         ProjectOptions = projectOptions;
 
-        var years = await _db.IprRecords.AsNoTracking()
-            .Where(r => r.FiledAtUtc != null)
-            .Select(r => r.FiledAtUtc!.Value.Year)
+        DateBasisOptions = new[]
+        {
+            new SelectListItem("Filed year", IprDateBasis.Filed.ToString())
+            {
+                Selected = DateBasis == IprDateBasis.Filed
+            },
+            new SelectListItem("Grant / registration year", IprDateBasis.Protected.ToString())
+            {
+                Selected = DateBasis == IprDateBasis.Protected
+            }
+        };
+
+        var dateYears = await _db.IprRecords
+            .AsNoTracking()
+            .Where(record =>
+                record.Status == IprStatus.FilingUnderProcess ||
+                record.Status == IprStatus.Filed ||
+                record.Status == IprStatus.Granted)
+            .Select(record => new
+            {
+                FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,
+                ProtectedYear = record.GrantedAtUtc.HasValue ? (int?)record.GrantedAtUtc.Value.Year : null
+            })
+            .ToListAsync(cancellationToken);
+
+        DateYearOptions = dateYears
+            .SelectMany(item => new[] { item.FiledYear, item.ProtectedYear })
+            .Where(year => year.HasValue)
+            .Select(year => year!.Value)
             .Distinct()
             .OrderByDescending(year => year)
-            .ToListAsync(cancellationToken);
+            .Select(year => new IprYearOption(
+                year,
+                dateYears.Any(item => item.FiledYear == year),
+                dateYears.Any(item => item.ProtectedYear == year)))
+            .ToList();
 
         var yearOptions = new List<SelectListItem>
         {
@@ -107,16 +134,27 @@ public sealed partial class IndexModel
                 Selected = !Year.HasValue
             }
         };
-
-        foreach (var year in years)
-        {
-            yearOptions.Add(new SelectListItem(year.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture))
+        yearOptions.AddRange(DateYearOptions
+            .Where(option => DateBasis == IprDateBasis.Protected ? option.HasProtected : option.HasFiled)
+            .Select(option => new SelectListItem(option.Label, option.Value)
             {
-                Selected = Year.HasValue && Year.Value == year
-            });
-        }
-
+                Selected = Year.HasValue && Year.Value == option.Year
+            }));
         YearOptions = yearOptions;
+
+        LinkageOptions = new[]
+        {
+            new SelectListItem("All records", IprLinkageFilter.All.ToString()) { Selected = Linkage == IprLinkageFilter.All },
+            new SelectListItem("Linked to a project", IprLinkageFilter.Linked.ToString()) { Selected = Linkage == IprLinkageFilter.Linked },
+            new SelectListItem("Unassigned", IprLinkageFilter.Unassigned.ToString()) { Selected = Linkage == IprLinkageFilter.Unassigned }
+        };
+
+        EvidenceOptions = new[]
+        {
+            new SelectListItem("All evidence states", IprEvidenceFilter.All.ToString()) { Selected = Evidence == IprEvidenceFilter.All },
+            new SelectListItem("Evidence available", IprEvidenceFilter.Available.ToString()) { Selected = Evidence == IprEvidenceFilter.Available },
+            new SelectListItem("Evidence missing", IprEvidenceFilter.Missing.ToString()) { Selected = Evidence == IprEvidenceFilter.Missing }
+        };
 
         PageSizeOptions = new List<SelectListItem>
         {
@@ -135,12 +173,31 @@ public sealed partial class IndexModel
 
     private void NormalizeFilters()
     {
-        Types = Types.Distinct().ToList();
+        Types = Types
+            .Where(type => type is IprType.Patent or IprType.Copyright)
+            .Distinct()
+            .ToList();
+
         Statuses = Statuses
             .Select(status => status == IprStatus.FilingUnderProcess ? IprStatus.Filed : status)
             .Where(status => status is IprStatus.Filed or IprStatus.Granted)
             .Distinct()
             .ToList();
+
+        if (!Enum.IsDefined(DateBasis))
+        {
+            DateBasis = IprDateBasis.Filed;
+        }
+
+        if (!Enum.IsDefined(Linkage))
+        {
+            Linkage = IprLinkageFilter.All;
+        }
+
+        if (!Enum.IsDefined(Evidence))
+        {
+            Evidence = IprEvidenceFilter.All;
+        }
 
         Tab = Tab?.Trim().ToLowerInvariant() switch
         {
@@ -150,12 +207,37 @@ public sealed partial class IndexModel
             _ => "records"
         };
 
+        AttentionIssue = AttentionIssue?.Trim().ToLowerInvariant() switch
+        {
+            "overdue" => "overdue",
+            "data" => "data",
+            "linkage" => "linkage",
+            "evidence" => "evidence",
+            _ => null
+        };
+
+        if (!string.Equals(Tab, "records", StringComparison.Ordinal))
+        {
+            Query = null;
+            SelectedRecordId = null;
+        }
+
+        if (!string.Equals(Tab, "followup", StringComparison.Ordinal))
+        {
+            AttentionIssue = null;
+        }
+
         if (ProjectId.HasValue && ProjectId.Value <= 0)
         {
             ProjectId = null;
         }
 
-        if (Year.HasValue && Year.Value <= 0)
+        if (ProjectId.HasValue)
+        {
+            Linkage = IprLinkageFilter.All;
+        }
+
+        if (Year.HasValue && (Year.Value < 1900 || Year.Value > DateTime.UtcNow.Year + 1))
         {
             Year = null;
         }
@@ -207,16 +289,18 @@ public sealed partial class IndexModel
         }
     }
 
-    private IprFilter BuildFilter()
+    private IprFilter BuildFilter(bool includeQuery = true)
     {
         var filter = new IprFilter
         {
-            Query = Query,
+            Query = includeQuery ? Query : null,
             Types = Types.Count > 0 ? Types.ToArray() : null,
             Statuses = Statuses.Count > 0 ? Statuses.ToArray() : null,
             ProjectId = ProjectId,
-            FiledFrom = Year.HasValue ? new DateOnly(Year.Value, 1, 1) : null,
-            FiledTo = Year.HasValue ? new DateOnly(Year.Value, 12, 31) : null
+            DateBasis = DateBasis,
+            Year = Year,
+            Linkage = Linkage,
+            Evidence = Evidence
         };
 
         filter.Page = PageNumber;
@@ -226,7 +310,6 @@ public sealed partial class IndexModel
 
         return filter;
     }
-
 
     private static string GetTypeLabel(IprType type)
         => type switch
@@ -274,5 +357,4 @@ public sealed partial class IndexModel
             _ => status.ToString()
         };
     }
-
 }

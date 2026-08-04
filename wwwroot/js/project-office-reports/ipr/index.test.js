@@ -24,6 +24,22 @@ const paginationSource = fs.readFileSync(
   path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml'),
   'utf8'
 );
+const filterDrawerSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml'),
+  'utf8'
+);
+const activeFilterSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml'),
+  'utf8'
+);
+const pageSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+  'utf8'
+);
+const selectListsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs'),
+  'utf8'
+);
 
 test('IPR drawer uses a container-aware two-column form instead of Bootstrap viewport columns', () => {
   assert.match(cssSource, /\.ipr-form-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
@@ -74,9 +90,29 @@ test('IPR attachment upload communicates PDF policy and prevents duplicate submi
   assert.match(source, /Uploading…/);
 });
 
-test('IPR filter selects auto-submit while retaining an accessible hidden submit control', () => {
-  assert.match(source, /\[data-ipr-auto-submit\]/);
-  assert.match(source, /form\.requestSubmit\(\)/);
+test('IPR records keep explicit search while structured filters use a header drawer', () => {
+  assert.match(pageSource, /data-bs-target="#iprFilterOffcanvas"/);
+  assert.match(pageSource, /ipr-record-search-button/);
+  assert.match(filterDrawerSource, /data-ipr-filter-form/);
+  assert.match(filterDrawerSource, /Apply filters/);
+  assert.doesNotMatch(source, /initialiseAutoSubmitFilters/);
+});
+
+test('IPR filter drawer supports filed and grant-registration year bases', () => {
+  assert.match(filterDrawerSource, /asp-for="DateBasis"/);
+  assert.match(selectListsSource, /Grant \/ registration year/);
+  assert.match(filterDrawerSource, /data-has-filed/);
+  assert.match(filterDrawerSource, /data-has-protected/);
+  assert.match(source, /syncDateYears/);
+  assert.match(source, /patent grant or copyright registration date/);
+});
+
+test('IPR active scope is removable and visible across module views', () => {
+  assert.match(pageSource, /_ActiveFilterChips/);
+  assert.match(activeFilterSource, /BuildRemoveFilterRoute/);
+  assert.match(activeFilterSource, /BuildClearFiltersRoute/);
+  assert.match(pageSource, /Analytics scope:/);
+  assert.match(pageSource, /ipr-followup-filters/);
 });
 
 

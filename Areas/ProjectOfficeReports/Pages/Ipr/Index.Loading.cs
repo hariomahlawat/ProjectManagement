@@ -101,28 +101,23 @@ public sealed partial class IndexModel
             _ => string.Empty
         };
 
-    private IReadOnlyList<string> BuildActiveFilterChips()
+    private IReadOnlyList<ActiveFilterChip> BuildActiveFilterChips()
     {
-        if (!HasAnyFilter)
-        {
-            return Array.Empty<string>();
-        }
-
-        var chips = new List<string>();
+        var chips = new List<ActiveFilterChip>();
 
         if (!string.IsNullOrWhiteSpace(Query))
         {
-            chips.Add($"Search: \"{Query}\"");
+            chips.Add(new ActiveFilterChip("query", $"Search: “{Query}”"));
         }
 
         foreach (var type in Types)
         {
-            chips.Add($"Type: {GetTypeLabel(type)}");
+            chips.Add(new ActiveFilterChip("type", GetTypeLabel(type), type.ToString()));
         }
 
         foreach (var status in Statuses)
         {
-            chips.Add($"Status: {GetStatusLabel(status)}");
+            chips.Add(new ActiveFilterChip("status", GetStatusLabel(status), status.ToString()));
         }
 
         if (ProjectId.HasValue)
@@ -131,13 +126,30 @@ public sealed partial class IndexModel
             var projectLabel = ProjectOptions.FirstOrDefault(option => option.Value == projectValue)?.Text;
             if (!string.IsNullOrWhiteSpace(projectLabel) && !string.Equals(projectLabel, "All projects", StringComparison.Ordinal))
             {
-                chips.Add($"Project: {projectLabel}");
+                chips.Add(new ActiveFilterChip("project", projectLabel));
             }
         }
 
         if (Year.HasValue)
         {
-            chips.Add($"Filed year: {Year.Value.ToString(CultureInfo.InvariantCulture)}");
+            var basis = DateBasis == IprDateBasis.Protected
+                ? "Grant / registration year"
+                : "Filed year";
+            chips.Add(new ActiveFilterChip("year", $"{basis}: {Year.Value.ToString(CultureInfo.InvariantCulture)}"));
+        }
+
+        if (Linkage != IprLinkageFilter.All)
+        {
+            chips.Add(new ActiveFilterChip(
+                "linkage",
+                Linkage == IprLinkageFilter.Linked ? "Linked to a project" : "Unassigned"));
+        }
+
+        if (Evidence != IprEvidenceFilter.All)
+        {
+            chips.Add(new ActiveFilterChip(
+                "evidence",
+                Evidence == IprEvidenceFilter.Available ? "Evidence available" : "Evidence missing"));
         }
 
         return chips;
@@ -396,12 +408,14 @@ public sealed partial class IndexModel
                 ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
                 : (int?)null;
             var reasons = new List<string>();
+            var issueKeys = new List<string>();
             var category = string.Empty;
             var severity = "info";
 
             if (item.Status == IprStatus.Filed && filedOn.HasValue && filedOn.Value.Date <= longPendingCutoff)
             {
                 reasons.Add($"Pending for {FormatAge(waitingDays ?? 0)}");
+                issueKeys.Add("overdue");
                 category = "overdue";
                 severity = "critical";
             }
@@ -411,6 +425,7 @@ public sealed partial class IndexModel
                 reasons.Add(item.Type == IprType.Copyright
                     ? "Copyright is marked registered but has no registration date"
                     : "Patent is marked granted but has no grant date");
+                issueKeys.Add("data");
                 category = "data";
                 severity = "critical";
             }
@@ -418,6 +433,7 @@ public sealed partial class IndexModel
             if (string.IsNullOrWhiteSpace(item.IprFilingNumber))
             {
                 reasons.Add("Filing number is missing");
+                issueKeys.Add("data");
                 category = string.IsNullOrEmpty(category) ? "data" : category;
                 severity = severity == "critical" ? severity : "warning";
             }
@@ -425,6 +441,7 @@ public sealed partial class IndexModel
             if (!filedOn.HasValue)
             {
                 reasons.Add("Filing date is missing");
+                issueKeys.Add("data");
                 category = string.IsNullOrEmpty(category) ? "data" : category;
                 severity = severity == "critical" ? severity : "warning";
             }
@@ -432,6 +449,7 @@ public sealed partial class IndexModel
             if (!item.ProjectId.HasValue)
             {
                 reasons.Add("No project is linked");
+                issueKeys.Add("linkage");
                 category = string.IsNullOrEmpty(category) ? "linkage" : category;
                 severity = severity == "critical" ? severity : "warning";
             }
@@ -439,6 +457,7 @@ public sealed partial class IndexModel
             if (item.AttachmentCount == 0)
             {
                 reasons.Add("No supporting attachment is available");
+                issueKeys.Add("evidence");
                 category = string.IsNullOrEmpty(category) ? "evidence" : category;
                 severity = severity == "critical" ? severity : "warning";
             }
@@ -458,38 +477,32 @@ public sealed partial class IndexModel
                 filedOn,
                 waitingDays,
                 item.AttachmentCount,
-                reasons));
+                reasons,
+                issueKeys.Distinct(StringComparer.Ordinal).ToList()));
         }
 
-        AttentionGroups = new[]
+        var groupDefinitions = new[]
         {
-            CreateAttentionGroup(
-                "overdue",
-                "Long-pending filings",
-                $"Pending for more than {LongPendingYears} years.",
-                "critical",
-                attentionItems),
-            CreateAttentionGroup(
-                "data",
-                "Data inconsistencies",
-                "Status or mandatory filing information requires correction.",
-                "critical",
-                attentionItems),
-            CreateAttentionGroup(
-                "linkage",
-                "Project linkage",
-                "Records not yet connected to a project.",
-                "warning",
-                attentionItems),
-            CreateAttentionGroup(
-                "evidence",
-                "Supporting evidence",
-                "Records without an uploaded filing or protection document.",
-                "warning",
-                attentionItems)
-        }
-        .Where(group => group.Items.Count > 0)
-        .ToList();
+            (Key: "overdue", Title: "Long-pending filings", Description: $"Pending for more than {LongPendingYears} years.", Tone: "critical"),
+            (Key: "data", Title: "Data inconsistencies", Description: "Status or mandatory filing information requires correction.", Tone: "critical"),
+            (Key: "linkage", Title: "Project linkage", Description: "Records not yet connected to a project.", Tone: "warning"),
+            (Key: "evidence", Title: "Supporting evidence", Description: "Records without an uploaded filing or protection document.", Tone: "warning")
+        };
+
+        AttentionGroups = groupDefinitions
+            .Where(definition => string.IsNullOrWhiteSpace(AttentionIssue)
+                || string.Equals(definition.Key, AttentionIssue, StringComparison.Ordinal))
+            .Select(definition => CreateAttentionGroup(
+                definition.Key,
+                definition.Title,
+                definition.Description,
+                definition.Tone,
+                attentionItems,
+                includeAnyDetectedIssue: !string.IsNullOrWhiteSpace(AttentionIssue)))
+            .Where(group => group.Items.Count > 0)
+            .ToList();
+
+        VisibleAttentionRecordCount = AttentionGroups.Sum(group => group.Items.Count);
     }
 
     private static AttentionGroup CreateAttentionGroup(
@@ -497,7 +510,8 @@ public sealed partial class IndexModel
         string title,
         string description,
         string tone,
-        IEnumerable<AttentionItem> items)
+        IEnumerable<AttentionItem> items,
+        bool includeAnyDetectedIssue = false)
     {
         return new AttentionGroup(
             key,
@@ -505,7 +519,9 @@ public sealed partial class IndexModel
             description,
             tone,
             items
-                .Where(item => string.Equals(item.Category, key, StringComparison.Ordinal))
+                .Where(item => includeAnyDetectedIssue
+                    ? item.IssueKeys.Contains(key, StringComparer.Ordinal)
+                    : string.Equals(item.Category, key, StringComparison.Ordinal))
                 .OrderByDescending(item => item.WaitingDays ?? -1)
                 .ThenBy(item => item.Title)
                 .ToList());
@@ -627,14 +643,10 @@ public sealed partial class IndexModel
     }
 
     private IQueryable<IprRecord> BuildPublicRegisterQuery()
-    {
-        return _db.IprRecords
-            .AsNoTracking()
-            .Where(record =>
-                record.Status == IprStatus.FilingUnderProcess ||
-                record.Status == IprStatus.Filed ||
-                record.Status == IprStatus.Granted);
-    }
+        => IprQueryFilter.Apply(
+            _db.IprRecords.AsNoTracking(),
+            BuildFilter(includeQuery: false),
+            includeSearch: false);
 
     private async Task<IprRecord?> LoadRecordAsync(int id, CancellationToken cancellationToken, bool overwriteInput)
     {

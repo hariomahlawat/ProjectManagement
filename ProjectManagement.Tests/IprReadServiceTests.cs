@@ -368,6 +368,119 @@ public sealed class IprReadServiceTests
         Assert.Null(pageNumber);
     }
 
+    [Fact]
+    public async Task SearchAsync_FiltersByGrantOrRegistrationYear()
+    {
+        await using var db = CreateDbContext();
+
+        db.IprRecords.AddRange(
+            new IprRecord
+            {
+                IprFilingNumber = "IPR-601",
+                Title = "Protected in 2025",
+                Type = IprType.Patent,
+                Status = IprStatus.Granted,
+                FiledAtUtc = new DateTimeOffset(2023, 4, 1, 0, 0, 0, TimeSpan.Zero),
+                GrantedAtUtc = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "IPR-602",
+                Title = "Protected in 2024",
+                Type = IprType.Copyright,
+                Status = IprStatus.Granted,
+                FiledAtUtc = new DateTimeOffset(2025, 1, 10, 0, 0, 0, TimeSpan.Zero),
+                GrantedAtUtc = new DateTimeOffset(2024, 12, 20, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "IPR-603",
+                Title = "Still pending",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2025, 2, 2, 0, 0, 0, TimeSpan.Zero)
+            });
+        await db.SaveChangesAsync();
+
+        var filter = new IprFilter
+        {
+            DateBasis = IprDateBasis.Protected,
+            Year = 2025
+        };
+
+        var result = await new IprReadService(db).SearchAsync(filter);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("IPR-601", item.FilingNumber);
+    }
+
+    [Fact]
+    public async Task SearchAsync_FiltersByProjectLinkageAndEvidenceState()
+    {
+        await using var db = CreateDbContext();
+
+        var project = new Project { Name = "Linked project", CreatedByUserId = "owner" };
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        var linkedWithEvidence = new IprRecord
+        {
+            IprFilingNumber = "IPR-701",
+            Type = IprType.Patent,
+            Status = IprStatus.Filed,
+            ProjectId = project.Id,
+            Attachments = new List<IprAttachment>
+            {
+                new()
+                {
+                    StorageKey = "evidence-701",
+                    OriginalFileName = "evidence.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 128,
+                    UploadedByUserId = "owner"
+                }
+            }
+        };
+        var unassignedWithoutEvidence = new IprRecord
+        {
+            IprFilingNumber = "IPR-702",
+            Type = IprType.Copyright,
+            Status = IprStatus.Filed
+        };
+        var unassignedWithArchivedEvidence = new IprRecord
+        {
+            IprFilingNumber = "IPR-703",
+            Type = IprType.Patent,
+            Status = IprStatus.Filed,
+            Attachments = new List<IprAttachment>
+            {
+                new()
+                {
+                    StorageKey = "archived-703",
+                    OriginalFileName = "archived.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 128,
+                    UploadedByUserId = "owner",
+                    IsArchived = true
+                }
+            }
+        };
+
+        db.IprRecords.AddRange(linkedWithEvidence, unassignedWithoutEvidence, unassignedWithArchivedEvidence);
+        await db.SaveChangesAsync();
+
+        var filter = new IprFilter
+        {
+            Linkage = IprLinkageFilter.Unassigned,
+            Evidence = IprEvidenceFilter.Missing
+        };
+
+        var result = await new IprReadService(db).SearchAsync(filter);
+
+        Assert.Equal(2, result.Total);
+        Assert.Equal(new[] { "IPR-702", "IPR-703" }, result.Items.Select(item => item.FilingNumber).OrderBy(value => value).ToArray());
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

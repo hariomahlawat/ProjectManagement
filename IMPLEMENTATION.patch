@@ -1,1284 +1,1970 @@
-diff --git a/Application/Ipr/IIprReadService.cs b/Application/Ipr/IIprReadService.cs
-index f3a9f295ff08f9958e36d6ec2a872d5bda92ee7e..5145d930423cc5876e4181e67c25a9284c1830cd 100644
---- a/Application/Ipr/IIprReadService.cs
-+++ b/Application/Ipr/IIprReadService.cs
-@@ -9,6 +9,11 @@ public interface IIprReadService
+diff --git a/Application/Ipr/IprFilter.cs b/Application/Ipr/IprFilter.cs
+index 589d894b79eea4066e40c7bb2973e221d591ea99..30ef439233e6420d7bb81577409f61cd519e582f 100644
+--- a/Application/Ipr/IprFilter.cs
++++ b/Application/Ipr/IprFilter.cs
+@@ -4,6 +4,26 @@ using ProjectManagement.Infrastructure.Data;
+ 
+ namespace ProjectManagement.Application.Ipr;
+ 
++public enum IprDateBasis
++{
++    Filed = 0,
++    Protected = 1
++}
++
++public enum IprLinkageFilter
++{
++    All = 0,
++    Linked = 1,
++    Unassigned = 2
++}
++
++public enum IprEvidenceFilter
++{
++    All = 0,
++    Available = 1,
++    Missing = 2
++}
++
+ public sealed class IprFilter
  {
-     Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default);
+     private const int DefaultPageSize = 15;
+@@ -20,10 +40,23 @@ public sealed class IprFilter
  
-+    Task<int?> GetPageNumberForRecordAsync(
-+        IprFilter filter,
-+        int recordId,
-+        CancellationToken cancellationToken = default);
+     public int? ProjectId { get; set; }
+ 
++    public IprDateBasis DateBasis { get; set; } = IprDateBasis.Filed;
 +
-     Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default);
++    public int? Year { get; set; }
++
++    public IprLinkageFilter Linkage { get; set; } = IprLinkageFilter.All;
++
++    public IprEvidenceFilter Evidence { get; set; } = IprEvidenceFilter.All;
++
++    // Retained for compatibility with existing callers and tests that use explicit ranges.
+     public DateOnly? FiledFrom { get; set; }
  
-     Task<IprKpis> GetKpisAsync(IprFilter filter, CancellationToken cancellationToken = default);
-diff --git a/Application/Ipr/IprReadService.cs b/Application/Ipr/IprReadService.cs
-index b0ca688e7160b88f7941687d3938502ae2f16310..2db9f0b950bd0b5f98ee75d02c2d845c66f62985 100644
---- a/Application/Ipr/IprReadService.cs
-+++ b/Application/Ipr/IprReadService.cs
-@@ -27,10 +27,10 @@ public sealed class IprReadService : IIprReadService
+     public DateOnly? FiledTo { get; set; }
  
-         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
-         var total = await query.CountAsync(cancellationToken);
-+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
-+        page = Math.Clamp(page, 1, totalPages);
- 
--        var queryResults = await query
--            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
--            .ThenBy(x => x.Id)
-+        var queryResults = await ApplyRegisterOrdering(query)
-             .Skip((page - 1) * pageSize)
-             .Take(pageSize)
-             .Select(x => new
-@@ -90,6 +90,40 @@ public sealed class IprReadService : IIprReadService
-         return new PagedResult<IprListRowDto>(items, total, page, pageSize);
-     }
- 
-+    public async Task<int?> GetPageNumberForRecordAsync(
++    public DateOnly? ProtectedFrom { get; set; }
++
++    public DateOnly? ProtectedTo { get; set; }
++
+     public int Page
+     {
+         get => _page;
+diff --git a/Application/Ipr/IprQueryFilter.cs b/Application/Ipr/IprQueryFilter.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9b5e0b1dbf44de90dcd0e6fb645c193a8cadd0c7
+--- /dev/null
++++ b/Application/Ipr/IprQueryFilter.cs
+@@ -0,0 +1,130 @@
++using System;
++using System.Linq;
++using ProjectManagement.Infrastructure.Data;
++
++namespace ProjectManagement.Application.Ipr;
++
++public static class IprQueryFilter
++{
++    public static IQueryable<IprRecord> Apply(
++        IQueryable<IprRecord> query,
 +        IprFilter filter,
-+        int recordId,
-+        CancellationToken cancellationToken = default)
++        bool includeSearch = true,
++        bool includeStatus = true)
 +    {
++        ArgumentNullException.ThrowIfNull(query);
 +        ArgumentNullException.ThrowIfNull(filter);
-+        if (recordId <= 0)
++
++        query = query.Where(record =>
++            record.Status == IprStatus.FilingUnderProcess ||
++            record.Status == IprStatus.Filed ||
++            record.Status == IprStatus.Granted);
++
++        if (includeSearch && !string.IsNullOrWhiteSpace(filter.Query))
 +        {
-+            return null;
++            var term = filter.Query.Trim().ToLowerInvariant();
++            query = query.Where(record =>
++                (!string.IsNullOrEmpty(record.IprFilingNumber) && record.IprFilingNumber.ToLower().Contains(term)) ||
++                (!string.IsNullOrEmpty(record.Title) && record.Title!.ToLower().Contains(term)) ||
++                (record.Project != null && record.Project.Name.ToLower().Contains(term)));
 +        }
 +
-+        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
-+        var target = await query
-+            .Where(record => record.Id == recordId)
-+            .Select(record => new
++        if (filter.Types is { Count: > 0 })
++        {
++            query = query.Where(record => filter.Types!.Contains(record.Type));
++        }
++
++        if (includeStatus && filter.Statuses is { Count: > 0 })
++        {
++            var wantsPending = filter.Statuses.Contains(IprStatus.Filed);
++            var wantsProtected = filter.Statuses.Contains(IprStatus.Granted);
++            query = query.Where(record =>
++                (wantsPending && (record.Status == IprStatus.FilingUnderProcess || record.Status == IprStatus.Filed)) ||
++                (wantsProtected && record.Status == IprStatus.Granted));
++        }
++
++        if (filter.ProjectId.HasValue)
++        {
++            query = query.Where(record => record.ProjectId == filter.ProjectId.Value);
++        }
++        else
++        {
++            query = filter.Linkage switch
 +            {
-+                record.Id,
-+                SortDate = record.FiledAtUtc ?? DateTimeOffset.MinValue
-+            })
-+            .SingleOrDefaultAsync(cancellationToken);
-+
-+        if (target is null)
-+        {
-+            return null;
++                IprLinkageFilter.Linked => query.Where(record => record.ProjectId.HasValue),
++                IprLinkageFilter.Unassigned => query.Where(record => !record.ProjectId.HasValue),
++                _ => query
++            };
 +        }
 +
-+        var precedingCount = await query.CountAsync(record =>
-+            (record.FiledAtUtc ?? DateTimeOffset.MinValue) > target.SortDate ||
-+            ((record.FiledAtUtc ?? DateTimeOffset.MinValue) == target.SortDate && record.Id < target.Id),
-+            cancellationToken);
++        query = filter.Evidence switch
++        {
++            IprEvidenceFilter.Available => query.Where(record => record.Attachments.Any(attachment => !attachment.IsArchived)),
++            IprEvidenceFilter.Missing => query.Where(record => !record.Attachments.Any(attachment => !attachment.IsArchived)),
++            _ => query
++        };
 +
-+        return (precedingCount / filter.PageSize) + 1;
++        if (filter.Year.HasValue)
++        {
++            var from = new DateOnly(filter.Year.Value, 1, 1);
++            var to = new DateOnly(filter.Year.Value, 12, 31);
++            if (filter.DateBasis == IprDateBasis.Protected)
++            {
++                query = ApplyProtectedRange(query, from, to);
++            }
++            else
++            {
++                query = ApplyFiledRange(query, from, to);
++            }
++        }
++
++        query = ApplyFiledRange(query, filter.FiledFrom, filter.FiledTo);
++        query = ApplyProtectedRange(query, filter.ProtectedFrom, filter.ProtectedTo);
++        return query;
 +    }
 +
-     public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
-     {
-         return _db.IprRecords
-@@ -126,9 +160,7 @@ public sealed class IprReadService : IIprReadService
- 
-         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
- 
--        var items = await query
--            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
--            .ThenBy(x => x.Id)
-+        var items = await ApplyRegisterOrdering(query)
-             .Select(x => new IprExportRowDto(
-                 x.IprFilingNumber,
-                 x.Title,
-@@ -159,6 +191,11 @@ public sealed class IprReadService : IIprReadService
-         return fallback;
-     }
- 
-+    private static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)
++    public static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)
 +        => query
 +            .OrderByDescending(record => record.FiledAtUtc ?? DateTimeOffset.MinValue)
 +            .ThenBy(record => record.Id);
 +
-     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
-     {
-         // The public register contains only filed and granted IPRs. Legacy
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
-index 4c6ad93778e3377243c4aa9df02336faf2472eca..3be717339013af9627aef91653b8a7aeaf7b7f71 100644
---- a/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
-@@ -12,6 +12,7 @@ using Microsoft.Net.Http.Headers;
- using ProjectManagement.Application.Ipr;
- using ProjectManagement.Configuration;
- using ProjectManagement.Data;
-+using ProjectManagement.Infrastructure.Data;
- 
- namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
- 
-@@ -47,7 +48,10 @@ public sealed class DownloadModel : PageModel
-             .FirstOrDefaultAsync(
-                 x => x.IprRecordId == iprRecordId &&
-                      x.Id == attachmentId &&
--                     !x.IsArchived,
-+                     !x.IsArchived &&
-+                     (x.Record.Status == IprStatus.FilingUnderProcess ||
-+                      x.Record.Status == IprStatus.Filed ||
-+                      x.Record.Status == IprStatus.Granted),
-                 cancellationToken);
- 
-         if (attachment is null || string.IsNullOrWhiteSpace(attachment.StorageKey))
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
-index c0d038f05c3d2785a67a68529568e5da1e1adac3..a8a2e6ae1e0730685a972de9aa50b6ae5b62b78a 100644
---- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
-@@ -14,6 +14,7 @@ public sealed partial class IndexModel
-         if (UploadInput.RecordId.HasValue)
-         {
-             Id = UploadInput.RecordId;
-+            SelectedRecordId = UploadInput.RecordId;
-         }
- 
-         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-@@ -58,7 +59,7 @@ public sealed partial class IndexModel
-                 cancellationToken);
- 
-             TempData["ToastMessage"] = "Attachment uploaded.";
--            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = UploadInput.RecordId.Value }, includePage: true, includeModeAndId: false));
-+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = UploadInput.RecordId.Value, mode = "edit", id = UploadInput.RecordId.Value }, includePage: true, includeModeAndId: false));
-         }
-         catch (InvalidOperationException ex)
-         {
-@@ -74,6 +75,7 @@ public sealed partial class IndexModel
-         if (RemoveAttachment.RecordId.HasValue)
-         {
-             Id = RemoveAttachment.RecordId;
-+            SelectedRecordId = RemoveAttachment.RecordId;
-         }
- 
-         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-@@ -95,7 +97,7 @@ public sealed partial class IndexModel
-         if (rowVersion is null)
-         {
-             TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
--            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
-+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
-         }
- 
-         try
-@@ -115,7 +117,7 @@ public sealed partial class IndexModel
-             TempData["ToastError"] = ex.Message;
-         }
- 
--        return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
-+        return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = RemoveAttachment.RecordId.Value, mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
-     }
- 
- 
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
-index 61a0ae51efcc11ce606555639e57ef02a0607cef..7a1debf1c574e137f68b66374d8bb4cbd5a10aba 100644
---- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
-@@ -160,6 +160,7 @@ public sealed partial class IndexModel
-                 await LoadAnalyticsAsync(cancellationToken);
-                 break;
-             default:
-+                await ResolveSelectedRecordPageAsync(cancellationToken);
-                 await LoadRecordsAsync(cancellationToken);
-                 break;
-         }
-@@ -192,6 +193,27 @@ public sealed partial class IndexModel
-         ActiveFilterChips = BuildActiveFilterChips();
-     }
- 
-+    private async Task ResolveSelectedRecordPageAsync(CancellationToken cancellationToken)
++    private static IQueryable<IprRecord> ApplyFiledRange(
++        IQueryable<IprRecord> query,
++        DateOnly? from,
++        DateOnly? to)
 +    {
-+        if (!SelectedRecordId.HasValue)
++        if (from.HasValue)
 +        {
-+            return;
++            var value = new DateTimeOffset(from.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
++            query = query.Where(record => record.FiledAtUtc >= value);
 +        }
 +
-+        var resolvedPageNumber = await _readService.GetPageNumberForRecordAsync(
-+            BuildFilter(),
-+            SelectedRecordId.Value,
-+            cancellationToken);
-+
-+        if (resolvedPageNumber.HasValue)
++        if (to.HasValue)
 +        {
-+            PageNumber = resolvedPageNumber.Value;
-+            return;
++            var value = new DateTimeOffset(to.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
++            query = query.Where(record => record.FiledAtUtc <= value);
 +        }
 +
-+        SelectedRecordId = null;
++        return query;
 +    }
 +
-     private async Task LoadRecordsAsync(CancellationToken cancellationToken)
++    private static IQueryable<IprRecord> ApplyProtectedRange(
++        IQueryable<IprRecord> query,
++        DateOnly? from,
++        DateOnly? to)
++    {
++        if (from.HasValue)
++        {
++            var value = new DateTimeOffset(from.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
++            query = query.Where(record => record.GrantedAtUtc >= value);
++        }
++
++        if (to.HasValue)
++        {
++            var value = new DateTimeOffset(to.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
++            query = query.Where(record => record.GrantedAtUtc <= value);
++        }
++
++        return query;
++    }
++}
+diff --git a/Application/Ipr/IprReadService.cs b/Application/Ipr/IprReadService.cs
+index 2db9f0b950bd0b5f98ee75d02c2d845c66f62985..c1a1e4574e3cfdc479e5410e879fd544e0e51528 100644
+--- a/Application/Ipr/IprReadService.cs
++++ b/Application/Ipr/IprReadService.cs
+@@ -25,12 +25,12 @@ public sealed class IprReadService : IIprReadService
+         var page = filter.Page;
+         var pageSize = filter.PageSize;
+ 
+-        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
++        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
+         var total = await query.CountAsync(cancellationToken);
+         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+         page = Math.Clamp(page, 1, totalPages);
+ 
+-        var queryResults = await ApplyRegisterOrdering(query)
++        var queryResults = await IprQueryFilter.ApplyRegisterOrdering(query)
+             .Skip((page - 1) * pageSize)
+             .Take(pageSize)
+             .Select(x => new
+@@ -101,7 +101,7 @@ public sealed class IprReadService : IIprReadService
+             return null;
+         }
+ 
+-        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
++        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
+         var target = await query
+             .Where(record => record.Id == recordId)
+             .Select(record => new
+@@ -140,7 +140,7 @@ public sealed class IprReadService : IIprReadService
      {
-         var result = await _readService.SearchAsync(BuildFilter(), cancellationToken);
-@@ -199,9 +221,20 @@ public sealed partial class IndexModel
-         TotalCount = result.Total;
-         PageNumber = result.Page;
-         PageSize = result.PageSize;
--        TotalPages = PageSize > 0
--            ? (int)Math.Ceiling(result.Total / (double)PageSize)
--            : 0;
-+        TotalPages = result.Total == 0 || PageSize <= 0
-+            ? 0
-+            : (int)Math.Ceiling(result.Total / (double)PageSize);
-+
-+        if (Records.Count == 0)
-+        {
-+            SelectedRecordId = null;
-+            return;
-+        }
-+
-+        if (!SelectedRecordId.HasValue || Records.All(record => record.Id != SelectedRecordId.Value))
-+        {
-+            SelectedRecordId = Records[0].Id;
-+        }
+         ArgumentNullException.ThrowIfNull(filter);
+ 
+-        var baseQuery = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
++        var baseQuery = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
+         var groups = await baseQuery
+             .GroupBy(x => x.Status)
+             .Select(g => new { Status = g.Key, Count = g.Count() })
+@@ -158,9 +158,9 @@ public sealed class IprReadService : IIprReadService
+     {
+         ArgumentNullException.ThrowIfNull(filter);
+ 
+-        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
++        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
+ 
+-        var items = await ApplyRegisterOrdering(query)
++        var items = await IprQueryFilter.ApplyRegisterOrdering(query)
+             .Select(x => new IprExportRowDto(
+                 x.IprFilingNumber,
+                 x.Title,
+@@ -190,64 +190,4 @@ public sealed class IprReadService : IIprReadService
+ 
+         return fallback;
      }
+-
+-    private static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)
+-        => query
+-            .OrderByDescending(record => record.FiledAtUtc ?? DateTimeOffset.MinValue)
+-            .ThenBy(record => record.Id);
+-
+-    private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
+-    {
+-        // The public register contains only filed and granted IPRs. Legacy
+-        // FilingUnderProcess values are treated as Filed until data migration.
+-        query = query.Where(x => x.Status == IprStatus.FilingUnderProcess ||
+-                                 x.Status == IprStatus.Filed ||
+-                                 x.Status == IprStatus.Granted);
+-
+-        // --- Search filtering: provider-agnostic contains ---
+-        if (!string.IsNullOrWhiteSpace(filter.Query))
+-        {
+-            var trimmed = filter.Query.Trim().ToLowerInvariant();
+-
+-            query = query.Where(x =>
+-                (!string.IsNullOrEmpty(x.IprFilingNumber) && x.IprFilingNumber.ToLower().Contains(trimmed)) ||
+-                (!string.IsNullOrEmpty(x.Title) && x.Title!.ToLower().Contains(trimmed)) ||
+-                (x.Project != null && x.Project.Name.ToLower().Contains(trimmed)));
+-        }
+-
+-        if (filter.Types is { Count: > 0 })
+-        {
+-            query = query.Where(x => filter.Types!.Contains(x.Type));
+-        }
+-
+-        if (includeStatusFilter && filter.Statuses is { Count: > 0 })
+-        {
+-            var wantsFiled = filter.Statuses.Contains(IprStatus.Filed);
+-            var wantsGranted = filter.Statuses.Contains(IprStatus.Granted);
+-            query = query.Where(x =>
+-                (wantsFiled && (x.Status == IprStatus.FilingUnderProcess || x.Status == IprStatus.Filed)) ||
+-                (wantsGranted && x.Status == IprStatus.Granted));
+-        }
+-
+-        if (filter.ProjectId.HasValue)
+-        {
+-            query = query.Where(x => x.ProjectId == filter.ProjectId);
+-        }
+-
+-        if (filter.FiledFrom.HasValue)
+-        {
+-            var from = filter.FiledFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+-            var fromOffset = new DateTimeOffset(from);
+-            query = query.Where(x => x.FiledAtUtc >= fromOffset);
+-        }
+-
+-        if (filter.FiledTo.HasValue)
+-        {
+-            var to = filter.FiledTo.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+-            var toOffset = new DateTimeOffset(to);
+-            query = query.Where(x => x.FiledAtUtc <= toOffset);
+-        }
+-
+-        return query;
+-    }
+ }
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
+index 7a1debf1c574e137f68b66374d8bb4cbd5a10aba..57bc3703637cdcbb8c288b16a73185fa729d209e 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
+@@ -101,28 +101,23 @@ public sealed partial class IndexModel
+             _ => string.Empty
+         };
  
-     private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
-index d9a76f1c5c1d30ff1b24ec50a2ed2e43923bdc73..c6f157dc922c666a7d7ee23f8d3e62e6b31ed0cb 100644
---- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
-@@ -66,7 +66,7 @@ public sealed partial class IndexModel
-             var entity = ToEntity(Input);
-             var created = await _writeService.CreateAsync(entity, cancellationToken);
-             TempData["ToastMessage"] = "IPR record created.";
--            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
-+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = created.Id, mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
-         }
-         catch (IprValidationException ex)
+-    private IReadOnlyList<string> BuildActiveFilterChips()
++    private IReadOnlyList<ActiveFilterChip> BuildActiveFilterChips()
+     {
+-        if (!HasAnyFilter)
+-        {
+-            return Array.Empty<string>();
+-        }
+-
+-        var chips = new List<string>();
++        var chips = new List<ActiveFilterChip>();
+ 
+         if (!string.IsNullOrWhiteSpace(Query))
          {
-@@ -88,6 +88,7 @@ public sealed partial class IndexModel
-         if (Input.Id.HasValue)
-         {
-             Id = Input.Id;
-+            SelectedRecordId = Input.Id;
+-            chips.Add($"Search: \"{Query}\"");
++            chips.Add(new ActiveFilterChip("query", $"Search: “{Query}”"));
          }
  
-         var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-@@ -134,7 +135,7 @@ public sealed partial class IndexModel
+         foreach (var type in Types)
+         {
+-            chips.Add($"Type: {GetTypeLabel(type)}");
++            chips.Add(new ActiveFilterChip("type", GetTypeLabel(type), type.ToString()));
+         }
+ 
+         foreach (var status in Statuses)
+         {
+-            chips.Add($"Status: {GetStatusLabel(status)}");
++            chips.Add(new ActiveFilterChip("status", GetStatusLabel(status), status.ToString()));
+         }
+ 
+         if (ProjectId.HasValue)
+@@ -131,13 +126,30 @@ public sealed partial class IndexModel
+             var projectLabel = ProjectOptions.FirstOrDefault(option => option.Value == projectValue)?.Text;
+             if (!string.IsNullOrWhiteSpace(projectLabel) && !string.Equals(projectLabel, "All projects", StringComparison.Ordinal))
+             {
+-                chips.Add($"Project: {projectLabel}");
++                chips.Add(new ActiveFilterChip("project", projectLabel));
              }
- 
-             TempData["ToastMessage"] = "IPR record updated.";
--            return RedirectToPage("./Index", GetRouteValues(new { mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
-+            return RedirectToPage("./Index", GetRouteValues(new { selectedRecordId = updated.Id, mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
          }
-         catch (IprValidationException ex)
+ 
+         if (Year.HasValue)
          {
-@@ -186,6 +187,7 @@ public sealed partial class IndexModel
+-            chips.Add($"Filed year: {Year.Value.ToString(CultureInfo.InvariantCulture)}");
++            var basis = DateBasis == IprDateBasis.Protected
++                ? "Grant / registration year"
++                : "Filed year";
++            chips.Add(new ActiveFilterChip("year", $"{basis}: {Year.Value.ToString(CultureInfo.InvariantCulture)}"));
++        }
++
++        if (Linkage != IprLinkageFilter.All)
++        {
++            chips.Add(new ActiveFilterChip(
++                "linkage",
++                Linkage == IprLinkageFilter.Linked ? "Linked to a project" : "Unassigned"));
++        }
++
++        if (Evidence != IprEvidenceFilter.All)
++        {
++            chips.Add(new ActiveFilterChip(
++                "evidence",
++                Evidence == IprEvidenceFilter.Available ? "Evidence available" : "Evidence missing"));
          }
  
-         Mode = null;
-+        SelectedRecordId = null;
-         Id = null;
-         return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: false));
+         return chips;
+@@ -396,12 +408,14 @@ public sealed partial class IndexModel
+                 ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
+                 : (int?)null;
+             var reasons = new List<string>();
++            var issueKeys = new List<string>();
+             var category = string.Empty;
+             var severity = "info";
+ 
+             if (item.Status == IprStatus.Filed && filedOn.HasValue && filedOn.Value.Date <= longPendingCutoff)
+             {
+                 reasons.Add($"Pending for {FormatAge(waitingDays ?? 0)}");
++                issueKeys.Add("overdue");
+                 category = "overdue";
+                 severity = "critical";
+             }
+@@ -411,6 +425,7 @@ public sealed partial class IndexModel
+                 reasons.Add(item.Type == IprType.Copyright
+                     ? "Copyright is marked registered but has no registration date"
+                     : "Patent is marked granted but has no grant date");
++                issueKeys.Add("data");
+                 category = "data";
+                 severity = "critical";
+             }
+@@ -418,6 +433,7 @@ public sealed partial class IndexModel
+             if (string.IsNullOrWhiteSpace(item.IprFilingNumber))
+             {
+                 reasons.Add("Filing number is missing");
++                issueKeys.Add("data");
+                 category = string.IsNullOrEmpty(category) ? "data" : category;
+                 severity = severity == "critical" ? severity : "warning";
+             }
+@@ -425,6 +441,7 @@ public sealed partial class IndexModel
+             if (!filedOn.HasValue)
+             {
+                 reasons.Add("Filing date is missing");
++                issueKeys.Add("data");
+                 category = string.IsNullOrEmpty(category) ? "data" : category;
+                 severity = severity == "critical" ? severity : "warning";
+             }
+@@ -432,6 +449,7 @@ public sealed partial class IndexModel
+             if (!item.ProjectId.HasValue)
+             {
+                 reasons.Add("No project is linked");
++                issueKeys.Add("linkage");
+                 category = string.IsNullOrEmpty(category) ? "linkage" : category;
+                 severity = severity == "critical" ? severity : "warning";
+             }
+@@ -439,6 +457,7 @@ public sealed partial class IndexModel
+             if (item.AttachmentCount == 0)
+             {
+                 reasons.Add("No supporting attachment is available");
++                issueKeys.Add("evidence");
+                 category = string.IsNullOrEmpty(category) ? "evidence" : category;
+                 severity = severity == "critical" ? severity : "warning";
+             }
+@@ -458,38 +477,32 @@ public sealed partial class IndexModel
+                 filedOn,
+                 waitingDays,
+                 item.AttachmentCount,
+-                reasons));
++                reasons,
++                issueKeys.Distinct(StringComparer.Ordinal).ToList()));
+         }
+ 
+-        AttentionGroups = new[]
++        var groupDefinitions = new[]
+         {
+-            CreateAttentionGroup(
+-                "overdue",
+-                "Long-pending filings",
+-                $"Pending for more than {LongPendingYears} years.",
+-                "critical",
+-                attentionItems),
+-            CreateAttentionGroup(
+-                "data",
+-                "Data inconsistencies",
+-                "Status or mandatory filing information requires correction.",
+-                "critical",
+-                attentionItems),
+-            CreateAttentionGroup(
+-                "linkage",
+-                "Project linkage",
+-                "Records not yet connected to a project.",
+-                "warning",
+-                attentionItems),
+-            CreateAttentionGroup(
+-                "evidence",
+-                "Supporting evidence",
+-                "Records without an uploaded filing or protection document.",
+-                "warning",
+-                attentionItems)
+-        }
+-        .Where(group => group.Items.Count > 0)
+-        .ToList();
++            (Key: "overdue", Title: "Long-pending filings", Description: $"Pending for more than {LongPendingYears} years.", Tone: "critical"),
++            (Key: "data", Title: "Data inconsistencies", Description: "Status or mandatory filing information requires correction.", Tone: "critical"),
++            (Key: "linkage", Title: "Project linkage", Description: "Records not yet connected to a project.", Tone: "warning"),
++            (Key: "evidence", Title: "Supporting evidence", Description: "Records without an uploaded filing or protection document.", Tone: "warning")
++        };
++
++        AttentionGroups = groupDefinitions
++            .Where(definition => string.IsNullOrWhiteSpace(AttentionIssue)
++                || string.Equals(definition.Key, AttentionIssue, StringComparison.Ordinal))
++            .Select(definition => CreateAttentionGroup(
++                definition.Key,
++                definition.Title,
++                definition.Description,
++                definition.Tone,
++                attentionItems,
++                includeAnyDetectedIssue: !string.IsNullOrWhiteSpace(AttentionIssue)))
++            .Where(group => group.Items.Count > 0)
++            .ToList();
++
++        VisibleAttentionRecordCount = AttentionGroups.Sum(group => group.Items.Count);
      }
+ 
+     private static AttentionGroup CreateAttentionGroup(
+@@ -497,7 +510,8 @@ public sealed partial class IndexModel
+         string title,
+         string description,
+         string tone,
+-        IEnumerable<AttentionItem> items)
++        IEnumerable<AttentionItem> items,
++        bool includeAnyDetectedIssue = false)
+     {
+         return new AttentionGroup(
+             key,
+@@ -505,7 +519,9 @@ public sealed partial class IndexModel
+             description,
+             tone,
+             items
+-                .Where(item => string.Equals(item.Category, key, StringComparison.Ordinal))
++                .Where(item => includeAnyDetectedIssue
++                    ? item.IssueKeys.Contains(key, StringComparer.Ordinal)
++                    : string.Equals(item.Category, key, StringComparison.Ordinal))
+                 .OrderByDescending(item => item.WaitingDays ?? -1)
+                 .ThenBy(item => item.Title)
+                 .ToList());
+@@ -627,14 +643,10 @@ public sealed partial class IndexModel
+     }
+ 
+     private IQueryable<IprRecord> BuildPublicRegisterQuery()
+-    {
+-        return _db.IprRecords
+-            .AsNoTracking()
+-            .Where(record =>
+-                record.Status == IprStatus.FilingUnderProcess ||
+-                record.Status == IprStatus.Filed ||
+-                record.Status == IprStatus.Granted);
+-    }
++        => IprQueryFilter.Apply(
++            _db.IprRecords.AsNoTracking(),
++            BuildFilter(includeQuery: false),
++            includeSearch: false);
+ 
+     private async Task<IprRecord?> LoadRecordAsync(int id, CancellationToken cancellationToken, bool overwriteInput)
+     {
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Models.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Models.cs
+index d3b316bd9117320311a45863f440d4e98fab65e4..78a57a422cd62515a0d8a36f444d66811fdb6c13 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.Models.cs
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.Models.cs
+@@ -10,6 +10,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
+ 
+ public sealed partial class IndexModel
+ {
++    public sealed record ActiveFilterChip(string Key, string Label, string? Value = null);
++
++    public sealed record IprYearOption(int Year, bool HasFiled, bool HasProtected)
++    {
++        public string Value => Year.ToString(System.Globalization.CultureInfo.InvariantCulture);
++        public string Label => Value;
++    }
++
+     public sealed class YearlyRow
+     {
+         public int Year { get; set; }
+@@ -96,7 +104,8 @@ public sealed partial class IndexModel
+         DateTime? FiledOn,
+         int? WaitingDays,
+         int AttachmentCount,
+-        IReadOnlyList<string> Reasons);
++        IReadOnlyList<string> Reasons,
++        IReadOnlyList<string> IssueKeys);
+ 
+     public sealed record AttentionGroup(
+         string Key,
 diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
-index e44b188c7f89d4d269272dfe3da6cdc26d2b8920..d6354a61fb156e6ac8852d77b05b6b06dabe42ee 100644
+index d6354a61fb156e6ac8852d77b05b6b06dabe42ee..32dd08a3c92e39fff90f2b7642582c824befdbff 100644
 --- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
 +++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
-@@ -160,6 +160,11 @@ public sealed partial class IndexModel
-             Year = null;
-         }
+@@ -76,13 +76,6 @@ public sealed partial class IndexModel
+                 GetProjectLifecycleLabel(project.LifecycleStatus, project.IsArchived)))
+             .ToList();
  
-+        if (SelectedRecordId.HasValue && SelectedRecordId.Value <= 0)
+-        var projectItems = ProjectPickerOptions
+-            .Select(project => new SelectListItem(project.Name, project.Id.ToString(CultureInfo.InvariantCulture))
+-            {
+-                Selected = ProjectId.HasValue && ProjectId.Value == project.Id
+-            })
+-            .ToList();
+-
+         var projectOptions = new List<SelectListItem>
+         {
+             new("All projects", string.Empty)
+@@ -90,15 +83,49 @@ public sealed partial class IndexModel
+                 Selected = !ProjectId.HasValue
+             }
+         };
+-        projectOptions.AddRange(projectItems);
++        projectOptions.AddRange(ProjectPickerOptions.Select(project =>
++            new SelectListItem(project.Name, project.Id.ToString(CultureInfo.InvariantCulture))
++            {
++                Selected = ProjectId.HasValue && ProjectId.Value == project.Id
++            }));
+         ProjectOptions = projectOptions;
+ 
+-        var years = await _db.IprRecords.AsNoTracking()
+-            .Where(r => r.FiledAtUtc != null)
+-            .Select(r => r.FiledAtUtc!.Value.Year)
++        DateBasisOptions = new[]
 +        {
++            new SelectListItem("Filed year", IprDateBasis.Filed.ToString())
++            {
++                Selected = DateBasis == IprDateBasis.Filed
++            },
++            new SelectListItem("Grant / registration year", IprDateBasis.Protected.ToString())
++            {
++                Selected = DateBasis == IprDateBasis.Protected
++            }
++        };
++
++        var dateYears = await _db.IprRecords
++            .AsNoTracking()
++            .Where(record =>
++                record.Status == IprStatus.FilingUnderProcess ||
++                record.Status == IprStatus.Filed ||
++                record.Status == IprStatus.Granted)
++            .Select(record => new
++            {
++                FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,
++                ProtectedYear = record.GrantedAtUtc.HasValue ? (int?)record.GrantedAtUtc.Value.Year : null
++            })
++            .ToListAsync(cancellationToken);
++
++        DateYearOptions = dateYears
++            .SelectMany(item => new[] { item.FiledYear, item.ProtectedYear })
++            .Where(year => year.HasValue)
++            .Select(year => year!.Value)
+             .Distinct()
+             .OrderByDescending(year => year)
+-            .ToListAsync(cancellationToken);
++            .Select(year => new IprYearOption(
++                year,
++                dateYears.Any(item => item.FiledYear == year),
++                dateYears.Any(item => item.ProtectedYear == year)))
++            .ToList();
+ 
+         var yearOptions = new List<SelectListItem>
+         {
+@@ -107,16 +134,27 @@ public sealed partial class IndexModel
+                 Selected = !Year.HasValue
+             }
+         };
++        yearOptions.AddRange(DateYearOptions
++            .Where(option => DateBasis == IprDateBasis.Protected ? option.HasProtected : option.HasFiled)
++            .Select(option => new SelectListItem(option.Label, option.Value)
++            {
++                Selected = Year.HasValue && Year.Value == option.Year
++            }));
++        YearOptions = yearOptions;
+ 
+-        foreach (var year in years)
++        LinkageOptions = new[]
+         {
+-            yearOptions.Add(new SelectListItem(year.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture))
+-            {
+-                Selected = Year.HasValue && Year.Value == year
+-            });
+-        }
++            new SelectListItem("All records", IprLinkageFilter.All.ToString()) { Selected = Linkage == IprLinkageFilter.All },
++            new SelectListItem("Linked to a project", IprLinkageFilter.Linked.ToString()) { Selected = Linkage == IprLinkageFilter.Linked },
++            new SelectListItem("Unassigned", IprLinkageFilter.Unassigned.ToString()) { Selected = Linkage == IprLinkageFilter.Unassigned }
++        };
+ 
+-        YearOptions = yearOptions;
++        EvidenceOptions = new[]
++        {
++            new SelectListItem("All evidence states", IprEvidenceFilter.All.ToString()) { Selected = Evidence == IprEvidenceFilter.All },
++            new SelectListItem("Evidence available", IprEvidenceFilter.Available.ToString()) { Selected = Evidence == IprEvidenceFilter.Available },
++            new SelectListItem("Evidence missing", IprEvidenceFilter.Missing.ToString()) { Selected = Evidence == IprEvidenceFilter.Missing }
++        };
+ 
+         PageSizeOptions = new List<SelectListItem>
+         {
+@@ -135,13 +173,32 @@ public sealed partial class IndexModel
+ 
+     private void NormalizeFilters()
+     {
+-        Types = Types.Distinct().ToList();
++        Types = Types
++            .Where(type => type is IprType.Patent or IprType.Copyright)
++            .Distinct()
++            .ToList();
++
+         Statuses = Statuses
+             .Select(status => status == IprStatus.FilingUnderProcess ? IprStatus.Filed : status)
+             .Where(status => status is IprStatus.Filed or IprStatus.Granted)
+             .Distinct()
+             .ToList();
+ 
++        if (!Enum.IsDefined(DateBasis))
++        {
++            DateBasis = IprDateBasis.Filed;
++        }
++
++        if (!Enum.IsDefined(Linkage))
++        {
++            Linkage = IprLinkageFilter.All;
++        }
++
++        if (!Enum.IsDefined(Evidence))
++        {
++            Evidence = IprEvidenceFilter.All;
++        }
++
+         Tab = Tab?.Trim().ToLowerInvariant() switch
+         {
+             "project" => "project",
+@@ -150,12 +207,37 @@ public sealed partial class IndexModel
+             _ => "records"
+         };
+ 
++        AttentionIssue = AttentionIssue?.Trim().ToLowerInvariant() switch
++        {
++            "overdue" => "overdue",
++            "data" => "data",
++            "linkage" => "linkage",
++            "evidence" => "evidence",
++            _ => null
++        };
++
++        if (!string.Equals(Tab, "records", StringComparison.Ordinal))
++        {
++            Query = null;
 +            SelectedRecordId = null;
 +        }
 +
-         if (Id.HasValue && Id.Value <= 0)
-         {
-             Id = null;
-@@ -180,6 +185,13 @@ public sealed partial class IndexModel
-         {
-             _mode = null;
-         }
-+
-+        if (string.Equals(_mode, "edit", StringComparison.OrdinalIgnoreCase) &&
-+            string.Equals(Tab, "records", StringComparison.Ordinal) &&
-+            Id.HasValue)
++        if (!string.Equals(Tab, "followup", StringComparison.Ordinal))
 +        {
-+            SelectedRecordId ??= Id.Value;
++            AttentionIssue = null;
 +        }
++
+         if (ProjectId.HasValue && ProjectId.Value <= 0)
+         {
+             ProjectId = null;
+         }
+ 
+-        if (Year.HasValue && Year.Value <= 0)
++        if (ProjectId.HasValue)
++        {
++            Linkage = IprLinkageFilter.All;
++        }
++
++        if (Year.HasValue && (Year.Value < 1900 || Year.Value > DateTime.UtcNow.Year + 1))
+         {
+             Year = null;
+         }
+@@ -207,16 +289,18 @@ public sealed partial class IndexModel
+         }
      }
  
-     private void NormalizePaging()
+-    private IprFilter BuildFilter()
++    private IprFilter BuildFilter(bool includeQuery = true)
+     {
+         var filter = new IprFilter
+         {
+-            Query = Query,
++            Query = includeQuery ? Query : null,
+             Types = Types.Count > 0 ? Types.ToArray() : null,
+             Statuses = Statuses.Count > 0 ? Statuses.ToArray() : null,
+             ProjectId = ProjectId,
+-            FiledFrom = Year.HasValue ? new DateOnly(Year.Value, 1, 1) : null,
+-            FiledTo = Year.HasValue ? new DateOnly(Year.Value, 12, 31) : null
++            DateBasis = DateBasis,
++            Year = Year,
++            Linkage = Linkage,
++            Evidence = Evidence
+         };
+ 
+         filter.Page = PageNumber;
+@@ -227,7 +311,6 @@ public sealed partial class IndexModel
+         return filter;
+     }
+ 
+-
+     private static string GetTypeLabel(IprType type)
+         => type switch
+         {
+@@ -274,5 +357,4 @@ public sealed partial class IndexModel
+             _ => status.ToString()
+         };
+     }
+-
+ }
 diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
-index ccd49de186eec6a690693ef205b8d7c6f3e46bf4..922e01b3364a878d76d67ead8a13a0fe67c38f94 100644
+index 922e01b3364a878d76d67ead8a13a0fe67c38f94..aadc99a5837a45be44dc82cb3978590d0b0c77f0 100644
 --- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
-@@ -50,11 +50,11 @@
-     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
+@@ -3,6 +3,7 @@
+ @using System.Text.Json
+ @using System.Linq
+ @using ProjectManagement.Infrastructure.Data
++@using ProjectManagement.Application.Ipr
+ @functions {
+     private static string CountLabel(int count, string singular, string plural)
+         => $"{count} {(count == 1 ? singular : plural)}";
+@@ -51,10 +52,10 @@
      var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
      var recordsJson = JsonSerializer.Serialize(Model.Records);
--    var selectedRecord = Model.Records.FirstOrDefault();
--    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", page = 1 }, includePage: false, includeModeAndId: false);
--    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", page = 1 }, includePage: false, includeModeAndId: false);
--    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", page = 1 }, includePage: false, includeModeAndId: false);
--    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
-+    var selectedRecord = Model.SelectedRecord;
-+    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", pageNumber = 1 }, includePage: false, includeModeAndId: false);
-+    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", pageNumber = 1 }, includePage: false, includeModeAndId: false);
-+    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", pageNumber = 1 }, includePage: false, includeModeAndId: false);
-+    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+     var selectedRecord = Model.SelectedRecord;
+-    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+-    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+-    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+-    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", attentionIssue = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", query = (string?)null, attentionIssue = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", query = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
++    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", query = (string?)null, attentionIssue = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
      var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
      var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
      var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
-@@ -220,12 +220,15 @@
+@@ -71,6 +72,45 @@
+     var copyrightProtectedPercent = Model.Kpis.Granted == 0 ? 0 : 100 - patentProtectedPercent;
+     var patentPendingPercent = Model.Kpis.Filed == 0 ? 0 : Math.Round(patentPending * 100d / Model.Kpis.Filed, 1);
+     var copyrightPendingPercent = Model.Kpis.Filed == 0 ? 0 : 100 - patentPendingPercent;
++    var filterButtonAriaLabel = Model.StructuredFilterCount > 0
++        ? $"Open IPR filters, {Model.StructuredFilterCount} active"
++        : "Open IPR filters";
++    var filedScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = (string[]?)null, statuses = (string[]?)null, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var patentScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = new[] { "Patent" }, statuses = (string[]?)null, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var copyrightScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = new[] { "Copyright" }, statuses = (string[]?)null, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var protectedScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, statuses = new[] { "Granted" }, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var protectedPatentScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = new[] { "Patent" }, statuses = new[] { "Granted" }, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var protectedCopyrightScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = new[] { "Copyright" }, statuses = new[] { "Granted" }, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var pendingScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, statuses = new[] { "Filed" }, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var pendingPatentScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = new[] { "Patent" }, statuses = new[] { "Filed" }, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
++    var pendingCopyrightScopeRoute = Model.GetRouteValuesForLinks(
++        new { tab = "records", query = (string?)null, types = new[] { "Copyright" }, statuses = new[] { "Filed" }, pageNumber = 1 },
++        includePage: false,
++        includeModeAndId: false);
+ }
+ 
+ @section Styles {
+@@ -93,6 +133,19 @@
+                     data-bs-target="#iprGuidanceModal">
+                 <i class="bi bi-info-circle" aria-hidden="true"></i> Patent or copyright?
+             </button>
++            <button type="button"
++                    class="btn btn-outline-primary ipr-header-filter-button @(Model.HasStructuredFilters ? "is-active" : string.Empty)"
++                    data-bs-toggle="offcanvas"
++                    data-bs-target="#iprFilterOffcanvas"
++                    aria-controls="iprFilterOffcanvas"
++                    aria-label="@filterButtonAriaLabel">
++                <i class="bi bi-funnel" aria-hidden="true"></i>
++                <span>Filters</span>
++                @if (Model.StructuredFilterCount > 0)
++                {
++                    <span class="ipr-header-filter-button__count">@Model.StructuredFilterCount</span>
++                }
++            </button>
+             <a asp-page="./Index" asp-page-handler="Export" asp-all-route-data="exportRouteValues" class="btn btn-outline-primary">
+                 <i class="bi bi-download"></i> Export
+             </a>
+@@ -127,7 +180,7 @@
+ 
+     <section class="ipr-insight-ribbon" aria-label="IPR operational summary">
+         <article class="ipr-insight ipr-insight--filed">
+-            <a asp-page="./Index" asp-route-tab="records" class="ipr-insight__primary">
++            <a asp-page="./Index" asp-all-route-data="filedScopeRoute" class="ipr-insight__primary">
+                 <span>Filed</span><strong>@Model.Kpis.Total</strong><small>all patent and copyright records</small>
+             </a>
+             <div class="ipr-insight__bar" aria-hidden="true">
+@@ -135,13 +188,13 @@
+                 <span class="is-copyright" style="width:@(copyrightFiledPercent)%"></span>
+             </div>
+             <div class="ipr-insight__breakdown" aria-label="Filed IPR category split">
+-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent"><i class="is-patent"></i>@CountLabel(patentFiled, "patent", "patents")</a>
++                <a asp-page="./Index" asp-all-route-data="patentScopeRoute"><i class="is-patent"></i>@CountLabel(patentFiled, "patent", "patents")</a>
+                 <span aria-hidden="true">·</span>
+-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright"><i class="is-copyright"></i>@CountLabel(copyrightFiled, "copyright", "copyrights")</a>
++                <a asp-page="./Index" asp-all-route-data="copyrightScopeRoute"><i class="is-copyright"></i>@CountLabel(copyrightFiled, "copyright", "copyrights")</a>
+             </div>
+         </article>
+         <article class="ipr-insight ipr-insight--granted">
+-            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-insight__primary">
++            <a asp-page="./Index" asp-all-route-data="protectedScopeRoute" class="ipr-insight__primary">
+                 <span>Protected</span><strong>@Model.Kpis.Granted</strong><small>patents granted and copyrights registered</small>
+             </a>
+             <div class="ipr-insight__bar" aria-hidden="true">
+@@ -149,13 +202,13 @@
+                 <span class="is-copyright" style="width:@(copyrightProtectedPercent)%"></span>
+             </div>
+             <div class="ipr-insight__breakdown" aria-label="Protected IPR category split">
+-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Granted"><i class="is-patent"></i>@(patentProtected == 1 ? $"{patentProtected} patent granted" : $"{patentProtected} patents granted")</a>
++                <a asp-page="./Index" asp-all-route-data="protectedPatentScopeRoute"><i class="is-patent"></i>@(patentProtected == 1 ? $"{patentProtected} patent granted" : $"{patentProtected} patents granted")</a>
+                 <span aria-hidden="true">·</span>
+-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Granted"><i class="is-copyright"></i>@(copyrightProtected == 1 ? $"{copyrightProtected} copyright registered" : $"{copyrightProtected} copyrights registered")</a>
++                <a asp-page="./Index" asp-all-route-data="protectedCopyrightScopeRoute"><i class="is-copyright"></i>@(copyrightProtected == 1 ? $"{copyrightProtected} copyright registered" : $"{copyrightProtected} copyrights registered")</a>
+             </div>
+         </article>
+         <article class="ipr-insight ipr-insight--awaiting">
+-            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-insight__primary">
++            <a asp-page="./Index" asp-all-route-data="pendingScopeRoute" class="ipr-insight__primary">
+                 <span>Pending</span><strong>@Model.Kpis.Filed</strong><small>@Model.OverdueAttentionCount pending beyond 3 years</small>
+             </a>
+             <div class="ipr-insight__bar" aria-hidden="true">
+@@ -163,15 +216,15 @@
+                 <span class="is-copyright" style="width:@(copyrightPendingPercent)%"></span>
+             </div>
+             <div class="ipr-insight__breakdown" aria-label="Pending IPR category split">
+-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Filed"><i class="is-patent"></i>@CountLabel(patentPending, "patent", "patents")</a>
++                <a asp-page="./Index" asp-all-route-data="pendingPatentScopeRoute"><i class="is-patent"></i>@CountLabel(patentPending, "patent", "patents")</a>
+                 <span aria-hidden="true">·</span>
+-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Filed"><i class="is-copyright"></i>@CountLabel(copyrightPending, "copyright", "copyrights")</a>
++                <a asp-page="./Index" asp-all-route-data="pendingCopyrightScopeRoute"><i class="is-copyright"></i>@CountLabel(copyrightPending, "copyright", "copyrights")</a>
+             </div>
+         </article>
+-        <a asp-page="./Index" asp-route-tab="project" class="ipr-insight ipr-insight--projects">
++        <a asp-page="./Index" asp-all-route-data="projectRoutes" class="ipr-insight ipr-insight--projects">
+             <span>Projects</span><strong>@Model.ProjectsWithIpr</strong><small>@Model.UnassignedCount unassigned</small>
+         </a>
+-        <a asp-page="./Index" asp-route-tab="followup" class="ipr-insight ipr-insight--attention @(Model.AttentionRecordCount > 0 ? "has-attention" : string.Empty)">
++        <a asp-page="./Index" asp-all-route-data="followupRoutes" class="ipr-insight ipr-insight--attention @(Model.AttentionRecordCount > 0 ? "has-attention" : string.Empty)">
+             <span>Needs attention</span><strong>@Model.AttentionRecordCount</strong><small>@Model.MissingAttachmentCount without evidence</small>
+         </a>
+     </section>
+@@ -189,34 +242,30 @@
+         <a asp-page="./Index" asp-all-route-data="analyticsRoutes" class="@(Model.Tab == "analytics" ? "active" : "")"><i class="bi bi-bar-chart-line"></i> Analytics</a>
+     </nav>
+ 
++    <partial name="_ActiveFilterChips" model="Model" />
++
+     @if (Model.Tab == "records")
+     {
+         <section class="ipr-panel ipr-records-panel">
+-            <form method="get" class="ipr-filter-bar @(Model.HasAnyFilter ? "has-clear" : string.Empty)" data-ipr-loading-form>
+-                <input type="hidden" name="tab" value="records" />
+-                <div class="ipr-search-field"><i class="bi bi-search"></i><input asp-for="Query" type="search" placeholder="Search title, filing number or project" /></div>
+-                <select name="Types" class="form-select" data-ipr-auto-submit aria-label="Filter by IPR category">
+-                    <option value="">All IPR categories</option>
+-                    @foreach (var option in Model.TypeOptions)
+-                    {
+-                        if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+-                        else { <option value="@option.Value">@option.Text</option> }
+-                    }
+-                </select>
+-                <select name="Statuses" class="form-select" data-ipr-auto-submit aria-label="Filter by status">
+-                    <option value="">All statuses</option>
+-                    @foreach (var option in Model.StatusOptions)
+-                    {
+-                        if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+-                        else { <option value="@option.Value">@option.Text</option> }
+-                    }
+-                </select>
+-                <partial name="_ProjectFilterPicker" model="Model" />
+-                <select asp-for="Year" asp-items="Model.YearOptions" class="form-select" data-ipr-auto-submit aria-label="Filter by filing year"></select>
+-                <button type="submit" class="visually-hidden">Apply filters</button>
+-                @if (Model.HasAnyFilter)
++            <form method="get" class="ipr-record-search-bar" data-ipr-loading-form>
++                <input type="hidden" name="Tab" value="records" />
++                <input type="hidden" name="pageNumber" value="1" />
++                <input type="hidden" name="PageSize" value="@Model.PageSize" />
++                <partial name="_StructuredFilterStateFields" model="Model" />
++                <label class="ipr-search-field" aria-label="Search IPR records">
++                    <i class="bi bi-search" aria-hidden="true"></i>
++                    <input asp-for="Query" type="search" placeholder="Search title, filing number or project" />
++                </label>
++                <button type="submit" class="btn btn-primary ipr-record-search-button">
++                    <i class="bi bi-search" aria-hidden="true"></i> Search
++                </button>
++                @if (!string.IsNullOrWhiteSpace(Model.Query))
+                 {
+-                    <a asp-page="./Index" asp-route-tab="records" class="btn btn-outline-secondary">Clear</a>
++                    var clearSearchRoute = Model.GetRouteValuesForLinks(
++                        new { query = (string?)null, pageNumber = 1, selectedRecordId = (int?)null },
++                        includePage: false,
++                        includeModeAndId: false);
++                    <a asp-page="./Index" asp-all-route-data="clearSearchRoute" class="btn btn-outline-secondary">Clear search</a>
                  }
              </form>
  
--            <div class="ipr-record-toolbar">
-+            <div class="ipr-record-toolbar" id="ipr-records">
-                 <div>
-                     <strong>IPR records</strong>
-                     <span>@(hasRecords ? $"{firstItem}–{lastItem} of {Model.TotalCount}" : "No matching records")</span>
+@@ -522,9 +571,27 @@
+                     <p>Exceptions and long-pending cases that require administrative attention.</p>
+                     <small>Each record is listed once under its highest-priority issue; all detected issues remain visible as labels.</small>
                  </div>
-                 <div class="ipr-record-toolbar__actions">
-+                    @{ ViewData["IprPaginationCompact"] = true; }
-+                    <partial name="_RecordsPagination" model="Model" />
-+                    @{ ViewData.Remove("IprPaginationCompact"); }
-                     <label class="ipr-page-size-control">
-                         <span>Rows</span>
-                         <select class="form-select form-select-sm" data-ipr-page-size aria-label="Records per page">
-@@ -278,12 +281,12 @@
-                                 @for (var index = 0; index < Model.Records.Count; index++)
-                                 {
-                                     var row = Model.Records[index];
--                                    var editRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = row.Id }, includeModeAndId: false);
--                                    <tr class="ipr-record-row @(index == 0 ? "is-selected" : string.Empty)"
-+                                    var editRoutes = Model.BuildEditRoute(row.Id);
-+                                    <tr class="ipr-record-row @(row.Id == Model.SelectedRecordId ? "is-selected" : string.Empty)"
-                                         data-ipr-record-row
-                                         data-record-id="@row.Id"
--                                        tabindex="@(index == 0 ? "0" : "-1")"
--                                        aria-selected="@(index == 0 ? "true" : "false")"
-+                                        tabindex="@(row.Id == Model.SelectedRecordId ? "0" : "-1")"
-+                                        aria-selected="@(row.Id == Model.SelectedRecordId ? "true" : "false")"
-                                         aria-controls="iprRecordInspector">
-                                         <td>
-                                             <button type="button" class="ipr-record-title" data-ipr-select-record data-record-id="@row.Id" title="Inspect @row.Title" tabindex="-1">
-@@ -326,21 +329,7 @@
-                             </table>
-                         </div>
+-                <span>@($"{Model.AttentionRecordCount} unique {(Model.AttentionRecordCount == 1 ? "record" : "records")}")</span>
++                <span>@($"{Model.VisibleAttentionRecordCount} shown · {Model.AttentionRecordCount} total")</span>
+             </div>
  
--                        @if (Model.TotalPages > 1)
--                        {
--                            var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize, tab = "records" }, includePage: false, includeModeAndId: false);
--                            <div class="ipr-pagination-bar">
--                                <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
--                                <nav aria-label="IPR register pages"><ul class="pagination pagination-sm mb-0">
--                                    <li class="page-item @(Model.PageNumber == 1 ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber - 1)">‹</a></li>
--                                    @for (var pageNo = Math.Max(1, Model.PageNumber - 2); pageNo <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNo++)
--                                    {
--                                        <li class="page-item @(pageNo == Model.PageNumber ? "active" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@pageNo">@pageNo</a></li>
--                                    }
--                                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber + 1)">›</a></li>
--                                </ul></nav>
--                            </div>
--                        }
-+                        <partial name="_RecordsPagination" model="Model" />
-                     </div>
++            <nav class="ipr-followup-filters" aria-label="Follow-up issue filters">
++                <a asp-page="./Index"
++                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = (string?)null }, includePage: false, includeModeAndId: false)"
++                   class="@(string.IsNullOrWhiteSpace(Model.AttentionIssue) ? "active" : string.Empty)">All issues</a>
++                <a asp-page="./Index"
++                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "overdue" }, includePage: false, includeModeAndId: false)"
++                   class="@(Model.AttentionIssue == "overdue" ? "active" : string.Empty)">Long pending</a>
++                <a asp-page="./Index"
++                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "data" }, includePage: false, includeModeAndId: false)"
++                   class="@(Model.AttentionIssue == "data" ? "active" : string.Empty)">Data gaps</a>
++                <a asp-page="./Index"
++                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "linkage" }, includePage: false, includeModeAndId: false)"
++                   class="@(Model.AttentionIssue == "linkage" ? "active" : string.Empty)">Unassigned</a>
++                <a asp-page="./Index"
++                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "evidence" }, includePage: false, includeModeAndId: false)"
++                   class="@(Model.AttentionIssue == "evidence" ? "active" : string.Empty)">Missing evidence</a>
++            </nav>
++
+             @if (Model.AttentionGroups.Count == 0)
+             {
+                 <div class="ipr-panel ipr-empty-state ipr-empty-state--success"><i class="bi bi-check-circle"></i><h3>No follow-up required</h3><p>All current IPR records have project linkage, supporting evidence and consistent status data.</p></div>
+@@ -597,6 +664,17 @@
+     else
+     {
+         <section class="ipr-analytics-view">
++            <div class="ipr-analytics-scope">
++                <div>
++                    <i class="bi bi-funnel" aria-hidden="true"></i>
++                    <span>Analytics scope:</span>
++                    <strong>@(Model.HasStructuredFilters ? string.Join(" · ", Model.ActiveFilterChips.Where(chip => chip.Key != "query").Select(chip => chip.Label)) : "Complete IPR Register")</strong>
++                </div>
++                @if (Model.HasStructuredFilters)
++                {
++                    <a asp-page="./Index" asp-all-route-data="@Model.BuildClearFiltersRoute(includeQuery: false)">Clear scope</a>
++                }
++            </div>
+             @{
+                 var recordsWithEvidence = Math.Max(0, Model.Kpis.Total - Model.AnalyticsSummary.MissingAttachments);
+                 var evidenceCoveragePercent = Model.Kpis.Total == 0
+@@ -699,6 +777,7 @@
+         </div>
+     }
  
-                     <div class="ipr-inspector-resize-handle"
-@@ -353,11 +342,12 @@
-                     <aside class="ipr-record-inspector"
-                            id="iprRecordInspector"
-                            data-ipr-record-inspector
-+                           data-ipr-selected-record-id="@Model.SelectedRecordId"
-                            data-ipr-project-base-url="@Url.Content("~/Projects/Overview")"
-                            aria-live="polite">
-                         @if (selectedRecord is not null)
-                         {
--                            var selectedEditRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = selectedRecord.Id }, includeModeAndId: false);
-+                            var selectedEditRoutes = Model.BuildEditRoute(selectedRecord.Id);
-                             <div class="ipr-inspector-header">
-                                 <div>
-                                     <span class="ipr-inspector-eyebrow">Selected filing</span>
++    <partial name="_IprFilterDrawer" model="Model" />
+     <partial name="_IprGuidanceModal" />
+ </div>
+ 
 diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
-index 090695e7e24d8c169ff048ba200cea8dd88bdc27..d7cd7d46a68bdc3c978fef2b9262bdd5b21b20bc 100644
+index d7cd7d46a68bdc3c978fef2b9262bdd5b21b20bc..6dd47e2be29d5b62ae7544ae68adee3ca936fbd7 100644
 --- a/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
 +++ b/Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
-@@ -79,7 +79,7 @@ public sealed partial class IndexModel : PageModel
+@@ -73,9 +73,21 @@ public sealed partial class IndexModel : PageModel
+     [BindProperty(SupportsGet = true)]
+     public int? ProjectId { get; set; }
+ 
++    [BindProperty(SupportsGet = true)]
++    public IprDateBasis DateBasis { get; set; } = IprDateBasis.Filed;
++
+     [BindProperty(SupportsGet = true)]
+     public int? Year { get; set; }
+ 
++    [BindProperty(SupportsGet = true)]
++    public IprLinkageFilter Linkage { get; set; } = IprLinkageFilter.All;
++
++    [BindProperty(SupportsGet = true)]
++    public IprEvidenceFilter Evidence { get; set; } = IprEvidenceFilter.All;
++
++    [BindProperty(SupportsGet = true)]
++    public string? AttentionIssue { get; set; }
++
      [BindProperty(SupportsGet = true)]
      public string Tab { get; set; } = "records";
  
--    [BindProperty(Name = "page", SupportsGet = true)]
-+    [BindProperty(Name = "pageNumber", SupportsGet = true)]
-     public int PageNumber { get; set; } = 1;
+@@ -122,8 +134,16 @@ public sealed partial class IndexModel : PageModel
  
-     [BindProperty(SupportsGet = true)]
-@@ -92,6 +92,9 @@ public sealed partial class IndexModel : PageModel
-         set => _mode = value;
-     }
+     public IReadOnlyList<ProjectPickerOption> ProjectPickerOptions { get; private set; } = Array.Empty<ProjectPickerOption>();
  
-+    [BindProperty(SupportsGet = true)]
-+    public int? SelectedRecordId { get; set; }
++    public IReadOnlyList<SelectListItem> DateBasisOptions { get; private set; } = Array.Empty<SelectListItem>();
 +
-     [BindProperty(SupportsGet = true)]
-     public int? Id { get; set; }
- 
-@@ -127,6 +130,11 @@ public sealed partial class IndexModel : PageModel
- 
-     public IReadOnlyList<IprRecordRowViewModel> Records { get; private set; } = Array.Empty<IprRecordRowViewModel>();
- 
-+    public IprRecordRowViewModel? SelectedRecord
-+        => SelectedRecordId.HasValue
-+            ? Records.FirstOrDefault(record => record.Id == SelectedRecordId.Value)
-+            : Records.FirstOrDefault();
++    public IReadOnlyList<IprYearOption> DateYearOptions { get; private set; } = Array.Empty<IprYearOption>();
 +
-     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
+     public IReadOnlyList<SelectListItem> YearOptions { get; private set; } = Array.Empty<SelectListItem>();
  
-     public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
-@@ -202,7 +210,19 @@ public sealed partial class IndexModel : PageModel
-         NormalizeFilters();
-         await EvaluateAuthorizationAsync();
-         NormalizeMode();
++    public IReadOnlyList<SelectListItem> LinkageOptions { get; private set; } = Array.Empty<SelectListItem>();
 +
-+        var requestedPageNumber = PageNumber;
-+        var requestedSelectedRecordId = SelectedRecordId;
++    public IReadOnlyList<SelectListItem> EvidenceOptions { get; private set; } = Array.Empty<SelectListItem>();
 +
-         await LoadPageAsync(cancellationToken, loadRecordInput: true);
-+
-+        if (string.Equals(Tab, "records", StringComparison.Ordinal) &&
-+            (requestedPageNumber != PageNumber ||
-+             (requestedSelectedRecordId.HasValue && requestedSelectedRecordId != SelectedRecordId)))
-+        {
-+            return RedirectToPage("./Index", GetRouteValues(includePage: true, includeModeAndId: true));
-+        }
-+
-         return Page();
-     }
+     public IReadOnlyList<SelectListItem> PageSizeOptions { get; private set; } = Array.Empty<SelectListItem>();
  
-@@ -259,12 +279,17 @@ public sealed partial class IndexModel : PageModel
+     private static readonly TimeZoneInfo IstTimeZone = TimeZoneHelper.GetIst();
+@@ -153,6 +173,8 @@ public sealed partial class IndexModel : PageModel
  
-         if (includePage)
-         {
--            values["page"] = PageNumber;
-+            values["pageNumber"] = PageNumber;
-             values["pageSize"] = PageSize;
+     public int AttentionRecordCount { get; private set; }
+ 
++    public int VisibleAttentionRecordCount { get; private set; }
++
+     public int OverdueAttentionCount { get; private set; }
+ 
+     public int UnassignedCount { get; private set; }
+@@ -172,14 +194,26 @@ public sealed partial class IndexModel : PageModel
+     public string AttachmentUploadHint
+         => $"PDF only · Maximum {FormatFileSize(_attachmentOptions.MaxFileSizeBytes)}";
+ 
+-    public bool HasAnyFilter
+-        => !string.IsNullOrWhiteSpace(Query)
+-            || Types.Count > 0
++    public bool HasStructuredFilters
++        => Types.Count > 0
+             || Statuses.Count > 0
+             || ProjectId.HasValue
+-            || Year.HasValue;
++            || Year.HasValue
++            || Linkage != IprLinkageFilter.All
++            || Evidence != IprEvidenceFilter.All;
++
++    public bool HasAnyFilter
++        => !string.IsNullOrWhiteSpace(Query) || HasStructuredFilters;
++
++    public int StructuredFilterCount
++        => Types.Count
++            + Statuses.Count
++            + (ProjectId.HasValue ? 1 : 0)
++            + (Year.HasValue ? 1 : 0)
++            + (Linkage != IprLinkageFilter.All ? 1 : 0)
++            + (Evidence != IprEvidenceFilter.All ? 1 : 0);
+ 
+-    public IReadOnlyList<string> ActiveFilterChips { get; private set; } = Array.Empty<string>();
++    public IReadOnlyList<ActiveFilterChip> ActiveFilterChips { get; private set; } = Array.Empty<ActiveFilterChip>();
+ 
+     public static string FormatAge(int days)
+     {
+@@ -267,11 +301,31 @@ public sealed partial class IndexModel : PageModel
+             values["projectId"] = ProjectId.Value;
          }
  
-         if (includeModeAndId)
++        if (DateBasis != IprDateBasis.Filed || Year.HasValue)
++        {
++            values["dateBasis"] = DateBasis.ToString();
++        }
++
+         if (Year.HasValue)
          {
-+            if (SelectedRecordId.HasValue)
-+            {
-+                values["selectedRecordId"] = SelectedRecordId.Value;
-+            }
-+
-             if (!string.IsNullOrEmpty(Mode))
-             {
-                 values["mode"] = Mode;
-@@ -320,6 +345,24 @@ public sealed partial class IndexModel : PageModel
-         return result;
-     }
+             values["year"] = Year.Value;
+         }
  
-+    public IDictionary<string, string?> BuildPageRoute(int pageNumber)
-+        => GetRouteValuesForLinks(
-+            new { tab = "records", pageNumber, pageSize = PageSize },
-+            includePage: false,
-+            includeModeAndId: false);
++        if (Linkage != IprLinkageFilter.All)
++        {
++            values["linkage"] = Linkage.ToString();
++        }
 +
-+    public IDictionary<string, string?> BuildSelectedRecordRoute(int recordId)
-+        => GetRouteValuesForLinks(
-+            new { tab = "records", selectedRecordId = recordId },
-+            includePage: true,
-+            includeModeAndId: false);
++        if (Evidence != IprEvidenceFilter.All)
++        {
++            values["evidence"] = Evidence.ToString();
++        }
 +
-+    public IDictionary<string, string?> BuildEditRoute(int recordId)
-+        => GetRouteValuesForLinks(
-+            new { tab = "records", selectedRecordId = recordId, mode = "edit", id = recordId },
-+            includePage: true,
-+            includeModeAndId: false);
++        if (!string.IsNullOrWhiteSpace(AttentionIssue) && string.Equals(Tab, "followup", StringComparison.Ordinal))
++        {
++            values["attentionIssue"] = AttentionIssue;
++        }
++
+         if (!string.IsNullOrWhiteSpace(Tab))
+         {
+             values["tab"] = Tab;
+@@ -303,7 +357,9 @@ public sealed partial class IndexModel : PageModel
+ 
+         if (additionalValues is not null)
+         {
+-            foreach (var kvp in new RouteValueDictionary(additionalValues))
++            var additionalRouteValues = additionalValues as RouteValueDictionary
++                ?? new RouteValueDictionary(additionalValues);
++            foreach (var kvp in additionalRouteValues)
+             {
+                 values[kvp.Key] = kvp.Value;
+             }
+@@ -363,6 +419,77 @@ public sealed partial class IndexModel : PageModel
+             includePage: true,
+             includeModeAndId: false);
+ 
++    public IDictionary<string, string?> BuildRemoveFilterRoute(ActiveFilterChip chip)
++    {
++        ArgumentNullException.ThrowIfNull(chip);
++        var overrides = new RouteValueDictionary
++        {
++            ["pageNumber"] = 1,
++            ["selectedRecordId"] = null,
++            ["mode"] = null,
++            ["id"] = null
++        };
++
++        switch (chip.Key)
++        {
++            case "query":
++                overrides["query"] = null;
++                break;
++            case "type":
++                overrides["types"] = Types
++                    .Where(type => !string.Equals(type.ToString(), chip.Value, StringComparison.OrdinalIgnoreCase))
++                    .Select(type => type.ToString())
++                    .ToArray();
++                break;
++            case "status":
++                overrides["statuses"] = Statuses
++                    .Where(status => !string.Equals(status.ToString(), chip.Value, StringComparison.OrdinalIgnoreCase))
++                    .Select(status => status.ToString())
++                    .ToArray();
++                break;
++            case "project":
++                overrides["projectId"] = null;
++                break;
++            case "year":
++                overrides["year"] = null;
++                overrides["dateBasis"] = null;
++                break;
++            case "linkage":
++                overrides["linkage"] = null;
++                break;
++            case "evidence":
++                overrides["evidence"] = null;
++                break;
++        }
++
++        return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
++    }
++
++    public IDictionary<string, string?> BuildClearFiltersRoute(bool includeQuery = true)
++    {
++        var overrides = new RouteValueDictionary
++        {
++            ["types"] = null,
++            ["statuses"] = null,
++            ["projectId"] = null,
++            ["dateBasis"] = null,
++            ["year"] = null,
++            ["linkage"] = null,
++            ["evidence"] = null,
++            ["attentionIssue"] = null,
++            ["pageNumber"] = 1,
++            ["selectedRecordId"] = null,
++            ["mode"] = null,
++            ["id"] = null
++        };
++        if (includeQuery)
++        {
++            overrides["query"] = null;
++        }
++
++        return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
++    }
 +
      private static void AddIndexedValues(IDictionary<string, string?> destination, string key, IEnumerable<string> values)
      {
          var index = 0;
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs b/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
-index 2f86949e00de2070533510215cef76326b55aef2..cbc9704cef2bfbd2fbbabc79b4aff94a17a80e20 100644
---- a/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
-@@ -15,6 +15,7 @@ public sealed class ManageModel : PageModel
-         return RedirectToPage("./Index", new
-         {
-             tab = "records",
-+            selectedRecordId = recordId,
-             mode = recordId.HasValue ? "edit" : "create",
-             id = recordId,
-             query
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
-index a78d6ac5ea733334b34f9697444fafec0bcfb63a..6f5c42ed23f0241ee0d375b0ec779699879fccf6 100644
---- a/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
-@@ -73,7 +73,7 @@
-                    asp-page="/Ipr/Index"
-                    asp-route-mode="edit"
-                    asp-route-id="@Model.Id">
--                    Edit in patent tracker
-+                    Edit in IPR Register
-                 </a>
-             </li> *@
-             <li>
-diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml
 new file mode 100644
-index 0000000000000000000000000000000000000000..0ae00002479b2998cd908a96df198116aab33e1a
+index 0000000000000000000000000000000000000000..11cf807b7ce255f5d1638087a0f4cc436a77d86f
 --- /dev/null
-+++ b/Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml
-@@ -0,0 +1,115 @@
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml
+@@ -0,0 +1,27 @@
 +@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
-+@{
-+    var compact = ViewData["IprPaginationCompact"] is true;
-+    var firstItem = Model.TotalCount == 0 ? 0 : ((Model.PageNumber - 1) * Model.PageSize) + 1;
-+    var lastItem = Model.TotalCount == 0 ? 0 : Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize);
-+}
 +
-+@if (Model.TotalPages > 1)
++@if (Model.ActiveFilterChips.Count > 0)
 +{
-+    if (compact)
-+    {
-+        <nav class="ipr-pagination-compact" aria-label="IPR register page navigation">
-+            @if (Model.PageNumber <= 1)
-+            {
-+                <span class="ipr-pagination-compact__button is-disabled" aria-disabled="true" title="Previous page">
-+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
-+                </span>
-+            }
-+            else
-+            {
-+                <a class="ipr-pagination-compact__button"
-+                   asp-page="./Index"
-+                   asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber - 1)"
-+                   asp-fragment="ipr-records"
-+                   aria-label="Previous page"
-+                   title="Previous page">
-+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
-+                </a>
-+            }
-+
-+            <span class="ipr-pagination-compact__position">Page <strong>@Model.PageNumber</strong> of @Model.TotalPages</span>
-+
-+            @if (Model.PageNumber >= Model.TotalPages)
-+            {
-+                <span class="ipr-pagination-compact__button is-disabled" aria-disabled="true" title="Next page">
-+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-+                </span>
-+            }
-+            else
-+            {
-+                <a class="ipr-pagination-compact__button"
-+                   asp-page="./Index"
-+                   asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber + 1)"
-+                   asp-fragment="ipr-records"
-+                   aria-label="Next page"
-+                   title="Next page">
-+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-+                </a>
-+            }
-+        </nav>
-+    }
-+    else
-+    {
-+        <div class="ipr-pagination-bar">
-+            <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
-+            <nav aria-label="IPR register pages">
-+                <ul class="pagination pagination-sm mb-0">
-+                    <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-+                        @if (Model.PageNumber <= 1)
-+                        {
-+                            <span class="page-link" aria-disabled="true" aria-label="Previous page">
-+                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
-+                            </span>
-+                        }
-+                        else
-+                        {
-+                            <a class="page-link"
-+                               asp-page="./Index"
-+                               asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber - 1)"
-+                               asp-fragment="ipr-records"
-+                               aria-label="Previous page">
-+                                <i class="bi bi-chevron-left" aria-hidden="true"></i>
-+                            </a>
-+                        }
-+                    </li>
-+                    @for (var pageNumber = Math.Max(1, Model.PageNumber - 2); pageNumber <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNumber++)
-+                    {
-+                        <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
-+                            @if (pageNumber == Model.PageNumber)
-+                            {
-+                                <span class="page-link" aria-current="page">@pageNumber</span>
-+                            }
-+                            else
-+                            {
-+                                <a class="page-link"
-+                                   asp-page="./Index"
-+                                   asp-all-route-data="@Model.BuildPageRoute(pageNumber)"
-+                                   asp-fragment="ipr-records"
-+                                   aria-label="Page @pageNumber">@pageNumber</a>
-+                            }
-+                        </li>
-+                    }
-+                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-+                        @if (Model.PageNumber >= Model.TotalPages)
-+                        {
-+                            <span class="page-link" aria-disabled="true" aria-label="Next page">
-+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-+                            </span>
-+                        }
-+                        else
-+                        {
-+                            <a class="page-link"
-+                               asp-page="./Index"
-+                               asp-all-route-data="@Model.BuildPageRoute(Model.PageNumber + 1)"
-+                               asp-fragment="ipr-records"
-+                               aria-label="Next page">
-+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-+                            </a>
-+                        }
-+                    </li>
-+                </ul>
-+            </nav>
++    <section class="ipr-active-filter-bar" aria-label="Active IPR filters">
++        <div class="ipr-active-filter-bar__label">
++            <i class="bi bi-funnel-fill" aria-hidden="true"></i>
++            <span>Active scope</span>
++            <strong>@Model.ActiveFilterChips.Count</strong>
 +        </div>
-+    }
++        <div class="ipr-active-filter-chips">
++            @foreach (var chip in Model.ActiveFilterChips)
++            {
++                <a asp-page="./Index"
++                   asp-all-route-data="@Model.BuildRemoveFilterRoute(chip)"
++                   class="ipr-filter-chip"
++                   aria-label="Remove filter @chip.Label">
++                    <span>@chip.Label</span>
++                    <i class="bi bi-x-lg" aria-hidden="true"></i>
++                </a>
++            }
++        </div>
++        <a asp-page="./Index"
++           asp-all-route-data="@Model.BuildClearFiltersRoute()"
++           class="ipr-active-filter-bar__clear">Clear all</a>
++    </section>
 +}
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml
+new file mode 100644
+index 0000000000000000000000000000000000000000..26d256a73fb307e5308bca86949c1cfb5aa2fe2f
+--- /dev/null
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml
+@@ -0,0 +1,137 @@
++@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
++@using ProjectManagement.Application.Ipr
++
++<div class="offcanvas offcanvas-end ipr-filter-drawer"
++     tabindex="-1"
++     id="iprFilterOffcanvas"
++     aria-labelledby="iprFilterOffcanvasLabel">
++    <div class="offcanvas-header ipr-filter-drawer__header">
++        <div>
++            <span class="ipr-filter-drawer__eyebrow">REGISTER SCOPE</span>
++            <h2 class="offcanvas-title" id="iprFilterOffcanvasLabel">Filter IPR Register</h2>
++            <p>Apply one consistent scope to records, projects, follow-up, analytics and export.</p>
++        </div>
++        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close filters"></button>
++    </div>
++
++    <form method="get" class="ipr-filter-drawer__form" data-ipr-filter-form>
++        <input type="hidden" name="Tab" value="@Model.Tab" />
++        <input type="hidden" name="pageNumber" value="1" />
++        <input type="hidden" name="PageSize" value="@Model.PageSize" />
++        @if (Model.Tab == "records" && !string.IsNullOrWhiteSpace(Model.Query))
++        {
++            <input type="hidden" name="Query" value="@Model.Query" />
++        }
++
++        <div class="ipr-filter-drawer__body">
++            <section class="ipr-filter-section">
++                <div class="ipr-filter-section__heading">
++                    <h3>IPR position</h3>
++                    <p>Limit the register by category and current protection status.</p>
++                </div>
++                <div class="ipr-filter-grid ipr-filter-grid--two">
++                    <label class="ipr-filter-field">
++                        <span>IPR category</span>
++                        <select name="Types" class="form-select">
++                            <option value="">All IPR categories</option>
++                            @foreach (var option in Model.TypeOptions)
++                            {
++                                if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
++                                else { <option value="@option.Value">@option.Text</option> }
++                            }
++                        </select>
++                    </label>
++                    <label class="ipr-filter-field">
++                        <span>Status</span>
++                        <select name="Statuses" class="form-select">
++                            <option value="">All statuses</option>
++                            @foreach (var option in Model.StatusOptions)
++                            {
++                                if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
++                                else { <option value="@option.Value">@option.Text</option> }
++                            }
++                        </select>
++                    </label>
++                </div>
++            </section>
++
++            <section class="ipr-filter-section">
++                <div class="ipr-filter-section__heading">
++                    <h3>Project scope</h3>
++                    <p>Select a project, or filter the register by assignment state.</p>
++                </div>
++                <div class="ipr-filter-grid">
++                    <div class="ipr-filter-field">
++                        <span>Project</span>
++                        <partial name="_ProjectFilterPicker" model="Model" />
++                    </div>
++                    <label class="ipr-filter-field">
++                        <span>Project linkage</span>
++                        <select asp-for="Linkage" asp-items="Model.LinkageOptions" class="form-select" data-ipr-linkage-filter></select>
++                    </label>
++                </div>
++            </section>
++
++            <section class="ipr-filter-section">
++                <div class="ipr-filter-section__heading">
++                    <h3>Date and evidence</h3>
++                    <p>Choose whether the year refers to filing or final protection.</p>
++                </div>
++                <div class="ipr-filter-grid ipr-filter-grid--two">
++                    <label class="ipr-filter-field">
++                        <span>Date basis</span>
++                        <select asp-for="DateBasis" asp-items="Model.DateBasisOptions" class="form-select" data-ipr-date-basis></select>
++                    </label>
++                    <label class="ipr-filter-field">
++                        <span>Year</span>
++                        <select asp-for="Year" class="form-select" data-ipr-date-year>
++                            <option value="">All years</option>
++                            @foreach (var option in Model.DateYearOptions)
++                            {
++                                if (Model.Year == option.Year)
++                                {
++                                    <option value="@option.Value"
++                                            data-has-filed="@(option.HasFiled ? "true" : "false")"
++                                            data-has-protected="@(option.HasProtected ? "true" : "false")"
++                                            selected>@option.Label</option>
++                                }
++                                else
++                                {
++                                    <option value="@option.Value"
++                                            data-has-filed="@(option.HasFiled ? "true" : "false")"
++                                            data-has-protected="@(option.HasProtected ? "true" : "false")">@option.Label</option>
++                                }
++                            }
++                        </select>
++                        <small data-ipr-date-basis-help>
++                            @(Model.DateBasis == IprDateBasis.Protected
++                                ? "Uses the patent grant or copyright registration date; pending records are excluded."
++                                : "Uses the original filing date.")
++                        </small>
++                    </label>
++                    <label class="ipr-filter-field ipr-filter-field--full">
++                        <span>Supporting evidence</span>
++                        <select asp-for="Evidence" asp-items="Model.EvidenceOptions" class="form-select"></select>
++                    </label>
++                </div>
++            </section>
++        </div>
++
++        <div class="ipr-filter-drawer__footer">
++            <div>
++                @if (Model.HasStructuredFilters)
++                {
++                    <a asp-page="./Index"
++                       asp-all-route-data="@Model.BuildClearFiltersRoute(includeQuery: false)"
++                       class="btn btn-link">Clear filters</a>
++                }
++            </div>
++            <div class="ipr-filter-drawer__footer-actions">
++                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
++                <button type="submit" class="btn btn-primary">
++                    <i class="bi bi-funnel" aria-hidden="true"></i> Apply filters
++                </button>
++            </div>
++        </div>
++    </form>
++</div>
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_ProjectFilterPicker.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_ProjectFilterPicker.cshtml
+index 71e372ab0e1cc0da9520ac8e75445401b5fe86ca..515d13433bc21bb4a5bfda989c1c2af3c23acfc8 100644
+--- a/Areas/ProjectOfficeReports/Pages/Ipr/_ProjectFilterPicker.cshtml
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/_ProjectFilterPicker.cshtml
+@@ -36,8 +36,7 @@
+     <input type="hidden"
+            name="ProjectId"
+            value="@(Model.ProjectId?.ToString() ?? string.Empty)"
+-           data-ipr-project-value
+-           data-ipr-auto-submit />
++           data-ipr-project-value />
+ 
+     <div id="Filter_ProjectSuggestions"
+          class="ipr-project-picker__panel d-none"
 diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
-index ae748105d2dc1b82be6ae7f69d335ddacf478646..6701eceb68d690947200d8d6a935ef3e29deeffa 100644
+index 6701eceb68d690947200d8d6a935ef3e29deeffa..481bbcae63c32551d6e5b65740a627e2596d6add 100644
 --- a/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
 +++ b/Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
-@@ -21,5 +21,9 @@
+@@ -1,4 +1,5 @@
+ @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
++@using ProjectManagement.Application.Ipr
+ 
+ @if (!string.IsNullOrWhiteSpace(Model.Query))
+ {
+@@ -16,10 +17,26 @@
+ {
+     <input type="hidden" name="ProjectId" value="@Model.ProjectId.Value" />
+ }
++@if (Model.DateBasis != IprDateBasis.Filed || Model.Year.HasValue)
++{
++    <input type="hidden" name="DateBasis" value="@Model.DateBasis" />
++}
+ @if (Model.Year.HasValue)
+ {
      <input type="hidden" name="Year" value="@Model.Year.Value" />
  }
- <input type="hidden" name="Tab" value="@Model.Tab" />
--<input type="hidden" name="page" value="@Model.PageNumber" />
-+@if (Model.SelectedRecordId.HasValue)
++@if (Model.Linkage != IprLinkageFilter.All)
 +{
-+    <input type="hidden" name="SelectedRecordId" value="@Model.SelectedRecordId.Value" />
++    <input type="hidden" name="Linkage" value="@Model.Linkage" />
 +}
-+<input type="hidden" name="pageNumber" value="@Model.PageNumber" />
- <input type="hidden" name="PageSize" value="@Model.PageSize" />
-diff --git a/Configuration/Policies.cs b/Configuration/Policies.cs
-index 098932647a311ba0d30d1f8d17ac13e641179549..0c49ecaf00bbcd87fd0bfcbb7c1a30faabfed9ee 100644
---- a/Configuration/Policies.cs
-+++ b/Configuration/Policies.cs
-@@ -229,16 +229,6 @@ public static class Policies
-         public const string View = "Ipr.View";
-         public const string Edit = "Ipr.Edit";
- 
--        public static readonly string[] ViewAllowedRoles =
--        {
--            "Admin",
--            "HoD",
--            "ProjectOffice",
--            "Project Office",
--            "Comdt",
--            "MCO"
--        };
--
-         public static readonly string[] EditAllowedRoles =
-         {
-             "Admin",
-diff --git a/Program.cs b/Program.cs
-index d833e5da00dadddd45e1a79fc15952a32baa60bd..f44862110a64fe97c07aca1242af0149ca85f0b4 100644
---- a/Program.cs
-+++ b/Program.cs
-@@ -256,7 +256,7 @@ builder.Services.AddAuthorization(options =>
-     options.AddPolicy(ProjectOfficeReportsPolicies.UnlockArpp, policy =>
-         policy.RequireArppUnlocker());
-     options.AddPolicy(Policies.Ipr.View, policy =>
--        policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
-+        policy.RequireAuthenticatedUser());
-     options.AddPolicy(Policies.Ipr.Edit, policy =>
-         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
-     // SECTION: Industry partner authorization policies
-diff --git a/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs b/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
-index 4d66fd58a15f10308213ccb233f272fb21f86e98..34eb763d5f1f6521408e109734f07a9a5d8d7a28 100644
---- a/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
-+++ b/ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
-@@ -10,35 +10,38 @@ namespace ProjectManagement.Tests;
- public sealed class IprAuthorizationPolicyTests
- {
-     [Theory]
--    [MemberData(nameof(ViewAllowedRoles))]
--    public async Task ViewPolicy_AllowsExpectedRoles(string role)
-+    [InlineData("Project Officer")]
-+    [InlineData("TA")]
-+    [InlineData("ITO")]
-+    [InlineData("Main Office Clerk")]
-+    [InlineData("MC Cell Clerk")]
-+    [InlineData("IT Cell Clerk")]
-+    [InlineData(null)]
-+    public async Task ViewPolicy_AllowsEveryAuthenticatedUser(string? role)
-     {
-         var policy = new AuthorizationPolicyBuilder()
--            .RequireRole(Policies.Ipr.ViewAllowedRoles)
-+            .RequireAuthenticatedUser()
-             .Build();
- 
-         await using var provider = CreateProvider();
-         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
--        var user = CreatePrincipalWithRole(role);
-+        var user = CreatePrincipal(role, authenticated: true);
- 
-         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
- 
-         Assert.True(result.Succeeded);
-     }
- 
--    [Theory]
--    [InlineData("Project Officer")]
--    [InlineData("TA")]
--    [InlineData(null)]
--    public async Task ViewPolicy_DeniesUnauthorizedRoles(string? role)
-+    [Fact]
-+    public async Task ViewPolicy_DeniesAnonymousUser()
-     {
-         var policy = new AuthorizationPolicyBuilder()
--            .RequireRole(Policies.Ipr.ViewAllowedRoles)
-+            .RequireAuthenticatedUser()
-             .Build();
- 
-         await using var provider = CreateProvider();
-         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
--        var user = CreatePrincipalWithRole(role);
-+        var user = CreatePrincipal(role: null, authenticated: false);
- 
-         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
- 
-@@ -55,7 +58,7 @@ public sealed class IprAuthorizationPolicyTests
- 
-         await using var provider = CreateProvider();
-         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
--        var user = CreatePrincipalWithRole(role);
-+        var user = CreatePrincipal(role, authenticated: true);
- 
-         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
- 
-@@ -75,24 +78,13 @@ public sealed class IprAuthorizationPolicyTests
- 
-         await using var provider = CreateProvider();
-         var authorizationService = provider.GetRequiredService<IAuthorizationService>();
--        var user = CreatePrincipalWithRole(role);
-+        var user = CreatePrincipal(role, authenticated: true);
- 
-         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
- 
-         Assert.False(result.Succeeded);
-     }
- 
--    public static TheoryData<string> ViewAllowedRoles()
--    {
--        var data = new TheoryData<string>();
--        foreach (var role in Policies.Ipr.ViewAllowedRoles)
--        {
--            data.Add(role);
--        }
--
--        return data;
--    }
--
-     public static TheoryData<string> EditAllowedRoles()
-     {
-         var data = new TheoryData<string>();
-@@ -104,15 +96,17 @@ public sealed class IprAuthorizationPolicyTests
-         return data;
-     }
- 
--    private static ClaimsPrincipal CreatePrincipalWithRole(string? role)
-+    private static ClaimsPrincipal CreatePrincipal(string? role, bool authenticated)
-     {
--        if (string.IsNullOrWhiteSpace(role))
-+        var identity = authenticated
-+            ? new ClaimsIdentity(authenticationType: "Test")
-+            : new ClaimsIdentity();
-+
-+        if (!string.IsNullOrWhiteSpace(role))
-         {
--            return new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "Test"));
-+            identity.AddClaim(new Claim(ClaimTypes.Role, role));
-         }
- 
--        var identity = new ClaimsIdentity(authenticationType: "Test");
--        identity.AddClaim(new Claim(ClaimTypes.Role, role));
-         return new ClaimsPrincipal(identity);
-     }
- 
-diff --git a/ProjectManagement.Tests/IprExportServiceTests.cs b/ProjectManagement.Tests/IprExportServiceTests.cs
-index fb3b15bb91c7c59032d6389d8c56c9ad7dbb340e..3f78ccd7bb44ca8f6579cc0973d50d4d4deabe66 100644
---- a/ProjectManagement.Tests/IprExportServiceTests.cs
-+++ b/ProjectManagement.Tests/IprExportServiceTests.cs
-@@ -109,6 +109,9 @@ public sealed class IprExportServiceTests
-         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
-             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, 1, 25));
- 
-+        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
-+            => Task.FromResult<int?>(null);
-+
-         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
-             => Task.FromResult<IprRecord?>(null);
- 
-diff --git a/ProjectManagement.Tests/IprIndexPageTests.cs b/ProjectManagement.Tests/IprIndexPageTests.cs
-index 5ef7d7f1da48e02de7800700f3ba4ba759059636..f441ec57e3f9b6a6e96cd246b6f2a91beb1a9be2 100644
---- a/ProjectManagement.Tests/IprIndexPageTests.cs
-+++ b/ProjectManagement.Tests/IprIndexPageTests.cs
-@@ -116,6 +116,7 @@ public sealed class IprIndexPageTests
-             Assert.Equal("./Index", redirect.PageName);
-             Assert.Equal("edit", redirect.RouteValues?["mode"]);
-             var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
-+            Assert.Equal(createdId, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
-             Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
- 
-             var created = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == createdId);
-@@ -191,6 +192,7 @@ public sealed class IprIndexPageTests
-             Assert.Equal("./Index", redirect.PageName);
-             Assert.Equal("edit", redirect.RouteValues?["mode"]);
-             Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["id"]));
-+            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["selectedRecordId"]));
-             Assert.Equal("IPR record updated.", page.TempData["ToastMessage"]);
-             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("DeleteRequest", StringComparison.Ordinal));
-             Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("RemoveAttachment", StringComparison.Ordinal));
-@@ -587,6 +589,9 @@ public sealed class IprIndexPageTests
-         public Task<PagedResult<IprListRowDto>> SearchAsync(IprFilter filter, CancellationToken cancellationToken = default)
-             => Task.FromResult(new PagedResult<IprListRowDto>(Array.Empty<IprListRowDto>(), 0, filter.Page, filter.PageSize));
- 
-+        public Task<int?> GetPageNumberForRecordAsync(IprFilter filter, int recordId, CancellationToken cancellationToken = default)
-+            => Task.FromResult<int?>(null);
-+
-         public Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default)
-             => Task.FromResult<IprRecord?>(null);
- 
-diff --git a/ProjectManagement.Tests/IprNavigationUrlTests.cs b/ProjectManagement.Tests/IprNavigationUrlTests.cs
-new file mode 100644
-index 0000000000000000000000000000000000000000..2452f2c1df9b865c9bcb7fc3f300f32a9a491ba3
---- /dev/null
-+++ b/ProjectManagement.Tests/IprNavigationUrlTests.cs
-@@ -0,0 +1,28 @@
-+using ProjectManagement.Services.Navigation;
-+using Xunit;
-+
-+namespace ProjectManagement.Tests;
-+
-+public sealed class IprNavigationUrlTests
++@if (Model.Evidence != IprEvidenceFilter.All)
 +{
-+    [Fact]
-+    public void IprRecordView_UsesNeutralSelectionRoute()
-+    {
-+        var builder = new UrlBuilder();
++    <input type="hidden" name="Evidence" value="@Model.Evidence" />
++}
++@if (!string.IsNullOrWhiteSpace(Model.AttentionIssue))
++{
++    <input type="hidden" name="AttentionIssue" value="@Model.AttentionIssue" />
++}
+ <input type="hidden" name="Tab" value="@Model.Tab" />
+ @if (Model.SelectedRecordId.HasValue)
+ {
+diff --git a/Areas/ProjectOfficeReports/Pages/Ipr/_StructuredFilterStateFields.cshtml b/Areas/ProjectOfficeReports/Pages/Ipr/_StructuredFilterStateFields.cshtml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c72f91c43edda256a5e830aa4902d3d8d772d489
+--- /dev/null
++++ b/Areas/ProjectOfficeReports/Pages/Ipr/_StructuredFilterStateFields.cshtml
+@@ -0,0 +1,31 @@
++@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
++@using ProjectManagement.Application.Ipr
 +
-+        var url = builder.IprRecordView(42);
-+
-+        Assert.Equal("/ProjectOfficeReports/Ipr?tab=records&selectedRecordId=42", url);
-+        Assert.DoesNotContain("mode=edit", url);
-+    }
-+
-+    [Fact]
-+    public void IprRecordManage_KeepsSelectionAndEditStateSeparate()
-+    {
-+        var builder = new UrlBuilder();
-+
-+        var url = builder.IprRecordManage(42);
-+
-+        Assert.Equal("/ProjectOfficeReports/Ipr?tab=records&selectedRecordId=42&mode=edit&id=42", url);
-+    }
++@foreach (var type in Model.Types)
++{
++    <input type="hidden" name="Types" value="@type" />
++}
++@foreach (var status in Model.Statuses)
++{
++    <input type="hidden" name="Statuses" value="@status" />
++}
++@if (Model.ProjectId.HasValue)
++{
++    <input type="hidden" name="ProjectId" value="@Model.ProjectId.Value" />
++}
++@if (Model.DateBasis != IprDateBasis.Filed || Model.Year.HasValue)
++{
++    <input type="hidden" name="DateBasis" value="@Model.DateBasis" />
++}
++@if (Model.Year.HasValue)
++{
++    <input type="hidden" name="Year" value="@Model.Year.Value" />
++}
++@if (Model.Linkage != IprLinkageFilter.All)
++{
++    <input type="hidden" name="Linkage" value="@Model.Linkage" />
++}
++@if (Model.Evidence != IprEvidenceFilter.All)
++{
++    <input type="hidden" name="Evidence" value="@Model.Evidence" />
 +}
 diff --git a/ProjectManagement.Tests/IprReadServiceTests.cs b/ProjectManagement.Tests/IprReadServiceTests.cs
-index 813ad4744caf50da40cab7fdb73920934bcfbf21..2b0f7c3b945a5c3aba76181c5619f744b814ed03 100644
+index 2b0f7c3b945a5c3aba76181c5619f744b814ed03..54b59d133674fd3bed7ef3b3d7b65b66b9e9b3c6 100644
 --- a/ProjectManagement.Tests/IprReadServiceTests.cs
 +++ b/ProjectManagement.Tests/IprReadServiceTests.cs
-@@ -297,6 +297,77 @@ public sealed class IprReadServiceTests
-         Assert.Equal(new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero), item.Attachments[0].UploadedAtUtc);
+@@ -368,6 +368,119 @@ public sealed class IprReadServiceTests
+         Assert.Null(pageNumber);
      }
  
 +    [Fact]
-+    public async Task SearchAsync_ClampsOutOfRangePageToLastAvailablePage()
++    public async Task SearchAsync_FiltersByGrantOrRegistrationYear()
 +    {
 +        await using var db = CreateDbContext();
 +
 +        db.IprRecords.AddRange(
-+            new IprRecord { IprFilingNumber = "IPR-301", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero) },
-+            new IprRecord { IprFilingNumber = "IPR-302", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero) },
-+            new IprRecord { IprFilingNumber = "IPR-303", Type = IprType.Patent, Status = IprStatus.Filed, FiledAtUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) });
-+        await db.SaveChangesAsync();
-+
-+        var filter = new IprFilter { Page = 99, PageSize = 2 };
-+        var result = await new IprReadService(db).SearchAsync(filter);
-+
-+        Assert.Equal(2, result.Page);
-+        Assert.Equal(3, result.Total);
-+        Assert.Single(result.Items);
-+        Assert.Equal("IPR-303", result.Items[0].FilingNumber);
-+    }
-+
-+    [Fact]
-+    public async Task GetPageNumberForRecordAsync_UsesFilteredRegisterOrdering()
-+    {
-+        await using var db = CreateDbContext();
-+
-+        var records = Enumerable.Range(1, 5)
-+            .Select(index => new IprRecord
++            new IprRecord
 +            {
-+                IprFilingNumber = $"IPR-40{index}",
++                IprFilingNumber = "IPR-601",
++                Title = "Protected in 2025",
++                Type = IprType.Patent,
++                Status = IprStatus.Granted,
++                FiledAtUtc = new DateTimeOffset(2023, 4, 1, 0, 0, 0, TimeSpan.Zero),
++                GrantedAtUtc = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero)
++            },
++            new IprRecord
++            {
++                IprFilingNumber = "IPR-602",
++                Title = "Protected in 2024",
++                Type = IprType.Copyright,
++                Status = IprStatus.Granted,
++                FiledAtUtc = new DateTimeOffset(2025, 1, 10, 0, 0, 0, TimeSpan.Zero),
++                GrantedAtUtc = new DateTimeOffset(2024, 12, 20, 0, 0, 0, TimeSpan.Zero)
++            },
++            new IprRecord
++            {
++                IprFilingNumber = "IPR-603",
++                Title = "Still pending",
 +                Type = IprType.Patent,
 +                Status = IprStatus.Filed,
-+                FiledAtUtc = new DateTimeOffset(2026, 6 - index, 1, 0, 0, 0, TimeSpan.Zero)
-+            })
-+            .ToArray();
-+
-+        db.IprRecords.AddRange(records);
-+        await db.SaveChangesAsync();
-+
-+        var filter = new IprFilter { PageSize = 2 };
-+        var pageNumber = await new IprReadService(db)
-+            .GetPageNumberForRecordAsync(filter, records[2].Id);
-+
-+        Assert.Equal(2, pageNumber);
-+    }
-+
-+    [Fact]
-+    public async Task GetPageNumberForRecordAsync_ReturnsNullWhenRecordDoesNotMatchFilter()
-+    {
-+        await using var db = CreateDbContext();
-+
-+        var patent = new IprRecord
-+        {
-+            IprFilingNumber = "IPR-501",
-+            Type = IprType.Patent,
-+            Status = IprStatus.Filed
-+        };
-+        db.IprRecords.Add(patent);
++                FiledAtUtc = new DateTimeOffset(2025, 2, 2, 0, 0, 0, TimeSpan.Zero)
++            });
 +        await db.SaveChangesAsync();
 +
 +        var filter = new IprFilter
 +        {
-+            Types = new[] { IprType.Copyright },
-+            PageSize = 15
++            DateBasis = IprDateBasis.Protected,
++            Year = 2025
 +        };
 +
-+        var pageNumber = await new IprReadService(db)
-+            .GetPageNumberForRecordAsync(filter, patent.Id);
++        var result = await new IprReadService(db).SearchAsync(filter);
 +
-+        Assert.Null(pageNumber);
++        var item = Assert.Single(result.Items);
++        Assert.Equal("IPR-601", item.FilingNumber);
++    }
++
++    [Fact]
++    public async Task SearchAsync_FiltersByProjectLinkageAndEvidenceState()
++    {
++        await using var db = CreateDbContext();
++
++        var project = new Project { Name = "Linked project", CreatedByUserId = "owner" };
++        db.Projects.Add(project);
++        await db.SaveChangesAsync();
++
++        var linkedWithEvidence = new IprRecord
++        {
++            IprFilingNumber = "IPR-701",
++            Type = IprType.Patent,
++            Status = IprStatus.Filed,
++            ProjectId = project.Id,
++            Attachments = new List<IprAttachment>
++            {
++                new()
++                {
++                    StorageKey = "evidence-701",
++                    OriginalFileName = "evidence.pdf",
++                    ContentType = "application/pdf",
++                    FileSize = 128,
++                    UploadedByUserId = "owner"
++                }
++            }
++        };
++        var unassignedWithoutEvidence = new IprRecord
++        {
++            IprFilingNumber = "IPR-702",
++            Type = IprType.Copyright,
++            Status = IprStatus.Filed
++        };
++        var unassignedWithArchivedEvidence = new IprRecord
++        {
++            IprFilingNumber = "IPR-703",
++            Type = IprType.Patent,
++            Status = IprStatus.Filed,
++            Attachments = new List<IprAttachment>
++            {
++                new()
++                {
++                    StorageKey = "archived-703",
++                    OriginalFileName = "archived.pdf",
++                    ContentType = "application/pdf",
++                    FileSize = 128,
++                    UploadedByUserId = "owner",
++                    IsArchived = true
++                }
++            }
++        };
++
++        db.IprRecords.AddRange(linkedWithEvidence, unassignedWithoutEvidence, unassignedWithArchivedEvidence);
++        await db.SaveChangesAsync();
++
++        var filter = new IprFilter
++        {
++            Linkage = IprLinkageFilter.Unassigned,
++            Evidence = IprEvidenceFilter.Missing
++        };
++
++        var result = await new IprReadService(db).SearchAsync(filter);
++
++        Assert.Equal(2, result.Total);
++        Assert.Equal(new[] { "IPR-702", "IPR-703" }, result.Items.Select(item => item.FilingNumber).OrderBy(value => value).ToArray());
 +    }
 +
      private static ApplicationDbContext CreateDbContext()
      {
          var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-diff --git a/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs b/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
-index 08542949da1116808c4393d263cca5a0d92a5d50..6461fe8c9653bb231d1c6fca7b33d227b23633bc 100644
---- a/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
-+++ b/ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
-@@ -125,7 +125,7 @@ public class RoleBasedNavigationProviderTests
-             },
-             item =>
-             {
--                Assert.Equal("Patent tracker", item.Text);
-+                Assert.Equal("IPR Register", item.Text);
-                 Assert.Equal(Policies.Ipr.View, item.AuthorizationPolicy);
-             },
-             item =>
-diff --git a/Services/Admin/AdminRoleAccessCatalog.cs b/Services/Admin/AdminRoleAccessCatalog.cs
-index 91cc872137c83ba47d52b5660607c63681cffa97..3790550b455fa93ef6586c7c5de6a9e418ec1239 100644
---- a/Services/Admin/AdminRoleAccessCatalog.cs
-+++ b/Services/Admin/AdminRoleAccessCatalog.cs
-@@ -320,11 +320,10 @@ public sealed class AdminRoleAccessCatalog : IAdminRoleAccessCatalog
-                 ProjectOfficeReportsPolicies.ArppUnlockRoles,
-                 Group.Reports,
-                 140),
--            Access(
-+            AllRoles(
-                 "reports-ipr-view",
--                "View the IPR tracker",
--                "Review patent and copyright records.",
--                Policies.Ipr.ViewAllowedRoles,
-+                "View the IPR Register",
-+                "Review patent and copyright records, supporting evidence, projects, follow-up and analytics.",
-                 Group.Reports,
-                 150),
-             Access(
-diff --git a/Services/Navigation/IUrlBuilder.cs b/Services/Navigation/IUrlBuilder.cs
-index 88a1ffc8573b54bd0e1325b66690925f0e326827..8672be374ae2e0e9bc7df9ba2cc5eec73e148fc7 100644
---- a/Services/Navigation/IUrlBuilder.cs
-+++ b/Services/Navigation/IUrlBuilder.cs
-@@ -11,6 +11,7 @@ public interface IUrlBuilder
-     string DocumentRepositoryDownload(Guid documentId);
-     string FfcRecordManage(long recordId);
-     string FfcAttachmentView(long attachmentId);
-+    string IprRecordView(int recordId);
-     string IprRecordManage(int recordId);
-     string IprAttachmentDownload(int recordId, int attachmentId);
-     string ActivityDetails(int activityId);
-diff --git a/Services/Navigation/RoleBasedNavigationProvider.cs b/Services/Navigation/RoleBasedNavigationProvider.cs
-index 0000b57b16eeff6d219644f6a2cbc84096d0e71d..8b04a7cb49677456719fc71f3a9c3dc123437e5e 100644
---- a/Services/Navigation/RoleBasedNavigationProvider.cs
-+++ b/Services/Navigation/RoleBasedNavigationProvider.cs
-@@ -262,7 +262,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
-             },
-             new()
-             {
--                Text = "Patent tracker",
-+                Text = "IPR Register",
-                 Area = "ProjectOfficeReports",
-                 Page = "/Ipr/Index",
-                 AuthorizationPolicy = Policies.Ipr.View,
-diff --git a/Services/Navigation/UrlBuilder.cs b/Services/Navigation/UrlBuilder.cs
-index a25e752db0b2c25af0708e51837ced8cf8dc33b1..8f7f499f113a6b926a3ff07f24497572ab5269f0 100644
---- a/Services/Navigation/UrlBuilder.cs
-+++ b/Services/Navigation/UrlBuilder.cs
-@@ -20,8 +20,11 @@ public sealed class UrlBuilder : IUrlBuilder
-     public string FfcAttachmentView(long attachmentId)
-         => $"/ProjectOfficeReports/FFC/Attachments/View?id={attachmentId.ToString(CultureInfo.InvariantCulture)}";
- 
-+    public string IprRecordView(int recordId)
-+        => $"/ProjectOfficeReports/Ipr?tab=records&selectedRecordId={recordId.ToString(CultureInfo.InvariantCulture)}";
-+
-     public string IprRecordManage(int recordId)
--        => $"/ProjectOfficeReports/Ipr?tab=records&mode=edit&id={recordId.ToString(CultureInfo.InvariantCulture)}";
-+        => $"/ProjectOfficeReports/Ipr?tab=records&selectedRecordId={recordId.ToString(CultureInfo.InvariantCulture)}&mode=edit&id={recordId.ToString(CultureInfo.InvariantCulture)}";
- 
-     public string IprAttachmentDownload(int recordId, int attachmentId)
-         => $"/ProjectOfficeReports/Ipr/Download?iprRecordId={recordId.ToString(CultureInfo.InvariantCulture)}&attachmentId={attachmentId.ToString(CultureInfo.InvariantCulture)}";
-diff --git a/Services/Search/GlobalIprSearchService.cs b/Services/Search/GlobalIprSearchService.cs
-index ce7adc6d77651e3a6fa75e975a83b53e354c42c9..7ec8b11df0257bc6a200714fdda6b3df617e30c6 100644
---- a/Services/Search/GlobalIprSearchService.cs
-+++ b/Services/Search/GlobalIprSearchService.cs
-@@ -5,6 +5,7 @@ using System.Threading;
- using System.Threading.Tasks;
- using Microsoft.EntityFrameworkCore;
- using ProjectManagement.Data;
-+using ProjectManagement.Infrastructure.Data;
- using ProjectManagement.Services.Navigation;
- 
- namespace ProjectManagement.Services.Search
-@@ -45,10 +46,13 @@ namespace ProjectManagement.Services.Search
-             var records = await _dbContext.IprRecords
-                 .AsNoTracking()
-                 .Where(record =>
--                    EF.Functions.ILike(record.IprFilingNumber, pattern) ||
--                    EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
--                    EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
--                    EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern))
-+                    (record.Status == IprStatus.FilingUnderProcess ||
-+                     record.Status == IprStatus.Filed ||
-+                     record.Status == IprStatus.Granted) &&
-+                    (EF.Functions.ILike(record.IprFilingNumber, pattern) ||
-+                     EF.Functions.ILike(record.Title ?? string.Empty, pattern) ||
-+                     EF.Functions.ILike(record.Notes ?? string.Empty, pattern) ||
-+                     EF.Functions.ILike(record.FiledBy ?? string.Empty, pattern)))
-                 .OrderByDescending(record => record.GrantedAtUtc ?? record.FiledAtUtc ?? DateTimeOffset.MinValue)
-                 .Take(recordLimit)
-                 .ToListAsync(cancellationToken);
-@@ -65,7 +69,7 @@ namespace ProjectManagement.Services.Search
-                     Source: "IPR",
-                     Title: title ?? $"IPR {record.Id}",
-                     Snippet: record.Notes,
--                    Url: _urlBuilder.IprRecordManage(record.Id),
-+                    Url: _urlBuilder.IprRecordView(record.Id),
-                     Date: date,
-                     Score: 0.6m,
-                     FileType: null,
-@@ -79,7 +83,10 @@ namespace ProjectManagement.Services.Search
-                 .AsNoTracking()
-                 .Where(attachment =>
-                     !attachment.IsArchived &&
--                    attachment.ContentType == "application/pdf" && // <-- fixed
-+                    (attachment.Record.Status == IprStatus.FilingUnderProcess ||
-+                     attachment.Record.Status == IprStatus.Filed ||
-+                     attachment.Record.Status == IprStatus.Granted) &&
-+                    attachment.ContentType == "application/pdf" &&
-                     (
-                         EF.Functions.ILike(attachment.OriginalFileName ?? string.Empty, pattern) ||
-                         EF.Functions.ILike(attachment.ContentType ?? string.Empty, pattern)
 diff --git a/wwwroot/css/site-ipr.css b/wwwroot/css/site-ipr.css
-index 6a21d1004a45b4077c5dc3f5d1d5c7670240a9b7..eafca005a37bd5838ec9b03961b78bff226c1920 100644
+index eafca005a37bd5838ec9b03961b78bff226c1920..646a9f4c27842a26c6270f198ed1109a20f5abc0 100644
 --- a/wwwroot/css/site-ipr.css
 +++ b/wwwroot/css/site-ipr.css
-@@ -238,6 +238,7 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+@@ -185,23 +185,93 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ .ipr-panel-header p { margin: 2px 0 0; color: var(--ipr-muted); font-size: .79rem; }
+ .ipr-result-count { color: #31425e; font-size: .82rem; font-weight: 650; white-space: nowrap; }
  
- /* Records workbench */
- .ipr-record-toolbar {
-+    scroll-margin-top: 68px;
-     justify-content: space-between;
-     gap: 16px;
-     min-height: 48px;
-@@ -252,6 +253,48 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
- .ipr-page-size-control,
- .ipr-density-control { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--ipr-muted); font-size: .72rem; }
- .ipr-page-size-control .form-select { width: 70px; }
-+.ipr-pagination-compact {
-+    display: inline-flex;
-+    min-height: 32px;
-+    align-items: center;
-+    gap: 3px;
-+    padding: 2px;
-+    border: 1px solid var(--ipr-border);
-+    border-radius: 8px;
-+    background: #f7f9fc;
-+}
-+.ipr-pagination-compact__button {
+-/* Filters */
+-.ipr-filter-bar {
+-    display: grid;
+-    grid-template-columns: minmax(260px, 1.6fr) minmax(125px, .55fr) minmax(145px, .62fr) minmax(210px, .85fr) minmax(120px, .5fr);
++/* Search, active scope and filter drawer */
++.ipr-header-filter-button { position: relative; display: inline-flex; align-items: center; gap: 7px; }
++.ipr-header-filter-button.is-active { border-color: var(--ipr-blue); background: var(--ipr-blue-soft); color: var(--ipr-blue-dark); }
++.ipr-header-filter-button__count {
 +    display: inline-grid;
-+    width: 28px;
-+    height: 28px;
++    min-width: 20px;
++    height: 20px;
 +    place-items: center;
-+    border-radius: 6px;
-+    color: var(--ipr-blue);
-+    text-decoration: none;
++    padding: 0 6px;
++    border-radius: 999px;
++    background: var(--ipr-blue);
++    color: #fff;
++    font-size: .67rem;
++    font-weight: 760;
 +}
-+.ipr-pagination-compact__button:hover,
-+.ipr-pagination-compact__button:focus-visible {
-+    background: #fff;
-+    color: #244fc2;
-+    box-shadow: 0 1px 4px rgba(16, 33, 63, .12);
++
++.ipr-record-search-bar {
++    display: flex;
++    align-items: center;
+     gap: 9px;
+     padding: 12px 14px;
+     border-bottom: 1px solid var(--ipr-border);
+     background: #fbfcfe;
+ }
+-.ipr-filter-bar.has-clear { grid-template-columns: minmax(250px, 1.6fr) minmax(120px, .55fr) minmax(140px, .62fr) minmax(200px, .85fr) minmax(115px, .5fr) auto; }
+-.ipr-filter-bar .form-select,
+-.ipr-filter-bar .form-control,
+-.ipr-search-field input { height: 38px; border-color: #d4deeb; border-radius: 9px; font-size: .84rem; }
+-.ipr-search-field { position: relative; min-width: 0; }
++.ipr-record-search-bar .ipr-search-field { flex: 1 1 auto; }
++.ipr-record-search-bar .btn { min-height: 38px; white-space: nowrap; }
++.ipr-search-field { position: relative; min-width: 0; margin: 0; }
+ .ipr-search-field > i { position: absolute; top: 50%; left: 12px; z-index: 1; transform: translateY(-50%); color: #7d8ca3; }
+-.ipr-search-field input { width: 100%; padding: 0 12px 0 36px; background: #fff; }
+-.ipr-filter-bar .btn-outline-secondary { min-width: 68px; }
++.ipr-search-field input { width: 100%; height: 38px; padding: 0 12px 0 36px; border: 1px solid #d4deeb; border-radius: 9px; background: #fff; font-size: .84rem; }
++
++.ipr-active-filter-bar {
++    display: flex;
++    align-items: center;
++    gap: 10px;
++    min-height: 42px;
++    margin: -3px 0 12px;
++    padding: 7px 10px;
++    border: 1px solid #dce5f3;
++    border-radius: 10px;
++    background: #f8faff;
 +}
-+.ipr-pagination-compact__button:focus-visible {
-+    outline: 2px solid rgba(63, 110, 232, .35);
-+    outline-offset: 1px;
++.ipr-active-filter-bar__label { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: #53637d; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .035em; }
++.ipr-active-filter-bar__label i { color: var(--ipr-blue); }
++.ipr-active-filter-bar__label strong { display: inline-grid; min-width: 19px; height: 19px; place-items: center; border-radius: 999px; background: #e5edff; color: var(--ipr-blue-dark); font-size: .65rem; }
++.ipr-active-filter-chips { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
++.ipr-filter-chip { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; max-width: 260px; padding: 5px 8px; border: 1px solid #cfdbef; border-radius: 999px; background: #fff; color: #304665; font-size: .72rem; font-weight: 620; text-decoration: none; }
++.ipr-filter-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.ipr-filter-chip i { color: #7f8da2; font-size: .66rem; }
++.ipr-filter-chip:hover,
++.ipr-filter-chip:focus-visible { border-color: #9fb8ef; background: #eef3ff; color: var(--ipr-blue-dark); }
++.ipr-active-filter-bar__clear { flex: 0 0 auto; color: #53637d; font-size: .72rem; font-weight: 650; text-decoration: none; white-space: nowrap; }
++.ipr-active-filter-bar__clear:hover { color: var(--ipr-blue-dark); text-decoration: underline; }
++
++.ipr-filter-drawer {
++    --ipr-filter-surface: #fff;
++    --ipr-filter-subtle: #f7f9fc;
++    --ipr-filter-border: #dce5ef;
++    width: min(500px, 100vw);
++    overflow: hidden;
++    background: var(--ipr-filter-subtle);
 +}
-+.ipr-pagination-compact__button.is-disabled {
-+    color: #a8b3c4;
-+    cursor: default;
-+}
-+.ipr-pagination-compact__position {
-+    min-width: 84px;
-+    padding: 0 7px;
-+    color: var(--ipr-muted);
-+    font-size: .7rem;
-+    text-align: center;
-+    white-space: nowrap;
-+}
-+.ipr-pagination-compact__position strong { color: #243652; }
- .ipr-density-toggle { display: inline-flex; padding: 2px; border: 1px solid var(--ipr-border); border-radius: 8px; background: #f7f9fc; }
- .ipr-density-toggle .btn { display: inline-flex; width: auto; height: 28px; align-items: center; gap: 5px; padding: 0 9px; border: 0; color: #6e7d94; font-size: .68rem; font-weight: 650; }
- .ipr-density-toggle .btn.is-active { background: #fff; color: var(--ipr-blue); box-shadow: 0 1px 4px rgba(16, 33, 63, .12); }
-@@ -317,6 +360,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
- .ipr-register-page.density-comfortable .ipr-record-title > span { font-size: .87rem; }
++.ipr-filter-drawer__header { align-items: flex-start; padding: 18px 20px 16px; border-bottom: 1px solid var(--ipr-filter-border); background: var(--ipr-filter-surface); }
++.ipr-filter-drawer__eyebrow { display: block; margin-bottom: 2px; color: var(--ipr-blue); font-size: .65rem; font-weight: 800; letter-spacing: .075em; }
++.ipr-filter-drawer__header h2 { margin: 0; color: var(--ipr-navy); font-size: 1.08rem; font-weight: 760; }
++.ipr-filter-drawer__header p { margin: 4px 28px 0 0; color: var(--ipr-muted); font-size: .78rem; line-height: 1.4; }
++.ipr-filter-drawer__form { display: flex; height: calc(100dvh - 82px); min-height: 0; flex-direction: column; }
++.ipr-filter-drawer__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px; }
++.ipr-filter-section { margin-bottom: 10px; padding: 15px; border: 1px solid var(--ipr-filter-border); border-radius: 12px; background: var(--ipr-filter-surface); }
++.ipr-filter-section:last-child { margin-bottom: 0; }
++.ipr-filter-section__heading { margin-bottom: 13px; }
++.ipr-filter-section__heading h3 { margin: 0; color: #263854; font-size: .82rem; font-weight: 760; }
++.ipr-filter-section__heading p { margin: 3px 0 0; color: var(--ipr-muted); font-size: .7rem; }
++.ipr-filter-grid { display: grid; gap: 12px; }
++.ipr-filter-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++.ipr-filter-field { display: block; min-width: 0; margin: 0; }
++.ipr-filter-field--full { grid-column: 1 / -1; }
++.ipr-filter-field > span { display: block; margin-bottom: 5px; color: #344762; font-size: .73rem; font-weight: 680; }
++.ipr-filter-field .form-control,
++.ipr-filter-field .form-select,
++.ipr-filter-field .ipr-project-picker__search { height: 40px; border-color: #d4deeb; border-radius: 9px; font-size: .82rem; }
++.ipr-filter-field small { display: block; margin-top: 5px; color: #77859a; font-size: .66rem; line-height: 1.35; }
++.ipr-filter-field.is-disabled { opacity: .62; }
++.ipr-filter-drawer .ipr-project-filter-picker .ipr-project-picker__panel { min-width: 0; }
++.ipr-filter-drawer__footer { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--ipr-filter-border); background: rgba(255,255,255,.98); box-shadow: 0 -8px 22px rgba(16,33,63,.06); }
++.ipr-filter-drawer__footer .btn-link { padding-left: 0; color: #65758d; font-size: .78rem; text-decoration: none; }
++.ipr-filter-drawer__footer .btn-link:hover { color: var(--ipr-blue-dark); text-decoration: underline; }
++.ipr-filter-drawer__footer-actions { display: flex; gap: 9px; }
  
- .ipr-pagination-bar { justify-content: space-between; gap: 16px; min-height: 48px; padding: 9px 13px; border-top: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .76rem; }
-+.ipr-pagination-bar .page-link { min-width: 32px; text-align: center; }
-+.ipr-pagination-bar .page-link:focus-visible { outline: 2px solid rgba(63, 110, 232, .35); outline-offset: 1px; box-shadow: none; }
-+.ipr-pagination-bar .page-item.disabled .page-link { cursor: default; }
+ .ipr-project-filter-picker,
+ .ipr-project-picker { position: relative; min-width: 0; }
+@@ -476,6 +546,19 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ .ipr-followup-card__open:focus-visible { background: #edf2fa; color: var(--ipr-blue-dark); }
  
- /* Persistent record inspector */
- .ipr-inspector-resize-handle { position: relative; z-index: 2; cursor: col-resize; background: #f4f7fb; touch-action: none; }
-@@ -635,7 +681,9 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ /* Analytics */
++.ipr-followup-filters { display: flex; align-items: center; gap: 5px; margin: 10px 0 12px; padding: 4px; overflow-x: auto; border: 1px solid var(--ipr-border); border-radius: 10px; background: #f7f9fc; }
++.ipr-followup-filters a { flex: 0 0 auto; padding: 6px 10px; border-radius: 7px; color: #5e6e85; font-size: .72rem; font-weight: 650; text-decoration: none; white-space: nowrap; }
++.ipr-followup-filters a:hover,
++.ipr-followup-filters a:focus-visible { background: #fff; color: var(--ipr-blue-dark); }
++.ipr-followup-filters a.active { background: #fff; color: var(--ipr-blue); box-shadow: 0 1px 4px rgba(16,33,63,.12); }
++
++.ipr-analytics-scope { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 8px 12px; border: 1px solid #dce5f3; border-radius: 10px; background: #f8faff; color: #52627b; font-size: .73rem; }
++.ipr-analytics-scope > div { display: flex; min-width: 0; align-items: center; gap: 6px; }
++.ipr-analytics-scope i { color: var(--ipr-blue); }
++.ipr-analytics-scope strong { overflow: hidden; color: #263854; text-overflow: ellipsis; white-space: nowrap; }
++.ipr-analytics-scope a { flex: 0 0 auto; color: var(--ipr-blue-dark); font-weight: 650; text-decoration: none; }
++.ipr-analytics-scope a:hover { text-decoration: underline; }
++
+ .ipr-analytics-view { display: grid; gap: 13px; }
+ .ipr-analytics-insights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+ .ipr-analytics-insights article { min-height: 84px; padding: 13px 15px; border: 1px solid var(--ipr-border); border-radius: 11px; background: #fff; }
+@@ -648,9 +731,6 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ @media (max-width: 1300px) {
+     .ipr-insight-ribbon { grid-template-columns: repeat(5, minmax(150px, 1fr)); overflow-x: auto; }
+     .ipr-record-workbench { --ipr-inspector-width: 350px; }
+-    .ipr-filter-bar,
+-    .ipr-filter-bar.has-clear { grid-template-columns: minmax(260px, 1.5fr) repeat(2, minmax(145px, .7fr)); }
+-    .ipr-filter-bar > :nth-child(n+4) { grid-column: auto; }
+ }
+ 
+ @media (max-width: 1050px) {
+@@ -675,8 +755,16 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+     .ipr-register-actions { width: 100%; }
+     .ipr-register-actions .btn { flex: 1 1 auto; }
+     .ipr-tabs { overflow-x: auto; }
+-    .ipr-filter-bar,
+-    .ipr-filter-bar.has-clear,
++    .ipr-record-search-bar { align-items: stretch; flex-wrap: wrap; }
++    .ipr-record-search-bar .ipr-search-field { flex: 1 0 100%; }
++    .ipr-record-search-bar .btn { flex: 1 1 auto; }
++    .ipr-active-filter-bar { align-items: flex-start; flex-wrap: wrap; }
++    .ipr-active-filter-chips { width: 100%; order: 3; }
++    .ipr-filter-grid--two { grid-template-columns: 1fr; }
++    .ipr-filter-field--full { grid-column: auto; }
++    .ipr-filter-drawer__footer { align-items: stretch; flex-direction: column; }
++    .ipr-filter-drawer__footer-actions { width: 100%; }
++    .ipr-filter-drawer__footer-actions .btn { flex: 1 1 0; }
+     .ipr-project-toolbar { grid-template-columns: 1fr; }
      .ipr-project-filter-picker .ipr-project-picker__panel { min-width: 0; }
      .ipr-record-toolbar { align-items: flex-start; flex-direction: column; }
-     .ipr-record-toolbar__actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
--    .ipr-density-control { width: 100%; justify-content: space-between; }
-+    .ipr-pagination-compact { order: 1; }
-+    .ipr-page-size-control { order: 2; }
-+    .ipr-density-control { width: 100%; order: 3; justify-content: space-between; }
-     .ipr-register-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
-     .ipr-register-table { min-width: 790px; }
-     .ipr-record-inspector { max-height: none; overflow: visible; }
-@@ -694,6 +742,10 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+@@ -737,7 +825,10 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+ [data-bs-theme="dark"] .ipr-followup-group,
+ [data-bs-theme="dark"] .ipr-analytics-insights article,
+ [data-bs-theme="dark"] .ipr-register-icon { background: #172033; }
+-[data-bs-theme="dark"] .ipr-filter-bar,
++[data-bs-theme="dark"] .ipr-record-search-bar,
++[data-bs-theme="dark"] .ipr-active-filter-bar,
++[data-bs-theme="dark"] .ipr-analytics-scope,
++[data-bs-theme="dark"] .ipr-followup-filters,
+ [data-bs-theme="dark"] .ipr-record-inspector,
  [data-bs-theme="dark"] .ipr-project-groups,
  [data-bs-theme="dark"] .ipr-project-toolbar,
- [data-bs-theme="dark"] .ipr-record-toolbar { background: #111827; }
-+[data-bs-theme="dark"] .ipr-pagination-compact { border-color: #34425a; background: #172033; }
-+[data-bs-theme="dark"] .ipr-pagination-compact__button:hover,
-+[data-bs-theme="dark"] .ipr-pagination-compact__button:focus-visible { background: #26354d; color: #8fb0ff; }
-+[data-bs-theme="dark"] .ipr-pagination-compact__position strong { color: #e6edf7; }
- [data-bs-theme="dark"] .ipr-register-table thead th,
- [data-bs-theme="dark"] .ipr-project-record-head { background: #1d293d; color: #afbdd0; }
- [data-bs-theme="dark"] .ipr-register-table td,
+@@ -788,3 +879,14 @@ article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
+     .ipr-form-grid,
+     .ipr-attachment-upload { grid-template-columns: 1fr; }
+ }
++
++[data-bs-theme="dark"] .ipr-filter-drawer { --ipr-filter-surface: #172033; --ipr-filter-subtle: #111827; --ipr-filter-border: #2d3a50; }
++[data-bs-theme="dark"] .ipr-filter-drawer__footer { background: rgba(23,32,51,.98); }
++[data-bs-theme="dark"] .ipr-filter-section__heading h3,
++[data-bs-theme="dark"] .ipr-filter-field > span,
++[data-bs-theme="dark"] .ipr-analytics-scope strong { color: #e6edf7; }
++[data-bs-theme="dark"] .ipr-filter-chip,
++[data-bs-theme="dark"] .ipr-followup-filters a.active { border-color: #34425a; background: #172033; color: #d7e2f2; }
++[data-bs-theme="dark"] .ipr-search-field input,
++[data-bs-theme="dark"] .ipr-filter-field .form-control,
++[data-bs-theme="dark"] .ipr-filter-field .form-select { border-color: #34425a; background: #1d293d; color: #e6edf7; }
 diff --git a/wwwroot/js/project-office-reports/ipr/index.js b/wwwroot/js/project-office-reports/ipr/index.js
-index a1baecba42115efb69a6fec06ea0f07eac47f843..4797442ca0c9ec47fc7aaafaf16f966e26f7b2f9 100644
+index 4797442ca0c9ec47fc7aaafaf16f966e26f7b2f9..3d81d5f96d01aa253988169c38406f4be08c6fdf 100644
 --- a/wwwroot/js/project-office-reports/ipr/index.js
 +++ b/wwwroot/js/project-office-reports/ipr/index.js
-@@ -394,7 +394,7 @@
-     const byId = new Map(records.map(record => [String(record.Id ?? record.id), record]));
-     const rows = Array.from(document.querySelectorAll('[data-ipr-record-row]'));
-     const projectBaseUrl = inspector.dataset.iprProjectBaseUrl || '/Projects/Overview';
--    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('page') || '1'}`;
-+    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('pageNumber') || '1'}`;
- 
-     const setText = (selector, value) => {
-       const element = inspector.querySelector(selector);
-@@ -495,6 +495,10 @@
-       if (editLink && rowEdit) editLink.href = rowEdit.href;
- 
-       try { sessionStorage.setItem(storageKey, String(id)); } catch { /* storage is optional */ }
-+
-+      const url = new URL(window.location.href);
-+      url.searchParams.set('selectedRecordId', String(id));
-+      history.replaceState({}, document.title, url.toString());
-     };
- 
-     document.querySelectorAll('[data-ipr-select-record]').forEach(button => {
-@@ -525,11 +529,18 @@
-       });
-     });
- 
--    let initialId = rows[0]?.dataset.recordId;
--    try {
--      const saved = sessionStorage.getItem(storageKey);
--      if (saved && byId.has(saved)) initialId = saved;
--    } catch { /* storage is optional */ }
-+    const serverSelectedId = inspector.dataset.iprSelectedRecordId;
-+    let initialId = serverSelectedId && byId.has(serverSelectedId)
-+      ? serverSelectedId
-+      : rows[0]?.dataset.recordId;
-+
-+    if (!serverSelectedId) {
-+      try {
-+        const saved = sessionStorage.getItem(storageKey);
-+        if (saved && byId.has(saved)) initialId = saved;
-+      } catch { /* storage is optional */ }
-+    }
-+
-     if (initialId) selectRecord(initialId);
+@@ -782,12 +782,67 @@
+     container.querySelectorAll('.toast').forEach(element => bootstrap.Toast.getOrCreateInstance(element).show());
    };
  
-@@ -650,9 +661,11 @@
-     select.addEventListener('change', () => {
-       const url = new URL(window.location.href);
-       url.searchParams.set('pageSize', select.value);
--      url.searchParams.set('page', '1');
-+      url.searchParams.set('pageNumber', '1');
-+      url.searchParams.delete('selectedRecordId');
-       url.searchParams.delete('mode');
-       url.searchParams.delete('id');
-+      url.hash = 'ipr-records';
-       window.location.assign(url.toString());
+-  const initialiseAutoSubmitFilters = () => {
+-    const form = document.querySelector('.ipr-filter-bar[data-ipr-loading-form]');
+-    if (!form) return;
+-    form.querySelectorAll('[data-ipr-auto-submit]').forEach(control => {
+-      control.addEventListener('change', () => form.requestSubmit());
++  const initialiseFilterDrawer = () => {
++    const drawer = document.getElementById('iprFilterOffcanvas');
++    const form = drawer?.querySelector('[data-ipr-filter-form]');
++    if (!drawer || !form) return;
++
++    const dateBasis = form.querySelector('[data-ipr-date-basis]');
++    const year = form.querySelector('[data-ipr-date-year]');
++    const help = form.querySelector('[data-ipr-date-basis-help]');
++    const project = form.querySelector('[data-ipr-project-value]');
++    const linkage = form.querySelector('[data-ipr-linkage-filter]');
++
++    const syncDateYears = () => {
++      if (!dateBasis || !year) return;
++      const protectedBasis = normalizeText(dateBasis.value) === 'protected';
++      let selectedAvailable = !year.value;
++
++      Array.from(year.options).forEach(option => {
++        if (!option.value) {
++          option.hidden = false;
++          option.disabled = false;
++          return;
++        }
++
++        const available = protectedBasis
++          ? option.dataset.hasProtected === 'true'
++          : option.dataset.hasFiled === 'true';
++        option.hidden = !available;
++        option.disabled = !available;
++        if (option.selected && available) selectedAvailable = true;
++      });
++
++      if (!selectedAvailable) year.value = '';
++      if (help) {
++        help.textContent = protectedBasis
++          ? 'Uses the patent grant or copyright registration date; pending records are excluded.'
++          : 'Uses the original filing date.';
++      }
++    };
++
++    const syncLinkage = () => {
++      if (!project || !linkage) return;
++      const projectSelected = Boolean(project.value);
++      if (projectSelected) linkage.value = 'All';
++      linkage.disabled = projectSelected;
++      linkage.closest('.ipr-filter-field')?.classList.toggle('is-disabled', projectSelected);
++    };
++
++    dateBasis?.addEventListener('change', syncDateYears);
++    project?.addEventListener('change', syncLinkage);
++    form.addEventListener('submit', () => {
++      const page = form.querySelector('input[name="pageNumber"]');
++      if (page) page.value = '1';
++      if (linkage?.disabled) linkage.disabled = false;
      });
++
++    drawer.addEventListener('shown.bs.offcanvas', () => {
++      drawer.querySelector('select, input:not([type="hidden"])')?.focus?.();
++    });
++
++    syncDateYears();
++    syncLinkage();
    };
+ 
+   const initialiseTypeGuidance = () => {
+@@ -887,7 +942,7 @@
+   initialiseProjectGroups();
+   initialiseConfirmations();
+   initialiseToasts();
+-  initialiseAutoSubmitFilters();
++  initialiseFilterDrawer();
+   initialiseTypeGuidance();
+   initialiseGrantedDate();
+   initialiseAttachmentUpload();
 diff --git a/wwwroot/js/project-office-reports/ipr/index.test.js b/wwwroot/js/project-office-reports/ipr/index.test.js
-index 6ca5e9c46602c7f94a21ee22f2e06f58f0011847..046f699470570a8b510fbb906d312b164a31ce66 100644
+index 046f699470570a8b510fbb906d312b164a31ce66..9e1d76594e8c3dc95f950e884175f4306abd12e5 100644
 --- a/wwwroot/js/project-office-reports/ipr/index.test.js
 +++ b/wwwroot/js/project-office-reports/ipr/index.test.js
-@@ -20,6 +20,10 @@ const cssSource = fs.readFileSync(
-   path.resolve(__dirname, '../../../css/site-ipr.css'),
+@@ -24,6 +24,22 @@ const paginationSource = fs.readFileSync(
+   path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml'),
    'utf8'
  );
-+const paginationSource = fs.readFileSync(
-+  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml'),
++const filterDrawerSource = fs.readFileSync(
++  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml'),
++  'utf8'
++);
++const activeFilterSource = fs.readFileSync(
++  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml'),
++  'utf8'
++);
++const pageSource = fs.readFileSync(
++  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
++  'utf8'
++);
++const selectListsSource = fs.readFileSync(
++  path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs'),
 +  'utf8'
 +);
  
  test('IPR drawer uses a container-aware two-column form instead of Bootstrap viewport columns', () => {
    assert.match(cssSource, /\.ipr-form-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
-@@ -33,7 +37,7 @@ test('IPR mutation forms explicitly target the Index Razor Page and named handle
-   assert.match(formSource, /asp-page-handler="RemoveAttachment"/);
-   assert.match(formSource, /asp-page-handler="Delete"/);
-   assert.doesNotMatch(formSource, /asp-all-route-data="formRoutes"/);
--  assert.match(stateSource, /name="page"/);
-+  assert.match(stateSource, /name="pageNumber"/);
-   assert.match(stateSource, /name="PageSize"/);
-   assert.match(stateSource, /name="Tab"/);
- });
-@@ -206,3 +210,21 @@ test('IPR summary exposes patent and copyright splits for filed, protected and p
-   assert.match(cssSource, /\.ipr-insight__bar/);
+@@ -74,9 +90,29 @@ test('IPR attachment upload communicates PDF policy and prevents duplicate submi
+   assert.match(source, /Uploading…/);
  });
  
-+
-+
-+test('IPR pagination uses a non-reserved pageNumber query key in both controls', () => {
-+  assert.match(paginationSource, /BuildPageRoute/);
-+  assert.match(paginationSource, /aria-current="page"/);
-+  assert.match(paginationSource, /Previous page/);
-+  assert.match(paginationSource, /Next page/);
-+  assert.doesNotMatch(paginationSource, /asp-route-page=/);
-+  assert.match(source, /searchParams\.set\('pageNumber', '1'\)/);
-+  assert.doesNotMatch(source, /searchParams\.set\('page', '1'\)/);
+-test('IPR filter selects auto-submit while retaining an accessible hidden submit control', () => {
+-  assert.match(source, /\[data-ipr-auto-submit\]/);
+-  assert.match(source, /form\.requestSubmit\(\)/);
++test('IPR records keep explicit search while structured filters use a header drawer', () => {
++  assert.match(pageSource, /data-bs-target="#iprFilterOffcanvas"/);
++  assert.match(pageSource, /ipr-record-search-button/);
++  assert.match(filterDrawerSource, /data-ipr-filter-form/);
++  assert.match(filterDrawerSource, /Apply filters/);
++  assert.doesNotMatch(source, /initialiseAutoSubmitFilters/);
 +});
 +
-+test('IPR selected filing state is explicit and independent from edit mode', () => {
-+  assert.match(stateSource, /name="SelectedRecordId"/);
-+  assert.match(source, /dataset\.iprSelectedRecordId/);
-+  assert.match(source, /searchParams\.set\('selectedRecordId'/);
-+  assert.match(source, /searchParams\.delete\('selectedRecordId'\)/);
++test('IPR filter drawer supports filed and grant-registration year bases', () => {
++  assert.match(filterDrawerSource, /asp-for="DateBasis"/);
++  assert.match(selectListsSource, /Grant \/ registration year/);
++  assert.match(filterDrawerSource, /data-has-filed/);
++  assert.match(filterDrawerSource, /data-has-protected/);
++  assert.match(source, /syncDateYears/);
++  assert.match(source, /patent grant or copyright registration date/);
 +});
++
++test('IPR active scope is removable and visible across module views', () => {
++  assert.match(pageSource, /_ActiveFilterChips/);
++  assert.match(activeFilterSource, /BuildRemoveFilterRoute/);
++  assert.match(activeFilterSource, /BuildClearFiltersRoute/);
++  assert.match(pageSource, /Analytics scope:/);
++  assert.match(pageSource, /ipr-followup-filters/);
+ });
+ 
+ 

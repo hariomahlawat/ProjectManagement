@@ -1,0 +1,27 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+
+@if (Model.ActiveFilterChips.Count > 0)
+{
+    <section class="ipr-active-filter-bar" aria-label="Active IPR filters">
+        <div class="ipr-active-filter-bar__label">
+            <i class="bi bi-funnel-fill" aria-hidden="true"></i>
+            <span>Active scope</span>
+            <strong>@Model.ActiveFilterChips.Count</strong>
+        </div>
+        <div class="ipr-active-filter-chips">
+            @foreach (var chip in Model.ActiveFilterChips)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.BuildRemoveFilterRoute(chip)"
+                   class="ipr-filter-chip"
+                   aria-label="Remove filter @chip.Label">
+                    <span>@chip.Label</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
+            }
+        </div>
+        <a asp-page="./Index"
+           asp-all-route-data="@Model.BuildClearFiltersRoute()"
+           class="ipr-active-filter-bar__clear">Clear all</a>
+    </section>
+}

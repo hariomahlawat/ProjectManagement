@@ -25,12 +25,12 @@ public sealed class IprReadService : IIprReadService
         var page = filter.Page;
         var pageSize = filter.PageSize;
 
-        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
         var total = await query.CountAsync(cancellationToken);
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         page = Math.Clamp(page, 1, totalPages);
 
-        var queryResults = await ApplyRegisterOrdering(query)
+        var queryResults = await IprQueryFilter.ApplyRegisterOrdering(query)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new
@@ -101,7 +101,7 @@ public sealed class IprReadService : IIprReadService
             return null;
         }
 
-        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
         var target = await query
             .Where(record => record.Id == recordId)
             .Select(record => new
@@ -140,7 +140,7 @@ public sealed class IprReadService : IIprReadService
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var baseQuery = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+        var baseQuery = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
         var groups = await baseQuery
             .GroupBy(x => x.Status)
             .Select(g => new { Status = g.Key, Count = g.Count() })
@@ -158,9 +158,9 @@ public sealed class IprReadService : IIprReadService
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+        var query = IprQueryFilter.Apply(_db.IprRecords.AsNoTracking(), filter);
 
-        var items = await ApplyRegisterOrdering(query)
+        var items = await IprQueryFilter.ApplyRegisterOrdering(query)
             .Select(x => new IprExportRowDto(
                 x.IprFilingNumber,
                 x.Title,
@@ -189,65 +189,5 @@ public sealed class IprReadService : IIprReadService
         }
 
         return fallback;
-    }
-
-    private static IOrderedQueryable<IprRecord> ApplyRegisterOrdering(IQueryable<IprRecord> query)
-        => query
-            .OrderByDescending(record => record.FiledAtUtc ?? DateTimeOffset.MinValue)
-            .ThenBy(record => record.Id);
-
-    private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
-    {
-        // The public register contains only filed and granted IPRs. Legacy
-        // FilingUnderProcess values are treated as Filed until data migration.
-        query = query.Where(x => x.Status == IprStatus.FilingUnderProcess ||
-                                 x.Status == IprStatus.Filed ||
-                                 x.Status == IprStatus.Granted);
-
-        // --- Search filtering: provider-agnostic contains ---
-        if (!string.IsNullOrWhiteSpace(filter.Query))
-        {
-            var trimmed = filter.Query.Trim().ToLowerInvariant();
-
-            query = query.Where(x =>
-                (!string.IsNullOrEmpty(x.IprFilingNumber) && x.IprFilingNumber.ToLower().Contains(trimmed)) ||
-                (!string.IsNullOrEmpty(x.Title) && x.Title!.ToLower().Contains(trimmed)) ||
-                (x.Project != null && x.Project.Name.ToLower().Contains(trimmed)));
-        }
-
-        if (filter.Types is { Count: > 0 })
-        {
-            query = query.Where(x => filter.Types!.Contains(x.Type));
-        }
-
-        if (includeStatusFilter && filter.Statuses is { Count: > 0 })
-        {
-            var wantsFiled = filter.Statuses.Contains(IprStatus.Filed);
-            var wantsGranted = filter.Statuses.Contains(IprStatus.Granted);
-            query = query.Where(x =>
-                (wantsFiled && (x.Status == IprStatus.FilingUnderProcess || x.Status == IprStatus.Filed)) ||
-                (wantsGranted && x.Status == IprStatus.Granted));
-        }
-
-        if (filter.ProjectId.HasValue)
-        {
-            query = query.Where(x => x.ProjectId == filter.ProjectId);
-        }
-
-        if (filter.FiledFrom.HasValue)
-        {
-            var from = filter.FiledFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-            var fromOffset = new DateTimeOffset(from);
-            query = query.Where(x => x.FiledAtUtc >= fromOffset);
-        }
-
-        if (filter.FiledTo.HasValue)
-        {
-            var to = filter.FiledTo.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
-            var toOffset = new DateTimeOffset(to);
-            query = query.Where(x => x.FiledAtUtc <= toOffset);
-        }
-
-        return query;
     }
 }

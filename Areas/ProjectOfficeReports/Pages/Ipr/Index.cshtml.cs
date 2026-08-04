@@ -74,7 +74,19 @@ public sealed partial class IndexModel : PageModel
     public int? ProjectId { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public IprDateBasis DateBasis { get; set; } = IprDateBasis.Filed;
+
+    [BindProperty(SupportsGet = true)]
     public int? Year { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public IprLinkageFilter Linkage { get; set; } = IprLinkageFilter.All;
+
+    [BindProperty(SupportsGet = true)]
+    public IprEvidenceFilter Evidence { get; set; } = IprEvidenceFilter.All;
+
+    [BindProperty(SupportsGet = true)]
+    public string? AttentionIssue { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public string Tab { get; set; } = "records";
@@ -122,7 +134,15 @@ public sealed partial class IndexModel : PageModel
 
     public IReadOnlyList<ProjectPickerOption> ProjectPickerOptions { get; private set; } = Array.Empty<ProjectPickerOption>();
 
+    public IReadOnlyList<SelectListItem> DateBasisOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+    public IReadOnlyList<IprYearOption> DateYearOptions { get; private set; } = Array.Empty<IprYearOption>();
+
     public IReadOnlyList<SelectListItem> YearOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+    public IReadOnlyList<SelectListItem> LinkageOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+    public IReadOnlyList<SelectListItem> EvidenceOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> PageSizeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -153,6 +173,8 @@ public sealed partial class IndexModel : PageModel
 
     public int AttentionRecordCount { get; private set; }
 
+    public int VisibleAttentionRecordCount { get; private set; }
+
     public int OverdueAttentionCount { get; private set; }
 
     public int UnassignedCount { get; private set; }
@@ -172,14 +194,26 @@ public sealed partial class IndexModel : PageModel
     public string AttachmentUploadHint
         => $"PDF only · Maximum {FormatFileSize(_attachmentOptions.MaxFileSizeBytes)}";
 
-    public bool HasAnyFilter
-        => !string.IsNullOrWhiteSpace(Query)
-            || Types.Count > 0
+    public bool HasStructuredFilters
+        => Types.Count > 0
             || Statuses.Count > 0
             || ProjectId.HasValue
-            || Year.HasValue;
+            || Year.HasValue
+            || Linkage != IprLinkageFilter.All
+            || Evidence != IprEvidenceFilter.All;
 
-    public IReadOnlyList<string> ActiveFilterChips { get; private set; } = Array.Empty<string>();
+    public bool HasAnyFilter
+        => !string.IsNullOrWhiteSpace(Query) || HasStructuredFilters;
+
+    public int StructuredFilterCount
+        => Types.Count
+            + Statuses.Count
+            + (ProjectId.HasValue ? 1 : 0)
+            + (Year.HasValue ? 1 : 0)
+            + (Linkage != IprLinkageFilter.All ? 1 : 0)
+            + (Evidence != IprEvidenceFilter.All ? 1 : 0);
+
+    public IReadOnlyList<ActiveFilterChip> ActiveFilterChips { get; private set; } = Array.Empty<ActiveFilterChip>();
 
     public static string FormatAge(int days)
     {
@@ -267,9 +301,29 @@ public sealed partial class IndexModel : PageModel
             values["projectId"] = ProjectId.Value;
         }
 
+        if (DateBasis != IprDateBasis.Filed || Year.HasValue)
+        {
+            values["dateBasis"] = DateBasis.ToString();
+        }
+
         if (Year.HasValue)
         {
             values["year"] = Year.Value;
+        }
+
+        if (Linkage != IprLinkageFilter.All)
+        {
+            values["linkage"] = Linkage.ToString();
+        }
+
+        if (Evidence != IprEvidenceFilter.All)
+        {
+            values["evidence"] = Evidence.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(AttentionIssue) && string.Equals(Tab, "followup", StringComparison.Ordinal))
+        {
+            values["attentionIssue"] = AttentionIssue;
         }
 
         if (!string.IsNullOrWhiteSpace(Tab))
@@ -303,7 +357,9 @@ public sealed partial class IndexModel : PageModel
 
         if (additionalValues is not null)
         {
-            foreach (var kvp in new RouteValueDictionary(additionalValues))
+            var additionalRouteValues = additionalValues as RouteValueDictionary
+                ?? new RouteValueDictionary(additionalValues);
+            foreach (var kvp in additionalRouteValues)
             {
                 values[kvp.Key] = kvp.Value;
             }
@@ -362,6 +418,77 @@ public sealed partial class IndexModel : PageModel
             new { tab = "records", selectedRecordId = recordId, mode = "edit", id = recordId },
             includePage: true,
             includeModeAndId: false);
+
+    public IDictionary<string, string?> BuildRemoveFilterRoute(ActiveFilterChip chip)
+    {
+        ArgumentNullException.ThrowIfNull(chip);
+        var overrides = new RouteValueDictionary
+        {
+            ["pageNumber"] = 1,
+            ["selectedRecordId"] = null,
+            ["mode"] = null,
+            ["id"] = null
+        };
+
+        switch (chip.Key)
+        {
+            case "query":
+                overrides["query"] = null;
+                break;
+            case "type":
+                overrides["types"] = Types
+                    .Where(type => !string.Equals(type.ToString(), chip.Value, StringComparison.OrdinalIgnoreCase))
+                    .Select(type => type.ToString())
+                    .ToArray();
+                break;
+            case "status":
+                overrides["statuses"] = Statuses
+                    .Where(status => !string.Equals(status.ToString(), chip.Value, StringComparison.OrdinalIgnoreCase))
+                    .Select(status => status.ToString())
+                    .ToArray();
+                break;
+            case "project":
+                overrides["projectId"] = null;
+                break;
+            case "year":
+                overrides["year"] = null;
+                overrides["dateBasis"] = null;
+                break;
+            case "linkage":
+                overrides["linkage"] = null;
+                break;
+            case "evidence":
+                overrides["evidence"] = null;
+                break;
+        }
+
+        return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
+    }
+
+    public IDictionary<string, string?> BuildClearFiltersRoute(bool includeQuery = true)
+    {
+        var overrides = new RouteValueDictionary
+        {
+            ["types"] = null,
+            ["statuses"] = null,
+            ["projectId"] = null,
+            ["dateBasis"] = null,
+            ["year"] = null,
+            ["linkage"] = null,
+            ["evidence"] = null,
+            ["attentionIssue"] = null,
+            ["pageNumber"] = 1,
+            ["selectedRecordId"] = null,
+            ["mode"] = null,
+            ["id"] = null
+        };
+        if (includeQuery)
+        {
+            overrides["query"] = null;
+        }
+
+        return GetRouteValuesForLinks(overrides, includePage: false, includeModeAndId: false);
+    }
 
     private static void AddIndexedValues(IDictionary<string, string?> destination, string key, IEnumerable<string> values)
     {

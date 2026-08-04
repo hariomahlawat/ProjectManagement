@@ -1,10 +1,6 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
 @using ProjectManagement.Application.Ipr
 
-@if (!string.IsNullOrWhiteSpace(Model.Query))
-{
-    <input type="hidden" name="Query" value="@Model.Query" />
-}
 @foreach (var type in Model.Types)
 {
     <input type="hidden" name="Types" value="@type" />
@@ -33,14 +29,3 @@
 {
     <input type="hidden" name="Evidence" value="@Model.Evidence" />
 }
-@if (!string.IsNullOrWhiteSpace(Model.AttentionIssue))
-{
-    <input type="hidden" name="AttentionIssue" value="@Model.AttentionIssue" />
-}
-<input type="hidden" name="Tab" value="@Model.Tab" />
-@if (Model.SelectedRecordId.HasValue)
-{
-    <input type="hidden" name="SelectedRecordId" value="@Model.SelectedRecordId.Value" />
-}
-<input type="hidden" name="pageNumber" value="@Model.PageNumber" />
-<input type="hidden" name="PageSize" value="@Model.PageSize" />

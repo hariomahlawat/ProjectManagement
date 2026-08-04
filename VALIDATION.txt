@@ -1,15 +1,26 @@
-Validation performed in the preparation environment
-===================================================
+PRISM ERP — IPR Register Filter Scope Completion
+Validation record
 
-PASS  JavaScript syntax: node --check wwwroot/js/project-office-reports/ipr/index.js
-PASS  Targeted front-end tests: 19/19
-PASS  git diff --check
-PASS  C# delimiter/static structural checks for all modified C# files
-PASS  Razor paired-tag/static structural checks for modified IPR views
-PASS  CSS brace balance
-PASS  No obsolete production references to Ipr.ViewAllowedRoles, asp-route-page, name="page", or Patent tracker
-PASS  Implementation patch applies cleanly to the latest integrated source baseline
-PASS  Applied patch reproduces all 29 replacement files byte-for-byte
-PASS  ZIP integrity check
+PASSED
+- JavaScript syntax: wwwroot/js/project-office-reports/ipr/index.js
+- Focused IPR frontend tests: 21 passed, 0 failed
+- C# delimiter/static structural checks for all modified C# files
+- Razor selected-tag balance checks for the modified page and new partials
+- CSS delimiter/brace checks
+- ProjectManagement.csproj XML parse
+- git diff --check
+- Implementation patch clean-apply check against the latest integrated baseline
+- Patched verification files matched all 17 replacement files byte-for-byte
+- ZIP integrity test
 
-NOT RUN  .NET Release build and xUnit suite: .NET SDK is not installed in the preparation environment.
+NOT RUN
+- .NET Release build
+- xUnit IPR suite
+Reason: the .NET SDK is not installed in the preparation environment.
+
+FULL REPOSITORY JAVASCRIPT SUITE
+- Attempted, but not reported as passed because the repository's jsdom dependency is not installed.
+- The dependency-free focused IPR suite completed successfully: 21/21.
+
+DATABASE
+- No migration required.

@@ -1,0 +1,137 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+@using ProjectManagement.Application.Ipr
+
+<div class="offcanvas offcanvas-end ipr-filter-drawer"
+     tabindex="-1"
+     id="iprFilterOffcanvas"
+     aria-labelledby="iprFilterOffcanvasLabel">
+    <div class="offcanvas-header ipr-filter-drawer__header">
+        <div>
+            <span class="ipr-filter-drawer__eyebrow">REGISTER SCOPE</span>
+            <h2 class="offcanvas-title" id="iprFilterOffcanvasLabel">Filter IPR Register</h2>
+            <p>Apply one consistent scope to records, projects, follow-up, analytics and export.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close filters"></button>
+    </div>
+
+    <form method="get" class="ipr-filter-drawer__form" data-ipr-filter-form>
+        <input type="hidden" name="Tab" value="@Model.Tab" />
+        <input type="hidden" name="pageNumber" value="1" />
+        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+        @if (Model.Tab == "records" && !string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <input type="hidden" name="Query" value="@Model.Query" />
+        }
+
+        <div class="ipr-filter-drawer__body">
+            <section class="ipr-filter-section">
+                <div class="ipr-filter-section__heading">
+                    <h3>IPR position</h3>
+                    <p>Limit the register by category and current protection status.</p>
+                </div>
+                <div class="ipr-filter-grid ipr-filter-grid--two">
+                    <label class="ipr-filter-field">
+                        <span>IPR category</span>
+                        <select name="Types" class="form-select">
+                            <option value="">All IPR categories</option>
+                            @foreach (var option in Model.TypeOptions)
+                            {
+                                if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+                                else { <option value="@option.Value">@option.Text</option> }
+                            }
+                        </select>
+                    </label>
+                    <label class="ipr-filter-field">
+                        <span>Status</span>
+                        <select name="Statuses" class="form-select">
+                            <option value="">All statuses</option>
+                            @foreach (var option in Model.StatusOptions)
+                            {
+                                if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+                                else { <option value="@option.Value">@option.Text</option> }
+                            }
+                        </select>
+                    </label>
+                </div>
+            </section>
+
+            <section class="ipr-filter-section">
+                <div class="ipr-filter-section__heading">
+                    <h3>Project scope</h3>
+                    <p>Select a project, or filter the register by assignment state.</p>
+                </div>
+                <div class="ipr-filter-grid">
+                    <div class="ipr-filter-field">
+                        <span>Project</span>
+                        <partial name="_ProjectFilterPicker" model="Model" />
+                    </div>
+                    <label class="ipr-filter-field">
+                        <span>Project linkage</span>
+                        <select asp-for="Linkage" asp-items="Model.LinkageOptions" class="form-select" data-ipr-linkage-filter></select>
+                    </label>
+                </div>
+            </section>
+
+            <section class="ipr-filter-section">
+                <div class="ipr-filter-section__heading">
+                    <h3>Date and evidence</h3>
+                    <p>Choose whether the year refers to filing or final protection.</p>
+                </div>
+                <div class="ipr-filter-grid ipr-filter-grid--two">
+                    <label class="ipr-filter-field">
+                        <span>Date basis</span>
+                        <select asp-for="DateBasis" asp-items="Model.DateBasisOptions" class="form-select" data-ipr-date-basis></select>
+                    </label>
+                    <label class="ipr-filter-field">
+                        <span>Year</span>
+                        <select asp-for="Year" class="form-select" data-ipr-date-year>
+                            <option value="">All years</option>
+                            @foreach (var option in Model.DateYearOptions)
+                            {
+                                if (Model.Year == option.Year)
+                                {
+                                    <option value="@option.Value"
+                                            data-has-filed="@(option.HasFiled ? "true" : "false")"
+                                            data-has-protected="@(option.HasProtected ? "true" : "false")"
+                                            selected>@option.Label</option>
+                                }
+                                else
+                                {
+                                    <option value="@option.Value"
+                                            data-has-filed="@(option.HasFiled ? "true" : "false")"
+                                            data-has-protected="@(option.HasProtected ? "true" : "false")">@option.Label</option>
+                                }
+                            }
+                        </select>
+                        <small data-ipr-date-basis-help>
+                            @(Model.DateBasis == IprDateBasis.Protected
+                                ? "Uses the patent grant or copyright registration date; pending records are excluded."
+                                : "Uses the original filing date.")
+                        </small>
+                    </label>
+                    <label class="ipr-filter-field ipr-filter-field--full">
+                        <span>Supporting evidence</span>
+                        <select asp-for="Evidence" asp-items="Model.EvidenceOptions" class="form-select"></select>
+                    </label>
+                </div>
+            </section>
+        </div>
+
+        <div class="ipr-filter-drawer__footer">
+            <div>
+                @if (Model.HasStructuredFilters)
+                {
+                    <a asp-page="./Index"
+                       asp-all-route-data="@Model.BuildClearFiltersRoute(includeQuery: false)"
+                       class="btn btn-link">Clear filters</a>
+                }
+            </div>
+            <div class="ipr-filter-drawer__footer-actions">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-funnel" aria-hidden="true"></i> Apply filters
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

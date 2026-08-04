@@ -1,50 +1,72 @@
-# PRISM ERP — IPR Register Access and Navigation Stabilisation
+# PRISM ERP — IPR Register Filter Scope Completion
 
 ## Apply
 
 1. Stop the application or IIS application pool.
-2. Back up or commit the current solution.
-3. Copy the contents of this package over the **ProjectManagement solution root**.
-4. Replace the files listed in `REPLACEMENT-MANIFEST.txt`.
-5. Delete stale `bin` and `obj` directories if Visual Studio retains old Razor output.
-6. Rebuild and run the focused validation commands below.
-7. Restart the application and perform the acceptance checks.
+2. Back up or commit the current source.
+3. Copy this folder's contents over the **ProjectManagement solution root**.
+4. Allow all listed code files to replace the existing files.
+5. Keep the four new files:
+   - `Application/Ipr/IprQueryFilter.cs`
+   - `Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml`
+   - `Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml`
+   - `Areas/ProjectOfficeReports/Pages/Ipr/_StructuredFilterStateFields.cshtml`
+6. Clean `bin` and `obj`, rebuild the solution, and restart the application.
 
-No database migration or configuration update is required.
+This package is based on the latest **IPR Register Access and Navigation Stabilisation** implementation. It contains only the files changed by this filter-scope phase.
 
-## Behaviour delivered
+## Delivered behaviour
 
-- Every authenticated PRISM user can view the IPR Register, its projects, follow-up, analytics, exports and public supporting evidence.
-- Existing IPR edit roles remain unchanged; read access does not grant create, edit, delete or evidence-upload authority.
-- Numeric pagination uses `pageNumber`, avoiding the Razor Pages `page` routing collision.
-- A compact pager is visible in the Records toolbar and a full pager remains below the table.
-- Search, category, status, project, year and page-size state are preserved across pagination.
-- Page-size and filter changes return to page 1 and clear stale record/edit state.
-- Invalid or out-of-range pages are clamped to a valid page.
-- `selectedRecordId` is independent from edit mode.
-- A requested record is located on its actual filtered/sorted page and selected in the inspector.
-- Global search opens a neutral IPR record view; only authorised editors receive an Edit action.
-- Public evidence downloads are limited to records visible in the public IPR Register.
-- Natural browser-page scrolling is retained; no nested vertical scrollbar is reintroduced.
-- Navigation terminology is standardised as **IPR Register**.
+- Adds a module-header **Filters** button alongside guidance, export and record creation.
+- Shows the number of active structured filters on the header button.
+- Opens a professional right-side filter drawer with:
+  - IPR category;
+  - current protection status;
+  - project;
+  - project linkage;
+  - date basis;
+  - year;
+  - supporting-evidence state.
+- Supports both:
+  - **Filed year**; and
+  - **Grant / registration year**.
+- Grant / registration year uses the patent grant or copyright registration date. Pending records are therefore excluded from that year scope.
+- Applies the structured scope consistently to:
+  - Records;
+  - Projects;
+  - Follow-up;
+  - Analytics;
+  - Export.
+- Keeps Records search visible and explicit, with Search and Clear search controls.
+- Displays removable active-filter chips and **Clear all**.
+- Adds focused Follow-up issue filters for long pending, data gaps, unassigned records and missing evidence.
+- Shows the active scope explicitly on Analytics.
+- Keeps insight-ribbon navigation within the current project/date/linkage/evidence scope while changing category or status.
+- Preserves the working `pageNumber` pagination and selected-filing navigation.
+- Retains natural browser scrolling and existing IPR edit permissions.
 
-## Focused validation
+## Database
+
+No database migration or configuration change is required.
+
+## Verification after replacement
+
+1. Open `/ProjectOfficeReports/Ipr`.
+2. Confirm **Filters** appears in the page header.
+3. Select **Filed year**, choose a year, and apply; confirm the active chip and filtered KPIs/records.
+4. Change to **Grant / registration year**; confirm only records protected in that year remain.
+5. Apply Project, Linkage or Evidence filters and confirm the scope remains while moving among Records, Projects, Follow-up and Analytics.
+6. Confirm Export follows the same active scope.
+7. Remove individual chips and use **Clear all**.
+8. Confirm top and bottom pagination still navigate with `pageNumber`.
+9. Confirm a read-only authenticated user can filter and export but cannot edit IPR records.
+
+## Recommended commands
 
 ```powershell
-dotnet build .\ProjectManagement.csproj -c Release
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj -c Release --filter "FullyQualifiedName~Ipr|FullyQualifiedName~RoleBasedNavigationProvider"
+dotnet clean .\ProjectManagement.sln
+dotnet build .\ProjectManagement.sln -c Release
+dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj -c Release --filter "FullyQualifiedName~Ipr"
 node --check .\wwwroot\js\project-office-reports\ipr\index.js
 node --test .\wwwroot\js\project-office-reports\ipr\index.test.js
 ```
-
-## Manual acceptance checks
-
-1. Sign in as a Project Officer, TA, ITO or clerk and confirm **IPR Register** is visible and opens successfully.
-2. Confirm read-only users do not see or reach create, edit, delete or evidence-upload operations.
-3. Set Rows to 10 and use the top and bottom controls to navigate pages 1, 2 and 3/4 as applicable.
-4. Confirm the URL uses `pageNumber`, for example `?tab=records&pageSize=10&pageNumber=2`.
-5. Apply each filter and verify pagination preserves the filter while a filter change returns to page 1.
-6. Open an IPR result from global search and confirm the correct record and page open without the edit drawer.
-7. Sign in as an IPR editor and confirm Edit opens the selected record and all existing write workflows remain operational.
-8. Enter an excessively high `pageNumber` and confirm the final valid page is loaded.
-9. Confirm the page uses only the browser's normal vertical scrollbar.

@@ -3,6 +3,7 @@
 @using System.Text.Json
 @using System.Linq
 @using ProjectManagement.Infrastructure.Data
+@using ProjectManagement.Application.Ipr
 @functions {
     private static string CountLabel(int count, string singular, string plural)
         => $"{count} {(count == 1 ? singular : plural)}";
@@ -51,10 +52,10 @@
     var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
     var recordsJson = JsonSerializer.Serialize(Model.Records);
     var selectedRecord = Model.SelectedRecord;
-    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", pageNumber = 1 }, includePage: false, includeModeAndId: false);
-    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", pageNumber = 1 }, includePage: false, includeModeAndId: false);
-    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", pageNumber = 1 }, includePage: false, includeModeAndId: false);
-    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", attentionIssue = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", query = (string?)null, attentionIssue = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", query = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
+    var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", query = (string?)null, attentionIssue = (string?)null, pageNumber = 1 }, includePage: false, includeModeAndId: false);
     var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
     var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
     var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
@@ -71,6 +72,45 @@
     var copyrightProtectedPercent = Model.Kpis.Granted == 0 ? 0 : 100 - patentProtectedPercent;
     var patentPendingPercent = Model.Kpis.Filed == 0 ? 0 : Math.Round(patentPending * 100d / Model.Kpis.Filed, 1);
     var copyrightPendingPercent = Model.Kpis.Filed == 0 ? 0 : 100 - patentPendingPercent;
+    var filterButtonAriaLabel = Model.StructuredFilterCount > 0
+        ? $"Open IPR filters, {Model.StructuredFilterCount} active"
+        : "Open IPR filters";
+    var filedScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = (string[]?)null, statuses = (string[]?)null, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var patentScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = new[] { "Patent" }, statuses = (string[]?)null, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var copyrightScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = new[] { "Copyright" }, statuses = (string[]?)null, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var protectedScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, statuses = new[] { "Granted" }, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var protectedPatentScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = new[] { "Patent" }, statuses = new[] { "Granted" }, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var protectedCopyrightScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = new[] { "Copyright" }, statuses = new[] { "Granted" }, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var pendingScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, statuses = new[] { "Filed" }, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var pendingPatentScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = new[] { "Patent" }, statuses = new[] { "Filed" }, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
+    var pendingCopyrightScopeRoute = Model.GetRouteValuesForLinks(
+        new { tab = "records", query = (string?)null, types = new[] { "Copyright" }, statuses = new[] { "Filed" }, pageNumber = 1 },
+        includePage: false,
+        includeModeAndId: false);
 }
 
 @section Styles {
@@ -92,6 +132,19 @@
                     data-bs-toggle="modal"
                     data-bs-target="#iprGuidanceModal">
                 <i class="bi bi-info-circle" aria-hidden="true"></i> Patent or copyright?
+            </button>
+            <button type="button"
+                    class="btn btn-outline-primary ipr-header-filter-button @(Model.HasStructuredFilters ? "is-active" : string.Empty)"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#iprFilterOffcanvas"
+                    aria-controls="iprFilterOffcanvas"
+                    aria-label="@filterButtonAriaLabel">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                <span>Filters</span>
+                @if (Model.StructuredFilterCount > 0)
+                {
+                    <span class="ipr-header-filter-button__count">@Model.StructuredFilterCount</span>
+                }
             </button>
             <a asp-page="./Index" asp-page-handler="Export" asp-all-route-data="exportRouteValues" class="btn btn-outline-primary">
                 <i class="bi bi-download"></i> Export
@@ -127,7 +180,7 @@
 
     <section class="ipr-insight-ribbon" aria-label="IPR operational summary">
         <article class="ipr-insight ipr-insight--filed">
-            <a asp-page="./Index" asp-route-tab="records" class="ipr-insight__primary">
+            <a asp-page="./Index" asp-all-route-data="filedScopeRoute" class="ipr-insight__primary">
                 <span>Filed</span><strong>@Model.Kpis.Total</strong><small>all patent and copyright records</small>
             </a>
             <div class="ipr-insight__bar" aria-hidden="true">
@@ -135,13 +188,13 @@
                 <span class="is-copyright" style="width:@(copyrightFiledPercent)%"></span>
             </div>
             <div class="ipr-insight__breakdown" aria-label="Filed IPR category split">
-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent"><i class="is-patent"></i>@CountLabel(patentFiled, "patent", "patents")</a>
+                <a asp-page="./Index" asp-all-route-data="patentScopeRoute"><i class="is-patent"></i>@CountLabel(patentFiled, "patent", "patents")</a>
                 <span aria-hidden="true">·</span>
-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright"><i class="is-copyright"></i>@CountLabel(copyrightFiled, "copyright", "copyrights")</a>
+                <a asp-page="./Index" asp-all-route-data="copyrightScopeRoute"><i class="is-copyright"></i>@CountLabel(copyrightFiled, "copyright", "copyrights")</a>
             </div>
         </article>
         <article class="ipr-insight ipr-insight--granted">
-            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-insight__primary">
+            <a asp-page="./Index" asp-all-route-data="protectedScopeRoute" class="ipr-insight__primary">
                 <span>Protected</span><strong>@Model.Kpis.Granted</strong><small>patents granted and copyrights registered</small>
             </a>
             <div class="ipr-insight__bar" aria-hidden="true">
@@ -149,13 +202,13 @@
                 <span class="is-copyright" style="width:@(copyrightProtectedPercent)%"></span>
             </div>
             <div class="ipr-insight__breakdown" aria-label="Protected IPR category split">
-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Granted"><i class="is-patent"></i>@(patentProtected == 1 ? $"{patentProtected} patent granted" : $"{patentProtected} patents granted")</a>
+                <a asp-page="./Index" asp-all-route-data="protectedPatentScopeRoute"><i class="is-patent"></i>@(patentProtected == 1 ? $"{patentProtected} patent granted" : $"{patentProtected} patents granted")</a>
                 <span aria-hidden="true">·</span>
-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Granted"><i class="is-copyright"></i>@(copyrightProtected == 1 ? $"{copyrightProtected} copyright registered" : $"{copyrightProtected} copyrights registered")</a>
+                <a asp-page="./Index" asp-all-route-data="protectedCopyrightScopeRoute"><i class="is-copyright"></i>@(copyrightProtected == 1 ? $"{copyrightProtected} copyright registered" : $"{copyrightProtected} copyrights registered")</a>
             </div>
         </article>
         <article class="ipr-insight ipr-insight--awaiting">
-            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-insight__primary">
+            <a asp-page="./Index" asp-all-route-data="pendingScopeRoute" class="ipr-insight__primary">
                 <span>Pending</span><strong>@Model.Kpis.Filed</strong><small>@Model.OverdueAttentionCount pending beyond 3 years</small>
             </a>
             <div class="ipr-insight__bar" aria-hidden="true">
@@ -163,15 +216,15 @@
                 <span class="is-copyright" style="width:@(copyrightPendingPercent)%"></span>
             </div>
             <div class="ipr-insight__breakdown" aria-label="Pending IPR category split">
-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Filed"><i class="is-patent"></i>@CountLabel(patentPending, "patent", "patents")</a>
+                <a asp-page="./Index" asp-all-route-data="pendingPatentScopeRoute"><i class="is-patent"></i>@CountLabel(patentPending, "patent", "patents")</a>
                 <span aria-hidden="true">·</span>
-                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Filed"><i class="is-copyright"></i>@CountLabel(copyrightPending, "copyright", "copyrights")</a>
+                <a asp-page="./Index" asp-all-route-data="pendingCopyrightScopeRoute"><i class="is-copyright"></i>@CountLabel(copyrightPending, "copyright", "copyrights")</a>
             </div>
         </article>
-        <a asp-page="./Index" asp-route-tab="project" class="ipr-insight ipr-insight--projects">
+        <a asp-page="./Index" asp-all-route-data="projectRoutes" class="ipr-insight ipr-insight--projects">
             <span>Projects</span><strong>@Model.ProjectsWithIpr</strong><small>@Model.UnassignedCount unassigned</small>
         </a>
-        <a asp-page="./Index" asp-route-tab="followup" class="ipr-insight ipr-insight--attention @(Model.AttentionRecordCount > 0 ? "has-attention" : string.Empty)">
+        <a asp-page="./Index" asp-all-route-data="followupRoutes" class="ipr-insight ipr-insight--attention @(Model.AttentionRecordCount > 0 ? "has-attention" : string.Empty)">
             <span>Needs attention</span><strong>@Model.AttentionRecordCount</strong><small>@Model.MissingAttachmentCount without evidence</small>
         </a>
     </section>
@@ -189,34 +242,30 @@
         <a asp-page="./Index" asp-all-route-data="analyticsRoutes" class="@(Model.Tab == "analytics" ? "active" : "")"><i class="bi bi-bar-chart-line"></i> Analytics</a>
     </nav>
 
+    <partial name="_ActiveFilterChips" model="Model" />
+
     @if (Model.Tab == "records")
     {
         <section class="ipr-panel ipr-records-panel">
-            <form method="get" class="ipr-filter-bar @(Model.HasAnyFilter ? "has-clear" : string.Empty)" data-ipr-loading-form>
-                <input type="hidden" name="tab" value="records" />
-                <div class="ipr-search-field"><i class="bi bi-search"></i><input asp-for="Query" type="search" placeholder="Search title, filing number or project" /></div>
-                <select name="Types" class="form-select" data-ipr-auto-submit aria-label="Filter by IPR category">
-                    <option value="">All IPR categories</option>
-                    @foreach (var option in Model.TypeOptions)
-                    {
-                        if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
-                        else { <option value="@option.Value">@option.Text</option> }
-                    }
-                </select>
-                <select name="Statuses" class="form-select" data-ipr-auto-submit aria-label="Filter by status">
-                    <option value="">All statuses</option>
-                    @foreach (var option in Model.StatusOptions)
-                    {
-                        if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
-                        else { <option value="@option.Value">@option.Text</option> }
-                    }
-                </select>
-                <partial name="_ProjectFilterPicker" model="Model" />
-                <select asp-for="Year" asp-items="Model.YearOptions" class="form-select" data-ipr-auto-submit aria-label="Filter by filing year"></select>
-                <button type="submit" class="visually-hidden">Apply filters</button>
-                @if (Model.HasAnyFilter)
+            <form method="get" class="ipr-record-search-bar" data-ipr-loading-form>
+                <input type="hidden" name="Tab" value="records" />
+                <input type="hidden" name="pageNumber" value="1" />
+                <input type="hidden" name="PageSize" value="@Model.PageSize" />
+                <partial name="_StructuredFilterStateFields" model="Model" />
+                <label class="ipr-search-field" aria-label="Search IPR records">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input asp-for="Query" type="search" placeholder="Search title, filing number or project" />
+                </label>
+                <button type="submit" class="btn btn-primary ipr-record-search-button">
+                    <i class="bi bi-search" aria-hidden="true"></i> Search
+                </button>
+                @if (!string.IsNullOrWhiteSpace(Model.Query))
                 {
-                    <a asp-page="./Index" asp-route-tab="records" class="btn btn-outline-secondary">Clear</a>
+                    var clearSearchRoute = Model.GetRouteValuesForLinks(
+                        new { query = (string?)null, pageNumber = 1, selectedRecordId = (int?)null },
+                        includePage: false,
+                        includeModeAndId: false);
+                    <a asp-page="./Index" asp-all-route-data="clearSearchRoute" class="btn btn-outline-secondary">Clear search</a>
                 }
             </form>
 
@@ -522,8 +571,26 @@
                     <p>Exceptions and long-pending cases that require administrative attention.</p>
                     <small>Each record is listed once under its highest-priority issue; all detected issues remain visible as labels.</small>
                 </div>
-                <span>@($"{Model.AttentionRecordCount} unique {(Model.AttentionRecordCount == 1 ? "record" : "records")}")</span>
+                <span>@($"{Model.VisibleAttentionRecordCount} shown · {Model.AttentionRecordCount} total")</span>
             </div>
+
+            <nav class="ipr-followup-filters" aria-label="Follow-up issue filters">
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = (string?)null }, includePage: false, includeModeAndId: false)"
+                   class="@(string.IsNullOrWhiteSpace(Model.AttentionIssue) ? "active" : string.Empty)">All issues</a>
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "overdue" }, includePage: false, includeModeAndId: false)"
+                   class="@(Model.AttentionIssue == "overdue" ? "active" : string.Empty)">Long pending</a>
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "data" }, includePage: false, includeModeAndId: false)"
+                   class="@(Model.AttentionIssue == "data" ? "active" : string.Empty)">Data gaps</a>
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "linkage" }, includePage: false, includeModeAndId: false)"
+                   class="@(Model.AttentionIssue == "linkage" ? "active" : string.Empty)">Unassigned</a>
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { tab = "followup", attentionIssue = "evidence" }, includePage: false, includeModeAndId: false)"
+                   class="@(Model.AttentionIssue == "evidence" ? "active" : string.Empty)">Missing evidence</a>
+            </nav>
 
             @if (Model.AttentionGroups.Count == 0)
             {
@@ -597,6 +664,17 @@
     else
     {
         <section class="ipr-analytics-view">
+            <div class="ipr-analytics-scope">
+                <div>
+                    <i class="bi bi-funnel" aria-hidden="true"></i>
+                    <span>Analytics scope:</span>
+                    <strong>@(Model.HasStructuredFilters ? string.Join(" · ", Model.ActiveFilterChips.Where(chip => chip.Key != "query").Select(chip => chip.Label)) : "Complete IPR Register")</strong>
+                </div>
+                @if (Model.HasStructuredFilters)
+                {
+                    <a asp-page="./Index" asp-all-route-data="@Model.BuildClearFiltersRoute(includeQuery: false)">Clear scope</a>
+                }
+            </div>
             @{
                 var recordsWithEvidence = Math.Max(0, Model.Kpis.Total - Model.AnalyticsSummary.MissingAttachments);
                 var evidenceCoveragePercent = Model.Kpis.Total == 0
@@ -699,6 +777,7 @@
         </div>
     }
 
+    <partial name="_IprFilterDrawer" model="Model" />
     <partial name="_IprGuidanceModal" />
 </div>
 

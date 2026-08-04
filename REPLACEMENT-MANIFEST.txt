@@ -1,29 +1,25 @@
-Application/Ipr/IIprReadService.cs
+PRISM ERP — IPR Register Filter Scope Completion
+
+REPLACE
+Application/Ipr/IprFilter.cs
 Application/Ipr/IprReadService.cs
-Areas/ProjectOfficeReports/Pages/Ipr/Download.cshtml.cs
-Areas/ProjectOfficeReports/Pages/Ipr/Index.AttachmentCommands.cs
 Areas/ProjectOfficeReports/Pages/Ipr/Index.Loading.cs
-Areas/ProjectOfficeReports/Pages/Ipr/Index.RecordCommands.cs
+Areas/ProjectOfficeReports/Pages/Ipr/Index.Models.cs
 Areas/ProjectOfficeReports/Pages/Ipr/Index.SelectLists.cs
 Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml
 Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs
-Areas/ProjectOfficeReports/Pages/Ipr/Manage.cshtml.cs
-Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml
-Areas/ProjectOfficeReports/Pages/Ipr/_RecordsPagination.cshtml
+Areas/ProjectOfficeReports/Pages/Ipr/_ProjectFilterPicker.cshtml
 Areas/ProjectOfficeReports/Pages/Ipr/_RegisterStateFields.cshtml
-Configuration/Policies.cs
-Program.cs
-ProjectManagement.Tests/IprAuthorizationPolicyTests.cs
-ProjectManagement.Tests/IprExportServiceTests.cs
-ProjectManagement.Tests/IprIndexPageTests.cs
-ProjectManagement.Tests/IprNavigationUrlTests.cs
 ProjectManagement.Tests/IprReadServiceTests.cs
-ProjectManagement.Tests/RoleBasedNavigationProviderTests.cs
-Services/Admin/AdminRoleAccessCatalog.cs
-Services/Navigation/IUrlBuilder.cs
-Services/Navigation/RoleBasedNavigationProvider.cs
-Services/Navigation/UrlBuilder.cs
-Services/Search/GlobalIprSearchService.cs
 wwwroot/css/site-ipr.css
 wwwroot/js/project-office-reports/ipr/index.js
 wwwroot/js/project-office-reports/ipr/index.test.js
+
+ADD
+Application/Ipr/IprQueryFilter.cs
+Areas/ProjectOfficeReports/Pages/Ipr/_ActiveFilterChips.cshtml
+Areas/ProjectOfficeReports/Pages/Ipr/_IprFilterDrawer.cshtml
+Areas/ProjectOfficeReports/Pages/Ipr/_StructuredFilterStateFields.cshtml
+
+NO DATABASE MIGRATION
+NO APPSETTINGS CHANGE
