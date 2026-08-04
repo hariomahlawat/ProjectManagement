@@ -354,6 +354,28 @@ public sealed class ProjectBriefingContractTests
 
 
     [Fact]
+    public void Builder_AppendsConfigurableProfessionalClosingSlideToEveryDeck()
+    {
+        var page = Read("Index.cshtml");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+        var codec = Read("ProjectBriefingDeckConfigurationCodec.cs");
+        var dataSource = Read("ProjectBriefingDataService.cs");
+
+        Assert.Contains("name=\"ClosingSlideType\" value=\"JaiHind\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"ClosingSlideType\" value=\"ThankYou\"", page, StringComparison.Ordinal);
+        Assert.Contains("One ceremonial closing slide is always appended", page, StringComparison.Ordinal);
+        Assert.Contains("SlidePlanKind.Closing", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderClosingSlide", composer, StringComparison.Ordinal);
+        Assert.Contains("Closing ceremonial panel", composer, StringComparison.Ordinal);
+        Assert.Contains("Closing saffron accent", composer, StringComparison.Ordinal);
+        Assert.Contains("Closing white accent", composer, StringComparison.Ordinal);
+        Assert.Contains("Closing green accent", composer, StringComparison.Ordinal);
+        Assert.Contains("kind is SlidePlanKind.Cover or SlidePlanKind.Closing", composer, StringComparison.Ordinal);
+        Assert.Contains("[\"closingSlide\"]", codec, StringComparison.Ordinal);
+        Assert.Contains("ClosingSlides = 1", dataSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AudienceDeck_RemovesBuilderReadinessAndUsesFullCapabilityPagination()
     {
         var composer = Read("ProjectBriefingSlideComposer.cs");
@@ -411,7 +433,7 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("Editorial Light", page, StringComparison.Ordinal);
         Assert.Contains("Graphite Dark", page, StringComparison.Ordinal);
-        Assert.Contains("Header branding", page, StringComparison.Ordinal);
+        Assert.Contains("Presentation branding", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-clear-selected-filters", page, StringComparison.Ordinal);
         Assert.Contains("revealFirstFilterMatch", script, StringComparison.Ordinal);
         Assert.Contains("matching ${noun}", script, StringComparison.Ordinal);

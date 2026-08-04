@@ -605,7 +605,7 @@ if (root) {
       if (isUpdateSheet(deck)) {
         const cover = deck?.includeCoverSlide === false ? 0 : 1;
         const portfolio = deck?.includePortfolioSummarySlide === false ? 0 : 1;
-        slideBreakdown.textContent = `Cover ${cover} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0}`;
+        slideBreakdown.textContent = `Cover ${cover} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0} · Closing ${estimate.closingSlides || 1}`;
       } else {
         const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
         const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
@@ -618,6 +618,7 @@ if (root) {
         if (capabilitySlides > 0) parts.push(`Capability slides ${capabilitySlides}`);
         if (projectBriefSlides > 0) parts.push(`Project brief slides ${projectBriefSlides}`);
         if (continuationSlides > 0) parts.push(`Capability continuations ${continuationSlides}`);
+        parts.push(`Closing ${estimate.closingSlides || 1}`);
         slideBreakdown.textContent = parts.join(' · ');
       }
     }

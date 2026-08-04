@@ -61,6 +61,8 @@ public sealed class ProjectBriefingDeckVm
         = ProjectBriefingStandardSlideOptions.Default;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
+    public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
+        = ProjectBriefingClosingSlideType.JaiHind;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeCoverSlide { get; init; } = true;
@@ -161,6 +163,7 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int CapabilityContinuationSlides { get; init; }
     public int ProjectBriefSlides { get; init; }
     public int ProjectUpdateSheetSlides { get; init; }
+    public int ClosingSlides { get; init; } = 1;
 }
 
 public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);
@@ -233,6 +236,8 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public bool ShowPresentStage { get; init; } = true;
     public bool ShowPresentStatus { get; init; } = true;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
+    public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
+        = ProjectBriefingClosingSlideType.JaiHind;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
     public bool IncludeCoverSlide { get; init; } = true;
     public bool IncludePortfolioSummarySlide { get; init; } = true;
@@ -266,6 +271,8 @@ public sealed class ProjectBriefingPresentationData
         = ProjectBriefingStandardSlideOptions.Default;
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
         = ProjectBriefingPresentationTheme.EditorialLight;
+    public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
+        = ProjectBriefingClosingSlideType.JaiHind;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeCoverSlide { get; init; } = true;

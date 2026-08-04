@@ -38,6 +38,15 @@ public enum ProjectBriefingPresentationTheme
 }
 
 /// <summary>
+/// Ceremonial closing message appended as the final slide of every generated deck.
+/// </summary>
+public enum ProjectBriefingClosingSlideType
+{
+    JaiHind = 1,
+    ThankYou = 2
+}
+
+/// <summary>
 /// Composition used by Standard PRISM Briefing project-brief slides.
 /// Automatic selects one of the two concrete designs per project.
 /// </summary>

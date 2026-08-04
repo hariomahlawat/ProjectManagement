@@ -285,6 +285,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.NarrativeMode,
             command.ProjectBriefLayout,
             command.PresentationTheme,
+            command.ClosingSlideType,
             command.BrandingScope);
         var updateSheetOptions = ValidateUpdateSheetOptions(
             command.UpdateSheetRows,
@@ -318,7 +319,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
             deck.SelectionRulesJson,
             updateSheetOptions,
-            standardSlideOptions);
+            standardSlideOptions,
+            command.ClosingSlideType);
         deck.HandlingMarking = NormalizeMarking(command.HandlingMarking);
         Touch(deck, userId);
 
@@ -654,6 +656,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["CostMode"] = deck.CostMode.ToString(),
             ["NarrativeMode"] = deck.NarrativeMode.ToString(),
             ["PresentationTheme"] = deck.PresentationTheme.ToString(),
+            ["ClosingSlideType"] = configuration.ClosingSlideType.ToString(),
             ["BrandingScope"] = deck.BrandingScope.ToString(),
             ["IncludeCoverSlide"] = deck.IncludeCoverSlide.ToString(),
             ["IncludePortfolioSummarySlide"] = deck.IncludePortfolioSummarySlide.ToString(),
@@ -719,6 +722,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         ProjectBriefingNarrativeMode narrativeMode,
         ProjectBriefingProjectBriefLayout projectBriefLayout,
         ProjectBriefingPresentationTheme presentationTheme,
+        ProjectBriefingClosingSlideType closingSlideType,
         ProjectBriefingBrandingScope brandingScope)
     {
         if (!Enum.IsDefined(layout)
@@ -727,9 +731,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             || !Enum.IsDefined(narrativeMode)
             || !Enum.IsDefined(projectBriefLayout)
             || !Enum.IsDefined(presentationTheme)
+            || !Enum.IsDefined(closingSlideType)
             || !Enum.IsDefined(brandingScope))
         {
-            throw new InvalidOperationException("The presentation template, deck format, project content, project-brief layout, theme or branding setting is invalid.");
+            throw new InvalidOperationException("The presentation template, deck format, project content, project-brief layout, theme, closing slide or branding setting is invalid.");
         }
     }
 

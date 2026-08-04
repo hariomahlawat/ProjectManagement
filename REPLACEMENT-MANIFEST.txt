@@ -1,10 +1,22 @@
 READY-TO-REPLACE FILES
 ======================
 
+Production
+----------
+Models/ProjectBriefings/ProjectBriefingDeck.cs
+Pages/Workspace/BriefingDecks/Index.cshtml
+Pages/Workspace/BriefingDecks/Index.cshtml.cs
+Services/ProjectBriefings/ProjectBriefingContracts.cs
+Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+Services/ProjectBriefings/ProjectBriefingDeckService.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
-wwwroot/css/pages/project-briefing-decks.css
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+wwwroot/js/pages/project-briefing-decks.js
+
+Tests
+-----
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 
 No database migration is required.

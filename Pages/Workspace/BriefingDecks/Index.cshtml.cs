@@ -165,6 +165,7 @@ public sealed class IndexModel : PageModel
                     ShowPresentStage = input.ShowPresentStage,
                     ShowPresentStatus = input.ShowPresentStatus,
                     PresentationTheme = input.PresentationTheme,
+                    ClosingSlideType = input.ClosingSlideType,
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
@@ -574,6 +575,10 @@ public sealed class IndexModel : PageModel
 
         [Required]
         public ProjectBriefingPresentationTheme PresentationTheme { get; set; }
+
+        [Required]
+        public ProjectBriefingClosingSlideType ClosingSlideType { get; set; }
+            = ProjectBriefingClosingSlideType.JaiHind;
 
         [Required]
         public ProjectBriefingBrandingScope BrandingScope { get; set; }

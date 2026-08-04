@@ -104,9 +104,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     }
 
     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
-        => data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
+    {
+        var plans = data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
             ? BuildProjectUpdateSheetPlans(data)
             : BuildStandardPlans(data);
+
+        // Every exported presentation ends with one deliberate ceremonial closing slide.
+        plans.Add(new SlidePlan(
+            SlidePlanKind.Closing,
+            canvas => RenderClosingSlide(canvas, data)));
+        return plans;
+    }
 
     private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
     {
@@ -189,6 +197,78 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     private static IReadOnlyList<ProjectBriefingPresentationProject> OrderProjects(
         IEnumerable<ProjectBriefingPresentationProject> projects)
         => ProjectBriefingProjectOrdering.OrderProjects(projects);
+
+    private static void RenderClosingSlide(
+        SlideCanvas canvas,
+        ProjectBriefingPresentationData data)
+    {
+        var theme = canvas.Theme;
+        var closingText = data.ClosingSlideType == ProjectBriefingClosingSlideType.ThankYou
+            ? "THANK YOU"
+            : "JAI HIND";
+
+        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.CoverCanvas, name: "Closing slide canvas");
+        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "Closing slide top accent");
+        canvas.AddRect(0, 7.40, SlideWidth, .10, theme.HeaderAccent, name: "Closing slide bottom accent");
+        canvas.AddBrandingImages(HeaderVariant.Cover);
+
+        canvas.AddLine(.78, 1.12, 12.55, 1.12, theme.Divider, .70);
+        canvas.AddLine(.78, 6.38, 12.55, 6.38, theme.Divider, .70);
+
+        canvas.AddRoundedRect(
+            1.14,
+            1.58,
+            11.05,
+            4.34,
+            theme.HeaderAccent,
+            theme.HeaderAccent,
+            .10,
+            "Closing ceremonial panel");
+
+        canvas.AddText(
+            1.64,
+            2.08,
+            10.05,
+            .28,
+            "SIMULATOR DEVELOPMENT DIVISION",
+            12.0,
+            "F5ECEF",
+            true,
+            "ctr",
+            name: "Closing organisation");
+
+        canvas.AddText(
+            1.52,
+            2.62,
+            10.29,
+            1.16,
+            closingText,
+            closingText.Length > 8 ? 39.0 : 44.0,
+            "FFFFFF",
+            true,
+            "ctr",
+            name: "Closing message");
+
+        // A restrained tricolour rule supplies ceremonial emphasis without introducing
+        // flags, gradients or non-editable decorative artwork.
+        const double ruleY = 4.12;
+        const double segmentWidth = 1.40;
+        canvas.AddRect(4.57, ruleY, segmentWidth, .055, "FF9933", name: "Closing saffron accent");
+        canvas.AddRect(5.97, ruleY, segmentWidth, .055, "F7F7F5", name: "Closing white accent");
+        canvas.AddRect(7.37, ruleY, segmentWidth, .055, "138808", name: "Closing green accent");
+
+        canvas.AddText(
+            2.22,
+            4.55,
+            8.89,
+            .27,
+            "PROJECT BRIEFING DECK",
+            10.5,
+            "E7D6DB",
+            true,
+            "ctr",
+            name: "Closing deck descriptor");
+    }
 
     private static void RenderCover(
         SlideCanvas canvas,
@@ -1989,7 +2069,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         int slideCount,
         SlidePlanKind kind)
     {
-        if (kind == SlidePlanKind.Cover)
+        if (kind is SlidePlanKind.Cover or SlidePlanKind.Closing)
         {
             return;
         }
@@ -2056,7 +2136,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         => scope switch
         {
             ProjectBriefingBrandingScope.None => false,
-            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary,
+            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.Closing,
             ProjectBriefingBrandingScope.AllSlides => true,
             _ => false
         };
@@ -2104,7 +2184,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         Cover,
         Summary,
-        Project
+        Project,
+        Closing
     }
 
     private enum HeaderVariant

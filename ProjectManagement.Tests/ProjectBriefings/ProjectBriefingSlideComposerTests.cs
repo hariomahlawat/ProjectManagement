@@ -23,7 +23,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, slideCount) = composer.Compose(BuildData());
 
         Assert.True(content.Length > 10_000);
-        Assert.Equal(7, slideCount);
+        Assert.Equal(8, slideCount);
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
@@ -88,7 +88,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(3, slideCount);
+        Assert.Equal(4, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
@@ -139,7 +139,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(4, slideCount);
+        Assert.Equal(5, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -171,10 +171,12 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.All(slides, slide => Assert.True(
             slide.ImageParts.Count() >= 2,
             "All-slide branding must embed both header insignia on every slide."));
-        Assert.All(slides.Skip(1), slide => Assert.Contains(
-            "15181E",
-            slide.Slide.OuterXml,
-            StringComparison.OrdinalIgnoreCase));
+        Assert.All(slides
+            .Where(slide => !IsClosingSlide(slide))
+            .Skip(1), slide => Assert.Contains(
+                "15181E",
+                slide.Slide.OuterXml,
+                StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -218,7 +220,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(9, slideCount); // cover + portfolio + seven project-table slides
+        Assert.Equal(10, slideCount); // cover + portfolio + seven project-table slides + closing
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
@@ -354,7 +356,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(3, slideCount);
+        Assert.Equal(4, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var projectSlide = Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -508,13 +510,13 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(1, slideCount);
+        Assert.Equal(2, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
         Assert.Equal(12192000, presentationPart.Presentation.SlideSize?.Cx?.Value);
         Assert.Equal(6858000, presentationPart.Presentation.SlideSize?.Cy?.Value);
-        var slide = Assert.Single(presentationPart.SlideParts);
+        var slide = SingleContentSlide(presentationPart);
         var text = SlideText(slide);
 
         Assert.DoesNotContain("PROJECT UPDATE SHEET", text, StringComparison.Ordinal);
@@ -589,7 +591,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         Assert.Equal("191B20", ShapeTextColor(ShapeByName(slide, "Project sheet title")));
         Assert.Equal("8F0D21", ShapeFillColor(ShapeByName(slide, "Project sheet top accent")));
         Assert.Equal("EDF1F6", ShapeFillColor(ShapeByName(slide, "Project brief heading")));
@@ -675,10 +677,10 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(1, slideCount);
+        Assert.Equal(2, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var table = Assert.Single(slide.Slide.Descendants<A.Table>());
         var arppRow = table.Elements<A.TableRow>()
             .Single(row => row.Descendants<A.Text>().Any(text => text.Text == "ARPP/PPP Number"));
@@ -722,10 +724,10 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(1, slideCount);
+        Assert.Equal(2, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var text = SlideText(slide);
         Assert.Contains("PDC Date", text, StringComparison.Ordinal);
         Assert.DoesNotContain("15 Jan 30", text, StringComparison.Ordinal);
@@ -772,10 +774,10 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(1, slideCount);
+        Assert.Equal(2, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var text = SlideText(slide);
         Assert.Contains("Completion Status", text, StringComparison.Ordinal);
         Assert.Contains("Project completed on 18 Jun 2026", text, StringComparison.Ordinal);
@@ -826,7 +828,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, _) = composer.Compose(data);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var table = Assert.Single(slide.Slide.Descendants<A.Table>());
         var labels = table.Elements<A.TableRow>()
             .Select(row => string.Concat(row.Elements<A.TableCell>().ElementAt(1).Descendants<A.Text>().Select(text => text.Text)))
@@ -877,7 +879,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, _) = composer.Compose(data);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var text = SlideText(slide);
         Assert.Contains("PDC Date", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Project Cost", text, StringComparison.Ordinal);
@@ -913,7 +915,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, _) = composer.Compose(data);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var facts = ShapeByName(slide, "Project facts panel - Compact");
         var photo = ShapeByName(slide, "Project photograph frame - Compact");
         var brief = ShapeByName(slide, "Project brief panel - Compact");
@@ -955,7 +957,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, _) = composer.Compose(data);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var facts = ShapeByName(slide, "Project facts panel - Standard");
         var photo = ShapeByName(slide, "Project photograph frame - Standard");
         var brief = ShapeByName(slide, "Project brief panel - Standard");
@@ -997,7 +999,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, _) = composer.Compose(data);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var facts = ShapeByName(slide, "Project facts panel - Detailed");
         var photo = ShapeByName(slide, "Project photograph frame - Detailed");
         var brief = ShapeByName(slide, "Project brief panel - Detailed");
@@ -1044,7 +1046,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(3, slideCount);
+        Assert.Equal(4, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slideTexts = Assert.IsType<PresentationPart>(document.PresentationPart)
@@ -1102,10 +1104,10 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(1, slideCount);
+        Assert.Equal(2, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var photographFrame = ShapeByName(slide, "Photo-emphasis project photograph");
         var text = SlideText(slide);
 
@@ -1156,10 +1158,10 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(1, slideCount);
+        Assert.Equal(2, slideCount);
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var text = SlideText(slide);
 
         Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
@@ -1210,7 +1212,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var text = SlideText(slide);
 
         Assert.Equal(1, text.Split("PRESENT STATUS", StringSplitOptions.None).Length - 1);
@@ -1261,7 +1263,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var text = SlideText(slide);
 
         Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
@@ -1314,7 +1316,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var strip = ShapeByName(slide, "Project brief information strip");
         var photograph = ShapeByName(slide, "Photo-emphasis project photograph");
         var brief = ShapeByName(slide, "Project brief panel");
@@ -1371,7 +1373,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         var statusValue = ShapeByName(slide, "Project brief present status value");
         var paragraphs = statusValue.Descendants<A.Paragraph>().ToArray();
         var text = SlideText(slide);
@@ -1457,7 +1459,7 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         Assert.NotNull(ShapeByName(slide, "Photo-emphasis project photograph"));
     }
 
@@ -1502,11 +1504,96 @@ public sealed class ProjectBriefingSlideComposerTests
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
-        var slide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts);
+        var slide = SingleContentSlide(Assert.IsType<PresentationPart>(document.PresentationPart));
         Assert.NotNull(ShapeByName(slide, "Project brief photograph frame"));
         Assert.DoesNotContain(
             slide.Slide.Descendants<P.NonVisualDrawingProperties>(),
             properties => string.Equals(properties.Name?.Value, "Photo-emphasis project photograph", StringComparison.Ordinal));
+    }
+
+
+    [Fact]
+    public void Compose_AppendsProfessionalJaiHindClosingSlideByDefault()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 901,
+            DeckName = "Closing Slide Review",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[]
+            {
+                BriefingProject(
+                    901,
+                    "CLOSING SLIDE PROJECT",
+                    StageCodes.DEVP,
+                    ProjectBriefingStageOrder.Development,
+                    1,
+                    projectBrief: "Closing slide regression coverage.")
+            },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(2, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var closing = slides[^1];
+
+        Assert.Equal("JAI HIND", ShapeByName(closing, "Closing message")
+            .Descendants<A.Text>().Single().Text);
+        Assert.Equal("7A263A", ShapeFillColor(ShapeByName(closing, "Closing ceremonial panel")));
+        Assert.NotNull(ShapeByName(closing, "Closing saffron accent"));
+        Assert.NotNull(ShapeByName(closing, "Closing white accent"));
+        Assert.NotNull(ShapeByName(closing, "Closing green accent"));
+        Assert.DoesNotContain("2/2", SlideText(closing), StringComparison.Ordinal);
+        Assert.DoesNotContain("SIMULATOR DEVELOPMENT DIVISION\n2/2", SlideText(closing), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_UsesSelectedThankYouClosingMessage()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 902,
+            DeckName = "External Audience Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            NarrativeMode = ProjectBriefingNarrativeMode.ProjectBrief,
+            CostMode = ProjectBriefingCostMode.None,
+            ClosingSlideType = ProjectBriefingClosingSlideType.ThankYou,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[]
+            {
+                BriefingProject(
+                    902,
+                    "THANK YOU PROJECT",
+                    StageCodes.DEVP,
+                    ProjectBriefingStageOrder.Development,
+                    1,
+                    projectBrief: "External audience closing slide coverage.")
+            },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(2, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var closing = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.Last();
+
+        Assert.Contains("THANK YOU", SlideText(closing), StringComparison.Ordinal);
+        Assert.DoesNotContain("JAI HIND", SlideText(closing), StringComparison.Ordinal);
     }
 
     private static byte[] TinyPng()
@@ -1537,6 +1624,16 @@ public sealed class ProjectBriefingSlideComposerTests
             ProjectBrief = projectBrief ?? string.Empty,
             SortOrder = sortOrder
         };
+
+    private static SlidePart SingleContentSlide(PresentationPart presentationPart)
+        => Assert.Single(presentationPart.SlideParts.Where(slide => !IsClosingSlide(slide)));
+
+    private static bool IsClosingSlide(SlidePart slide)
+        => slide.Slide.Descendants<P.NonVisualDrawingProperties>()
+            .Any(properties => string.Equals(
+                properties.Name?.Value,
+                "Closing message",
+                StringComparison.Ordinal));
 
     private static P.Shape ShapeByName(SlidePart slide, string name)
         => Assert.Single(slide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(

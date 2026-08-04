@@ -88,7 +88,8 @@ public sealed record ProjectBriefingStandardSlideOptions(
 public sealed record ProjectBriefingDeckConfiguration(
     string? SelectionRulesJson,
     ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
-    ProjectBriefingStandardSlideOptions StandardSlideOptions);
+    ProjectBriefingStandardSlideOptions StandardSlideOptions,
+    ProjectBriefingClosingSlideType ClosingSlideType);
 
 /// <summary>
 /// Stores selection provenance and presentation preferences in the existing JSONB deck configuration field.
@@ -117,11 +118,13 @@ public static class ProjectBriefingDeckConfigurationCodec
             var selectionRules = root["selectionRules"]?.ToJsonString(JsonOptions);
             var updateSheetOptions = ReadUpdateSheetOptions(root["updateSheet"] as JsonObject);
             var standardSlideOptions = ReadStandardSlideOptions(root["standardBriefing"] as JsonObject);
+            var closingSlideType = ReadClosingSlideType(root["closingSlide"]);
 
             return new ProjectBriefingDeckConfiguration(
                 selectionRules,
                 updateSheetOptions,
-                standardSlideOptions);
+                standardSlideOptions,
+                closingSlideType);
         }
         catch (JsonException)
         {
@@ -137,7 +140,7 @@ public static class ProjectBriefingDeckConfigurationCodec
     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
     {
         var current = Read(existingJson);
-        return Write(selectionRulesJson, current.UpdateSheetOptions, current.StandardSlideOptions);
+        return Write(selectionRulesJson, current.UpdateSheetOptions, current.StandardSlideOptions, current.ClosingSlideType);
     }
 
     public static string WithUpdateSheetOptions(
@@ -145,7 +148,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingUpdateSheetOptions options)
     {
         var current = Read(existingJson);
-        return Write(current.SelectionRulesJson, options, current.StandardSlideOptions);
+        return Write(current.SelectionRulesJson, options, current.StandardSlideOptions, current.ClosingSlideType);
     }
 
     public static string WithStandardSlideOptions(
@@ -153,23 +156,25 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingStandardSlideOptions options)
     {
         var current = Read(existingJson);
-        return Write(current.SelectionRulesJson, current.UpdateSheetOptions, options);
+        return Write(current.SelectionRulesJson, current.UpdateSheetOptions, options, current.ClosingSlideType);
     }
 
     public static string WithPresentationOptions(
         string? existingJson,
         ProjectBriefingUpdateSheetOptions updateSheetOptions,
-        ProjectBriefingStandardSlideOptions standardSlideOptions)
+        ProjectBriefingStandardSlideOptions standardSlideOptions,
+        ProjectBriefingClosingSlideType closingSlideType)
     {
         var current = Read(existingJson);
-        return Write(current.SelectionRulesJson, updateSheetOptions, standardSlideOptions);
+        return Write(current.SelectionRulesJson, updateSheetOptions, standardSlideOptions, closingSlideType);
     }
 
     private static ProjectBriefingDeckConfiguration Defaults(string? selectionRulesJson)
         => new(
             selectionRulesJson,
             ProjectBriefingUpdateSheetOptions.Default,
-            ProjectBriefingStandardSlideOptions.Default);
+            ProjectBriefingStandardSlideOptions.Default,
+            ProjectBriefingClosingSlideType.JaiHind);
 
     private static ProjectBriefingUpdateSheetOptions ReadUpdateSheetOptions(JsonObject? updateSheet)
     {
@@ -226,10 +231,33 @@ public static class ProjectBriefingDeckConfigurationCodec
             standard?["showPresentStatus"]?.GetValue<bool>() ?? true);
     }
 
+
+    private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
+    {
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<string>(out var text)
+                && Enum.TryParse<ProjectBriefingClosingSlideType>(text, ignoreCase: true, out var parsed)
+                && Enum.IsDefined(parsed))
+            {
+                return parsed;
+            }
+
+            if (value.TryGetValue<int>(out var number)
+                && Enum.IsDefined(typeof(ProjectBriefingClosingSlideType), number))
+            {
+                return (ProjectBriefingClosingSlideType)number;
+            }
+        }
+
+        return ProjectBriefingClosingSlideType.JaiHind;
+    }
+
     private static string Write(
         string? selectionRulesJson,
         ProjectBriefingUpdateSheetOptions updateSheetOptions,
-        ProjectBriefingStandardSlideOptions standardSlideOptions)
+        ProjectBriefingStandardSlideOptions standardSlideOptions,
+        ProjectBriefingClosingSlideType closingSlideType)
     {
         var normalizedUpdateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
             updateSheetOptions.Rows,
@@ -238,6 +266,9 @@ public static class ProjectBriefingDeckConfigurationCodec
             standardSlideOptions.ProjectBriefLayout,
             standardSlideOptions.ShowPresentStage,
             standardSlideOptions.ShowPresentStatus);
+        var normalizedClosingSlideType = Enum.IsDefined(closingSlideType)
+            ? closingSlideType
+            : ProjectBriefingClosingSlideType.JaiHind;
 
         var root = new JsonObject
         {
@@ -255,7 +286,8 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ["projectBriefLayout"] = normalizedStandard.ProjectBriefLayout.ToString(),
                 ["showPresentStage"] = normalizedStandard.ShowPresentStage,
                 ["showPresentStatus"] = normalizedStandard.ShowPresentStatus
-            }
+            },
+            ["closingSlide"] = normalizedClosingSlideType.ToString()
         };
 
         return root.ToJsonString(JsonOptions);

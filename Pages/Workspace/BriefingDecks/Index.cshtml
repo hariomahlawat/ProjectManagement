@@ -40,6 +40,12 @@
         ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
         _ => "Presentation theme"
     };
+    var closingSlideLabel = deck?.ClosingSlideType switch
+    {
+        ProjectBriefingClosingSlideType.JaiHind => "Jai Hind closing",
+        ProjectBriefingClosingSlideType.ThankYou => "Thank You closing",
+        _ => "Closing slide"
+    };
     var projectBriefLayoutLabel = deck?.StandardSlideOptions.ProjectBriefLayout switch
     {
         ProjectBriefingProjectBriefLayout.Automatic => "Automatic brief layout",
@@ -118,10 +124,10 @@
     var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
     var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
     var settingsSummaryLabel = isUpdateSheet
-        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost"
+        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost · {closingSlideLabel}"
         : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
           + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
-          + $" · {themeLabel} · {costModeLabel}";
+          + $" · {themeLabel} · {costModeLabel} · {closingSlideLabel}";
     var missingArppNumberCount = deck?.Projects.Count(project =>
         project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
     var missingFundingCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ArppDetailsAvailableCount;
@@ -586,19 +592,42 @@
                                     </fieldset>
 
                                     <fieldset class="pbd-choice-group">
-                                        <legend>Header branding</legend>
+                                        <legend>Closing slide</legend>
+                                        <div class="pbd-choice-cards pbd-choice-cards--two">
+                                            <label class="pbd-choice-card pbd-choice-card--closing">
+                                                <input type="radio" name="ClosingSlideType" value="JaiHind" checked="@(deck.ClosingSlideType == ProjectBriefingClosingSlideType.JaiHind)" />
+                                                <span>
+                                                    <i class="bi bi-shield-check" aria-hidden="true"></i>
+                                                    <strong>Jai Hind</strong>
+                                                    <small>Recommended for command and internal military briefings.</small>
+                                                </span>
+                                            </label>
+                                            <label class="pbd-choice-card pbd-choice-card--closing">
+                                                <input type="radio" name="ClosingSlideType" value="ThankYou" checked="@(deck.ClosingSlideType == ProjectBriefingClosingSlideType.ThankYou)" />
+                                                <span>
+                                                    <i class="bi bi-stars" aria-hidden="true"></i>
+                                                    <strong>Thank You</strong>
+                                                    <small>Suitable for industry, academic and external audiences.</small>
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> One ceremonial closing slide is always appended as the final slide of the presentation.</p>
+                                    </fieldset>
+
+                                    <fieldset class="pbd-choice-group">
+                                        <legend>Presentation branding</legend>
                                         <div class="pbd-branding-options">
                                             <label>
                                                 <input type="radio" name="BrandingScope" value="None" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.None)" />
-                                                <span><strong>None</strong><small>No insignia in slide headers</small></span>
+                                                <span><strong>None</strong><small>No insignia in slide headers or on the closing slide</small></span>
                                             </label>
                                             <label>
                                                 <input type="radio" name="BrandingScope" value="CoverAndSummary" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.CoverAndSummary)" />
-                                                <span><strong>Cover and summary</strong><small>Brand portfolio-level slides only</small></span>
+                                                <span><strong>Cover and summary</strong><small>Brand cover, summary and closing slides</small></span>
                                             </label>
                                             <label>
                                                 <input type="radio" name="BrandingScope" value="AllSlides" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.AllSlides)" />
-                                                <span><strong>All slides</strong><small>Compact insignia on project slides too</small></span>
+                                                <span><strong>All slides</strong><small>Compact insignia throughout the presentation</small></span>
                                             </label>
                                         </div>
                                     </fieldset>
@@ -697,7 +726,7 @@
                                     <small data-pbd-slide-breakdown>
                                         @if (isUpdateSheet)
                                         {
-                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides</text>
+                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
                                         }
                                         else
                                         {
@@ -714,6 +743,7 @@
                                             {
                                                 <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
                                             }
+                                            <text> · Closing @deck.SlideEstimate.ClosingSlides</text>
                                         }
                                     </small>
                                 </div>

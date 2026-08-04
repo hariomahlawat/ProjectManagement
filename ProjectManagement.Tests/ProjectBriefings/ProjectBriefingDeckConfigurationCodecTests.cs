@@ -20,6 +20,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(ProjectBriefingProjectBriefLayout.Automatic, configuration.StandardSlideOptions.ProjectBriefLayout);
         Assert.True(configuration.StandardSlideOptions.ShowPresentStage);
         Assert.True(configuration.StandardSlideOptions.ShowPresentStatus);
+        Assert.Equal(ProjectBriefingClosingSlideType.JaiHind, configuration.ClosingSlideType);
     }
 
     [Fact]
@@ -134,6 +135,58 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(ProjectBriefingProjectBriefLayout.Standard, decoded.StandardSlideOptions.ProjectBriefLayout);
         Assert.True(decoded.StandardSlideOptions.ShowPresentStage);
         Assert.False(decoded.StandardSlideOptions.ShowPresentStatus);
+    }
+
+    [Fact]
+    public void WithPresentationOptions_PersistsSelectedClosingSlideAndPreservesOtherConfiguration()
+    {
+        var initial = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(
+            null,
+            "{\"kind\":\"Ongoing\"}");
+
+        var encoded = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            initial,
+            new ProjectBriefingUpdateSheetOptions(
+                new[] { ProjectBriefingUpdateSheetRow.ProjectCost },
+                HideEmptyValues: true),
+            new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.Standard,
+                ShowPresentStage: true,
+                ShowPresentStatus: false),
+            ProjectBriefingClosingSlideType.ThankYou);
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
+
+        Assert.Equal(ProjectBriefingClosingSlideType.ThankYou, decoded.ClosingSlideType);
+        Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
+        Assert.True(decoded.UpdateSheetOptions.HideEmptyValues);
+        Assert.Equal(ProjectBriefingProjectBriefLayout.Standard, decoded.StandardSlideOptions.ProjectBriefLayout);
+        Assert.False(decoded.StandardSlideOptions.ShowPresentStatus);
+    }
+
+    [Fact]
+    public void SelectionAndSlidePreferenceUpdates_PreserveClosingSlideChoice()
+    {
+        var initial = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            null,
+            ProjectBriefingUpdateSheetOptions.Default,
+            ProjectBriefingStandardSlideOptions.Default,
+            ProjectBriefingClosingSlideType.ThankYou);
+
+        var withSelection = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(
+            initial,
+            "{\"kind\":\"IndividualProjects\",\"projectIds\":[7]}");
+        var withRows = ProjectBriefingDeckConfigurationCodec.WithUpdateSheetOptions(
+            withSelection,
+            new ProjectBriefingUpdateSheetOptions(
+                new[] { ProjectBriefingUpdateSheetRow.PresentStatus },
+                HideEmptyValues: false));
+        var withStandard = ProjectBriefingDeckConfigurationCodec.WithStandardSlideOptions(
+            withRows,
+            ProjectBriefingStandardSlideOptions.Default);
+
+        Assert.Equal(
+            ProjectBriefingClosingSlideType.ThankYou,
+            ProjectBriefingDeckConfigurationCodec.Read(withStandard).ClosingSlideType);
     }
 
     [Fact]
