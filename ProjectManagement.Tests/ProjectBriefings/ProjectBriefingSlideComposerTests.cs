@@ -1601,18 +1601,18 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
-            properties => string.Equals(properties.Name?.Value, "SDD institutional history timeline", StringComparison.Ordinal));
+            properties => string.Equals(properties.Name?.Value, "SDD institutional history timeline text", StringComparison.Ordinal));
         Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
             properties => string.Equals(properties.Name?.Value, "Proliferated institutional module table", StringComparison.Ordinal));
         Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
-            properties => string.Equals(properties.Name?.Value, "Military academia industry synergy table", StringComparison.Ordinal));
+            properties => string.Equals(properties.Name?.Value, "Military–Academia–Industry Synergy institutional module table", StringComparison.Ordinal));
         Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
-            properties => string.Equals(properties.Name?.Value, "Institutional recognition table", StringComparison.Ordinal));
-        Assert.Equal(7, profileSlide.Slide.Descendants<P.GraphicFrame>().Count());
-        Assert.DoesNotContain(
+            properties => string.Equals(properties.Name?.Value, "Institutional recognition strip", StringComparison.Ordinal));
+        Assert.Equal(6, profileSlide.Slide.Descendants<P.GraphicFrame>().Count());
+        Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
             properties => string.Equals(properties.Name?.Value, "SDD profile title band", StringComparison.Ordinal));
     }

@@ -185,6 +185,14 @@ test('Standard detailed slides expose project-brief design and independent conte
   assert.match(source, /includesProjectBrief\(\)/);
 });
 
+
+
+test('settings initialization does not call institutional functions before declaration', () => {
+  const updateRowBlock = source.match(/const syncUpdateRowOrder = \(\) => \{[\s\S]*?const restoreUpdateRowOrder/)?.[0] || '';
+  assert.doesNotMatch(updateRowBlock, /syncInstitutionalLayoutSummary/);
+  assert.match(source, /syncInstitutionalProfileSettings\(\);/);
+});
+
 test('SDD institutional profile settings remain modular, ordered and valid before save', () => {
   assert.match(source, /data-pbd-institutional-profile-enable/);
   assert.match(source, /syncInstitutionalProfileSettings/);
@@ -196,6 +204,6 @@ test('SDD institutional profile settings remain modular, ordered and valid befor
   assert.match(source, /syncInstitutionalHistoryEditor/);
   assert.match(source, /syncInstitutionalPartnershipEditor/);
   assert.match(source, /syncInstitutionalLayoutSummary/);
-  assert.match(source, /No selected module is silently omitted/);
+  assert.match(source, /no selected module is omitted/i);
   assert.match(source, /institutionalProfileSlides/);
 });

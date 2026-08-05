@@ -1,16 +1,5 @@
-Models/ProjectBriefings/ProjectBriefingDeck.cs
-Pages/Workspace/BriefingDecks/Index.cshtml
-Pages/Workspace/BriefingDecks/Index.cshtml.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
-Services/ProjectBriefings/ProjectBriefingDeckService.cs
-Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
-wwwroot/css/pages/project-briefing-decks.css
 wwwroot/js/pages/project-briefing-decks.js
-
-Regression tests included:
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 wwwroot/js/projects/project-briefing-decks.test.js
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs

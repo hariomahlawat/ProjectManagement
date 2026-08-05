@@ -149,7 +149,6 @@ if (root) {
       row.setAttribute('aria-posinset', String(index + 1));
       row.setAttribute('aria-setsize', String(rows.length));
     });
-    syncInstitutionalLayoutSummary();
   };
 
   const restoreUpdateRowOrder = (orderValue) => {
@@ -486,15 +485,12 @@ if (root) {
   const syncInstitutionalLayoutSummary = () => {
     if (!institutionalLayoutSummary) return;
     const keys = selectedInstitutionalModuleKeys();
-    const hasPartnership = keys.includes('Partnerships');
-    const metricCount = keys.length - (hasPartnership ? 1 : 0);
     const parts = [];
-    if (institutionalHistoryEnable?.checked) parts.push('one editable timeline table');
-    if (metricCount > 0) parts.push(`${metricCount} editable metric table${metricCount === 1 ? '' : 's'}`);
-    if (hasPartnership) parts.push('one full-width partnership table');
-    if (institutionalCitationEnable?.checked) parts.push('one recognition table');
+    if (institutionalHistoryEnable?.checked) parts.push('original alternating history timeline');
+    if (keys.length > 0) parts.push(`${keys.length} institutional card${keys.length === 1 ? '' : 's'} in the selected order`);
+    if (institutionalCitationEnable?.checked) parts.push('unit-citations strip');
     institutionalLayoutSummary.textContent = parts.length > 0
-      ? `Automatic one-slide layout: ${parts.join(' · ')}. No selected module is silently omitted.`
+      ? `Original SDD profile composition: ${parts.join(' · ')}. ERP figures remain read-only and no selected module is omitted.`
       : 'Select the timeline or at least one output module.';
   };
 

@@ -10,13 +10,42 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingInstitutionalProfileData profile)
     {
-        AddSlideTitle(canvas, Truncate(profile.Title, 110));
+        var theme = canvas.Theme;
+        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.Canvas, name: "SDD profile canvas");
+        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "SDD profile top accent");
+        canvas.AddBrandingImages(HeaderVariant.Standard);
+
+        // Retain the authorised original institutional-slide composition rather than
+        // introducing the standard analytical-deck header on this heritage slide.
+        var titleX = canvas.ShowBranding ? 1.28 : .62;
+        var titleWidth = canvas.ShowBranding ? 10.78 : 12.10;
+        canvas.AddRoundedRect(
+            titleX,
+            .22,
+            titleWidth,
+            .62,
+            theme.HeaderAccent,
+            theme.HeaderAccent,
+            .04,
+            "SDD profile title band");
+        canvas.AddText(
+            titleX + .24,
+            .30,
+            titleWidth - .48,
+            .43,
+            Truncate(profile.Title, 110),
+            23.5,
+            theme.TextOnAccent,
+            true,
+            "ctr",
+            name: "SDD profile title");
 
         var hasHistory = profile.HistoryMilestones.Count > 0;
         var hasCitation = profile.UnitCitationCount.HasValue
             && !string.IsNullOrWhiteSpace(profile.UnitCitationLabel);
-        var contentTop = hasHistory ? 2.30 : 1.16;
-        var contentBottom = hasCitation ? 6.30 : 6.64;
+        var modulesTop = hasHistory ? 2.47 : 1.12;
+        var modulesBottom = hasCitation ? 6.22 : 6.50;
+        var sourceY = hasCitation ? 6.60 : 6.72;
 
         if (hasHistory)
         {
@@ -26,8 +55,8 @@ public sealed partial class ProjectBriefingSlideComposer
         RenderInstitutionalModules(
             canvas,
             profile.Modules,
-            contentTop,
-            contentBottom - contentTop);
+            modulesTop,
+            modulesBottom - modulesTop);
 
         if (hasCitation)
         {
@@ -39,22 +68,23 @@ public sealed partial class ProjectBriefingSlideComposer
 
         var dataAsOn = profile.DataAsOnUtc.ToUniversalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         canvas.AddText(
-            .78,
-            6.80,
-            11.78,
-            .16,
+            .76,
+            sourceY,
+            11.82,
+            .17,
             $"Data as on {dataAsOn} · Source: PRISM ERP",
-            7.6,
-            canvas.Theme.TextMuted,
+            7.7,
+            theme.TextMuted,
             false,
             "ctr",
             name: "SDD profile data source");
     }
 
     /// <summary>
-    /// Renders the complete institutional timeline as one native PowerPoint table.
-    /// The table is borderless except for the central chronology rule, so it remains
-    /// visually richer than a conventional grid while staying easy to edit as one object.
+    /// Uses one borderless editable table for all milestone text while retaining the
+    /// open alternating timeline from the original authorised slide. The chronology
+    /// rule and gold markers remain deliberately simple presentation shapes so the
+    /// table never dictates a spreadsheet-like appearance.
     /// </summary>
     private static void RenderInstitutionalHistory(
         SlideCanvas canvas,
@@ -67,23 +97,18 @@ public sealed partial class ProjectBriefingSlideComposer
             .ToArray();
         if (items.Length == 0) return;
 
-        const double left = .62;
-        const double totalWidth = 12.10;
-        var widths = Enumerable.Repeat(totalWidth / items.Length, items.Length).ToArray();
+        const double left = .82;
+        const double right = 12.52;
+        const double tableTop = .94;
+        const double lineY = 1.62;
+        var span = right - left;
+        var widths = Enumerable.Repeat(span / items.Length, items.Length).ToArray();
         var compact = items.Length >= 7;
-        var yearFont = compact ? 9.0 : 10.3;
-        var textFont = compact ? 7.25 : 8.1;
         var noBorders = NativeTableBorders.None;
-        var timelineBorder = new NativeTableBorders(
-            LeftWidth: 0,
-            RightWidth: 0,
-            TopWidth: 0,
-            BottomColor: canvas.Theme.Divider,
-            BottomWidth: 1.05);
 
         var topYears = new List<NativeTableCell>(items.Length);
         var topText = new List<NativeTableCell>(items.Length);
-        var markers = new List<NativeTableCell>(items.Length);
+        var spacer = new List<NativeTableCell>(items.Length);
         var bottomYears = new List<NativeTableCell>(items.Length);
         var bottomText = new List<NativeTableCell>(items.Length);
 
@@ -94,43 +119,42 @@ public sealed partial class ProjectBriefingSlideComposer
             var year = item.Year.ToString(CultureInfo.InvariantCulture);
             var description = Truncate(item.Text, compact ? 34 : 46);
 
-            topYears.Add(InstitutionalTableCell(
+            topYears.Add(InstitutionalCell(
                 above ? year : string.Empty,
-                yearFont,
+                compact ? 9.2 : 10.5,
                 canvas.Theme.HeaderAccent,
                 true,
                 "ctr",
                 canvas.Theme.Canvas,
                 noBorders));
-            topText.Add(InstitutionalTableCell(
+            topText.Add(InstitutionalCell(
                 above ? description : string.Empty,
-                textFont,
+                compact ? 7.4 : 8.3,
                 canvas.Theme.TextPrimary,
                 true,
                 "ctr",
                 canvas.Theme.Canvas,
                 noBorders,
                 verticalAnchor: "t"));
-            markers.Add(InstitutionalTableCell(
-                "●",
-                compact ? 8.7 : 9.7,
-                canvas.Theme.Warning,
-                true,
+            spacer.Add(InstitutionalCell(
+                string.Empty,
+                1,
+                canvas.Theme.TextMuted,
+                false,
                 "ctr",
                 canvas.Theme.Canvas,
-                timelineBorder,
-                bottomMargin: .01));
-            bottomYears.Add(InstitutionalTableCell(
+                noBorders));
+            bottomYears.Add(InstitutionalCell(
                 above ? string.Empty : year,
-                yearFont,
+                compact ? 9.2 : 10.5,
                 canvas.Theme.HeaderAccent,
                 true,
                 "ctr",
                 canvas.Theme.Canvas,
                 noBorders));
-            bottomText.Add(InstitutionalTableCell(
+            bottomText.Add(InstitutionalCell(
                 above ? string.Empty : description,
-                textFont,
+                compact ? 7.4 : 8.3,
                 canvas.Theme.TextPrimary,
                 true,
                 "ctr",
@@ -141,24 +165,43 @@ public sealed partial class ProjectBriefingSlideComposer
 
         canvas.AddNativeTable(
             left,
-            1.08,
+            tableTop,
             widths,
-            new[] { .20, .36, .18, .20, .36 },
+            new[] { .20, .38, .18, .20, .38 },
             new IReadOnlyList<NativeTableCell>[]
             {
                 topYears,
                 topText,
-                markers,
+                spacer,
                 bottomYears,
                 bottomText
             },
-            "SDD institutional history timeline");
+            "SDD institutional history timeline text");
+
+        canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.05);
+        for (var index = 0; index < items.Length; index++)
+        {
+            var x = items.Length == 1
+                ? (left + right) / 2d
+                : left + ((span * index) / (items.Length - 1));
+            canvas.AddText(
+                x - .10,
+                lineY - .12,
+                .20,
+                .24,
+                "●",
+                10.5,
+                canvas.Theme.Warning,
+                true,
+                "ctr",
+                name: $"SDD milestone marker {items[index].Year}");
+        }
     }
 
     /// <summary>
-    /// Automatic table-first layout. Numeric modules remain generous equal panels;
-    /// the non-numeric partnership module becomes a full-width institutional band.
-    /// This preserves all selected content without forcing five narrow columns.
+    /// Retains the original five-column institutional-output composition. Each card
+    /// contains one borderless native table, so users edit meaningful content in one
+    /// place instead of maintaining many independent label/value text boxes.
     /// </summary>
     private static void RenderInstitutionalModules(
         SlideCanvas canvas,
@@ -168,97 +211,25 @@ public sealed partial class ProjectBriefingSlideComposer
     {
         if (modules.Count == 0) return;
 
-        var visible = modules.Take(6).ToArray();
-        var partnership = visible.FirstOrDefault(module =>
-            module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships);
-        var metrics = visible
-            .Where(module => module.Module != ProjectBriefingInstitutionalProfileModule.Partnerships)
-            .ToArray();
-
-        const double left = .62;
-        const double right = 12.72;
+        var visible = modules.Take(5).ToArray();
+        const double left = .60;
+        const double right = 12.73;
         const double gap = .12;
-        var hasPartnershipBand = partnership is not null;
-        var partnershipHeight = hasPartnershipBand ? .72 : 0d;
-        var metricHeight = Math.Max(
-            1.18,
-            height - (hasPartnershipBand ? partnershipHeight + gap : 0d));
+        var cardWidth = (right - left - ((visible.Length - 1) * gap)) / visible.Length;
 
-        if (metrics.Length > 0)
+        for (var index = 0; index < visible.Length; index++)
         {
-            RenderInstitutionalMetricGrid(
+            RenderInstitutionalModuleCard(
                 canvas,
-                metrics,
-                left,
+                visible[index],
+                left + (index * (cardWidth + gap)),
                 top,
-                right - left,
-                metricHeight,
-                gap);
-        }
-
-        if (partnership is not null)
-        {
-            var partnershipTop = metrics.Length == 0
-                ? top
-                : top + metricHeight + gap;
-            var bandHeight = metrics.Length == 0
-                ? Math.Min(1.30, height)
-                : partnershipHeight;
-            RenderInstitutionalPartnershipBand(
-                canvas,
-                partnership,
-                left,
-                partnershipTop,
-                right - left,
-                bandHeight);
+                cardWidth,
+                height);
         }
     }
 
-    private static void RenderInstitutionalMetricGrid(
-        SlideCanvas canvas,
-        IReadOnlyList<ProjectBriefingInstitutionalModuleData> modules,
-        double left,
-        double top,
-        double width,
-        double height,
-        double gap)
-    {
-        if (modules.Count <= 4)
-        {
-            var cardWidth = modules.Count switch
-            {
-                1 => Math.Min(6.30, width),
-                2 => (width - gap) / 2d,
-                3 => (width - (2d * gap)) / 3d,
-                _ => (width - (3d * gap)) / 4d
-            };
-            var startX = modules.Count == 1
-                ? left + ((width - cardWidth) / 2d)
-                : left;
-
-            for (var index = 0; index < modules.Count; index++)
-            {
-                RenderInstitutionalMetricModuleTable(
-                    canvas,
-                    modules[index],
-                    startX + (index * (cardWidth + gap)),
-                    top,
-                    cardWidth,
-                    height);
-            }
-            return;
-        }
-
-        // Future-proof fallback for additional numeric blocks: approved 3 + 2/3 layout.
-        var firstRowCount = 3;
-        var secondRowCount = modules.Count - firstRowCount;
-        var rowGap = gap;
-        var rowHeight = (height - rowGap) / 2d;
-        RenderInstitutionalMetricGrid(canvas, modules.Take(firstRowCount).ToArray(), left, top, width, rowHeight, gap);
-        RenderInstitutionalMetricGrid(canvas, modules.Skip(firstRowCount).Take(secondRowCount).ToArray(), left, top + rowHeight + rowGap, width, rowHeight, gap);
-    }
-
-    private static void RenderInstitutionalMetricModuleTable(
+    private static void RenderInstitutionalModuleCard(
         SlideCanvas canvas,
         ProjectBriefingInstitutionalModuleData module,
         double x,
@@ -268,155 +239,200 @@ public sealed partial class ProjectBriefingSlideComposer
     {
         var accent = InstitutionalModuleAccent(canvas.Theme, module.Module);
         var soft = InstitutionalModuleSoftFill(canvas.Theme, module.Module);
-        var headerFill = canvas.Theme.IsDark ? accent : soft;
-        var headerText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
-        var highlightFill = canvas.Theme.IsDark ? accent : soft;
-        var highlightText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
-        var detailRows = module.Rows.ToArray();
+        var noBorders = NativeTableBorders.None;
+        var isPartnership = module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships;
+        var rows = module.Rows.ToArray();
         var hasHeadline = !string.IsNullOrWhiteSpace(module.Headline);
         var hasHighlight = !string.IsNullOrWhiteSpace(module.Highlight);
-        var fixedHeight = .45 + (hasHeadline ? .46 : 0d) + (hasHighlight ? .34 : 0d);
-        var bodyHeight = Math.Max(.42, height - fixedHeight);
-        var rowHeight = detailRows.Length == 0
-            ? bodyHeight
-            : Math.Max(.24, bodyHeight / detailRows.Length);
-        var widths = new[] { Math.Max(.85, width - .78), .78 };
-        var rows = new List<IReadOnlyList<NativeTableCell>>();
-        var heights = new List<double>();
 
-        rows.Add(MergedInstitutionalRow(
-            Truncate(module.Title, 54),
-            width < 2.65 ? 8.2 : 9.1,
-            headerText,
+        canvas.AddRoundedRect(
+            x,
+            y,
+            width,
+            height,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            .045,
+            $"{module.Title} institutional module card");
+
+        // The colour accent and content table are intentionally inset so square table
+        // corners never interfere with the rounded institutional-card silhouette.
+        canvas.AddRect(
+            x + .04,
+            y + .02,
+            width - .08,
+            .065,
+            accent,
+            name: $"{module.Title} institutional accent");
+
+        var tableX = x + .055;
+        var tableY = y + .085;
+        var tableWidth = width - .11;
+        var tableHeight = height - .15;
+        var headerHeight = .57;
+        var headlineHeight = hasHeadline ? .50 : 0d;
+        var highlightHeight = hasHighlight ? .36 : 0d;
+        var bodyHeight = Math.Max(.48, tableHeight - headerHeight - headlineHeight - highlightHeight);
+        var visibleRows = rows.Length == 0
+            ? Array.Empty<ProjectBriefingInstitutionalMetricRow>()
+            : rows.Take(Math.Max(1, (int)Math.Floor(bodyHeight / .28))).ToArray();
+        var detailRowHeight = visibleRows.Length == 0 ? bodyHeight : bodyHeight / visibleRows.Length;
+
+        if (isPartnership)
+        {
+            var partnershipRows = new List<IReadOnlyList<NativeTableCell>>
+            {
+                new[]
+                {
+                    InstitutionalCell(
+                        Truncate(module.Title, 55),
+                        width < 2.30 ? 8.0 : 8.8,
+                        accent,
+                        true,
+                        "ctr",
+                        soft,
+                        noBorders,
+                        leftMargin: .10,
+                        rightMargin: .10)
+                }
+            };
+            var heights = new List<double> { headerHeight };
+            var partnershipBody = Math.Max(.60, tableHeight - headerHeight);
+            var partnershipItems = rows.Take(6).ToArray();
+            var rowHeight = partnershipItems.Length == 0
+                ? partnershipBody
+                : partnershipBody / partnershipItems.Length;
+
+            if (partnershipItems.Length == 0)
+            {
+                partnershipRows.Add(new[]
+                {
+                    InstitutionalCell(string.Empty, 8, canvas.Theme.TextMuted, false, "l", canvas.Theme.Surface, noBorders)
+                });
+                heights.Add(partnershipBody);
+            }
+            else
+            {
+                foreach (var row in partnershipItems)
+                {
+                    partnershipRows.Add(new[]
+                    {
+                        InstitutionalCell(
+                            $"• {Truncate(row.Label, 34)}",
+                            width < 2.30 ? 7.7 : 8.2,
+                            canvas.Theme.TextSecondary,
+                            false,
+                            "l",
+                            canvas.Theme.Surface,
+                            noBorders,
+                            leftMargin: .13,
+                            rightMargin: .10)
+                    });
+                    heights.Add(rowHeight);
+                }
+            }
+
+            canvas.AddNativeTable(
+                tableX,
+                tableY,
+                new[] { tableWidth },
+                heights,
+                partnershipRows,
+                $"{module.Title} institutional module table");
+            return;
+        }
+
+        var labelWidth = Math.Max(.86, tableWidth - .62);
+        var valueWidth = tableWidth - labelWidth;
+        var tableRows = new List<IReadOnlyList<NativeTableCell>>();
+        var tableHeights = new List<double>();
+
+        tableRows.Add(MergedInstitutionalRow(
+            Truncate(module.Title, 50),
+            width < 2.30 ? 8.1 : 9.0,
+            accent,
             true,
             "ctr",
-            headerFill));
-        heights.Add(.45);
+            soft,
+            noBorders));
+        tableHeights.Add(headerHeight);
 
         if (hasHeadline)
         {
-            rows.Add(MergedInstitutionalRow(
+            tableRows.Add(MergedInstitutionalRow(
                 module.Headline!,
-                width < 2.65 ? 17.2 : 19.5,
+                width < 2.30 ? 18.5 : 20.5,
                 canvas.Theme.TextPrimary,
                 true,
                 "ctr",
-                canvas.Theme.Surface));
-            heights.Add(.46);
+                canvas.Theme.Surface,
+                noBorders));
+            tableHeights.Add(headlineHeight);
         }
 
-        if (detailRows.Length == 0)
+        if (visibleRows.Length == 0)
         {
-            rows.Add(MergedInstitutionalRow(
+            tableRows.Add(MergedInstitutionalRow(
                 string.Empty,
-                8.2,
+                8,
                 canvas.Theme.TextMuted,
                 false,
                 "l",
-                canvas.Theme.Surface));
-            heights.Add(bodyHeight);
+                canvas.Theme.Surface,
+                noBorders));
+            tableHeights.Add(bodyHeight);
         }
         else
         {
-            for (var index = 0; index < detailRows.Length; index++)
+            foreach (var row in visibleRows)
             {
-                var row = detailRows[index];
-                var fill = index % 2 == 0 ? canvas.Theme.Surface : canvas.Theme.SurfaceMuted;
-                rows.Add(new[]
+                tableRows.Add(new[]
                 {
-                    InstitutionalTableCell(
-                        Truncate(row.Label, width < 2.65 ? 28 : 38),
-                        width < 2.65 ? 7.7 : 8.2,
+                    InstitutionalCell(
+                        Truncate(row.Label, width < 2.30 ? 27 : 34),
+                        width < 2.30 ? 7.6 : 8.1,
                         canvas.Theme.TextSecondary,
                         false,
                         "l",
-                        fill),
-                    InstitutionalTableCell(
+                        canvas.Theme.Surface,
+                        noBorders,
+                        leftMargin: .10,
+                        rightMargin: .03),
+                    InstitutionalCell(
                         row.Value,
-                        width < 2.65 ? 7.9 : 8.5,
+                        width < 2.30 ? 7.8 : 8.4,
                         canvas.Theme.TextPrimary,
                         true,
                         "r",
-                        fill,
+                        canvas.Theme.Surface,
+                        noBorders,
+                        leftMargin: .02,
                         rightMargin: .08)
                 });
-                heights.Add(rowHeight);
+                tableHeights.Add(detailRowHeight);
             }
         }
 
         if (hasHighlight)
         {
-            rows.Add(MergedInstitutionalRow(
-                Truncate(module.Highlight, width < 2.65 ? 78 : 96),
-                width < 2.65 ? 7.0 : 7.5,
-                highlightText,
+            tableRows.Add(MergedInstitutionalRow(
+                Truncate(module.Highlight, width < 2.30 ? 58 : 72),
+                width < 2.30 ? 6.8 : 7.3,
+                canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent,
                 true,
                 "l",
-                highlightFill));
-            heights.Add(.34);
+                canvas.Theme.IsDark ? accent : soft,
+                noBorders));
+            tableHeights.Add(highlightHeight);
         }
 
         canvas.AddNativeTable(
-            x,
-            y,
-            widths,
-            heights,
-            rows,
+            tableX,
+            tableY,
+            new[] { labelWidth, valueWidth },
+            tableHeights,
+            tableRows,
             $"{module.Title} institutional module table");
-    }
-
-    private static void RenderInstitutionalPartnershipBand(
-        SlideCanvas canvas,
-        ProjectBriefingInstitutionalModuleData module,
-        double x,
-        double y,
-        double width,
-        double height)
-    {
-        var accent = InstitutionalModuleAccent(canvas.Theme, module.Module);
-        var soft = InstitutionalModuleSoftFill(canvas.Theme, module.Module);
-        var headerFill = canvas.Theme.IsDark ? accent : soft;
-        var headerText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
-        var entries = module.Rows
-            .Select(row => row.Label)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-        var entryText = entries.Length == 0
-            ? string.Empty
-            : string.Join("  ·  ", entries.Select(value => Truncate(value, 70)));
-
-        canvas.AddNativeTable(
-            x,
-            y,
-            new[] { width },
-            new[] { Math.Min(.30, height * .43), Math.Max(.32, height - Math.Min(.30, height * .43)) },
-            new IReadOnlyList<NativeTableCell>[]
-            {
-                new[]
-                {
-                    InstitutionalTableCell(
-                        Truncate(module.Title, 80),
-                        9.1,
-                        headerText,
-                        true,
-                        "ctr",
-                        headerFill)
-                },
-                new[]
-                {
-                    InstitutionalTableCell(
-                        entryText,
-                        entries.Length >= 6 ? 7.8 : 8.6,
-                        canvas.Theme.TextPrimary,
-                        false,
-                        "ctr",
-                        canvas.Theme.Surface,
-                        verticalAnchor: "ctr",
-                        leftMargin: .16,
-                        rightMargin: .16)
-                }
-            },
-            "Military academia industry synergy table");
     }
 
     private static void RenderInstitutionalCitation(
@@ -424,34 +440,26 @@ public sealed partial class ProjectBriefingSlideComposer
         string label,
         int count)
     {
-        canvas.AddNativeTable(
-            .62,
-            6.40,
-            new[] { 10.85, 1.25 },
-            new[] { .31 },
-            new IReadOnlyList<NativeTableCell>[]
-            {
-                new[]
-                {
-                    InstitutionalTableCell(
-                        $"{Truncate(label, 70)} —",
-                        8.9,
-                        canvas.Theme.TextPrimary,
-                        true,
-                        "l",
-                        canvas.Theme.SurfaceRaised,
-                        leftMargin: .16),
-                    InstitutionalTableCell(
-                        count.ToString("00", CultureInfo.InvariantCulture),
-                        11.0,
-                        canvas.Theme.HeaderAccent,
-                        true,
-                        "r",
-                        canvas.Theme.SurfaceRaised,
-                        rightMargin: .16)
-                }
-            },
-            "Institutional recognition table");
+        canvas.AddRoundedRect(
+            4.35,
+            6.31,
+            4.63,
+            .40,
+            canvas.Theme.SurfaceRaised,
+            canvas.Theme.HeaderAccent,
+            .035,
+            "Institutional recognition strip");
+        canvas.AddText(
+            4.56,
+            6.37,
+            4.21,
+            .25,
+            $"{Truncate(label, 58)} — {count:00}",
+            11.0,
+            canvas.Theme.TextPrimary,
+            true,
+            "ctr",
+            name: "Institutional recognition text");
     }
 
     private static IReadOnlyList<NativeTableCell> MergedInstitutionalRow(
@@ -460,30 +468,33 @@ public sealed partial class ProjectBriefingSlideComposer
         string color,
         bool bold,
         string align,
-        string fill)
+        string fill,
+        NativeTableBorders borders)
         => new[]
         {
-            InstitutionalTableCell(
+            InstitutionalCell(
                 value,
                 fontSize,
                 color,
                 bold,
                 align,
                 fill,
-                gridSpan: 2,
-                leftMargin: .12,
-                rightMargin: .12),
-            InstitutionalTableCell(
+                borders,
+                leftMargin: .10,
+                rightMargin: .10,
+                gridSpan: 2),
+            InstitutionalCell(
                 string.Empty,
                 fontSize,
                 color,
                 bold,
                 align,
                 fill,
+                borders,
                 horizontalMerge: true)
         };
 
-    private static NativeTableCell InstitutionalTableCell(
+    private static NativeTableCell InstitutionalCell(
         string? value,
         double fontSize,
         string color,
@@ -492,10 +503,10 @@ public sealed partial class ProjectBriefingSlideComposer
         string fill,
         NativeTableBorders? borders = null,
         string verticalAnchor = "ctr",
-        double leftMargin = .08,
-        double rightMargin = .08,
-        double topMargin = .025,
-        double bottomMargin = .025,
+        double leftMargin = .06,
+        double rightMargin = .06,
+        double topMargin = .02,
+        double bottomMargin = .02,
         int gridSpan = 1,
         bool horizontalMerge = false)
         => new(
@@ -505,7 +516,7 @@ public sealed partial class ProjectBriefingSlideComposer
             bold,
             align,
             fill,
-            borders,
+            borders ?? NativeTableBorders.None,
             verticalAnchor,
             leftMargin,
             rightMargin,
