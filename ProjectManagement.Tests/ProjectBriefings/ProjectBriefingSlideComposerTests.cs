@@ -1631,6 +1631,27 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.True(
             ShapeWidth(ShapeByName(profileSlide, "SDD profile footer-strip background")) < 10.0 * 914400,
             "Short profile-footer content should render as a compact centred strip rather than a full-width bar.");
+        Assert.True(
+            ShapeHeight(ShapeByName(profileSlide, "SDD profile footer-strip background")) < .37 * 914400,
+            "The supporting profile footer strip should remain visually subordinate to the five institutional modules.");
+        Assert.NotEqual(
+            "7A263A",
+            ShapeLineColor(ShapeByName(profileSlide, "SDD profile footer-strip background")));
+        Assert.Equal(
+            "D6E9E9",
+            ShapeFillColor(ShapeByName(profileSlide, "Simulators/Projects Developed module header fill")));
+        Assert.True(
+            MaxShapeFontSize(ShapeByName(profileSlide, "Proliferated module labels")) >= 960,
+            "Institutional detail labels must remain readable when projected.");
+        Assert.True(
+            MaxShapeFontSize(ShapeByName(profileSlide, "Proliferated module values")) >= 990,
+            "Institutional detail values must remain readable when projected.");
+        Assert.True(
+            MaxShapeFontSize(ShapeByName(profileSlide, "Military–Academia–Industry Synergy module content")) >= 1000,
+            "Institutional-partnership entries should use the larger sparse-module typography.");
+        Assert.True(
+            ShapeHeight(ShapeByName(profileSlide, "Assistance to Field Formations module highlight fill")) >= .49 * 914400,
+            "The training highlight must provide sufficient height for a controlled two-line message.");
     }
 
     [Fact]
@@ -1828,6 +1849,21 @@ public sealed class ProjectBriefingSlideComposerTests
                .FirstOrDefault()?
                .Val?.Value
            ?? string.Empty;
+
+    private static string ShapeLineColor(P.Shape shape)
+        => shape.ShapeProperties?
+               .Descendants<A.Outline>()
+               .SelectMany(outline => outline.Descendants<A.RgbColorModelHex>())
+               .FirstOrDefault()?
+               .Val?.Value
+           ?? string.Empty;
+
+    private static int MaxShapeFontSize(P.Shape shape)
+        => shape
+            .Descendants<A.RunProperties>()
+            .Select(properties => properties.FontSize?.Value ?? 0)
+            .DefaultIfEmpty(0)
+            .Max();
 
     private static long ShapeX(P.Shape shape)
         => shape.ShapeProperties?.Transform2D?.Offset?.X?.Value ?? 0L;

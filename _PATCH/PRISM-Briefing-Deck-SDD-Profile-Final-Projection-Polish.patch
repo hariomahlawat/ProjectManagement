@@ -1,0 +1,336 @@
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+@@ -68,7 +68,7 @@
+             "SDD institutional history timeline",
+             () =>
+             {
+-                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.55);
++                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.65);
+ 
+                 for (var index = 0; index < items.Length; index++)
+                 {
+@@ -96,7 +96,7 @@
+                                 {
+                                     new RichTextRun(
+                                         item.Year.ToString(CultureInfo.InvariantCulture),
+-                                        compact ? 11.0 : 12.5,
++                                        compact ? 11.2 : 12.8,
+                                         canvas.Theme.HeaderAccent,
+                                         Bold: true)
+                                 },
+@@ -108,12 +108,12 @@
+                                 {
+                                     new RichTextRun(
+                                         description,
+-                                        compact ? 8.9 : 10.0,
++                                        compact ? 9.2 : 10.4,
+                                         canvas.Theme.TextPrimary,
+                                         Bold: true)
+                                 },
+                                 Align: "ctr",
+-                                LineSpacingPoints: compact ? 9.7 : 10.9)
++                                LineSpacingPoints: compact ? 10.0 : 11.3)
+                         },
+                         $"SDD milestone {item.Year}",
+                         verticalAnchor: above ? "b" : "t",
+@@ -129,7 +129,7 @@
+                         .23,
+                         .27,
+                         "●",
+-                        12.3,
++                        12.8,
+                         canvas.Theme.Warning,
+                         true,
+                         "ctr",
+@@ -189,12 +189,12 @@
+         var hasHeadline = !string.IsNullOrWhiteSpace(module.Headline);
+         var hasHighlight = !string.IsNullOrWhiteSpace(module.Highlight);
+         var compact = width < 2.45;
+-        var titleFont = compact ? 9.6 : 10.4;
+-        var bodyFont = compact ? 9.1 : 9.7;
+-        var valueFont = compact ? 9.4 : 10.0;
+-        var headlineFont = compact ? 21.5 : 23.0;
++        var titleFont = compact ? 10.0 : 10.8;
++        var bodyFont = compact ? 9.6 : 10.2;
++        var valueFont = compact ? 9.9 : 10.5;
++        var headlineFont = compact ? 22.0 : 23.5;
+         const double headerHeight = .60;
+-        var highlightHeight = hasHighlight ? .46 : 0d;
++        var highlightHeight = hasHighlight ? .54 : 0d;
+         var displayTitle = InstitutionalModuleDisplayTitle(module.Module, module.Title);
+ 
+         canvas.AddGroup(
+@@ -226,7 +226,7 @@
+                     y + .075,
+                     width - .08,
+                     headerHeight,
+-                    soft,
++                    InstitutionalModuleHeaderFill(canvas.Theme, module.Module),
+                     name: $"{module.Title} module header fill");
+                 canvas.AddText(
+                     x + .10,
+@@ -252,18 +252,18 @@
+                             {
+                                 new RichTextRun(
+                                     $"• {Truncate(row.Label, compact ? 31 : 40)}",
+-                                    compact ? 9.5 : 10.1,
++                                    compact ? 10.0 : 10.7,
+                                     canvas.Theme.TextSecondary)
+                             },
+-                            SpaceAfterPoints: compact ? 10.0 : 12.0,
+-                            LineSpacingPoints: compact ? 10.4 : 11.2))
++                            SpaceAfterPoints: compact ? 12.0 : 14.0,
++                            LineSpacingPoints: compact ? 11.0 : 11.8))
+                         .ToArray();
+ 
+                     if (partnershipParagraphs.Length > 0)
+                     {
+                         canvas.AddRichTextBox(
+                             x + .16,
+-                            contentTop + .16,
++                            contentTop + .10,
+                             width - .32,
+                             Math.Max(.58, contentBottom - contentTop - .22),
+                             partnershipParagraphs,
+@@ -292,12 +292,12 @@
+                         true,
+                         "ctr",
+                         name: $"{module.Title} module headline");
+-                    contentTop += .58;
++                    contentTop += .54;
+                 }
+ 
+                 var availableBodyHeight = Math.Max(.42, contentBottom - contentTop);
+                 var rowPitch = hasHighlight
+-                    ? compact ? .275 : .30
++                    ? compact ? .265 : .29
+                     : compact ? .31 : .35;
+                 var maximumRows = Math.Max(1, (int)Math.Floor(availableBodyHeight / rowPitch));
+                 var visibleRows = rows.Take(maximumRows).ToArray();
+@@ -315,8 +315,8 @@
+                                 canvas.Theme.TextSecondary)
+                         },
+                         Align: "l",
+-                        SpaceAfterPoints: isSparse ? 14.0 : compact ? 6.2 : 7.2,
+-                        LineSpacingPoints: compact ? 10.0 : 10.7));
++                        SpaceAfterPoints: isSparse ? 16.0 : compact ? 6.0 : 7.0,
++                        LineSpacingPoints: compact ? 10.6 : 11.2));
+                     values.Add(new RichTextParagraph(
+                         new[]
+                         {
+@@ -327,13 +327,13 @@
+                                 Bold: true)
+                         },
+                         Align: "r",
+-                        SpaceAfterPoints: isSparse ? 14.0 : compact ? 6.2 : 7.2,
+-                        LineSpacingPoints: compact ? 10.0 : 10.7));
++                        SpaceAfterPoints: isSparse ? 16.0 : compact ? 6.0 : 7.0,
++                        LineSpacingPoints: compact ? 10.6 : 11.2));
+                 }
+ 
+                 if (labels.Count > 0)
+                 {
+-                    var bodyTopOffset = isSparse ? .14 : .02;
++                    var bodyTopOffset = isSparse ? .08 : .02;
+                     var bodyAnchor = isSparse ? "t" : "ctr";
+                     canvas.AddRichTextBox(
+                         x + .14,
+@@ -369,20 +369,20 @@
+                     var highlightText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
+                     canvas.AddRoundedRect(
+                         x + .10,
+-                        y + height - .52,
++                        y + height - .60,
+                         width - .20,
+-                        .41,
++                        .50,
+                         highlightFill,
+                         null,
+                         .025,
+                         $"{module.Title} module highlight fill");
+                     canvas.AddText(
+                         x + .15,
+-                        y + height - .485,
++                        y + height - .555,
+                         width - .30,
+-                        .34,
++                        .43,
+                         FormatInstitutionalHighlight(module.Highlight, compact ? 76 : 92),
+-                        compact ? 8.0 : 8.5,
++                        compact ? 8.6 : 9.2,
+                         highlightText,
+                         true,
+                         "l",
+@@ -394,12 +394,15 @@
+     private static string FormatInstitutionalHighlight(string? value, int maximum)
+     {
+         var text = Truncate(value, maximum);
+-        if (text.Length <= 48) return text;
+-
+         var splitAt = text.IndexOf(" trained ", StringComparison.OrdinalIgnoreCase);
+-        return splitAt > 0
+-            ? text[..splitAt].TrimEnd() + "\n" + text[(splitAt + 1)..].TrimStart()
+-            : text;
++        if (splitAt > 0)
++        {
++            return text[..splitAt].TrimEnd()
++                + "\n"
++                + text[(splitAt + 1)..].TrimStart();
++        }
++
++        return text;
+     }
+ 
+     private static string InstitutionalModuleDisplayTitle(
+@@ -419,8 +422,8 @@
+         SlideCanvas canvas,
+         ProjectBriefingInstitutionalProfileData profile)
+     {
+-        const double y = 6.12;
+-        const double height = .39;
++        const double y = 6.14;
++        const double height = .35;
+         var theme = canvas.Theme;
+ 
+         var fill = profile.FooterStripStyle switch
+@@ -433,7 +436,7 @@
+         {
+             ProjectBriefingInstitutionalFooterStyle.SolidMaroon => theme.HeaderAccent,
+             ProjectBriefingInstitutionalFooterStyle.SubtleNeutral => theme.Divider,
+-            _ => theme.HeaderAccent
++            _ => theme.Divider
+         };
+         var textColor = profile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon
+             ? theme.TextOnAccent
+@@ -470,7 +473,7 @@
+                     height,
+                     fill,
+                     border,
+-                    .028,
++                    .024,
+                     "SDD profile footer-strip background");
+ 
+                 if (profile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight
+@@ -478,22 +481,22 @@
+                 {
+                     canvas.AddText(
+                         x + .20,
+-                        y + .065,
++                        y + .055,
+                         width - 1.65,
+-                        .25,
++                        .23,
+                         label,
+-                        12.0,
++                        11.7,
+                         textColor,
+                         true,
+                         "l",
+                         name: "SDD profile footer-strip text");
+                     canvas.AddText(
+                         x + width - 1.25,
+-                        y + .055,
++                        y + .045,
+                         1.02,
+-                        .27,
++                        .25,
+                         value,
+-                        14.0,
++                        13.3,
+                         valueColor,
+                         true,
+                         "r",
+@@ -508,11 +511,11 @@
+                             : $"{label} — {value}";
+                     canvas.AddText(
+                         x + .22,
+-                        y + .055,
++                        y + .045,
+                         width - .44,
+-                        .27,
++                        .24,
+                         combined,
+-                        12.6,
++                        12.2,
+                         textColor,
+                         true,
+                         "ctr",
+@@ -534,6 +537,26 @@
+             _ => theme.Accent
+         };
+ 
++    private static string InstitutionalModuleHeaderFill(
++        ProjectBriefingThemeDefinition theme,
++        ProjectBriefingInstitutionalProfileModule module)
++    {
++        if (theme.IsDark)
++        {
++            return InstitutionalModuleSoftFill(theme, module);
++        }
++
++        return module switch
++        {
++            ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "D6E9E9",
++            ProjectBriefingInstitutionalProfileModule.Proliferation => "DCE6F6",
++            ProjectBriefingInstitutionalProfileModule.TrainingSupport => "F2DCE0",
++            ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "F3E3CE",
++            ProjectBriefingInstitutionalProfileModule.Partnerships => "DCEDE4",
++            _ => theme.SurfaceMuted
++        };
++    }
++
+     private static string InstitutionalModuleSoftFill(
+         ProjectBriefingThemeDefinition theme,
+         ProjectBriefingInstitutionalProfileModule module)
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -1631,6 +1631,27 @@
+         Assert.True(
+             ShapeWidth(ShapeByName(profileSlide, "SDD profile footer-strip background")) < 10.0 * 914400,
+             "Short profile-footer content should render as a compact centred strip rather than a full-width bar.");
++        Assert.True(
++            ShapeHeight(ShapeByName(profileSlide, "SDD profile footer-strip background")) < .37 * 914400,
++            "The supporting profile footer strip should remain visually subordinate to the five institutional modules.");
++        Assert.NotEqual(
++            "7A263A",
++            ShapeLineColor(ShapeByName(profileSlide, "SDD profile footer-strip background")));
++        Assert.Equal(
++            "D6E9E9",
++            ShapeFillColor(ShapeByName(profileSlide, "Simulators/Projects Developed module header fill")));
++        Assert.True(
++            MaxShapeFontSize(ShapeByName(profileSlide, "Proliferated module labels")) >= 960,
++            "Institutional detail labels must remain readable when projected.");
++        Assert.True(
++            MaxShapeFontSize(ShapeByName(profileSlide, "Proliferated module values")) >= 990,
++            "Institutional detail values must remain readable when projected.");
++        Assert.True(
++            MaxShapeFontSize(ShapeByName(profileSlide, "Military–Academia–Industry Synergy module content")) >= 1000,
++            "Institutional-partnership entries should use the larger sparse-module typography.");
++        Assert.True(
++            ShapeHeight(ShapeByName(profileSlide, "Assistance to Field Formations module highlight fill")) >= .49 * 914400,
++            "The training highlight must provide sufficient height for a controlled two-line message.");
+     }
+ 
+     [Fact]
+@@ -1829,6 +1850,21 @@
+                .Val?.Value
+            ?? string.Empty;
+ 
++    private static string ShapeLineColor(P.Shape shape)
++        => shape.ShapeProperties?
++               .Descendants<A.Outline>()
++               .SelectMany(outline => outline.Descendants<A.RgbColorModelHex>())
++               .FirstOrDefault()?
++               .Val?.Value
++           ?? string.Empty;
++
++    private static int MaxShapeFontSize(P.Shape shape)
++        => shape
++            .Descendants<A.RunProperties>()
++            .Select(properties => properties.FontSize?.Value ?? 0)
++            .DefaultIfEmpty(0)
++            .Max();
++
+     private static long ShapeX(P.Shape shape)
+         => shape.ShapeProperties?.Transform2D?.Offset?.X?.Value ?? 0L;
+ 
