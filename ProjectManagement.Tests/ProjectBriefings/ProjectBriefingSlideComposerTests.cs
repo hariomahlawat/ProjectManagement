@@ -1588,6 +1588,13 @@ public sealed class ProjectBriefingSlideComposerTests
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        Assert.Equal(5, slides.Length);
+        Assert.Contains("SDD Institutional Profile", SlideText(slides[0]), StringComparison.Ordinal);
+        Assert.Contains("SDD – Growth over the years", SlideText(slides[1]), StringComparison.Ordinal);
+        Assert.Contains("Portfolio at a glance", SlideText(slides[2]), StringComparison.Ordinal);
+        Assert.Contains("PROFILE SLIDE PROJECT", SlideText(slides[3]), StringComparison.Ordinal);
+        Assert.True(IsClosingSlide(slides[4]));
+
         var profileSlide = slides[1];
         var profileText = SlideText(profileSlide);
 
@@ -1652,6 +1659,51 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.True(
             ShapeHeight(ShapeByName(profileSlide, "Assistance to Field Formations module highlight fill")) >= .49 * 914400,
             "The training highlight must provide sufficient height for a controlled two-line message.");
+    }
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_OmitsInstitutionalProfileOnlyWhenNoProfileDataIsProvided()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 881,
+            DeckName = "Update Sheet Without Profile",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            IncludeCoverSlide = true,
+            IncludePortfolioSummarySlide = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 5, 4, 0, 0, TimeSpan.Zero),
+            Projects = new[]
+            {
+                BriefingProject(
+                    881,
+                    "NO PROFILE PROJECT",
+                    StageCodes.DEVP,
+                    ProjectBriefingStageOrder.Development,
+                    1,
+                    projectBrief: "Institutional profile opt-out regression coverage.")
+            },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1
+            },
+            InstitutionalProfile = null
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(4, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        Assert.Equal(4, slides.Length);
+        Assert.DoesNotContain(slides, slide =>
+            SlideText(slide).Contains("SDD – Growth over the years", StringComparison.Ordinal));
+        Assert.Contains("Portfolio at a glance", SlideText(slides[1]), StringComparison.Ordinal);
+        Assert.Contains("NO PROFILE PROJECT", SlideText(slides[2]), StringComparison.Ordinal);
+        Assert.True(IsClosingSlide(slides[3]));
     }
 
     [Fact]

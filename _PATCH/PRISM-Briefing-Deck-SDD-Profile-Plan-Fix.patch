@@ -1,0 +1,130 @@
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -116,24 +116,37 @@
+         return plans;
+     }
+ 
+-    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
++    private static void AddIntroductoryPlans(
++        ICollection<SlidePlan> plans,
++        ProjectBriefingPresentationData data)
+     {
+-        var orderedProjects = OrderProjects(data.Projects);
+-        var plans = new List<SlidePlan>();
++        ArgumentNullException.ThrowIfNull(plans);
++        ArgumentNullException.ThrowIfNull(data);
++
+         if (data.IncludeCoverSlide)
+         {
+             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
+         }
++
+         if (data.InstitutionalProfile is not null)
+         {
++            var institutionalProfile = data.InstitutionalProfile;
+             plans.Add(new SlidePlan(
+                 SlidePlanKind.InstitutionalProfile,
+-                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
++                canvas => RenderInstitutionalProfile(canvas, institutionalProfile)));
+         }
++
+         if (data.IncludePortfolioSummarySlide)
+         {
+             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+         }
++    }
++
++    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
++    {
++        var orderedProjects = OrderProjects(data.Projects);
++        var plans = new List<SlidePlan>();
++        AddIntroductoryPlans(plans, data);
+ 
+         if (data.IncludeStageSummary)
+         {
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+@@ -14,14 +14,7 @@
+     private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
+     {
+         var plans = new List<SlidePlan>();
+-        if (data.IncludeCoverSlide)
+-        {
+-            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
+-        }
+-        if (data.IncludePortfolioSummarySlide)
+-        {
+-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+-        }
++        AddIntroductoryPlans(plans, data);
+ 
+         foreach (var project in OrderProjects(data.Projects))
+         {
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -1588,6 +1588,13 @@
+         using var stream = new MemoryStream(content, writable: false);
+         using var document = PresentationDocument.Open(stream, false);
+         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
++        Assert.Equal(5, slides.Length);
++        Assert.Contains("SDD Institutional Profile", SlideText(slides[0]), StringComparison.Ordinal);
++        Assert.Contains("SDD – Growth over the years", SlideText(slides[1]), StringComparison.Ordinal);
++        Assert.Contains("Portfolio at a glance", SlideText(slides[2]), StringComparison.Ordinal);
++        Assert.Contains("PROFILE SLIDE PROJECT", SlideText(slides[3]), StringComparison.Ordinal);
++        Assert.True(IsClosingSlide(slides[4]));
++
+         var profileSlide = slides[1];
+         var profileText = SlideText(profileSlide);
+ 
+@@ -1655,6 +1662,51 @@
+     }
+ 
+     [Fact]
++    public void Compose_ProjectUpdateSheet_OmitsInstitutionalProfileOnlyWhenNoProfileDataIsProvided()
++    {
++        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
++        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
++        var data = new ProjectBriefingPresentationData
++        {
++            DeckId = 881,
++            DeckName = "Update Sheet Without Profile",
++            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
++            IncludeCoverSlide = true,
++            IncludePortfolioSummarySlide = true,
++            GeneratedAtUtc = new DateTimeOffset(2026, 8, 5, 4, 0, 0, TimeSpan.Zero),
++            Projects = new[]
++            {
++                BriefingProject(
++                    881,
++                    "NO PROFILE PROJECT",
++                    StageCodes.DEVP,
++                    ProjectBriefingStageOrder.Development,
++                    1,
++                    projectBrief: "Institutional profile opt-out regression coverage.")
++            },
++            Summary = new ProjectBriefingPresentationSummary
++            {
++                ProjectCount = 1,
++                OngoingCount = 1
++            },
++            InstitutionalProfile = null
++        };
++
++        var (content, slideCount) = composer.Compose(data);
++
++        Assert.Equal(4, slideCount);
++        using var stream = new MemoryStream(content, writable: false);
++        using var document = PresentationDocument.Open(stream, false);
++        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
++        Assert.Equal(4, slides.Length);
++        Assert.DoesNotContain(slides, slide =>
++            SlideText(slide).Contains("SDD – Growth over the years", StringComparison.Ordinal));
++        Assert.Contains("Portfolio at a glance", SlideText(slides[1]), StringComparison.Ordinal);
++        Assert.Contains("NO PROFILE PROJECT", SlideText(slides[2]), StringComparison.Ordinal);
++        Assert.True(IsClosingSlide(slides[3]));
++    }
++
++    [Fact]
+     public void Compose_AppendsProfessionalJaiHindClosingSlideByDefault()
+     {
+         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

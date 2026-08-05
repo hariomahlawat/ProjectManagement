@@ -116,24 +116,37 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         return plans;
     }
 
-    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
+    private static void AddIntroductoryPlans(
+        ICollection<SlidePlan> plans,
+        ProjectBriefingPresentationData data)
     {
-        var orderedProjects = OrderProjects(data.Projects);
-        var plans = new List<SlidePlan>();
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(data);
+
         if (data.IncludeCoverSlide)
         {
             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
         }
+
         if (data.InstitutionalProfile is not null)
         {
+            var institutionalProfile = data.InstitutionalProfile;
             plans.Add(new SlidePlan(
                 SlidePlanKind.InstitutionalProfile,
-                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
+                canvas => RenderInstitutionalProfile(canvas, institutionalProfile)));
         }
+
         if (data.IncludePortfolioSummarySlide)
         {
             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
         }
+    }
+
+    private static List<SlidePlan> BuildStandardPlans(ProjectBriefingPresentationData data)
+    {
+        var orderedProjects = OrderProjects(data.Projects);
+        var plans = new List<SlidePlan>();
+        AddIntroductoryPlans(plans, data);
 
         if (data.IncludeStageSummary)
         {

@@ -1,8 +1,4 @@
 REPLACE:
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
-Services/ProjectBriefings/ProjectBriefingDataService.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-
-ADD:
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingRemainingIssuesContractTests.cs

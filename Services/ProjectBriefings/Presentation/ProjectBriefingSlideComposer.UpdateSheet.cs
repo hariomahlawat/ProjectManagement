@@ -14,14 +14,7 @@ public sealed partial class ProjectBriefingSlideComposer
     private static List<SlidePlan> BuildProjectUpdateSheetPlans(ProjectBriefingPresentationData data)
     {
         var plans = new List<SlidePlan>();
-        if (data.IncludeCoverSlide)
-        {
-            plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
-        }
-        if (data.IncludePortfolioSummarySlide)
-        {
-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
-        }
+        AddIntroductoryPlans(plans, data);
 
         foreach (var project in OrderProjects(data.Projects))
         {
