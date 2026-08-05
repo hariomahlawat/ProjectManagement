@@ -89,6 +89,8 @@
         ?? ProjectBriefingInstitutionalProfileOptions.Default;
     var roleCharter = deck?.RoleCharterOptions
         ?? ProjectBriefingRoleCharterOptions.Default;
+    var ffcGlobalFootprint = deck?.FfcGlobalFootprintOptions
+        ?? ProjectBriefingFfcGlobalFootprintOptions.Default;
     var additionalSlideOrder = deck?.AdditionalSlideOrder
         ?? Array.Empty<ProjectBriefingAdditionalSlideType>();
     var configuredAdditionalSlideTypes = additionalSlideOrder.ToHashSet();
@@ -100,6 +102,7 @@
     {
         ProjectBriefingAdditionalSlideType.InstitutionalProfile => institutionalProfile.IncludeSlide,
         ProjectBriefingAdditionalSlideType.RoleAndCharter => roleCharter.IncludeSlide,
+        ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => ffcGlobalFootprint.IncludeSlide,
         _ => false
     };
     var enabledAdditionalSlideCount = additionalSlideOrder.Count(AdditionalSlideIsEnabled);
@@ -759,6 +762,7 @@
 
                         @await Html.PartialAsync("_InstitutionalProfileEditor", Model)
                         @await Html.PartialAsync("_RoleCharterEditor", Model)
+                        @await Html.PartialAsync("_FfcGlobalFootprintEditor", Model)
 
                         <section class="pbd-export-preflight" aria-labelledby="pbd-preflight-title">
                             <header class="pbd-preflight-header">
@@ -772,11 +776,11 @@
                                     <small data-pbd-slide-breakdown>
                                         @if (isUpdateSheet)
                                         {
-                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Role &amp; Charter @deck.SlideEstimate.RoleCharterSlides · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
+                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Role &amp; Charter @deck.SlideEstimate.RoleCharterSlides · FFC footprint @deck.SlideEstimate.FfcGlobalFootprintSlides · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
                                         }
                                         else
                                         {
-                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Role &amp; Charter @deck.SlideEstimate.RoleCharterSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
+                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Role &amp; Charter @deck.SlideEstimate.RoleCharterSlides · FFC footprint @deck.SlideEstimate.FfcGlobalFootprintSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
                                             @if (deck.SlideEstimate.DetailedProjectSlides > 0)
                                             {
                                                 <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
@@ -991,23 +995,40 @@
                                         {
                                             ProjectBriefingAdditionalSlideType.InstitutionalProfile => $"{institutionalProfile.HistoryMilestones.Count} milestones · {institutionalProfile.Modules.Count} modules",
                                             ProjectBriefingAdditionalSlideType.RoleAndCharter => $"{roleCharter.RoleStatements.Count} role statements · {roleCharter.CharterItems.Count} charter items · {deck.SlideEstimate.RoleCharterSlides} slide{(deck.SlideEstimate.RoleCharterSlides == 1 ? string.Empty : "s")}",
+                                            ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => enabled ? "Live ERP data · 1 slide" : "Live ERP data · configured",
                                             _ => string.Empty
                                         };
+                                        var definition = AdditionalSlideDefinition(slideType);
+                                        var canReorder = definition.CanReorder;
                                         var previousEnabledSlide = additionalSlideOrder
                                             .Take(slideIndex)
+                                            .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
                                             .LastOrDefault(AdditionalSlideIsEnabled);
                                         var hasPreviousEnabledSlide = additionalSlideOrder
                                             .Take(slideIndex)
+                                            .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
                                             .Any(AdditionalSlideIsEnabled);
-                                        var positionLabel = hasPreviousEnabledSlide
-                                            ? $"After {AdditionalSlideDisplayName(previousEnabledSlide)}"
-                                            : "After cover";
+                                        var positionLabel = definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing
+                                            ? "Immediately before closing"
+                                            : hasPreviousEnabledSlide
+                                                ? $"After {AdditionalSlideDisplayName(previousEnabledSlide)}"
+                                                : "After cover";
                                         <article class="pbd-additional-slide-card @(enabled ? "is-enabled" : "is-disabled")"
                                                  data-pbd-additional-slide-card
+                                                 data-can-reorder="@canReorder.ToString().ToLowerInvariant()"
                                                  data-slide-type="@slideType">
-                                            <button type="button" class="pbd-additional-slide-card__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
-                                                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
-                                            </button>
+                                            @if (canReorder)
+                                            {
+                                                <button type="button" class="pbd-additional-slide-card__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
+                                                    <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="pbd-additional-slide-card__handle is-fixed" title="Fixed immediately before the closing slide" aria-label="Fixed before closing">
+                                                    <i class="bi bi-pin-angle" aria-hidden="true"></i>
+                                                </span>
+                                            }
                                             <span class="pbd-additional-slide-card__position" aria-label="Slide order">@(slideIndex + 1)</span>
                                             <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
                                             <div class="pbd-additional-slide-card__body">
@@ -1039,6 +1060,12 @@
                                                 else if (slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter)
                                                 {
                                                     <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false">
+                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
+                                                    </button>
+                                                }
+                                                else if (slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-ffc-footprint-open aria-controls="pbd-ffc-footprint-drawer" aria-expanded="false">
                                                         <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
                                                     </button>
                                                 }

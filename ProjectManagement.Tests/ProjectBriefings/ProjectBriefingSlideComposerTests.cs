@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
 using Xunit;
@@ -2045,6 +2046,50 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.True(coverIndex >= 0 && roleIndex > coverIndex && summaryIndex > roleIndex);
     }
 
+
+    [Fact]
+    public void Compose_FfcGlobalFootprint_IsFinalSubstantiveSlideBeforeClosing()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var footprint = new ProjectBriefingFfcGlobalFootprintData
+        {
+            Title = "FFC Global Footprint",
+            Summary = new FfcFootprintSummary(
+                CountryCount: 2,
+                RecordCount: 2,
+                ProjectCount: 5,
+                InstalledUnits: 3,
+                DeliveredNotInstalledUnits: 2,
+                PlannedUnits: 7),
+            Countries = new[]
+            {
+                new ProjectBriefingFfcCountryData("Ethiopia", "ETH", 4, 0, 0, 7),
+                new ProjectBriefingFfcCountryData("Sri Lanka", "LKA", 1, 3, 2, 0)
+            },
+            MaximumCountryRows = 8,
+            MapImage = TinyPng(),
+            DataAsOnUtc = new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero)
+        };
+
+        var (content, _) = composer.Compose(BuildData(
+            additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.FfcGlobalFootprint },
+            ffcGlobalFootprint: footprint));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var footprintIndex = Array.FindIndex(slides, slide =>
+            SlideText(slide).Contains("FFC GLOBAL FOOTPRINT", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(slides.Length - 2, footprintIndex);
+        Assert.True(IsClosingSlide(slides[^1]));
+        Assert.Contains("DELIVERED, AWAITING INSTALLATION", SlideText(slides[footprintIndex]), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ETH", SlideText(slides[footprintIndex]), StringComparison.Ordinal);
+        Assert.NotEmpty(slides[footprintIndex].Slide.Descendants<P.Picture>());
+        Assert.Equal("7A263A", ShapeFillColor(ShapeByName(slides[footprintIndex], "Slide top accent")));
+    }
+
     private static int MaxShapeFontSize(P.Shape shape)
         => shape
             .Descendants<A.RunProperties>()
@@ -2082,7 +2127,8 @@ public sealed class ProjectBriefingSlideComposerTests
         ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
         ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides,
         ProjectBriefingRoleCharterData? roleCharter = null,
-        IReadOnlyList<ProjectBriefingAdditionalSlideType>? additionalSlideOrder = null)
+        IReadOnlyList<ProjectBriefingAdditionalSlideType>? additionalSlideOrder = null,
+        ProjectBriefingFfcGlobalFootprintData? ffcGlobalFootprint = null)
     {
         var projects = new[]
         {
@@ -2136,6 +2182,7 @@ public sealed class ProjectBriefingSlideComposerTests
             AdditionalSlideOrder = additionalSlideOrder
                 ?? new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile },
             RoleCharter = roleCharter,
+            FfcGlobalFootprint = ffcGlobalFootprint,
             IncludeStageSummary = true,
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero),
             Projects = projects,

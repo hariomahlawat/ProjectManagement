@@ -109,6 +109,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             ? BuildProjectUpdateSheetPlans(data)
             : BuildStandardPlans(data);
 
+        AddConcludingPlans(plans, data);
+
         // Every exported presentation ends with one deliberate ceremonial closing slide.
         plans.Add(new SlidePlan(
             SlidePlanKind.Closing,
@@ -128,7 +130,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
         }
 
-        foreach (var slideType in data.AdditionalSlideOrder)
+        foreach (var slideType in data.AdditionalSlideOrder.Where(type =>
+                     ProjectBriefingAdditionalSlideCatalog.Get(type).Placement
+                     == ProjectBriefingAdditionalSlidePlacement.AfterCover))
         {
             switch (slideType)
             {
@@ -160,6 +164,25 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         if (data.IncludePortfolioSummarySlide)
         {
             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+        }
+    }
+
+    private static void AddConcludingPlans(
+        ICollection<SlidePlan> plans,
+        ProjectBriefingPresentationData data)
+    {
+        foreach (var slideType in data.AdditionalSlideOrder.Where(type =>
+                     ProjectBriefingAdditionalSlideCatalog.Get(type).Placement
+                     == ProjectBriefingAdditionalSlidePlacement.BeforeClosing))
+        {
+            if (slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint
+                && data.FfcGlobalFootprint is not null)
+            {
+                var footprint = data.FfcGlobalFootprint;
+                plans.Add(new SlidePlan(
+                    SlidePlanKind.FfcGlobalFootprint,
+                    canvas => RenderFfcGlobalFootprint(canvas, footprint)));
+            }
         }
     }
 
@@ -2120,6 +2143,22 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 false,
                 "ctr");
         }
+        else if (kind == SlidePlanKind.FfcGlobalFootprint && data.FfcGlobalFootprint is not null)
+        {
+            var dataAsOn = data.FfcGlobalFootprint.DataAsOnUtc
+                .ToUniversalTime()
+                .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            canvas.AddText(
+                4.15,
+                7.12,
+                5.05,
+                .18,
+                $"Data as on {dataAsOn} · Source: PRISM ERP",
+                7.8,
+                canvas.Theme.TextMuted,
+                false,
+                "ctr");
+        }
         else if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
         {
             canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
@@ -2180,7 +2219,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         => scope switch
         {
             ProjectBriefingBrandingScope.None => false,
-            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.InstitutionalProfile or SlidePlanKind.RoleCharter or SlidePlanKind.Closing,
+            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.InstitutionalProfile or SlidePlanKind.RoleCharter or SlidePlanKind.FfcGlobalFootprint or SlidePlanKind.Closing,
             ProjectBriefingBrandingScope.AllSlides => true,
             _ => false
         };
@@ -2230,6 +2269,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         Summary,
         InstitutionalProfile,
         RoleCharter,
+        FfcGlobalFootprint,
         Project,
         Closing
     }

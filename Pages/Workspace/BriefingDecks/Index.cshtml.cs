@@ -62,6 +62,9 @@ public sealed class IndexModel : PageModel
     [TempData]
     public bool ReopenRoleCharter { get; set; }
 
+    [TempData]
+    public bool ReopenFfcGlobalFootprint { get; set; }
+
     public async Task<IActionResult> OnGetAsync(long? deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
@@ -183,6 +186,7 @@ public sealed class IndexModel : PageModel
                     ClosingSlideType = input.ClosingSlideType,
                     InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions,
                     RoleCharterOptions = additionalSlides.RoleCharterOptions,
+                    FfcGlobalFootprintOptions = additionalSlides.FfcGlobalFootprintOptions,
                     AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder,
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
@@ -364,6 +368,46 @@ public sealed class IndexModel : PageModel
         return RedirectToPage(new { deckId = input.DeckId });
     }
 
+    public async Task<IActionResult> OnPostSaveFfcGlobalFootprintAsync(
+        [FromForm] SaveFfcGlobalFootprintInput input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (!ModelState.IsValid)
+        {
+            ErrorMessage = FirstModelError("Review the FFC Global Footprint slide and try again.");
+            ReopenFfcGlobalFootprint = true;
+            return RedirectToPage(new { deckId = input.DeckId });
+        }
+
+        try
+        {
+            var options = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+                input.IncludeFfcGlobalFootprint,
+                input.FfcGlobalFootprintTitle,
+                input.MaximumCountryRows);
+            await _deckService.UpdateFfcGlobalFootprintAsync(
+                input.DeckId,
+                userId,
+                options,
+                input.RowVersion,
+                cancellationToken);
+            StatusMessage = "FFC Global Footprint slide saved.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload before saving the FFC Global Footprint slide.";
+            ReopenFfcGlobalFootprint = true;
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+            ReopenFfcGlobalFootprint = true;
+        }
+
+        return RedirectToPage(new { deckId = input.DeckId });
+    }
+
     public async Task<IActionResult> OnPostToggleAdditionalSlideAsync(
         long deckId,
         ProjectBriefingAdditionalSlideType slideType,
@@ -396,6 +440,7 @@ public sealed class IndexModel : PageModel
             ErrorMessage = exception.Message;
             ReopenInstitutionalProfile = enabled && slideType == ProjectBriefingAdditionalSlideType.InstitutionalProfile;
             ReopenRoleCharter = enabled && slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter;
+            ReopenFfcGlobalFootprint = enabled && slideType == ProjectBriefingAdditionalSlideType.FfcGlobalFootprint;
         }
 
         return RedirectToPage(new { deckId });
@@ -1002,6 +1047,23 @@ public sealed class IndexModel : PageModel
 
         [StringLength(6000)]
         public string? CharterItemLines { get; set; }
+    }
+
+    public sealed class SaveFfcGlobalFootprintInput
+    {
+        [Range(1, long.MaxValue)]
+        public long DeckId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
+        public bool IncludeFfcGlobalFootprint { get; set; }
+
+        [StringLength(120)]
+        public string? FfcGlobalFootprintTitle { get; set; }
+
+        [Range(6, 10)]
+        public int MaximumCountryRows { get; set; } = 8;
     }
 
     public sealed class SaveDeckSettingsInput

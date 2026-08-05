@@ -106,13 +106,32 @@ public enum ProjectBriefingInstitutionalFooterAlignment
 }
 
 /// <summary>
+/// Placement zones for approved optional slides. Introductory slides appear after the cover;
+/// concluding slides appear after project content and immediately before the closing slide.
+/// </summary>
+public enum ProjectBriefingAdditionalSlidePlacement
+{
+    AfterCover = 1,
+    BeforeClosing = 2
+}
+
+/// <summary>
 /// Registered optional slide types supported by the Briefing Deck Builder.
 /// Their order in the deck is stored independently from each slide's enabled state.
 /// </summary>
 public enum ProjectBriefingAdditionalSlideType
 {
     InstitutionalProfile = 1,
-    RoleAndCharter = 2
+    RoleAndCharter = 2,
+    FfcGlobalFootprint = 3
+}
+
+/// <summary>
+/// Fixed composition used by the ERP-backed FFC Global Footprint additional slide.
+/// </summary>
+public enum ProjectBriefingFfcGlobalFootprintLayout
+{
+    DataLedFootprint = 1
 }
 
 /// <summary>

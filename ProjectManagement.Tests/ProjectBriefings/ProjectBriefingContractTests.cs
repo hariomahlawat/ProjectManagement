@@ -549,6 +549,37 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void FfcGlobalFootprintSlide_IsRegisteredErpBackedAndFixedBeforeClosing()
+    {
+        var page = Read("Index.cshtml");
+        var editor = Read("_FfcGlobalFootprintEditor.cshtml");
+        var pageModel = Read("Index.cshtml.cs");
+        var catalog = Read("ProjectBriefingAdditionalSlideCatalog.cs");
+        var dataService = Read("ProjectBriefingDataService.cs");
+        var composer = Read("ProjectBriefingSlideComposer.FfcGlobalFootprint.cs");
+        var mainComposer = Read("ProjectBriefingSlideComposer.cs");
+        var script = Read("project-briefing-additional-slides.js");
+
+        Assert.Contains("FfcGlobalFootprint", catalog, StringComparison.Ordinal);
+        Assert.Contains("BeforeClosing", catalog, StringComparison.Ordinal);
+        Assert.Contains("CanReorder: false", catalog, StringComparison.Ordinal);
+        Assert.Contains("Immediately before closing", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-ffc-footprint-open", page, StringComparison.Ordinal);
+        Assert.Contains("SaveFfcGlobalFootprint", editor, StringComparison.Ordinal);
+        Assert.Contains("Live, read-only PRISM data", editor, StringComparison.Ordinal);
+        Assert.Contains("OnPostSaveFfcGlobalFootprintAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("IFfcFootprintService", dataService, StringComparison.Ordinal);
+        Assert.Contains("IFfcPresentationMapRenderer", dataService, StringComparison.Ordinal);
+        Assert.Contains("RenderFfcGlobalFootprint", composer, StringComparison.Ordinal);
+        Assert.Contains("Delivered, awaiting installation", composer, StringComparison.Ordinal);
+        Assert.Contains("AddConcludingPlans", mainComposer, StringComparison.Ordinal);
+        Assert.Contains("SlidePlanKind.FfcGlobalFootprint", mainComposer, StringComparison.Ordinal);
+        Assert.Contains("confirmFfcDiscard", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("window.confirm", script, StringComparison.Ordinal);
+    }
+
     private static string Read(string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", fileName);

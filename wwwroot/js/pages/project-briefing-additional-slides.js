@@ -49,7 +49,7 @@ if (root) {
     new window.Sortable(additionalSlideList, {
       animation: 150,
       handle: '[data-pbd-additional-slide-handle]',
-      draggable: '[data-pbd-additional-slide-card]',
+      draggable: '[data-pbd-additional-slide-card][data-can-reorder="true"]',
       ghostClass: 'is-sorting',
       chosenClass: 'is-chosen',
       onEnd: () => {
@@ -414,4 +414,119 @@ if (root) {
   if (drawer?.dataset.pbdRoleCharterReopen === 'true') {
     window.setTimeout(() => openDrawer(), 0);
   }
+
+  // Focused editor for the ERP-backed FFC Global Footprint additional slide.
+  const ffcDrawer = root.querySelector('[data-pbd-ffc-footprint-drawer]');
+  const ffcBackdrop = root.querySelector('[data-pbd-ffc-footprint-backdrop]');
+  const ffcForm = root.querySelector('[data-pbd-ffc-footprint-form]');
+  const ffcSave = root.querySelector('[data-pbd-ffc-footprint-save]');
+  const ffcStatus = root.querySelector('[data-pbd-ffc-footprint-status]');
+  let ffcReturnFocus = null;
+  let ffcInitialState = '';
+  let ffcDirty = false;
+
+  const serializeFfc = () => ffcForm instanceof HTMLFormElement
+    ? [...new FormData(ffcForm).entries()]
+      .filter(([name]) => name !== 'RowVersion')
+      .map(([name, value]) => `${name}=${String(value).trim()}`)
+      .sort()
+      .join('&')
+    : '';
+
+  const setFfcDirty = (next) => {
+    ffcDirty = next;
+    if (ffcStatus) {
+      ffcStatus.textContent = next ? 'Unsaved FFC footprint changes' : 'No unsaved FFC footprint changes';
+      ffcStatus.classList.toggle('is-dirty', next);
+      ffcStatus.classList.remove('is-saving');
+    }
+    if (ffcSave instanceof HTMLButtonElement) ffcSave.disabled = !next;
+  };
+
+  const ffcFocusable = () => ffcDrawer
+    ? [...ffcDrawer.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hidden && element.getClientRects().length > 0)
+    : [];
+
+  const openFfcDrawer = (trigger = null) => {
+    if (!ffcDrawer || !ffcBackdrop || !(ffcForm instanceof HTMLFormElement)) return;
+    ffcReturnFocus = trigger || document.activeElement;
+    ffcDrawer.classList.add('is-open');
+    ffcDrawer.setAttribute('aria-hidden', 'false');
+    ffcBackdrop.hidden = false;
+    document.body.classList.add('pbd-profile-drawer-open');
+    root.querySelectorAll('[data-pbd-ffc-footprint-open]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
+    ffcInitialState = serializeFfc();
+    setFfcDirty(false);
+    window.requestAnimationFrame(() => ffcFocusable()[0]?.focus());
+  };
+
+  const confirmFfcDiscard = async () => !ffcDirty || prismConfirm({
+    title: 'Discard unsaved changes?',
+    message: 'Your changes to the FFC Global Footprint slide have not been saved.',
+    confirmText: 'Discard changes',
+    cancelText: 'Keep editing',
+    tone: 'danger',
+    returnFocus: document.activeElement
+  });
+
+  const closeFfcDrawer = async ({ force = false } = {}) => {
+    if (!ffcDrawer || !ffcBackdrop) return false;
+    if (!force && !(await confirmFfcDiscard())) return false;
+    if (ffcDirty && ffcForm instanceof HTMLFormElement) ffcForm.reset();
+    ffcDrawer.classList.remove('is-open');
+    ffcDrawer.setAttribute('aria-hidden', 'true');
+    ffcBackdrop.hidden = true;
+    document.body.classList.remove('pbd-profile-drawer-open');
+    root.querySelectorAll('[data-pbd-ffc-footprint-open]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+    setFfcDirty(false);
+    if (ffcReturnFocus instanceof HTMLElement) ffcReturnFocus.focus();
+    return true;
+  };
+
+  root.querySelectorAll('[data-pbd-ffc-footprint-open]').forEach((button) => {
+    button.addEventListener('click', () => openFfcDrawer(button));
+  });
+  root.querySelectorAll('[data-pbd-ffc-footprint-close]').forEach((button) => {
+    button.addEventListener('click', async () => { await closeFfcDrawer(); });
+  });
+  ffcBackdrop?.addEventListener('click', async () => { await closeFfcDrawer(); });
+  ffcForm?.addEventListener('input', () => setFfcDirty(serializeFfc() !== ffcInitialState));
+  ffcForm?.addEventListener('change', () => setFfcDirty(serializeFfc() !== ffcInitialState));
+  ffcForm?.addEventListener('submit', (event) => {
+    if (!ffcDirty) {
+      event.preventDefault();
+      return;
+    }
+    if (ffcSave instanceof HTMLButtonElement) ffcSave.disabled = true;
+    if (ffcStatus) {
+      ffcStatus.textContent = 'Saving FFC Global Footprint…';
+      ffcStatus.classList.remove('is-dirty');
+      ffcStatus.classList.add('is-saving');
+    }
+    ffcDirty = false;
+  });
+  ffcDrawer?.addEventListener('keydown', async (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      await closeFfcDrawer();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const candidates = ffcFocusable();
+    if (!candidates.length) return;
+    const first = candidates[0];
+    const last = candidates.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  if (ffcDrawer?.dataset.pbdFfcFootprintReopen === 'true') {
+    window.setTimeout(() => openFfcDrawer(), 0);
+  }
+
 }

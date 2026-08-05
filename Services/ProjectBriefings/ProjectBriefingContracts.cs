@@ -1,5 +1,6 @@
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services.Ffc;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -67,6 +68,8 @@ public sealed class ProjectBriefingDeckVm
         = ProjectBriefingInstitutionalProfileOptions.Default;
     public ProjectBriefingRoleCharterOptions RoleCharterOptions { get; init; }
         = ProjectBriefingRoleCharterOptions.Default;
+    public ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions { get; init; }
+        = ProjectBriefingFfcGlobalFootprintOptions.Default;
     public IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder { get; init; }
         = new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile };
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
@@ -171,7 +174,8 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int ProjectUpdateSheetSlides { get; init; }
     public int InstitutionalProfileSlides { get; init; }
     public int RoleCharterSlides { get; init; }
-    public int AdditionalSlides => InstitutionalProfileSlides + RoleCharterSlides;
+    public int FfcGlobalFootprintSlides { get; init; }
+    public int AdditionalSlides => InstitutionalProfileSlides + RoleCharterSlides + FfcGlobalFootprintSlides;
     public int ClosingSlides { get; init; } = 1;
 }
 
@@ -251,6 +255,8 @@ public sealed class ProjectBriefingDeckSettingsCommand
         = ProjectBriefingInstitutionalProfileOptions.Default;
     public ProjectBriefingRoleCharterOptions RoleCharterOptions { get; init; }
         = ProjectBriefingRoleCharterOptions.Default;
+    public ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions { get; init; }
+        = ProjectBriefingFfcGlobalFootprintOptions.Default;
     public IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder { get; init; }
         = new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile };
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
@@ -292,6 +298,8 @@ public sealed class ProjectBriefingPresentationData
         = ProjectBriefingInstitutionalProfileOptions.Default;
     public ProjectBriefingRoleCharterOptions RoleCharterOptions { get; init; }
         = ProjectBriefingRoleCharterOptions.Default;
+    public ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions { get; init; }
+        = ProjectBriefingFfcGlobalFootprintOptions.Default;
     public IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder { get; init; }
         = new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile };
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
@@ -310,6 +318,7 @@ public sealed class ProjectBriefingPresentationData
     public ProjectBriefingPresentationSummary Summary { get; init; } = new();
     public ProjectBriefingInstitutionalProfileData? InstitutionalProfile { get; init; }
     public ProjectBriefingRoleCharterData? RoleCharter { get; init; }
+    public ProjectBriefingFfcGlobalFootprintData? FfcGlobalFootprint { get; init; }
 }
 
 public sealed class ProjectBriefingPresentationProject
@@ -405,6 +414,28 @@ public sealed class ProjectBriefingRoleCharterData
         = Array.Empty<ProjectBriefingRoleCharterEntry>();
     public IReadOnlyList<ProjectBriefingRoleCharterEntry> CharterItems { get; init; }
         = Array.Empty<ProjectBriefingRoleCharterEntry>();
+}
+
+public sealed class ProjectBriefingFfcGlobalFootprintData
+{
+    public string Title { get; init; } = ProjectBriefingFfcGlobalFootprintOptions.DefaultTitle;
+    public FfcFootprintSummary Summary { get; init; } = new(0, 0, 0, 0, 0, 0);
+    public IReadOnlyList<ProjectBriefingFfcCountryData> Countries { get; init; }
+        = Array.Empty<ProjectBriefingFfcCountryData>();
+    public int MaximumCountryRows { get; init; } = 8;
+    public byte[] MapImage { get; init; } = Array.Empty<byte>();
+    public DateTimeOffset DataAsOnUtc { get; init; }
+}
+
+public sealed record ProjectBriefingFfcCountryData(
+    string CountryName,
+    string IsoCode,
+    int ProjectCount,
+    int InstalledUnits,
+    int DeliveredNotInstalledUnits,
+    int PlannedUnits)
+{
+    public int TotalUnits => InstalledUnits + DeliveredNotInstalledUnits + PlannedUnits;
 }
 
 public sealed record ProjectBriefingPhotoReference(int ProjectId, int PhotoId);

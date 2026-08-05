@@ -6,6 +6,8 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.Ffc.Presentation;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
 
@@ -32,6 +34,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private readonly IProjectBriefingPhotoLoader _photoLoader;
     private readonly IProjectBriefingUpdateSheetFactsResolver _updateSheetFactsResolver;
     private readonly IProjectBriefingInstitutionalProfileService _institutionalProfileService;
+    private readonly IFfcFootprintService _ffcFootprintService;
+    private readonly IFfcPresentationMapRenderer _ffcMapRenderer;
     private readonly IClock _clock;
 
     public ProjectBriefingDataService(
@@ -41,6 +45,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IProjectBriefingPhotoLoader photoLoader,
         IProjectBriefingUpdateSheetFactsResolver updateSheetFactsResolver,
         IProjectBriefingInstitutionalProfileService institutionalProfileService,
+        IFfcFootprintService ffcFootprintService,
+        IFfcPresentationMapRenderer ffcMapRenderer,
         IClock clock)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -49,6 +55,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
         _updateSheetFactsResolver = updateSheetFactsResolver ?? throw new ArgumentNullException(nameof(updateSheetFactsResolver));
         _institutionalProfileService = institutionalProfileService ?? throw new ArgumentNullException(nameof(institutionalProfileService));
+        _ffcFootprintService = ffcFootprintService ?? throw new ArgumentNullException(nameof(ffcFootprintService));
+        _ffcMapRenderer = ffcMapRenderer ?? throw new ArgumentNullException(nameof(ffcMapRenderer));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
@@ -78,6 +86,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ClosingSlideType = snapshot.ClosingSlideType,
             InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
             RoleCharterOptions = snapshot.RoleCharterOptions,
+            FfcGlobalFootprintOptions = snapshot.FfcGlobalFootprintOptions,
             AdditionalSlideOrder = snapshot.AdditionalSlideOrder,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
@@ -96,7 +105,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
                 snapshot.IncludeTechnicalCategorySummary, snapshot.InstitutionalProfileOptions,
-                snapshot.RoleCharterOptions, snapshot.AdditionalSlideOrder,
+                snapshot.RoleCharterOptions, snapshot.FfcGlobalFootprintOptions,
+                snapshot.AdditionalSlideOrder,
                 snapshot.CostMode, snapshot.NarrativeMode, projects)
         };
     }
@@ -160,6 +170,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var roleCharter = snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.RoleAndCharter)
             ? BuildRoleCharterData(snapshot.RoleCharterOptions)
             : null;
+        var ffcGlobalFootprint = snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
+            ? await BuildFfcGlobalFootprintDataAsync(snapshot.FfcGlobalFootprintOptions, cancellationToken)
+            : null;
         return new ProjectBriefingPresentationData
         {
             DeckId = snapshot.Id,
@@ -178,6 +191,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ClosingSlideType = snapshot.ClosingSlideType,
             InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
             RoleCharterOptions = snapshot.RoleCharterOptions,
+            FfcGlobalFootprintOptions = snapshot.FfcGlobalFootprintOptions,
             AdditionalSlideOrder = snapshot.AdditionalSlideOrder,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
@@ -191,7 +205,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Projects = projects,
             Summary = summary,
             InstitutionalProfile = institutionalProfile,
-            RoleCharter = roleCharter
+            RoleCharter = roleCharter,
+            FfcGlobalFootprint = ffcGlobalFootprint
         };
     }
 
@@ -250,6 +265,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var closingSlideType = deckConfiguration.ClosingSlideType;
         var institutionalProfileOptions = deckConfiguration.InstitutionalProfileOptions;
         var roleCharterOptions = deckConfiguration.RoleCharterOptions;
+        var ffcGlobalFootprintOptions = deckConfiguration.FfcGlobalFootprintOptions;
         var additionalSlideOrder = deckConfiguration.AdditionalSlideOrder;
 
         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
@@ -299,6 +315,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 closingSlideType,
                 institutionalProfileOptions,
                 roleCharterOptions,
+                ffcGlobalFootprintOptions,
                 additionalSlideOrder,
                 deck.HandlingMarking,
                 deck.UpdatedAtUtc,
@@ -413,6 +430,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             closingSlideType,
             institutionalProfileOptions,
             roleCharterOptions,
+            ffcGlobalFootprintOptions,
             additionalSlideOrder,
             deck.HandlingMarking,
             deck.UpdatedAtUtc,
@@ -708,6 +726,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool includeTechnicalCategorySummary,
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions,
         ProjectBriefingRoleCharterOptions roleCharterOptions,
+        ProjectBriefingFfcGlobalFootprintOptions ffcGlobalFootprintOptions,
         IReadOnlyList<ProjectBriefingAdditionalSlideType> additionalSlideOrder,
         ProjectBriefingCostMode costMode,
         ProjectBriefingNarrativeMode narrativeMode,
@@ -722,7 +741,11 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var roleCharterSlides = additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.RoleAndCharter)
             ? EstimateRoleCharterSlides(roleCharterOptions)
             : 0;
-        var introductorySlides = coverAndPortfolioSlides + institutionalProfileSlides + roleCharterSlides;
+        var ffcGlobalFootprintSlides = ffcGlobalFootprintOptions.IncludeSlide
+            && additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
+                ? 1
+                : 0;
+        var configuredSlides = coverAndPortfolioSlides + institutionalProfileSlides + roleCharterSlides + ffcGlobalFootprintSlides;
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
             var projectUpdateSheetSlides = projects.Sum(EstimateProjectUpdateSheetSlides);
@@ -732,8 +755,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ProjectUpdateSheetSlides = projectUpdateSheetSlides,
                 InstitutionalProfileSlides = institutionalProfileSlides,
                 RoleCharterSlides = roleCharterSlides,
+                FfcGlobalFootprintSlides = ffcGlobalFootprintSlides,
                 ClosingSlides = 1,
-                TotalSlides = introductorySlides + projectUpdateSheetSlides + 1
+                TotalSlides = configuredSlides + projectUpdateSheetSlides + 1
             };
         }
 
@@ -792,14 +816,76 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ProjectBriefSlides = projectBriefSlides,
             InstitutionalProfileSlides = institutionalProfileSlides,
             RoleCharterSlides = roleCharterSlides,
+            FfcGlobalFootprintSlides = ffcGlobalFootprintSlides,
             ClosingSlides = 1,
-            TotalSlides = introductorySlides
+            TotalSlides = configuredSlides
                 + summarySlides
                 + executiveSlides
                 + detailSlides
                 + capabilityContinuationSlides
                 + projectBriefSlides
                 + 1
+        };
+    }
+
+    private async Task<ProjectBriefingFfcGlobalFootprintData?> BuildFfcGlobalFootprintDataAsync(
+        ProjectBriefingFfcGlobalFootprintOptions options,
+        CancellationToken cancellationToken)
+    {
+        var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+            options.IncludeSlide,
+            options.Title,
+            options.MaximumCountryRows);
+        if (!normalized.IncludeSlide)
+        {
+            return null;
+        }
+
+        var footprint = await _ffcFootprintService.GetAsync(
+            new FfcFootprintRequest(
+                Metric: FfcFootprintMetric.TotalUnits,
+                Sort: FfcFootprintSort.TotalUnits),
+            cancellationToken);
+        var countries = footprint.Countries
+            .OrderByDescending(country => country.TotalUnits)
+            .ThenBy(country => country.CountryName, StringComparer.OrdinalIgnoreCase)
+            .Select(country => new ProjectBriefingFfcCountryData(
+                country.CountryName,
+                country.IsoCode,
+                country.ProjectCount,
+                country.InstalledUnits,
+                country.DeliveredNotInstalledUnits,
+                country.PlannedUnits))
+            .ToArray();
+
+        var mapCountries = footprint.Countries
+            .Select(country => new FfcPresentationCountry(
+                country.CountryId,
+                country.CountryName,
+                country.IsoCode,
+                country.RecordCount,
+                country.ProjectCount,
+                country.InstalledUnits,
+                country.DeliveredNotInstalledUnits,
+                country.PlannedUnits,
+                country.LastUpdated,
+                Array.Empty<FfcPresentationRecord>()))
+            .ToArray();
+        var mapImage = mapCountries.Length == 0
+            ? Array.Empty<byte>()
+            : _ffcMapRenderer.Render(mapCountries, width: 1700, height: 1040);
+        var dataAsOn = footprint.Countries.Count == 0
+            ? _clock.UtcNow.ToUniversalTime()
+            : footprint.Countries.Max(country => country.LastUpdated).ToUniversalTime();
+
+        return new ProjectBriefingFfcGlobalFootprintData
+        {
+            Title = normalized.Title,
+            Summary = footprint.Summary,
+            Countries = countries,
+            MaximumCountryRows = normalized.MaximumCountryRows,
+            MapImage = mapImage,
+            DataAsOnUtc = dataAsOn
         };
     }
 
@@ -978,6 +1064,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingClosingSlideType ClosingSlideType,
         ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
         ProjectBriefingRoleCharterOptions RoleCharterOptions,
+        ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions,
         IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,

@@ -262,3 +262,12 @@ test('additional-slide workspace explains the exhausted slide-library state', ()
   assert.match(viewSource, /All available slide types have been added/);
   assert.match(additionalSlidesSource, /Tooltip\?\.getOrCreateInstance/);
 });
+
+test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', () => {
+  assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.FfcGlobalFootprint/);
+  assert.match(viewSource, /Immediately before closing/);
+  assert.match(viewSource, /data-pbd-ffc-footprint-open/);
+  assert.match(additionalSlidesSource, /data-pbd-ffc-footprint-drawer/);
+  assert.match(additionalSlidesSource, /confirmFfcDiscard/);
+  assert.match(additionalSlidesSource, /data-can-reorder/);
+});

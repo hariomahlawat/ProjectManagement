@@ -343,6 +343,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             null,
             profile,
             roleCharter,
+            ProjectBriefingFfcGlobalFootprintOptions.Default,
             new[]
             {
                 ProjectBriefingAdditionalSlideType.RoleAndCharter,
@@ -359,6 +360,42 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             {
                 ProjectBriefingAdditionalSlideType.RoleAndCharter,
                 ProjectBriefingAdditionalSlideType.InstitutionalProfile
+            },
+            decoded.AdditionalSlideOrder);
+    }
+
+
+    [Fact]
+    public void FfcGlobalFootprint_RoundTripsAndRemainsInFixedConcludingPlacement()
+    {
+        var footprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+            includeSlide: true,
+            title: "Military Diplomacy — Global Footprint",
+            maximumCountryRows: 9);
+
+        var encoded = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            null,
+            ProjectBriefingInstitutionalProfileOptions.Default,
+            ProjectBriefingRoleCharterOptions.Default,
+            footprint,
+            new[]
+            {
+                ProjectBriefingAdditionalSlideType.FfcGlobalFootprint,
+                ProjectBriefingAdditionalSlideType.RoleAndCharter,
+                ProjectBriefingAdditionalSlideType.InstitutionalProfile
+            });
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
+
+        Assert.True(decoded.FfcGlobalFootprintOptions.IncludeSlide);
+        Assert.Equal("Military Diplomacy — Global Footprint", decoded.FfcGlobalFootprintOptions.Title);
+        Assert.Equal(9, decoded.FfcGlobalFootprintOptions.MaximumCountryRows);
+        Assert.Equal(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint, decoded.AdditionalSlideOrder[^1]);
+        Assert.Equal(
+            new[]
+            {
+                ProjectBriefingAdditionalSlideType.RoleAndCharter,
+                ProjectBriefingAdditionalSlideType.InstitutionalProfile,
+                ProjectBriefingAdditionalSlideType.FfcGlobalFootprint
             },
             decoded.AdditionalSlideOrder);
     }

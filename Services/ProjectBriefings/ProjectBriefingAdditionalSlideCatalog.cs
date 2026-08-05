@@ -12,7 +12,9 @@ public sealed record ProjectBriefingAdditionalSlideDefinition(
     string DisplayName,
     string Description,
     string IconCssClass,
-    bool AllowMultiple = false);
+    ProjectBriefingAdditionalSlidePlacement Placement,
+    bool AllowMultiple = false,
+    bool CanReorder = true);
 
 public static class ProjectBriefingAdditionalSlideCatalog
 {
@@ -23,12 +25,21 @@ public static class ProjectBriefingAdditionalSlideCatalog
                 ProjectBriefingAdditionalSlideType.InstitutionalProfile,
                 "SDD Institutional Profile",
                 "Growth, capability and institutional output",
-                "bi-building"),
+                "bi-building",
+                ProjectBriefingAdditionalSlidePlacement.AfterCover),
             [ProjectBriefingAdditionalSlideType.RoleAndCharter] = new(
                 ProjectBriefingAdditionalSlideType.RoleAndCharter,
                 "Role & Charter",
                 "Authorised organisational role and functions",
-                "bi-card-checklist")
+                "bi-card-checklist",
+                ProjectBriefingAdditionalSlidePlacement.AfterCover),
+            [ProjectBriefingAdditionalSlideType.FfcGlobalFootprint] = new(
+                ProjectBriefingAdditionalSlideType.FfcGlobalFootprint,
+                "FFC Global Footprint",
+                "Country footprint, project quantities and delivery position",
+                "bi-globe-asia-australia",
+                ProjectBriefingAdditionalSlidePlacement.BeforeClosing,
+                CanReorder: false)
         };
 
     public static IReadOnlyList<ProjectBriefingAdditionalSlideDefinition> All { get; } =

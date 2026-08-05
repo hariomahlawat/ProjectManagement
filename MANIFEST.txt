@@ -1,19 +1,25 @@
-PRISM Briefing Deck – Role & Charter UX Polish
-Generated: 2026-08-05
+PRISM Briefing Deck — FFC Global Footprint
 
-Files to replace:
-Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.RoleCharter.cs
+Ready-to-replace project files: 18
+
+Models/ProjectBriefings/ProjectBriefingDeck.cs
 Pages/Workspace/BriefingDecks/Index.cshtml
-wwwroot/css/pages/project-briefing-decks.css
-wwwroot/js/pages/project-briefing-confirm.js
-wwwroot/js/pages/project-briefing-decks.js
-wwwroot/js/pages/project-briefing-additional-slides.js
-wwwroot/js/projects/project-briefing-decks.test.js
+Pages/Workspace/BriefingDecks/Index.cshtml.cs
+Pages/Workspace/BriefingDecks/_FfcGlobalFootprintEditor.cshtml
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-
-New file:
-wwwroot/js/pages/project-briefing-confirm.js
-
-No database migration required.
+ProjectManagement.Tests/ProjectManagement.Tests.csproj
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.FfcGlobalFootprint.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+Services/ProjectBriefings/ProjectBriefingAdditionalSlideCatalog.cs
+Services/ProjectBriefings/ProjectBriefingContracts.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
+Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+Services/ProjectBriefings/ProjectBriefingDeckService.cs
+wwwroot/css/pages/project-briefing-decks.css
+wwwroot/js/pages/project-briefing-additional-slides.js
+wwwroot/js/projects/project-briefing-decks.test.js
+README-FIRST.md
+MANIFEST.txt
+SHA256SUMS.txt

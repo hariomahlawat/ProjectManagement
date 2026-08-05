@@ -4057,3 +4057,69 @@ body.pbd-profile-drawer-open {
         display: none !important;
     }
 }
+
+
+/* FFC Global Footprint additional-slide editor */
+.pbd-additional-slide-card__handle.is-fixed {
+    cursor: default;
+    color: #7a263a;
+}
+.pbd-ffc-footprint-drawer { width: min(720px, 100vw); }
+.pbd-additional-slide-editor-context--ffc {
+    border-color: #d8e2f0;
+    background: #f4f7fb;
+}
+.pbd-ffc-footprint-authority {
+    display: flex;
+    gap: .8rem;
+    align-items: flex-start;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #cfe0d6;
+    border-radius: 14px;
+    background: #f2f8f4;
+    color: #234c35;
+}
+.pbd-ffc-footprint-authority > i { font-size: 1.15rem; margin-top: .1rem; }
+.pbd-ffc-footprint-authority strong { display: block; }
+.pbd-ffc-footprint-authority p { margin: .2rem 0 0; color: #557064; font-size: .86rem; }
+.pbd-ffc-footprint-layout-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #dde3ec;
+    border-radius: 16px;
+    background: #fff;
+}
+.pbd-ffc-footprint-layout-preview__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .55rem;
+}
+.pbd-ffc-footprint-layout-preview__metrics i {
+    display: block;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #7a263a 0 5px, #eef2f7 5px 100%);
+}
+.pbd-ffc-footprint-layout-preview__body {
+    display: grid;
+    grid-template-columns: 1.8fr 1fr;
+    gap: .55rem;
+    margin-top: .55rem;
+}
+.pbd-ffc-footprint-layout-preview__body span {
+    display: grid;
+    place-items: center;
+    min-height: 108px;
+    border: 1px solid #dbe2eb;
+    border-radius: 12px;
+    background: #f7f9fc;
+    color: #4f6076;
+    font-weight: 700;
+    text-align: center;
+}
+.pbd-ffc-footprint-layout-preview__body i { display: block; font-size: 1.35rem; color: #315fa8; }
+.pbd-ffc-footprint-layout-preview small { display: block; margin-top: .7rem; color: #667085; }
+@media (max-width: 720px) {
+    .pbd-ffc-footprint-layout-preview__body { grid-template-columns: 1fr; }
+}

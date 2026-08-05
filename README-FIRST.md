@@ -1,33 +1,61 @@
-# PRISM Briefing Deck – Role & Charter UX Polish
+# PRISM Briefing Deck — FFC Global Footprint
 
-Replace the files in this package using the exact project-relative paths.
+## Purpose
+Adds **FFC Global Footprint** as the third registered Additional Slide type in the Project Briefing Deck Builder.
 
-## Included refinements
+## Placement
+The slide is fixed **immediately before the closing slide**. It cannot be dragged into the introductory slide sequence. The closing slide remains last.
 
-- Authorised default wording changed to:
-  **Military Diplomacy — Develop simulators and projects for Friendly Foreign Countries (FFCs)**.
-- Exact legacy PRISM defaults are upgraded during configuration normalisation; user-authored variants are preserved.
-- Native browser `confirm()` / `alert()` dialogs are removed from the briefing-deck workflow.
-- A reusable, accessible PRISM confirmation dialog now protects:
-  - Role & Charter unsaved changes;
-  - SDD Institutional Profile unsaved changes;
-  - Deck Settings unsaved changes;
-  - additional-slide removal;
-  - bulk project removal;
-  - explicit navigation and form submissions.
-- Safe action receives initial focus; Escape keeps editing; backdrop clicks do not approve destructive actions.
-- Role/Charter editor fields are wider and responsive, preventing lead-phrase truncation.
-- Role panel is more compact, the Charter heading has proper separation, and Charter cards use content-aware height.
-- Add Slide explains when every available singleton slide type has already been added.
-- Removing and re-adding an additional slide continues to retain its deck-specific configuration.
+## Authoritative data
+The slide refreshes from the existing PRISM FFC module whenever PowerPoint is generated:
 
-## Deployment
+- countries;
+- linked projects;
+- installed quantity;
+- delivered, awaiting installation;
+- planned quantity;
+- total quantity;
+- latest FFC record update date.
 
-1. Stop the running application/IIS site.
-2. Back up the current project files.
-3. Copy the packaged files over the matching project-relative paths.
-4. In Visual Studio: **Clean Solution**, then **Rebuild Solution**.
-5. Run the `ProjectBriefings` test suite.
-6. Restart the application and refresh the browser with `Ctrl+F5`.
+The map is generated through the existing local FFC presentation-map renderer. No online map tiles, browser screenshot, or internet service is used.
 
-No database migration is required.
+## Slide composition
+- Standard PRISM header and branding.
+- Countries, Projects and Total Quantity KPIs.
+- Installed / Delivered awaiting installation / Planned status bar.
+- Local vector-derived footprint map rendered to the presentation.
+- Configurable country-position list (6–10 countries).
+- Standard footer with `Data as on ... · Source: PRISM ERP`.
+- Editorial Light and Graphite Dark theme support.
+
+## Workspace behaviour
+- Available through **Additional slides → Add slide**.
+- Registered as a singleton slide type.
+- Displays a fixed-position pin and `Immediately before closing` summary.
+- Dedicated focused configuration drawer.
+- Removing and re-adding the slide preserves its configuration.
+- Preflight and generated slide counts include the FFC slide.
+
+## Application
+Stop the running application and copy the project-relative files in this package over the corresponding files in the project.
+
+Then perform:
+
+1. **Clean Solution**
+2. **Rebuild Solution**
+3. Run the `ProjectBriefings` test suite
+4. Start the application
+5. Refresh the page with `Ctrl+F5`
+
+## Database
+No database migration is required. Configuration remains in the existing versioned briefing-deck JSON.
+
+## Validation performed in the packaging environment
+- JavaScript module syntax validation.
+- Briefing-deck JavaScript suite: **32/32 passed**.
+- C# changed-file lexical brace validation.
+- Project and test project XML validation.
+- Patch dry-run and clean-application byte comparison.
+- ZIP integrity and SHA-256 verification.
+
+The .NET SDK is unavailable in the packaging environment, so Visual Studio compilation is the final build verification.

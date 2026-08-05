@@ -334,6 +334,34 @@ public sealed record ProjectBriefingRoleCharterOptions(
         => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();
 }
 
+
+/// <summary>
+/// Deck-specific display options for the ERP-backed FFC Global Footprint slide.
+/// All figures and country positions remain authoritative and are resolved at generation time.
+/// </summary>
+public sealed record ProjectBriefingFfcGlobalFootprintOptions(
+    bool IncludeSlide,
+    string Title,
+    int MaximumCountryRows)
+{
+    public const string DefaultTitle = "FFC Global Footprint";
+
+    public static ProjectBriefingFfcGlobalFootprintOptions Default { get; } =
+        new(false, DefaultTitle, 8);
+
+    public static ProjectBriefingFfcGlobalFootprintOptions Normalize(
+        bool includeSlide,
+        string? title,
+        int maximumCountryRows)
+        => new(
+            includeSlide,
+            string.IsNullOrWhiteSpace(title) ? DefaultTitle : TrimTo(title.Trim(), 120),
+            Math.Clamp(maximumCountryRows, 6, 10));
+
+    private static string TrimTo(string value, int maximumLength)
+        => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();
+}
+
 public sealed record ProjectBriefingDeckConfiguration(
     string? SelectionRulesJson,
     ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
@@ -341,6 +369,7 @@ public sealed record ProjectBriefingDeckConfiguration(
     ProjectBriefingClosingSlideType ClosingSlideType,
     ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
     ProjectBriefingRoleCharterOptions RoleCharterOptions,
+    ProjectBriefingFfcGlobalFootprintOptions FfcGlobalFootprintOptions,
     IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder);
 
 /// <summary>
@@ -375,6 +404,7 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ReadClosingSlideType(root["closingSlide"]),
                 ReadInstitutionalProfileOptions(root["institutionalProfile"] as JsonObject),
                 ReadRoleCharterOptions(root["roleCharter"] as JsonObject),
+                ReadFfcGlobalFootprintOptions(root["ffcGlobalFootprint"] as JsonObject),
                 ReadAdditionalSlideOrder(root["additionalSlides"] as JsonArray));
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
@@ -421,6 +451,14 @@ public static class ProjectBriefingDeckConfigurationCodec
         return Write(current with { RoleCharterOptions = roleCharterOptions });
     }
 
+    public static string WithFfcGlobalFootprintOptions(
+        string? existingJson,
+        ProjectBriefingFfcGlobalFootprintOptions options)
+    {
+        var current = Read(existingJson);
+        return Write(current with { FfcGlobalFootprintOptions = options });
+    }
+
     public static string WithAdditionalSlideOrder(
         string? existingJson,
         IEnumerable<ProjectBriefingAdditionalSlideType> order)
@@ -433,6 +471,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         string? existingJson,
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions,
         ProjectBriefingRoleCharterOptions roleCharterOptions,
+        ProjectBriefingFfcGlobalFootprintOptions ffcGlobalFootprintOptions,
         IEnumerable<ProjectBriefingAdditionalSlideType> order)
     {
         var current = Read(existingJson);
@@ -440,6 +479,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         {
             InstitutionalProfileOptions = institutionalProfileOptions,
             RoleCharterOptions = roleCharterOptions,
+            FfcGlobalFootprintOptions = ffcGlobalFootprintOptions,
             AdditionalSlideOrder = NormalizeAdditionalSlideOrder(order)
         });
     }
@@ -484,6 +524,7 @@ public static class ProjectBriefingDeckConfigurationCodec
             ProjectBriefingClosingSlideType.JaiHind,
             ProjectBriefingInstitutionalProfileOptions.Default,
             ProjectBriefingRoleCharterOptions.Default,
+            ProjectBriefingFfcGlobalFootprintOptions.Default,
             new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile });
 
     private static ProjectBriefingUpdateSheetOptions ReadUpdateSheetOptions(JsonObject? updateSheet)
@@ -593,6 +634,14 @@ public static class ProjectBriefingDeckConfigurationCodec
                     item["text"]?.GetValue<string>() ?? string.Empty))
                 .ToArray();
 
+    private static ProjectBriefingFfcGlobalFootprintOptions ReadFfcGlobalFootprintOptions(JsonObject? footprint)
+        => footprint is null
+            ? ProjectBriefingFfcGlobalFootprintOptions.Default
+            : ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+                footprint["includeSlide"]?.GetValue<bool>() ?? false,
+                footprint["title"]?.GetValue<string>(),
+                footprint["maximumCountryRows"]?.GetValue<int>() ?? 8);
+
     private static IReadOnlyList<ProjectBriefingAdditionalSlideType> ReadAdditionalSlideOrder(JsonArray? array)
     {
         // Older deck JSON did not contain an additionalSlides node. Preserve the
@@ -608,11 +657,20 @@ public static class ProjectBriefingDeckConfigurationCodec
 
     public static IReadOnlyList<ProjectBriefingAdditionalSlideType> NormalizeAdditionalSlideOrder(
         IEnumerable<ProjectBriefingAdditionalSlideType>? order)
-        => (order ?? Array.Empty<ProjectBriefingAdditionalSlideType>())
+    {
+        var normalized = (order ?? Array.Empty<ProjectBriefingAdditionalSlideType>())
             .Where(ProjectBriefingAdditionalSlideCatalog.IsRegistered)
             .Distinct()
             .Take(8)
             .ToArray();
+
+        // Concluding slides have a fixed placement zone and must remain after all
+        // introductory additional slides regardless of drag/reorder payload order.
+        return normalized
+            .OrderBy(type => ProjectBriefingAdditionalSlideCatalog.Get(type).Placement)
+            .ThenBy(type => Array.IndexOf(normalized, type))
+            .ToArray();
+    }
 
     private static int? ReadNullableInt(JsonNode? node)
     {
@@ -660,6 +718,11 @@ public static class ProjectBriefingDeckConfigurationCodec
             roleCharter.UseSharedContent,
             roleCharter.RoleStatements,
             roleCharter.CharterItems);
+        var ffcGlobalFootprint = configuration.FfcGlobalFootprintOptions;
+        var normalizedFfcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+            ffcGlobalFootprint.IncludeSlide,
+            ffcGlobalFootprint.Title,
+            ffcGlobalFootprint.MaximumCountryRows);
         var normalizedAdditionalSlideOrder = NormalizeAdditionalSlideOrder(configuration.AdditionalSlideOrder);
 
         var root = new JsonObject
@@ -711,6 +774,12 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ["useSharedContent"] = normalizedRoleCharter.UseSharedContent,
                 ["roleStatements"] = ToRoleCharterEntryArray(normalizedRoleCharter.RoleStatements),
                 ["charterItems"] = ToRoleCharterEntryArray(normalizedRoleCharter.CharterItems)
+            },
+            ["ffcGlobalFootprint"] = new JsonObject
+            {
+                ["includeSlide"] = normalizedFfcGlobalFootprint.IncludeSlide,
+                ["title"] = normalizedFfcGlobalFootprint.Title,
+                ["maximumCountryRows"] = normalizedFfcGlobalFootprint.MaximumCountryRows
             },
             ["additionalSlides"] = ToEnumArray(normalizedAdditionalSlideOrder)
         };

@@ -48,6 +48,13 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task UpdateFfcGlobalFootprintAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingFfcGlobalFootprintOptions options,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task ToggleAdditionalSlideAsync(
         long deckId,
         string requestingUserId,
@@ -467,6 +474,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck.SelectionRulesJson,
             normalized,
             configuration.RoleCharterOptions,
+            configuration.FfcGlobalFootprintOptions,
             order);
         Touch(deck, userId);
 
@@ -511,6 +519,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck.SelectionRulesJson,
             configuration.InstitutionalProfileOptions,
             normalized,
+            configuration.FfcGlobalFootprintOptions,
             order);
         Touch(deck, userId);
 
@@ -520,6 +529,44 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             userId,
             deck,
             "Role & Charter additional slide configuration updated.");
+    }
+
+    public async Task UpdateFfcGlobalFootprintAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingFfcGlobalFootprintOptions options,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+
+        EnsureVersion(deck, rowVersion);
+        var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+            options.IncludeSlide,
+            options.Title,
+            options.MaximumCountryRows);
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var order = normalized.IncludeSlide
+            && !configuration.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
+                ? configuration.AdditionalSlideOrder.Append(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint).ToArray()
+                : configuration.AdditionalSlideOrder;
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            configuration.InstitutionalProfileOptions,
+            configuration.RoleCharterOptions,
+            normalized,
+            order);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.FfcGlobalFootprintUpdated",
+            userId,
+            deck,
+            "FFC Global Footprint additional slide configuration updated.");
     }
 
     public async Task ToggleAdditionalSlideAsync(
@@ -544,6 +591,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
         var profile = configuration.InstitutionalProfileOptions;
         var roleCharter = configuration.RoleCharterOptions;
+        var ffcGlobalFootprint = configuration.FfcGlobalFootprintOptions;
         switch (slideType)
         {
             case ProjectBriefingAdditionalSlideType.InstitutionalProfile:
@@ -574,6 +622,12 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                     roleCharter.CharterItems);
                 ValidateRoleCharter(roleCharter);
                 break;
+            case ProjectBriefingAdditionalSlideType.FfcGlobalFootprint:
+                ffcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+                    enabled,
+                    ffcGlobalFootprint.Title,
+                    ffcGlobalFootprint.MaximumCountryRows);
+                break;
         }
 
         var order = configuration.AdditionalSlideOrder.ToList();
@@ -586,6 +640,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck.SelectionRulesJson,
             profile,
             roleCharter,
+            ffcGlobalFootprint,
             order);
         Touch(deck, userId);
 
@@ -622,6 +677,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck.SelectionRulesJson,
             configuration.InstitutionalProfileOptions,
             configuration.RoleCharterOptions,
+            configuration.FfcGlobalFootprintOptions,
             normalized);
         Touch(deck, userId);
 
@@ -654,6 +710,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
         var profile = configuration.InstitutionalProfileOptions;
         var roleCharter = configuration.RoleCharterOptions;
+        var ffcGlobalFootprint = configuration.FfcGlobalFootprintOptions;
         switch (slideType)
         {
             case ProjectBriefingAdditionalSlideType.InstitutionalProfile:
@@ -682,6 +739,12 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                     roleCharter.RoleStatements,
                     roleCharter.CharterItems);
                 break;
+            case ProjectBriefingAdditionalSlideType.FfcGlobalFootprint:
+                ffcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
+                    false,
+                    ffcGlobalFootprint.Title,
+                    ffcGlobalFootprint.MaximumCountryRows);
+                break;
         }
 
         var order = configuration.AdditionalSlideOrder
@@ -691,6 +754,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck.SelectionRulesJson,
             profile,
             roleCharter,
+            ffcGlobalFootprint,
             order);
         Touch(deck, userId);
 

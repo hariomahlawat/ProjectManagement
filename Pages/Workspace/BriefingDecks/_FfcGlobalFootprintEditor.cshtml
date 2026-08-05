@@ -1,0 +1,84 @@
+@model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
+@using ProjectManagement.Services.ProjectBriefings
+@{
+    var deck = Model.SelectedDeck!;
+    var options = deck.FfcGlobalFootprintOptions;
+}
+
+<div class="pbd-role-charter-backdrop" data-pbd-ffc-footprint-backdrop hidden></div>
+<aside id="pbd-ffc-footprint-drawer"
+       class="pbd-profile-drawer pbd-ffc-footprint-drawer"
+       data-pbd-ffc-footprint-drawer
+       data-pbd-ffc-footprint-reopen="@Model.ReopenFfcGlobalFootprint.ToString().ToLowerInvariant()"
+       aria-labelledby="pbd-ffc-footprint-drawer-title"
+       aria-hidden="true">
+    <form method="post" asp-page-handler="SaveFfcGlobalFootprint" data-pbd-ffc-footprint-form>
+        <input type="hidden" name="DeckId" value="@deck.Id" />
+        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+        <input type="checkbox" name="IncludeFfcGlobalFootprint" value="true" checked="@options.IncludeSlide" data-pbd-ffc-footprint-enable hidden />
+
+        <header class="pbd-profile-drawer__header">
+            <div>
+                <span class="pbd-eyebrow">Additional slide</span>
+                <h3 id="pbd-ffc-footprint-drawer-title">Configure FFC Global Footprint</h3>
+                <p>Presentation choices are maintained here while country and quantity figures refresh from the authoritative FFC module.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-ffc-footprint-close aria-label="Close FFC Global Footprint editor">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="pbd-profile-drawer__body">
+            <div class="pbd-additional-slide-editor-context pbd-additional-slide-editor-context--ffc">
+                <i class="bi bi-pin-angle" aria-hidden="true"></i>
+                <span>
+                    <strong>Fixed immediately before the closing slide</strong>
+                    <small>Project content remains together; the international footprint becomes the final substantive slide.</small>
+                </span>
+            </div>
+
+            <section class="pbd-role-charter-section">
+                <div class="pbd-form-grid pbd-form-grid--institutional">
+                    <label class="form-label pbd-form-grid__wide">
+                        <span>Slide title</span>
+                        <input class="form-control" name="FfcGlobalFootprintTitle" value="@options.Title" maxlength="120" />
+                    </label>
+                    <label class="form-label">
+                        <span>Countries shown in position list</span>
+                        <select class="form-select" name="MaximumCountryRows">
+                            @for (var rows = 6; rows <= 10; rows++)
+                            {
+                                <option value="@rows" selected="@(options.MaximumCountryRows == rows)">@rows countries</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+
+                <div class="pbd-ffc-footprint-authority">
+                    <i class="bi bi-shield-check" aria-hidden="true"></i>
+                    <div>
+                        <strong>Live, read-only PRISM data</strong>
+                        <p>Countries, linked projects, installed quantity, delivered awaiting installation and planned quantity are recalculated whenever the PowerPoint is generated.</p>
+                    </div>
+                </div>
+
+                <div class="pbd-ffc-footprint-layout-preview" aria-label="FFC Global Footprint slide composition">
+                    <div class="pbd-ffc-footprint-layout-preview__metrics"><i></i><i></i><i></i></div>
+                    <div class="pbd-ffc-footprint-layout-preview__body">
+                        <span><i class="bi bi-globe-asia-australia" aria-hidden="true"></i> Vector footprint map</span>
+                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> Country position</span>
+                    </div>
+                    <small>Total quantity is the map intensity metric. No internet map service or screenshot is used.</small>
+                </div>
+            </section>
+        </div>
+
+        <footer class="pbd-profile-drawer__footer">
+            <span data-pbd-ffc-footprint-status>No unsaved FFC footprint changes</span>
+            <div>
+                <button type="button" class="btn btn-outline-secondary" data-pbd-ffc-footprint-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" data-pbd-ffc-footprint-save disabled>Save slide</button>
+            </div>
+        </footer>
+    </form>
+</aside>
