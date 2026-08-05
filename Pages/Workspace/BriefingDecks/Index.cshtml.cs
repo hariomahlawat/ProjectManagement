@@ -166,6 +166,18 @@ public sealed class IndexModel : PageModel
                     ShowPresentStatus = input.ShowPresentStatus,
                     PresentationTheme = input.PresentationTheme,
                     ClosingSlideType = input.ClosingSlideType,
+                    InstitutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
+                        input.IncludeInstitutionalProfile,
+                        input.InstitutionalProfileTitle,
+                        input.IncludeInstitutionalHistory,
+                        ParseInstitutionalHistory(input.InstitutionalHistoryLines),
+                        ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
+                        input.InstitutionalMaximumDetailRows,
+                        input.InstitutionalTrainingHighlightCategory,
+                        ParseSimpleLines(input.InstitutionalPartnershipLines),
+                        input.IncludeInstitutionalUnitCitations,
+                        input.InstitutionalUnitCitationCount,
+                        input.InstitutionalUnitCitationLabel),
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
@@ -543,6 +555,55 @@ public sealed class IndexModel : PageModel
         return ordered;
     }
 
+    private static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> ResolveInstitutionalModules(
+        IReadOnlyCollection<ProjectBriefingInstitutionalProfileModule>? selectedModules,
+        string? orderedModules)
+    {
+        var selected = (selectedModules ?? Array.Empty<ProjectBriefingInstitutionalProfileModule>())
+            .Where(Enum.IsDefined)
+            .ToHashSet();
+        var ordered = (orderedModules ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => Enum.TryParse<ProjectBriefingInstitutionalProfileModule>(value, ignoreCase: true, out var module)
+                ? module
+                : (ProjectBriefingInstitutionalProfileModule?)null)
+            .Where(module => module.HasValue && Enum.IsDefined(module.Value) && selected.Contains(module.Value))
+            .Select(module => module!.Value)
+            .Distinct()
+            .ToList();
+
+        ordered.AddRange(selected.Where(module => !ordered.Contains(module)));
+        return ordered;
+    }
+
+    private static IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> ParseInstitutionalHistory(string? value)
+    {
+        var result = new List<ProjectBriefingInstitutionalHistoryMilestone>();
+        foreach (var line in ParseSimpleLines(value))
+        {
+            var separator = line.IndexOf('|');
+            if (separator <= 0 || separator >= line.Length - 1)
+            {
+                continue;
+            }
+
+            if (int.TryParse(line[..separator].Trim(), out var year))
+            {
+                result.Add(new ProjectBriefingInstitutionalHistoryMilestone(
+                    year,
+                    line[(separator + 1)..].Trim()));
+            }
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<string> ParseSimpleLines(string? value)
+        => (value ?? string.Empty)
+            .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+
     public sealed class SaveDeckSettingsInput
     {
         [Required]
@@ -579,6 +640,38 @@ public sealed class IndexModel : PageModel
         [Required]
         public ProjectBriefingClosingSlideType ClosingSlideType { get; set; }
             = ProjectBriefingClosingSlideType.JaiHind;
+
+        public bool IncludeInstitutionalProfile { get; set; }
+
+        [StringLength(120)]
+        public string? InstitutionalProfileTitle { get; set; }
+
+        public bool IncludeInstitutionalHistory { get; set; } = true;
+
+        [StringLength(1600)]
+        public string? InstitutionalHistoryLines { get; set; }
+
+        public List<ProjectBriefingInstitutionalProfileModule> InstitutionalModules { get; set; } = new();
+
+        [StringLength(300)]
+        public string? InstitutionalModuleOrder { get; set; }
+
+        [Range(3, 7)]
+        public int InstitutionalMaximumDetailRows { get; set; } = 6;
+
+        [StringLength(80)]
+        public string? InstitutionalTrainingHighlightCategory { get; set; }
+
+        [StringLength(1200)]
+        public string? InstitutionalPartnershipLines { get; set; }
+
+        public bool IncludeInstitutionalUnitCitations { get; set; }
+
+        [Range(0, 999)]
+        public int? InstitutionalUnitCitationCount { get; set; }
+
+        [StringLength(80)]
+        public string? InstitutionalUnitCitationLabel { get; set; }
 
         [Required]
         public ProjectBriefingBrandingScope BrandingScope { get; set; }

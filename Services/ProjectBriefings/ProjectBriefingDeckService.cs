@@ -294,6 +294,25 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.ProjectBriefLayout,
             command.ShowPresentStage,
             command.ShowPresentStatus);
+        var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
+            command.InstitutionalProfileOptions.IncludeSlide,
+            command.InstitutionalProfileOptions.Title,
+            command.InstitutionalProfileOptions.IncludeHistory,
+            command.InstitutionalProfileOptions.HistoryMilestones,
+            command.InstitutionalProfileOptions.Modules,
+            command.InstitutionalProfileOptions.MaximumDetailRows,
+            command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
+            command.InstitutionalProfileOptions.PartnershipEntries,
+            command.InstitutionalProfileOptions.IncludeUnitCitations,
+            command.InstitutionalProfileOptions.UnitCitationCount,
+            command.InstitutionalProfileOptions.UnitCitationLabel);
+        if (institutionalProfileOptions.IncludeSlide
+            && !institutionalProfileOptions.IncludeHistory
+            && institutionalProfileOptions.Modules.Count == 0)
+        {
+            throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
+        }
+
         var normalizedName = NormalizeName(command.Name);
         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
 
@@ -320,7 +339,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             deck.SelectionRulesJson,
             updateSheetOptions,
             standardSlideOptions,
-            command.ClosingSlideType);
+            command.ClosingSlideType,
+            institutionalProfileOptions);
         deck.HandlingMarking = NormalizeMarking(command.HandlingMarking);
         Touch(deck, userId);
 

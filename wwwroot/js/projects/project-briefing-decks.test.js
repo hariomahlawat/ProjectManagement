@@ -184,3 +184,14 @@ test('Standard detailed slides expose project-brief design and independent conte
   assert.match(source, /includesDetailedSlides\(\)/);
   assert.match(source, /includesProjectBrief\(\)/);
 });
+
+test('SDD institutional profile settings remain modular, ordered and valid before save', () => {
+  assert.match(source, /data-pbd-institutional-profile-enable/);
+  assert.match(source, /syncInstitutionalProfileSettings/);
+  assert.match(source, /syncInstitutionalModuleOrder/);
+  assert.match(source, /restoreInstitutionalModuleOrder/);
+  assert.match(source, /validateInstitutionalProfile/);
+  assert.match(source, /data-pbd-institutional-module-up/);
+  assert.match(source, /data-pbd-institutional-module-down/);
+  assert.match(source, /institutionalProfileSlides/);
+});

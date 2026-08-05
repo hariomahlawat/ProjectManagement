@@ -1,17 +1,28 @@
-REPLACEMENT FILE MANIFEST
-=========================
+PRISM ERP — REPLACEMENT MANIFEST
+================================
 
-Production
-----------
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+Copy these files to the ProjectManagement project root using the exact relative paths:
 
-Tests
------
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+Models/ProjectBriefings/ProjectBriefingDeck.cs
+Pages/Workspace/BriefingDecks/Index.cshtml
+Pages/Workspace/BriefingDecks/Index.cshtml.cs
+Program.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectManagement.Tests.csproj
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+Services/ProjectBriefings/ProjectBriefingContracts.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
+Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+Services/ProjectBriefings/ProjectBriefingDeckService.cs
+Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+wwwroot/css/pages/project-briefing-decks.css
+wwwroot/js/pages/project-briefing-decks.js
+wwwroot/js/projects/project-briefing-decks.test.js
 
-Reference
----------
-PRISM-Briefing-Deck-Ceremonial-Closing-Refinement.patch
-README-FIRST.txt
-SHA256SUMS.txt
+Total replacement/new source files: 20
+Database migration required: No

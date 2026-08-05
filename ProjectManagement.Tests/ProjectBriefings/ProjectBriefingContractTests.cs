@@ -475,6 +475,40 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("No PowerPoint-ready photograph was found", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void InstitutionalProfileSlide_IsOptionalModularAndUsesAuthoritativePrismBreakdowns()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var service = Read("ProjectBriefingInstitutionalProfileService.cs");
+        var composer = Read("ProjectBriefingSlideComposer.InstitutionalProfile.cs");
+        var dataSource = Read("ProjectBriefingDataService.cs");
+
+        Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalModules", page, StringComparison.Ordinal);
+        Assert.Contains("YEAR | milestone", page, StringComparison.Ordinal);
+        Assert.Contains("one MoU/partner per line", page, StringComparison.Ordinal);
+        Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
+        Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
+        Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
+
+        Assert.Contains("ProjectLifecycleStatus.Completed", service, StringComparison.Ordinal);
+        Assert.Contains("GetApprovedAggregatesAsync", service, StringComparison.Ordinal);
+        Assert.Contains("TechnicalCategoryName", service, StringComparison.Ordinal);
+        Assert.Contains("GetKpisAsync", service, StringComparison.Ordinal);
+        Assert.Contains("FY {year.TrainingYearLabel}", service, StringComparison.Ordinal);
+        Assert.Contains("Units /", service, StringComparison.Ordinal);
+        Assert.Contains("IprRecords", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("515 ABW", service, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("RenderInstitutionalProfile", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderInstitutionalHistory", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderInstitutionalModules", composer, StringComparison.Ordinal);
+        Assert.Contains("Data as on", composer, StringComparison.Ordinal);
+        Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);
+    }
+
     private static string Read(string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", fileName);

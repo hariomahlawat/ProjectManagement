@@ -124,6 +124,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         {
             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
         }
+        if (data.InstitutionalProfile is not null)
+        {
+            plans.Add(new SlidePlan(
+                SlidePlanKind.InstitutionalProfile,
+                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
+        }
         if (data.IncludePortfolioSummarySlide)
         {
             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
@@ -2124,7 +2130,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         => scope switch
         {
             ProjectBriefingBrandingScope.None => false,
-            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.Closing,
+            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.InstitutionalProfile or SlidePlanKind.Closing,
             ProjectBriefingBrandingScope.AllSlides => true,
             _ => false
         };
@@ -2172,6 +2178,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
     {
         Cover,
         Summary,
+        InstitutionalProfile,
         Project,
         Closing
     }

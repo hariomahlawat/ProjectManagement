@@ -169,6 +169,9 @@
     <None Include="..\Services\ProjectBriefings\ProjectBriefingDataService.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingDataService.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\ProjectBriefings\ProjectBriefingInstitutionalProfileService.cs"
+          Link="TestData\ProjectBriefing\ProjectBriefingInstitutionalProfileService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\ProjectBriefingPhotoLoader.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingPhotoLoader.cs"
           CopyToOutputDirectory="PreserveNewest" />
@@ -177,6 +180,9 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.UpdateSheet.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.UpdateSheet.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.InstitutionalProfile.cs"
+          Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.InstitutionalProfile.cs"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingThemeDefinition.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingThemeDefinition.cs"

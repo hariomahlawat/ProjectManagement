@@ -15,6 +15,12 @@ public sealed partial class ProjectBriefingSlideComposer
         {
             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
         }
+        if (data.InstitutionalProfile is not null)
+        {
+            plans.Add(new SlidePlan(
+                SlidePlanKind.InstitutionalProfile,
+                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
+        }
         if (data.IncludePortfolioSummarySlide)
         {
             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));

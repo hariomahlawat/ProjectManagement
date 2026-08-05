@@ -65,6 +65,18 @@ public enum ProjectBriefingBrandingScope
 }
 
 /// <summary>
+/// Modular institutional-output blocks available on the optional SDD profile slide.
+/// </summary>
+public enum ProjectBriefingInstitutionalProfileModule
+{
+    ProjectsDeveloped = 1,
+    Proliferation = 2,
+    TrainingSupport = 3,
+    IntellectualProperty = 4,
+    Partnerships = 5
+}
+
+/// <summary>
 /// Logical information rows available on each formal Project Update Sheet.
 /// Project name is always rendered as the slide title and is therefore not a selectable table row.
 /// </summary>

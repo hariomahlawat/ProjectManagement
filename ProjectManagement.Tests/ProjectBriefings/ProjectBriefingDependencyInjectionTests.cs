@@ -25,6 +25,25 @@ public sealed class ProjectBriefingDependencyInjectionTests
             "Register the facts resolver before ProjectBriefingDataService for a clear dependency order.");
     }
 
+    [Fact]
+    public void Program_RegistersInstitutionalProfileServiceBeforeBriefingDataService()
+    {
+        var program = ReadRepoFile("Program.cs");
+
+        const string profileRegistration =
+            "builder.Services.AddScoped<IProjectBriefingInstitutionalProfileService, ProjectBriefingInstitutionalProfileService>();";
+        const string dataServiceRegistration =
+            "builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();";
+
+        var profileIndex = program.IndexOf(profileRegistration, StringComparison.Ordinal);
+        var dataServiceIndex = program.IndexOf(dataServiceRegistration, StringComparison.Ordinal);
+
+        Assert.True(profileIndex >= 0,
+            "The SDD institutional profile snapshot service must be registered in dependency injection.");
+        Assert.True(dataServiceIndex > profileIndex,
+            "Register the institutional profile service before ProjectBriefingDataService.");
+    }
+
     private static string ReadRepoFile(params string[] relativePath)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

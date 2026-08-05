@@ -1,67 +1,102 @@
-PRISM BRIEFING DECK — CEREMONIAL CLOSING SLIDE REFINEMENT
-==========================================================
+PRISM ERP — MODULAR SDD INSTITUTIONAL PROFILE SLIDE
+===================================================
 
 PURPOSE
 -------
-This package refines the closing slide introduced by the earlier
-"Professional Closing Slide" implementation. It applies to both Standard PRISM
-Briefing decks and Project Update Sheet decks.
+This package adds an optional, modular “SDD – Growth over the years” slide to the
+Project Briefing Deck Builder. The slide is available in both Standard PRISM
+Briefing and Project Update Sheet decks and is inserted immediately after the
+cover slide and before the portfolio/project content.
 
-IMPLEMENTED DESIGN
-------------------
-1. Removes the generic "PROJECT BRIEFING DECK" descriptor.
-2. Places "SIMULATOR DEVELOPMENT DIVISION" below the tricolour accent.
-3. Uses a wider, near-rectangular ceremonial maroon field with substantially
-   reduced corner curvature.
-4. Removes the two horizontal divider rules from the closing slide.
-5. Shortens and thins the equal saffron, white and green segments so that they
-   read as a ceremonial accent rather than a progress bar.
-6. Editorial Light places the two logos directly on the light canvas, without
-   application-style backing tiles.
-7. Graphite Dark retains compact dark-neutral logo plates, but removes their
-   visible outline.
-8. Keeps the exact selected closing text only: JAI HIND or THANK YOU.
-9. Keeps the closing slide free from slide numbers, footers, project metadata,
-   classification lines and generated remarks.
+FINAL BEHAVIOUR
+---------------
+1. History timeline
+   - User-maintained authorised milestones.
+   - Default milestone set: 1986, 1991, 1998, 2001, 2016 and 2024.
+   - Milestone wording remains exactly as entered; PRISM does not infer or rewrite it.
 
-READY-TO-REPLACE FILES
-----------------------
-Replace these project-relative files:
+2. Simulators/Projects Developed
+   - Read-only ERP data.
+   - Headline: completed projects.
+   - Detail: technical-category-wise project counts.
 
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+3. Proliferated
+   - Read-only ERP data from approved proliferation aggregates.
+   - Headline: combined approved proliferation total.
+   - Detail: technical-category-wise quantities.
+   - The slide deliberately does NOT show an SDD/515 ABW split.
 
-PRE-REQUISITE
+4. Assistance to Field Formations
+   - Read-only ERP data from the Training Tracker.
+   - Headline: total trainees.
+   - Detail: financial-year-wise trainee figures.
+   - Optional highlight: distinct units and individuals trained for the configured
+     technical category (AR/VR by default).
+
+5. Intellectual Property
+   - Read-only ERP data from the IPR Register.
+   - Headline: protected IPR total.
+   - Detail: patents granted, copyrights registered and patents filed.
+
+6. Military–Academia–Industry Synergy
+   - User-maintained MoU/institutional-partner lines.
+   - No figures are inferred from JDP or activity records.
+
+7. Institutional recognition
+   - Optional user-maintained citation label and count.
+
+MODULAR CONFIGURATION
+---------------------
+Deck Settings now allows the user to:
+- enable/disable the SDD profile slide;
+- edit the slide title;
+- enable/disable the history timeline;
+- maintain history milestones using “YEAR | text” lines;
+- include, exclude and reorder the five profile modules;
+- set the maximum number of detail rows;
+- choose the training-highlight technical category;
+- maintain MoU/partner lines;
+- enable an optional unit-citation strip and set its authorised label/count.
+
+ERP-backed metrics are not editable in the deck configuration.
+
+COMPATIBILITY
 -------------
-The earlier PRISM professional closing-slide implementation must already be
-present. This package is a focused refinement of that implementation.
+- Existing decks remain unchanged: the SDD profile is disabled by default.
+- The configuration is stored in the existing versioned SelectionRulesJson.
+- No database migration is required.
+- All previous briefing-deck functionality, adaptive layouts, status strip,
+  maroon institutional styling and closing slide are retained.
 
-DATABASE
---------
-No migration or data update is required.
+REPLACEMENT METHOD
+------------------
+1. Back up the current solution.
+2. Copy the folders/files from this package over the ProjectManagement project root,
+   preserving the included relative paths.
+3. Allow files with the same names to be replaced.
+4. Clean the solution, delete stale bin/obj output if necessary, and rebuild.
+5. Run the ProjectBriefings test suite.
+6. Open an existing deck, enable “SDD institutional profile” under Deck Settings,
+   review the authorised milestone/MoU/citation content, save, and generate a PPTX.
 
-AFTER REPLACEMENT
+PATCH ALTERNATIVE
 -----------------
-1. Clean the solution.
-2. Rebuild in Visual Studio.
-3. Run the ProjectBriefings test group.
-4. Generate one Editorial Light and one Graphite Dark deck.
-5. Confirm that the final slide contains:
-   - JAI HIND or THANK YOU;
-   - the short tricolour accent;
-   - SIMULATOR DEVELOPMENT DIVISION below it;
-   - no PROJECT BRIEFING DECK descriptor;
-   - direct logos in light theme;
-   - compact borderless dark plates in Graphite Dark.
+A unified patch is included under _PATCH and is also supplied separately. Apply it
+from the ProjectManagement repository root only when the source exactly matches the
+preceding cumulative briefing-deck implementation.
 
-VALIDATION PERFORMED IN THIS PACKAGE
-------------------------------------
-- Unified patch dry-run and clean application verification.
-- Byte-for-byte comparison of patched files against packaged files.
-- Git whitespace validation.
-- Structural delimiter and string-balance checks for all modified C# files.
-- ZIP integrity and SHA-256 manifest generation.
+VALIDATION PERFORMED
+--------------------
+- Targeted briefing-deck JavaScript tests: 26/26 passed.
+- JavaScript syntax check passed.
+- ProjectManagement.Tests.csproj XML validation passed.
+- git diff whitespace/error check passed.
+- Patch dry-run, clean application and file-by-file comparison passed.
+- ZIP integrity and SHA-256 manifest checks are included.
 
-The .NET SDK is not installed in the packaging environment; therefore a full
-C# compilation and xUnit execution must be completed in Visual Studio.
+ENVIRONMENT LIMITATION
+----------------------
+The .NET SDK/compiler is not installed in the packaging environment. Therefore a
+C# build and the .NET ProjectBriefings test suite could not be executed here.
+Perform a Visual Studio Clean/Rebuild and run the ProjectBriefings tests before
+production deployment.

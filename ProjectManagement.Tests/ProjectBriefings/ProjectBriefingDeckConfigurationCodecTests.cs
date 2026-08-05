@@ -21,6 +21,10 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.True(configuration.StandardSlideOptions.ShowPresentStage);
         Assert.True(configuration.StandardSlideOptions.ShowPresentStatus);
         Assert.Equal(ProjectBriefingClosingSlideType.JaiHind, configuration.ClosingSlideType);
+        Assert.False(configuration.InstitutionalProfileOptions.IncludeSlide);
+        Assert.Equal(
+            ProjectBriefingInstitutionalProfileOptions.DefaultModules,
+            configuration.InstitutionalProfileOptions.Modules);
     }
 
     [Fact]
@@ -187,6 +191,77 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(
             ProjectBriefingClosingSlideType.ThankYou,
             ProjectBriefingDeckConfigurationCodec.Read(withStandard).ClosingSlideType);
+    }
+
+
+    [Fact]
+    public void InstitutionalProfileOptions_RoundTripAuthorisedManualContentAndModuleOrder()
+    {
+        var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
+            includeSlide: true,
+            title: "SDD – Growth over the years",
+            includeHistory: true,
+            historyMilestones: new[]
+            {
+                new ProjectBriefingInstitutionalHistoryMilestone(1991, "Raising & 1st PE"),
+                new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME")
+            },
+            modules: new[]
+            {
+                ProjectBriefingInstitutionalProfileModule.Proliferation,
+                ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
+                ProjectBriefingInstitutionalProfileModule.Partnerships
+            },
+            maximumDetailRows: 5,
+            trainingHighlightTechnicalCategory: "AR/VR",
+            partnershipEntries: new[] { "IIT Hyderabad", "Private industry / start-ups" },
+            includeUnitCitations: true,
+            unitCitationCount: 3,
+            unitCitationLabel: "GOC-in-C Unit Citations");
+
+        var encoded = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+            "{\"kind\":\"Ongoing\"}",
+            options);
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
+
+        Assert.True(decoded.InstitutionalProfileOptions.IncludeSlide);
+        Assert.Equal(options.Modules, decoded.InstitutionalProfileOptions.Modules);
+        Assert.Equal(options.HistoryMilestones, decoded.InstitutionalProfileOptions.HistoryMilestones);
+        Assert.Equal(options.PartnershipEntries, decoded.InstitutionalProfileOptions.PartnershipEntries);
+        Assert.Equal(3, decoded.InstitutionalProfileOptions.UnitCitationCount);
+        Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PresentationPreferenceUpdates_PreserveInstitutionalProfileConfiguration()
+    {
+        var initial = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+            null,
+            ProjectBriefingInstitutionalProfileOptions.Normalize(
+                includeSlide: true,
+                title: null,
+                includeHistory: false,
+                historyMilestones: Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
+                modules: new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
+                maximumDetailRows: 4,
+                trainingHighlightTechnicalCategory: null,
+                partnershipEntries: Array.Empty<string>(),
+                includeUnitCitations: false,
+                unitCitationCount: null,
+                unitCitationLabel: null));
+
+        var updated = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            initial,
+            ProjectBriefingUpdateSheetOptions.Default,
+            ProjectBriefingStandardSlideOptions.Default,
+            ProjectBriefingClosingSlideType.ThankYou);
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(updated);
+
+        Assert.True(decoded.InstitutionalProfileOptions.IncludeSlide);
+        Assert.False(decoded.InstitutionalProfileOptions.IncludeHistory);
+        Assert.Equal(
+            new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
+            decoded.InstitutionalProfileOptions.Modules);
     }
 
     [Fact]

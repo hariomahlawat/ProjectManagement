@@ -31,6 +31,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private readonly IProjectBriefingExternalStatusService _externalStatusService;
     private readonly IProjectBriefingPhotoLoader _photoLoader;
     private readonly IProjectBriefingUpdateSheetFactsResolver _updateSheetFactsResolver;
+    private readonly IProjectBriefingInstitutionalProfileService _institutionalProfileService;
     private readonly IClock _clock;
 
     public ProjectBriefingDataService(
@@ -39,6 +40,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IProjectBriefingExternalStatusService externalStatusService,
         IProjectBriefingPhotoLoader photoLoader,
         IProjectBriefingUpdateSheetFactsResolver updateSheetFactsResolver,
+        IProjectBriefingInstitutionalProfileService institutionalProfileService,
         IClock clock)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -46,6 +48,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         _externalStatusService = externalStatusService ?? throw new ArgumentNullException(nameof(externalStatusService));
         _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
         _updateSheetFactsResolver = updateSheetFactsResolver ?? throw new ArgumentNullException(nameof(updateSheetFactsResolver));
+        _institutionalProfileService = institutionalProfileService ?? throw new ArgumentNullException(nameof(institutionalProfileService));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
@@ -73,6 +76,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             StandardSlideOptions = snapshot.StandardSlideOptions,
             PresentationTheme = snapshot.PresentationTheme,
             ClosingSlideType = snapshot.ClosingSlideType,
+            InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
@@ -89,7 +93,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Readiness = BuildReadiness(projects),
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
-                snapshot.IncludeTechnicalCategorySummary, snapshot.CostMode, snapshot.NarrativeMode, projects)
+                snapshot.IncludeTechnicalCategorySummary, snapshot.InstitutionalProfileOptions.IncludeSlide,
+                snapshot.CostMode, snapshot.NarrativeMode, projects)
         };
     }
 
@@ -144,6 +149,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             }));
 
         var summary = BuildPresentationSummary(projects);
+        var institutionalProfile = await _institutionalProfileService.BuildAsync(
+            snapshot.InstitutionalProfileOptions,
+            cancellationToken);
         return new ProjectBriefingPresentationData
         {
             DeckId = snapshot.Id,
@@ -160,6 +168,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             StandardSlideOptions = snapshot.StandardSlideOptions,
             PresentationTheme = snapshot.PresentationTheme,
             ClosingSlideType = snapshot.ClosingSlideType,
+            InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
@@ -170,7 +179,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             HandlingMarking = snapshot.HandlingMarking,
             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
             Projects = projects,
-            Summary = summary
+            Summary = summary,
+            InstitutionalProfile = institutionalProfile
         };
     }
 
@@ -227,6 +237,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var updateSheetOptions = deckConfiguration.UpdateSheetOptions;
         var standardSlideOptions = deckConfiguration.StandardSlideOptions;
         var closingSlideType = deckConfiguration.ClosingSlideType;
+        var institutionalProfileOptions = deckConfiguration.InstitutionalProfileOptions;
 
         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
             .AsNoTracking()
@@ -273,6 +284,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 updateSheetOptions,
                 standardSlideOptions,
                 closingSlideType,
+                institutionalProfileOptions,
                 deck.HandlingMarking,
                 deck.UpdatedAtUtc,
                 deck.CreatedByDisplay,
@@ -384,6 +396,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             updateSheetOptions,
             standardSlideOptions,
             closingSlideType,
+            institutionalProfileOptions,
             deck.HandlingMarking,
             deck.UpdatedAtUtc,
             deck.CreatedByDisplay,
@@ -676,17 +689,22 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool includeStageSummary,
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
+        bool includeInstitutionalProfile,
         ProjectBriefingCostMode costMode,
         ProjectBriefingNarrativeMode narrativeMode,
         IReadOnlyList<ProjectBriefingProjectVm> projects)
     {
-        var introductorySlides = (includeCoverSlide ? 1 : 0) + (includePortfolioSummarySlide ? 1 : 0);
+        var coverAndPortfolioSlides = (includeCoverSlide ? 1 : 0)
+            + (includePortfolioSummarySlide ? 1 : 0);
+        var institutionalProfileSlides = includeInstitutionalProfile ? 1 : 0;
+        var introductorySlides = coverAndPortfolioSlides + institutionalProfileSlides;
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
             return new ProjectBriefingSlideEstimateVm
             {
-                CoverAndPortfolioSlides = introductorySlides,
+                CoverAndPortfolioSlides = coverAndPortfolioSlides,
                 ProjectUpdateSheetSlides = projects.Count,
+                InstitutionalProfileSlides = institutionalProfileSlides,
                 ClosingSlides = 1,
                 TotalSlides = introductorySlides + projects.Count + 1
             };
@@ -739,12 +757,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         return new ProjectBriefingSlideEstimateVm
         {
-            CoverAndPortfolioSlides = introductorySlides,
+            CoverAndPortfolioSlides = coverAndPortfolioSlides,
             SummarySlides = summarySlides,
             ExecutiveTableSlides = executiveSlides,
             DetailedProjectSlides = detailSlides,
             CapabilityContinuationSlides = capabilityContinuationSlides,
             ProjectBriefSlides = projectBriefSlides,
+            InstitutionalProfileSlides = institutionalProfileSlides,
             ClosingSlides = 1,
             TotalSlides = introductorySlides
                 + summarySlides
@@ -866,6 +885,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
         ProjectBriefingStandardSlideOptions StandardSlideOptions,
         ProjectBriefingClosingSlideType ClosingSlideType,
+        ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
         string CreatedByDisplay,

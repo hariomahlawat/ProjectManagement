@@ -117,7 +117,14 @@ if (root) {
   const updateRowInitialOrder = updateRowOrderInput?.value || '';
   const updateRowRecommendedOrder = updateRowOrderInput?.dataset.recommendedOrder || updateRowInitialOrder;
   let settingsValid = true;
+  let updateRowsValid = true;
+  let institutionalProfileValid = true;
   let draggedUpdateRow = null;
+
+  const applySettingsValidity = () => {
+    settingsValid = updateRowsValid && institutionalProfileValid;
+    if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
+  };
 
   const updateRowElements = () => updateRowList
     ? [...updateRowList.querySelectorAll('[data-pbd-update-row]')]
@@ -161,11 +168,11 @@ if (root) {
   const validateUpdateSheetRows = ({ focus = false } = {}) => {
     const updateLayout = currentSettingsLayout() === 'ProjectUpdateSheet';
     const valid = !updateLayout || selectedUpdateSheetRowKeys().size > 0;
-    settingsValid = valid;
+    updateRowsValid = valid;
     updateRowValidation?.toggleAttribute('hidden', valid);
     updateRowList?.classList.toggle('has-validation-error', !valid);
     updateRowList?.setAttribute('aria-invalid', String(!valid));
-    if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
+    applySettingsValidity();
     if (!valid && focus) {
       updateRowElements()[0]?.querySelector('input[name="UpdateSheetRows"]')?.focus();
     }
@@ -222,6 +229,7 @@ if (root) {
     });
     syncUpdateRowOrder();
     validateUpdateSheetRows();
+    validateInstitutionalProfile();
     syncPreflightRequirementVisibility();
     refreshSettingsDirtyState();
   });
@@ -247,6 +255,131 @@ if (root) {
   });
 
   syncUpdateRowOrder();
+
+  // Optional SDD institutional-profile slide.
+  const institutionalProfileEnable = root.querySelector('[data-pbd-institutional-profile-enable]');
+  const institutionalProfileSettings = root.querySelector('[data-pbd-institutional-profile-settings]');
+  const institutionalHistoryEnable = root.querySelector('[data-pbd-institutional-history-enable]');
+  const institutionalHistoryFields = root.querySelector('[data-pbd-institutional-history-fields]');
+  const institutionalCitationEnable = root.querySelector('[data-pbd-institutional-citations-enable]');
+  const institutionalCitationFields = root.querySelector('[data-pbd-institutional-citations-fields]');
+  const institutionalModuleList = root.querySelector('[data-pbd-institutional-module-list]');
+  const institutionalModuleOrderInput = root.querySelector('[data-pbd-institutional-module-order]');
+  const institutionalProfileValidation = root.querySelector('[data-pbd-institutional-profile-validation]');
+  const institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
+  let draggedInstitutionalModule = null;
+
+  const institutionalModuleElements = () => institutionalModuleList
+    ? [...institutionalModuleList.querySelectorAll('[data-pbd-institutional-module]')]
+    : [];
+
+  const selectedInstitutionalModuleCount = () => institutionalModuleElements()
+    .filter((row) => row.querySelector('input[name="InstitutionalModules"]')?.checked)
+    .length;
+
+  const syncInstitutionalModuleOrder = () => {
+    const rows = institutionalModuleElements();
+    if (institutionalModuleOrderInput) {
+      institutionalModuleOrderInput.value = rows
+        .map((row) => row.dataset.moduleKey || '')
+        .filter(Boolean)
+        .join(',');
+    }
+    rows.forEach((row, index) => {
+      row.classList.toggle('is-selected', Boolean(row.querySelector('input[name="InstitutionalModules"]')?.checked));
+      const up = row.querySelector('[data-pbd-institutional-module-up]');
+      const down = row.querySelector('[data-pbd-institutional-module-down]');
+      if (up instanceof HTMLButtonElement) up.disabled = index === 0;
+      if (down instanceof HTMLButtonElement) down.disabled = index === rows.length - 1;
+      row.setAttribute('aria-posinset', String(index + 1));
+      row.setAttribute('aria-setsize', String(rows.length));
+    });
+  };
+
+  const restoreInstitutionalModuleOrder = (orderValue) => {
+    if (!institutionalModuleList) return;
+    const keys = String(orderValue || '').split(',').map((value) => value.trim()).filter(Boolean);
+    const byKey = new Map(institutionalModuleElements().map((row) => [row.dataset.moduleKey || '', row]));
+    keys.forEach((key) => {
+      const row = byKey.get(key);
+      if (row) institutionalModuleList.append(row);
+    });
+    byKey.forEach((row, key) => {
+      if (!keys.includes(key)) institutionalModuleList.append(row);
+    });
+    syncInstitutionalModuleOrder();
+  };
+
+  const validateInstitutionalProfile = ({ focus = false } = {}) => {
+    const enabled = Boolean(institutionalProfileEnable?.checked);
+    const hasHistory = Boolean(institutionalHistoryEnable?.checked);
+    const valid = !enabled || hasHistory || selectedInstitutionalModuleCount() > 0;
+    institutionalProfileValid = valid;
+    institutionalProfileValidation?.toggleAttribute('hidden', valid);
+    institutionalModuleList?.classList.toggle('has-validation-error', !valid);
+    institutionalModuleList?.setAttribute('aria-invalid', String(!valid));
+    applySettingsValidity();
+    if (!valid && focus) {
+      institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
+    }
+    return valid;
+  };
+
+  const syncInstitutionalProfileSettings = () => {
+    const enabled = Boolean(institutionalProfileEnable?.checked);
+    if (institutionalProfileSettings) institutionalProfileSettings.hidden = !enabled;
+    if (institutionalHistoryFields) institutionalHistoryFields.hidden = !institutionalHistoryEnable?.checked;
+    if (institutionalCitationFields) institutionalCitationFields.hidden = !institutionalCitationEnable?.checked;
+    validateInstitutionalProfile();
+  };
+
+  const moveInstitutionalModule = (row, direction) => {
+    if (!institutionalModuleList || !row) return;
+    const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (direction < 0) institutionalModuleList.insertBefore(row, sibling);
+    else institutionalModuleList.insertBefore(sibling, row);
+    syncInstitutionalModuleOrder();
+    refreshSettingsDirtyState();
+  };
+
+  institutionalModuleElements().forEach((row) => {
+    row.draggable = true;
+    row.querySelector('[data-pbd-institutional-module-up]')?.addEventListener('click', () => moveInstitutionalModule(row, -1));
+    row.querySelector('[data-pbd-institutional-module-down]')?.addEventListener('click', () => moveInstitutionalModule(row, 1));
+    row.querySelector('input[name="InstitutionalModules"]')?.addEventListener('change', () => {
+      syncInstitutionalModuleOrder();
+      validateInstitutionalProfile();
+    });
+    row.addEventListener('dragstart', (event) => {
+      draggedInstitutionalModule = row;
+      row.classList.add('is-dragging');
+      event.dataTransfer?.setData('text/plain', row.dataset.moduleKey || '');
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      draggedInstitutionalModule = null;
+      row.classList.remove('is-dragging');
+      institutionalModuleElements().forEach((candidate) => candidate.classList.remove('is-drag-over'));
+      syncInstitutionalModuleOrder();
+      refreshSettingsDirtyState();
+    });
+    row.addEventListener('dragover', (event) => {
+      if (!draggedInstitutionalModule || draggedInstitutionalModule === row || !institutionalModuleList) return;
+      event.preventDefault();
+      const rect = row.getBoundingClientRect();
+      const after = event.clientY > rect.top + (rect.height / 2);
+      institutionalModuleList.insertBefore(draggedInstitutionalModule, after ? row.nextElementSibling : row);
+      row.classList.add('is-drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('is-drag-over'));
+  });
+
+  institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+  institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+  institutionalCitationEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+  syncInstitutionalModuleOrder();
+  syncInstitutionalProfileSettings();
 
   const serializeSettings = () => {
     if (!(settingsForm instanceof HTMLFormElement)) return '';
@@ -293,7 +426,9 @@ if (root) {
     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
       settingsForm.reset();
       restoreUpdateRowOrder(updateRowInitialOrder);
+      restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
       syncTemplateSettings();
+      syncInstitutionalProfileSettings();
       validateUpdateSheetRows();
       setSettingsDirty(false);
     }
@@ -335,6 +470,14 @@ if (root) {
       event.preventDefault();
       if (settingsStatus) {
         settingsStatus.textContent = 'Select at least one Project Update Sheet information row.';
+        settingsStatus.classList.add('is-dirty');
+      }
+      return;
+    }
+    if (!validateInstitutionalProfile({ focus: true })) {
+      event.preventDefault();
+      if (settingsStatus) {
+        settingsStatus.textContent = 'Select at least one SDD profile module or retain the history timeline.';
         settingsStatus.classList.add('is-dirty');
       }
       return;
@@ -605,13 +748,14 @@ if (root) {
       if (isUpdateSheet(deck)) {
         const cover = deck?.includeCoverSlide === false ? 0 : 1;
         const portfolio = deck?.includePortfolioSummarySlide === false ? 0 : 1;
-        slideBreakdown.textContent = `Cover ${cover} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0} · Closing ${estimate.closingSlides || 1}`;
+        slideBreakdown.textContent = `Cover ${cover} · SDD profile ${estimate.institutionalProfileSlides || 0} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0} · Closing ${estimate.closingSlides || 1}`;
       } else {
         const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
         const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
         const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
         const parts = [
           `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
+          `SDD profile ${estimate.institutionalProfileSlides || 0}`,
           `Summary ${estimate.summarySlides || 0}`,
           `Tables ${estimate.executiveTableSlides || 0}`
         ];

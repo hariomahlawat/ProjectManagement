@@ -85,6 +85,38 @@
         ProjectBriefingUpdateSheetRow.LineDirectorate => "Responsible line directorate",
         _ => string.Empty
     };
+    var institutionalProfile = deck?.InstitutionalProfileOptions
+        ?? ProjectBriefingInstitutionalProfileOptions.Default;
+    var selectedInstitutionalModules = institutionalProfile.Modules.ToHashSet();
+    var orderedInstitutionalModules = institutionalProfile.Modules
+        .Concat(ProjectBriefingInstitutionalProfileOptions.DefaultModules)
+        .Distinct()
+        .ToArray();
+    var institutionalModuleOrder = string.Join(",", orderedInstitutionalModules);
+    var institutionalHistoryLines = string.Join(
+        Environment.NewLine,
+        institutionalProfile.HistoryMilestones.Select(item => $"{item.Year} | {item.Text}"));
+    var institutionalPartnershipLines = string.Join(
+        Environment.NewLine,
+        institutionalProfile.PartnershipEntries);
+    string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
+    {
+        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
+        ProjectBriefingInstitutionalProfileModule.Proliferation => "Proliferated",
+        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Assistance to Field Formations",
+        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Intellectual Property",
+        ProjectBriefingInstitutionalProfileModule.Partnerships => "Military–Academia–Industry Synergy",
+        _ => module.ToString()
+    };
+    string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
+    {
+        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Completed projects with technical-category-wise counts from PRISM.",
+        ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
+        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
+        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
+        ProjectBriefingInstitutionalProfileModule.Partnerships => "User-maintained MoU and institutional-partner names.",
+        _ => string.Empty
+    };
     var standardIncludesDetailedSlides = deck?.PresentationMode
         is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
     var standardIncludesCostRd = deck?.CostMode
@@ -123,10 +155,12 @@
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
     var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
     var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
+    var institutionalProfileSummary = institutionalProfile.IncludeSlide ? " · SDD profile" : string.Empty;
     var settingsSummaryLabel = isUpdateSheet
-        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost · {closingSlideLabel}"
+        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows{institutionalProfileSummary} · {themeLabel} · R&D cost · {closingSlideLabel}"
         : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
           + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
+          + institutionalProfileSummary
           + $" · {themeLabel} · {costModeLabel} · {closingSlideLabel}";
     var missingArppNumberCount = deck?.Projects.Count(project =>
         project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
@@ -542,6 +576,155 @@
 
                                     <details class="pbd-settings-section pbd-settings-section--collapsible"
                                              data-pbd-settings-collapsible
+                                             data-pbd-settings-section="institutional-profile">
+                                        <summary id="pbd-settings-institutional-title">
+                                            <span>SDD institutional profile</span>
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </summary>
+                                        <div class="pbd-settings-section__body">
+                                            <label class="pbd-institutional-profile-toggle">
+                                                <input type="checkbox"
+                                                       name="IncludeInstitutionalProfile"
+                                                       value="true"
+                                                       checked="@institutionalProfile.IncludeSlide"
+                                                       data-pbd-institutional-profile-enable />
+                                                <span>
+                                                    <strong>Include “SDD – Growth over the years” slide</strong>
+                                                    <small>Placed immediately after the cover. ERP-backed figures refresh whenever the PowerPoint is generated.</small>
+                                                </span>
+                                            </label>
+
+                                            <div class="pbd-institutional-profile-settings"
+                                                 data-pbd-institutional-profile-settings
+                                                 hidden="@(!institutionalProfile.IncludeSlide)">
+                                                <label class="form-label">
+                                                    <span>Slide title</span>
+                                                    <input class="form-control"
+                                                           name="InstitutionalProfileTitle"
+                                                           value="@institutionalProfile.Title"
+                                                           maxlength="120" />
+                                                </label>
+
+                                                <fieldset class="pbd-choice-group">
+                                                    <legend>History timeline</legend>
+                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+                                                        <input type="checkbox"
+                                                               name="IncludeInstitutionalHistory"
+                                                               value="true"
+                                                               checked="@institutionalProfile.IncludeHistory"
+                                                               data-pbd-institutional-history-enable />
+                                                        <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
+                                                    </label>
+                                                    <label class="form-label" data-pbd-institutional-history-fields hidden="@(!institutionalProfile.IncludeHistory)">
+                                                        <span>Milestones <small>one per line: YEAR | milestone</small></span>
+                                                        <textarea class="form-control"
+                                                                  name="InstitutionalHistoryLines"
+                                                                  rows="6"
+                                                                  maxlength="1600"
+                                                                  spellcheck="true">@institutionalHistoryLines</textarea>
+                                                    </label>
+                                                </fieldset>
+
+                                                <fieldset class="pbd-choice-group">
+                                                    <legend>Institutional-output modules</legend>
+                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures are read-only and are taken from their authoritative PRISM modules. Select and order only what should appear on the slide.</p>
+                                                    <input type="hidden"
+                                                           name="InstitutionalModuleOrder"
+                                                           value="@institutionalModuleOrder"
+                                                           data-pbd-institutional-module-order />
+                                                    <div class="pbd-institutional-module-list" data-pbd-institutional-module-list>
+                                                        @foreach (var module in orderedInstitutionalModules)
+                                                        {
+                                                            <div class="pbd-institutional-module-option"
+                                                                 data-pbd-institutional-module
+                                                                 data-module-key="@module">
+                                                                <span class="pbd-institutional-module-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                                <label>
+                                                                    <input type="checkbox"
+                                                                           name="InstitutionalModules"
+                                                                           value="@module"
+                                                                           checked="@selectedInstitutionalModules.Contains(module)" />
+                                                                    <span><strong>@InstitutionalModuleLabel(module)</strong><small>@InstitutionalModuleDescription(module)</small></span>
+                                                                </label>
+                                                                <span class="pbd-institutional-module-option__move">
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-up aria-label="Move @InstitutionalModuleLabel(module) up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-down aria-label="Move @InstitutionalModuleLabel(module) down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                    <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
+                                                </fieldset>
+
+                                                <div class="pbd-form-grid pbd-form-grid--institutional">
+                                                    <label class="form-label">
+                                                        <span>Maximum detail rows per module</span>
+                                                        <select class="form-select" name="InstitutionalMaximumDetailRows">
+                                                            @for (var rowCount = 3; rowCount <= 7; rowCount++)
+                                                            {
+                                                                <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
+                                                            }
+                                                        </select>
+                                                        <small>Highest-value technical categories are shown first; remaining categories are combined as Others.</small>
+                                                    </label>
+                                                    <label class="form-label">
+                                                        <span>Training highlight category</span>
+                                                        <input class="form-control"
+                                                               name="InstitutionalTrainingHighlightCategory"
+                                                               value="@institutionalProfile.TrainingHighlightTechnicalCategory"
+                                                               maxlength="80"
+                                                               placeholder="AR/VR" />
+                                                        <small>Shown as a compact training highlight beneath the FY figures.</small>
+                                                    </label>
+                                                </div>
+
+                                                <label class="form-label">
+                                                    <span>Military–Academia–Industry synergy <small>one MoU/partner per line</small></span>
+                                                    <textarea class="form-control"
+                                                              name="InstitutionalPartnershipLines"
+                                                              rows="4"
+                                                              maxlength="1200"
+                                                              placeholder="IIT Hyderabad&#10;IIT Bhubaneswar&#10;Private industry / start-ups">@institutionalPartnershipLines</textarea>
+                                                    <small>This is the only output module whose entries are maintained manually in the deck.</small>
+                                                </label>
+
+                                                <fieldset class="pbd-choice-group">
+                                                    <legend>Institutional recognition</legend>
+                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+                                                        <input type="checkbox"
+                                                               name="IncludeInstitutionalUnitCitations"
+                                                               value="true"
+                                                               checked="@institutionalProfile.IncludeUnitCitations"
+                                                               data-pbd-institutional-citations-enable />
+                                                        <span><strong>Include unit-citations strip</strong><small>Manual institutional figure displayed below the output modules.</small></span>
+                                                    </label>
+                                                    <div class="pbd-form-grid pbd-form-grid--institutional"
+                                                         data-pbd-institutional-citations-fields
+                                                         hidden="@(!institutionalProfile.IncludeUnitCitations)">
+                                                        <label class="form-label">
+                                                            <span>Display label</span>
+                                                            <input class="form-control"
+                                                                   name="InstitutionalUnitCitationLabel"
+                                                                   value="@institutionalProfile.UnitCitationLabel"
+                                                                   maxlength="80" />
+                                                        </label>
+                                                        <label class="form-label">
+                                                            <span>Count</span>
+                                                            <input class="form-control"
+                                                                   type="number"
+                                                                   name="InstitutionalUnitCitationCount"
+                                                                   value="@institutionalProfile.UnitCitationCount"
+                                                                   min="0"
+                                                                   max="999" />
+                                                        </label>
+                                                    </div>
+                                                </fieldset>
+                                            </div>
+                                        </div>
+                                    </details>
+
+                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
+                                             data-pbd-settings-collapsible
                                              data-pbd-settings-section="appearance">
                                         <summary id="pbd-settings-appearance-title">
                                             <span data-pbd-settings-appearance-title>Appearance</span>
@@ -726,11 +909,11 @@
                                     <small data-pbd-slide-breakdown>
                                         @if (isUpdateSheet)
                                         {
-                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
+                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
                                         }
                                         else
                                         {
-                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
+                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
                                             @if (deck.SlideEstimate.DetailedProjectSlides > 0)
                                             {
                                                 <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>

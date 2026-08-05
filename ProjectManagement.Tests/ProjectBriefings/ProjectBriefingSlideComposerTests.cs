@@ -1513,6 +1513,96 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
+    public void Compose_PlacesModularInstitutionalProfileAfterCoverWithConfiguredAuthoritativeBreakdowns()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 880,
+            DeckName = "SDD Institutional Profile",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            IncludeCoverSlide = true,
+            IncludePortfolioSummarySlide = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            Projects = new[]
+            {
+                BriefingProject(
+                    880,
+                    "PROFILE SLIDE PROJECT",
+                    StageCodes.DEVP,
+                    ProjectBriefingStageOrder.Development,
+                    1,
+                    projectBrief: "Profile slide ordering regression coverage.")
+            },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 },
+            InstitutionalProfile = new ProjectBriefingInstitutionalProfileData
+            {
+                Title = "SDD – Growth over the years",
+                DataAsOnUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+                HistoryMilestones = new[]
+                {
+                    new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME"),
+                    new ProjectBriefingInstitutionalHistoryMilestone(2024, "CoE (AR/VR)")
+                },
+                Modules = new[]
+                {
+                    new ProjectBriefingInstitutionalModuleData(
+                        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
+                        "Simulators/Projects Developed",
+                        "160",
+                        new[] { new ProjectBriefingInstitutionalMetricRow("AR/VR", "19") }),
+                    new ProjectBriefingInstitutionalModuleData(
+                        ProjectBriefingInstitutionalProfileModule.Proliferation,
+                        "Proliferated",
+                        "15,429",
+                        new[] { new ProjectBriefingInstitutionalMetricRow("Firing Simulators", "10,081") }),
+                    new ProjectBriefingInstitutionalModuleData(
+                        ProjectBriefingInstitutionalProfileModule.TrainingSupport,
+                        "Assistance to Field Formations",
+                        "605",
+                        new[] { new ProjectBriefingInstitutionalMetricRow("FY 2025-26", "150") },
+                        "191 Units / 347 Individuals trained in AR/VR"),
+                    new ProjectBriefingInstitutionalModuleData(
+                        ProjectBriefingInstitutionalProfileModule.IntellectualProperty,
+                        "Intellectual Property",
+                        "21",
+                        new[] { new ProjectBriefingInstitutionalMetricRow("Patents granted", "15") }),
+                    new ProjectBriefingInstitutionalModuleData(
+                        ProjectBriefingInstitutionalProfileModule.Partnerships,
+                        "Military–Academia–Industry Synergy",
+                        null,
+                        new[] { new ProjectBriefingInstitutionalMetricRow("IIT Hyderabad", string.Empty) })
+                },
+                UnitCitationLabel = "GOC-in-C Unit Citations",
+                UnitCitationCount = 3
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(5, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var profileSlide = slides[1];
+        var profileText = SlideText(profileSlide);
+
+        Assert.Contains("SDD – Growth over the years", profileText, StringComparison.Ordinal);
+        Assert.Contains("Conceptualised at MCEME", profileText, StringComparison.Ordinal);
+        Assert.Contains("Simulators/Projects Developed", profileText, StringComparison.Ordinal);
+        Assert.Contains("15,429", profileText, StringComparison.Ordinal);
+        Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
+        Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
+        Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
+        Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
+        Assert.Contains("Data as on 04 Aug 2026 · Source: PRISM ERP", profileText, StringComparison.Ordinal);
+        Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(ShapeByName(profileSlide, "SDD profile title band"));
+        Assert.NotNull(ShapeByName(profileSlide, "Proliferated module"));
+    }
+
+    [Fact]
     public void Compose_AppendsProfessionalJaiHindClosingSlideByDefault()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");

@@ -1,0 +1,2597 @@
+diff --git a/Models/ProjectBriefings/ProjectBriefingDeck.cs b/Models/ProjectBriefings/ProjectBriefingDeck.cs
+index fcd0634..322f472 100644
+--- a/Models/ProjectBriefings/ProjectBriefingDeck.cs
++++ b/Models/ProjectBriefings/ProjectBriefingDeck.cs
+@@ -64,6 +64,18 @@ public enum ProjectBriefingBrandingScope
+     AllSlides = 2
+ }
+ 
++/// <summary>
++/// Modular institutional-output blocks available on the optional SDD profile slide.
++/// </summary>
++public enum ProjectBriefingInstitutionalProfileModule
++{
++    ProjectsDeveloped = 1,
++    Proliferation = 2,
++    TrainingSupport = 3,
++    IntellectualProperty = 4,
++    Partnerships = 5
++}
++
+ /// <summary>
+ /// Logical information rows available on each formal Project Update Sheet.
+ /// Project name is always rendered as the slide title and is therefore not a selectable table row.
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
+index 07e3ef9..893b820 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -85,6 +85,38 @@
+         ProjectBriefingUpdateSheetRow.LineDirectorate => "Responsible line directorate",
+         _ => string.Empty
+     };
++    var institutionalProfile = deck?.InstitutionalProfileOptions
++        ?? ProjectBriefingInstitutionalProfileOptions.Default;
++    var selectedInstitutionalModules = institutionalProfile.Modules.ToHashSet();
++    var orderedInstitutionalModules = institutionalProfile.Modules
++        .Concat(ProjectBriefingInstitutionalProfileOptions.DefaultModules)
++        .Distinct()
++        .ToArray();
++    var institutionalModuleOrder = string.Join(",", orderedInstitutionalModules);
++    var institutionalHistoryLines = string.Join(
++        Environment.NewLine,
++        institutionalProfile.HistoryMilestones.Select(item => $"{item.Year} | {item.Text}"));
++    var institutionalPartnershipLines = string.Join(
++        Environment.NewLine,
++        institutionalProfile.PartnershipEntries);
++    string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
++    {
++        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
++        ProjectBriefingInstitutionalProfileModule.Proliferation => "Proliferated",
++        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Assistance to Field Formations",
++        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Intellectual Property",
++        ProjectBriefingInstitutionalProfileModule.Partnerships => "Military–Academia–Industry Synergy",
++        _ => module.ToString()
++    };
++    string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
++    {
++        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Completed projects with technical-category-wise counts from PRISM.",
++        ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
++        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
++        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
++        ProjectBriefingInstitutionalProfileModule.Partnerships => "User-maintained MoU and institutional-partner names.",
++        _ => string.Empty
++    };
+     var standardIncludesDetailedSlides = deck?.PresentationMode
+         is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
+     var standardIncludesCostRd = deck?.CostMode
+@@ -123,10 +155,12 @@
+         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
+     var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
+     var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
++    var institutionalProfileSummary = institutionalProfile.IncludeSlide ? " · SDD profile" : string.Empty;
+     var settingsSummaryLabel = isUpdateSheet
+-        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows · {themeLabel} · R&D cost · {closingSlideLabel}"
++        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows{institutionalProfileSummary} · {themeLabel} · R&D cost · {closingSlideLabel}"
+         : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
+           + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
++          + institutionalProfileSummary
+           + $" · {themeLabel} · {costModeLabel} · {closingSlideLabel}";
+     var missingArppNumberCount = deck?.Projects.Count(project =>
+         project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
+@@ -540,6 +574,155 @@
+                                         </div>
+                                     </details>
+ 
++                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
++                                             data-pbd-settings-collapsible
++                                             data-pbd-settings-section="institutional-profile">
++                                        <summary id="pbd-settings-institutional-title">
++                                            <span>SDD institutional profile</span>
++                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
++                                        </summary>
++                                        <div class="pbd-settings-section__body">
++                                            <label class="pbd-institutional-profile-toggle">
++                                                <input type="checkbox"
++                                                       name="IncludeInstitutionalProfile"
++                                                       value="true"
++                                                       checked="@institutionalProfile.IncludeSlide"
++                                                       data-pbd-institutional-profile-enable />
++                                                <span>
++                                                    <strong>Include “SDD – Growth over the years” slide</strong>
++                                                    <small>Placed immediately after the cover. ERP-backed figures refresh whenever the PowerPoint is generated.</small>
++                                                </span>
++                                            </label>
++
++                                            <div class="pbd-institutional-profile-settings"
++                                                 data-pbd-institutional-profile-settings
++                                                 hidden="@(!institutionalProfile.IncludeSlide)">
++                                                <label class="form-label">
++                                                    <span>Slide title</span>
++                                                    <input class="form-control"
++                                                           name="InstitutionalProfileTitle"
++                                                           value="@institutionalProfile.Title"
++                                                           maxlength="120" />
++                                                </label>
++
++                                                <fieldset class="pbd-choice-group">
++                                                    <legend>History timeline</legend>
++                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
++                                                        <input type="checkbox"
++                                                               name="IncludeInstitutionalHistory"
++                                                               value="true"
++                                                               checked="@institutionalProfile.IncludeHistory"
++                                                               data-pbd-institutional-history-enable />
++                                                        <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
++                                                    </label>
++                                                    <label class="form-label" data-pbd-institutional-history-fields hidden="@(!institutionalProfile.IncludeHistory)">
++                                                        <span>Milestones <small>one per line: YEAR | milestone</small></span>
++                                                        <textarea class="form-control"
++                                                                  name="InstitutionalHistoryLines"
++                                                                  rows="6"
++                                                                  maxlength="1600"
++                                                                  spellcheck="true">@institutionalHistoryLines</textarea>
++                                                    </label>
++                                                </fieldset>
++
++                                                <fieldset class="pbd-choice-group">
++                                                    <legend>Institutional-output modules</legend>
++                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures are read-only and are taken from their authoritative PRISM modules. Select and order only what should appear on the slide.</p>
++                                                    <input type="hidden"
++                                                           name="InstitutionalModuleOrder"
++                                                           value="@institutionalModuleOrder"
++                                                           data-pbd-institutional-module-order />
++                                                    <div class="pbd-institutional-module-list" data-pbd-institutional-module-list>
++                                                        @foreach (var module in orderedInstitutionalModules)
++                                                        {
++                                                            <div class="pbd-institutional-module-option"
++                                                                 data-pbd-institutional-module
++                                                                 data-module-key="@module">
++                                                                <span class="pbd-institutional-module-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
++                                                                <label>
++                                                                    <input type="checkbox"
++                                                                           name="InstitutionalModules"
++                                                                           value="@module"
++                                                                           checked="@selectedInstitutionalModules.Contains(module)" />
++                                                                    <span><strong>@InstitutionalModuleLabel(module)</strong><small>@InstitutionalModuleDescription(module)</small></span>
++                                                                </label>
++                                                                <span class="pbd-institutional-module-option__move">
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-up aria-label="Move @InstitutionalModuleLabel(module) up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-down aria-label="Move @InstitutionalModuleLabel(module) down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
++                                                                </span>
++                                                            </div>
++                                                        }
++                                                    </div>
++                                                    <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
++                                                </fieldset>
++
++                                                <div class="pbd-form-grid pbd-form-grid--institutional">
++                                                    <label class="form-label">
++                                                        <span>Maximum detail rows per module</span>
++                                                        <select class="form-select" name="InstitutionalMaximumDetailRows">
++                                                            @for (var rowCount = 3; rowCount <= 7; rowCount++)
++                                                            {
++                                                                <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
++                                                            }
++                                                        </select>
++                                                        <small>Highest-value technical categories are shown first; remaining categories are combined as Others.</small>
++                                                    </label>
++                                                    <label class="form-label">
++                                                        <span>Training highlight category</span>
++                                                        <input class="form-control"
++                                                               name="InstitutionalTrainingHighlightCategory"
++                                                               value="@institutionalProfile.TrainingHighlightTechnicalCategory"
++                                                               maxlength="80"
++                                                               placeholder="AR/VR" />
++                                                        <small>Shown as a compact training highlight beneath the FY figures.</small>
++                                                    </label>
++                                                </div>
++
++                                                <label class="form-label">
++                                                    <span>Military–Academia–Industry synergy <small>one MoU/partner per line</small></span>
++                                                    <textarea class="form-control"
++                                                              name="InstitutionalPartnershipLines"
++                                                              rows="4"
++                                                              maxlength="1200"
++                                                              placeholder="IIT Hyderabad&#10;IIT Bhubaneswar&#10;Private industry / start-ups">@institutionalPartnershipLines</textarea>
++                                                    <small>This is the only output module whose entries are maintained manually in the deck.</small>
++                                                </label>
++
++                                                <fieldset class="pbd-choice-group">
++                                                    <legend>Institutional recognition</legend>
++                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
++                                                        <input type="checkbox"
++                                                               name="IncludeInstitutionalUnitCitations"
++                                                               value="true"
++                                                               checked="@institutionalProfile.IncludeUnitCitations"
++                                                               data-pbd-institutional-citations-enable />
++                                                        <span><strong>Include unit-citations strip</strong><small>Manual institutional figure displayed below the output modules.</small></span>
++                                                    </label>
++                                                    <div class="pbd-form-grid pbd-form-grid--institutional"
++                                                         data-pbd-institutional-citations-fields
++                                                         hidden="@(!institutionalProfile.IncludeUnitCitations)">
++                                                        <label class="form-label">
++                                                            <span>Display label</span>
++                                                            <input class="form-control"
++                                                                   name="InstitutionalUnitCitationLabel"
++                                                                   value="@institutionalProfile.UnitCitationLabel"
++                                                                   maxlength="80" />
++                                                        </label>
++                                                        <label class="form-label">
++                                                            <span>Count</span>
++                                                            <input class="form-control"
++                                                                   type="number"
++                                                                   name="InstitutionalUnitCitationCount"
++                                                                   value="@institutionalProfile.UnitCitationCount"
++                                                                   min="0"
++                                                                   max="999" />
++                                                        </label>
++                                                    </div>
++                                                </fieldset>
++                                            </div>
++                                        </div>
++                                    </details>
++
+                                     <details class="pbd-settings-section pbd-settings-section--collapsible"
+                                              data-pbd-settings-collapsible
+                                              data-pbd-settings-section="appearance">
+@@ -726,11 +909,11 @@
+                                     <small data-pbd-slide-breakdown>
+                                         @if (isUpdateSheet)
+                                         {
+-                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
++                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
+                                         }
+                                         else
+                                         {
+-                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
++                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
+                                             @if (deck.SlideEstimate.DetailedProjectSlides > 0)
+                                             {
+                                                 <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml.cs b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+index fb65ceb..5d863d9 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml.cs
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+@@ -166,6 +166,18 @@ public sealed class IndexModel : PageModel
+                     ShowPresentStatus = input.ShowPresentStatus,
+                     PresentationTheme = input.PresentationTheme,
+                     ClosingSlideType = input.ClosingSlideType,
++                    InstitutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
++                        input.IncludeInstitutionalProfile,
++                        input.InstitutionalProfileTitle,
++                        input.IncludeInstitutionalHistory,
++                        ParseInstitutionalHistory(input.InstitutionalHistoryLines),
++                        ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
++                        input.InstitutionalMaximumDetailRows,
++                        input.InstitutionalTrainingHighlightCategory,
++                        ParseSimpleLines(input.InstitutionalPartnershipLines),
++                        input.IncludeInstitutionalUnitCitations,
++                        input.InstitutionalUnitCitationCount,
++                        input.InstitutionalUnitCitationLabel),
+                     BrandingScope = input.BrandingScope,
+                     IncludeCoverSlide = input.IncludeCoverSlide,
+                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
+@@ -543,6 +555,55 @@ public sealed class IndexModel : PageModel
+         return ordered;
+     }
+ 
++    private static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> ResolveInstitutionalModules(
++        IReadOnlyCollection<ProjectBriefingInstitutionalProfileModule>? selectedModules,
++        string? orderedModules)
++    {
++        var selected = (selectedModules ?? Array.Empty<ProjectBriefingInstitutionalProfileModule>())
++            .Where(Enum.IsDefined)
++            .ToHashSet();
++        var ordered = (orderedModules ?? string.Empty)
++            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
++            .Select(value => Enum.TryParse<ProjectBriefingInstitutionalProfileModule>(value, ignoreCase: true, out var module)
++                ? module
++                : (ProjectBriefingInstitutionalProfileModule?)null)
++            .Where(module => module.HasValue && Enum.IsDefined(module.Value) && selected.Contains(module.Value))
++            .Select(module => module!.Value)
++            .Distinct()
++            .ToList();
++
++        ordered.AddRange(selected.Where(module => !ordered.Contains(module)));
++        return ordered;
++    }
++
++    private static IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> ParseInstitutionalHistory(string? value)
++    {
++        var result = new List<ProjectBriefingInstitutionalHistoryMilestone>();
++        foreach (var line in ParseSimpleLines(value))
++        {
++            var separator = line.IndexOf('|');
++            if (separator <= 0 || separator >= line.Length - 1)
++            {
++                continue;
++            }
++
++            if (int.TryParse(line[..separator].Trim(), out var year))
++            {
++                result.Add(new ProjectBriefingInstitutionalHistoryMilestone(
++                    year,
++                    line[(separator + 1)..].Trim()));
++            }
++        }
++
++        return result;
++    }
++
++    private static IReadOnlyList<string> ParseSimpleLines(string? value)
++        => (value ?? string.Empty)
++            .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
++            .Where(line => !string.IsNullOrWhiteSpace(line))
++            .ToArray();
++
+     public sealed class SaveDeckSettingsInput
+     {
+         [Required]
+@@ -580,6 +641,38 @@ public sealed class IndexModel : PageModel
+         public ProjectBriefingClosingSlideType ClosingSlideType { get; set; }
+             = ProjectBriefingClosingSlideType.JaiHind;
+ 
++        public bool IncludeInstitutionalProfile { get; set; }
++
++        [StringLength(120)]
++        public string? InstitutionalProfileTitle { get; set; }
++
++        public bool IncludeInstitutionalHistory { get; set; } = true;
++
++        [StringLength(1600)]
++        public string? InstitutionalHistoryLines { get; set; }
++
++        public List<ProjectBriefingInstitutionalProfileModule> InstitutionalModules { get; set; } = new();
++
++        [StringLength(300)]
++        public string? InstitutionalModuleOrder { get; set; }
++
++        [Range(3, 7)]
++        public int InstitutionalMaximumDetailRows { get; set; } = 6;
++
++        [StringLength(80)]
++        public string? InstitutionalTrainingHighlightCategory { get; set; }
++
++        [StringLength(1200)]
++        public string? InstitutionalPartnershipLines { get; set; }
++
++        public bool IncludeInstitutionalUnitCitations { get; set; }
++
++        [Range(0, 999)]
++        public int? InstitutionalUnitCitationCount { get; set; }
++
++        [StringLength(80)]
++        public string? InstitutionalUnitCitationLabel { get; set; }
++
+         [Required]
+         public ProjectBriefingBrandingScope BrandingScope { get; set; }
+ 
+diff --git a/Program.cs b/Program.cs
+index f448621..25d8c61 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -643,6 +643,7 @@ builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefin
+ builder.Services.AddScoped<IProjectBriefingUpdateSheetFactsResolver, ProjectBriefingUpdateSheetFactsResolver>();
+ builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
+ builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
++builder.Services.AddScoped<IProjectBriefingInstitutionalProfileService, ProjectBriefingInstitutionalProfileService>();
+ builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();
+ builder.Services.AddScoped<IProjectBriefingPowerPointExportService, ProjectBriefingPowerPointExportService>();
+ builder.Services.AddSingleton<IProjectBriefingSlideComposer, ProjectBriefingSlideComposer>();
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+index 650bedf..1675948 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -475,6 +475,40 @@ public sealed class ProjectBriefingContractTests
+         Assert.Contains("No PowerPoint-ready photograph was found", source, StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void InstitutionalProfileSlide_IsOptionalModularAndUsesAuthoritativePrismBreakdowns()
++    {
++        var page = Read("Index.cshtml");
++        var script = Read("project-briefing-decks.js");
++        var service = Read("ProjectBriefingInstitutionalProfileService.cs");
++        var composer = Read("ProjectBriefingSlideComposer.InstitutionalProfile.cs");
++        var dataSource = Read("ProjectBriefingDataService.cs");
++
++        Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalModules", page, StringComparison.Ordinal);
++        Assert.Contains("YEAR | milestone", page, StringComparison.Ordinal);
++        Assert.Contains("one MoU/partner per line", page, StringComparison.Ordinal);
++        Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
++        Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
++        Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
++
++        Assert.Contains("ProjectLifecycleStatus.Completed", service, StringComparison.Ordinal);
++        Assert.Contains("GetApprovedAggregatesAsync", service, StringComparison.Ordinal);
++        Assert.Contains("TechnicalCategoryName", service, StringComparison.Ordinal);
++        Assert.Contains("GetKpisAsync", service, StringComparison.Ordinal);
++        Assert.Contains("FY {year.TrainingYearLabel}", service, StringComparison.Ordinal);
++        Assert.Contains("Units /", service, StringComparison.Ordinal);
++        Assert.Contains("IprRecords", service, StringComparison.Ordinal);
++        Assert.DoesNotContain("515 ABW", service, StringComparison.OrdinalIgnoreCase);
++
++        Assert.Contains("RenderInstitutionalProfile", composer, StringComparison.Ordinal);
++        Assert.Contains("RenderInstitutionalHistory", composer, StringComparison.Ordinal);
++        Assert.Contains("RenderInstitutionalModules", composer, StringComparison.Ordinal);
++        Assert.Contains("Data as on", composer, StringComparison.Ordinal);
++        Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);
++    }
++
+     private static string Read(string fileName)
+     {
+         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", fileName);
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+index 66ee5e1..e08be0a 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+@@ -21,6 +21,10 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+         Assert.True(configuration.StandardSlideOptions.ShowPresentStage);
+         Assert.True(configuration.StandardSlideOptions.ShowPresentStatus);
+         Assert.Equal(ProjectBriefingClosingSlideType.JaiHind, configuration.ClosingSlideType);
++        Assert.False(configuration.InstitutionalProfileOptions.IncludeSlide);
++        Assert.Equal(
++            ProjectBriefingInstitutionalProfileOptions.DefaultModules,
++            configuration.InstitutionalProfileOptions.Modules);
+     }
+ 
+     [Fact]
+@@ -189,6 +193,77 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+             ProjectBriefingDeckConfigurationCodec.Read(withStandard).ClosingSlideType);
+     }
+ 
++
++    [Fact]
++    public void InstitutionalProfileOptions_RoundTripAuthorisedManualContentAndModuleOrder()
++    {
++        var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
++            includeSlide: true,
++            title: "SDD – Growth over the years",
++            includeHistory: true,
++            historyMilestones: new[]
++            {
++                new ProjectBriefingInstitutionalHistoryMilestone(1991, "Raising & 1st PE"),
++                new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME")
++            },
++            modules: new[]
++            {
++                ProjectBriefingInstitutionalProfileModule.Proliferation,
++                ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
++                ProjectBriefingInstitutionalProfileModule.Partnerships
++            },
++            maximumDetailRows: 5,
++            trainingHighlightTechnicalCategory: "AR/VR",
++            partnershipEntries: new[] { "IIT Hyderabad", "Private industry / start-ups" },
++            includeUnitCitations: true,
++            unitCitationCount: 3,
++            unitCitationLabel: "GOC-in-C Unit Citations");
++
++        var encoded = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
++            "{\"kind\":\"Ongoing\"}",
++            options);
++        var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
++
++        Assert.True(decoded.InstitutionalProfileOptions.IncludeSlide);
++        Assert.Equal(options.Modules, decoded.InstitutionalProfileOptions.Modules);
++        Assert.Equal(options.HistoryMilestones, decoded.InstitutionalProfileOptions.HistoryMilestones);
++        Assert.Equal(options.PartnershipEntries, decoded.InstitutionalProfileOptions.PartnershipEntries);
++        Assert.Equal(3, decoded.InstitutionalProfileOptions.UnitCitationCount);
++        Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void PresentationPreferenceUpdates_PreserveInstitutionalProfileConfiguration()
++    {
++        var initial = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
++            null,
++            ProjectBriefingInstitutionalProfileOptions.Normalize(
++                includeSlide: true,
++                title: null,
++                includeHistory: false,
++                historyMilestones: Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
++                modules: new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
++                maximumDetailRows: 4,
++                trainingHighlightTechnicalCategory: null,
++                partnershipEntries: Array.Empty<string>(),
++                includeUnitCitations: false,
++                unitCitationCount: null,
++                unitCitationLabel: null));
++
++        var updated = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
++            initial,
++            ProjectBriefingUpdateSheetOptions.Default,
++            ProjectBriefingStandardSlideOptions.Default,
++            ProjectBriefingClosingSlideType.ThankYou);
++        var decoded = ProjectBriefingDeckConfigurationCodec.Read(updated);
++
++        Assert.True(decoded.InstitutionalProfileOptions.IncludeSlide);
++        Assert.False(decoded.InstitutionalProfileOptions.IncludeHistory);
++        Assert.Equal(
++            new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
++            decoded.InstitutionalProfileOptions.Modules);
++    }
++
+     [Fact]
+     public void Normalize_RemovesDuplicatesAndInvalidEnumValues()
+     {
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs
+index b59566e..3d656fa 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDependencyInjectionTests.cs
+@@ -25,6 +25,25 @@ public sealed class ProjectBriefingDependencyInjectionTests
+             "Register the facts resolver before ProjectBriefingDataService for a clear dependency order.");
+     }
+ 
++    [Fact]
++    public void Program_RegistersInstitutionalProfileServiceBeforeBriefingDataService()
++    {
++        var program = ReadRepoFile("Program.cs");
++
++        const string profileRegistration =
++            "builder.Services.AddScoped<IProjectBriefingInstitutionalProfileService, ProjectBriefingInstitutionalProfileService>();";
++        const string dataServiceRegistration =
++            "builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();";
++
++        var profileIndex = program.IndexOf(profileRegistration, StringComparison.Ordinal);
++        var dataServiceIndex = program.IndexOf(dataServiceRegistration, StringComparison.Ordinal);
++
++        Assert.True(profileIndex >= 0,
++            "The SDD institutional profile snapshot service must be registered in dependency injection.");
++        Assert.True(dataServiceIndex > profileIndex,
++            "Register the institutional profile service before ProjectBriefingDataService.");
++    }
++
+     private static string ReadRepoFile(params string[] relativePath)
+     {
+         var current = new DirectoryInfo(AppContext.BaseDirectory);
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+index ddebed0..d92cbc7 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -1512,6 +1512,96 @@ public sealed class ProjectBriefingSlideComposerTests
+     }
+ 
+ 
++    [Fact]
++    public void Compose_PlacesModularInstitutionalProfileAfterCoverWithConfiguredAuthoritativeBreakdowns()
++    {
++        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
++        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
++        var data = new ProjectBriefingPresentationData
++        {
++            DeckId = 880,
++            DeckName = "SDD Institutional Profile",
++            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
++            IncludeCoverSlide = true,
++            IncludePortfolioSummarySlide = true,
++            GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
++            Projects = new[]
++            {
++                BriefingProject(
++                    880,
++                    "PROFILE SLIDE PROJECT",
++                    StageCodes.DEVP,
++                    ProjectBriefingStageOrder.Development,
++                    1,
++                    projectBrief: "Profile slide ordering regression coverage.")
++            },
++            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 },
++            InstitutionalProfile = new ProjectBriefingInstitutionalProfileData
++            {
++                Title = "SDD – Growth over the years",
++                DataAsOnUtc = new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
++                HistoryMilestones = new[]
++                {
++                    new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME"),
++                    new ProjectBriefingInstitutionalHistoryMilestone(2024, "CoE (AR/VR)")
++                },
++                Modules = new[]
++                {
++                    new ProjectBriefingInstitutionalModuleData(
++                        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
++                        "Simulators/Projects Developed",
++                        "160",
++                        new[] { new ProjectBriefingInstitutionalMetricRow("AR/VR", "19") }),
++                    new ProjectBriefingInstitutionalModuleData(
++                        ProjectBriefingInstitutionalProfileModule.Proliferation,
++                        "Proliferated",
++                        "15,429",
++                        new[] { new ProjectBriefingInstitutionalMetricRow("Firing Simulators", "10,081") }),
++                    new ProjectBriefingInstitutionalModuleData(
++                        ProjectBriefingInstitutionalProfileModule.TrainingSupport,
++                        "Assistance to Field Formations",
++                        "605",
++                        new[] { new ProjectBriefingInstitutionalMetricRow("FY 2025-26", "150") },
++                        "191 Units / 347 Individuals trained in AR/VR"),
++                    new ProjectBriefingInstitutionalModuleData(
++                        ProjectBriefingInstitutionalProfileModule.IntellectualProperty,
++                        "Intellectual Property",
++                        "21",
++                        new[] { new ProjectBriefingInstitutionalMetricRow("Patents granted", "15") }),
++                    new ProjectBriefingInstitutionalModuleData(
++                        ProjectBriefingInstitutionalProfileModule.Partnerships,
++                        "Military–Academia–Industry Synergy",
++                        null,
++                        new[] { new ProjectBriefingInstitutionalMetricRow("IIT Hyderabad", string.Empty) })
++                },
++                UnitCitationLabel = "GOC-in-C Unit Citations",
++                UnitCitationCount = 3
++            }
++        };
++
++        var (content, slideCount) = composer.Compose(data);
++
++        Assert.Equal(5, slideCount);
++        using var stream = new MemoryStream(content, writable: false);
++        using var document = PresentationDocument.Open(stream, false);
++        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
++        var profileSlide = slides[1];
++        var profileText = SlideText(profileSlide);
++
++        Assert.Contains("SDD – Growth over the years", profileText, StringComparison.Ordinal);
++        Assert.Contains("Conceptualised at MCEME", profileText, StringComparison.Ordinal);
++        Assert.Contains("Simulators/Projects Developed", profileText, StringComparison.Ordinal);
++        Assert.Contains("15,429", profileText, StringComparison.Ordinal);
++        Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
++        Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
++        Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
++        Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
++        Assert.Contains("Data as on 04 Aug 2026 · Source: PRISM ERP", profileText, StringComparison.Ordinal);
++        Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
++        Assert.NotNull(ShapeByName(profileSlide, "SDD profile title band"));
++        Assert.NotNull(ShapeByName(profileSlide, "Proliferated module"));
++    }
++
+     [Fact]
+     public void Compose_AppendsProfessionalJaiHindClosingSlideByDefault()
+     {
+diff --git a/ProjectManagement.Tests/ProjectManagement.Tests.csproj b/ProjectManagement.Tests/ProjectManagement.Tests.csproj
+index 4c8ecf8..16ec4bc 100644
+--- a/ProjectManagement.Tests/ProjectManagement.Tests.csproj
++++ b/ProjectManagement.Tests/ProjectManagement.Tests.csproj
+@@ -169,6 +169,9 @@
+     <None Include="..\Services\ProjectBriefings\ProjectBriefingDataService.cs"
+           Link="TestData\ProjectBriefing\ProjectBriefingDataService.cs"
+           CopyToOutputDirectory="PreserveNewest" />
++    <None Include="..\Services\ProjectBriefings\ProjectBriefingInstitutionalProfileService.cs"
++          Link="TestData\ProjectBriefing\ProjectBriefingInstitutionalProfileService.cs"
++          CopyToOutputDirectory="PreserveNewest" />
+     <None Include="..\Services\ProjectBriefings\ProjectBriefingPhotoLoader.cs"
+           Link="TestData\ProjectBriefing\ProjectBriefingPhotoLoader.cs"
+           CopyToOutputDirectory="PreserveNewest" />
+@@ -178,6 +181,9 @@
+     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.UpdateSheet.cs"
+           Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.UpdateSheet.cs"
+           CopyToOutputDirectory="PreserveNewest" />
++    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.InstitutionalProfile.cs"
++          Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.InstitutionalProfile.cs"
++          CopyToOutputDirectory="PreserveNewest" />
+     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingThemeDefinition.cs"
+           Link="TestData\ProjectBriefing\ProjectBriefingThemeDefinition.cs"
+           CopyToOutputDirectory="PreserveNewest" />
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+new file mode 100644
+index 0000000..a5e7298
+--- /dev/null
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+@@ -0,0 +1,341 @@
++using System.Globalization;
++using ProjectManagement.Models.ProjectBriefings;
++using ProjectManagement.Services.ProjectBriefings;
++
++namespace ProjectManagement.Services.ProjectBriefings.Presentation;
++
++public sealed partial class ProjectBriefingSlideComposer
++{
++    private static void RenderInstitutionalProfile(
++        SlideCanvas canvas,
++        ProjectBriefingInstitutionalProfileData profile)
++    {
++        var theme = canvas.Theme;
++        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.Canvas, name: "SDD profile canvas");
++        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "SDD profile top accent");
++        canvas.AddBrandingImages(HeaderVariant.Standard);
++
++        var titleX = canvas.ShowBranding ? 1.28 : .62;
++        var titleWidth = canvas.ShowBranding ? 10.78 : 12.10;
++        canvas.AddRoundedRect(
++            titleX,
++            .22,
++            titleWidth,
++            .62,
++            theme.HeaderAccent,
++            theme.HeaderAccent,
++            .04,
++            "SDD profile title band");
++        canvas.AddText(
++            titleX + .24,
++            .30,
++            titleWidth - .48,
++            .43,
++            Truncate(profile.Title, 110),
++            23.5,
++            theme.TextOnAccent,
++            true,
++            "ctr",
++            name: "SDD profile title");
++
++        var hasHistory = profile.HistoryMilestones.Count > 0;
++        var hasCitation = profile.UnitCitationCount.HasValue
++            && !string.IsNullOrWhiteSpace(profile.UnitCitationLabel);
++        var cardsTop = hasHistory ? 2.48 : 1.10;
++        var dataLineY = hasCitation ? 6.59 : 6.75;
++        var cardsBottom = hasCitation ? 6.24 : 6.52;
++
++        if (hasHistory)
++        {
++            RenderInstitutionalHistory(canvas, profile.HistoryMilestones);
++        }
++
++        RenderInstitutionalModules(
++            canvas,
++            profile.Modules,
++            cardsTop,
++            cardsBottom - cardsTop);
++
++        if (hasCitation)
++        {
++            RenderInstitutionalCitation(
++                canvas,
++                profile.UnitCitationLabel!,
++                profile.UnitCitationCount!.Value);
++        }
++
++        var dataAsOn = profile.DataAsOnUtc.ToUniversalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
++        canvas.AddText(
++            .76,
++            dataLineY,
++            11.82,
++            .18,
++            $"Data as on {dataAsOn} · Source: PRISM ERP",
++            7.8,
++            theme.TextMuted,
++            false,
++            "ctr",
++            name: "SDD profile data source");
++    }
++
++    private static void RenderInstitutionalHistory(
++        SlideCanvas canvas,
++        IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> history)
++    {
++        var items = history
++            .OrderBy(item => item.Year)
++            .ThenBy(item => item.Text, StringComparer.OrdinalIgnoreCase)
++            .Take(8)
++            .ToArray();
++        if (items.Length == 0) return;
++
++        const double left = .82;
++        const double right = 12.52;
++        const double lineY = 1.62;
++        var span = right - left;
++        canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.05);
++
++        for (var index = 0; index < items.Length; index++)
++        {
++            var item = items[index];
++            var x = items.Length == 1
++                ? (left + right) / 2
++                : left + ((span * index) / (items.Length - 1));
++            var labelWidth = items.Length >= 7 ? 1.43 : 1.66;
++            var labelX = Math.Clamp(x - (labelWidth / 2), .56, 12.77 - labelWidth);
++            var above = index % 2 == 0;
++            var textY = above ? .98 : 1.73;
++            var yearY = above ? .91 : 1.68;
++
++            canvas.AddText(
++                labelX,
++                yearY,
++                labelWidth,
++                .24,
++                item.Year.ToString(CultureInfo.InvariantCulture),
++                10.8,
++                canvas.Theme.HeaderAccent,
++                true,
++                "ctr",
++                name: $"SDD milestone year {item.Year}");
++            canvas.AddText(
++                labelX,
++                textY + .22,
++                labelWidth,
++                .43,
++                Truncate(item.Text, 48),
++                items.Length >= 7 ? 8.0 : 8.6,
++                canvas.Theme.TextPrimary,
++                true,
++                "ctr",
++                verticalAnchor: "t",
++                name: $"SDD milestone {item.Year}");
++            canvas.AddText(
++                x - .10,
++                lineY - .12,
++                .20,
++                .24,
++                "●",
++                10.5,
++                canvas.Theme.Warning,
++                true,
++                "ctr",
++                name: $"SDD milestone marker {item.Year}");
++        }
++    }
++
++    private static void RenderInstitutionalModules(
++        SlideCanvas canvas,
++        IReadOnlyList<ProjectBriefingInstitutionalModuleData> modules,
++        double top,
++        double height)
++    {
++        if (modules.Count == 0)
++        {
++            // A history-only profile is valid. Do not expose configuration guidance in the exported deck.
++            return;
++        }
++
++        var visible = modules.Take(5).ToArray();
++        const double left = .60;
++        const double right = 12.73;
++        const double gap = .12;
++        var cardWidth = (right - left - ((visible.Length - 1) * gap)) / visible.Length;
++
++        for (var index = 0; index < visible.Length; index++)
++        {
++            var module = visible[index];
++            var x = left + (index * (cardWidth + gap));
++            RenderInstitutionalModuleCard(canvas, module, x, top, cardWidth, height);
++        }
++    }
++
++    private static void RenderInstitutionalModuleCard(
++        SlideCanvas canvas,
++        ProjectBriefingInstitutionalModuleData module,
++        double x,
++        double y,
++        double width,
++        double height)
++    {
++        var accent = InstitutionalModuleAccent(canvas.Theme, module.Module);
++        var soft = InstitutionalModuleSoftFill(canvas.Theme, module.Module);
++        canvas.AddRoundedRect(x, y, width, height, canvas.Theme.Surface, canvas.Theme.Border, .055, $"{module.Title} module");
++        canvas.AddRect(x, y, width, .075, accent, name: $"{module.Title} accent");
++        canvas.AddRect(x, y + .075, width, .62, soft, name: $"{module.Title} header fill");
++
++        canvas.AddText(
++            x + .16,
++            y + .15,
++            width - .32,
++            .42,
++            Truncate(module.Title, 48),
++            width < 2.25 ? 9.0 : 9.7,
++            accent,
++            true,
++            "ctr",
++            name: $"{module.Title} heading");
++
++        var cursorY = y + .78;
++        if (!string.IsNullOrWhiteSpace(module.Headline))
++        {
++            canvas.AddText(
++                x + .14,
++                cursorY,
++                width - .28,
++                .48,
++                module.Headline!,
++                width < 2.25 ? 19.0 : 21.0,
++                canvas.Theme.TextPrimary,
++                true,
++                "ctr",
++                name: $"{module.Title} headline");
++            cursorY += .53;
++        }
++        else
++        {
++            cursorY += .12;
++        }
++
++        var highlightReserve = string.IsNullOrWhiteSpace(module.Highlight) ? 0d : .48;
++        var availableRowsHeight = Math.Max(.72, (y + height - .16) - cursorY - highlightReserve);
++        var rowCount = Math.Max(1, module.Rows.Count);
++        var rowHeight = Math.Clamp(availableRowsHeight / rowCount, .25, .41);
++        var maximumVisibleRows = Math.Max(1, (int)Math.Floor(availableRowsHeight / rowHeight));
++        var rows = module.Rows.Take(maximumVisibleRows).ToArray();
++        var labelWidth = module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships
++            ? width - .34
++            : Math.Max(.82, width - .72);
++
++        foreach (var row in rows)
++        {
++            var label = module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships
++                ? $"• {row.Label}"
++                : row.Label;
++            canvas.AddText(
++                x + .16,
++                cursorY,
++                labelWidth,
++                rowHeight,
++                Truncate(label, width < 2.25 ? 28 : 36),
++                width < 2.25 ? 7.9 : 8.5,
++                canvas.Theme.TextSecondary,
++                false,
++                "l",
++                name: $"{module.Title} row label");
++            if (!string.IsNullOrWhiteSpace(row.Value))
++            {
++                canvas.AddText(
++                    x + width - .58,
++                    cursorY,
++                    .42,
++                    rowHeight,
++                    row.Value,
++                    width < 2.25 ? 8.0 : 8.7,
++                    canvas.Theme.TextPrimary,
++                    true,
++                    "r",
++                    name: $"{module.Title} row value");
++            }
++            cursorY += rowHeight;
++        }
++
++        if (!string.IsNullOrWhiteSpace(module.Highlight))
++        {
++            var highlightY = y + height - .49;
++            canvas.AddRoundedRect(
++                x + .12,
++                highlightY,
++                width - .24,
++                .34,
++                soft,
++                null,
++                .035,
++                $"{module.Title} highlight");
++            canvas.AddText(
++                x + .20,
++                highlightY + .03,
++                width - .40,
++                .28,
++                Truncate(module.Highlight, width < 2.25 ? 54 : 68),
++                width < 2.25 ? 7.1 : 7.7,
++                accent,
++                true,
++                "l",
++                name: $"{module.Title} highlight text");
++        }
++    }
++
++    private static void RenderInstitutionalCitation(
++        SlideCanvas canvas,
++        string label,
++        int count)
++    {
++        canvas.AddRoundedRect(
++            4.35,
++            6.33,
++            4.63,
++            .38,
++            canvas.Theme.SurfaceRaised,
++            canvas.Theme.HeaderAccent,
++            .04,
++            "Institutional recognition strip");
++        canvas.AddText(
++            4.56,
++            6.385,
++            4.21,
++            .25,
++            $"{Truncate(label, 58)} — {count:00}",
++            11.2,
++            canvas.Theme.TextPrimary,
++            true,
++            "ctr",
++            name: "Institutional recognition text");
++    }
++
++    private static string InstitutionalModuleAccent(
++        ProjectBriefingThemeDefinition theme,
++        ProjectBriefingInstitutionalProfileModule module)
++        => module switch
++        {
++            ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => theme.SecondaryAccent,
++            ProjectBriefingInstitutionalProfileModule.Proliferation => theme.Accent,
++            ProjectBriefingInstitutionalProfileModule.TrainingSupport => theme.HeaderAccent,
++            ProjectBriefingInstitutionalProfileModule.IntellectualProperty => theme.Warning,
++            ProjectBriefingInstitutionalProfileModule.Partnerships => theme.Positive,
++            _ => theme.Accent
++        };
++
++    private static string InstitutionalModuleSoftFill(
++        ProjectBriefingThemeDefinition theme,
++        ProjectBriefingInstitutionalProfileModule module)
++        => module switch
++        {
++            ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => theme.SecondaryAccentSoft,
++            ProjectBriefingInstitutionalProfileModule.Proliferation => theme.AccentSoft,
++            ProjectBriefingInstitutionalProfileModule.TrainingSupport => theme.CriticalSoft,
++            ProjectBriefingInstitutionalProfileModule.IntellectualProperty => theme.WarningSoft,
++            ProjectBriefingInstitutionalProfileModule.Partnerships => theme.PositiveSoft,
++            _ => theme.SurfaceMuted
++        };
++}
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+index 5137bfa..2a89b19 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+@@ -15,6 +15,12 @@ public sealed partial class ProjectBriefingSlideComposer
+         {
+             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
+         }
++        if (data.InstitutionalProfile is not null)
++        {
++            plans.Add(new SlidePlan(
++                SlidePlanKind.InstitutionalProfile,
++                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
++        }
+         if (data.IncludePortfolioSummarySlide)
+         {
+             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+index 0ecd123..72d9855 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -124,6 +124,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+         {
+             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
+         }
++        if (data.InstitutionalProfile is not null)
++        {
++            plans.Add(new SlidePlan(
++                SlidePlanKind.InstitutionalProfile,
++                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
++        }
+         if (data.IncludePortfolioSummarySlide)
+         {
+             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
+@@ -2124,7 +2130,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+         => scope switch
+         {
+             ProjectBriefingBrandingScope.None => false,
+-            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.Closing,
++            ProjectBriefingBrandingScope.CoverAndSummary => kind is SlidePlanKind.Cover or SlidePlanKind.Summary or SlidePlanKind.InstitutionalProfile or SlidePlanKind.Closing,
+             ProjectBriefingBrandingScope.AllSlides => true,
+             _ => false
+         };
+@@ -2172,6 +2178,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+     {
+         Cover,
+         Summary,
++        InstitutionalProfile,
+         Project,
+         Closing
+     }
+diff --git a/Services/ProjectBriefings/ProjectBriefingContracts.cs b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+index d349254..3aa9d4c 100644
+--- a/Services/ProjectBriefings/ProjectBriefingContracts.cs
++++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+@@ -63,6 +63,8 @@ public sealed class ProjectBriefingDeckVm
+         = ProjectBriefingPresentationTheme.EditorialLight;
+     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
+         = ProjectBriefingClosingSlideType.JaiHind;
++    public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
++        = ProjectBriefingInstitutionalProfileOptions.Default;
+     public ProjectBriefingBrandingScope BrandingScope { get; init; }
+         = ProjectBriefingBrandingScope.AllSlides;
+     public bool IncludeCoverSlide { get; init; } = true;
+@@ -163,6 +165,7 @@ public sealed class ProjectBriefingSlideEstimateVm
+     public int CapabilityContinuationSlides { get; init; }
+     public int ProjectBriefSlides { get; init; }
+     public int ProjectUpdateSheetSlides { get; init; }
++    public int InstitutionalProfileSlides { get; init; }
+     public int ClosingSlides { get; init; } = 1;
+ }
+ 
+@@ -238,6 +241,8 @@ public sealed class ProjectBriefingDeckSettingsCommand
+     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
+     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
+         = ProjectBriefingClosingSlideType.JaiHind;
++    public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
++        = ProjectBriefingInstitutionalProfileOptions.Default;
+     public ProjectBriefingBrandingScope BrandingScope { get; init; }
+     public bool IncludeCoverSlide { get; init; } = true;
+     public bool IncludePortfolioSummarySlide { get; init; } = true;
+@@ -273,6 +278,8 @@ public sealed class ProjectBriefingPresentationData
+         = ProjectBriefingPresentationTheme.EditorialLight;
+     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
+         = ProjectBriefingClosingSlideType.JaiHind;
++    public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
++        = ProjectBriefingInstitutionalProfileOptions.Default;
+     public ProjectBriefingBrandingScope BrandingScope { get; init; }
+         = ProjectBriefingBrandingScope.AllSlides;
+     public bool IncludeCoverSlide { get; init; } = true;
+@@ -287,6 +294,7 @@ public sealed class ProjectBriefingPresentationData
+     public IReadOnlyList<ProjectBriefingPresentationProject> Projects { get; init; }
+         = Array.Empty<ProjectBriefingPresentationProject>();
+     public ProjectBriefingPresentationSummary Summary { get; init; } = new();
++    public ProjectBriefingInstitutionalProfileData? InstitutionalProfile { get; init; }
+ }
+ 
+ public sealed class ProjectBriefingPresentationProject
+@@ -347,6 +355,27 @@ public sealed class ProjectBriefingPresentationSummary
+ 
+ public sealed record ProjectBriefingSummaryPoint(string Label, int Count, int Order = int.MaxValue);
+ 
++public sealed class ProjectBriefingInstitutionalProfileData
++{
++    public string Title { get; init; } = ProjectBriefingInstitutionalProfileOptions.DefaultTitle;
++    public IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> HistoryMilestones { get; init; }
++        = Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>();
++    public IReadOnlyList<ProjectBriefingInstitutionalModuleData> Modules { get; init; }
++        = Array.Empty<ProjectBriefingInstitutionalModuleData>();
++    public string? UnitCitationLabel { get; init; }
++    public int? UnitCitationCount { get; init; }
++    public DateTimeOffset DataAsOnUtc { get; init; }
++}
++
++public sealed record ProjectBriefingInstitutionalModuleData(
++    ProjectBriefingInstitutionalProfileModule Module,
++    string Title,
++    string? Headline,
++    IReadOnlyList<ProjectBriefingInstitutionalMetricRow> Rows,
++    string? Highlight = null);
++
++public sealed record ProjectBriefingInstitutionalMetricRow(string Label, string Value);
++
+ public sealed record ProjectBriefingPhotoReference(int ProjectId, int PhotoId);
+ 
+ public sealed record ProjectBriefingPhotoProbe(
+diff --git a/Services/ProjectBriefings/ProjectBriefingDataService.cs b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+index fc41707..48f2748 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDataService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+@@ -31,6 +31,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+     private readonly IProjectBriefingExternalStatusService _externalStatusService;
+     private readonly IProjectBriefingPhotoLoader _photoLoader;
+     private readonly IProjectBriefingUpdateSheetFactsResolver _updateSheetFactsResolver;
++    private readonly IProjectBriefingInstitutionalProfileService _institutionalProfileService;
+     private readonly IClock _clock;
+ 
+     public ProjectBriefingDataService(
+@@ -39,6 +40,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         IProjectBriefingExternalStatusService externalStatusService,
+         IProjectBriefingPhotoLoader photoLoader,
+         IProjectBriefingUpdateSheetFactsResolver updateSheetFactsResolver,
++        IProjectBriefingInstitutionalProfileService institutionalProfileService,
+         IClock clock)
+     {
+         _db = db ?? throw new ArgumentNullException(nameof(db));
+@@ -46,6 +48,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         _externalStatusService = externalStatusService ?? throw new ArgumentNullException(nameof(externalStatusService));
+         _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
+         _updateSheetFactsResolver = updateSheetFactsResolver ?? throw new ArgumentNullException(nameof(updateSheetFactsResolver));
++        _institutionalProfileService = institutionalProfileService ?? throw new ArgumentNullException(nameof(institutionalProfileService));
+         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+     }
+ 
+@@ -73,6 +76,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             StandardSlideOptions = snapshot.StandardSlideOptions,
+             PresentationTheme = snapshot.PresentationTheme,
+             ClosingSlideType = snapshot.ClosingSlideType,
++            InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
+             BrandingScope = snapshot.BrandingScope,
+             IncludeCoverSlide = snapshot.IncludeCoverSlide,
+             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
+@@ -89,7 +93,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             Readiness = BuildReadiness(projects),
+             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
+                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
+-                snapshot.IncludeTechnicalCategorySummary, snapshot.CostMode, snapshot.NarrativeMode, projects)
++                snapshot.IncludeTechnicalCategorySummary, snapshot.InstitutionalProfileOptions.IncludeSlide,
++                snapshot.CostMode, snapshot.NarrativeMode, projects)
+         };
+     }
+ 
+@@ -144,6 +149,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             }));
+ 
+         var summary = BuildPresentationSummary(projects);
++        var institutionalProfile = await _institutionalProfileService.BuildAsync(
++            snapshot.InstitutionalProfileOptions,
++            cancellationToken);
+         return new ProjectBriefingPresentationData
+         {
+             DeckId = snapshot.Id,
+@@ -160,6 +168,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             StandardSlideOptions = snapshot.StandardSlideOptions,
+             PresentationTheme = snapshot.PresentationTheme,
+             ClosingSlideType = snapshot.ClosingSlideType,
++            InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
+             BrandingScope = snapshot.BrandingScope,
+             IncludeCoverSlide = snapshot.IncludeCoverSlide,
+             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
+@@ -170,7 +179,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             HandlingMarking = snapshot.HandlingMarking,
+             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
+             Projects = projects,
+-            Summary = summary
++            Summary = summary,
++            InstitutionalProfile = institutionalProfile
+         };
+     }
+ 
+@@ -227,6 +237,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         var updateSheetOptions = deckConfiguration.UpdateSheetOptions;
+         var standardSlideOptions = deckConfiguration.StandardSlideOptions;
+         var closingSlideType = deckConfiguration.ClosingSlideType;
++        var institutionalProfileOptions = deckConfiguration.InstitutionalProfileOptions;
+ 
+         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
+             .AsNoTracking()
+@@ -273,6 +284,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+                 updateSheetOptions,
+                 standardSlideOptions,
+                 closingSlideType,
++                institutionalProfileOptions,
+                 deck.HandlingMarking,
+                 deck.UpdatedAtUtc,
+                 deck.CreatedByDisplay,
+@@ -384,6 +396,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             updateSheetOptions,
+             standardSlideOptions,
+             closingSlideType,
++            institutionalProfileOptions,
+             deck.HandlingMarking,
+             deck.UpdatedAtUtc,
+             deck.CreatedByDisplay,
+@@ -676,17 +689,22 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         bool includeStageSummary,
+         bool includeProjectCategorySummary,
+         bool includeTechnicalCategorySummary,
++        bool includeInstitutionalProfile,
+         ProjectBriefingCostMode costMode,
+         ProjectBriefingNarrativeMode narrativeMode,
+         IReadOnlyList<ProjectBriefingProjectVm> projects)
+     {
+-        var introductorySlides = (includeCoverSlide ? 1 : 0) + (includePortfolioSummarySlide ? 1 : 0);
++        var coverAndPortfolioSlides = (includeCoverSlide ? 1 : 0)
++            + (includePortfolioSummarySlide ? 1 : 0);
++        var institutionalProfileSlides = includeInstitutionalProfile ? 1 : 0;
++        var introductorySlides = coverAndPortfolioSlides + institutionalProfileSlides;
+         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
+         {
+             return new ProjectBriefingSlideEstimateVm
+             {
+-                CoverAndPortfolioSlides = introductorySlides,
++                CoverAndPortfolioSlides = coverAndPortfolioSlides,
+                 ProjectUpdateSheetSlides = projects.Count,
++                InstitutionalProfileSlides = institutionalProfileSlides,
+                 ClosingSlides = 1,
+                 TotalSlides = introductorySlides + projects.Count + 1
+             };
+@@ -739,12 +757,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+ 
+         return new ProjectBriefingSlideEstimateVm
+         {
+-            CoverAndPortfolioSlides = introductorySlides,
++            CoverAndPortfolioSlides = coverAndPortfolioSlides,
+             SummarySlides = summarySlides,
+             ExecutiveTableSlides = executiveSlides,
+             DetailedProjectSlides = detailSlides,
+             CapabilityContinuationSlides = capabilityContinuationSlides,
+             ProjectBriefSlides = projectBriefSlides,
++            InstitutionalProfileSlides = institutionalProfileSlides,
+             ClosingSlides = 1,
+             TotalSlides = introductorySlides
+                 + summarySlides
+@@ -866,6 +885,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
+         ProjectBriefingStandardSlideOptions StandardSlideOptions,
+         ProjectBriefingClosingSlideType ClosingSlideType,
++        ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
+         string? HandlingMarking,
+         DateTimeOffset UpdatedAtUtc,
+         string CreatedByDisplay,
+diff --git a/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs b/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+index 51e0678..06b85c3 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+@@ -85,11 +85,129 @@ public sealed record ProjectBriefingStandardSlideOptions(
+             showPresentStatus);
+ }
+ 
++public sealed record ProjectBriefingInstitutionalHistoryMilestone(int Year, string Text);
++
++/// <summary>
++/// Deck-specific configuration of the optional SDD institutional-profile slide.
++/// ERP-backed figures remain read-only; only authorised history, partnership and citation text is user-maintained.
++/// </summary>
++public sealed record ProjectBriefingInstitutionalProfileOptions(
++    bool IncludeSlide,
++    string Title,
++    bool IncludeHistory,
++    IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> HistoryMilestones,
++    IReadOnlyList<ProjectBriefingInstitutionalProfileModule> Modules,
++    int MaximumDetailRows,
++    string TrainingHighlightTechnicalCategory,
++    IReadOnlyList<string> PartnershipEntries,
++    bool IncludeUnitCitations,
++    int? UnitCitationCount,
++    string UnitCitationLabel)
++{
++    public const string DefaultTitle = "SDD – Growth over the years";
++    public const string DefaultTrainingHighlight = "AR/VR";
++    public const string DefaultCitationLabel = "GOC-in-C Unit Citations";
++
++    public static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> DefaultModules { get; } =
++        new[]
++        {
++            ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
++            ProjectBriefingInstitutionalProfileModule.Proliferation,
++            ProjectBriefingInstitutionalProfileModule.TrainingSupport,
++            ProjectBriefingInstitutionalProfileModule.IntellectualProperty,
++            ProjectBriefingInstitutionalProfileModule.Partnerships
++        };
++
++    public static IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> DefaultHistory { get; } =
++        new[]
++        {
++            new ProjectBriefingInstitutionalHistoryMilestone(1986, "Conceptualised at MCEME"),
++            new ProjectBriefingInstitutionalHistoryMilestone(1991, "Raising & 1st PE"),
++            new ProjectBriefingInstitutionalHistoryMilestone(1998, "Established as CAT ‘A’"),
++            new ProjectBriefingInstitutionalHistoryMilestone(2001, "KLP at present location"),
++            new ProjectBriefingInstitutionalHistoryMilestone(2016, "AR/VR, AI & Robotics"),
++            new ProjectBriefingInstitutionalHistoryMilestone(2024, "CoE (AR/VR)")
++        };
++
++    public static ProjectBriefingInstitutionalProfileOptions Default { get; } =
++        new(
++            IncludeSlide: false,
++            Title: DefaultTitle,
++            IncludeHistory: true,
++            HistoryMilestones: DefaultHistory,
++            Modules: DefaultModules,
++            MaximumDetailRows: 6,
++            TrainingHighlightTechnicalCategory: DefaultTrainingHighlight,
++            PartnershipEntries: Array.Empty<string>(),
++            IncludeUnitCitations: false,
++            UnitCitationCount: null,
++            UnitCitationLabel: DefaultCitationLabel);
++
++    public static ProjectBriefingInstitutionalProfileOptions Normalize(
++        bool includeSlide,
++        string? title,
++        bool includeHistory,
++        IEnumerable<ProjectBriefingInstitutionalHistoryMilestone>? historyMilestones,
++        IEnumerable<ProjectBriefingInstitutionalProfileModule>? modules,
++        int maximumDetailRows,
++        string? trainingHighlightTechnicalCategory,
++        IEnumerable<string>? partnershipEntries,
++        bool includeUnitCitations,
++        int? unitCitationCount,
++        string? unitCitationLabel)
++    {
++        var history = (historyMilestones ?? Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>())
++            .Where(item => item.Year is >= 1900 and <= 2200 && !string.IsNullOrWhiteSpace(item.Text))
++            .Select(item => new ProjectBriefingInstitutionalHistoryMilestone(
++                item.Year,
++                TrimTo(item.Text.Trim(), 100)))
++            .Distinct()
++            .Take(8)
++            .ToArray();
++
++        var normalizedModules = (modules ?? Array.Empty<ProjectBriefingInstitutionalProfileModule>())
++            .Where(Enum.IsDefined)
++            .Distinct()
++            .Take(5)
++            .ToArray();
++
++        var normalizedPartnerships = (partnershipEntries ?? Array.Empty<string>())
++            .Where(value => !string.IsNullOrWhiteSpace(value))
++            .Select(value => TrimTo(value.Trim(), 80))
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .Take(8)
++            .ToArray();
++
++        var count = unitCitationCount is >= 0 and <= 999 ? unitCitationCount : null;
++
++        return new ProjectBriefingInstitutionalProfileOptions(
++            includeSlide,
++            string.IsNullOrWhiteSpace(title) ? DefaultTitle : TrimTo(title.Trim(), 120),
++            includeHistory,
++            history.Length == 0 ? DefaultHistory : history,
++            normalizedModules,
++            Math.Clamp(maximumDetailRows, 3, 7),
++            string.IsNullOrWhiteSpace(trainingHighlightTechnicalCategory)
++                ? DefaultTrainingHighlight
++                : TrimTo(trainingHighlightTechnicalCategory.Trim(), 80),
++            normalizedPartnerships,
++            includeUnitCitations && count.HasValue,
++            count,
++            string.IsNullOrWhiteSpace(unitCitationLabel)
++                ? DefaultCitationLabel
++                : TrimTo(unitCitationLabel.Trim(), 80));
++    }
++
++    private static string TrimTo(string value, int maximumLength)
++        => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();
++}
++
+ public sealed record ProjectBriefingDeckConfiguration(
+     string? SelectionRulesJson,
+     ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
+     ProjectBriefingStandardSlideOptions StandardSlideOptions,
+-    ProjectBriefingClosingSlideType ClosingSlideType);
++    ProjectBriefingClosingSlideType ClosingSlideType,
++    ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions);
+ 
+ /// <summary>
+ /// Stores selection provenance and presentation preferences in the existing JSONB deck configuration field.
+@@ -116,47 +234,75 @@ public static class ProjectBriefingDeckConfigurationCodec
+             }
+ 
+             var selectionRules = root["selectionRules"]?.ToJsonString(JsonOptions);
+-            var updateSheetOptions = ReadUpdateSheetOptions(root["updateSheet"] as JsonObject);
+-            var standardSlideOptions = ReadStandardSlideOptions(root["standardBriefing"] as JsonObject);
+-            var closingSlideType = ReadClosingSlideType(root["closingSlide"]);
+-
+             return new ProjectBriefingDeckConfiguration(
+                 selectionRules,
+-                updateSheetOptions,
+-                standardSlideOptions,
+-                closingSlideType);
++                ReadUpdateSheetOptions(root["updateSheet"] as JsonObject),
++                ReadStandardSlideOptions(root["standardBriefing"] as JsonObject),
++                ReadClosingSlideType(root["closingSlide"]),
++                ReadInstitutionalProfileOptions(root["institutionalProfile"] as JsonObject));
+         }
+         catch (JsonException)
+         {
+-            // The legacy value should not block deck use. Treat it as opaque selection provenance.
+             return Defaults(json);
+         }
+         catch (InvalidOperationException)
+         {
+             return Defaults(json);
+         }
++        catch (FormatException)
++        {
++            return Defaults(json);
++        }
+     }
+ 
+     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
+     {
+         var current = Read(existingJson);
+-        return Write(selectionRulesJson, current.UpdateSheetOptions, current.StandardSlideOptions, current.ClosingSlideType);
++        return Write(
++            selectionRulesJson,
++            current.UpdateSheetOptions,
++            current.StandardSlideOptions,
++            current.ClosingSlideType,
++            current.InstitutionalProfileOptions);
+     }
+ 
+     public static string WithUpdateSheetOptions(
+         string? existingJson,
+-        ProjectBriefingUpdateSheetOptions options)
++        ProjectBriefingUpdateSheetOptions updateSheetOptions)
+     {
+         var current = Read(existingJson);
+-        return Write(current.SelectionRulesJson, options, current.StandardSlideOptions, current.ClosingSlideType);
++        return Write(
++            current.SelectionRulesJson,
++            updateSheetOptions,
++            current.StandardSlideOptions,
++            current.ClosingSlideType,
++            current.InstitutionalProfileOptions);
+     }
+ 
+     public static string WithStandardSlideOptions(
+         string? existingJson,
+-        ProjectBriefingStandardSlideOptions options)
++        ProjectBriefingStandardSlideOptions standardSlideOptions)
++    {
++        var current = Read(existingJson);
++        return Write(
++            current.SelectionRulesJson,
++            current.UpdateSheetOptions,
++            standardSlideOptions,
++            current.ClosingSlideType,
++            current.InstitutionalProfileOptions);
++    }
++
++    public static string WithInstitutionalProfileOptions(
++        string? existingJson,
++        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
+     {
+         var current = Read(existingJson);
+-        return Write(current.SelectionRulesJson, current.UpdateSheetOptions, options, current.ClosingSlideType);
++        return Write(
++            current.SelectionRulesJson,
++            current.UpdateSheetOptions,
++            current.StandardSlideOptions,
++            current.ClosingSlideType,
++            institutionalProfileOptions);
+     }
+ 
+     public static string WithPresentationOptions(
+@@ -166,7 +312,28 @@ public static class ProjectBriefingDeckConfigurationCodec
+         ProjectBriefingClosingSlideType closingSlideType)
+     {
+         var current = Read(existingJson);
+-        return Write(current.SelectionRulesJson, updateSheetOptions, standardSlideOptions, closingSlideType);
++        return WithPresentationOptions(
++            existingJson,
++            updateSheetOptions,
++            standardSlideOptions,
++            closingSlideType,
++            current.InstitutionalProfileOptions);
++    }
++
++    public static string WithPresentationOptions(
++        string? existingJson,
++        ProjectBriefingUpdateSheetOptions updateSheetOptions,
++        ProjectBriefingStandardSlideOptions standardSlideOptions,
++        ProjectBriefingClosingSlideType closingSlideType,
++        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
++    {
++        var current = Read(existingJson);
++        return Write(
++            current.SelectionRulesJson,
++            updateSheetOptions,
++            standardSlideOptions,
++            closingSlideType,
++            institutionalProfileOptions);
+     }
+ 
+     private static ProjectBriefingDeckConfiguration Defaults(string? selectionRulesJson)
+@@ -174,90 +341,88 @@ public static class ProjectBriefingDeckConfigurationCodec
+             selectionRulesJson,
+             ProjectBriefingUpdateSheetOptions.Default,
+             ProjectBriefingStandardSlideOptions.Default,
+-            ProjectBriefingClosingSlideType.JaiHind);
++            ProjectBriefingClosingSlideType.JaiHind,
++            ProjectBriefingInstitutionalProfileOptions.Default);
+ 
+     private static ProjectBriefingUpdateSheetOptions ReadUpdateSheetOptions(JsonObject? updateSheet)
+     {
+         var hideEmptyValues = updateSheet?["hideEmptyValues"]?.GetValue<bool>() ?? false;
+-        var rows = new List<ProjectBriefingUpdateSheetRow>();
+-        if (updateSheet?["rows"] is JsonArray rowArray)
+-        {
+-            foreach (var node in rowArray)
+-            {
+-                if (node is null) continue;
+-                if (node is JsonValue value
+-                    && value.TryGetValue<string>(out var text)
+-                    && Enum.TryParse<ProjectBriefingUpdateSheetRow>(text, ignoreCase: true, out var parsed)
+-                    && Enum.IsDefined(parsed))
+-                {
+-                    rows.Add(parsed);
+-                    continue;
+-                }
+-
+-                if (node is JsonValue numericValue
+-                    && numericValue.TryGetValue<int>(out var number)
+-                    && Enum.IsDefined(typeof(ProjectBriefingUpdateSheetRow), number))
+-                {
+-                    rows.Add((ProjectBriefingUpdateSheetRow)number);
+-                }
+-            }
+-        }
+-
+-        return ProjectBriefingUpdateSheetOptions.Normalize(rows, hideEmptyValues);
++        return ProjectBriefingUpdateSheetOptions.Normalize(
++            ReadEnumArray<ProjectBriefingUpdateSheetRow>(updateSheet?["rows"] as JsonArray),
++            hideEmptyValues);
+     }
+ 
+     private static ProjectBriefingStandardSlideOptions ReadStandardSlideOptions(JsonObject? standard)
++        => ProjectBriefingStandardSlideOptions.Normalize(
++            ReadEnum(standard?["projectBriefLayout"], ProjectBriefingProjectBriefLayout.Automatic),
++            standard?["showPresentStage"]?.GetValue<bool>() ?? true,
++            standard?["showPresentStatus"]?.GetValue<bool>() ?? true);
++
++    private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
++        => ReadEnum(node, ProjectBriefingClosingSlideType.JaiHind);
++
++    private static ProjectBriefingInstitutionalProfileOptions ReadInstitutionalProfileOptions(JsonObject? profile)
+     {
+-        var layout = ProjectBriefingProjectBriefLayout.Automatic;
+-        var layoutNode = standard?["projectBriefLayout"];
+-        if (layoutNode is JsonValue layoutValue)
++        if (profile is null)
+         {
+-            if (layoutValue.TryGetValue<string>(out var layoutText)
+-                && Enum.TryParse<ProjectBriefingProjectBriefLayout>(layoutText, ignoreCase: true, out var parsed)
+-                && Enum.IsDefined(parsed))
+-            {
+-                layout = parsed;
+-            }
+-            else if (layoutValue.TryGetValue<int>(out var layoutNumber)
+-                     && Enum.IsDefined(typeof(ProjectBriefingProjectBriefLayout), layoutNumber))
++            return ProjectBriefingInstitutionalProfileOptions.Default;
++        }
++
++        var history = new List<ProjectBriefingInstitutionalHistoryMilestone>();
++        if (profile["history"] is JsonArray historyArray)
++        {
++            foreach (var item in historyArray.OfType<JsonObject>())
+             {
+-                layout = (ProjectBriefingProjectBriefLayout)layoutNumber;
++                var year = item["year"]?.GetValue<int>() ?? 0;
++                var text = item["text"]?.GetValue<string>();
++                if (!string.IsNullOrWhiteSpace(text))
++                {
++                    history.Add(new ProjectBriefingInstitutionalHistoryMilestone(year, text));
++                }
+             }
+         }
+ 
+-        return ProjectBriefingStandardSlideOptions.Normalize(
+-            layout,
+-            standard?["showPresentStage"]?.GetValue<bool>() ?? true,
+-            standard?["showPresentStatus"]?.GetValue<bool>() ?? true);
++        var partnerships = profile["partnerships"] is JsonArray partnershipArray
++            ? partnershipArray
++                .OfType<JsonValue>()
++                .Select(value => value.TryGetValue<string>(out var text) ? text : null)
++                .Where(text => !string.IsNullOrWhiteSpace(text))
++                .Select(text => text!)
++                .ToArray()
++            : Array.Empty<string>();
++
++        return ProjectBriefingInstitutionalProfileOptions.Normalize(
++            profile["includeSlide"]?.GetValue<bool>() ?? false,
++            profile["title"]?.GetValue<string>(),
++            profile["includeHistory"]?.GetValue<bool>() ?? true,
++            history,
++            profile["modules"] is JsonArray moduleArray
++                ? ReadEnumArray<ProjectBriefingInstitutionalProfileModule>(moduleArray)
++                : ProjectBriefingInstitutionalProfileOptions.DefaultModules,
++            profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
++            profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
++            partnerships,
++            profile["includeUnitCitations"]?.GetValue<bool>() ?? false,
++            ReadNullableInt(profile["unitCitationCount"]),
++            profile["unitCitationLabel"]?.GetValue<string>());
+     }
+ 
+-
+-    private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
++    private static int? ReadNullableInt(JsonNode? node)
+     {
+-        if (node is JsonValue value)
++        if (node is not JsonValue value)
+         {
+-            if (value.TryGetValue<string>(out var text)
+-                && Enum.TryParse<ProjectBriefingClosingSlideType>(text, ignoreCase: true, out var parsed)
+-                && Enum.IsDefined(parsed))
+-            {
+-                return parsed;
+-            }
+-
+-            if (value.TryGetValue<int>(out var number)
+-                && Enum.IsDefined(typeof(ProjectBriefingClosingSlideType), number))
+-            {
+-                return (ProjectBriefingClosingSlideType)number;
+-            }
++            return null;
+         }
+ 
+-        return ProjectBriefingClosingSlideType.JaiHind;
++        return value.TryGetValue<int>(out var result) ? result : null;
+     }
+ 
+     private static string Write(
+         string? selectionRulesJson,
+         ProjectBriefingUpdateSheetOptions updateSheetOptions,
+         ProjectBriefingStandardSlideOptions standardSlideOptions,
+-        ProjectBriefingClosingSlideType closingSlideType)
++        ProjectBriefingClosingSlideType closingSlideType,
++        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
+     {
+         var normalizedUpdateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
+             updateSheetOptions.Rows,
+@@ -269,6 +434,18 @@ public static class ProjectBriefingDeckConfigurationCodec
+         var normalizedClosingSlideType = Enum.IsDefined(closingSlideType)
+             ? closingSlideType
+             : ProjectBriefingClosingSlideType.JaiHind;
++        var normalizedProfile = ProjectBriefingInstitutionalProfileOptions.Normalize(
++            institutionalProfileOptions.IncludeSlide,
++            institutionalProfileOptions.Title,
++            institutionalProfileOptions.IncludeHistory,
++            institutionalProfileOptions.HistoryMilestones,
++            institutionalProfileOptions.Modules,
++            institutionalProfileOptions.MaximumDetailRows,
++            institutionalProfileOptions.TrainingHighlightTechnicalCategory,
++            institutionalProfileOptions.PartnershipEntries,
++            institutionalProfileOptions.IncludeUnitCitations,
++            institutionalProfileOptions.UnitCitationCount,
++            institutionalProfileOptions.UnitCitationLabel);
+ 
+         var root = new JsonObject
+         {
+@@ -276,9 +453,7 @@ public static class ProjectBriefingDeckConfigurationCodec
+             ["selectionRules"] = ParseOptionalNode(selectionRulesJson),
+             ["updateSheet"] = new JsonObject
+             {
+-                ["rows"] = new JsonArray(normalizedUpdateSheet.Rows
+-                    .Select(row => (JsonNode?)JsonValue.Create(row.ToString()))
+-                    .ToArray()),
++                ["rows"] = ToEnumArray(normalizedUpdateSheet.Rows),
+                 ["hideEmptyValues"] = normalizedUpdateSheet.HideEmptyValues
+             },
+             ["standardBriefing"] = new JsonObject
+@@ -287,12 +462,81 @@ public static class ProjectBriefingDeckConfigurationCodec
+                 ["showPresentStage"] = normalizedStandard.ShowPresentStage,
+                 ["showPresentStatus"] = normalizedStandard.ShowPresentStatus
+             },
+-            ["closingSlide"] = normalizedClosingSlideType.ToString()
++            ["closingSlide"] = normalizedClosingSlideType.ToString(),
++            ["institutionalProfile"] = new JsonObject
++            {
++                ["includeSlide"] = normalizedProfile.IncludeSlide,
++                ["title"] = normalizedProfile.Title,
++                ["includeHistory"] = normalizedProfile.IncludeHistory,
++                ["history"] = new JsonArray(normalizedProfile.HistoryMilestones
++                    .Select(item => (JsonNode?)new JsonObject
++                    {
++                        ["year"] = item.Year,
++                        ["text"] = item.Text
++                    })
++                    .ToArray()),
++                ["modules"] = ToEnumArray(normalizedProfile.Modules),
++                ["maximumDetailRows"] = normalizedProfile.MaximumDetailRows,
++                ["trainingHighlightTechnicalCategory"] = normalizedProfile.TrainingHighlightTechnicalCategory,
++                ["partnerships"] = new JsonArray(normalizedProfile.PartnershipEntries
++                    .Select(item => (JsonNode?)JsonValue.Create(item))
++                    .ToArray()),
++                ["includeUnitCitations"] = normalizedProfile.IncludeUnitCitations,
++                ["unitCitationCount"] = normalizedProfile.UnitCitationCount,
++                ["unitCitationLabel"] = normalizedProfile.UnitCitationLabel
++            }
+         };
+ 
+         return root.ToJsonString(JsonOptions);
+     }
+ 
++    private static TEnum ReadEnum<TEnum>(JsonNode? node, TEnum fallback)
++        where TEnum : struct, Enum
++    {
++        if (node is JsonValue value)
++        {
++            if (value.TryGetValue<string>(out var text)
++                && Enum.TryParse<TEnum>(text, ignoreCase: true, out var parsed)
++                && Enum.IsDefined(parsed))
++            {
++                return parsed;
++            }
++
++            if (value.TryGetValue<int>(out var number)
++                && Enum.IsDefined(typeof(TEnum), number))
++            {
++                return (TEnum)Enum.ToObject(typeof(TEnum), number);
++            }
++        }
++
++        return fallback;
++    }
++
++    private static IReadOnlyList<TEnum> ReadEnumArray<TEnum>(JsonArray? array)
++        where TEnum : struct, Enum
++    {
++        if (array is null)
++        {
++            return Array.Empty<TEnum>();
++        }
++
++        var values = new List<TEnum>();
++        foreach (var node in array)
++        {
++            var parsed = ReadEnum<TEnum>(node, default);
++            if (Enum.IsDefined(parsed))
++            {
++                values.Add(parsed);
++            }
++        }
++
++        return values;
++    }
++
++    private static JsonArray ToEnumArray<TEnum>(IEnumerable<TEnum> values)
++        where TEnum : struct, Enum
++        => new(values.Select(value => (JsonNode?)JsonValue.Create(value.ToString())).ToArray());
++
+     private static JsonNode? ParseOptionalNode(string? json)
+     {
+         if (string.IsNullOrWhiteSpace(json)) return null;
+diff --git a/Services/ProjectBriefings/ProjectBriefingDeckService.cs b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+index 0b9363e..7d05601 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDeckService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+@@ -294,6 +294,25 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
+             command.ProjectBriefLayout,
+             command.ShowPresentStage,
+             command.ShowPresentStatus);
++        var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
++            command.InstitutionalProfileOptions.IncludeSlide,
++            command.InstitutionalProfileOptions.Title,
++            command.InstitutionalProfileOptions.IncludeHistory,
++            command.InstitutionalProfileOptions.HistoryMilestones,
++            command.InstitutionalProfileOptions.Modules,
++            command.InstitutionalProfileOptions.MaximumDetailRows,
++            command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
++            command.InstitutionalProfileOptions.PartnershipEntries,
++            command.InstitutionalProfileOptions.IncludeUnitCitations,
++            command.InstitutionalProfileOptions.UnitCitationCount,
++            command.InstitutionalProfileOptions.UnitCitationLabel);
++        if (institutionalProfileOptions.IncludeSlide
++            && !institutionalProfileOptions.IncludeHistory
++            && institutionalProfileOptions.Modules.Count == 0)
++        {
++            throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
++        }
++
+         var normalizedName = NormalizeName(command.Name);
+         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
+ 
+@@ -320,7 +339,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
+             deck.SelectionRulesJson,
+             updateSheetOptions,
+             standardSlideOptions,
+-            command.ClosingSlideType);
++            command.ClosingSlideType,
++            institutionalProfileOptions);
+         deck.HandlingMarking = NormalizeMarking(command.HandlingMarking);
+         Touch(deck, userId);
+ 
+diff --git a/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs b/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+new file mode 100644
+index 0000000..e583828
+--- /dev/null
++++ b/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+@@ -0,0 +1,335 @@
++using System.Globalization;
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Areas.ProjectOfficeReports.Application;
++using ProjectManagement.Data;
++using ProjectManagement.Infrastructure.Data;
++using ProjectManagement.Models;
++using ProjectManagement.Models.ProjectBriefings;
++using ProjectManagement.Services;
++
++namespace ProjectManagement.Services.ProjectBriefings;
++
++public interface IProjectBriefingInstitutionalProfileService
++{
++    Task<ProjectBriefingInstitutionalProfileData?> BuildAsync(
++        ProjectBriefingInstitutionalProfileOptions options,
++        CancellationToken cancellationToken = default);
++}
++
++/// <summary>
++/// Builds the single authoritative institutional snapshot used by the SDD profile slide.
++/// ERP-backed metrics are read-only; only the authorised history, partnership and citation
++/// content supplied through the deck configuration is carried into the presentation.
++/// </summary>
++public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefingInstitutionalProfileService
++{
++    private readonly ApplicationDbContext _db;
++    private readonly ProliferationAggregateReadService _proliferation;
++    private readonly TrainingTrackerReadService _training;
++    private readonly IClock _clock;
++
++    public ProjectBriefingInstitutionalProfileService(
++        ApplicationDbContext db,
++        ProliferationAggregateReadService proliferation,
++        TrainingTrackerReadService training,
++        IClock clock)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _proliferation = proliferation ?? throw new ArgumentNullException(nameof(proliferation));
++        _training = training ?? throw new ArgumentNullException(nameof(training));
++        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
++    }
++
++    public async Task<ProjectBriefingInstitutionalProfileData?> BuildAsync(
++        ProjectBriefingInstitutionalProfileOptions options,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(options);
++        var normalized = ProjectBriefingInstitutionalProfileOptions.Normalize(
++            options.IncludeSlide,
++            options.Title,
++            options.IncludeHistory,
++            options.HistoryMilestones,
++            options.Modules,
++            options.MaximumDetailRows,
++            options.TrainingHighlightTechnicalCategory,
++            options.PartnershipEntries,
++            options.IncludeUnitCitations,
++            options.UnitCitationCount,
++            options.UnitCitationLabel);
++
++        if (!normalized.IncludeSlide)
++        {
++            return null;
++        }
++
++        var modules = new List<ProjectBriefingInstitutionalModuleData>(normalized.Modules.Count);
++        foreach (var module in normalized.Modules)
++        {
++            var item = module switch
++            {
++                ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped =>
++                    await BuildProjectsAsync(normalized.MaximumDetailRows, cancellationToken),
++                ProjectBriefingInstitutionalProfileModule.Proliferation =>
++                    await BuildProliferationAsync(normalized.MaximumDetailRows, cancellationToken),
++                ProjectBriefingInstitutionalProfileModule.TrainingSupport =>
++                    await BuildTrainingAsync(
++                        normalized.MaximumDetailRows,
++                        normalized.TrainingHighlightTechnicalCategory,
++                        cancellationToken),
++                ProjectBriefingInstitutionalProfileModule.IntellectualProperty =>
++                    await BuildIprAsync(cancellationToken),
++                ProjectBriefingInstitutionalProfileModule.Partnerships =>
++                    BuildPartnerships(normalized.PartnershipEntries),
++                _ => null
++            };
++
++            if (item is not null)
++            {
++                modules.Add(item);
++            }
++        }
++
++        return new ProjectBriefingInstitutionalProfileData
++        {
++            Title = normalized.Title,
++            HistoryMilestones = normalized.IncludeHistory
++                ? normalized.HistoryMilestones
++                : Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
++            Modules = modules,
++            UnitCitationLabel = normalized.IncludeUnitCitations
++                ? normalized.UnitCitationLabel
++                : null,
++            UnitCitationCount = normalized.IncludeUnitCitations
++                ? normalized.UnitCitationCount
++                : null,
++            DataAsOnUtc = _clock.UtcNow.ToUniversalTime()
++        };
++    }
++
++    private async Task<ProjectBriefingInstitutionalModuleData> BuildProjectsAsync(
++        int maximumRows,
++        CancellationToken cancellationToken)
++    {
++        var rows = await _db.Projects
++            .AsNoTracking()
++            .Where(project =>
++                !project.IsDeleted
++                && !project.IsArchived
++                && project.LifecycleStatus == ProjectLifecycleStatus.Completed)
++            .GroupBy(project => project.TechnicalCategory != null
++                ? project.TechnicalCategory.Name
++                : "Uncategorised")
++            .Select(group => new CountRow(group.Key, group.Count()))
++            .ToListAsync(cancellationToken);
++
++        return new ProjectBriefingInstitutionalModuleData(
++            ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
++            "Simulators/Projects Developed",
++            FormatNumber(rows.Sum(row => row.Value)),
++            CompactRows(rows, maximumRows));
++    }
++
++    private async Task<ProjectBriefingInstitutionalModuleData> BuildProliferationAsync(
++        int maximumRows,
++        CancellationToken cancellationToken)
++    {
++        var aggregates = await _proliferation.GetApprovedAggregatesAsync(
++            projectId: null,
++            cancellationToken);
++        var active = aggregates.Where(row => row.ReportedTotal > 0).ToArray();
++        var grouped = active
++            .GroupBy(row => string.IsNullOrWhiteSpace(row.TechnicalCategoryName)
++                ? "Uncategorised"
++                : row.TechnicalCategoryName!)
++            .Select(group => new CountRow(group.Key, group.Sum(row => row.ReportedTotal)))
++            .ToArray();
++
++        return new ProjectBriefingInstitutionalModuleData(
++            ProjectBriefingInstitutionalProfileModule.Proliferation,
++            "Proliferated",
++            FormatNumber(active.Sum(row => row.ReportedTotal)),
++            CompactRows(grouped, maximumRows));
++    }
++
++    private async Task<ProjectBriefingInstitutionalModuleData> BuildTrainingAsync(
++        int maximumRows,
++        string highlightTechnicalCategory,
++        CancellationToken cancellationToken)
++    {
++        var kpis = await _training.GetKpisAsync(query: null, cancellationToken);
++        var highlight = await BuildTrainingHighlightAsync(
++            highlightTechnicalCategory,
++            cancellationToken);
++
++        var reserveForHighlight = string.IsNullOrWhiteSpace(highlight) ? 0 : 1;
++        var yearRows = kpis.ByTrainingYear
++            .TakeLast(Math.Max(1, maximumRows - reserveForHighlight))
++            .Select(year => new ProjectBriefingInstitutionalMetricRow(
++                $"FY {year.TrainingYearLabel}",
++                FormatNumber(year.TotalTrainees)))
++            .ToList();
++
++        return new ProjectBriefingInstitutionalModuleData(
++            ProjectBriefingInstitutionalProfileModule.TrainingSupport,
++            "Assistance to Field Formations",
++            FormatNumber(kpis.TotalTrainees),
++            yearRows,
++            highlight);
++    }
++
++    private async Task<string?> BuildTrainingHighlightAsync(
++        string technicalCategory,
++        CancellationToken cancellationToken)
++    {
++        var requested = NormalizeCategory(technicalCategory);
++        if (string.IsNullOrWhiteSpace(requested))
++        {
++            return null;
++        }
++
++        var categories = await _db.TechnicalCategories
++            .AsNoTracking()
++            .Select(category => new { category.Id, category.Name })
++            .ToListAsync(cancellationToken);
++        var matches = categories
++            .Where(category => string.Equals(
++                NormalizeCategory(category.Name),
++                requested,
++                StringComparison.OrdinalIgnoreCase))
++            .ToArray();
++        if (matches.Length == 0)
++        {
++            return null;
++        }
++
++        var categoryIds = matches.Select(category => category.Id).ToArray();
++        var trainingIds = await _db.TrainingProjects
++            .AsNoTracking()
++            .Where(link => link.Project != null
++                && link.Project.TechnicalCategoryId.HasValue
++                && categoryIds.Contains(link.Project.TechnicalCategoryId.Value))
++            .Select(link => link.TrainingId)
++            .Distinct()
++            .ToArrayAsync(cancellationToken);
++        if (trainingIds.Length == 0)
++        {
++            return null;
++        }
++
++        var individuals = await _db.Trainings
++            .AsNoTracking()
++            .Where(training => trainingIds.Contains(training.Id))
++            .SumAsync(
++                training => training.Counters != null
++                    ? training.Counters.Total
++                    : training.LegacyOfficerCount
++                        + training.LegacyJcoCount
++                        + training.LegacyOrCount,
++                cancellationToken);
++
++        var unitNames = await _db.TrainingTrainees
++            .AsNoTracking()
++            .Where(trainee => trainingIds.Contains(trainee.TrainingId)
++                && trainee.UnitName != string.Empty)
++            .Select(trainee => trainee.UnitName)
++            .ToListAsync(cancellationToken);
++        var units = unitNames
++            .Where(name => !string.IsNullOrWhiteSpace(name))
++            .Select(name => name.Trim())
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .Count();
++        var displayCategory = matches[0].Name;
++
++        return units > 0
++            ? $"{FormatNumber(units)} Units / {FormatNumber(individuals)} Individuals trained in {displayCategory}"
++            : $"{FormatNumber(individuals)} Individuals trained in {displayCategory}";
++    }
++
++    private async Task<ProjectBriefingInstitutionalModuleData> BuildIprAsync(
++        CancellationToken cancellationToken)
++    {
++        var rows = await _db.IprRecords
++            .AsNoTracking()
++            .GroupBy(record => new { record.Type, record.Status })
++            .Select(group => new IprCountRow(group.Key.Type, group.Key.Status, group.Count()))
++            .ToListAsync(cancellationToken);
++
++        var patentsGranted = Count(rows, IprType.Patent, IprStatus.Granted);
++        var copyrightsRegistered = Count(rows, IprType.Copyright, IprStatus.Granted);
++        var patentsFiled = rows
++            .Where(row => row.Type == IprType.Patent
++                && row.Status is IprStatus.Filed or IprStatus.FilingUnderProcess)
++            .Sum(row => row.Value);
++        var protectedTotal = patentsGranted + copyrightsRegistered;
++
++        return new ProjectBriefingInstitutionalModuleData(
++            ProjectBriefingInstitutionalProfileModule.IntellectualProperty,
++            "Intellectual Property",
++            FormatNumber(protectedTotal),
++            new[]
++            {
++                new ProjectBriefingInstitutionalMetricRow("Patents granted", FormatNumber(patentsGranted)),
++                new ProjectBriefingInstitutionalMetricRow("Copyrights registered", FormatNumber(copyrightsRegistered)),
++                new ProjectBriefingInstitutionalMetricRow("Patents filed", FormatNumber(patentsFiled))
++            });
++    }
++
++    private static ProjectBriefingInstitutionalModuleData? BuildPartnerships(
++        IReadOnlyList<string> partnerships)
++        => partnerships.Count == 0
++            ? null
++            : new ProjectBriefingInstitutionalModuleData(
++                ProjectBriefingInstitutionalProfileModule.Partnerships,
++                "Military–Academia–Industry Synergy",
++                Headline: null,
++                Rows: partnerships
++                    .Select(item => new ProjectBriefingInstitutionalMetricRow(item, string.Empty))
++                    .ToArray());
++
++    private static IReadOnlyList<ProjectBriefingInstitutionalMetricRow> CompactRows(
++        IEnumerable<CountRow> source,
++        int maximumRows)
++    {
++        var ordered = source
++            .Where(row => row.Value > 0)
++            .OrderByDescending(row => row.Value)
++            .ThenBy(row => row.Label, StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++        if (ordered.Length <= maximumRows)
++        {
++            return ordered
++                .Select(row => new ProjectBriefingInstitutionalMetricRow(row.Label, FormatNumber(row.Value)))
++                .ToArray();
++        }
++
++        var visibleCount = Math.Max(1, maximumRows - 1);
++        var result = ordered
++            .Take(visibleCount)
++            .Select(row => new ProjectBriefingInstitutionalMetricRow(row.Label, FormatNumber(row.Value)))
++            .ToList();
++        result.Add(new ProjectBriefingInstitutionalMetricRow(
++            "Others",
++            FormatNumber(ordered.Skip(visibleCount).Sum(row => row.Value))));
++        return result;
++    }
++
++    private static int Count(
++        IEnumerable<IprCountRow> rows,
++        IprType type,
++        IprStatus status)
++        => rows.FirstOrDefault(row => row.Type == type && row.Status == status)?.Value ?? 0;
++
++    private static string NormalizeCategory(string? value)
++        => (value ?? string.Empty)
++            .Replace(" ", string.Empty, StringComparison.Ordinal)
++            .Replace("/", string.Empty, StringComparison.Ordinal)
++            .Replace("-", string.Empty, StringComparison.Ordinal)
++            .Trim();
++
++    private static string FormatNumber(int value)
++        => value.ToString("N0", CultureInfo.InvariantCulture);
++
++    private sealed record CountRow(string Label, int Value);
++    private sealed record IprCountRow(IprType Type, IprStatus Status, int Value);
++}
+diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
+index bf15a11..a25e84c 100644
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -2987,3 +2987,170 @@ body.pbd-settings-drawer-open {
+ .pbd-theme-preview--dark.is-update-sheet .pbd-theme-preview__secondary {
+     background: #252b34;
+ }
++
++/* Modular SDD institutional-profile slide settings */
++.pbd-institutional-profile-settings {
++    display: grid;
++    gap: .78rem;
++    margin-top: .72rem;
++}
++
++.pbd-institutional-profile-toggle {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr);
++    align-items: center;
++    gap: .62rem;
++    margin: 0;
++    padding: .68rem .74rem;
++    border: 1px solid #d7e0ec;
++    border-radius: .62rem;
++    background: linear-gradient(135deg, #f8fafd 0%, #fff 100%);
++    cursor: pointer;
++}
++
++.pbd-institutional-profile-toggle--compact {
++    padding: .5rem .58rem;
++    border-radius: .5rem;
++    background: #fff;
++}
++
++.pbd-institutional-profile-toggle input {
++    margin: 0;
++    accent-color: var(--pbd-blue);
++}
++
++.pbd-institutional-profile-toggle > span {
++    display: grid;
++    min-width: 0;
++    gap: .1rem;
++}
++
++.pbd-institutional-profile-toggle strong {
++    color: #25364d;
++    font-size: .73rem;
++}
++
++.pbd-institutional-profile-toggle small,
++.pbd-institutional-module-option label small {
++    color: var(--pbd-muted);
++    font-size: .63rem;
++    line-height: 1.38;
++}
++
++.pbd-form-grid--institutional {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++}
++
++.pbd-institutional-module-list {
++    display: grid;
++    gap: .38rem;
++    padding: .44rem;
++    border: 1px solid #dce4ef;
++    border-radius: .58rem;
++    background: #f8fafd;
++}
++
++.pbd-institutional-module-list.has-validation-error {
++    border-color: #d92d48;
++    box-shadow: 0 0 0 3px rgba(217, 45, 72, .08);
++}
++
++.pbd-institutional-module-option {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    align-items: center;
++    min-width: 0;
++    gap: .38rem;
++    padding: .44rem .46rem;
++    border: 1px solid var(--pbd-border);
++    border-radius: .5rem;
++    background: #fff;
++    transition: border-color .14s ease, background .14s ease, box-shadow .14s ease, opacity .14s ease;
++}
++
++.pbd-institutional-module-option.is-selected {
++    border-color: #a8c4f8;
++    background: #f2f6ff;
++}
++
++.pbd-institutional-module-option.is-dragging {
++    opacity: .56;
++    box-shadow: 0 .45rem 1rem rgba(15, 23, 42, .12);
++}
++
++.pbd-institutional-module-option.is-drag-over {
++    border-color: var(--pbd-blue);
++}
++
++.pbd-institutional-module-option__handle {
++    display: grid;
++    width: 1.25rem;
++    height: 2rem;
++    place-items: center;
++    color: #8a98ad;
++    cursor: grab;
++}
++
++.pbd-institutional-module-option:active .pbd-institutional-module-option__handle {
++    cursor: grabbing;
++}
++
++.pbd-institutional-module-option label {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr);
++    align-items: center;
++    min-width: 0;
++    gap: .48rem;
++    margin: 0;
++    cursor: pointer;
++}
++
++.pbd-institutional-module-option label > span {
++    display: grid;
++    min-width: 0;
++    gap: .08rem;
++}
++
++.pbd-institutional-module-option label strong {
++    color: #24364f;
++    font-size: .7rem;
++    line-height: 1.25;
++}
++
++.pbd-institutional-module-option label input {
++    margin: 0;
++    accent-color: var(--pbd-blue);
++}
++
++.pbd-institutional-module-option__move {
++    display: flex;
++    gap: .16rem;
++}
++
++.pbd-institutional-module-option__move .btn {
++    display: grid;
++    width: 1.75rem;
++    height: 1.75rem;
++    place-items: center;
++    padding: 0;
++    border-color: #e3e8f0;
++    background: #fff;
++    color: #526174;
++}
++
++.pbd-institutional-module-option__move .btn:disabled {
++    opacity: .32;
++}
++
++.pbd-institutional-profile-validation {
++    margin: .15rem 0 0;
++    color: #c81e3a;
++    font-size: .66rem;
++    font-weight: 700;
++}
++
++@media (max-width: 760px) {
++    .pbd-form-grid--institutional {
++        grid-template-columns: minmax(0, 1fr);
++    }
++}
+diff --git a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
+index 03d06c6..84c548a 100644
+--- a/wwwroot/js/pages/project-briefing-decks.js
++++ b/wwwroot/js/pages/project-briefing-decks.js
+@@ -117,8 +117,15 @@ if (root) {
+   const updateRowInitialOrder = updateRowOrderInput?.value || '';
+   const updateRowRecommendedOrder = updateRowOrderInput?.dataset.recommendedOrder || updateRowInitialOrder;
+   let settingsValid = true;
++  let updateRowsValid = true;
++  let institutionalProfileValid = true;
+   let draggedUpdateRow = null;
+ 
++  const applySettingsValidity = () => {
++    settingsValid = updateRowsValid && institutionalProfileValid;
++    if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
++  };
++
+   const updateRowElements = () => updateRowList
+     ? [...updateRowList.querySelectorAll('[data-pbd-update-row]')]
+     : [];
+@@ -161,11 +168,11 @@ if (root) {
+   const validateUpdateSheetRows = ({ focus = false } = {}) => {
+     const updateLayout = currentSettingsLayout() === 'ProjectUpdateSheet';
+     const valid = !updateLayout || selectedUpdateSheetRowKeys().size > 0;
+-    settingsValid = valid;
++    updateRowsValid = valid;
+     updateRowValidation?.toggleAttribute('hidden', valid);
+     updateRowList?.classList.toggle('has-validation-error', !valid);
+     updateRowList?.setAttribute('aria-invalid', String(!valid));
+-    if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
++    applySettingsValidity();
+     if (!valid && focus) {
+       updateRowElements()[0]?.querySelector('input[name="UpdateSheetRows"]')?.focus();
+     }
+@@ -222,6 +229,7 @@ if (root) {
+     });
+     syncUpdateRowOrder();
+     validateUpdateSheetRows();
++    validateInstitutionalProfile();
+     syncPreflightRequirementVisibility();
+     refreshSettingsDirtyState();
+   });
+@@ -248,6 +256,131 @@ if (root) {
+ 
+   syncUpdateRowOrder();
+ 
++  // Optional SDD institutional-profile slide.
++  const institutionalProfileEnable = root.querySelector('[data-pbd-institutional-profile-enable]');
++  const institutionalProfileSettings = root.querySelector('[data-pbd-institutional-profile-settings]');
++  const institutionalHistoryEnable = root.querySelector('[data-pbd-institutional-history-enable]');
++  const institutionalHistoryFields = root.querySelector('[data-pbd-institutional-history-fields]');
++  const institutionalCitationEnable = root.querySelector('[data-pbd-institutional-citations-enable]');
++  const institutionalCitationFields = root.querySelector('[data-pbd-institutional-citations-fields]');
++  const institutionalModuleList = root.querySelector('[data-pbd-institutional-module-list]');
++  const institutionalModuleOrderInput = root.querySelector('[data-pbd-institutional-module-order]');
++  const institutionalProfileValidation = root.querySelector('[data-pbd-institutional-profile-validation]');
++  const institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
++  let draggedInstitutionalModule = null;
++
++  const institutionalModuleElements = () => institutionalModuleList
++    ? [...institutionalModuleList.querySelectorAll('[data-pbd-institutional-module]')]
++    : [];
++
++  const selectedInstitutionalModuleCount = () => institutionalModuleElements()
++    .filter((row) => row.querySelector('input[name="InstitutionalModules"]')?.checked)
++    .length;
++
++  const syncInstitutionalModuleOrder = () => {
++    const rows = institutionalModuleElements();
++    if (institutionalModuleOrderInput) {
++      institutionalModuleOrderInput.value = rows
++        .map((row) => row.dataset.moduleKey || '')
++        .filter(Boolean)
++        .join(',');
++    }
++    rows.forEach((row, index) => {
++      row.classList.toggle('is-selected', Boolean(row.querySelector('input[name="InstitutionalModules"]')?.checked));
++      const up = row.querySelector('[data-pbd-institutional-module-up]');
++      const down = row.querySelector('[data-pbd-institutional-module-down]');
++      if (up instanceof HTMLButtonElement) up.disabled = index === 0;
++      if (down instanceof HTMLButtonElement) down.disabled = index === rows.length - 1;
++      row.setAttribute('aria-posinset', String(index + 1));
++      row.setAttribute('aria-setsize', String(rows.length));
++    });
++  };
++
++  const restoreInstitutionalModuleOrder = (orderValue) => {
++    if (!institutionalModuleList) return;
++    const keys = String(orderValue || '').split(',').map((value) => value.trim()).filter(Boolean);
++    const byKey = new Map(institutionalModuleElements().map((row) => [row.dataset.moduleKey || '', row]));
++    keys.forEach((key) => {
++      const row = byKey.get(key);
++      if (row) institutionalModuleList.append(row);
++    });
++    byKey.forEach((row, key) => {
++      if (!keys.includes(key)) institutionalModuleList.append(row);
++    });
++    syncInstitutionalModuleOrder();
++  };
++
++  const validateInstitutionalProfile = ({ focus = false } = {}) => {
++    const enabled = Boolean(institutionalProfileEnable?.checked);
++    const hasHistory = Boolean(institutionalHistoryEnable?.checked);
++    const valid = !enabled || hasHistory || selectedInstitutionalModuleCount() > 0;
++    institutionalProfileValid = valid;
++    institutionalProfileValidation?.toggleAttribute('hidden', valid);
++    institutionalModuleList?.classList.toggle('has-validation-error', !valid);
++    institutionalModuleList?.setAttribute('aria-invalid', String(!valid));
++    applySettingsValidity();
++    if (!valid && focus) {
++      institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
++    }
++    return valid;
++  };
++
++  const syncInstitutionalProfileSettings = () => {
++    const enabled = Boolean(institutionalProfileEnable?.checked);
++    if (institutionalProfileSettings) institutionalProfileSettings.hidden = !enabled;
++    if (institutionalHistoryFields) institutionalHistoryFields.hidden = !institutionalHistoryEnable?.checked;
++    if (institutionalCitationFields) institutionalCitationFields.hidden = !institutionalCitationEnable?.checked;
++    validateInstitutionalProfile();
++  };
++
++  const moveInstitutionalModule = (row, direction) => {
++    if (!institutionalModuleList || !row) return;
++    const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
++    if (!sibling) return;
++    if (direction < 0) institutionalModuleList.insertBefore(row, sibling);
++    else institutionalModuleList.insertBefore(sibling, row);
++    syncInstitutionalModuleOrder();
++    refreshSettingsDirtyState();
++  };
++
++  institutionalModuleElements().forEach((row) => {
++    row.draggable = true;
++    row.querySelector('[data-pbd-institutional-module-up]')?.addEventListener('click', () => moveInstitutionalModule(row, -1));
++    row.querySelector('[data-pbd-institutional-module-down]')?.addEventListener('click', () => moveInstitutionalModule(row, 1));
++    row.querySelector('input[name="InstitutionalModules"]')?.addEventListener('change', () => {
++      syncInstitutionalModuleOrder();
++      validateInstitutionalProfile();
++    });
++    row.addEventListener('dragstart', (event) => {
++      draggedInstitutionalModule = row;
++      row.classList.add('is-dragging');
++      event.dataTransfer?.setData('text/plain', row.dataset.moduleKey || '');
++      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
++    });
++    row.addEventListener('dragend', () => {
++      draggedInstitutionalModule = null;
++      row.classList.remove('is-dragging');
++      institutionalModuleElements().forEach((candidate) => candidate.classList.remove('is-drag-over'));
++      syncInstitutionalModuleOrder();
++      refreshSettingsDirtyState();
++    });
++    row.addEventListener('dragover', (event) => {
++      if (!draggedInstitutionalModule || draggedInstitutionalModule === row || !institutionalModuleList) return;
++      event.preventDefault();
++      const rect = row.getBoundingClientRect();
++      const after = event.clientY > rect.top + (rect.height / 2);
++      institutionalModuleList.insertBefore(draggedInstitutionalModule, after ? row.nextElementSibling : row);
++      row.classList.add('is-drag-over');
++    });
++    row.addEventListener('dragleave', () => row.classList.remove('is-drag-over'));
++  });
++
++  institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
++  institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
++  institutionalCitationEnable?.addEventListener('change', syncInstitutionalProfileSettings);
++  syncInstitutionalModuleOrder();
++  syncInstitutionalProfileSettings();
++
+   const serializeSettings = () => {
+     if (!(settingsForm instanceof HTMLFormElement)) return '';
+     return [...new FormData(settingsForm).entries()]
+@@ -293,7 +426,9 @@ if (root) {
+     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
+       settingsForm.reset();
+       restoreUpdateRowOrder(updateRowInitialOrder);
++      restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
+       syncTemplateSettings();
++      syncInstitutionalProfileSettings();
+       validateUpdateSheetRows();
+       setSettingsDirty(false);
+     }
+@@ -339,6 +474,14 @@ if (root) {
+       }
+       return;
+     }
++    if (!validateInstitutionalProfile({ focus: true })) {
++      event.preventDefault();
++      if (settingsStatus) {
++        settingsStatus.textContent = 'Select at least one SDD profile module or retain the history timeline.';
++        settingsStatus.classList.add('is-dirty');
++      }
++      return;
++    }
+     if (!settingsDirty) {
+       event.preventDefault();
+       return;
+@@ -605,13 +748,14 @@ if (root) {
+       if (isUpdateSheet(deck)) {
+         const cover = deck?.includeCoverSlide === false ? 0 : 1;
+         const portfolio = deck?.includePortfolioSummarySlide === false ? 0 : 1;
+-        slideBreakdown.textContent = `Cover ${cover} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0} · Closing ${estimate.closingSlides || 1}`;
++        slideBreakdown.textContent = `Cover ${cover} · SDD profile ${estimate.institutionalProfileSlides || 0} · Portfolio summary ${portfolio} · Project sheets ${estimate.projectUpdateSheetSlides || 0} · Closing ${estimate.closingSlides || 1}`;
+       } else {
+         const capabilitySlides = Number(estimate.detailedProjectSlides || 0);
+         const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
+         const projectBriefSlides = Number(estimate.projectBriefSlides || 0);
+         const parts = [
+           `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0}`,
++          `SDD profile ${estimate.institutionalProfileSlides || 0}`,
+           `Summary ${estimate.summarySlides || 0}`,
+           `Tables ${estimate.executiveTableSlides || 0}`
+         ];
+diff --git a/wwwroot/js/projects/project-briefing-decks.test.js b/wwwroot/js/projects/project-briefing-decks.test.js
+index 371b385..15cfc58 100644
+--- a/wwwroot/js/projects/project-briefing-decks.test.js
++++ b/wwwroot/js/projects/project-briefing-decks.test.js
+@@ -184,3 +184,14 @@ test('Standard detailed slides expose project-brief design and independent conte
+   assert.match(source, /includesDetailedSlides\(\)/);
+   assert.match(source, /includesProjectBrief\(\)/);
+ });
++
++test('SDD institutional profile settings remain modular, ordered and valid before save', () => {
++  assert.match(source, /data-pbd-institutional-profile-enable/);
++  assert.match(source, /syncInstitutionalProfileSettings/);
++  assert.match(source, /syncInstitutionalModuleOrder/);
++  assert.match(source, /restoreInstitutionalModuleOrder/);
++  assert.match(source, /validateInstitutionalProfile/);
++  assert.match(source, /data-pbd-institutional-module-up/);
++  assert.match(source, /data-pbd-institutional-module-down/);
++  assert.match(source, /institutionalProfileSlides/);
++});

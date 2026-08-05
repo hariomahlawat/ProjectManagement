@@ -63,6 +63,8 @@ public sealed class ProjectBriefingDeckVm
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
         = ProjectBriefingClosingSlideType.JaiHind;
+    public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
+        = ProjectBriefingInstitutionalProfileOptions.Default;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeCoverSlide { get; init; } = true;
@@ -163,6 +165,7 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int CapabilityContinuationSlides { get; init; }
     public int ProjectBriefSlides { get; init; }
     public int ProjectUpdateSheetSlides { get; init; }
+    public int InstitutionalProfileSlides { get; init; }
     public int ClosingSlides { get; init; } = 1;
 }
 
@@ -238,6 +241,8 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
         = ProjectBriefingClosingSlideType.JaiHind;
+    public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
+        = ProjectBriefingInstitutionalProfileOptions.Default;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
     public bool IncludeCoverSlide { get; init; } = true;
     public bool IncludePortfolioSummarySlide { get; init; } = true;
@@ -273,6 +278,8 @@ public sealed class ProjectBriefingPresentationData
         = ProjectBriefingPresentationTheme.EditorialLight;
     public ProjectBriefingClosingSlideType ClosingSlideType { get; init; }
         = ProjectBriefingClosingSlideType.JaiHind;
+    public ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions { get; init; }
+        = ProjectBriefingInstitutionalProfileOptions.Default;
     public ProjectBriefingBrandingScope BrandingScope { get; init; }
         = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeCoverSlide { get; init; } = true;
@@ -287,6 +294,7 @@ public sealed class ProjectBriefingPresentationData
     public IReadOnlyList<ProjectBriefingPresentationProject> Projects { get; init; }
         = Array.Empty<ProjectBriefingPresentationProject>();
     public ProjectBriefingPresentationSummary Summary { get; init; } = new();
+    public ProjectBriefingInstitutionalProfileData? InstitutionalProfile { get; init; }
 }
 
 public sealed class ProjectBriefingPresentationProject
@@ -346,6 +354,27 @@ public sealed class ProjectBriefingPresentationSummary
 }
 
 public sealed record ProjectBriefingSummaryPoint(string Label, int Count, int Order = int.MaxValue);
+
+public sealed class ProjectBriefingInstitutionalProfileData
+{
+    public string Title { get; init; } = ProjectBriefingInstitutionalProfileOptions.DefaultTitle;
+    public IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> HistoryMilestones { get; init; }
+        = Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>();
+    public IReadOnlyList<ProjectBriefingInstitutionalModuleData> Modules { get; init; }
+        = Array.Empty<ProjectBriefingInstitutionalModuleData>();
+    public string? UnitCitationLabel { get; init; }
+    public int? UnitCitationCount { get; init; }
+    public DateTimeOffset DataAsOnUtc { get; init; }
+}
+
+public sealed record ProjectBriefingInstitutionalModuleData(
+    ProjectBriefingInstitutionalProfileModule Module,
+    string Title,
+    string? Headline,
+    IReadOnlyList<ProjectBriefingInstitutionalMetricRow> Rows,
+    string? Highlight = null);
+
+public sealed record ProjectBriefingInstitutionalMetricRow(string Label, string Value);
 
 public sealed record ProjectBriefingPhotoReference(int ProjectId, int PhotoId);
 
