@@ -1,0 +1,1779 @@
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -87,41 +87,6 @@
+     };
+     var institutionalProfile = deck?.InstitutionalProfileOptions
+         ?? ProjectBriefingInstitutionalProfileOptions.Default;
+-    var selectedInstitutionalModules = institutionalProfile.Modules.ToHashSet();
+-    var orderedInstitutionalModules = institutionalProfile.Modules
+-        .Concat(ProjectBriefingInstitutionalProfileOptions.DefaultModules)
+-        .Distinct()
+-        .ToArray();
+-    var institutionalModuleOrder = string.Join(",", orderedInstitutionalModules);
+-    var institutionalHistoryLines = string.Join(
+-        Environment.NewLine,
+-        institutionalProfile.HistoryMilestones.Select(item => $"{item.Year} | {item.Text}"));
+-    var institutionalPartnershipLines = string.Join(
+-        Environment.NewLine,
+-        institutionalProfile.PartnershipEntries);
+-    var institutionalTrainingCategories = Model.SelectionOptions.TechnicalCategories
+-        .OrderBy(category => category.Name, StringComparer.OrdinalIgnoreCase)
+-        .ToArray();
+-    var institutionalTrainingCategoryKnown = institutionalTrainingCategories.Any(category =>
+-        string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase));
+-    string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
+-    {
+-        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
+-        ProjectBriefingInstitutionalProfileModule.Proliferation => "Proliferated",
+-        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Assistance to Field Formations",
+-        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Intellectual Property",
+-        ProjectBriefingInstitutionalProfileModule.Partnerships => "Military–Academia–Industry Synergy",
+-        _ => module.ToString()
+-    };
+-    string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
+-    {
+-        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Original completed projects by default, with technical-category-wise counts from PRISM.",
+-        ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
+-        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
+-        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
+-        ProjectBriefingInstitutionalProfileModule.Partnerships => "User-maintained MoU and institutional-partner names.",
+-        _ => string.Empty
+-    };
+     var standardIncludesDetailedSlides = deck?.PresentationMode
+         is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
+     var standardIncludesCostRd = deck?.CostMode
+@@ -414,7 +379,7 @@
+                                data-pbd-settings-drawer
+                                aria-labelledby="pbd-settings-drawer-title"
+                                aria-hidden="true">
+-                            <form method="post" asp-page-handler="SaveSettings" class="pbd-settings__form" data-pbd-settings-form>
++                            <form method="post" asp-page-handler="SaveSettings" id="pbd-settings-form" class="pbd-settings__form" data-pbd-settings-form>
+                                 <input type="hidden" name="DeckId" value="@deck.Id" />
+                                 <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+ 
+@@ -579,238 +544,25 @@
+                                         </div>
+                                     </details>
+ 
+-                                    <details class="pbd-settings-section pbd-settings-section--collapsible"
+-                                             data-pbd-settings-collapsible
+-                                             data-pbd-settings-section="institutional-profile">
+-                                        <summary id="pbd-settings-institutional-title">
+-                                            <span>SDD institutional profile</span>
+-                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+-                                        </summary>
+-                                        <div class="pbd-settings-section__body">
++                                    <section class="pbd-settings-section pbd-settings-section--additional-slide" aria-labelledby="pbd-settings-additional-slides-title">
++                                        <h4 id="pbd-settings-additional-slides-title">Additional slides</h4>
++                                        <div class="pbd-settings-slide-toggle">
+                                             <label class="pbd-institutional-profile-toggle">
+                                                 <input type="checkbox"
+                                                        name="IncludeInstitutionalProfile"
+                                                        value="true"
+                                                        checked="@institutionalProfile.IncludeSlide"
+-                                                       data-pbd-institutional-profile-enable />
++                                                       data-pbd-profile-include-setting />
+                                                 <span>
+-                                                    <strong>Include “SDD – Growth over the years” slide</strong>
+-                                                    <small>Placed immediately after the cover. ERP-backed figures refresh whenever the PowerPoint is generated.</small>
++                                                    <strong>Include SDD Institutional Profile</strong>
++                                                    <small>Placed immediately after the cover. Detailed content is configured from the Additional Slides workspace.</small>
+                                                 </span>
+                                             </label>
+-
+-                                            <div class="pbd-institutional-profile-settings"
+-                                                 data-pbd-institutional-profile-settings
+-                                                 hidden="@(!institutionalProfile.IncludeSlide)">
+-                                                <label class="form-label">
+-                                                    <span>Slide title</span>
+-                                                    <input class="form-control"
+-                                                           name="InstitutionalProfileTitle"
+-                                                           value="@institutionalProfile.Title"
+-                                                           maxlength="120" />
+-                                                </label>
+-
+-                                                <fieldset class="pbd-choice-group">
+-                                                    <legend>History timeline</legend>
+-                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+-                                                        <input type="checkbox"
+-                                                               name="IncludeInstitutionalHistory"
+-                                                               value="true"
+-                                                               checked="@institutionalProfile.IncludeHistory"
+-                                                               data-pbd-institutional-history-enable />
+-                                                        <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
+-                                                    </label>
+-                                                    <div class="pbd-institutional-list-editor"
+-                                                         data-pbd-institutional-history-fields
+-                                                         data-pbd-institutional-history-editor
+-                                                         hidden="@(!institutionalProfile.IncludeHistory)">
+-                                                        <textarea name="InstitutionalHistoryLines"
+-                                                                  data-pbd-institutional-history-value
+-                                                                  hidden>@institutionalHistoryLines</textarea>
+-                                                        <div class="pbd-institutional-list-editor__heading">
+-                                                            <span><strong>Milestones</strong><small>Structured, ordered and retained as one editable PowerPoint timeline.</small></span>
+-                                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-history-add>
+-                                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add milestone
+-                                                            </button>
+-                                                        </div>
+-                                                        <div class="pbd-institutional-list-editor__items" data-pbd-institutional-history-list>
+-                                                            @foreach (var milestone in institutionalProfile.HistoryMilestones)
+-                                                            {
+-                                                                <div class="pbd-institutional-list-editor__item" data-pbd-institutional-history-item>
+-                                                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+-                                                                    <input class="form-control pbd-institutional-list-editor__year"
+-                                                                           type="number" min="1900" max="2200"
+-                                                                           value="@milestone.Year"
+-                                                                           aria-label="Milestone year"
+-                                                                           data-pbd-institutional-history-year />
+-                                                                    <input class="form-control"
+-                                                                           value="@milestone.Text"
+-                                                                           maxlength="100"
+-                                                                           aria-label="Milestone description"
+-                                                                           data-pbd-institutional-history-text />
+-                                                                    <span class="pbd-institutional-list-editor__actions">
+-                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move milestone up"><i class="bi bi-arrow-up"></i></button>
+-                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move milestone down"><i class="bi bi-arrow-down"></i></button>
+-                                                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove milestone"><i class="bi bi-trash"></i></button>
+-                                                                    </span>
+-                                                                </div>
+-                                                            }
+-                                                        </div>
+-                                                        <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-history-validation hidden>Add at least one valid year and milestone.</p>
+-                                                    </div>
+-                                                </fieldset>
+-
+-                                                <fieldset class="pbd-choice-group">
+-                                                    <legend>Institutional-output modules</legend>
+-                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures are read-only and are taken from their authoritative PRISM modules. Select and order only what should appear on the slide.</p>
+-                                                    <input type="hidden"
+-                                                           name="InstitutionalModuleOrder"
+-                                                           value="@institutionalModuleOrder"
+-                                                           data-pbd-institutional-module-order />
+-                                                    <div class="pbd-institutional-module-list" data-pbd-institutional-module-list>
+-                                                        @foreach (var module in orderedInstitutionalModules)
+-                                                        {
+-                                                            <div class="pbd-institutional-module-option"
+-                                                                 data-pbd-institutional-module
+-                                                                 data-module-key="@module">
+-                                                                <span class="pbd-institutional-module-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+-                                                                <label>
+-                                                                    <input type="checkbox"
+-                                                                           name="InstitutionalModules"
+-                                                                           value="@module"
+-                                                                           checked="@selectedInstitutionalModules.Contains(module)" />
+-                                                                    <span><strong>@InstitutionalModuleLabel(module)</strong><small>@InstitutionalModuleDescription(module)</small></span>
+-                                                                </label>
+-                                                                <span class="pbd-institutional-module-option__move">
+-                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-up aria-label="Move @InstitutionalModuleLabel(module) up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+-                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-down aria-label="Move @InstitutionalModuleLabel(module) down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+-                                                                </span>
+-                                                            </div>
+-                                                        }
+-                                                    </div>
+-                                                    <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
+-                                                    <div class="pbd-institutional-layout-summary" data-pbd-institutional-layout-summary aria-live="polite"></div>
+-                                                </fieldset>
+-
+-                                                <div class="pbd-form-grid pbd-form-grid--institutional">
+-                                                    <label class="form-label">
+-                                                        <span>Projects-developed scope</span>
+-                                                        <select class="form-select" name="InstitutionalProjectScope">
+-                                                            <option value="@ProjectBriefingInstitutionalProjectScope.OriginalCompleted" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)">Original completed projects — recommended</option>
+-                                                            <option value="@ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds)">All completed projects, including rebuilds</option>
+-                                                        </select>
+-                                                        <small>The headline and technical-category breakdown always use the same scope.</small>
+-                                                    </label>
+-                                                    <label class="form-label">
+-                                                        <span>Maximum detail rows per metric module</span>
+-                                                        <select class="form-select" name="InstitutionalMaximumDetailRows">
+-                                                            @for (var rowCount = 3; rowCount <= 7; rowCount++)
+-                                                            {
+-                                                                <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
+-                                                            }
+-                                                        </select>
+-                                                        <small>Highest-value categories are shown first; remaining categories are combined as Others.</small>
+-                                                    </label>
+-                                                    <label class="form-label">
+-                                                        <span>Training highlight category</span>
+-                                                        <select class="form-select" name="InstitutionalTrainingHighlightCategory">
+-                                                            @if (!institutionalTrainingCategoryKnown && !string.IsNullOrWhiteSpace(institutionalProfile.TrainingHighlightTechnicalCategory))
+-                                                            {
+-                                                                <option value="@institutionalProfile.TrainingHighlightTechnicalCategory" selected>@institutionalProfile.TrainingHighlightTechnicalCategory</option>
+-                                                            }
+-                                                            @foreach (var category in institutionalTrainingCategories)
+-                                                            {
+-                                                                <option value="@category.Name" selected="@(string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase))">@category.Name</option>
+-                                                            }
+-                                                        </select>
+-                                                        <small>Selected from authoritative PRISM technical categories.</small>
+-                                                    </label>
+-                                                </div>
+-
+-                                                <div class="pbd-institutional-list-editor" data-pbd-institutional-partnership-editor>
+-                                                    <textarea name="InstitutionalPartnershipLines"
+-                                                              data-pbd-institutional-partnership-value
+-                                                              hidden>@institutionalPartnershipLines</textarea>
+-                                                    <div class="pbd-institutional-list-editor__heading">
+-                                                        <span><strong>Military–Academia–Industry synergy</strong><small>Manual MoU and partner entries used by the selected partnership module.</small></span>
+-                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-partnership-add>
+-                                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add partner
+-                                                        </button>
+-                                                    </div>
+-                                                    <div class="pbd-institutional-list-editor__items" data-pbd-institutional-partnership-list>
+-                                                        @foreach (var partnership in institutionalProfile.PartnershipEntries)
+-                                                        {
+-                                                            <div class="pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner" data-pbd-institutional-partnership-item>
+-                                                                <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+-                                                                <input class="form-control"
+-                                                                       value="@partnership"
+-                                                                       maxlength="80"
+-                                                                       aria-label="MoU or partner name"
+-                                                                       data-pbd-institutional-partnership-text />
+-                                                                <span class="pbd-institutional-list-editor__actions">
+-                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move partner up"><i class="bi bi-arrow-up"></i></button>
+-                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move partner down"><i class="bi bi-arrow-down"></i></button>
+-                                                                    <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove partner"><i class="bi bi-trash"></i></button>
+-                                                                </span>
+-                                                            </div>
+-                                                        }
+-                                                    </div>
+-                                                    <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-partnership-validation hidden>Add at least one MoU or partner when the synergy module is selected.</p>
+-                                                </div>
+-
+-                                                <fieldset class="pbd-choice-group">
+-                                                    <legend>Profile footer strip</legend>
+-                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+-                                                        <input type="checkbox"
+-                                                               name="IncludeInstitutionalFooterStrip"
+-                                                               value="true"
+-                                                               checked="@institutionalProfile.IncludeFooterStrip"
+-                                                               data-pbd-institutional-footer-enable />
+-                                                        <span><strong>Include custom footer strip</strong><small>Optional user-authored message displayed below the output modules exactly as entered.</small></span>
+-                                                    </label>
+-                                                    <div class="pbd-form-grid pbd-form-grid--institutional"
+-                                                         data-pbd-institutional-footer-fields
+-                                                         hidden="@(!institutionalProfile.IncludeFooterStrip)">
+-                                                        <label class="form-label pbd-form-grid__wide">
+-                                                            <span>Footer text</span>
+-                                                            <input class="form-control"
+-                                                                   name="InstitutionalFooterStripText"
+-                                                                   value="@institutionalProfile.FooterStripText"
+-                                                                   maxlength="160"
+-                                                                   placeholder="GOC-in-C Unit Citations" />
+-                                                            <small>Shown exactly as entered; PRISM does not generate or rewrite this text.</small>
+-                                                        </label>
+-                                                        <label class="form-label">
+-                                                            <span>Highlighted value <small>optional</small></span>
+-                                                            <input class="form-control"
+-                                                                   name="InstitutionalFooterStripEmphasisValue"
+-                                                                   value="@institutionalProfile.FooterStripEmphasisValue"
+-                                                                   maxlength="40"
+-                                                                   placeholder="03" />
+-                                                        </label>
+-                                                        <label class="form-label">
+-                                                            <span>Alignment</span>
+-                                                            <select class="form-select" name="InstitutionalFooterStripAlignment">
+-                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.Center" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.Center)">Centred</option>
+-                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight)">Text left · value right</option>
+-                                                            </select>
+-                                                        </label>
+-                                                        <label class="form-label">
+-                                                            <span>Style</span>
+-                                                            <select class="form-select" name="InstitutionalFooterStripStyle">
+-                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.Outline" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.Outline)">Outline — recommended</option>
+-                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SolidMaroon" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon)">Solid maroon</option>
+-                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SubtleNeutral" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SubtleNeutral)">Subtle neutral</option>
+-                                                            </select>
+-                                                        </label>
+-                                                    </div>
+-                                                    <p class="pbd-institutional-profile-validation"
+-                                                       data-pbd-institutional-footer-validation
+-                                                       hidden>Enter footer text or an optional highlighted value.</p>
+-                                                </fieldset>
+-                                            </div>
++                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
++                                                <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit slide
++                                            </button>
+                                         </div>
+-                                    </details>
++                                    </section>
+ 
+                                     <details class="pbd-settings-section pbd-settings-section--collapsible"
+                                              data-pbd-settings-collapsible
+@@ -986,6 +738,8 @@
+                             </form>
+                         </aside>
+ 
++                        @await Html.PartialAsync("_InstitutionalProfileEditor", Model)
++
+                         <section class="pbd-export-preflight" aria-labelledby="pbd-preflight-title">
+                             <header class="pbd-preflight-header">
+                                 <div>
+@@ -1157,6 +911,59 @@
+                                     </section>
+                                 </div>
+                             </details>
++                        </section>
++
++                        <section class="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
++                            <header class="pbd-section-header pbd-section-header--additional-slides">
++                                <div>
++                                    <span class="pbd-eyebrow">Presentation structure</span>
++                                    <h3 id="pbd-additional-slides-title">Additional slides</h3>
++                                    <p>Configure optional, professionally designed slides independently of deck-wide settings.</p>
++                                </div>
++                                @if (!institutionalProfile.IncludeSlide)
++                                {
++                                    <form method="post" asp-page-handler="ToggleInstitutionalProfile" class="pbd-additional-slides__add-form">
++                                        <input type="hidden" name="deckId" value="@deck.Id" />
++                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
++                                        <input type="hidden" name="enabled" value="true" />
++                                        <button type="submit" class="btn btn-sm btn-outline-primary">
++                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
++                                        </button>
++                                    </form>
++                                }
++                                else
++                                {
++                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="All currently available additional slide types are already in this deck.">
++                                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
++                                    </button>
++                                }
++                            </header>
++
++                            <article class="pbd-additional-slide-card @(institutionalProfile.IncludeSlide ? "is-enabled" : "is-disabled")">
++                                <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
++                                <div class="pbd-additional-slide-card__body">
++                                    <div class="pbd-additional-slide-card__title-row">
++                                        <h4>SDD Institutional Profile</h4>
++                                        <span class="pbd-additional-slide-card__status">@(institutionalProfile.IncludeSlide ? "Enabled" : "Not included")</span>
++                                    </div>
++                                    <p>@institutionalProfile.Title</p>
++                                    <small>After cover · @institutionalProfile.HistoryMilestones.Count milestone@(institutionalProfile.HistoryMilestones.Count == 1 ? "" : "s") · @institutionalProfile.Modules.Count module@(institutionalProfile.Modules.Count == 1 ? "" : "s")</small>
++                                </div>
++                                <div class="pbd-additional-slide-card__actions">
++                                    <form method="post" asp-page-handler="ToggleInstitutionalProfile" data-pbd-additional-slide-toggle-form>
++                                        <input type="hidden" name="deckId" value="@deck.Id" />
++                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
++                                        <input type="hidden" name="enabled" value="@institutionalProfile.IncludeSlide.ToString().ToLowerInvariant()" data-pbd-additional-slide-enabled />
++                                        <label class="form-check form-switch" title="Include or remove this slide">
++                                            <input class="form-check-input" type="checkbox" checked="@institutionalProfile.IncludeSlide" data-pbd-additional-slide-toggle />
++                                            <span class="visually-hidden">Include SDD Institutional Profile</span>
++                                        </label>
++                                    </form>
++                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
++                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
++                                    </button>
++                                </div>
++                            </article>
+                         </section>
+ 
+                         <section class="pbd-selected" aria-labelledby="pbd-selected-title" data-pbd-selected-section>
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml.cs
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+@@ -56,6 +56,9 @@
+     [TempData]
+     public string? ErrorMessage { get; set; }
+ 
++    [TempData]
++    public bool ReopenInstitutionalProfile { get; set; }
++
+     public async Task<IActionResult> OnGetAsync(long? deckId, CancellationToken cancellationToken)
+     {
+         var userId = RequireUserId();
+@@ -150,6 +153,31 @@
+ 
+         try
+         {
++            var existingDeck = await _deckService.GetEntityAsync(
++                input.DeckId,
++                userId,
++                includeItems: false,
++                cancellationToken)
++                ?? throw new KeyNotFoundException("The shared command deck was not found.");
++            var existingProfile = ProjectBriefingDeckConfigurationCodec
++                .Read(existingDeck.SelectionRulesJson)
++                .InstitutionalProfileOptions;
++            var preservedProfile = ProjectBriefingInstitutionalProfileOptions.Normalize(
++                input.IncludeInstitutionalProfile,
++                existingProfile.Title,
++                existingProfile.IncludeHistory,
++                existingProfile.HistoryMilestones,
++                existingProfile.Modules,
++                existingProfile.ProjectScope,
++                existingProfile.MaximumDetailRows,
++                existingProfile.TrainingHighlightTechnicalCategory,
++                existingProfile.PartnershipEntries,
++                existingProfile.IncludeFooterStrip,
++                existingProfile.FooterStripText,
++                existingProfile.FooterStripEmphasisValue,
++                existingProfile.FooterStripStyle,
++                existingProfile.FooterStripAlignment);
++
+             await _deckService.UpdateSettingsAsync(
+                 input.DeckId,
+                 userId,
+@@ -166,21 +194,7 @@
+                     ShowPresentStatus = input.ShowPresentStatus,
+                     PresentationTheme = input.PresentationTheme,
+                     ClosingSlideType = input.ClosingSlideType,
+-                    InstitutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
+-                        input.IncludeInstitutionalProfile,
+-                        input.InstitutionalProfileTitle,
+-                        input.IncludeInstitutionalHistory,
+-                        ParseInstitutionalHistory(input.InstitutionalHistoryLines),
+-                        ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
+-                        input.InstitutionalProjectScope,
+-                        input.InstitutionalMaximumDetailRows,
+-                        input.InstitutionalTrainingHighlightCategory,
+-                        ParseSimpleLines(input.InstitutionalPartnershipLines),
+-                        input.IncludeInstitutionalFooterStrip,
+-                        input.InstitutionalFooterStripText,
+-                        input.InstitutionalFooterStripEmphasisValue,
+-                        input.InstitutionalFooterStripStyle,
+-                        input.InstitutionalFooterStripAlignment),
++                    InstitutionalProfileOptions = preservedProfile,
+                     BrandingScope = input.BrandingScope,
+                     IncludeCoverSlide = input.IncludeCoverSlide,
+                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
+@@ -209,6 +223,113 @@
+         }
+ 
+         return RedirectToPage(new { deckId = input.DeckId });
++    }
++
++    public async Task<IActionResult> OnPostSaveInstitutionalProfileAsync(
++        [FromForm] SaveInstitutionalProfileInput input,
++        CancellationToken cancellationToken)
++    {
++        var userId = RequireUserId();
++        if (!ModelState.IsValid)
++        {
++            ErrorMessage = FirstModelError("Review the SDD institutional profile and try again.");
++            ReopenInstitutionalProfile = true;
++            return RedirectToPage(new { deckId = input.DeckId });
++        }
++
++        try
++        {
++            var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
++                input.IncludeInstitutionalProfile,
++                input.InstitutionalProfileTitle,
++                input.IncludeInstitutionalHistory,
++                ParseInstitutionalHistory(input.InstitutionalHistoryLines),
++                ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
++                input.InstitutionalProjectScope,
++                input.InstitutionalMaximumDetailRows,
++                input.InstitutionalTrainingHighlightCategory,
++                ParseSimpleLines(input.InstitutionalPartnershipLines),
++                input.IncludeInstitutionalFooterStrip,
++                input.InstitutionalFooterStripText,
++                input.InstitutionalFooterStripEmphasisValue,
++                input.InstitutionalFooterStripStyle,
++                input.InstitutionalFooterStripAlignment);
++
++            await _deckService.UpdateInstitutionalProfileAsync(
++                input.DeckId,
++                userId,
++                options,
++                input.RowVersion,
++                cancellationToken);
++            StatusMessage = "SDD institutional profile saved.";
++        }
++        catch (DbUpdateConcurrencyException)
++        {
++            ErrorMessage = "This deck was updated by another user. Reload before saving the profile.";
++            ReopenInstitutionalProfile = true;
++        }
++        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
++        {
++            ErrorMessage = exception.Message;
++            ReopenInstitutionalProfile = true;
++        }
++
++        return RedirectToPage(new { deckId = input.DeckId });
++    }
++
++    public async Task<IActionResult> OnPostToggleInstitutionalProfileAsync(
++        long deckId,
++        bool enabled,
++        string rowVersion,
++        CancellationToken cancellationToken)
++    {
++        var userId = RequireUserId();
++        try
++        {
++            var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
++                ?? throw new KeyNotFoundException("The shared command deck was not found.");
++            var current = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).InstitutionalProfileOptions;
++            var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
++                enabled,
++                current.Title,
++                current.IncludeHistory,
++                current.HistoryMilestones,
++                current.Modules,
++                current.ProjectScope,
++                current.MaximumDetailRows,
++                current.TrainingHighlightTechnicalCategory,
++                current.PartnershipEntries,
++                current.IncludeFooterStrip,
++                current.FooterStripText,
++                current.FooterStripEmphasisValue,
++                current.FooterStripStyle,
++                current.FooterStripAlignment);
++
++            await _deckService.UpdateInstitutionalProfileAsync(
++                deckId,
++                userId,
++                options,
++                rowVersion,
++                cancellationToken);
++            StatusMessage = enabled
++                ? "SDD institutional profile added to the deck."
++                : "SDD institutional profile removed from the deck.";
++        }
++        catch (DbUpdateConcurrencyException)
++        {
++            ErrorMessage = "This deck was updated by another user. Reload and try again.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++            ReopenInstitutionalProfile = enabled;
++        }
++        catch (KeyNotFoundException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
++
++        return RedirectToPage(new { deckId });
+     }
+ 
+     public async Task<IActionResult> OnPostAddSelectionAsync(
+@@ -607,6 +728,52 @@
+             .Where(line => !string.IsNullOrWhiteSpace(line))
+             .ToArray();
+ 
++    public sealed class SaveInstitutionalProfileInput
++    {
++        [Range(1, long.MaxValue)]
++        public long DeckId { get; set; }
++
++        [Required]
++        public string RowVersion { get; set; } = string.Empty;
++
++        public bool IncludeInstitutionalProfile { get; set; }
++
++        [StringLength(120)]
++        public string? InstitutionalProfileTitle { get; set; }
++
++        public bool IncludeInstitutionalHistory { get; set; }
++
++        [StringLength(1200)]
++        public string? InstitutionalHistoryLines { get; set; }
++
++        public List<ProjectBriefingInstitutionalProfileModule> InstitutionalModules { get; set; } = new();
++
++        [StringLength(300)]
++        public string? InstitutionalModuleOrder { get; set; }
++        public ProjectBriefingInstitutionalProjectScope InstitutionalProjectScope { get; set; }
++            = ProjectBriefingInstitutionalProjectScope.OriginalCompleted;
++
++        [Range(3, 7)]
++        public int InstitutionalMaximumDetailRows { get; set; } = 6;
++
++        [StringLength(80)]
++        public string? InstitutionalTrainingHighlightCategory { get; set; }
++
++        [StringLength(1200)]
++        public string? InstitutionalPartnershipLines { get; set; }
++        public bool IncludeInstitutionalFooterStrip { get; set; }
++
++        [StringLength(160)]
++        public string? InstitutionalFooterStripText { get; set; }
++
++        [StringLength(40)]
++        public string? InstitutionalFooterStripEmphasisValue { get; set; }
++        public ProjectBriefingInstitutionalFooterStyle InstitutionalFooterStripStyle { get; set; }
++            = ProjectBriefingInstitutionalFooterStyle.Outline;
++        public ProjectBriefingInstitutionalFooterAlignment InstitutionalFooterStripAlignment { get; set; }
++            = ProjectBriefingInstitutionalFooterAlignment.Center;
++    }
++
+     public sealed class SaveDeckSettingsInput
+     {
+         [Required]
+--- a/Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
++++ b/Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
+@@ -0,0 +1,293 @@
++@model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
++@using ProjectManagement.Models.ProjectBriefings
++@{
++    var deck = Model.SelectedDeck!;
++    var institutionalProfile = deck.InstitutionalProfileOptions;
++    var selectedInstitutionalModules = institutionalProfile.Modules.ToHashSet();
++    var orderedInstitutionalModules = institutionalProfile.Modules
++        .Concat(ProjectBriefingInstitutionalProfileOptions.DefaultModules)
++        .Distinct()
++        .ToArray();
++    var institutionalModuleOrder = string.Join(",", orderedInstitutionalModules);
++    var institutionalHistoryLines = string.Join(
++        Environment.NewLine,
++        institutionalProfile.HistoryMilestones.Select(item => $"{item.Year} | {item.Text}"));
++    var institutionalPartnershipLines = string.Join(Environment.NewLine, institutionalProfile.PartnershipEntries);
++    var institutionalTrainingCategories = Model.SelectionOptions.TechnicalCategories
++        .OrderBy(category => category.Name, StringComparer.OrdinalIgnoreCase)
++        .ToArray();
++    var institutionalTrainingCategoryKnown = institutionalTrainingCategories.Any(category =>
++        string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase));
++    string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
++    {
++        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
++        ProjectBriefingInstitutionalProfileModule.Proliferation => "Proliferated",
++        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Assistance to Field Formations",
++        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Intellectual Property",
++        ProjectBriefingInstitutionalProfileModule.Partnerships => "Military–Academia–Industry Synergy",
++        _ => module.ToString()
++    };
++    string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
++    {
++        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Original completed projects by default, with technical-category-wise counts from PRISM.",
++        ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
++        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
++        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
++        ProjectBriefingInstitutionalProfileModule.Partnerships => "User-maintained MoU and institutional-partner names.",
++        _ => string.Empty
++    };
++}
++
++<div class="pbd-profile-backdrop" data-pbd-profile-backdrop hidden></div>
++<aside id="pbd-institutional-profile-drawer"
++       class="pbd-profile-drawer"
++       data-pbd-profile-drawer
++       data-pbd-profile-reopen="@Model.ReopenInstitutionalProfile.ToString().ToLowerInvariant()"
++       aria-labelledby="pbd-profile-drawer-title"
++       aria-hidden="true">
++    <form method="post" asp-page-handler="SaveInstitutionalProfile" data-pbd-profile-form>
++        <input type="hidden" name="DeckId" value="@deck.Id" />
++        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
++        <header class="pbd-profile-drawer__header">
++            <div>
++                <span class="pbd-eyebrow">Additional slide</span>
++                <h3 id="pbd-profile-drawer-title">Configure SDD Institutional Profile</h3>
++                <p>Maintain this slide independently while ERP-backed figures remain authoritative and read-only.</p>
++            </div>
++            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-profile-close aria-label="Close SDD profile editor">
++                <i class="bi bi-x-lg" aria-hidden="true"></i>
++            </button>
++        </header>
++        <div class="pbd-profile-drawer__body">
++                                            <label class="pbd-institutional-profile-toggle">
++                                                <input type="checkbox"
++                                                       name="IncludeInstitutionalProfile"
++                                                       value="true"
++                                                       checked="@institutionalProfile.IncludeSlide"
++                                                       data-pbd-institutional-profile-enable />
++                                                <span>
++                                                    <strong>Include “SDD – Growth over the years” slide</strong>
++                                                    <small>Placed immediately after the cover. ERP-backed figures refresh whenever the PowerPoint is generated.</small>
++                                                </span>
++                                            </label>
++
++                                            <div class="pbd-institutional-profile-settings"
++                                                 data-pbd-institutional-profile-settings>
++                                                <label class="form-label">
++                                                    <span>Slide title</span>
++                                                    <input class="form-control"
++                                                           name="InstitutionalProfileTitle"
++                                                           value="@institutionalProfile.Title"
++                                                           maxlength="120" />
++                                                </label>
++
++                                                <fieldset class="pbd-choice-group">
++                                                    <legend>History timeline</legend>
++                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
++                                                        <input type="checkbox"
++                                                               name="IncludeInstitutionalHistory"
++                                                               value="true"
++                                                               checked="@institutionalProfile.IncludeHistory"
++                                                               data-pbd-institutional-history-enable />
++                                                        <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
++                                                    </label>
++                                                    <div class="pbd-institutional-list-editor"
++                                                         data-pbd-institutional-history-fields
++                                                         data-pbd-institutional-history-editor
++                                                         hidden="@(!institutionalProfile.IncludeHistory)">
++                                                        <textarea name="InstitutionalHistoryLines"
++                                                                  data-pbd-institutional-history-value
++                                                                  hidden>@institutionalHistoryLines</textarea>
++                                                        <div class="pbd-institutional-list-editor__heading">
++                                                            <span><strong>Milestones</strong><small>Structured, ordered and retained as one editable PowerPoint timeline.</small></span>
++                                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-history-add>
++                                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add milestone
++                                                            </button>
++                                                        </div>
++                                                        <div class="pbd-institutional-list-editor__items" data-pbd-institutional-history-list>
++                                                            @foreach (var milestone in institutionalProfile.HistoryMilestones)
++                                                            {
++                                                                <div class="pbd-institutional-list-editor__item" data-pbd-institutional-history-item>
++                                                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
++                                                                    <input class="form-control pbd-institutional-list-editor__year"
++                                                                           type="number" min="1900" max="2200"
++                                                                           value="@milestone.Year"
++                                                                           aria-label="Milestone year"
++                                                                           data-pbd-institutional-history-year />
++                                                                    <input class="form-control"
++                                                                           value="@milestone.Text"
++                                                                           maxlength="100"
++                                                                           aria-label="Milestone description"
++                                                                           data-pbd-institutional-history-text />
++                                                                    <span class="pbd-institutional-list-editor__actions">
++                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move milestone up"><i class="bi bi-arrow-up"></i></button>
++                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move milestone down"><i class="bi bi-arrow-down"></i></button>
++                                                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove milestone"><i class="bi bi-trash"></i></button>
++                                                                    </span>
++                                                                </div>
++                                                            }
++                                                        </div>
++                                                        <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-history-validation hidden>Add at least one valid year and milestone.</p>
++                                                    </div>
++                                                </fieldset>
++
++                                                <fieldset class="pbd-choice-group">
++                                                    <legend>Institutional-output modules</legend>
++                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures are read-only and are taken from their authoritative PRISM modules. Select and order only what should appear on the slide.</p>
++                                                    <input type="hidden"
++                                                           name="InstitutionalModuleOrder"
++                                                           value="@institutionalModuleOrder"
++                                                           data-pbd-institutional-module-order />
++                                                    <div class="pbd-institutional-module-list" data-pbd-institutional-module-list>
++                                                        @foreach (var module in orderedInstitutionalModules)
++                                                        {
++                                                            <div class="pbd-institutional-module-option"
++                                                                 data-pbd-institutional-module
++                                                                 data-module-key="@module">
++                                                                <span class="pbd-institutional-module-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
++                                                                <label>
++                                                                    <input type="checkbox"
++                                                                           name="InstitutionalModules"
++                                                                           value="@module"
++                                                                           checked="@selectedInstitutionalModules.Contains(module)" />
++                                                                    <span><strong>@InstitutionalModuleLabel(module)</strong><small>@InstitutionalModuleDescription(module)</small></span>
++                                                                </label>
++                                                                <span class="pbd-institutional-module-option__move">
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-up aria-label="Move @InstitutionalModuleLabel(module) up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-down aria-label="Move @InstitutionalModuleLabel(module) down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
++                                                                </span>
++                                                            </div>
++                                                        }
++                                                    </div>
++                                                    <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
++                                                    <div class="pbd-institutional-layout-summary" data-pbd-institutional-layout-summary aria-live="polite"></div>
++                                                </fieldset>
++
++                                                <div class="pbd-form-grid pbd-form-grid--institutional">
++                                                    <label class="form-label">
++                                                        <span>Projects-developed scope</span>
++                                                        <select class="form-select" name="InstitutionalProjectScope">
++                                                            <option value="@ProjectBriefingInstitutionalProjectScope.OriginalCompleted" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)">Original completed projects — recommended</option>
++                                                            <option value="@ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds)">All completed projects, including rebuilds</option>
++                                                        </select>
++                                                        <small>The headline and technical-category breakdown always use the same scope.</small>
++                                                    </label>
++                                                    <label class="form-label">
++                                                        <span>Maximum detail rows per metric module</span>
++                                                        <select class="form-select" name="InstitutionalMaximumDetailRows">
++                                                            @for (var rowCount = 3; rowCount <= 7; rowCount++)
++                                                            {
++                                                                <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
++                                                            }
++                                                        </select>
++                                                        <small>Highest-value categories are shown first; remaining categories are combined as Others.</small>
++                                                    </label>
++                                                    <label class="form-label">
++                                                        <span>Training highlight category</span>
++                                                        <select class="form-select" name="InstitutionalTrainingHighlightCategory">
++                                                            @if (!institutionalTrainingCategoryKnown && !string.IsNullOrWhiteSpace(institutionalProfile.TrainingHighlightTechnicalCategory))
++                                                            {
++                                                                <option value="@institutionalProfile.TrainingHighlightTechnicalCategory" selected>@institutionalProfile.TrainingHighlightTechnicalCategory</option>
++                                                            }
++                                                            @foreach (var category in institutionalTrainingCategories)
++                                                            {
++                                                                <option value="@category.Name" selected="@(string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase))">@category.Name</option>
++                                                            }
++                                                        </select>
++                                                        <small>Selected from authoritative PRISM technical categories.</small>
++                                                    </label>
++                                                </div>
++
++                                                <div class="pbd-institutional-list-editor" data-pbd-institutional-partnership-editor>
++                                                    <textarea name="InstitutionalPartnershipLines"
++                                                              data-pbd-institutional-partnership-value
++                                                              hidden>@institutionalPartnershipLines</textarea>
++                                                    <div class="pbd-institutional-list-editor__heading">
++                                                        <span><strong>Military–Academia–Industry synergy</strong><small>Manual MoU and partner entries used by the selected partnership module.</small></span>
++                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-partnership-add>
++                                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add partner
++                                                        </button>
++                                                    </div>
++                                                    <div class="pbd-institutional-list-editor__items" data-pbd-institutional-partnership-list>
++                                                        @foreach (var partnership in institutionalProfile.PartnershipEntries)
++                                                        {
++                                                            <div class="pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner" data-pbd-institutional-partnership-item>
++                                                                <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
++                                                                <input class="form-control"
++                                                                       value="@partnership"
++                                                                       maxlength="80"
++                                                                       aria-label="MoU or partner name"
++                                                                       data-pbd-institutional-partnership-text />
++                                                                <span class="pbd-institutional-list-editor__actions">
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move partner up"><i class="bi bi-arrow-up"></i></button>
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move partner down"><i class="bi bi-arrow-down"></i></button>
++                                                                    <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove partner"><i class="bi bi-trash"></i></button>
++                                                                </span>
++                                                            </div>
++                                                        }
++                                                    </div>
++                                                    <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-partnership-validation hidden>Add at least one MoU or partner when the synergy module is selected.</p>
++                                                </div>
++
++                                                <fieldset class="pbd-choice-group">
++                                                    <legend>Profile footer strip</legend>
++                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
++                                                        <input type="checkbox"
++                                                               name="IncludeInstitutionalFooterStrip"
++                                                               value="true"
++                                                               checked="@institutionalProfile.IncludeFooterStrip"
++                                                               data-pbd-institutional-footer-enable />
++                                                        <span><strong>Include custom footer strip</strong><small>Optional user-authored message displayed below the output modules exactly as entered.</small></span>
++                                                    </label>
++                                                    <div class="pbd-form-grid pbd-form-grid--institutional"
++                                                         data-pbd-institutional-footer-fields
++                                                         hidden="@(!institutionalProfile.IncludeFooterStrip)">
++                                                        <label class="form-label pbd-form-grid__wide">
++                                                            <span>Footer text</span>
++                                                            <input class="form-control"
++                                                                   name="InstitutionalFooterStripText"
++                                                                   value="@institutionalProfile.FooterStripText"
++                                                                   maxlength="160"
++                                                                   placeholder="GOC-in-C Unit Citations" />
++                                                            <small>Shown exactly as entered; PRISM does not generate or rewrite this text.</small>
++                                                        </label>
++                                                        <label class="form-label">
++                                                            <span>Highlighted value <small>optional</small></span>
++                                                            <input class="form-control"
++                                                                   name="InstitutionalFooterStripEmphasisValue"
++                                                                   value="@institutionalProfile.FooterStripEmphasisValue"
++                                                                   maxlength="40"
++                                                                   placeholder="03" />
++                                                        </label>
++                                                        <label class="form-label">
++                                                            <span>Alignment</span>
++                                                            <select class="form-select" name="InstitutionalFooterStripAlignment">
++                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.Center" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.Center)">Centred</option>
++                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight)">Text left · value right</option>
++                                                            </select>
++                                                        </label>
++                                                        <label class="form-label">
++                                                            <span>Style</span>
++                                                            <select class="form-select" name="InstitutionalFooterStripStyle">
++                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.Outline" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.Outline)">Outline — recommended</option>
++                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SolidMaroon" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon)">Solid maroon</option>
++                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SubtleNeutral" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SubtleNeutral)">Subtle neutral</option>
++                                                            </select>
++                                                        </label>
++                                                    </div>
++                                                    <p class="pbd-institutional-profile-validation"
++                                                       data-pbd-institutional-footer-validation
++                                                       hidden>Enter footer text or an optional highlighted value.</p>
++                                                </fieldset>
++                                            </div>
++
++        </div>
++        <footer class="pbd-profile-drawer__footer">
++            <span data-pbd-profile-status>No unsaved profile changes</span>
++            <div>
++                <button type="button" class="btn btn-outline-secondary" data-pbd-profile-close>Cancel</button>
++                <button type="submit" class="btn btn-primary" data-pbd-profile-save disabled>Save profile</button>
++            </div>
++        </footer>
++    </form>
++</aside>
+--- a/Services/ProjectBriefings/ProjectBriefingDeckService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+@@ -32,6 +32,13 @@
+         long deckId,
+         string requestingUserId,
+         ProjectBriefingDeckSettingsCommand command,
++        CancellationToken cancellationToken = default);
++
++    Task UpdateInstitutionalProfileAsync(
++        long deckId,
++        string requestingUserId,
++        ProjectBriefingInstitutionalProfileOptions options,
++        string rowVersion,
+         CancellationToken cancellationToken = default);
+ 
+     Task<int> AddProjectsAsync(
+@@ -294,13 +301,6 @@
+             command.ProjectBriefLayout,
+             command.ShowPresentStage,
+             command.ShowPresentStatus);
+-        if (command.InstitutionalProfileOptions.IncludeFooterStrip
+-            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripText)
+-            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripEmphasisValue))
+-        {
+-            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
+-        }
+-
+         var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
+             command.InstitutionalProfileOptions.IncludeSlide,
+             command.InstitutionalProfileOptions.Title,
+@@ -316,18 +316,7 @@
+             command.InstitutionalProfileOptions.FooterStripEmphasisValue,
+             command.InstitutionalProfileOptions.FooterStripStyle,
+             command.InstitutionalProfileOptions.FooterStripAlignment);
+-        if (institutionalProfileOptions.IncludeSlide
+-            && !institutionalProfileOptions.IncludeHistory
+-            && institutionalProfileOptions.Modules.Count == 0)
+-        {
+-            throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
+-        }
+-        if (institutionalProfileOptions.IncludeSlide
+-            && institutionalProfileOptions.Modules.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships)
+-            && institutionalProfileOptions.PartnershipEntries.Count == 0)
+-        {
+-            throw new InvalidOperationException("Add at least one MoU or partner when the Military–Academia–Industry Synergy module is selected.");
+-        }
++        ValidateInstitutionalProfile(institutionalProfileOptions);
+ 
+         var normalizedName = NormalizeName(command.Name);
+         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
+@@ -364,6 +353,73 @@
+         await AuditAsync("ProjectBriefing.DeckUpdated", userId, deck, "Project briefing deck settings updated.");
+     }
+ 
++    private static void ValidateInstitutionalProfile(ProjectBriefingInstitutionalProfileOptions options)
++    {
++        if (options.IncludeFooterStrip
++            && string.IsNullOrWhiteSpace(options.FooterStripText)
++            && string.IsNullOrWhiteSpace(options.FooterStripEmphasisValue))
++        {
++            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
++        }
++
++        if (options.IncludeSlide
++            && !options.IncludeHistory
++            && options.Modules.Count == 0)
++        {
++            throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
++        }
++
++        if (options.IncludeSlide
++            && options.Modules.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships)
++            && options.PartnershipEntries.Count == 0)
++        {
++            throw new InvalidOperationException("Add at least one MoU or partner when the Military–Academia–Industry Synergy module is selected.");
++        }
++    }
++
++    public async Task UpdateInstitutionalProfileAsync(
++        long deckId,
++        string requestingUserId,
++        ProjectBriefingInstitutionalProfileOptions options,
++        string rowVersion,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(options);
++        var userId = NormalizeUserId(requestingUserId);
++        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
++            ?? throw new KeyNotFoundException("The shared command deck was not found.");
++
++        EnsureVersion(deck, rowVersion);
++        var normalized = ProjectBriefingInstitutionalProfileOptions.Normalize(
++            options.IncludeSlide,
++            options.Title,
++            options.IncludeHistory,
++            options.HistoryMilestones,
++            options.Modules,
++            options.ProjectScope,
++            options.MaximumDetailRows,
++            options.TrainingHighlightTechnicalCategory,
++            options.PartnershipEntries,
++            options.IncludeFooterStrip,
++            options.FooterStripText,
++            options.FooterStripEmphasisValue,
++            options.FooterStripStyle,
++            options.FooterStripAlignment);
++
++        ValidateInstitutionalProfile(normalized);
++        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
++            deck.SelectionRulesJson,
++            normalized);
++        Touch(deck, userId);
++
++        await _db.SaveChangesAsync(cancellationToken);
++        await AuditAsync(
++            "ProjectBriefing.InstitutionalProfileUpdated",
++            userId,
++            deck,
++            "SDD institutional profile slide configuration updated.");
++    }
++
+     public async Task<int> AddProjectsAsync(
+         long deckId,
+         string requestingUserId,
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -3288,3 +3288,290 @@
+         grid-column: 2 / 4;
+     }
+ }
++
++/* Additional-slide workspace and focused slide editor */
++.pbd-additional-slides {
++    margin-bottom: .75rem;
++    overflow: hidden;
++    border: 1px solid var(--pbd-border);
++    border-radius: .78rem;
++    background: #fff;
++    box-shadow: 0 .2rem .75rem rgba(15, 23, 42, .035);
++}
++
++.pbd-section-header--additional-slides {
++    padding: .78rem .85rem;
++    border-bottom: 1px solid var(--pbd-border);
++}
++
++.pbd-additional-slides__add-form {
++    margin: 0;
++}
++
++.pbd-additional-slide-card {
++    display: grid;
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    align-items: center;
++    gap: .8rem;
++    margin: .72rem;
++    padding: .72rem .78rem;
++    border: 1px solid #dce4ef;
++    border-radius: .68rem;
++    background: #fbfcfe;
++    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
++}
++
++.pbd-additional-slide-card.is-enabled {
++    border-color: #b9cbed;
++    background: #f6f9ff;
++    box-shadow: inset .18rem 0 0 #315fb8;
++}
++
++.pbd-additional-slide-card__icon {
++    display: grid;
++    width: 2.55rem;
++    height: 2.55rem;
++    place-items: center;
++    border-radius: .62rem;
++    background: #e9f0ff;
++    color: #315fb8;
++    font-size: 1.05rem;
++}
++
++.pbd-additional-slide-card__body {
++    min-width: 0;
++}
++
++.pbd-additional-slide-card__title-row {
++    display: flex;
++    align-items: center;
++    flex-wrap: wrap;
++    gap: .45rem;
++}
++
++.pbd-additional-slide-card__title-row h4 {
++    margin: 0;
++    color: var(--pbd-ink);
++    font-size: .86rem;
++    font-weight: 780;
++}
++
++.pbd-additional-slide-card__status {
++    display: inline-flex;
++    align-items: center;
++    min-height: 1.35rem;
++    padding: .1rem .42rem;
++    border-radius: 999px;
++    background: #eef1f5;
++    color: #667085;
++    font-size: .58rem;
++    font-weight: 800;
++    letter-spacing: .025em;
++    text-transform: uppercase;
++}
++
++.pbd-additional-slide-card.is-enabled .pbd-additional-slide-card__status {
++    background: #e7f6ec;
++    color: #267a47;
++}
++
++.pbd-additional-slide-card__body p {
++    margin: .2rem 0 .1rem;
++    color: #344054;
++    font-size: .72rem;
++    font-weight: 650;
++}
++
++.pbd-additional-slide-card__body small {
++    display: block;
++    color: var(--pbd-muted);
++    font-size: .65rem;
++}
++
++.pbd-additional-slide-card__actions {
++    display: flex;
++    align-items: center;
++    gap: .65rem;
++}
++
++.pbd-additional-slide-card__actions form {
++    margin: 0;
++}
++
++.pbd-additional-slide-card__actions .form-switch {
++    margin: 0;
++    padding-left: 2.4rem;
++}
++
++.pbd-settings-slide-toggle {
++    display: grid;
++    grid-template-columns: minmax(0, 1fr) auto;
++    align-items: center;
++    gap: .7rem;
++}
++
++.pbd-profile-backdrop {
++    position: fixed;
++    inset: 0;
++    z-index: 1094;
++    background: rgba(15, 23, 42, .42);
++    backdrop-filter: blur(1px);
++}
++
++.pbd-profile-drawer {
++    position: fixed;
++    top: 0;
++    right: 0;
++    bottom: 0;
++    z-index: 1095;
++    width: min(52rem, calc(100vw - 1rem));
++    max-width: 100%;
++    background: #f7f9fc;
++    box-shadow: -1rem 0 3rem rgba(15, 23, 42, .22);
++    transform: translateX(102%);
++    visibility: hidden;
++    transition: transform .2s ease, visibility 0s linear .2s;
++}
++
++.pbd-profile-drawer.is-open {
++    transform: translateX(0);
++    visibility: visible;
++    transition: transform .2s ease;
++}
++
++body.pbd-profile-drawer-open {
++    overflow: hidden;
++}
++
++.pbd-profile-drawer > form {
++    display: grid;
++    grid-template-rows: auto minmax(0, 1fr) auto;
++    width: 100%;
++    height: 100%;
++}
++
++.pbd-profile-drawer__header {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: 1rem;
++    padding: 1rem 1.05rem .85rem;
++    border-bottom: 1px solid var(--pbd-border);
++    background: #fff;
++}
++
++.pbd-profile-drawer__header h3 {
++    margin: 0;
++    color: var(--pbd-ink);
++    font-size: 1.08rem;
++    font-weight: 780;
++}
++
++.pbd-profile-drawer__header p {
++    margin: .18rem 0 0;
++    color: var(--pbd-muted);
++    font-size: .7rem;
++    line-height: 1.4;
++}
++
++.pbd-profile-drawer__body {
++    min-height: 0;
++    padding: .8rem;
++    overflow-y: auto;
++    overscroll-behavior: contain;
++}
++
++.pbd-profile-drawer__body > .pbd-institutional-profile-toggle {
++    margin-bottom: .7rem;
++}
++
++.pbd-profile-drawer__body .pbd-institutional-profile-settings {
++    display: grid;
++    gap: .8rem;
++}
++
++.pbd-profile-drawer__body .pbd-choice-group,
++.pbd-profile-drawer__body > .pbd-institutional-profile-toggle,
++.pbd-profile-drawer__body .pbd-institutional-profile-settings > .form-label {
++    margin: 0;
++    padding: .78rem;
++    border: 1px solid var(--pbd-border);
++    border-radius: .68rem;
++    background: #fff;
++}
++
++.pbd-profile-drawer__body .pbd-institutional-profile-settings > .form-label {
++    display: grid;
++    gap: .35rem;
++}
++
++.pbd-profile-drawer__footer {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .8rem;
++    min-height: 4rem;
++    padding: .7rem .85rem;
++    border-top: 1px solid var(--pbd-border);
++    background: #fff;
++    box-shadow: 0 -.4rem 1rem rgba(15, 23, 42, .035);
++}
++
++.pbd-profile-drawer__footer > div {
++    display: flex;
++    align-items: center;
++    gap: .45rem;
++}
++
++.pbd-profile-drawer__footer > span {
++    color: var(--pbd-muted);
++    font-size: .7rem;
++}
++
++.pbd-profile-drawer__footer > span.is-dirty {
++    color: var(--pbd-amber);
++    font-weight: 750;
++}
++
++.pbd-profile-drawer__footer > span.is-saving {
++    color: var(--pbd-blue);
++}
++
++.pbd-profile-drawer [data-pbd-profile-save]:disabled {
++    opacity: .52;
++    cursor: not-allowed;
++    box-shadow: none;
++}
++
++@media (max-width: 760px) {
++    .pbd-additional-slide-card {
++        grid-template-columns: auto minmax(0, 1fr);
++    }
++
++    .pbd-additional-slide-card__actions {
++        grid-column: 1 / -1;
++        justify-content: flex-end;
++    }
++
++    .pbd-settings-slide-toggle {
++        grid-template-columns: 1fr;
++    }
++
++    .pbd-profile-drawer__footer {
++        align-items: stretch;
++        flex-direction: column;
++    }
++
++    .pbd-profile-drawer__footer > div,
++    .pbd-profile-drawer__footer .btn {
++        width: 100%;
++    }
++}
++
++@media print {
++    .pbd-additional-slides,
++    .pbd-profile-backdrop,
++    .pbd-profile-drawer {
++        display: none !important;
++    }
++}
+--- a/wwwroot/js/pages/project-briefing-decks.js
++++ b/wwwroot/js/pages/project-briefing-decks.js
+@@ -118,11 +118,10 @@
+   const updateRowRecommendedOrder = updateRowOrderInput?.dataset.recommendedOrder || updateRowInitialOrder;
+   let settingsValid = true;
+   let updateRowsValid = true;
+-  let institutionalProfileValid = true;
+   let draggedUpdateRow = null;
+ 
+   const applySettingsValidity = () => {
+-    settingsValid = updateRowsValid && institutionalProfileValid;
++    settingsValid = updateRowsValid;
+     if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
+   };
+ 
+@@ -255,6 +254,37 @@
+   });
+ 
+   syncUpdateRowOrder();
++
++  // Dedicated editor for optional, template-driven additional slides.
++  const profileDrawer = root.querySelector('[data-pbd-profile-drawer]');
++  const profileBackdrop = root.querySelector('[data-pbd-profile-backdrop]');
++  const profileForm = root.querySelector('[data-pbd-profile-form]');
++  const profileSave = root.querySelector('[data-pbd-profile-save]');
++  const profileStatus = root.querySelector('[data-pbd-profile-status]');
++  let profileInitialState = '';
++  let profileDirty = false;
++  let profileValid = true;
++  let profileReturnFocus = null;
++
++  const serializeForm = (form) => form instanceof HTMLFormElement
++    ? [...new FormData(form).entries()]
++      .filter(([name]) => name !== 'RowVersion')
++      .map(([name, value]) => `${name}=${String(value).trim()}`)
++      .sort()
++      .join('&')
++    : '';
++
++  const setProfileDirty = (dirty) => {
++    profileDirty = dirty;
++    if (profileSave) profileSave.disabled = !dirty || !profileValid;
++    if (profileStatus) {
++      profileStatus.textContent = dirty ? 'Unsaved profile changes' : 'No unsaved profile changes';
++      profileStatus.classList.toggle('is-dirty', dirty);
++      profileStatus.classList.remove('is-saving');
++    }
++  };
++
++  const refreshProfileDirtyState = () => setProfileDirty(serializeForm(profileForm) !== profileInitialState);
+ 
+   // Optional SDD institutional-profile slide.
+   const institutionalProfileEnable = root.querySelector('[data-pbd-institutional-profile-enable]');
+@@ -508,7 +538,7 @@
+     const footerValue = root.querySelector('input[name="InstitutionalFooterStripEmphasisValue"]')?.value?.trim() || '';
+     const footerValid = !footerSelected || Boolean(footerText || footerValue);
+     const valid = !enabled || (hasContent && historyValid && partnershipValid && footerValid);
+-    institutionalProfileValid = valid;
++    profileValid = valid;
+     institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
+     institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
+     institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
+@@ -518,7 +548,7 @@
+     institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
+     institutionalPartnershipEditor?.classList.toggle('has-validation-error', enabled && !partnershipValid);
+     syncInstitutionalLayoutSummary();
+-    applySettingsValidity();
++    if (profileSave) profileSave.disabled = !profileDirty || !profileValid;
+     if (!valid && focus) {
+       if (!historyValid) institutionalHistoryEditor?.querySelector('input')?.focus();
+       else if (!partnershipValid) institutionalPartnershipEditor?.querySelector('input')?.focus();
+@@ -543,7 +573,7 @@
+     if (direction < 0) institutionalModuleList.insertBefore(row, sibling);
+     else institutionalModuleList.insertBefore(sibling, row);
+     syncInstitutionalModuleOrder();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+   };
+ 
+   institutionalModuleElements().forEach((row) => {
+@@ -565,7 +595,7 @@
+       row.classList.remove('is-dragging');
+       institutionalModuleElements().forEach((candidate) => candidate.classList.remove('is-drag-over'));
+       syncInstitutionalModuleOrder();
+-      refreshSettingsDirtyState();
++      refreshProfileDirtyState();
+     });
+     row.addEventListener('dragover', (event) => {
+       if (!draggedInstitutionalModule || draggedInstitutionalModule === row || !institutionalModuleList) return;
+@@ -581,7 +611,7 @@
+   institutionalHistoryList?.addEventListener('input', () => {
+     syncInstitutionalHistoryEditor();
+     validateInstitutionalProfile();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+   });
+   institutionalHistoryList?.addEventListener('click', (event) => {
+     const button = event.target.closest('button');
+@@ -593,7 +623,7 @@
+     else return;
+     syncInstitutionalHistoryEditor();
+     validateInstitutionalProfile();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+   });
+   root.querySelector('[data-pbd-institutional-history-add]')?.addEventListener('click', () => {
+     if (!institutionalHistoryList || institutionalHistoryList.children.length >= 8) return;
+@@ -601,14 +631,14 @@
+     institutionalHistoryList.append(row);
+     syncInstitutionalHistoryEditor();
+     validateInstitutionalProfile();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+     row.querySelector('[data-pbd-institutional-history-year]')?.focus();
+   });
+ 
+   institutionalPartnershipList?.addEventListener('input', () => {
+     syncInstitutionalPartnershipEditor();
+     validateInstitutionalProfile();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+   });
+   institutionalPartnershipList?.addEventListener('click', (event) => {
+     const button = event.target.closest('button');
+@@ -620,7 +650,7 @@
+     else return;
+     syncInstitutionalPartnershipEditor();
+     validateInstitutionalProfile();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+   });
+   root.querySelector('[data-pbd-institutional-partnership-add]')?.addEventListener('click', () => {
+     if (!institutionalPartnershipList || institutionalPartnershipList.children.length >= 8) return;
+@@ -628,7 +658,7 @@
+     institutionalPartnershipList.append(row);
+     syncInstitutionalPartnershipEditor();
+     validateInstitutionalProfile();
+-    refreshSettingsDirtyState();
++    refreshProfileDirtyState();
+     row.querySelector('[data-pbd-institutional-partnership-text]')?.focus();
+   });
+ 
+@@ -639,15 +669,116 @@
+   syncInstitutionalPartnershipEditor();
+   syncInstitutionalModuleOrder();
+   syncInstitutionalProfileSettings();
+-
+-  const serializeSettings = () => {
+-    if (!(settingsForm instanceof HTMLFormElement)) return '';
+-    return [...new FormData(settingsForm).entries()]
+-      .filter(([name]) => name !== 'RowVersion')
+-      .map(([name, value]) => `${name}=${String(value).trim()}`)
+-      .sort()
+-      .join('&');
+-  };
++  profileInitialState = serializeForm(profileForm);
++  setProfileDirty(false);
++
++  const focusableProfileElements = () => profileDrawer
++    ? [...profileDrawer.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
++      .filter((element) => !element.hidden && element.getClientRects().length > 0)
++    : [];
++
++  const openProfileDrawer = (launcher) => {
++    if (!profileDrawer || !profileBackdrop) return;
++    if (settingsDirty) {
++      window.alert('Save or discard deck settings before editing the SDD Institutional Profile.');
++      return;
++    }
++    const launchedFromSettings = Boolean(launcher && settingsDrawer?.contains(launcher));
++    if (settingsDrawer?.classList.contains('is-open')) closeSettingsDrawer({ discard: false, force: true });
++    profileReturnFocus = launchedFromSettings ? settingsLauncher : (launcher || document.activeElement);
++    profileDrawer.classList.add('is-open');
++    profileDrawer.setAttribute('aria-hidden', 'false');
++    root.querySelectorAll('[data-pbd-profile-open]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
++    profileBackdrop.hidden = false;
++    document.body.classList.add('pbd-profile-drawer-open');
++    window.requestAnimationFrame(() => focusableProfileElements()[0]?.focus());
++  };
++
++  const closeProfileDrawer = ({ discard = true, force = false } = {}) => {
++    if (!profileDrawer || !profileBackdrop) return false;
++    if (profileDirty && !force && !window.confirm('Discard unsaved SDD profile changes?')) return false;
++    if (discard && profileDirty && profileForm instanceof HTMLFormElement) {
++      profileForm.reset();
++      restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
++      restoreInstitutionalHistoryEditor(institutionalHistoryInitialValue);
++      restoreInstitutionalPartnershipEditor(institutionalPartnershipInitialValue);
++      syncInstitutionalProfileSettings();
++      setProfileDirty(false);
++    }
++    profileDrawer.classList.remove('is-open');
++    profileDrawer.setAttribute('aria-hidden', 'true');
++    root.querySelectorAll('[data-pbd-profile-open]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
++    profileBackdrop.hidden = true;
++    document.body.classList.remove('pbd-profile-drawer-open');
++    if (profileReturnFocus instanceof HTMLElement) profileReturnFocus.focus();
++    return true;
++  };
++
++  root.querySelectorAll('[data-pbd-profile-open]').forEach((button) =>
++    button.addEventListener('click', () => openProfileDrawer(button)));
++  root.querySelectorAll('[data-pbd-profile-close]').forEach((button) =>
++    button.addEventListener('click', () => closeProfileDrawer()));
++  profileBackdrop?.addEventListener('click', () => closeProfileDrawer());
++  profileDrawer?.addEventListener('keydown', (event) => {
++    if (event.key === 'Escape') {
++      event.preventDefault();
++      closeProfileDrawer();
++      return;
++    }
++    if (event.key !== 'Tab') return;
++    const focusable = focusableProfileElements();
++    if (focusable.length === 0) return;
++    const first = focusable[0];
++    const last = focusable.at(-1);
++    if (event.shiftKey && document.activeElement === first) {
++      event.preventDefault();
++      last.focus();
++    } else if (!event.shiftKey && document.activeElement === last) {
++      event.preventDefault();
++      first.focus();
++    }
++  });
++  profileForm?.addEventListener('input', refreshProfileDirtyState);
++  profileForm?.addEventListener('change', refreshProfileDirtyState);
++  profileForm?.addEventListener('submit', (event) => {
++    syncInstitutionalHistoryEditor();
++    syncInstitutionalPartnershipEditor();
++    syncInstitutionalModuleOrder();
++    if (!validateInstitutionalProfile({ focus: true })) {
++      event.preventDefault();
++      if (profileStatus) {
++        profileStatus.textContent = 'Complete the highlighted profile configuration before saving.';
++        profileStatus.classList.add('is-dirty');
++      }
++      return;
++    }
++    if (!profileDirty) {
++      event.preventDefault();
++      return;
++    }
++    if (profileSave) profileSave.disabled = true;
++    if (profileStatus) {
++      profileStatus.textContent = 'Saving profile…';
++      profileStatus.classList.remove('is-dirty');
++      profileStatus.classList.add('is-saving');
++    }
++    profileDirty = false;
++  });
++
++  if (profileDrawer?.dataset.pbdProfileReopen === 'true') {
++    window.setTimeout(() => openProfileDrawer(), 0);
++  }
++
++  root.querySelectorAll('[data-pbd-additional-slide-toggle]').forEach((toggle) => {
++    toggle.addEventListener('change', () => {
++      const form = toggle.closest('[data-pbd-additional-slide-toggle-form]');
++      const enabledInput = form?.querySelector('[data-pbd-additional-slide-enabled]');
++      if (enabledInput instanceof HTMLInputElement) enabledInput.value = String(toggle.checked);
++      if (form instanceof HTMLFormElement) form.submit();
++    });
++  });
++
++  const serializeSettings = () => serializeForm(settingsForm);
+ 
+   const setSettingsDirty = (dirty) => {
+     settingsDirty = dirty;
+@@ -685,11 +816,7 @@
+     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
+       settingsForm.reset();
+       restoreUpdateRowOrder(updateRowInitialOrder);
+-      restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
+-      restoreInstitutionalHistoryEditor(institutionalHistoryInitialValue);
+-      restoreInstitutionalPartnershipEditor(institutionalPartnershipInitialValue);
+       syncTemplateSettings();
+-      syncInstitutionalProfileSettings();
+       validateUpdateSheetRows();
+       setSettingsDirty(false);
+     }
+@@ -735,14 +862,6 @@
+       }
+       return;
+     }
+-    if (!validateInstitutionalProfile({ focus: true })) {
+-      event.preventDefault();
+-      if (settingsStatus) {
+-        settingsStatus.textContent = 'Select at least one SDD profile module or retain the history timeline.';
+-        settingsStatus.classList.add('is-dirty');
+-      }
+-      return;
+-    }
+     if (!settingsDirty) {
+       event.preventDefault();
+       return;
+@@ -756,7 +875,7 @@
+     settingsDirty = false;
+   });
+   window.addEventListener('beforeunload', (event) => {
+-    if (!settingsDirty) return;
++    if (!settingsDirty && !profileDirty) return;
+     event.preventDefault();
+     event.returnValue = '';
+   });
+@@ -777,11 +896,31 @@
+     if (!confirmSettingsNavigation()) event.preventDefault();
+   }, true);
+ 
++  const confirmProfileNavigation = () => {
++    if (!profileDirty) return true;
++    if (!window.confirm('Discard unsaved SDD profile changes and continue?')) return false;
++    setProfileDirty(false);
++    return true;
++  };
++
++  document.addEventListener('click', (event) => {
++    if (!profileDirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
++    const link = event.target.closest('a[href]');
++    if (!(link instanceof HTMLAnchorElement) || profileDrawer?.contains(link)) return;
++    const href = link.getAttribute('href') || '';
++    if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download')) return;
++    if (!confirmProfileNavigation()) event.preventDefault();
++  }, true);
++
+   document.addEventListener('submit', (event) => {
+-    if (!settingsDirty || event.defaultPrevented) return;
++    if (event.defaultPrevented) return;
+     const form = event.target;
+-    if (!(form instanceof HTMLFormElement) || form === settingsForm || form.matches('[data-pbd-generate-form]')) return;
+-    if (!confirmSettingsNavigation()) event.preventDefault();
++    if (!(form instanceof HTMLFormElement) || form === settingsForm || form === profileForm || form.matches('[data-pbd-generate-form]')) return;
++    if (settingsDirty && !confirmSettingsNavigation()) {
++      event.preventDefault();
++      return;
++    }
++    if (profileDirty && !confirmProfileNavigation()) event.preventDefault();
+   }, true);
+ 
+   // Preserve the user's working context for this deck.
+@@ -1919,6 +2058,14 @@
+       if (settingsStatus) {
+         settingsStatus.textContent = 'Save or discard settings before generating the PowerPoint.';
+         settingsStatus.classList.add('is-dirty');
++      }
++      return;
++    }
++    if (profileDirty) {
++      openProfileDrawer();
++      if (profileStatus) {
++        profileStatus.textContent = 'Save or discard profile changes before generating the PowerPoint.';
++        profileStatus.classList.add('is-dirty');
+       }
+       return;
+     }
+--- a/wwwroot/js/projects/project-briefing-decks.test.js
++++ b/wwwroot/js/projects/project-briefing-decks.test.js
+@@ -193,20 +193,21 @@
+   assert.match(source, /syncInstitutionalProfileSettings\(\);/);
+ });
+ 
+-test('SDD institutional profile settings remain modular, ordered and valid before save', () => {
+-  assert.match(source, /data-pbd-institutional-profile-enable/);
++test('SDD institutional profile uses a dedicated additional-slide editor with isolated dirty state', () => {
++  assert.match(source, /data-pbd-profile-drawer/);
++  assert.match(source, /openProfileDrawer/);
++  assert.match(source, /closeProfileDrawer/);
++  assert.match(source, /serializeForm\(profileForm\)/);
++  assert.match(source, /setProfileDirty/);
++  assert.match(source, /Discard unsaved SDD profile changes/);
++  assert.match(source, /data-pbd-additional-slide-toggle/);
+   assert.match(source, /syncInstitutionalProfileSettings/);
+   assert.match(source, /syncInstitutionalModuleOrder/);
+   assert.match(source, /restoreInstitutionalModuleOrder/);
+   assert.match(source, /validateInstitutionalProfile/);
+-  assert.match(source, /data-pbd-institutional-module-up/);
+-  assert.match(source, /data-pbd-institutional-module-down/);
+   assert.match(source, /syncInstitutionalHistoryEditor/);
+   assert.match(source, /syncInstitutionalPartnershipEditor/);
+   assert.match(source, /syncInstitutionalLayoutSummary/);
+-  assert.match(source, /data-pbd-institutional-footer-enable/);
+-  assert.match(source, /InstitutionalFooterStripText/);
+   assert.match(source, /footerValid/);
+-  assert.match(source, /no selected module is omitted/i);
+   assert.match(source, /institutionalProfileSlides/);
+ });
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -479,27 +479,48 @@
+     public void InstitutionalProfileSlide_IsOptionalModularAndUsesAuthoritativePrismBreakdowns()
+     {
+         var page = Read("Index.cshtml");
++        var profileEditor = Read("_InstitutionalProfileEditor.cshtml");
++        var pageModel = Read("Index.cshtml.cs");
++        var deckService = Read("ProjectBriefingDeckService.cs");
+         var script = Read("project-briefing-decks.js");
+         var service = Read("ProjectBriefingInstitutionalProfileService.cs");
+         var composer = Read("ProjectBriefingSlideComposer.InstitutionalProfile.cs");
+         var mainComposer = Read("ProjectBriefingSlideComposer.cs");
+         var dataSource = Read("ProjectBriefingDataService.cs");
+ 
+-        Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
+-        Assert.Contains("InstitutionalModules", page, StringComparison.Ordinal);
+-        Assert.Contains("data-pbd-institutional-history-editor", page, StringComparison.Ordinal);
+-        Assert.Contains("data-pbd-institutional-partnership-editor", page, StringComparison.Ordinal);
+-        Assert.Contains("InstitutionalProjectScope", page, StringComparison.Ordinal);
+-        Assert.Contains("Original completed projects — recommended", page, StringComparison.Ordinal);
+-        Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
+-        Assert.Contains("Profile footer strip", page, StringComparison.Ordinal);
+-        Assert.Contains("InstitutionalFooterStripText", page, StringComparison.Ordinal);
+-        Assert.Contains("Shown exactly as entered", page, StringComparison.Ordinal);
++        Assert.Contains("Additional slides", page, StringComparison.Ordinal);
++        Assert.Contains("SDD Institutional Profile", page, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-profile-drawer", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalModules", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-institutional-history-editor", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-institutional-partnership-editor", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalProjectScope", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("Original completed projects — recommended", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("read-only and are taken from their authoritative PRISM modules", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("Profile footer strip", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalFooterStripText", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("Shown exactly as entered", profileEditor, StringComparison.Ordinal);
+         Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalPartnershipEditor", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalLayoutSummary", script, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-additional-slides", page, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-profile-open", page, StringComparison.Ordinal);
++        Assert.Contains("SaveInstitutionalProfile", profileEditor, StringComparison.Ordinal);
++        Assert.Contains("openProfileDrawer", script, StringComparison.Ordinal);
++        Assert.Contains("profileInitialState", script, StringComparison.Ordinal);
++        Assert.Contains("OnPostSaveInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
++        Assert.Contains("OnPostToggleInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
++        Assert.Contains("preservedProfile", pageModel, StringComparison.Ordinal);
++        Assert.Contains("UpdateInstitutionalProfileAsync", deckService, StringComparison.Ordinal);
++        Assert.Contains("WithInstitutionalProfileOptions", deckService, StringComparison.Ordinal);
++        Assert.True(
++            page.IndexOf("Content used by this presentation", StringComparison.Ordinal)
++            < page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)
++            && page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)
++            < page.IndexOf("Projects in this deck", StringComparison.Ordinal),
++            "Additional slides must remain visible between preflight and project management.");
+ 
+         Assert.Contains("ProjectLifecycleStatus.Completed", service, StringComparison.Ordinal);
+         Assert.Contains("!project.IsBuild", service, StringComparison.Ordinal);
+--- a/ProjectManagement.Tests/ProjectManagement.Tests.csproj
++++ b/ProjectManagement.Tests/ProjectManagement.Tests.csproj
+@@ -145,6 +145,12 @@
+     <None Include="..\Pages\Workspace\BriefingDecks\Index.cshtml"
+           Link="TestData\ProjectBriefing\Index.cshtml"
+           CopyToOutputDirectory="PreserveNewest" />
++    <None Include="..\Pages\Workspace\BriefingDecks\Index.cshtml.cs"
++          Link="TestData\ProjectBriefing\Index.cshtml.cs"
++          CopyToOutputDirectory="PreserveNewest" />
++    <None Include="..\Pages\Workspace\BriefingDecks\_InstitutionalProfileEditor.cshtml"
++          Link="TestData\ProjectBriefing\_InstitutionalProfileEditor.cshtml"
++          CopyToOutputDirectory="PreserveNewest" />
+     <None Include="..\Pages\Workspace\_CommandWorkspaceRail.cshtml"
+           Link="TestData\ProjectBriefing\_CommandWorkspaceRail.cshtml"
+           CopyToOutputDirectory="PreserveNewest" />

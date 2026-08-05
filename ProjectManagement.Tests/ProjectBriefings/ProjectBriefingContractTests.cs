@@ -479,27 +479,48 @@ public sealed class ProjectBriefingContractTests
     public void InstitutionalProfileSlide_IsOptionalModularAndUsesAuthoritativePrismBreakdowns()
     {
         var page = Read("Index.cshtml");
+        var profileEditor = Read("_InstitutionalProfileEditor.cshtml");
+        var pageModel = Read("Index.cshtml.cs");
+        var deckService = Read("ProjectBriefingDeckService.cs");
         var script = Read("project-briefing-decks.js");
         var service = Read("ProjectBriefingInstitutionalProfileService.cs");
         var composer = Read("ProjectBriefingSlideComposer.InstitutionalProfile.cs");
         var mainComposer = Read("ProjectBriefingSlideComposer.cs");
         var dataSource = Read("ProjectBriefingDataService.cs");
 
-        Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
-        Assert.Contains("InstitutionalModules", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-institutional-history-editor", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-institutional-partnership-editor", page, StringComparison.Ordinal);
-        Assert.Contains("InstitutionalProjectScope", page, StringComparison.Ordinal);
-        Assert.Contains("Original completed projects — recommended", page, StringComparison.Ordinal);
-        Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
-        Assert.Contains("Profile footer strip", page, StringComparison.Ordinal);
-        Assert.Contains("InstitutionalFooterStripText", page, StringComparison.Ordinal);
-        Assert.Contains("Shown exactly as entered", page, StringComparison.Ordinal);
+        Assert.Contains("Additional slides", page, StringComparison.Ordinal);
+        Assert.Contains("SDD Institutional Profile", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-profile-drawer", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalModules", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-institutional-history-editor", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-institutional-partnership-editor", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalProjectScope", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("Original completed projects — recommended", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("read-only and are taken from their authoritative PRISM modules", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("Profile footer strip", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalFooterStripText", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("Shown exactly as entered", profileEditor, StringComparison.Ordinal);
         Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalPartnershipEditor", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalLayoutSummary", script, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-additional-slides", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-profile-open", page, StringComparison.Ordinal);
+        Assert.Contains("SaveInstitutionalProfile", profileEditor, StringComparison.Ordinal);
+        Assert.Contains("openProfileDrawer", script, StringComparison.Ordinal);
+        Assert.Contains("profileInitialState", script, StringComparison.Ordinal);
+        Assert.Contains("OnPostSaveInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("OnPostToggleInstitutionalProfileAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("preservedProfile", pageModel, StringComparison.Ordinal);
+        Assert.Contains("UpdateInstitutionalProfileAsync", deckService, StringComparison.Ordinal);
+        Assert.Contains("WithInstitutionalProfileOptions", deckService, StringComparison.Ordinal);
+        Assert.True(
+            page.IndexOf("Content used by this presentation", StringComparison.Ordinal)
+            < page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)
+            && page.IndexOf("data-pbd-additional-slides", StringComparison.Ordinal)
+            < page.IndexOf("Projects in this deck", StringComparison.Ordinal),
+            "Additional slides must remain visible between preflight and project management.");
 
         Assert.Contains("ProjectLifecycleStatus.Completed", service, StringComparison.Ordinal);
         Assert.Contains("!project.IsBuild", service, StringComparison.Ordinal);

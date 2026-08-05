@@ -34,6 +34,13 @@ public interface IProjectBriefingDeckService
         ProjectBriefingDeckSettingsCommand command,
         CancellationToken cancellationToken = default);
 
+    Task UpdateInstitutionalProfileAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingInstitutionalProfileOptions options,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task<int> AddProjectsAsync(
         long deckId,
         string requestingUserId,
@@ -294,13 +301,6 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.ProjectBriefLayout,
             command.ShowPresentStage,
             command.ShowPresentStatus);
-        if (command.InstitutionalProfileOptions.IncludeFooterStrip
-            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripText)
-            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripEmphasisValue))
-        {
-            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
-        }
-
         var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
             command.InstitutionalProfileOptions.IncludeSlide,
             command.InstitutionalProfileOptions.Title,
@@ -316,18 +316,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.InstitutionalProfileOptions.FooterStripEmphasisValue,
             command.InstitutionalProfileOptions.FooterStripStyle,
             command.InstitutionalProfileOptions.FooterStripAlignment);
-        if (institutionalProfileOptions.IncludeSlide
-            && !institutionalProfileOptions.IncludeHistory
-            && institutionalProfileOptions.Modules.Count == 0)
-        {
-            throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
-        }
-        if (institutionalProfileOptions.IncludeSlide
-            && institutionalProfileOptions.Modules.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships)
-            && institutionalProfileOptions.PartnershipEntries.Count == 0)
-        {
-            throw new InvalidOperationException("Add at least one MoU or partner when the Military–Academia–Industry Synergy module is selected.");
-        }
+        ValidateInstitutionalProfile(institutionalProfileOptions);
 
         var normalizedName = NormalizeName(command.Name);
         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
@@ -362,6 +351,73 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.DeckUpdated", userId, deck, "Project briefing deck settings updated.");
+    }
+
+    private static void ValidateInstitutionalProfile(ProjectBriefingInstitutionalProfileOptions options)
+    {
+        if (options.IncludeFooterStrip
+            && string.IsNullOrWhiteSpace(options.FooterStripText)
+            && string.IsNullOrWhiteSpace(options.FooterStripEmphasisValue))
+        {
+            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
+        }
+
+        if (options.IncludeSlide
+            && !options.IncludeHistory
+            && options.Modules.Count == 0)
+        {
+            throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
+        }
+
+        if (options.IncludeSlide
+            && options.Modules.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships)
+            && options.PartnershipEntries.Count == 0)
+        {
+            throw new InvalidOperationException("Add at least one MoU or partner when the Military–Academia–Industry Synergy module is selected.");
+        }
+    }
+
+    public async Task UpdateInstitutionalProfileAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingInstitutionalProfileOptions options,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+
+        EnsureVersion(deck, rowVersion);
+        var normalized = ProjectBriefingInstitutionalProfileOptions.Normalize(
+            options.IncludeSlide,
+            options.Title,
+            options.IncludeHistory,
+            options.HistoryMilestones,
+            options.Modules,
+            options.ProjectScope,
+            options.MaximumDetailRows,
+            options.TrainingHighlightTechnicalCategory,
+            options.PartnershipEntries,
+            options.IncludeFooterStrip,
+            options.FooterStripText,
+            options.FooterStripEmphasisValue,
+            options.FooterStripStyle,
+            options.FooterStripAlignment);
+
+        ValidateInstitutionalProfile(normalized);
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+            deck.SelectionRulesJson,
+            normalized);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.InstitutionalProfileUpdated",
+            userId,
+            deck,
+            "SDD institutional profile slide configuration updated.");
     }
 
     public async Task<int> AddProjectsAsync(

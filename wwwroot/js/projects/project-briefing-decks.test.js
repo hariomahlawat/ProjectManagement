@@ -193,20 +193,21 @@ test('settings initialization does not call institutional functions before decla
   assert.match(source, /syncInstitutionalProfileSettings\(\);/);
 });
 
-test('SDD institutional profile settings remain modular, ordered and valid before save', () => {
-  assert.match(source, /data-pbd-institutional-profile-enable/);
+test('SDD institutional profile uses a dedicated additional-slide editor with isolated dirty state', () => {
+  assert.match(source, /data-pbd-profile-drawer/);
+  assert.match(source, /openProfileDrawer/);
+  assert.match(source, /closeProfileDrawer/);
+  assert.match(source, /serializeForm\(profileForm\)/);
+  assert.match(source, /setProfileDirty/);
+  assert.match(source, /Discard unsaved SDD profile changes/);
+  assert.match(source, /data-pbd-additional-slide-toggle/);
   assert.match(source, /syncInstitutionalProfileSettings/);
   assert.match(source, /syncInstitutionalModuleOrder/);
   assert.match(source, /restoreInstitutionalModuleOrder/);
   assert.match(source, /validateInstitutionalProfile/);
-  assert.match(source, /data-pbd-institutional-module-up/);
-  assert.match(source, /data-pbd-institutional-module-down/);
   assert.match(source, /syncInstitutionalHistoryEditor/);
   assert.match(source, /syncInstitutionalPartnershipEditor/);
   assert.match(source, /syncInstitutionalLayoutSummary/);
-  assert.match(source, /data-pbd-institutional-footer-enable/);
-  assert.match(source, /InstitutionalFooterStripText/);
   assert.match(source, /footerValid/);
-  assert.match(source, /no selected module is omitted/i);
   assert.match(source, /institutionalProfileSlides/);
 });

@@ -1,51 +1,59 @@
-PRISM BRIEFING DECK — SDD INSTITUTIONAL PROFILE PLAN FIX
-========================================================
+PRISM BRIEFING DECK — ADDITIONAL SLIDES WORKSPACE (CUMULATIVE FIX)
+==================================================================
 
-Replace the files in this package using the exact project-relative paths.
-This package is cumulative with the most recent "Remaining Readability Fixes" package.
-No database migration is required.
+Purpose
+-------
+This cumulative package implements the modular Additional Slides workspace and includes
+the Razor namespace correction required by the new SDD Institutional Profile editor.
+Use this package instead of applying the earlier workspace package and namespace fix
+separately.
 
-ROOT CAUSE CORRECTED
+Implemented workflow
 --------------------
-The Project Update Sheet composition path rebuilt its own cover/summary sequence and did
-not insert InstitutionalProfile. The saved setting, profile data and slide estimate were
-correct, but BuildProjectUpdateSheetPlans silently omitted the slide.
+1. Deck Settings contains only a compact include/exclude control for the SDD profile.
+2. A new Additional Slides section appears between Deck Preflight and Projects.
+3. The SDD Institutional Profile is represented as an independent slide card with:
+   - enabled/not-included state;
+   - fixed position summary (after cover);
+   - milestone/module summary;
+   - immediate include/remove switch;
+   - dedicated Edit action.
+4. Detailed profile configuration opens in its own focused drawer.
+5. The profile has an isolated save handler, validation and dirty-state protection.
+6. Deck-wide settings preserve the complete profile configuration and only change its
+   include/exclude state.
+7. Profile edits and enable/disable actions use optimistic concurrency and audit logging.
+8. Server-side validation failures reopen the profile editor automatically.
+9. The partial imports ProjectManagement.Services.ProjectBriefings, resolving:
+   CS0103: ProjectBriefingInstitutionalProfileOptions does not exist in the current context.
+10. No database migration is required; the existing versioned deck JSON remains the
+    authoritative configuration store.
 
-PRODUCTION CHANGES
-------------------
-1. Introduces one shared AddIntroductoryPlans(...) method for both deck templates.
-2. Guarantees the same introductory sequence for Standard Briefing and Project Update Sheets:
-      Cover (when enabled)
-      SDD Institutional Profile (when profile data exists)
-      Portfolio Summary (when enabled)
-3. Retains all recent Project Update Sheet improvements:
-      readable Project Brief typography
-      continuation slides
-      crop-to-fill photographs
-      updated fact-table typography
-4. Retains the existing ceremonial closing slide as the final slide.
-5. Does not create a profile slide when InstitutionalProfile is null.
+Ready-to-replace files
+----------------------
+Copy every production file in this package over the matching project-relative path.
+The new partial must also be added:
+  Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
 
-REGRESSION COVERAGE
--------------------
-- Project Update Sheets include the profile immediately after the cover.
-- Portfolio Summary follows the profile.
-- Project sheets follow the summary.
-- Closing slide remains last.
-- A null InstitutionalProfile intentionally omits the slide.
+The two ProjectManagement.Tests files are regression-test replacements and should be
+copied into the test project when that project is present in the solution.
 
-FILES
------
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+After replacement
+-----------------
+1. Close the running application/IIS Express instance.
+2. Clean the solution.
+3. Rebuild the solution.
+4. Run ProjectManagement.Tests, especially the ProjectBriefings tests.
+5. Start the application and hard-refresh the browser with Ctrl+F5.
 
-VALIDATION AFTER REPLACEMENT
-----------------------------
-1. Clean and rebuild the solution in Visual Studio.
-2. Run the ProjectBriefings tests.
-3. Generate a Project Update Sheets deck with the SDD profile enabled.
-4. Verify the sequence:
-      Cover -> SDD – Growth over the years -> Portfolio at a glance -> Project sheets -> Closing.
-5. Use Ctrl+F5 only if browser assets from earlier briefing-deck packages are also being tested;
-   this package itself contains no JavaScript or CSS changes.
+Validation performed in this environment
+----------------------------------------
+- Cumulative replacement package assembled and namespace correction verified.
+- JavaScript syntax validation passed.
+- Project briefing JavaScript tests passed: 27/27.
+- Test project XML validation passed.
+- Cumulative patch dry-run and clean-application comparison passed.
+- ZIP integrity and SHA-256 manifest validation passed.
+
+The .NET SDK is not installed in this environment, so the final .NET compile/test run
+must be performed in Visual Studio after replacement.

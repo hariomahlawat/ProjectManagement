@@ -1,0 +1,294 @@
+@model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
+@using ProjectManagement.Models.ProjectBriefings
+@using ProjectManagement.Services.ProjectBriefings
+@{
+    var deck = Model.SelectedDeck!;
+    var institutionalProfile = deck.InstitutionalProfileOptions;
+    var selectedInstitutionalModules = institutionalProfile.Modules.ToHashSet();
+    var orderedInstitutionalModules = institutionalProfile.Modules
+        .Concat(ProjectBriefingInstitutionalProfileOptions.DefaultModules)
+        .Distinct()
+        .ToArray();
+    var institutionalModuleOrder = string.Join(",", orderedInstitutionalModules);
+    var institutionalHistoryLines = string.Join(
+        Environment.NewLine,
+        institutionalProfile.HistoryMilestones.Select(item => $"{item.Year} | {item.Text}"));
+    var institutionalPartnershipLines = string.Join(Environment.NewLine, institutionalProfile.PartnershipEntries);
+    var institutionalTrainingCategories = Model.SelectionOptions.TechnicalCategories
+        .OrderBy(category => category.Name, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var institutionalTrainingCategoryKnown = institutionalTrainingCategories.Any(category =>
+        string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase));
+    string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
+    {
+        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
+        ProjectBriefingInstitutionalProfileModule.Proliferation => "Proliferated",
+        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Assistance to Field Formations",
+        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Intellectual Property",
+        ProjectBriefingInstitutionalProfileModule.Partnerships => "Military–Academia–Industry Synergy",
+        _ => module.ToString()
+    };
+    string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
+    {
+        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Original completed projects by default, with technical-category-wise counts from PRISM.",
+        ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
+        ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
+        ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
+        ProjectBriefingInstitutionalProfileModule.Partnerships => "User-maintained MoU and institutional-partner names.",
+        _ => string.Empty
+    };
+}
+
+<div class="pbd-profile-backdrop" data-pbd-profile-backdrop hidden></div>
+<aside id="pbd-institutional-profile-drawer"
+       class="pbd-profile-drawer"
+       data-pbd-profile-drawer
+       data-pbd-profile-reopen="@Model.ReopenInstitutionalProfile.ToString().ToLowerInvariant()"
+       aria-labelledby="pbd-profile-drawer-title"
+       aria-hidden="true">
+    <form method="post" asp-page-handler="SaveInstitutionalProfile" data-pbd-profile-form>
+        <input type="hidden" name="DeckId" value="@deck.Id" />
+        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+        <header class="pbd-profile-drawer__header">
+            <div>
+                <span class="pbd-eyebrow">Additional slide</span>
+                <h3 id="pbd-profile-drawer-title">Configure SDD Institutional Profile</h3>
+                <p>Maintain this slide independently while ERP-backed figures remain authoritative and read-only.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-profile-close aria-label="Close SDD profile editor">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="pbd-profile-drawer__body">
+                                            <label class="pbd-institutional-profile-toggle">
+                                                <input type="checkbox"
+                                                       name="IncludeInstitutionalProfile"
+                                                       value="true"
+                                                       checked="@institutionalProfile.IncludeSlide"
+                                                       data-pbd-institutional-profile-enable />
+                                                <span>
+                                                    <strong>Include “SDD – Growth over the years” slide</strong>
+                                                    <small>Placed immediately after the cover. ERP-backed figures refresh whenever the PowerPoint is generated.</small>
+                                                </span>
+                                            </label>
+
+                                            <div class="pbd-institutional-profile-settings"
+                                                 data-pbd-institutional-profile-settings>
+                                                <label class="form-label">
+                                                    <span>Slide title</span>
+                                                    <input class="form-control"
+                                                           name="InstitutionalProfileTitle"
+                                                           value="@institutionalProfile.Title"
+                                                           maxlength="120" />
+                                                </label>
+
+                                                <fieldset class="pbd-choice-group">
+                                                    <legend>History timeline</legend>
+                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+                                                        <input type="checkbox"
+                                                               name="IncludeInstitutionalHistory"
+                                                               value="true"
+                                                               checked="@institutionalProfile.IncludeHistory"
+                                                               data-pbd-institutional-history-enable />
+                                                        <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
+                                                    </label>
+                                                    <div class="pbd-institutional-list-editor"
+                                                         data-pbd-institutional-history-fields
+                                                         data-pbd-institutional-history-editor
+                                                         hidden="@(!institutionalProfile.IncludeHistory)">
+                                                        <textarea name="InstitutionalHistoryLines"
+                                                                  data-pbd-institutional-history-value
+                                                                  hidden>@institutionalHistoryLines</textarea>
+                                                        <div class="pbd-institutional-list-editor__heading">
+                                                            <span><strong>Milestones</strong><small>Structured, ordered and retained as one editable PowerPoint timeline.</small></span>
+                                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-history-add>
+                                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add milestone
+                                                            </button>
+                                                        </div>
+                                                        <div class="pbd-institutional-list-editor__items" data-pbd-institutional-history-list>
+                                                            @foreach (var milestone in institutionalProfile.HistoryMilestones)
+                                                            {
+                                                                <div class="pbd-institutional-list-editor__item" data-pbd-institutional-history-item>
+                                                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                                    <input class="form-control pbd-institutional-list-editor__year"
+                                                                           type="number" min="1900" max="2200"
+                                                                           value="@milestone.Year"
+                                                                           aria-label="Milestone year"
+                                                                           data-pbd-institutional-history-year />
+                                                                    <input class="form-control"
+                                                                           value="@milestone.Text"
+                                                                           maxlength="100"
+                                                                           aria-label="Milestone description"
+                                                                           data-pbd-institutional-history-text />
+                                                                    <span class="pbd-institutional-list-editor__actions">
+                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move milestone up"><i class="bi bi-arrow-up"></i></button>
+                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move milestone down"><i class="bi bi-arrow-down"></i></button>
+                                                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove milestone"><i class="bi bi-trash"></i></button>
+                                                                    </span>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                        <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-history-validation hidden>Add at least one valid year and milestone.</p>
+                                                    </div>
+                                                </fieldset>
+
+                                                <fieldset class="pbd-choice-group">
+                                                    <legend>Institutional-output modules</legend>
+                                                    <p class="pbd-form-note"><i class="bi bi-shield-lock" aria-hidden="true"></i> Project, proliferation, training and IPR figures are read-only and are taken from their authoritative PRISM modules. Select and order only what should appear on the slide.</p>
+                                                    <input type="hidden"
+                                                           name="InstitutionalModuleOrder"
+                                                           value="@institutionalModuleOrder"
+                                                           data-pbd-institutional-module-order />
+                                                    <div class="pbd-institutional-module-list" data-pbd-institutional-module-list>
+                                                        @foreach (var module in orderedInstitutionalModules)
+                                                        {
+                                                            <div class="pbd-institutional-module-option"
+                                                                 data-pbd-institutional-module
+                                                                 data-module-key="@module">
+                                                                <span class="pbd-institutional-module-option__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                                <label>
+                                                                    <input type="checkbox"
+                                                                           name="InstitutionalModules"
+                                                                           value="@module"
+                                                                           checked="@selectedInstitutionalModules.Contains(module)" />
+                                                                    <span><strong>@InstitutionalModuleLabel(module)</strong><small>@InstitutionalModuleDescription(module)</small></span>
+                                                                </label>
+                                                                <span class="pbd-institutional-module-option__move">
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-up aria-label="Move @InstitutionalModuleLabel(module) up"><i class="bi bi-arrow-up" aria-hidden="true"></i></button>
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-institutional-module-down aria-label="Move @InstitutionalModuleLabel(module) down"><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                    <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
+                                                    <div class="pbd-institutional-layout-summary" data-pbd-institutional-layout-summary aria-live="polite"></div>
+                                                </fieldset>
+
+                                                <div class="pbd-form-grid pbd-form-grid--institutional">
+                                                    <label class="form-label">
+                                                        <span>Projects-developed scope</span>
+                                                        <select class="form-select" name="InstitutionalProjectScope">
+                                                            <option value="@ProjectBriefingInstitutionalProjectScope.OriginalCompleted" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)">Original completed projects — recommended</option>
+                                                            <option value="@ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds)">All completed projects, including rebuilds</option>
+                                                        </select>
+                                                        <small>The headline and technical-category breakdown always use the same scope.</small>
+                                                    </label>
+                                                    <label class="form-label">
+                                                        <span>Maximum detail rows per metric module</span>
+                                                        <select class="form-select" name="InstitutionalMaximumDetailRows">
+                                                            @for (var rowCount = 3; rowCount <= 7; rowCount++)
+                                                            {
+                                                                <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
+                                                            }
+                                                        </select>
+                                                        <small>Highest-value categories are shown first; remaining categories are combined as Others.</small>
+                                                    </label>
+                                                    <label class="form-label">
+                                                        <span>Training highlight category</span>
+                                                        <select class="form-select" name="InstitutionalTrainingHighlightCategory">
+                                                            @if (!institutionalTrainingCategoryKnown && !string.IsNullOrWhiteSpace(institutionalProfile.TrainingHighlightTechnicalCategory))
+                                                            {
+                                                                <option value="@institutionalProfile.TrainingHighlightTechnicalCategory" selected>@institutionalProfile.TrainingHighlightTechnicalCategory</option>
+                                                            }
+                                                            @foreach (var category in institutionalTrainingCategories)
+                                                            {
+                                                                <option value="@category.Name" selected="@(string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase))">@category.Name</option>
+                                                            }
+                                                        </select>
+                                                        <small>Selected from authoritative PRISM technical categories.</small>
+                                                    </label>
+                                                </div>
+
+                                                <div class="pbd-institutional-list-editor" data-pbd-institutional-partnership-editor>
+                                                    <textarea name="InstitutionalPartnershipLines"
+                                                              data-pbd-institutional-partnership-value
+                                                              hidden>@institutionalPartnershipLines</textarea>
+                                                    <div class="pbd-institutional-list-editor__heading">
+                                                        <span><strong>Military–Academia–Industry synergy</strong><small>Manual MoU and partner entries used by the selected partnership module.</small></span>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-partnership-add>
+                                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add partner
+                                                        </button>
+                                                    </div>
+                                                    <div class="pbd-institutional-list-editor__items" data-pbd-institutional-partnership-list>
+                                                        @foreach (var partnership in institutionalProfile.PartnershipEntries)
+                                                        {
+                                                            <div class="pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner" data-pbd-institutional-partnership-item>
+                                                                <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                                <input class="form-control"
+                                                                       value="@partnership"
+                                                                       maxlength="80"
+                                                                       aria-label="MoU or partner name"
+                                                                       data-pbd-institutional-partnership-text />
+                                                                <span class="pbd-institutional-list-editor__actions">
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move partner up"><i class="bi bi-arrow-up"></i></button>
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move partner down"><i class="bi bi-arrow-down"></i></button>
+                                                                    <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove partner"><i class="bi bi-trash"></i></button>
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                    <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-partnership-validation hidden>Add at least one MoU or partner when the synergy module is selected.</p>
+                                                </div>
+
+                                                <fieldset class="pbd-choice-group">
+                                                    <legend>Profile footer strip</legend>
+                                                    <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+                                                        <input type="checkbox"
+                                                               name="IncludeInstitutionalFooterStrip"
+                                                               value="true"
+                                                               checked="@institutionalProfile.IncludeFooterStrip"
+                                                               data-pbd-institutional-footer-enable />
+                                                        <span><strong>Include custom footer strip</strong><small>Optional user-authored message displayed below the output modules exactly as entered.</small></span>
+                                                    </label>
+                                                    <div class="pbd-form-grid pbd-form-grid--institutional"
+                                                         data-pbd-institutional-footer-fields
+                                                         hidden="@(!institutionalProfile.IncludeFooterStrip)">
+                                                        <label class="form-label pbd-form-grid__wide">
+                                                            <span>Footer text</span>
+                                                            <input class="form-control"
+                                                                   name="InstitutionalFooterStripText"
+                                                                   value="@institutionalProfile.FooterStripText"
+                                                                   maxlength="160"
+                                                                   placeholder="GOC-in-C Unit Citations" />
+                                                            <small>Shown exactly as entered; PRISM does not generate or rewrite this text.</small>
+                                                        </label>
+                                                        <label class="form-label">
+                                                            <span>Highlighted value <small>optional</small></span>
+                                                            <input class="form-control"
+                                                                   name="InstitutionalFooterStripEmphasisValue"
+                                                                   value="@institutionalProfile.FooterStripEmphasisValue"
+                                                                   maxlength="40"
+                                                                   placeholder="03" />
+                                                        </label>
+                                                        <label class="form-label">
+                                                            <span>Alignment</span>
+                                                            <select class="form-select" name="InstitutionalFooterStripAlignment">
+                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.Center" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.Center)">Centred</option>
+                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight)">Text left · value right</option>
+                                                            </select>
+                                                        </label>
+                                                        <label class="form-label">
+                                                            <span>Style</span>
+                                                            <select class="form-select" name="InstitutionalFooterStripStyle">
+                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.Outline" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.Outline)">Outline — recommended</option>
+                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SolidMaroon" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon)">Solid maroon</option>
+                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SubtleNeutral" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SubtleNeutral)">Subtle neutral</option>
+                                                            </select>
+                                                        </label>
+                                                    </div>
+                                                    <p class="pbd-institutional-profile-validation"
+                                                       data-pbd-institutional-footer-validation
+                                                       hidden>Enter footer text or an optional highlighted value.</p>
+                                                </fieldset>
+                                            </div>
+
+        </div>
+        <footer class="pbd-profile-drawer__footer">
+            <span data-pbd-profile-status>No unsaved profile changes</span>
+            <div>
+                <button type="button" class="btn btn-outline-secondary" data-pbd-profile-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" data-pbd-profile-save disabled>Save profile</button>
+            </div>
+        </footer>
+    </form>
+</aside>

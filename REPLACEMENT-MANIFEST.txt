@@ -1,4 +1,20 @@
-REPLACE:
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+READY-TO-REPLACE PRODUCTION FILES
+=================================
+Pages/Workspace/BriefingDecks/Index.cshtml
+Pages/Workspace/BriefingDecks/Index.cshtml.cs
+Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
+Services/ProjectBriefings/ProjectBriefingDeckService.cs
+wwwroot/css/pages/project-briefing-decks.css
+wwwroot/js/pages/project-briefing-decks.js
+
+REGRESSION TEST FILES
+=====================
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+ProjectManagement.Tests/ProjectManagement.Tests.csproj
+wwwroot/js/projects/project-briefing-decks.test.js
+
+IMPORTANT
+=========
+_InstitutionalProfileEditor.cshtml is a new file and includes:
+@using ProjectManagement.Services.ProjectBriefings
+This resolves CS0103 for ProjectBriefingInstitutionalProfileOptions.

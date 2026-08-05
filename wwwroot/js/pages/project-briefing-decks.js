@@ -118,11 +118,10 @@ if (root) {
   const updateRowRecommendedOrder = updateRowOrderInput?.dataset.recommendedOrder || updateRowInitialOrder;
   let settingsValid = true;
   let updateRowsValid = true;
-  let institutionalProfileValid = true;
   let draggedUpdateRow = null;
 
   const applySettingsValidity = () => {
-    settingsValid = updateRowsValid && institutionalProfileValid;
+    settingsValid = updateRowsValid;
     if (settingsSave) settingsSave.disabled = !settingsDirty || !settingsValid;
   };
 
@@ -255,6 +254,37 @@ if (root) {
   });
 
   syncUpdateRowOrder();
+
+  // Dedicated editor for optional, template-driven additional slides.
+  const profileDrawer = root.querySelector('[data-pbd-profile-drawer]');
+  const profileBackdrop = root.querySelector('[data-pbd-profile-backdrop]');
+  const profileForm = root.querySelector('[data-pbd-profile-form]');
+  const profileSave = root.querySelector('[data-pbd-profile-save]');
+  const profileStatus = root.querySelector('[data-pbd-profile-status]');
+  let profileInitialState = '';
+  let profileDirty = false;
+  let profileValid = true;
+  let profileReturnFocus = null;
+
+  const serializeForm = (form) => form instanceof HTMLFormElement
+    ? [...new FormData(form).entries()]
+      .filter(([name]) => name !== 'RowVersion')
+      .map(([name, value]) => `${name}=${String(value).trim()}`)
+      .sort()
+      .join('&')
+    : '';
+
+  const setProfileDirty = (dirty) => {
+    profileDirty = dirty;
+    if (profileSave) profileSave.disabled = !dirty || !profileValid;
+    if (profileStatus) {
+      profileStatus.textContent = dirty ? 'Unsaved profile changes' : 'No unsaved profile changes';
+      profileStatus.classList.toggle('is-dirty', dirty);
+      profileStatus.classList.remove('is-saving');
+    }
+  };
+
+  const refreshProfileDirtyState = () => setProfileDirty(serializeForm(profileForm) !== profileInitialState);
 
   // Optional SDD institutional-profile slide.
   const institutionalProfileEnable = root.querySelector('[data-pbd-institutional-profile-enable]');
@@ -508,7 +538,7 @@ if (root) {
     const footerValue = root.querySelector('input[name="InstitutionalFooterStripEmphasisValue"]')?.value?.trim() || '';
     const footerValid = !footerSelected || Boolean(footerText || footerValue);
     const valid = !enabled || (hasContent && historyValid && partnershipValid && footerValid);
-    institutionalProfileValid = valid;
+    profileValid = valid;
     institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
     institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
     institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
@@ -518,7 +548,7 @@ if (root) {
     institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
     institutionalPartnershipEditor?.classList.toggle('has-validation-error', enabled && !partnershipValid);
     syncInstitutionalLayoutSummary();
-    applySettingsValidity();
+    if (profileSave) profileSave.disabled = !profileDirty || !profileValid;
     if (!valid && focus) {
       if (!historyValid) institutionalHistoryEditor?.querySelector('input')?.focus();
       else if (!partnershipValid) institutionalPartnershipEditor?.querySelector('input')?.focus();
@@ -543,7 +573,7 @@ if (root) {
     if (direction < 0) institutionalModuleList.insertBefore(row, sibling);
     else institutionalModuleList.insertBefore(sibling, row);
     syncInstitutionalModuleOrder();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
   };
 
   institutionalModuleElements().forEach((row) => {
@@ -565,7 +595,7 @@ if (root) {
       row.classList.remove('is-dragging');
       institutionalModuleElements().forEach((candidate) => candidate.classList.remove('is-drag-over'));
       syncInstitutionalModuleOrder();
-      refreshSettingsDirtyState();
+      refreshProfileDirtyState();
     });
     row.addEventListener('dragover', (event) => {
       if (!draggedInstitutionalModule || draggedInstitutionalModule === row || !institutionalModuleList) return;
@@ -581,7 +611,7 @@ if (root) {
   institutionalHistoryList?.addEventListener('input', () => {
     syncInstitutionalHistoryEditor();
     validateInstitutionalProfile();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
   });
   institutionalHistoryList?.addEventListener('click', (event) => {
     const button = event.target.closest('button');
@@ -593,7 +623,7 @@ if (root) {
     else return;
     syncInstitutionalHistoryEditor();
     validateInstitutionalProfile();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
   });
   root.querySelector('[data-pbd-institutional-history-add]')?.addEventListener('click', () => {
     if (!institutionalHistoryList || institutionalHistoryList.children.length >= 8) return;
@@ -601,14 +631,14 @@ if (root) {
     institutionalHistoryList.append(row);
     syncInstitutionalHistoryEditor();
     validateInstitutionalProfile();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
     row.querySelector('[data-pbd-institutional-history-year]')?.focus();
   });
 
   institutionalPartnershipList?.addEventListener('input', () => {
     syncInstitutionalPartnershipEditor();
     validateInstitutionalProfile();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
   });
   institutionalPartnershipList?.addEventListener('click', (event) => {
     const button = event.target.closest('button');
@@ -620,7 +650,7 @@ if (root) {
     else return;
     syncInstitutionalPartnershipEditor();
     validateInstitutionalProfile();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
   });
   root.querySelector('[data-pbd-institutional-partnership-add]')?.addEventListener('click', () => {
     if (!institutionalPartnershipList || institutionalPartnershipList.children.length >= 8) return;
@@ -628,7 +658,7 @@ if (root) {
     institutionalPartnershipList.append(row);
     syncInstitutionalPartnershipEditor();
     validateInstitutionalProfile();
-    refreshSettingsDirtyState();
+    refreshProfileDirtyState();
     row.querySelector('[data-pbd-institutional-partnership-text]')?.focus();
   });
 
@@ -639,15 +669,116 @@ if (root) {
   syncInstitutionalPartnershipEditor();
   syncInstitutionalModuleOrder();
   syncInstitutionalProfileSettings();
+  profileInitialState = serializeForm(profileForm);
+  setProfileDirty(false);
 
-  const serializeSettings = () => {
-    if (!(settingsForm instanceof HTMLFormElement)) return '';
-    return [...new FormData(settingsForm).entries()]
-      .filter(([name]) => name !== 'RowVersion')
-      .map(([name, value]) => `${name}=${String(value).trim()}`)
-      .sort()
-      .join('&');
+  const focusableProfileElements = () => profileDrawer
+    ? [...profileDrawer.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hidden && element.getClientRects().length > 0)
+    : [];
+
+  const openProfileDrawer = (launcher) => {
+    if (!profileDrawer || !profileBackdrop) return;
+    if (settingsDirty) {
+      window.alert('Save or discard deck settings before editing the SDD Institutional Profile.');
+      return;
+    }
+    const launchedFromSettings = Boolean(launcher && settingsDrawer?.contains(launcher));
+    if (settingsDrawer?.classList.contains('is-open')) closeSettingsDrawer({ discard: false, force: true });
+    profileReturnFocus = launchedFromSettings ? settingsLauncher : (launcher || document.activeElement);
+    profileDrawer.classList.add('is-open');
+    profileDrawer.setAttribute('aria-hidden', 'false');
+    root.querySelectorAll('[data-pbd-profile-open]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
+    profileBackdrop.hidden = false;
+    document.body.classList.add('pbd-profile-drawer-open');
+    window.requestAnimationFrame(() => focusableProfileElements()[0]?.focus());
   };
+
+  const closeProfileDrawer = ({ discard = true, force = false } = {}) => {
+    if (!profileDrawer || !profileBackdrop) return false;
+    if (profileDirty && !force && !window.confirm('Discard unsaved SDD profile changes?')) return false;
+    if (discard && profileDirty && profileForm instanceof HTMLFormElement) {
+      profileForm.reset();
+      restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
+      restoreInstitutionalHistoryEditor(institutionalHistoryInitialValue);
+      restoreInstitutionalPartnershipEditor(institutionalPartnershipInitialValue);
+      syncInstitutionalProfileSettings();
+      setProfileDirty(false);
+    }
+    profileDrawer.classList.remove('is-open');
+    profileDrawer.setAttribute('aria-hidden', 'true');
+    root.querySelectorAll('[data-pbd-profile-open]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+    profileBackdrop.hidden = true;
+    document.body.classList.remove('pbd-profile-drawer-open');
+    if (profileReturnFocus instanceof HTMLElement) profileReturnFocus.focus();
+    return true;
+  };
+
+  root.querySelectorAll('[data-pbd-profile-open]').forEach((button) =>
+    button.addEventListener('click', () => openProfileDrawer(button)));
+  root.querySelectorAll('[data-pbd-profile-close]').forEach((button) =>
+    button.addEventListener('click', () => closeProfileDrawer()));
+  profileBackdrop?.addEventListener('click', () => closeProfileDrawer());
+  profileDrawer?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeProfileDrawer();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = focusableProfileElements();
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  profileForm?.addEventListener('input', refreshProfileDirtyState);
+  profileForm?.addEventListener('change', refreshProfileDirtyState);
+  profileForm?.addEventListener('submit', (event) => {
+    syncInstitutionalHistoryEditor();
+    syncInstitutionalPartnershipEditor();
+    syncInstitutionalModuleOrder();
+    if (!validateInstitutionalProfile({ focus: true })) {
+      event.preventDefault();
+      if (profileStatus) {
+        profileStatus.textContent = 'Complete the highlighted profile configuration before saving.';
+        profileStatus.classList.add('is-dirty');
+      }
+      return;
+    }
+    if (!profileDirty) {
+      event.preventDefault();
+      return;
+    }
+    if (profileSave) profileSave.disabled = true;
+    if (profileStatus) {
+      profileStatus.textContent = 'Saving profile…';
+      profileStatus.classList.remove('is-dirty');
+      profileStatus.classList.add('is-saving');
+    }
+    profileDirty = false;
+  });
+
+  if (profileDrawer?.dataset.pbdProfileReopen === 'true') {
+    window.setTimeout(() => openProfileDrawer(), 0);
+  }
+
+  root.querySelectorAll('[data-pbd-additional-slide-toggle]').forEach((toggle) => {
+    toggle.addEventListener('change', () => {
+      const form = toggle.closest('[data-pbd-additional-slide-toggle-form]');
+      const enabledInput = form?.querySelector('[data-pbd-additional-slide-enabled]');
+      if (enabledInput instanceof HTMLInputElement) enabledInput.value = String(toggle.checked);
+      if (form instanceof HTMLFormElement) form.submit();
+    });
+  });
+
+  const serializeSettings = () => serializeForm(settingsForm);
 
   const setSettingsDirty = (dirty) => {
     settingsDirty = dirty;
@@ -685,11 +816,7 @@ if (root) {
     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
       settingsForm.reset();
       restoreUpdateRowOrder(updateRowInitialOrder);
-      restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
-      restoreInstitutionalHistoryEditor(institutionalHistoryInitialValue);
-      restoreInstitutionalPartnershipEditor(institutionalPartnershipInitialValue);
       syncTemplateSettings();
-      syncInstitutionalProfileSettings();
       validateUpdateSheetRows();
       setSettingsDirty(false);
     }
@@ -735,14 +862,6 @@ if (root) {
       }
       return;
     }
-    if (!validateInstitutionalProfile({ focus: true })) {
-      event.preventDefault();
-      if (settingsStatus) {
-        settingsStatus.textContent = 'Select at least one SDD profile module or retain the history timeline.';
-        settingsStatus.classList.add('is-dirty');
-      }
-      return;
-    }
     if (!settingsDirty) {
       event.preventDefault();
       return;
@@ -756,7 +875,7 @@ if (root) {
     settingsDirty = false;
   });
   window.addEventListener('beforeunload', (event) => {
-    if (!settingsDirty) return;
+    if (!settingsDirty && !profileDirty) return;
     event.preventDefault();
     event.returnValue = '';
   });
@@ -777,11 +896,31 @@ if (root) {
     if (!confirmSettingsNavigation()) event.preventDefault();
   }, true);
 
+  const confirmProfileNavigation = () => {
+    if (!profileDirty) return true;
+    if (!window.confirm('Discard unsaved SDD profile changes and continue?')) return false;
+    setProfileDirty(false);
+    return true;
+  };
+
+  document.addEventListener('click', (event) => {
+    if (!profileDirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement) || profileDrawer?.contains(link)) return;
+    const href = link.getAttribute('href') || '';
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download')) return;
+    if (!confirmProfileNavigation()) event.preventDefault();
+  }, true);
+
   document.addEventListener('submit', (event) => {
-    if (!settingsDirty || event.defaultPrevented) return;
+    if (event.defaultPrevented) return;
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || form === settingsForm || form.matches('[data-pbd-generate-form]')) return;
-    if (!confirmSettingsNavigation()) event.preventDefault();
+    if (!(form instanceof HTMLFormElement) || form === settingsForm || form === profileForm || form.matches('[data-pbd-generate-form]')) return;
+    if (settingsDirty && !confirmSettingsNavigation()) {
+      event.preventDefault();
+      return;
+    }
+    if (profileDirty && !confirmProfileNavigation()) event.preventDefault();
   }, true);
 
   // Preserve the user's working context for this deck.
@@ -1919,6 +2058,14 @@ if (root) {
       if (settingsStatus) {
         settingsStatus.textContent = 'Save or discard settings before generating the PowerPoint.';
         settingsStatus.classList.add('is-dirty');
+      }
+      return;
+    }
+    if (profileDirty) {
+      openProfileDrawer();
+      if (profileStatus) {
+        profileStatus.textContent = 'Save or discard profile changes before generating the PowerPoint.';
+        profileStatus.classList.add('is-dirty');
       }
       return;
     }

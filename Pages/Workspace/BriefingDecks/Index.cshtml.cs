@@ -56,6 +56,9 @@ public sealed class IndexModel : PageModel
     [TempData]
     public string? ErrorMessage { get; set; }
 
+    [TempData]
+    public bool ReopenInstitutionalProfile { get; set; }
+
     public async Task<IActionResult> OnGetAsync(long? deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
@@ -150,6 +153,31 @@ public sealed class IndexModel : PageModel
 
         try
         {
+            var existingDeck = await _deckService.GetEntityAsync(
+                input.DeckId,
+                userId,
+                includeItems: false,
+                cancellationToken)
+                ?? throw new KeyNotFoundException("The shared command deck was not found.");
+            var existingProfile = ProjectBriefingDeckConfigurationCodec
+                .Read(existingDeck.SelectionRulesJson)
+                .InstitutionalProfileOptions;
+            var preservedProfile = ProjectBriefingInstitutionalProfileOptions.Normalize(
+                input.IncludeInstitutionalProfile,
+                existingProfile.Title,
+                existingProfile.IncludeHistory,
+                existingProfile.HistoryMilestones,
+                existingProfile.Modules,
+                existingProfile.ProjectScope,
+                existingProfile.MaximumDetailRows,
+                existingProfile.TrainingHighlightTechnicalCategory,
+                existingProfile.PartnershipEntries,
+                existingProfile.IncludeFooterStrip,
+                existingProfile.FooterStripText,
+                existingProfile.FooterStripEmphasisValue,
+                existingProfile.FooterStripStyle,
+                existingProfile.FooterStripAlignment);
+
             await _deckService.UpdateSettingsAsync(
                 input.DeckId,
                 userId,
@@ -166,21 +194,7 @@ public sealed class IndexModel : PageModel
                     ShowPresentStatus = input.ShowPresentStatus,
                     PresentationTheme = input.PresentationTheme,
                     ClosingSlideType = input.ClosingSlideType,
-                    InstitutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
-                        input.IncludeInstitutionalProfile,
-                        input.InstitutionalProfileTitle,
-                        input.IncludeInstitutionalHistory,
-                        ParseInstitutionalHistory(input.InstitutionalHistoryLines),
-                        ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
-                        input.InstitutionalProjectScope,
-                        input.InstitutionalMaximumDetailRows,
-                        input.InstitutionalTrainingHighlightCategory,
-                        ParseSimpleLines(input.InstitutionalPartnershipLines),
-                        input.IncludeInstitutionalFooterStrip,
-                        input.InstitutionalFooterStripText,
-                        input.InstitutionalFooterStripEmphasisValue,
-                        input.InstitutionalFooterStripStyle,
-                        input.InstitutionalFooterStripAlignment),
+                    InstitutionalProfileOptions = preservedProfile,
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
@@ -209,6 +223,113 @@ public sealed class IndexModel : PageModel
         }
 
         return RedirectToPage(new { deckId = input.DeckId });
+    }
+
+    public async Task<IActionResult> OnPostSaveInstitutionalProfileAsync(
+        [FromForm] SaveInstitutionalProfileInput input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (!ModelState.IsValid)
+        {
+            ErrorMessage = FirstModelError("Review the SDD institutional profile and try again.");
+            ReopenInstitutionalProfile = true;
+            return RedirectToPage(new { deckId = input.DeckId });
+        }
+
+        try
+        {
+            var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
+                input.IncludeInstitutionalProfile,
+                input.InstitutionalProfileTitle,
+                input.IncludeInstitutionalHistory,
+                ParseInstitutionalHistory(input.InstitutionalHistoryLines),
+                ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
+                input.InstitutionalProjectScope,
+                input.InstitutionalMaximumDetailRows,
+                input.InstitutionalTrainingHighlightCategory,
+                ParseSimpleLines(input.InstitutionalPartnershipLines),
+                input.IncludeInstitutionalFooterStrip,
+                input.InstitutionalFooterStripText,
+                input.InstitutionalFooterStripEmphasisValue,
+                input.InstitutionalFooterStripStyle,
+                input.InstitutionalFooterStripAlignment);
+
+            await _deckService.UpdateInstitutionalProfileAsync(
+                input.DeckId,
+                userId,
+                options,
+                input.RowVersion,
+                cancellationToken);
+            StatusMessage = "SDD institutional profile saved.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload before saving the profile.";
+            ReopenInstitutionalProfile = true;
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+            ReopenInstitutionalProfile = true;
+        }
+
+        return RedirectToPage(new { deckId = input.DeckId });
+    }
+
+    public async Task<IActionResult> OnPostToggleInstitutionalProfileAsync(
+        long deckId,
+        bool enabled,
+        string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+                ?? throw new KeyNotFoundException("The shared command deck was not found.");
+            var current = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).InstitutionalProfileOptions;
+            var options = ProjectBriefingInstitutionalProfileOptions.Normalize(
+                enabled,
+                current.Title,
+                current.IncludeHistory,
+                current.HistoryMilestones,
+                current.Modules,
+                current.ProjectScope,
+                current.MaximumDetailRows,
+                current.TrainingHighlightTechnicalCategory,
+                current.PartnershipEntries,
+                current.IncludeFooterStrip,
+                current.FooterStripText,
+                current.FooterStripEmphasisValue,
+                current.FooterStripStyle,
+                current.FooterStripAlignment);
+
+            await _deckService.UpdateInstitutionalProfileAsync(
+                deckId,
+                userId,
+                options,
+                rowVersion,
+                cancellationToken);
+            StatusMessage = enabled
+                ? "SDD institutional profile added to the deck."
+                : "SDD institutional profile removed from the deck.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload and try again.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+            ReopenInstitutionalProfile = enabled;
+        }
+        catch (KeyNotFoundException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage(new { deckId });
     }
 
     public async Task<IActionResult> OnPostAddSelectionAsync(
@@ -606,6 +727,52 @@ public sealed class IndexModel : PageModel
             .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToArray();
+
+    public sealed class SaveInstitutionalProfileInput
+    {
+        [Range(1, long.MaxValue)]
+        public long DeckId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
+        public bool IncludeInstitutionalProfile { get; set; }
+
+        [StringLength(120)]
+        public string? InstitutionalProfileTitle { get; set; }
+
+        public bool IncludeInstitutionalHistory { get; set; }
+
+        [StringLength(1200)]
+        public string? InstitutionalHistoryLines { get; set; }
+
+        public List<ProjectBriefingInstitutionalProfileModule> InstitutionalModules { get; set; } = new();
+
+        [StringLength(300)]
+        public string? InstitutionalModuleOrder { get; set; }
+        public ProjectBriefingInstitutionalProjectScope InstitutionalProjectScope { get; set; }
+            = ProjectBriefingInstitutionalProjectScope.OriginalCompleted;
+
+        [Range(3, 7)]
+        public int InstitutionalMaximumDetailRows { get; set; } = 6;
+
+        [StringLength(80)]
+        public string? InstitutionalTrainingHighlightCategory { get; set; }
+
+        [StringLength(1200)]
+        public string? InstitutionalPartnershipLines { get; set; }
+        public bool IncludeInstitutionalFooterStrip { get; set; }
+
+        [StringLength(160)]
+        public string? InstitutionalFooterStripText { get; set; }
+
+        [StringLength(40)]
+        public string? InstitutionalFooterStripEmphasisValue { get; set; }
+        public ProjectBriefingInstitutionalFooterStyle InstitutionalFooterStripStyle { get; set; }
+            = ProjectBriefingInstitutionalFooterStyle.Outline;
+        public ProjectBriefingInstitutionalFooterAlignment InstitutionalFooterStripAlignment { get; set; }
+            = ProjectBriefingInstitutionalFooterAlignment.Center;
+    }
 
     public sealed class SaveDeckSettingsInput
     {

@@ -145,6 +145,12 @@
     <None Include="..\Pages\Workspace\BriefingDecks\Index.cshtml"
           Link="TestData\ProjectBriefing\Index.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Pages\Workspace\BriefingDecks\Index.cshtml.cs"
+          Link="TestData\ProjectBriefing\Index.cshtml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Pages\Workspace\BriefingDecks\_InstitutionalProfileEditor.cshtml"
+          Link="TestData\ProjectBriefing\_InstitutionalProfileEditor.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Pages\Workspace\_CommandWorkspaceRail.cshtml"
           Link="TestData\ProjectBriefing\_CommandWorkspaceRail.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
@@ -169,9 +175,6 @@
     <None Include="..\Services\ProjectBriefings\ProjectBriefingDataService.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingDataService.cs"
           CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Services\ProjectBriefings\ProjectBriefingInstitutionalProfileService.cs"
-          Link="TestData\ProjectBriefing\ProjectBriefingInstitutionalProfileService.cs"
-          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\ProjectBriefingPhotoLoader.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingPhotoLoader.cs"
           CopyToOutputDirectory="PreserveNewest" />
@@ -180,9 +183,6 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.UpdateSheet.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.UpdateSheet.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingSlideComposer.InstitutionalProfile.cs"
-          Link="TestData\ProjectBriefing\ProjectBriefingSlideComposer.InstitutionalProfile.cs"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\ProjectBriefings\Presentation\ProjectBriefingThemeDefinition.cs"
           Link="TestData\ProjectBriefing\ProjectBriefingThemeDefinition.cs"
