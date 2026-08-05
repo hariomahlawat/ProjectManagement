@@ -486,13 +486,19 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
         Assert.Contains("InstitutionalModules", page, StringComparison.Ordinal);
-        Assert.Contains("YEAR | milestone", page, StringComparison.Ordinal);
-        Assert.Contains("one MoU/partner per line", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-institutional-history-editor", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-institutional-partnership-editor", page, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalProjectScope", page, StringComparison.Ordinal);
+        Assert.Contains("Original completed projects — recommended", page, StringComparison.Ordinal);
         Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
         Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
+        Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
+        Assert.Contains("syncInstitutionalPartnershipEditor", script, StringComparison.Ordinal);
+        Assert.Contains("syncInstitutionalLayoutSummary", script, StringComparison.Ordinal);
 
         Assert.Contains("ProjectLifecycleStatus.Completed", service, StringComparison.Ordinal);
+        Assert.Contains("!project.IsBuild", service, StringComparison.Ordinal);
         Assert.Contains("GetApprovedAggregatesAsync", service, StringComparison.Ordinal);
         Assert.Contains("TechnicalCategoryName", service, StringComparison.Ordinal);
         Assert.Contains("GetKpisAsync", service, StringComparison.Ordinal);
@@ -504,6 +510,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("RenderInstitutionalProfile", composer, StringComparison.Ordinal);
         Assert.Contains("RenderInstitutionalHistory", composer, StringComparison.Ordinal);
         Assert.Contains("RenderInstitutionalModules", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderInstitutionalPartnershipBand", composer, StringComparison.Ordinal);
+        Assert.Contains("AddNativeTable", composer, StringComparison.Ordinal);
+        Assert.Contains("SDD institutional history timeline", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddRoundedRect", composer, StringComparison.Ordinal);
         Assert.Contains("Data as on", composer, StringComparison.Ordinal);
         Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
         Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);

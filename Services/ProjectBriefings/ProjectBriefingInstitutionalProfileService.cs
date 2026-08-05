@@ -51,6 +51,7 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
             options.IncludeHistory,
             options.HistoryMilestones,
             options.Modules,
+            options.ProjectScope,
             options.MaximumDetailRows,
             options.TrainingHighlightTechnicalCategory,
             options.PartnershipEntries,
@@ -69,7 +70,10 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
             var item = module switch
             {
                 ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped =>
-                    await BuildProjectsAsync(normalized.MaximumDetailRows, cancellationToken),
+                    await BuildProjectsAsync(
+                        normalized.ProjectScope,
+                        normalized.MaximumDetailRows,
+                        cancellationToken),
                 ProjectBriefingInstitutionalProfileModule.Proliferation =>
                     await BuildProliferationAsync(normalized.MaximumDetailRows, cancellationToken),
                 ProjectBriefingInstitutionalProfileModule.TrainingSupport =>
@@ -108,15 +112,23 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
     }
 
     private async Task<ProjectBriefingInstitutionalModuleData> BuildProjectsAsync(
+        ProjectBriefingInstitutionalProjectScope scope,
         int maximumRows,
         CancellationToken cancellationToken)
     {
-        var rows = await _db.Projects
+        var projects = _db.Projects
             .AsNoTracking()
             .Where(project =>
                 !project.IsDeleted
                 && !project.IsArchived
-                && project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+                && project.LifecycleStatus == ProjectLifecycleStatus.Completed);
+
+        if (scope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)
+        {
+            projects = projects.Where(project => !project.IsBuild);
+        }
+
+        var rows = await projects
             .GroupBy(project => project.TechnicalCategory != null
                 ? project.TechnicalCategory.Name
                 : "Uncategorised")
@@ -275,17 +287,15 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
             });
     }
 
-    private static ProjectBriefingInstitutionalModuleData? BuildPartnerships(
+    private static ProjectBriefingInstitutionalModuleData BuildPartnerships(
         IReadOnlyList<string> partnerships)
-        => partnerships.Count == 0
-            ? null
-            : new ProjectBriefingInstitutionalModuleData(
-                ProjectBriefingInstitutionalProfileModule.Partnerships,
-                "Military–Academia–Industry Synergy",
-                Headline: null,
-                Rows: partnerships
-                    .Select(item => new ProjectBriefingInstitutionalMetricRow(item, string.Empty))
-                    .ToArray());
+        => new(
+            ProjectBriefingInstitutionalProfileModule.Partnerships,
+            "Military–Academia–Industry Synergy",
+            Headline: null,
+            Rows: partnerships
+                .Select(item => new ProjectBriefingInstitutionalMetricRow(item, string.Empty))
+                .ToArray());
 
     private static IReadOnlyList<ProjectBriefingInstitutionalMetricRow> CompactRows(
         IEnumerable<CountRow> source,

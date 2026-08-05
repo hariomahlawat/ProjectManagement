@@ -99,6 +99,11 @@
     var institutionalPartnershipLines = string.Join(
         Environment.NewLine,
         institutionalProfile.PartnershipEntries);
+    var institutionalTrainingCategories = Model.SelectionOptions.TechnicalCategories
+        .OrderBy(category => category.Name, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var institutionalTrainingCategoryKnown = institutionalTrainingCategories.Any(category =>
+        string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase));
     string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
     {
         ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
@@ -110,7 +115,7 @@
     };
     string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
     {
-        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Completed projects with technical-category-wise counts from PRISM.",
+        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Original completed projects by default, with technical-category-wise counts from PRISM.",
         ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
         ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
         ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
@@ -615,14 +620,44 @@
                                                                data-pbd-institutional-history-enable />
                                                         <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
                                                     </label>
-                                                    <label class="form-label" data-pbd-institutional-history-fields hidden="@(!institutionalProfile.IncludeHistory)">
-                                                        <span>Milestones <small>one per line: YEAR | milestone</small></span>
-                                                        <textarea class="form-control"
-                                                                  name="InstitutionalHistoryLines"
-                                                                  rows="6"
-                                                                  maxlength="1600"
-                                                                  spellcheck="true">@institutionalHistoryLines</textarea>
-                                                    </label>
+                                                    <div class="pbd-institutional-list-editor"
+                                                         data-pbd-institutional-history-fields
+                                                         data-pbd-institutional-history-editor
+                                                         hidden="@(!institutionalProfile.IncludeHistory)">
+                                                        <textarea name="InstitutionalHistoryLines"
+                                                                  data-pbd-institutional-history-value
+                                                                  hidden>@institutionalHistoryLines</textarea>
+                                                        <div class="pbd-institutional-list-editor__heading">
+                                                            <span><strong>Milestones</strong><small>Structured, ordered and retained as one editable PowerPoint timeline.</small></span>
+                                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-history-add>
+                                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add milestone
+                                                            </button>
+                                                        </div>
+                                                        <div class="pbd-institutional-list-editor__items" data-pbd-institutional-history-list>
+                                                            @foreach (var milestone in institutionalProfile.HistoryMilestones)
+                                                            {
+                                                                <div class="pbd-institutional-list-editor__item" data-pbd-institutional-history-item>
+                                                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                                    <input class="form-control pbd-institutional-list-editor__year"
+                                                                           type="number" min="1900" max="2200"
+                                                                           value="@milestone.Year"
+                                                                           aria-label="Milestone year"
+                                                                           data-pbd-institutional-history-year />
+                                                                    <input class="form-control"
+                                                                           value="@milestone.Text"
+                                                                           maxlength="100"
+                                                                           aria-label="Milestone description"
+                                                                           data-pbd-institutional-history-text />
+                                                                    <span class="pbd-institutional-list-editor__actions">
+                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move milestone up"><i class="bi bi-arrow-up"></i></button>
+                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move milestone down"><i class="bi bi-arrow-down"></i></button>
+                                                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove milestone"><i class="bi bi-trash"></i></button>
+                                                                    </span>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                        <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-history-validation hidden>Add at least one valid year and milestone.</p>
+                                                    </div>
                                                 </fieldset>
 
                                                 <fieldset class="pbd-choice-group">
@@ -654,39 +689,74 @@
                                                         }
                                                     </div>
                                                     <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
+                                                    <div class="pbd-institutional-layout-summary" data-pbd-institutional-layout-summary aria-live="polite"></div>
                                                 </fieldset>
 
                                                 <div class="pbd-form-grid pbd-form-grid--institutional">
                                                     <label class="form-label">
-                                                        <span>Maximum detail rows per module</span>
+                                                        <span>Projects-developed scope</span>
+                                                        <select class="form-select" name="InstitutionalProjectScope">
+                                                            <option value="@ProjectBriefingInstitutionalProjectScope.OriginalCompleted" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)">Original completed projects — recommended</option>
+                                                            <option value="@ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds)">All completed projects, including rebuilds</option>
+                                                        </select>
+                                                        <small>The headline and technical-category breakdown always use the same scope.</small>
+                                                    </label>
+                                                    <label class="form-label">
+                                                        <span>Maximum detail rows per metric module</span>
                                                         <select class="form-select" name="InstitutionalMaximumDetailRows">
                                                             @for (var rowCount = 3; rowCount <= 7; rowCount++)
                                                             {
                                                                 <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
                                                             }
                                                         </select>
-                                                        <small>Highest-value technical categories are shown first; remaining categories are combined as Others.</small>
+                                                        <small>Highest-value categories are shown first; remaining categories are combined as Others.</small>
                                                     </label>
                                                     <label class="form-label">
                                                         <span>Training highlight category</span>
-                                                        <input class="form-control"
-                                                               name="InstitutionalTrainingHighlightCategory"
-                                                               value="@institutionalProfile.TrainingHighlightTechnicalCategory"
-                                                               maxlength="80"
-                                                               placeholder="AR/VR" />
-                                                        <small>Shown as a compact training highlight beneath the FY figures.</small>
+                                                        <select class="form-select" name="InstitutionalTrainingHighlightCategory">
+                                                            @if (!institutionalTrainingCategoryKnown && !string.IsNullOrWhiteSpace(institutionalProfile.TrainingHighlightTechnicalCategory))
+                                                            {
+                                                                <option value="@institutionalProfile.TrainingHighlightTechnicalCategory" selected>@institutionalProfile.TrainingHighlightTechnicalCategory</option>
+                                                            }
+                                                            @foreach (var category in institutionalTrainingCategories)
+                                                            {
+                                                                <option value="@category.Name" selected="@(string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase))">@category.Name</option>
+                                                            }
+                                                        </select>
+                                                        <small>Selected from authoritative PRISM technical categories.</small>
                                                     </label>
                                                 </div>
 
-                                                <label class="form-label">
-                                                    <span>Military–Academia–Industry synergy <small>one MoU/partner per line</small></span>
-                                                    <textarea class="form-control"
-                                                              name="InstitutionalPartnershipLines"
-                                                              rows="4"
-                                                              maxlength="1200"
-                                                              placeholder="IIT Hyderabad&#10;IIT Bhubaneswar&#10;Private industry / start-ups">@institutionalPartnershipLines</textarea>
-                                                    <small>This is the only output module whose entries are maintained manually in the deck.</small>
-                                                </label>
+                                                <div class="pbd-institutional-list-editor" data-pbd-institutional-partnership-editor>
+                                                    <textarea name="InstitutionalPartnershipLines"
+                                                              data-pbd-institutional-partnership-value
+                                                              hidden>@institutionalPartnershipLines</textarea>
+                                                    <div class="pbd-institutional-list-editor__heading">
+                                                        <span><strong>Military–Academia–Industry synergy</strong><small>Manual MoU and partner entries used by the selected partnership module.</small></span>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-partnership-add>
+                                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add partner
+                                                        </button>
+                                                    </div>
+                                                    <div class="pbd-institutional-list-editor__items" data-pbd-institutional-partnership-list>
+                                                        @foreach (var partnership in institutionalProfile.PartnershipEntries)
+                                                        {
+                                                            <div class="pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner" data-pbd-institutional-partnership-item>
+                                                                <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                                                <input class="form-control"
+                                                                       value="@partnership"
+                                                                       maxlength="80"
+                                                                       aria-label="MoU or partner name"
+                                                                       data-pbd-institutional-partnership-text />
+                                                                <span class="pbd-institutional-list-editor__actions">
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move partner up"><i class="bi bi-arrow-up"></i></button>
+                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move partner down"><i class="bi bi-arrow-down"></i></button>
+                                                                    <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove partner"><i class="bi bi-trash"></i></button>
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                    <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-partnership-validation hidden>Add at least one MoU or partner when the synergy module is selected.</p>
+                                                </div>
 
                                                 <fieldset class="pbd-choice-group">
                                                     <legend>Institutional recognition</legend>

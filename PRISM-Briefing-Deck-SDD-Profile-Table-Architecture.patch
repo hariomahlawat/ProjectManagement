@@ -1,0 +1,1784 @@
+diff --git a/Models/ProjectBriefings/ProjectBriefingDeck.cs b/Models/ProjectBriefings/ProjectBriefingDeck.cs
+index 322f472..f83c507 100644
+--- a/Models/ProjectBriefings/ProjectBriefingDeck.cs
++++ b/Models/ProjectBriefings/ProjectBriefingDeck.cs
+@@ -76,6 +76,16 @@ public enum ProjectBriefingInstitutionalProfileModule
+     Partnerships = 5
+ }
+ 
++/// <summary>
++/// Scope used by the institutional “Projects Developed” metric.
++/// Original completed projects excludes records marked as rebuilds and is the authoritative default.
++/// </summary>
++public enum ProjectBriefingInstitutionalProjectScope
++{
++    OriginalCompleted = 1,
++    AllCompletedIncludingRebuilds = 2
++}
++
+ /// <summary>
+ /// Logical information rows available on each formal Project Update Sheet.
+ /// Project name is always rendered as the slide title and is therefore not a selectable table row.
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
+index 893b820..a4c7092 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -99,6 +99,11 @@
+     var institutionalPartnershipLines = string.Join(
+         Environment.NewLine,
+         institutionalProfile.PartnershipEntries);
++    var institutionalTrainingCategories = Model.SelectionOptions.TechnicalCategories
++        .OrderBy(category => category.Name, StringComparer.OrdinalIgnoreCase)
++        .ToArray();
++    var institutionalTrainingCategoryKnown = institutionalTrainingCategories.Any(category =>
++        string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase));
+     string InstitutionalModuleLabel(ProjectBriefingInstitutionalProfileModule module) => module switch
+     {
+         ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Simulators/Projects Developed",
+@@ -110,7 +115,7 @@
+     };
+     string InstitutionalModuleDescription(ProjectBriefingInstitutionalProfileModule module) => module switch
+     {
+-        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Completed projects with technical-category-wise counts from PRISM.",
++        ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "Original completed projects by default, with technical-category-wise counts from PRISM.",
+         ProjectBriefingInstitutionalProfileModule.Proliferation => "Approved combined proliferation total with technical-category-wise quantities.",
+         ProjectBriefingInstitutionalProfileModule.TrainingSupport => "Trainees assisted, financial-year figures and the selected technical-category highlight.",
+         ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "Protected total with patents granted, copyrights registered and patents filed.",
+@@ -615,14 +620,44 @@
+                                                                data-pbd-institutional-history-enable />
+                                                         <span><strong>Include institutional history</strong><small>Authorised milestones are shown across the upper section.</small></span>
+                                                     </label>
+-                                                    <label class="form-label" data-pbd-institutional-history-fields hidden="@(!institutionalProfile.IncludeHistory)">
+-                                                        <span>Milestones <small>one per line: YEAR | milestone</small></span>
+-                                                        <textarea class="form-control"
+-                                                                  name="InstitutionalHistoryLines"
+-                                                                  rows="6"
+-                                                                  maxlength="1600"
+-                                                                  spellcheck="true">@institutionalHistoryLines</textarea>
+-                                                    </label>
++                                                    <div class="pbd-institutional-list-editor"
++                                                         data-pbd-institutional-history-fields
++                                                         data-pbd-institutional-history-editor
++                                                         hidden="@(!institutionalProfile.IncludeHistory)">
++                                                        <textarea name="InstitutionalHistoryLines"
++                                                                  data-pbd-institutional-history-value
++                                                                  hidden>@institutionalHistoryLines</textarea>
++                                                        <div class="pbd-institutional-list-editor__heading">
++                                                            <span><strong>Milestones</strong><small>Structured, ordered and retained as one editable PowerPoint timeline.</small></span>
++                                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-history-add>
++                                                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add milestone
++                                                            </button>
++                                                        </div>
++                                                        <div class="pbd-institutional-list-editor__items" data-pbd-institutional-history-list>
++                                                            @foreach (var milestone in institutionalProfile.HistoryMilestones)
++                                                            {
++                                                                <div class="pbd-institutional-list-editor__item" data-pbd-institutional-history-item>
++                                                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
++                                                                    <input class="form-control pbd-institutional-list-editor__year"
++                                                                           type="number" min="1900" max="2200"
++                                                                           value="@milestone.Year"
++                                                                           aria-label="Milestone year"
++                                                                           data-pbd-institutional-history-year />
++                                                                    <input class="form-control"
++                                                                           value="@milestone.Text"
++                                                                           maxlength="100"
++                                                                           aria-label="Milestone description"
++                                                                           data-pbd-institutional-history-text />
++                                                                    <span class="pbd-institutional-list-editor__actions">
++                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move milestone up"><i class="bi bi-arrow-up"></i></button>
++                                                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move milestone down"><i class="bi bi-arrow-down"></i></button>
++                                                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove milestone"><i class="bi bi-trash"></i></button>
++                                                                    </span>
++                                                                </div>
++                                                            }
++                                                        </div>
++                                                        <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-history-validation hidden>Add at least one valid year and milestone.</p>
++                                                    </div>
+                                                 </fieldset>
+ 
+                                                 <fieldset class="pbd-choice-group">
+@@ -654,39 +689,74 @@
+                                                         }
+                                                     </div>
+                                                     <p class="pbd-institutional-profile-validation" data-pbd-institutional-profile-validation hidden>Select at least one output module or retain the history timeline.</p>
++                                                    <div class="pbd-institutional-layout-summary" data-pbd-institutional-layout-summary aria-live="polite"></div>
+                                                 </fieldset>
+ 
+                                                 <div class="pbd-form-grid pbd-form-grid--institutional">
+                                                     <label class="form-label">
+-                                                        <span>Maximum detail rows per module</span>
++                                                        <span>Projects-developed scope</span>
++                                                        <select class="form-select" name="InstitutionalProjectScope">
++                                                            <option value="@ProjectBriefingInstitutionalProjectScope.OriginalCompleted" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)">Original completed projects — recommended</option>
++                                                            <option value="@ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds" selected="@(institutionalProfile.ProjectScope == ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds)">All completed projects, including rebuilds</option>
++                                                        </select>
++                                                        <small>The headline and technical-category breakdown always use the same scope.</small>
++                                                    </label>
++                                                    <label class="form-label">
++                                                        <span>Maximum detail rows per metric module</span>
+                                                         <select class="form-select" name="InstitutionalMaximumDetailRows">
+                                                             @for (var rowCount = 3; rowCount <= 7; rowCount++)
+                                                             {
+                                                                 <option value="@rowCount" selected="@(institutionalProfile.MaximumDetailRows == rowCount)">@rowCount</option>
+                                                             }
+                                                         </select>
+-                                                        <small>Highest-value technical categories are shown first; remaining categories are combined as Others.</small>
++                                                        <small>Highest-value categories are shown first; remaining categories are combined as Others.</small>
+                                                     </label>
+                                                     <label class="form-label">
+                                                         <span>Training highlight category</span>
+-                                                        <input class="form-control"
+-                                                               name="InstitutionalTrainingHighlightCategory"
+-                                                               value="@institutionalProfile.TrainingHighlightTechnicalCategory"
+-                                                               maxlength="80"
+-                                                               placeholder="AR/VR" />
+-                                                        <small>Shown as a compact training highlight beneath the FY figures.</small>
++                                                        <select class="form-select" name="InstitutionalTrainingHighlightCategory">
++                                                            @if (!institutionalTrainingCategoryKnown && !string.IsNullOrWhiteSpace(institutionalProfile.TrainingHighlightTechnicalCategory))
++                                                            {
++                                                                <option value="@institutionalProfile.TrainingHighlightTechnicalCategory" selected>@institutionalProfile.TrainingHighlightTechnicalCategory</option>
++                                                            }
++                                                            @foreach (var category in institutionalTrainingCategories)
++                                                            {
++                                                                <option value="@category.Name" selected="@(string.Equals(category.Name, institutionalProfile.TrainingHighlightTechnicalCategory, StringComparison.OrdinalIgnoreCase))">@category.Name</option>
++                                                            }
++                                                        </select>
++                                                        <small>Selected from authoritative PRISM technical categories.</small>
+                                                     </label>
+                                                 </div>
+ 
+-                                                <label class="form-label">
+-                                                    <span>Military–Academia–Industry synergy <small>one MoU/partner per line</small></span>
+-                                                    <textarea class="form-control"
+-                                                              name="InstitutionalPartnershipLines"
+-                                                              rows="4"
+-                                                              maxlength="1200"
+-                                                              placeholder="IIT Hyderabad&#10;IIT Bhubaneswar&#10;Private industry / start-ups">@institutionalPartnershipLines</textarea>
+-                                                    <small>This is the only output module whose entries are maintained manually in the deck.</small>
+-                                                </label>
++                                                <div class="pbd-institutional-list-editor" data-pbd-institutional-partnership-editor>
++                                                    <textarea name="InstitutionalPartnershipLines"
++                                                              data-pbd-institutional-partnership-value
++                                                              hidden>@institutionalPartnershipLines</textarea>
++                                                    <div class="pbd-institutional-list-editor__heading">
++                                                        <span><strong>Military–Academia–Industry synergy</strong><small>Manual MoU and partner entries used by the selected partnership module.</small></span>
++                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-institutional-partnership-add>
++                                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add partner
++                                                        </button>
++                                                    </div>
++                                                    <div class="pbd-institutional-list-editor__items" data-pbd-institutional-partnership-list>
++                                                        @foreach (var partnership in institutionalProfile.PartnershipEntries)
++                                                        {
++                                                            <div class="pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner" data-pbd-institutional-partnership-item>
++                                                                <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
++                                                                <input class="form-control"
++                                                                       value="@partnership"
++                                                                       maxlength="80"
++                                                                       aria-label="MoU or partner name"
++                                                                       data-pbd-institutional-partnership-text />
++                                                                <span class="pbd-institutional-list-editor__actions">
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move partner up"><i class="bi bi-arrow-up"></i></button>
++                                                                    <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move partner down"><i class="bi bi-arrow-down"></i></button>
++                                                                    <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove partner"><i class="bi bi-trash"></i></button>
++                                                                </span>
++                                                            </div>
++                                                        }
++                                                    </div>
++                                                    <p class="pbd-institutional-list-editor__validation" data-pbd-institutional-partnership-validation hidden>Add at least one MoU or partner when the synergy module is selected.</p>
++                                                </div>
+ 
+                                                 <fieldset class="pbd-choice-group">
+                                                     <legend>Institutional recognition</legend>
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml.cs b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+index 5d863d9..32230b4 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml.cs
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+@@ -172,6 +172,7 @@ public sealed class IndexModel : PageModel
+                         input.IncludeInstitutionalHistory,
+                         ParseInstitutionalHistory(input.InstitutionalHistoryLines),
+                         ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
++                        input.InstitutionalProjectScope,
+                         input.InstitutionalMaximumDetailRows,
+                         input.InstitutionalTrainingHighlightCategory,
+                         ParseSimpleLines(input.InstitutionalPartnershipLines),
+@@ -656,6 +657,9 @@ public sealed class IndexModel : PageModel
+         [StringLength(300)]
+         public string? InstitutionalModuleOrder { get; set; }
+ 
++        public ProjectBriefingInstitutionalProjectScope InstitutionalProjectScope { get; set; }
++            = ProjectBriefingInstitutionalProjectScope.OriginalCompleted;
++
+         [Range(3, 7)]
+         public int InstitutionalMaximumDetailRows { get; set; } = 6;
+ 
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+index 1675948..4377536 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -486,13 +486,19 @@ public sealed class ProjectBriefingContractTests
+ 
+         Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
+         Assert.Contains("InstitutionalModules", page, StringComparison.Ordinal);
+-        Assert.Contains("YEAR | milestone", page, StringComparison.Ordinal);
+-        Assert.Contains("one MoU/partner per line", page, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-institutional-history-editor", page, StringComparison.Ordinal);
++        Assert.Contains("data-pbd-institutional-partnership-editor", page, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalProjectScope", page, StringComparison.Ordinal);
++        Assert.Contains("Original completed projects — recommended", page, StringComparison.Ordinal);
+         Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
+         Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
++        Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
++        Assert.Contains("syncInstitutionalPartnershipEditor", script, StringComparison.Ordinal);
++        Assert.Contains("syncInstitutionalLayoutSummary", script, StringComparison.Ordinal);
+ 
+         Assert.Contains("ProjectLifecycleStatus.Completed", service, StringComparison.Ordinal);
++        Assert.Contains("!project.IsBuild", service, StringComparison.Ordinal);
+         Assert.Contains("GetApprovedAggregatesAsync", service, StringComparison.Ordinal);
+         Assert.Contains("TechnicalCategoryName", service, StringComparison.Ordinal);
+         Assert.Contains("GetKpisAsync", service, StringComparison.Ordinal);
+@@ -504,6 +510,10 @@ public sealed class ProjectBriefingContractTests
+         Assert.Contains("RenderInstitutionalProfile", composer, StringComparison.Ordinal);
+         Assert.Contains("RenderInstitutionalHistory", composer, StringComparison.Ordinal);
+         Assert.Contains("RenderInstitutionalModules", composer, StringComparison.Ordinal);
++        Assert.Contains("RenderInstitutionalPartnershipBand", composer, StringComparison.Ordinal);
++        Assert.Contains("AddNativeTable", composer, StringComparison.Ordinal);
++        Assert.Contains("SDD institutional history timeline", composer, StringComparison.Ordinal);
++        Assert.DoesNotContain("AddRoundedRect", composer, StringComparison.Ordinal);
+         Assert.Contains("Data as on", composer, StringComparison.Ordinal);
+         Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
+         Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+index e08be0a..3304e5f 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+@@ -212,6 +212,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+                 ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
+                 ProjectBriefingInstitutionalProfileModule.Partnerships
+             },
++            projectScope: ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
+             maximumDetailRows: 5,
+             trainingHighlightTechnicalCategory: "AR/VR",
+             partnershipEntries: new[] { "IIT Hyderabad", "Private industry / start-ups" },
+@@ -228,6 +229,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+         Assert.Equal(options.Modules, decoded.InstitutionalProfileOptions.Modules);
+         Assert.Equal(options.HistoryMilestones, decoded.InstitutionalProfileOptions.HistoryMilestones);
+         Assert.Equal(options.PartnershipEntries, decoded.InstitutionalProfileOptions.PartnershipEntries);
++        Assert.Equal(ProjectBriefingInstitutionalProjectScope.OriginalCompleted, decoded.InstitutionalProfileOptions.ProjectScope);
+         Assert.Equal(3, decoded.InstitutionalProfileOptions.UnitCitationCount);
+         Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
+     }
+@@ -243,6 +245,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+                 includeHistory: false,
+                 historyMilestones: Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
+                 modules: new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
++                projectScope: ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds,
+                 maximumDetailRows: 4,
+                 trainingHighlightTechnicalCategory: null,
+                 partnershipEntries: Array.Empty<string>(),
+@@ -259,11 +262,22 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+ 
+         Assert.True(decoded.InstitutionalProfileOptions.IncludeSlide);
+         Assert.False(decoded.InstitutionalProfileOptions.IncludeHistory);
++        Assert.Equal(ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds, decoded.InstitutionalProfileOptions.ProjectScope);
+         Assert.Equal(
+             new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
+             decoded.InstitutionalProfileOptions.Modules);
+     }
+ 
++    [Fact]
++    public void InstitutionalProfileDefaults_ExcludeRebuildProjects()
++    {
++        var decoded = ProjectBriefingDeckConfigurationCodec.Read(null);
++
++        Assert.Equal(
++            ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
++            decoded.InstitutionalProfileOptions.ProjectScope);
++    }
++
+     [Fact]
+     public void Normalize_RemovesDuplicatesAndInvalidEnumValues()
+     {
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+index d92cbc7..981e267 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -1595,11 +1595,26 @@ public sealed class ProjectBriefingSlideComposerTests
+         Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
+         Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
+         Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
+-        Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
++        Assert.Contains("GOC-in-C Unit Citations —", profileText, StringComparison.Ordinal);
++        Assert.Contains("03", profileText, StringComparison.Ordinal);
+         Assert.Contains("Data as on 04 Aug 2026 · Source: PRISM ERP", profileText, StringComparison.Ordinal);
+         Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
+-        Assert.NotNull(ShapeByName(profileSlide, "SDD profile title band"));
+-        Assert.NotNull(ShapeByName(profileSlide, "Proliferated module"));
++        Assert.Contains(
++            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
++            properties => string.Equals(properties.Name?.Value, "SDD institutional history timeline", StringComparison.Ordinal));
++        Assert.Contains(
++            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
++            properties => string.Equals(properties.Name?.Value, "Proliferated institutional module table", StringComparison.Ordinal));
++        Assert.Contains(
++            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
++            properties => string.Equals(properties.Name?.Value, "Military academia industry synergy table", StringComparison.Ordinal));
++        Assert.Contains(
++            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
++            properties => string.Equals(properties.Name?.Value, "Institutional recognition table", StringComparison.Ordinal));
++        Assert.Equal(7, profileSlide.Slide.Descendants<P.GraphicFrame>().Count());
++        Assert.DoesNotContain(
++            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
++            properties => string.Equals(properties.Name?.Value, "SDD profile title band", StringComparison.Ordinal));
+     }
+ 
+     [Fact]
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+index a5e7298..0a64eb4 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+@@ -10,40 +10,13 @@ public sealed partial class ProjectBriefingSlideComposer
+         SlideCanvas canvas,
+         ProjectBriefingInstitutionalProfileData profile)
+     {
+-        var theme = canvas.Theme;
+-        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.Canvas, name: "SDD profile canvas");
+-        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "SDD profile top accent");
+-        canvas.AddBrandingImages(HeaderVariant.Standard);
+-
+-        var titleX = canvas.ShowBranding ? 1.28 : .62;
+-        var titleWidth = canvas.ShowBranding ? 10.78 : 12.10;
+-        canvas.AddRoundedRect(
+-            titleX,
+-            .22,
+-            titleWidth,
+-            .62,
+-            theme.HeaderAccent,
+-            theme.HeaderAccent,
+-            .04,
+-            "SDD profile title band");
+-        canvas.AddText(
+-            titleX + .24,
+-            .30,
+-            titleWidth - .48,
+-            .43,
+-            Truncate(profile.Title, 110),
+-            23.5,
+-            theme.TextOnAccent,
+-            true,
+-            "ctr",
+-            name: "SDD profile title");
++        AddSlideTitle(canvas, Truncate(profile.Title, 110));
+ 
+         var hasHistory = profile.HistoryMilestones.Count > 0;
+         var hasCitation = profile.UnitCitationCount.HasValue
+             && !string.IsNullOrWhiteSpace(profile.UnitCitationLabel);
+-        var cardsTop = hasHistory ? 2.48 : 1.10;
+-        var dataLineY = hasCitation ? 6.59 : 6.75;
+-        var cardsBottom = hasCitation ? 6.24 : 6.52;
++        var contentTop = hasHistory ? 2.30 : 1.16;
++        var contentBottom = hasCitation ? 6.30 : 6.64;
+ 
+         if (hasHistory)
+         {
+@@ -53,8 +26,8 @@ public sealed partial class ProjectBriefingSlideComposer
+         RenderInstitutionalModules(
+             canvas,
+             profile.Modules,
+-            cardsTop,
+-            cardsBottom - cardsTop);
++            contentTop,
++            contentBottom - contentTop);
+ 
+         if (hasCitation)
+         {
+@@ -66,18 +39,23 @@ public sealed partial class ProjectBriefingSlideComposer
+ 
+         var dataAsOn = profile.DataAsOnUtc.ToUniversalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+         canvas.AddText(
+-            .76,
+-            dataLineY,
+-            11.82,
+-            .18,
++            .78,
++            6.80,
++            11.78,
++            .16,
+             $"Data as on {dataAsOn} · Source: PRISM ERP",
+-            7.8,
+-            theme.TextMuted,
++            7.6,
++            canvas.Theme.TextMuted,
+             false,
+             "ctr",
+             name: "SDD profile data source");
+     }
+ 
++    /// <summary>
++    /// Renders the complete institutional timeline as one native PowerPoint table.
++    /// The table is borderless except for the central chronology rule, so it remains
++    /// visually richer than a conventional grid while staying easy to edit as one object.
++    /// </summary>
+     private static void RenderInstitutionalHistory(
+         SlideCanvas canvas,
+         IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> history)
+@@ -89,88 +67,198 @@ public sealed partial class ProjectBriefingSlideComposer
+             .ToArray();
+         if (items.Length == 0) return;
+ 
+-        const double left = .82;
+-        const double right = 12.52;
+-        const double lineY = 1.62;
+-        var span = right - left;
+-        canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.05);
++        const double left = .62;
++        const double totalWidth = 12.10;
++        var widths = Enumerable.Repeat(totalWidth / items.Length, items.Length).ToArray();
++        var compact = items.Length >= 7;
++        var yearFont = compact ? 9.0 : 10.3;
++        var textFont = compact ? 7.25 : 8.1;
++        var noBorders = NativeTableBorders.None;
++        var timelineBorder = new NativeTableBorders(
++            LeftWidth: 0,
++            RightWidth: 0,
++            TopWidth: 0,
++            BottomColor: canvas.Theme.Divider,
++            BottomWidth: 1.05);
++
++        var topYears = new List<NativeTableCell>(items.Length);
++        var topText = new List<NativeTableCell>(items.Length);
++        var markers = new List<NativeTableCell>(items.Length);
++        var bottomYears = new List<NativeTableCell>(items.Length);
++        var bottomText = new List<NativeTableCell>(items.Length);
+ 
+         for (var index = 0; index < items.Length; index++)
+         {
+             var item = items[index];
+-            var x = items.Length == 1
+-                ? (left + right) / 2
+-                : left + ((span * index) / (items.Length - 1));
+-            var labelWidth = items.Length >= 7 ? 1.43 : 1.66;
+-            var labelX = Math.Clamp(x - (labelWidth / 2), .56, 12.77 - labelWidth);
+             var above = index % 2 == 0;
+-            var textY = above ? .98 : 1.73;
+-            var yearY = above ? .91 : 1.68;
+-
+-            canvas.AddText(
+-                labelX,
+-                yearY,
+-                labelWidth,
+-                .24,
+-                item.Year.ToString(CultureInfo.InvariantCulture),
+-                10.8,
++            var year = item.Year.ToString(CultureInfo.InvariantCulture);
++            var description = Truncate(item.Text, compact ? 34 : 46);
++
++            topYears.Add(InstitutionalTableCell(
++                above ? year : string.Empty,
++                yearFont,
+                 canvas.Theme.HeaderAccent,
+                 true,
+                 "ctr",
+-                name: $"SDD milestone year {item.Year}");
+-            canvas.AddText(
+-                labelX,
+-                textY + .22,
+-                labelWidth,
+-                .43,
+-                Truncate(item.Text, 48),
+-                items.Length >= 7 ? 8.0 : 8.6,
++                canvas.Theme.Canvas,
++                noBorders));
++            topText.Add(InstitutionalTableCell(
++                above ? description : string.Empty,
++                textFont,
+                 canvas.Theme.TextPrimary,
+                 true,
+                 "ctr",
+-                verticalAnchor: "t",
+-                name: $"SDD milestone {item.Year}");
+-            canvas.AddText(
+-                x - .10,
+-                lineY - .12,
+-                .20,
+-                .24,
++                canvas.Theme.Canvas,
++                noBorders,
++                verticalAnchor: "t"));
++            markers.Add(InstitutionalTableCell(
+                 "●",
+-                10.5,
++                compact ? 8.7 : 9.7,
+                 canvas.Theme.Warning,
+                 true,
+                 "ctr",
+-                name: $"SDD milestone marker {item.Year}");
++                canvas.Theme.Canvas,
++                timelineBorder,
++                bottomMargin: .01));
++            bottomYears.Add(InstitutionalTableCell(
++                above ? string.Empty : year,
++                yearFont,
++                canvas.Theme.HeaderAccent,
++                true,
++                "ctr",
++                canvas.Theme.Canvas,
++                noBorders));
++            bottomText.Add(InstitutionalTableCell(
++                above ? string.Empty : description,
++                textFont,
++                canvas.Theme.TextPrimary,
++                true,
++                "ctr",
++                canvas.Theme.Canvas,
++                noBorders,
++                verticalAnchor: "t"));
+         }
++
++        canvas.AddNativeTable(
++            left,
++            1.08,
++            widths,
++            new[] { .20, .36, .18, .20, .36 },
++            new IReadOnlyList<NativeTableCell>[]
++            {
++                topYears,
++                topText,
++                markers,
++                bottomYears,
++                bottomText
++            },
++            "SDD institutional history timeline");
+     }
+ 
++    /// <summary>
++    /// Automatic table-first layout. Numeric modules remain generous equal panels;
++    /// the non-numeric partnership module becomes a full-width institutional band.
++    /// This preserves all selected content without forcing five narrow columns.
++    /// </summary>
+     private static void RenderInstitutionalModules(
+         SlideCanvas canvas,
+         IReadOnlyList<ProjectBriefingInstitutionalModuleData> modules,
+         double top,
+         double height)
+     {
+-        if (modules.Count == 0)
++        if (modules.Count == 0) return;
++
++        var visible = modules.Take(6).ToArray();
++        var partnership = visible.FirstOrDefault(module =>
++            module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships);
++        var metrics = visible
++            .Where(module => module.Module != ProjectBriefingInstitutionalProfileModule.Partnerships)
++            .ToArray();
++
++        const double left = .62;
++        const double right = 12.72;
++        const double gap = .12;
++        var hasPartnershipBand = partnership is not null;
++        var partnershipHeight = hasPartnershipBand ? .72 : 0d;
++        var metricHeight = Math.Max(
++            1.18,
++            height - (hasPartnershipBand ? partnershipHeight + gap : 0d));
++
++        if (metrics.Length > 0)
+         {
+-            // A history-only profile is valid. Do not expose configuration guidance in the exported deck.
+-            return;
++            RenderInstitutionalMetricGrid(
++                canvas,
++                metrics,
++                left,
++                top,
++                right - left,
++                metricHeight,
++                gap);
+         }
+ 
+-        var visible = modules.Take(5).ToArray();
+-        const double left = .60;
+-        const double right = 12.73;
+-        const double gap = .12;
+-        var cardWidth = (right - left - ((visible.Length - 1) * gap)) / visible.Length;
++        if (partnership is not null)
++        {
++            var partnershipTop = metrics.Length == 0
++                ? top
++                : top + metricHeight + gap;
++            var bandHeight = metrics.Length == 0
++                ? Math.Min(1.30, height)
++                : partnershipHeight;
++            RenderInstitutionalPartnershipBand(
++                canvas,
++                partnership,
++                left,
++                partnershipTop,
++                right - left,
++                bandHeight);
++        }
++    }
+ 
+-        for (var index = 0; index < visible.Length; index++)
++    private static void RenderInstitutionalMetricGrid(
++        SlideCanvas canvas,
++        IReadOnlyList<ProjectBriefingInstitutionalModuleData> modules,
++        double left,
++        double top,
++        double width,
++        double height,
++        double gap)
++    {
++        if (modules.Count <= 4)
+         {
+-            var module = visible[index];
+-            var x = left + (index * (cardWidth + gap));
+-            RenderInstitutionalModuleCard(canvas, module, x, top, cardWidth, height);
++            var cardWidth = modules.Count switch
++            {
++                1 => Math.Min(6.30, width),
++                2 => (width - gap) / 2d,
++                3 => (width - (2d * gap)) / 3d,
++                _ => (width - (3d * gap)) / 4d
++            };
++            var startX = modules.Count == 1
++                ? left + ((width - cardWidth) / 2d)
++                : left;
++
++            for (var index = 0; index < modules.Count; index++)
++            {
++                RenderInstitutionalMetricModuleTable(
++                    canvas,
++                    modules[index],
++                    startX + (index * (cardWidth + gap)),
++                    top,
++                    cardWidth,
++                    height);
++            }
++            return;
+         }
++
++        // Future-proof fallback for additional numeric blocks: approved 3 + 2/3 layout.
++        var firstRowCount = 3;
++        var secondRowCount = modules.Count - firstRowCount;
++        var rowGap = gap;
++        var rowHeight = (height - rowGap) / 2d;
++        RenderInstitutionalMetricGrid(canvas, modules.Take(firstRowCount).ToArray(), left, top, width, rowHeight, gap);
++        RenderInstitutionalMetricGrid(canvas, modules.Skip(firstRowCount).Take(secondRowCount).ToArray(), left, top + rowHeight + rowGap, width, rowHeight, gap);
+     }
+ 
+-    private static void RenderInstitutionalModuleCard(
++    private static void RenderInstitutionalMetricModuleTable(
+         SlideCanvas canvas,
+         ProjectBriefingInstitutionalModuleData module,
+         double x,
+@@ -180,110 +268,155 @@ public sealed partial class ProjectBriefingSlideComposer
+     {
+         var accent = InstitutionalModuleAccent(canvas.Theme, module.Module);
+         var soft = InstitutionalModuleSoftFill(canvas.Theme, module.Module);
+-        canvas.AddRoundedRect(x, y, width, height, canvas.Theme.Surface, canvas.Theme.Border, .055, $"{module.Title} module");
+-        canvas.AddRect(x, y, width, .075, accent, name: $"{module.Title} accent");
+-        canvas.AddRect(x, y + .075, width, .62, soft, name: $"{module.Title} header fill");
++        var headerFill = canvas.Theme.IsDark ? accent : soft;
++        var headerText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
++        var highlightFill = canvas.Theme.IsDark ? accent : soft;
++        var highlightText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
++        var detailRows = module.Rows.ToArray();
++        var hasHeadline = !string.IsNullOrWhiteSpace(module.Headline);
++        var hasHighlight = !string.IsNullOrWhiteSpace(module.Highlight);
++        var fixedHeight = .45 + (hasHeadline ? .46 : 0d) + (hasHighlight ? .34 : 0d);
++        var bodyHeight = Math.Max(.42, height - fixedHeight);
++        var rowHeight = detailRows.Length == 0
++            ? bodyHeight
++            : Math.Max(.24, bodyHeight / detailRows.Length);
++        var widths = new[] { Math.Max(.85, width - .78), .78 };
++        var rows = new List<IReadOnlyList<NativeTableCell>>();
++        var heights = new List<double>();
+ 
+-        canvas.AddText(
+-            x + .16,
+-            y + .15,
+-            width - .32,
+-            .42,
+-            Truncate(module.Title, 48),
+-            width < 2.25 ? 9.0 : 9.7,
+-            accent,
++        rows.Add(MergedInstitutionalRow(
++            Truncate(module.Title, 54),
++            width < 2.65 ? 8.2 : 9.1,
++            headerText,
+             true,
+             "ctr",
+-            name: $"{module.Title} heading");
++            headerFill));
++        heights.Add(.45);
+ 
+-        var cursorY = y + .78;
+-        if (!string.IsNullOrWhiteSpace(module.Headline))
++        if (hasHeadline)
+         {
+-            canvas.AddText(
+-                x + .14,
+-                cursorY,
+-                width - .28,
+-                .48,
++            rows.Add(MergedInstitutionalRow(
+                 module.Headline!,
+-                width < 2.25 ? 19.0 : 21.0,
++                width < 2.65 ? 17.2 : 19.5,
+                 canvas.Theme.TextPrimary,
+                 true,
+                 "ctr",
+-                name: $"{module.Title} headline");
+-            cursorY += .53;
+-        }
+-        else
+-        {
+-            cursorY += .12;
++                canvas.Theme.Surface));
++            heights.Add(.46);
+         }
+ 
+-        var highlightReserve = string.IsNullOrWhiteSpace(module.Highlight) ? 0d : .48;
+-        var availableRowsHeight = Math.Max(.72, (y + height - .16) - cursorY - highlightReserve);
+-        var rowCount = Math.Max(1, module.Rows.Count);
+-        var rowHeight = Math.Clamp(availableRowsHeight / rowCount, .25, .41);
+-        var maximumVisibleRows = Math.Max(1, (int)Math.Floor(availableRowsHeight / rowHeight));
+-        var rows = module.Rows.Take(maximumVisibleRows).ToArray();
+-        var labelWidth = module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships
+-            ? width - .34
+-            : Math.Max(.82, width - .72);
+-
+-        foreach (var row in rows)
++        if (detailRows.Length == 0)
+         {
+-            var label = module.Module == ProjectBriefingInstitutionalProfileModule.Partnerships
+-                ? $"• {row.Label}"
+-                : row.Label;
+-            canvas.AddText(
+-                x + .16,
+-                cursorY,
+-                labelWidth,
+-                rowHeight,
+-                Truncate(label, width < 2.25 ? 28 : 36),
+-                width < 2.25 ? 7.9 : 8.5,
+-                canvas.Theme.TextSecondary,
++            rows.Add(MergedInstitutionalRow(
++                string.Empty,
++                8.2,
++                canvas.Theme.TextMuted,
+                 false,
+                 "l",
+-                name: $"{module.Title} row label");
+-            if (!string.IsNullOrWhiteSpace(row.Value))
++                canvas.Theme.Surface));
++            heights.Add(bodyHeight);
++        }
++        else
++        {
++            for (var index = 0; index < detailRows.Length; index++)
+             {
+-                canvas.AddText(
+-                    x + width - .58,
+-                    cursorY,
+-                    .42,
+-                    rowHeight,
+-                    row.Value,
+-                    width < 2.25 ? 8.0 : 8.7,
+-                    canvas.Theme.TextPrimary,
+-                    true,
+-                    "r",
+-                    name: $"{module.Title} row value");
++                var row = detailRows[index];
++                var fill = index % 2 == 0 ? canvas.Theme.Surface : canvas.Theme.SurfaceMuted;
++                rows.Add(new[]
++                {
++                    InstitutionalTableCell(
++                        Truncate(row.Label, width < 2.65 ? 28 : 38),
++                        width < 2.65 ? 7.7 : 8.2,
++                        canvas.Theme.TextSecondary,
++                        false,
++                        "l",
++                        fill),
++                    InstitutionalTableCell(
++                        row.Value,
++                        width < 2.65 ? 7.9 : 8.5,
++                        canvas.Theme.TextPrimary,
++                        true,
++                        "r",
++                        fill,
++                        rightMargin: .08)
++                });
++                heights.Add(rowHeight);
+             }
+-            cursorY += rowHeight;
+         }
+ 
+-        if (!string.IsNullOrWhiteSpace(module.Highlight))
++        if (hasHighlight)
+         {
+-            var highlightY = y + height - .49;
+-            canvas.AddRoundedRect(
+-                x + .12,
+-                highlightY,
+-                width - .24,
+-                .34,
+-                soft,
+-                null,
+-                .035,
+-                $"{module.Title} highlight");
+-            canvas.AddText(
+-                x + .20,
+-                highlightY + .03,
+-                width - .40,
+-                .28,
+-                Truncate(module.Highlight, width < 2.25 ? 54 : 68),
+-                width < 2.25 ? 7.1 : 7.7,
+-                accent,
++            rows.Add(MergedInstitutionalRow(
++                Truncate(module.Highlight, width < 2.65 ? 78 : 96),
++                width < 2.65 ? 7.0 : 7.5,
++                highlightText,
+                 true,
+                 "l",
+-                name: $"{module.Title} highlight text");
++                highlightFill));
++            heights.Add(.34);
+         }
++
++        canvas.AddNativeTable(
++            x,
++            y,
++            widths,
++            heights,
++            rows,
++            $"{module.Title} institutional module table");
++    }
++
++    private static void RenderInstitutionalPartnershipBand(
++        SlideCanvas canvas,
++        ProjectBriefingInstitutionalModuleData module,
++        double x,
++        double y,
++        double width,
++        double height)
++    {
++        var accent = InstitutionalModuleAccent(canvas.Theme, module.Module);
++        var soft = InstitutionalModuleSoftFill(canvas.Theme, module.Module);
++        var headerFill = canvas.Theme.IsDark ? accent : soft;
++        var headerText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
++        var entries = module.Rows
++            .Select(row => row.Label)
++            .Where(value => !string.IsNullOrWhiteSpace(value))
++            .ToArray();
++        var entryText = entries.Length == 0
++            ? string.Empty
++            : string.Join("  ·  ", entries.Select(value => Truncate(value, 70)));
++
++        canvas.AddNativeTable(
++            x,
++            y,
++            new[] { width },
++            new[] { Math.Min(.30, height * .43), Math.Max(.32, height - Math.Min(.30, height * .43)) },
++            new IReadOnlyList<NativeTableCell>[]
++            {
++                new[]
++                {
++                    InstitutionalTableCell(
++                        Truncate(module.Title, 80),
++                        9.1,
++                        headerText,
++                        true,
++                        "ctr",
++                        headerFill)
++                },
++                new[]
++                {
++                    InstitutionalTableCell(
++                        entryText,
++                        entries.Length >= 6 ? 7.8 : 8.6,
++                        canvas.Theme.TextPrimary,
++                        false,
++                        "ctr",
++                        canvas.Theme.Surface,
++                        verticalAnchor: "ctr",
++                        leftMargin: .16,
++                        rightMargin: .16)
++                }
++            },
++            "Military academia industry synergy table");
+     }
+ 
+     private static void RenderInstitutionalCitation(
+@@ -291,28 +424,96 @@ public sealed partial class ProjectBriefingSlideComposer
+         string label,
+         int count)
+     {
+-        canvas.AddRoundedRect(
+-            4.35,
+-            6.33,
+-            4.63,
+-            .38,
+-            canvas.Theme.SurfaceRaised,
+-            canvas.Theme.HeaderAccent,
+-            .04,
+-            "Institutional recognition strip");
+-        canvas.AddText(
+-            4.56,
+-            6.385,
+-            4.21,
+-            .25,
+-            $"{Truncate(label, 58)} — {count:00}",
+-            11.2,
+-            canvas.Theme.TextPrimary,
+-            true,
+-            "ctr",
+-            name: "Institutional recognition text");
++        canvas.AddNativeTable(
++            .62,
++            6.40,
++            new[] { 10.85, 1.25 },
++            new[] { .31 },
++            new IReadOnlyList<NativeTableCell>[]
++            {
++                new[]
++                {
++                    InstitutionalTableCell(
++                        $"{Truncate(label, 70)} —",
++                        8.9,
++                        canvas.Theme.TextPrimary,
++                        true,
++                        "l",
++                        canvas.Theme.SurfaceRaised,
++                        leftMargin: .16),
++                    InstitutionalTableCell(
++                        count.ToString("00", CultureInfo.InvariantCulture),
++                        11.0,
++                        canvas.Theme.HeaderAccent,
++                        true,
++                        "r",
++                        canvas.Theme.SurfaceRaised,
++                        rightMargin: .16)
++                }
++            },
++            "Institutional recognition table");
+     }
+ 
++    private static IReadOnlyList<NativeTableCell> MergedInstitutionalRow(
++        string value,
++        double fontSize,
++        string color,
++        bool bold,
++        string align,
++        string fill)
++        => new[]
++        {
++            InstitutionalTableCell(
++                value,
++                fontSize,
++                color,
++                bold,
++                align,
++                fill,
++                gridSpan: 2,
++                leftMargin: .12,
++                rightMargin: .12),
++            InstitutionalTableCell(
++                string.Empty,
++                fontSize,
++                color,
++                bold,
++                align,
++                fill,
++                horizontalMerge: true)
++        };
++
++    private static NativeTableCell InstitutionalTableCell(
++        string? value,
++        double fontSize,
++        string color,
++        bool bold,
++        string align,
++        string fill,
++        NativeTableBorders? borders = null,
++        string verticalAnchor = "ctr",
++        double leftMargin = .08,
++        double rightMargin = .08,
++        double topMargin = .025,
++        double bottomMargin = .025,
++        int gridSpan = 1,
++        bool horizontalMerge = false)
++        => new(
++            value ?? string.Empty,
++            fontSize,
++            color,
++            bold,
++            align,
++            fill,
++            borders,
++            verticalAnchor,
++            leftMargin,
++            rightMargin,
++            topMargin,
++            bottomMargin,
++            gridSpan,
++            horizontalMerge);
++
+     private static string InstitutionalModuleAccent(
+         ProjectBriefingThemeDefinition theme,
+         ProjectBriefingInstitutionalProfileModule module)
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+index 72d9855..63afbc8 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -2239,7 +2239,38 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+         bool TabAfterFirstRun = false,
+         double SpaceAfterPoints = 0,
+         double? LineSpacingPoints = null);
+-    private sealed record NativeTableCell(string Value, double FontSize, string Color, bool Bold, string Align, string Fill);
++    private sealed record NativeTableBorders(
++        string? LeftColor = null,
++        double LeftWidth = .25,
++        string? RightColor = null,
++        double RightWidth = .25,
++        string? TopColor = null,
++        double TopWidth = .25,
++        string? BottomColor = null,
++        double BottomWidth = .25)
++    {
++        public static NativeTableBorders None { get; } = new(
++            LeftWidth: 0,
++            RightWidth: 0,
++            TopWidth: 0,
++            BottomWidth: 0);
++    }
++
++    private sealed record NativeTableCell(
++        string Value,
++        double FontSize,
++        string Color,
++        bool Bold,
++        string Align,
++        string Fill,
++        NativeTableBorders? Borders = null,
++        string VerticalAnchor = "ctr",
++        double LeftMargin = .05,
++        double RightMargin = .05,
++        double TopMargin = .025,
++        double BottomMargin = .025,
++        int GridSpan = 1,
++        bool HorizontalMerge = false);
+     private sealed record ProjectBriefingBrandingAssets(byte[]? LeftLogo, byte[]? RightLogo);
+     private sealed record SlidePlan(SlidePlanKind Kind, Action<SlideCanvas> Render);
+ 
+@@ -2587,12 +2618,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+                 rowXml.Append($"<a:tr h=\"{Emu(heights[rowIndex])}\">");
+                 foreach (var cell in rows[rowIndex])
+                 {
++                    var mergeAttributes = cell.HorizontalMerge
++                        ? " hMerge=\"1\""
++                        : cell.GridSpan > 1
++                            ? $" gridSpan=\"{cell.GridSpan}\""
++                            : string.Empty;
+                     rowXml.Append($"""
+-<a:tc>
++<a:tc{mergeAttributes}>
+   {BuildTableTextBody(cell)}
+-  <a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">
++  <a:tcPr marL="{Emu(cell.LeftMargin)}" marR="{Emu(cell.RightMargin)}" marT="{Emu(cell.TopMargin)}" marB="{Emu(cell.BottomMargin)}" anchor="{VerticalAnchor(cell.VerticalAnchor)}">
+     <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
+-    {TableBorders()}
++    {TableBorders(cell.Borders)}
+   </a:tcPr>
+ </a:tc>
+ """);
+@@ -2821,13 +2857,40 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+                 .Select(line => $"""
+ <a:p><a:pPr algn="{alignment}"/><a:r><a:rPr lang="en-IN" sz="{FontSize(cell.FontSize)}" b="{(cell.Bold ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(cell.Color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">{Escape(line)}</a:t></a:r><a:endParaRPr lang="en-IN" sz="{FontSize(cell.FontSize)}"/></a:p>
+ """);
+-            return $"<a:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" rIns=\"0\" tIns=\"0\" bIns=\"0\" anchor=\"ctr\"/><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</a:txBody>";
++            return $"<a:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" rIns=\"0\" tIns=\"0\" bIns=\"0\" anchor=\"{VerticalAnchor(cell.VerticalAnchor)}\"/><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</a:txBody>";
++        }
++
++        private string TableBorders(NativeTableBorders? borders)
++        {
++            if (borders is null)
++            {
++                borders = new NativeTableBorders(
++                    Theme.Border,
++                    .25,
++                    Theme.Border,
++                    .25,
++                    Theme.Border,
++                    .25,
++                    Theme.Border,
++                    .25);
++            }
++
++            return string.Concat(
++                TableBorder("L", borders.LeftColor, borders.LeftWidth),
++                TableBorder("R", borders.RightColor, borders.RightWidth),
++                TableBorder("T", borders.TopColor, borders.TopWidth),
++                TableBorder("B", borders.BottomColor, borders.BottomWidth));
+         }
+ 
+-        private string TableBorders()
++        private static string TableBorder(string side, string? color, double width)
+         {
+-            var line = $"<a:solidFill><a:srgbClr val=\"{CleanColor(Theme.Border)}\"/></a:solidFill><a:prstDash val=\"solid\"/>";
+-            return $"<a:lnL w=\"3175\">{line}</a:lnL><a:lnR w=\"3175\">{line}</a:lnR><a:lnT w=\"3175\">{line}</a:lnT><a:lnB w=\"3175\">{line}</a:lnB>";
++            if (width <= 0 || string.IsNullOrWhiteSpace(color))
++            {
++                return $"<a:ln{side}><a:noFill/></a:ln{side}>";
++            }
++
++            var line = $"<a:solidFill><a:srgbClr val=\"{CleanColor(color)}\"/></a:solidFill><a:prstDash val=\"solid\"/>";
++            return $"<a:ln{side} w=\"{LineWidth(width)}\">{line}</a:ln{side}>";
+         }
+ 
+         private static string BuildRichTextBody(
+diff --git a/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs b/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+index 06b85c3..6ddb1f2 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+@@ -97,6 +97,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+     bool IncludeHistory,
+     IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> HistoryMilestones,
+     IReadOnlyList<ProjectBriefingInstitutionalProfileModule> Modules,
++    ProjectBriefingInstitutionalProjectScope ProjectScope,
+     int MaximumDetailRows,
+     string TrainingHighlightTechnicalCategory,
+     IReadOnlyList<string> PartnershipEntries,
+@@ -136,6 +137,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+             IncludeHistory: true,
+             HistoryMilestones: DefaultHistory,
+             Modules: DefaultModules,
++            ProjectScope: ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
+             MaximumDetailRows: 6,
+             TrainingHighlightTechnicalCategory: DefaultTrainingHighlight,
+             PartnershipEntries: Array.Empty<string>(),
+@@ -149,6 +151,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+         bool includeHistory,
+         IEnumerable<ProjectBriefingInstitutionalHistoryMilestone>? historyMilestones,
+         IEnumerable<ProjectBriefingInstitutionalProfileModule>? modules,
++        ProjectBriefingInstitutionalProjectScope projectScope,
+         int maximumDetailRows,
+         string? trainingHighlightTechnicalCategory,
+         IEnumerable<string>? partnershipEntries,
+@@ -168,7 +171,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+         var normalizedModules = (modules ?? Array.Empty<ProjectBriefingInstitutionalProfileModule>())
+             .Where(Enum.IsDefined)
+             .Distinct()
+-            .Take(5)
++            .Take(6)
+             .ToArray();
+ 
+         var normalizedPartnerships = (partnershipEntries ?? Array.Empty<string>())
+@@ -186,6 +189,9 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+             includeHistory,
+             history.Length == 0 ? DefaultHistory : history,
+             normalizedModules,
++            Enum.IsDefined(projectScope)
++                ? projectScope
++                : ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
+             Math.Clamp(maximumDetailRows, 3, 7),
+             string.IsNullOrWhiteSpace(trainingHighlightTechnicalCategory)
+                 ? DefaultTrainingHighlight
+@@ -399,6 +405,9 @@ public static class ProjectBriefingDeckConfigurationCodec
+             profile["modules"] is JsonArray moduleArray
+                 ? ReadEnumArray<ProjectBriefingInstitutionalProfileModule>(moduleArray)
+                 : ProjectBriefingInstitutionalProfileOptions.DefaultModules,
++            ReadEnum(
++                profile["projectScope"],
++                ProjectBriefingInstitutionalProjectScope.OriginalCompleted),
+             profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
+             profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
+             partnerships,
+@@ -440,6 +449,7 @@ public static class ProjectBriefingDeckConfigurationCodec
+             institutionalProfileOptions.IncludeHistory,
+             institutionalProfileOptions.HistoryMilestones,
+             institutionalProfileOptions.Modules,
++            institutionalProfileOptions.ProjectScope,
+             institutionalProfileOptions.MaximumDetailRows,
+             institutionalProfileOptions.TrainingHighlightTechnicalCategory,
+             institutionalProfileOptions.PartnershipEntries,
+@@ -476,6 +486,7 @@ public static class ProjectBriefingDeckConfigurationCodec
+                     })
+                     .ToArray()),
+                 ["modules"] = ToEnumArray(normalizedProfile.Modules),
++                ["projectScope"] = normalizedProfile.ProjectScope.ToString(),
+                 ["maximumDetailRows"] = normalizedProfile.MaximumDetailRows,
+                 ["trainingHighlightTechnicalCategory"] = normalizedProfile.TrainingHighlightTechnicalCategory,
+                 ["partnerships"] = new JsonArray(normalizedProfile.PartnershipEntries
+diff --git a/Services/ProjectBriefings/ProjectBriefingDeckService.cs b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+index 7d05601..22388d7 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDeckService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+@@ -300,6 +300,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
+             command.InstitutionalProfileOptions.IncludeHistory,
+             command.InstitutionalProfileOptions.HistoryMilestones,
+             command.InstitutionalProfileOptions.Modules,
++            command.InstitutionalProfileOptions.ProjectScope,
+             command.InstitutionalProfileOptions.MaximumDetailRows,
+             command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
+             command.InstitutionalProfileOptions.PartnershipEntries,
+@@ -312,6 +313,12 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
+         {
+             throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
+         }
++        if (institutionalProfileOptions.IncludeSlide
++            && institutionalProfileOptions.Modules.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships)
++            && institutionalProfileOptions.PartnershipEntries.Count == 0)
++        {
++            throw new InvalidOperationException("Add at least one MoU or partner when the Military–Academia–Industry Synergy module is selected.");
++        }
+ 
+         var normalizedName = NormalizeName(command.Name);
+         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
+diff --git a/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs b/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+index e583828..f66800d 100644
+--- a/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+@@ -51,6 +51,7 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
+             options.IncludeHistory,
+             options.HistoryMilestones,
+             options.Modules,
++            options.ProjectScope,
+             options.MaximumDetailRows,
+             options.TrainingHighlightTechnicalCategory,
+             options.PartnershipEntries,
+@@ -69,7 +70,10 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
+             var item = module switch
+             {
+                 ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped =>
+-                    await BuildProjectsAsync(normalized.MaximumDetailRows, cancellationToken),
++                    await BuildProjectsAsync(
++                        normalized.ProjectScope,
++                        normalized.MaximumDetailRows,
++                        cancellationToken),
+                 ProjectBriefingInstitutionalProfileModule.Proliferation =>
+                     await BuildProliferationAsync(normalized.MaximumDetailRows, cancellationToken),
+                 ProjectBriefingInstitutionalProfileModule.TrainingSupport =>
+@@ -108,15 +112,23 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
+     }
+ 
+     private async Task<ProjectBriefingInstitutionalModuleData> BuildProjectsAsync(
++        ProjectBriefingInstitutionalProjectScope scope,
+         int maximumRows,
+         CancellationToken cancellationToken)
+     {
+-        var rows = await _db.Projects
++        var projects = _db.Projects
+             .AsNoTracking()
+             .Where(project =>
+                 !project.IsDeleted
+                 && !project.IsArchived
+-                && project.LifecycleStatus == ProjectLifecycleStatus.Completed)
++                && project.LifecycleStatus == ProjectLifecycleStatus.Completed);
++
++        if (scope == ProjectBriefingInstitutionalProjectScope.OriginalCompleted)
++        {
++            projects = projects.Where(project => !project.IsBuild);
++        }
++
++        var rows = await projects
+             .GroupBy(project => project.TechnicalCategory != null
+                 ? project.TechnicalCategory.Name
+                 : "Uncategorised")
+@@ -275,17 +287,15 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
+             });
+     }
+ 
+-    private static ProjectBriefingInstitutionalModuleData? BuildPartnerships(
++    private static ProjectBriefingInstitutionalModuleData BuildPartnerships(
+         IReadOnlyList<string> partnerships)
+-        => partnerships.Count == 0
+-            ? null
+-            : new ProjectBriefingInstitutionalModuleData(
+-                ProjectBriefingInstitutionalProfileModule.Partnerships,
+-                "Military–Academia–Industry Synergy",
+-                Headline: null,
+-                Rows: partnerships
+-                    .Select(item => new ProjectBriefingInstitutionalMetricRow(item, string.Empty))
+-                    .ToArray());
++        => new(
++            ProjectBriefingInstitutionalProfileModule.Partnerships,
++            "Military–Academia–Industry Synergy",
++            Headline: null,
++            Rows: partnerships
++                .Select(item => new ProjectBriefingInstitutionalMetricRow(item, string.Empty))
++                .ToArray());
+ 
+     private static IReadOnlyList<ProjectBriefingInstitutionalMetricRow> CompactRows(
+         IEnumerable<CountRow> source,
+diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
+index a25e84c..d7558c8 100644
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -3154,3 +3154,133 @@ body.pbd-settings-drawer-open {
+         grid-template-columns: minmax(0, 1fr);
+     }
+ }
++
++.pbd-institutional-layout-summary {
++    display: flex;
++    align-items: center;
++    min-height: 2.2rem;
++    margin-top: .45rem;
++    padding: .5rem .62rem;
++    border: 1px solid #d8e2ef;
++    border-radius: .52rem;
++    background: #f7f9fc;
++    color: #4a5d76;
++    font-size: .66rem;
++    line-height: 1.4;
++}
++
++.pbd-institutional-list-editor {
++    display: grid;
++    gap: .48rem;
++    padding: .58rem;
++    border: 1px solid #dce4ef;
++    border-radius: .58rem;
++    background: #f8fafd;
++}
++
++.pbd-institutional-list-editor.has-validation-error {
++    border-color: #d92d48;
++    box-shadow: 0 0 0 3px rgba(217, 45, 72, .08);
++}
++
++.pbd-institutional-list-editor__heading {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .75rem;
++}
++
++.pbd-institutional-list-editor__heading > span {
++    display: grid;
++    min-width: 0;
++    gap: .08rem;
++}
++
++.pbd-institutional-list-editor__heading strong {
++    color: #25364d;
++    font-size: .72rem;
++}
++
++.pbd-institutional-list-editor__heading small {
++    color: var(--pbd-muted);
++    font-size: .63rem;
++    line-height: 1.35;
++}
++
++.pbd-institutional-list-editor__items {
++    display: grid;
++    gap: .34rem;
++}
++
++.pbd-institutional-list-editor__item {
++    display: grid;
++    grid-template-columns: auto 5.6rem minmax(0, 1fr) auto;
++    align-items: center;
++    gap: .35rem;
++    padding: .38rem;
++    border: 1px solid var(--pbd-border);
++    border-radius: .48rem;
++    background: #fff;
++}
++
++.pbd-institutional-list-editor__item--partner {
++    grid-template-columns: auto minmax(0, 1fr) auto;
++}
++
++.pbd-institutional-list-editor__handle {
++    display: grid;
++    width: 1.2rem;
++    place-items: center;
++    color: #8a98ad;
++}
++
++.pbd-institutional-list-editor__year {
++    min-width: 0;
++}
++
++.pbd-institutional-list-editor__actions {
++    display: flex;
++    gap: .14rem;
++}
++
++.pbd-institutional-list-editor__actions .btn {
++    display: grid;
++    width: 1.7rem;
++    height: 1.7rem;
++    place-items: center;
++    padding: 0;
++    border-color: #e3e8f0;
++    background: #fff;
++    color: #526174;
++}
++
++.pbd-institutional-list-editor__actions .btn:disabled {
++    opacity: .32;
++}
++
++.pbd-institutional-list-editor__validation {
++    margin: 0;
++    color: #c81e3a;
++    font-size: .65rem;
++    font-weight: 700;
++}
++
++@media (max-width: 760px) {
++    .pbd-institutional-list-editor__heading {
++        align-items: stretch;
++        flex-direction: column;
++    }
++
++    .pbd-institutional-list-editor__item,
++    .pbd-institutional-list-editor__item--partner {
++        grid-template-columns: auto minmax(0, 1fr) auto;
++    }
++
++    .pbd-institutional-list-editor__year {
++        grid-column: 2;
++    }
++
++    .pbd-institutional-list-editor__item:not(.pbd-institutional-list-editor__item--partner) > input:not(.pbd-institutional-list-editor__year) {
++        grid-column: 2 / 4;
++    }
++}
+diff --git a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
+index 84c548a..d48e5d7 100644
+--- a/wwwroot/js/pages/project-briefing-decks.js
++++ b/wwwroot/js/pages/project-briefing-decks.js
+@@ -149,6 +149,7 @@ if (root) {
+       row.setAttribute('aria-posinset', String(index + 1));
+       row.setAttribute('aria-setsize', String(rows.length));
+     });
++    syncInstitutionalLayoutSummary();
+   };
+ 
+   const restoreUpdateRowOrder = (orderValue) => {
+@@ -266,9 +267,176 @@ if (root) {
+   const institutionalModuleList = root.querySelector('[data-pbd-institutional-module-list]');
+   const institutionalModuleOrderInput = root.querySelector('[data-pbd-institutional-module-order]');
+   const institutionalProfileValidation = root.querySelector('[data-pbd-institutional-profile-validation]');
++  const institutionalLayoutSummary = root.querySelector('[data-pbd-institutional-layout-summary]');
++  const institutionalHistoryEditor = root.querySelector('[data-pbd-institutional-history-editor]');
++  const institutionalHistoryList = root.querySelector('[data-pbd-institutional-history-list]');
++  const institutionalHistoryValue = root.querySelector('[data-pbd-institutional-history-value]');
++  const institutionalHistoryValidation = root.querySelector('[data-pbd-institutional-history-validation]');
++  const institutionalPartnershipEditor = root.querySelector('[data-pbd-institutional-partnership-editor]');
++  const institutionalPartnershipList = root.querySelector('[data-pbd-institutional-partnership-list]');
++  const institutionalPartnershipValue = root.querySelector('[data-pbd-institutional-partnership-value]');
++  const institutionalPartnershipValidation = root.querySelector('[data-pbd-institutional-partnership-validation]');
+   const institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
++  const institutionalHistoryInitialValue = institutionalHistoryValue?.value || '';
++  const institutionalPartnershipInitialValue = institutionalPartnershipValue?.value || '';
+   let draggedInstitutionalModule = null;
+ 
++  const createInstitutionalActionButton = (attribute, label, icon, extraClass = '') => {
++    const button = document.createElement('button');
++    button.type = 'button';
++    button.className = `btn btn-sm btn-light ${extraClass}`.trim();
++    button.setAttribute(attribute, '');
++    button.setAttribute('aria-label', label);
++    button.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>`;
++    return button;
++  };
++
++  const createInstitutionalHistoryItem = (year = '', text = '') => {
++    const row = document.createElement('div');
++    row.className = 'pbd-institutional-list-editor__item';
++    row.setAttribute('data-pbd-institutional-history-item', '');
++
++    const handle = document.createElement('span');
++    handle.className = 'pbd-institutional-list-editor__handle';
++    handle.setAttribute('aria-hidden', 'true');
++    handle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
++
++    const yearInput = document.createElement('input');
++    yearInput.className = 'form-control pbd-institutional-list-editor__year';
++    yearInput.type = 'number';
++    yearInput.min = '1900';
++    yearInput.max = '2200';
++    yearInput.value = String(year || '');
++    yearInput.setAttribute('aria-label', 'Milestone year');
++    yearInput.setAttribute('data-pbd-institutional-history-year', '');
++
++    const textInput = document.createElement('input');
++    textInput.className = 'form-control';
++    textInput.maxLength = 100;
++    textInput.value = String(text || '');
++    textInput.setAttribute('aria-label', 'Milestone description');
++    textInput.setAttribute('data-pbd-institutional-history-text', '');
++
++    const actions = document.createElement('span');
++    actions.className = 'pbd-institutional-list-editor__actions';
++    actions.append(
++      createInstitutionalActionButton('data-pbd-list-up', 'Move milestone up', 'bi-arrow-up'),
++      createInstitutionalActionButton('data-pbd-list-down', 'Move milestone down', 'bi-arrow-down'),
++      createInstitutionalActionButton('data-pbd-list-remove', 'Remove milestone', 'bi-trash', 'text-danger')
++    );
++
++    row.append(handle, yearInput, textInput, actions);
++    return row;
++  };
++
++  const createInstitutionalPartnershipItem = (text = '') => {
++    const row = document.createElement('div');
++    row.className = 'pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner';
++    row.setAttribute('data-pbd-institutional-partnership-item', '');
++
++    const handle = document.createElement('span');
++    handle.className = 'pbd-institutional-list-editor__handle';
++    handle.setAttribute('aria-hidden', 'true');
++    handle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
++
++    const textInput = document.createElement('input');
++    textInput.className = 'form-control';
++    textInput.maxLength = 80;
++    textInput.value = String(text || '');
++    textInput.setAttribute('aria-label', 'MoU or partner name');
++    textInput.setAttribute('data-pbd-institutional-partnership-text', '');
++
++    const actions = document.createElement('span');
++    actions.className = 'pbd-institutional-list-editor__actions';
++    actions.append(
++      createInstitutionalActionButton('data-pbd-list-up', 'Move partner up', 'bi-arrow-up'),
++      createInstitutionalActionButton('data-pbd-list-down', 'Move partner down', 'bi-arrow-down'),
++      createInstitutionalActionButton('data-pbd-list-remove', 'Remove partner', 'bi-trash', 'text-danger')
++    );
++
++    row.append(handle, textInput, actions);
++    return row;
++  };
++
++  const updateInstitutionalListButtons = (list, itemSelector) => {
++    if (!list) return;
++    const rows = [...list.querySelectorAll(itemSelector)];
++    rows.forEach((row, index) => {
++      const up = row.querySelector('[data-pbd-list-up]');
++      const down = row.querySelector('[data-pbd-list-down]');
++      if (up instanceof HTMLButtonElement) up.disabled = index === 0;
++      if (down instanceof HTMLButtonElement) down.disabled = index === rows.length - 1;
++    });
++  };
++
++  const institutionalHistoryCount = () => institutionalHistoryList
++    ? [...institutionalHistoryList.querySelectorAll('[data-pbd-institutional-history-item]')]
++      .filter((row) => {
++        const year = Number(row.querySelector('[data-pbd-institutional-history-year]')?.value || 0);
++        const text = row.querySelector('[data-pbd-institutional-history-text]')?.value?.trim() || '';
++        return year >= 1900 && year <= 2200 && Boolean(text);
++      }).length
++    : 0;
++
++  const institutionalPartnershipCount = () => institutionalPartnershipList
++    ? [...institutionalPartnershipList.querySelectorAll('[data-pbd-institutional-partnership-item]')]
++      .filter((row) => Boolean(row.querySelector('[data-pbd-institutional-partnership-text]')?.value?.trim()))
++      .length
++    : 0;
++
++  const syncInstitutionalHistoryEditor = () => {
++    if (!institutionalHistoryList || !(institutionalHistoryValue instanceof HTMLTextAreaElement)) return;
++    const lines = [...institutionalHistoryList.querySelectorAll('[data-pbd-institutional-history-item]')]
++      .map((row) => {
++        const year = row.querySelector('[data-pbd-institutional-history-year]')?.value?.trim() || '';
++        const text = row.querySelector('[data-pbd-institutional-history-text]')?.value?.trim() || '';
++        return year && text ? `${year} | ${text}` : '';
++      })
++      .filter(Boolean);
++    institutionalHistoryValue.value = lines.join('\n');
++    updateInstitutionalListButtons(institutionalHistoryList, '[data-pbd-institutional-history-item]');
++  };
++
++  const syncInstitutionalPartnershipEditor = () => {
++    if (!institutionalPartnershipList || !(institutionalPartnershipValue instanceof HTMLTextAreaElement)) return;
++    const lines = [...institutionalPartnershipList.querySelectorAll('[data-pbd-institutional-partnership-item]')]
++      .map((row) => row.querySelector('[data-pbd-institutional-partnership-text]')?.value?.trim() || '')
++      .filter(Boolean);
++    institutionalPartnershipValue.value = lines.join('\n');
++    updateInstitutionalListButtons(institutionalPartnershipList, '[data-pbd-institutional-partnership-item]');
++  };
++
++  const restoreInstitutionalHistoryEditor = (value) => {
++    if (!institutionalHistoryList) return;
++    institutionalHistoryList.replaceChildren();
++    String(value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
++      const separator = line.indexOf('|');
++      if (separator <= 0) return;
++      institutionalHistoryList.append(createInstitutionalHistoryItem(
++        line.slice(0, separator).trim(),
++        line.slice(separator + 1).trim()));
++    });
++    syncInstitutionalHistoryEditor();
++  };
++
++  const restoreInstitutionalPartnershipEditor = (value) => {
++    if (!institutionalPartnershipList) return;
++    institutionalPartnershipList.replaceChildren();
++    String(value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
++      institutionalPartnershipList.append(createInstitutionalPartnershipItem(line));
++    });
++    syncInstitutionalPartnershipEditor();
++  };
++
++  const moveInstitutionalListItem = (row, direction) => {
++    const list = row?.parentElement;
++    if (!list) return;
++    const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
++    if (!sibling) return;
++    if (direction < 0) list.insertBefore(row, sibling);
++    else list.insertBefore(sibling, row);
++  };
++
+   const institutionalModuleElements = () => institutionalModuleList
+     ? [...institutionalModuleList.querySelectorAll('[data-pbd-institutional-module]')]
+     : [];
+@@ -310,17 +478,49 @@ if (root) {
+     syncInstitutionalModuleOrder();
+   };
+ 
++  const selectedInstitutionalModuleKeys = () => institutionalModuleElements()
++    .filter((row) => row.querySelector('input[name="InstitutionalModules"]')?.checked)
++    .map((row) => row.dataset.moduleKey || '')
++    .filter(Boolean);
++
++  const syncInstitutionalLayoutSummary = () => {
++    if (!institutionalLayoutSummary) return;
++    const keys = selectedInstitutionalModuleKeys();
++    const hasPartnership = keys.includes('Partnerships');
++    const metricCount = keys.length - (hasPartnership ? 1 : 0);
++    const parts = [];
++    if (institutionalHistoryEnable?.checked) parts.push('one editable timeline table');
++    if (metricCount > 0) parts.push(`${metricCount} editable metric table${metricCount === 1 ? '' : 's'}`);
++    if (hasPartnership) parts.push('one full-width partnership table');
++    if (institutionalCitationEnable?.checked) parts.push('one recognition table');
++    institutionalLayoutSummary.textContent = parts.length > 0
++      ? `Automatic one-slide layout: ${parts.join(' · ')}. No selected module is silently omitted.`
++      : 'Select the timeline or at least one output module.';
++  };
++
+   const validateInstitutionalProfile = ({ focus = false } = {}) => {
+     const enabled = Boolean(institutionalProfileEnable?.checked);
+-    const hasHistory = Boolean(institutionalHistoryEnable?.checked);
+-    const valid = !enabled || hasHistory || selectedInstitutionalModuleCount() > 0;
++    const historySelected = Boolean(institutionalHistoryEnable?.checked);
++    const historyValid = !historySelected || institutionalHistoryCount() > 0;
++    const selectedKeys = selectedInstitutionalModuleKeys();
++    const hasContent = historySelected || selectedKeys.length > 0;
++    const partnershipSelected = selectedKeys.includes('Partnerships');
++    const partnershipValid = !partnershipSelected || institutionalPartnershipCount() > 0;
++    const valid = !enabled || (hasContent && historyValid && partnershipValid);
+     institutionalProfileValid = valid;
+-    institutionalProfileValidation?.toggleAttribute('hidden', valid);
+-    institutionalModuleList?.classList.toggle('has-validation-error', !valid);
+-    institutionalModuleList?.setAttribute('aria-invalid', String(!valid));
++    institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
++    institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
++    institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
++    institutionalModuleList?.classList.toggle('has-validation-error', enabled && !hasContent);
++    institutionalModuleList?.setAttribute('aria-invalid', String(enabled && !hasContent));
++    institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
++    institutionalPartnershipEditor?.classList.toggle('has-validation-error', enabled && !partnershipValid);
++    syncInstitutionalLayoutSummary();
+     applySettingsValidity();
+     if (!valid && focus) {
+-      institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
++      if (!historyValid) institutionalHistoryEditor?.querySelector('input')?.focus();
++      else if (!partnershipValid) institutionalPartnershipEditor?.querySelector('input')?.focus();
++      else institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
+     }
+     return valid;
+   };
+@@ -375,9 +575,65 @@ if (root) {
+     row.addEventListener('dragleave', () => row.classList.remove('is-drag-over'));
+   });
+ 
++  institutionalHistoryList?.addEventListener('input', () => {
++    syncInstitutionalHistoryEditor();
++    validateInstitutionalProfile();
++    refreshSettingsDirtyState();
++  });
++  institutionalHistoryList?.addEventListener('click', (event) => {
++    const button = event.target.closest('button');
++    const row = event.target.closest('[data-pbd-institutional-history-item]');
++    if (!(button instanceof HTMLButtonElement) || !row) return;
++    if (button.hasAttribute('data-pbd-list-remove')) row.remove();
++    else if (button.hasAttribute('data-pbd-list-up')) moveInstitutionalListItem(row, -1);
++    else if (button.hasAttribute('data-pbd-list-down')) moveInstitutionalListItem(row, 1);
++    else return;
++    syncInstitutionalHistoryEditor();
++    validateInstitutionalProfile();
++    refreshSettingsDirtyState();
++  });
++  root.querySelector('[data-pbd-institutional-history-add]')?.addEventListener('click', () => {
++    if (!institutionalHistoryList || institutionalHistoryList.children.length >= 8) return;
++    const row = createInstitutionalHistoryItem();
++    institutionalHistoryList.append(row);
++    syncInstitutionalHistoryEditor();
++    validateInstitutionalProfile();
++    refreshSettingsDirtyState();
++    row.querySelector('[data-pbd-institutional-history-year]')?.focus();
++  });
++
++  institutionalPartnershipList?.addEventListener('input', () => {
++    syncInstitutionalPartnershipEditor();
++    validateInstitutionalProfile();
++    refreshSettingsDirtyState();
++  });
++  institutionalPartnershipList?.addEventListener('click', (event) => {
++    const button = event.target.closest('button');
++    const row = event.target.closest('[data-pbd-institutional-partnership-item]');
++    if (!(button instanceof HTMLButtonElement) || !row) return;
++    if (button.hasAttribute('data-pbd-list-remove')) row.remove();
++    else if (button.hasAttribute('data-pbd-list-up')) moveInstitutionalListItem(row, -1);
++    else if (button.hasAttribute('data-pbd-list-down')) moveInstitutionalListItem(row, 1);
++    else return;
++    syncInstitutionalPartnershipEditor();
++    validateInstitutionalProfile();
++    refreshSettingsDirtyState();
++  });
++  root.querySelector('[data-pbd-institutional-partnership-add]')?.addEventListener('click', () => {
++    if (!institutionalPartnershipList || institutionalPartnershipList.children.length >= 8) return;
++    const row = createInstitutionalPartnershipItem();
++    institutionalPartnershipList.append(row);
++    syncInstitutionalPartnershipEditor();
++    validateInstitutionalProfile();
++    refreshSettingsDirtyState();
++    row.querySelector('[data-pbd-institutional-partnership-text]')?.focus();
++  });
++
+   institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+   institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+   institutionalCitationEnable?.addEventListener('change', syncInstitutionalProfileSettings);
++  syncInstitutionalHistoryEditor();
++  syncInstitutionalPartnershipEditor();
+   syncInstitutionalModuleOrder();
+   syncInstitutionalProfileSettings();
+ 
+@@ -427,6 +683,8 @@ if (root) {
+       settingsForm.reset();
+       restoreUpdateRowOrder(updateRowInitialOrder);
+       restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
++      restoreInstitutionalHistoryEditor(institutionalHistoryInitialValue);
++      restoreInstitutionalPartnershipEditor(institutionalPartnershipInitialValue);
+       syncTemplateSettings();
+       syncInstitutionalProfileSettings();
+       validateUpdateSheetRows();
+diff --git a/wwwroot/js/projects/project-briefing-decks.test.js b/wwwroot/js/projects/project-briefing-decks.test.js
+index 15cfc58..474f8bd 100644
+--- a/wwwroot/js/projects/project-briefing-decks.test.js
++++ b/wwwroot/js/projects/project-briefing-decks.test.js
+@@ -193,5 +193,9 @@ test('SDD institutional profile settings remain modular, ordered and valid befor
+   assert.match(source, /validateInstitutionalProfile/);
+   assert.match(source, /data-pbd-institutional-module-up/);
+   assert.match(source, /data-pbd-institutional-module-down/);
++  assert.match(source, /syncInstitutionalHistoryEditor/);
++  assert.match(source, /syncInstitutionalPartnershipEditor/);
++  assert.match(source, /syncInstitutionalLayoutSummary/);
++  assert.match(source, /No selected module is silently omitted/);
+   assert.match(source, /institutionalProfileSlides/);
+ });

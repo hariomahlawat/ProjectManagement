@@ -1595,11 +1595,26 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
         Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
         Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
-        Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
+        Assert.Contains("GOC-in-C Unit Citations —", profileText, StringComparison.Ordinal);
+        Assert.Contains("03", profileText, StringComparison.Ordinal);
         Assert.Contains("Data as on 04 Aug 2026 · Source: PRISM ERP", profileText, StringComparison.Ordinal);
         Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(ShapeByName(profileSlide, "SDD profile title band"));
-        Assert.NotNull(ShapeByName(profileSlide, "Proliferated module"));
+        Assert.Contains(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "SDD institutional history timeline", StringComparison.Ordinal));
+        Assert.Contains(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Proliferated institutional module table", StringComparison.Ordinal));
+        Assert.Contains(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Military academia industry synergy table", StringComparison.Ordinal));
+        Assert.Contains(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Institutional recognition table", StringComparison.Ordinal));
+        Assert.Equal(7, profileSlide.Slide.Descendants<P.GraphicFrame>().Count());
+        Assert.DoesNotContain(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "SDD profile title band", StringComparison.Ordinal));
     }
 
     [Fact]

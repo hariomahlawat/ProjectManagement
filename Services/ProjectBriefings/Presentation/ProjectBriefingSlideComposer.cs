@@ -2239,7 +2239,38 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         bool TabAfterFirstRun = false,
         double SpaceAfterPoints = 0,
         double? LineSpacingPoints = null);
-    private sealed record NativeTableCell(string Value, double FontSize, string Color, bool Bold, string Align, string Fill);
+    private sealed record NativeTableBorders(
+        string? LeftColor = null,
+        double LeftWidth = .25,
+        string? RightColor = null,
+        double RightWidth = .25,
+        string? TopColor = null,
+        double TopWidth = .25,
+        string? BottomColor = null,
+        double BottomWidth = .25)
+    {
+        public static NativeTableBorders None { get; } = new(
+            LeftWidth: 0,
+            RightWidth: 0,
+            TopWidth: 0,
+            BottomWidth: 0);
+    }
+
+    private sealed record NativeTableCell(
+        string Value,
+        double FontSize,
+        string Color,
+        bool Bold,
+        string Align,
+        string Fill,
+        NativeTableBorders? Borders = null,
+        string VerticalAnchor = "ctr",
+        double LeftMargin = .05,
+        double RightMargin = .05,
+        double TopMargin = .025,
+        double BottomMargin = .025,
+        int GridSpan = 1,
+        bool HorizontalMerge = false);
     private sealed record ProjectBriefingBrandingAssets(byte[]? LeftLogo, byte[]? RightLogo);
     private sealed record SlidePlan(SlidePlanKind Kind, Action<SlideCanvas> Render);
 
@@ -2587,12 +2618,17 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 rowXml.Append($"<a:tr h=\"{Emu(heights[rowIndex])}\">");
                 foreach (var cell in rows[rowIndex])
                 {
+                    var mergeAttributes = cell.HorizontalMerge
+                        ? " hMerge=\"1\""
+                        : cell.GridSpan > 1
+                            ? $" gridSpan=\"{cell.GridSpan}\""
+                            : string.Empty;
                     rowXml.Append($"""
-<a:tc>
+<a:tc{mergeAttributes}>
   {BuildTableTextBody(cell)}
-  <a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">
+  <a:tcPr marL="{Emu(cell.LeftMargin)}" marR="{Emu(cell.RightMargin)}" marT="{Emu(cell.TopMargin)}" marB="{Emu(cell.BottomMargin)}" anchor="{VerticalAnchor(cell.VerticalAnchor)}">
     <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
-    {TableBorders()}
+    {TableBorders(cell.Borders)}
   </a:tcPr>
 </a:tc>
 """);
@@ -2821,13 +2857,40 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 .Select(line => $"""
 <a:p><a:pPr algn="{alignment}"/><a:r><a:rPr lang="en-IN" sz="{FontSize(cell.FontSize)}" b="{(cell.Bold ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(cell.Color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">{Escape(line)}</a:t></a:r><a:endParaRPr lang="en-IN" sz="{FontSize(cell.FontSize)}"/></a:p>
 """);
-            return $"<a:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" rIns=\"0\" tIns=\"0\" bIns=\"0\" anchor=\"ctr\"/><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</a:txBody>";
+            return $"<a:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" rIns=\"0\" tIns=\"0\" bIns=\"0\" anchor=\"{VerticalAnchor(cell.VerticalAnchor)}\"/><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</a:txBody>";
         }
 
-        private string TableBorders()
+        private string TableBorders(NativeTableBorders? borders)
         {
-            var line = $"<a:solidFill><a:srgbClr val=\"{CleanColor(Theme.Border)}\"/></a:solidFill><a:prstDash val=\"solid\"/>";
-            return $"<a:lnL w=\"3175\">{line}</a:lnL><a:lnR w=\"3175\">{line}</a:lnR><a:lnT w=\"3175\">{line}</a:lnT><a:lnB w=\"3175\">{line}</a:lnB>";
+            if (borders is null)
+            {
+                borders = new NativeTableBorders(
+                    Theme.Border,
+                    .25,
+                    Theme.Border,
+                    .25,
+                    Theme.Border,
+                    .25,
+                    Theme.Border,
+                    .25);
+            }
+
+            return string.Concat(
+                TableBorder("L", borders.LeftColor, borders.LeftWidth),
+                TableBorder("R", borders.RightColor, borders.RightWidth),
+                TableBorder("T", borders.TopColor, borders.TopWidth),
+                TableBorder("B", borders.BottomColor, borders.BottomWidth));
+        }
+
+        private static string TableBorder(string side, string? color, double width)
+        {
+            if (width <= 0 || string.IsNullOrWhiteSpace(color))
+            {
+                return $"<a:ln{side}><a:noFill/></a:ln{side}>";
+            }
+
+            var line = $"<a:solidFill><a:srgbClr val=\"{CleanColor(color)}\"/></a:solidFill><a:prstDash val=\"solid\"/>";
+            return $"<a:ln{side} w=\"{LineWidth(width)}\">{line}</a:ln{side}>";
         }
 
         private static string BuildRichTextBody(

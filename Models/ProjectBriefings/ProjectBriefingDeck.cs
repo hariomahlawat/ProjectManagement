@@ -77,6 +77,16 @@ public enum ProjectBriefingInstitutionalProfileModule
 }
 
 /// <summary>
+/// Scope used by the institutional “Projects Developed” metric.
+/// Original completed projects excludes records marked as rebuilds and is the authoritative default.
+/// </summary>
+public enum ProjectBriefingInstitutionalProjectScope
+{
+    OriginalCompleted = 1,
+    AllCompletedIncludingRebuilds = 2
+}
+
+/// <summary>
 /// Logical information rows available on each formal Project Update Sheet.
 /// Project name is always rendered as the slide title and is therefore not a selectable table row.
 /// </summary>

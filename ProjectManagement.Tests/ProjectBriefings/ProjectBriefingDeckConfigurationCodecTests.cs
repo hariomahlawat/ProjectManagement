@@ -212,6 +212,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
                 ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped,
                 ProjectBriefingInstitutionalProfileModule.Partnerships
             },
+            projectScope: ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
             maximumDetailRows: 5,
             trainingHighlightTechnicalCategory: "AR/VR",
             partnershipEntries: new[] { "IIT Hyderabad", "Private industry / start-ups" },
@@ -228,6 +229,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(options.Modules, decoded.InstitutionalProfileOptions.Modules);
         Assert.Equal(options.HistoryMilestones, decoded.InstitutionalProfileOptions.HistoryMilestones);
         Assert.Equal(options.PartnershipEntries, decoded.InstitutionalProfileOptions.PartnershipEntries);
+        Assert.Equal(ProjectBriefingInstitutionalProjectScope.OriginalCompleted, decoded.InstitutionalProfileOptions.ProjectScope);
         Assert.Equal(3, decoded.InstitutionalProfileOptions.UnitCitationCount);
         Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
     }
@@ -243,6 +245,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
                 includeHistory: false,
                 historyMilestones: Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
                 modules: new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
+                projectScope: ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds,
                 maximumDetailRows: 4,
                 trainingHighlightTechnicalCategory: null,
                 partnershipEntries: Array.Empty<string>(),
@@ -259,9 +262,20 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
 
         Assert.True(decoded.InstitutionalProfileOptions.IncludeSlide);
         Assert.False(decoded.InstitutionalProfileOptions.IncludeHistory);
+        Assert.Equal(ProjectBriefingInstitutionalProjectScope.AllCompletedIncludingRebuilds, decoded.InstitutionalProfileOptions.ProjectScope);
         Assert.Equal(
             new[] { ProjectBriefingInstitutionalProfileModule.IntellectualProperty },
             decoded.InstitutionalProfileOptions.Modules);
+    }
+
+    [Fact]
+    public void InstitutionalProfileDefaults_ExcludeRebuildProjects()
+    {
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(null);
+
+        Assert.Equal(
+            ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
+            decoded.InstitutionalProfileOptions.ProjectScope);
     }
 
     [Fact]

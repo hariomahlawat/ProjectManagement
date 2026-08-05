@@ -172,6 +172,7 @@ public sealed class IndexModel : PageModel
                         input.IncludeInstitutionalHistory,
                         ParseInstitutionalHistory(input.InstitutionalHistoryLines),
                         ResolveInstitutionalModules(input.InstitutionalModules, input.InstitutionalModuleOrder),
+                        input.InstitutionalProjectScope,
                         input.InstitutionalMaximumDetailRows,
                         input.InstitutionalTrainingHighlightCategory,
                         ParseSimpleLines(input.InstitutionalPartnershipLines),
@@ -655,6 +656,9 @@ public sealed class IndexModel : PageModel
 
         [StringLength(300)]
         public string? InstitutionalModuleOrder { get; set; }
+
+        public ProjectBriefingInstitutionalProjectScope InstitutionalProjectScope { get; set; }
+            = ProjectBriefingInstitutionalProjectScope.OriginalCompleted;
 
         [Range(3, 7)]
         public int InstitutionalMaximumDetailRows { get; set; } = 6;

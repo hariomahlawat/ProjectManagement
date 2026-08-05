@@ -193,5 +193,9 @@ test('SDD institutional profile settings remain modular, ordered and valid befor
   assert.match(source, /validateInstitutionalProfile/);
   assert.match(source, /data-pbd-institutional-module-up/);
   assert.match(source, /data-pbd-institutional-module-down/);
+  assert.match(source, /syncInstitutionalHistoryEditor/);
+  assert.match(source, /syncInstitutionalPartnershipEditor/);
+  assert.match(source, /syncInstitutionalLayoutSummary/);
+  assert.match(source, /No selected module is silently omitted/);
   assert.match(source, /institutionalProfileSlides/);
 });

@@ -149,6 +149,7 @@ if (root) {
       row.setAttribute('aria-posinset', String(index + 1));
       row.setAttribute('aria-setsize', String(rows.length));
     });
+    syncInstitutionalLayoutSummary();
   };
 
   const restoreUpdateRowOrder = (orderValue) => {
@@ -266,8 +267,175 @@ if (root) {
   const institutionalModuleList = root.querySelector('[data-pbd-institutional-module-list]');
   const institutionalModuleOrderInput = root.querySelector('[data-pbd-institutional-module-order]');
   const institutionalProfileValidation = root.querySelector('[data-pbd-institutional-profile-validation]');
+  const institutionalLayoutSummary = root.querySelector('[data-pbd-institutional-layout-summary]');
+  const institutionalHistoryEditor = root.querySelector('[data-pbd-institutional-history-editor]');
+  const institutionalHistoryList = root.querySelector('[data-pbd-institutional-history-list]');
+  const institutionalHistoryValue = root.querySelector('[data-pbd-institutional-history-value]');
+  const institutionalHistoryValidation = root.querySelector('[data-pbd-institutional-history-validation]');
+  const institutionalPartnershipEditor = root.querySelector('[data-pbd-institutional-partnership-editor]');
+  const institutionalPartnershipList = root.querySelector('[data-pbd-institutional-partnership-list]');
+  const institutionalPartnershipValue = root.querySelector('[data-pbd-institutional-partnership-value]');
+  const institutionalPartnershipValidation = root.querySelector('[data-pbd-institutional-partnership-validation]');
   const institutionalModuleInitialOrder = institutionalModuleOrderInput?.value || '';
+  const institutionalHistoryInitialValue = institutionalHistoryValue?.value || '';
+  const institutionalPartnershipInitialValue = institutionalPartnershipValue?.value || '';
   let draggedInstitutionalModule = null;
+
+  const createInstitutionalActionButton = (attribute, label, icon, extraClass = '') => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `btn btn-sm btn-light ${extraClass}`.trim();
+    button.setAttribute(attribute, '');
+    button.setAttribute('aria-label', label);
+    button.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>`;
+    return button;
+  };
+
+  const createInstitutionalHistoryItem = (year = '', text = '') => {
+    const row = document.createElement('div');
+    row.className = 'pbd-institutional-list-editor__item';
+    row.setAttribute('data-pbd-institutional-history-item', '');
+
+    const handle = document.createElement('span');
+    handle.className = 'pbd-institutional-list-editor__handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
+
+    const yearInput = document.createElement('input');
+    yearInput.className = 'form-control pbd-institutional-list-editor__year';
+    yearInput.type = 'number';
+    yearInput.min = '1900';
+    yearInput.max = '2200';
+    yearInput.value = String(year || '');
+    yearInput.setAttribute('aria-label', 'Milestone year');
+    yearInput.setAttribute('data-pbd-institutional-history-year', '');
+
+    const textInput = document.createElement('input');
+    textInput.className = 'form-control';
+    textInput.maxLength = 100;
+    textInput.value = String(text || '');
+    textInput.setAttribute('aria-label', 'Milestone description');
+    textInput.setAttribute('data-pbd-institutional-history-text', '');
+
+    const actions = document.createElement('span');
+    actions.className = 'pbd-institutional-list-editor__actions';
+    actions.append(
+      createInstitutionalActionButton('data-pbd-list-up', 'Move milestone up', 'bi-arrow-up'),
+      createInstitutionalActionButton('data-pbd-list-down', 'Move milestone down', 'bi-arrow-down'),
+      createInstitutionalActionButton('data-pbd-list-remove', 'Remove milestone', 'bi-trash', 'text-danger')
+    );
+
+    row.append(handle, yearInput, textInput, actions);
+    return row;
+  };
+
+  const createInstitutionalPartnershipItem = (text = '') => {
+    const row = document.createElement('div');
+    row.className = 'pbd-institutional-list-editor__item pbd-institutional-list-editor__item--partner';
+    row.setAttribute('data-pbd-institutional-partnership-item', '');
+
+    const handle = document.createElement('span');
+    handle.className = 'pbd-institutional-list-editor__handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.innerHTML = '<i class="bi bi-grip-vertical"></i>';
+
+    const textInput = document.createElement('input');
+    textInput.className = 'form-control';
+    textInput.maxLength = 80;
+    textInput.value = String(text || '');
+    textInput.setAttribute('aria-label', 'MoU or partner name');
+    textInput.setAttribute('data-pbd-institutional-partnership-text', '');
+
+    const actions = document.createElement('span');
+    actions.className = 'pbd-institutional-list-editor__actions';
+    actions.append(
+      createInstitutionalActionButton('data-pbd-list-up', 'Move partner up', 'bi-arrow-up'),
+      createInstitutionalActionButton('data-pbd-list-down', 'Move partner down', 'bi-arrow-down'),
+      createInstitutionalActionButton('data-pbd-list-remove', 'Remove partner', 'bi-trash', 'text-danger')
+    );
+
+    row.append(handle, textInput, actions);
+    return row;
+  };
+
+  const updateInstitutionalListButtons = (list, itemSelector) => {
+    if (!list) return;
+    const rows = [...list.querySelectorAll(itemSelector)];
+    rows.forEach((row, index) => {
+      const up = row.querySelector('[data-pbd-list-up]');
+      const down = row.querySelector('[data-pbd-list-down]');
+      if (up instanceof HTMLButtonElement) up.disabled = index === 0;
+      if (down instanceof HTMLButtonElement) down.disabled = index === rows.length - 1;
+    });
+  };
+
+  const institutionalHistoryCount = () => institutionalHistoryList
+    ? [...institutionalHistoryList.querySelectorAll('[data-pbd-institutional-history-item]')]
+      .filter((row) => {
+        const year = Number(row.querySelector('[data-pbd-institutional-history-year]')?.value || 0);
+        const text = row.querySelector('[data-pbd-institutional-history-text]')?.value?.trim() || '';
+        return year >= 1900 && year <= 2200 && Boolean(text);
+      }).length
+    : 0;
+
+  const institutionalPartnershipCount = () => institutionalPartnershipList
+    ? [...institutionalPartnershipList.querySelectorAll('[data-pbd-institutional-partnership-item]')]
+      .filter((row) => Boolean(row.querySelector('[data-pbd-institutional-partnership-text]')?.value?.trim()))
+      .length
+    : 0;
+
+  const syncInstitutionalHistoryEditor = () => {
+    if (!institutionalHistoryList || !(institutionalHistoryValue instanceof HTMLTextAreaElement)) return;
+    const lines = [...institutionalHistoryList.querySelectorAll('[data-pbd-institutional-history-item]')]
+      .map((row) => {
+        const year = row.querySelector('[data-pbd-institutional-history-year]')?.value?.trim() || '';
+        const text = row.querySelector('[data-pbd-institutional-history-text]')?.value?.trim() || '';
+        return year && text ? `${year} | ${text}` : '';
+      })
+      .filter(Boolean);
+    institutionalHistoryValue.value = lines.join('\n');
+    updateInstitutionalListButtons(institutionalHistoryList, '[data-pbd-institutional-history-item]');
+  };
+
+  const syncInstitutionalPartnershipEditor = () => {
+    if (!institutionalPartnershipList || !(institutionalPartnershipValue instanceof HTMLTextAreaElement)) return;
+    const lines = [...institutionalPartnershipList.querySelectorAll('[data-pbd-institutional-partnership-item]')]
+      .map((row) => row.querySelector('[data-pbd-institutional-partnership-text]')?.value?.trim() || '')
+      .filter(Boolean);
+    institutionalPartnershipValue.value = lines.join('\n');
+    updateInstitutionalListButtons(institutionalPartnershipList, '[data-pbd-institutional-partnership-item]');
+  };
+
+  const restoreInstitutionalHistoryEditor = (value) => {
+    if (!institutionalHistoryList) return;
+    institutionalHistoryList.replaceChildren();
+    String(value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
+      const separator = line.indexOf('|');
+      if (separator <= 0) return;
+      institutionalHistoryList.append(createInstitutionalHistoryItem(
+        line.slice(0, separator).trim(),
+        line.slice(separator + 1).trim()));
+    });
+    syncInstitutionalHistoryEditor();
+  };
+
+  const restoreInstitutionalPartnershipEditor = (value) => {
+    if (!institutionalPartnershipList) return;
+    institutionalPartnershipList.replaceChildren();
+    String(value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
+      institutionalPartnershipList.append(createInstitutionalPartnershipItem(line));
+    });
+    syncInstitutionalPartnershipEditor();
+  };
+
+  const moveInstitutionalListItem = (row, direction) => {
+    const list = row?.parentElement;
+    if (!list) return;
+    const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (direction < 0) list.insertBefore(row, sibling);
+    else list.insertBefore(sibling, row);
+  };
 
   const institutionalModuleElements = () => institutionalModuleList
     ? [...institutionalModuleList.querySelectorAll('[data-pbd-institutional-module]')]
@@ -310,17 +478,49 @@ if (root) {
     syncInstitutionalModuleOrder();
   };
 
+  const selectedInstitutionalModuleKeys = () => institutionalModuleElements()
+    .filter((row) => row.querySelector('input[name="InstitutionalModules"]')?.checked)
+    .map((row) => row.dataset.moduleKey || '')
+    .filter(Boolean);
+
+  const syncInstitutionalLayoutSummary = () => {
+    if (!institutionalLayoutSummary) return;
+    const keys = selectedInstitutionalModuleKeys();
+    const hasPartnership = keys.includes('Partnerships');
+    const metricCount = keys.length - (hasPartnership ? 1 : 0);
+    const parts = [];
+    if (institutionalHistoryEnable?.checked) parts.push('one editable timeline table');
+    if (metricCount > 0) parts.push(`${metricCount} editable metric table${metricCount === 1 ? '' : 's'}`);
+    if (hasPartnership) parts.push('one full-width partnership table');
+    if (institutionalCitationEnable?.checked) parts.push('one recognition table');
+    institutionalLayoutSummary.textContent = parts.length > 0
+      ? `Automatic one-slide layout: ${parts.join(' · ')}. No selected module is silently omitted.`
+      : 'Select the timeline or at least one output module.';
+  };
+
   const validateInstitutionalProfile = ({ focus = false } = {}) => {
     const enabled = Boolean(institutionalProfileEnable?.checked);
-    const hasHistory = Boolean(institutionalHistoryEnable?.checked);
-    const valid = !enabled || hasHistory || selectedInstitutionalModuleCount() > 0;
+    const historySelected = Boolean(institutionalHistoryEnable?.checked);
+    const historyValid = !historySelected || institutionalHistoryCount() > 0;
+    const selectedKeys = selectedInstitutionalModuleKeys();
+    const hasContent = historySelected || selectedKeys.length > 0;
+    const partnershipSelected = selectedKeys.includes('Partnerships');
+    const partnershipValid = !partnershipSelected || institutionalPartnershipCount() > 0;
+    const valid = !enabled || (hasContent && historyValid && partnershipValid);
     institutionalProfileValid = valid;
-    institutionalProfileValidation?.toggleAttribute('hidden', valid);
-    institutionalModuleList?.classList.toggle('has-validation-error', !valid);
-    institutionalModuleList?.setAttribute('aria-invalid', String(!valid));
+    institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
+    institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
+    institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
+    institutionalModuleList?.classList.toggle('has-validation-error', enabled && !hasContent);
+    institutionalModuleList?.setAttribute('aria-invalid', String(enabled && !hasContent));
+    institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
+    institutionalPartnershipEditor?.classList.toggle('has-validation-error', enabled && !partnershipValid);
+    syncInstitutionalLayoutSummary();
     applySettingsValidity();
     if (!valid && focus) {
-      institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
+      if (!historyValid) institutionalHistoryEditor?.querySelector('input')?.focus();
+      else if (!partnershipValid) institutionalPartnershipEditor?.querySelector('input')?.focus();
+      else institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
     }
     return valid;
   };
@@ -375,9 +575,65 @@ if (root) {
     row.addEventListener('dragleave', () => row.classList.remove('is-drag-over'));
   });
 
+  institutionalHistoryList?.addEventListener('input', () => {
+    syncInstitutionalHistoryEditor();
+    validateInstitutionalProfile();
+    refreshSettingsDirtyState();
+  });
+  institutionalHistoryList?.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    const row = event.target.closest('[data-pbd-institutional-history-item]');
+    if (!(button instanceof HTMLButtonElement) || !row) return;
+    if (button.hasAttribute('data-pbd-list-remove')) row.remove();
+    else if (button.hasAttribute('data-pbd-list-up')) moveInstitutionalListItem(row, -1);
+    else if (button.hasAttribute('data-pbd-list-down')) moveInstitutionalListItem(row, 1);
+    else return;
+    syncInstitutionalHistoryEditor();
+    validateInstitutionalProfile();
+    refreshSettingsDirtyState();
+  });
+  root.querySelector('[data-pbd-institutional-history-add]')?.addEventListener('click', () => {
+    if (!institutionalHistoryList || institutionalHistoryList.children.length >= 8) return;
+    const row = createInstitutionalHistoryItem();
+    institutionalHistoryList.append(row);
+    syncInstitutionalHistoryEditor();
+    validateInstitutionalProfile();
+    refreshSettingsDirtyState();
+    row.querySelector('[data-pbd-institutional-history-year]')?.focus();
+  });
+
+  institutionalPartnershipList?.addEventListener('input', () => {
+    syncInstitutionalPartnershipEditor();
+    validateInstitutionalProfile();
+    refreshSettingsDirtyState();
+  });
+  institutionalPartnershipList?.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    const row = event.target.closest('[data-pbd-institutional-partnership-item]');
+    if (!(button instanceof HTMLButtonElement) || !row) return;
+    if (button.hasAttribute('data-pbd-list-remove')) row.remove();
+    else if (button.hasAttribute('data-pbd-list-up')) moveInstitutionalListItem(row, -1);
+    else if (button.hasAttribute('data-pbd-list-down')) moveInstitutionalListItem(row, 1);
+    else return;
+    syncInstitutionalPartnershipEditor();
+    validateInstitutionalProfile();
+    refreshSettingsDirtyState();
+  });
+  root.querySelector('[data-pbd-institutional-partnership-add]')?.addEventListener('click', () => {
+    if (!institutionalPartnershipList || institutionalPartnershipList.children.length >= 8) return;
+    const row = createInstitutionalPartnershipItem();
+    institutionalPartnershipList.append(row);
+    syncInstitutionalPartnershipEditor();
+    validateInstitutionalProfile();
+    refreshSettingsDirtyState();
+    row.querySelector('[data-pbd-institutional-partnership-text]')?.focus();
+  });
+
   institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   institutionalCitationEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+  syncInstitutionalHistoryEditor();
+  syncInstitutionalPartnershipEditor();
   syncInstitutionalModuleOrder();
   syncInstitutionalProfileSettings();
 
@@ -427,6 +683,8 @@ if (root) {
       settingsForm.reset();
       restoreUpdateRowOrder(updateRowInitialOrder);
       restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
+      restoreInstitutionalHistoryEditor(institutionalHistoryInitialValue);
+      restoreInstitutionalPartnershipEditor(institutionalPartnershipInitialValue);
       syncTemplateSettings();
       syncInstitutionalProfileSettings();
       validateUpdateSheetRows();

@@ -300,6 +300,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.InstitutionalProfileOptions.IncludeHistory,
             command.InstitutionalProfileOptions.HistoryMilestones,
             command.InstitutionalProfileOptions.Modules,
+            command.InstitutionalProfileOptions.ProjectScope,
             command.InstitutionalProfileOptions.MaximumDetailRows,
             command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
             command.InstitutionalProfileOptions.PartnershipEntries,
@@ -311,6 +312,12 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             && institutionalProfileOptions.Modules.Count == 0)
         {
             throw new InvalidOperationException("Select at least one history or institutional-output section for the SDD profile slide.");
+        }
+        if (institutionalProfileOptions.IncludeSlide
+            && institutionalProfileOptions.Modules.Contains(ProjectBriefingInstitutionalProfileModule.Partnerships)
+            && institutionalProfileOptions.PartnershipEntries.Count == 0)
+        {
+            throw new InvalidOperationException("Add at least one MoU or partner when the Military–Academia–Industry Synergy module is selected.");
         }
 
         var normalizedName = NormalizeName(command.Name);

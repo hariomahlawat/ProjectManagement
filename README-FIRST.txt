@@ -1,102 +1,74 @@
-PRISM ERP — MODULAR SDD INSTITUTIONAL PROFILE SLIDE
-===================================================
+PRISM BRIEFING DECK — SDD PROFILE TABLE-FIRST ARCHITECTURE
+==========================================================
 
-PURPOSE
+Purpose
 -------
-This package adds an optional, modular “SDD – Growth over the years” slide to the
-Project Briefing Deck Builder. The slide is available in both Standard PRISM
-Briefing and Project Update Sheet decks and is inserted immediately after the
-cover slide and before the portfolio/project content.
+This package refines the modular “SDD – Growth over the years” slide introduced by
+PRISM-Briefing-Deck-Modular-SDD-Profile.
 
-FINAL BEHAVIOUR
----------------
-1. History timeline
-   - User-maintained authorised milestones.
-   - Default milestone set: 1986, 1991, 1998, 2001, 2016 and 2024.
-   - Milestone wording remains exactly as entered; PRISM does not infer or rewrite it.
+Key changes
+-----------
+1. Maintainable PowerPoint output
+   - Institutional history is one native editable PowerPoint table.
+   - Each numeric output module is one native editable table.
+   - Military–Academia–Industry Synergy is one full-width native table.
+   - Unit citations are one native recognition table.
+   - The slide no longer consists of dozens of independent text boxes.
 
-2. Simulators/Projects Developed
-   - Read-only ERP data.
-   - Headline: completed projects.
-   - Detail: technical-category-wise project counts.
+2. Professional slide composition
+   - Uses the normal PRISM slide header, maroon top rule, branding and footer.
+   - Timeline remains visually styled: alternating milestones, burgundy years,
+     gold markers and a restrained chronology rule.
+   - All four ERP metric modules remain generous equal panels.
+   - The fifth partnership module becomes a full-width band instead of being
+     silently omitted or compressed into a narrow fifth column.
+   - Proliferation values such as 10,081 receive a dedicated value column and do
+     not wrap across lines.
+   - Graphite Dark uses high-contrast header and highlight treatments.
 
-3. Proliferated
-   - Read-only ERP data from approved proliferation aggregates.
-   - Headline: combined approved proliferation total.
-   - Detail: technical-category-wise quantities.
-   - The slide deliberately does NOT show an SDD/515 ABW split.
+3. Correct project scope
+   - “Projects Developed” defaults to ORIGINAL COMPLETED PROJECTS.
+   - Rebuild projects are excluded from both the headline and category breakdown.
+   - Users may explicitly select “All completed projects, including rebuilds”.
+   - Existing deck JSON remains compatible; missing scope defaults to OriginalCompleted.
 
-4. Assistance to Field Formations
-   - Read-only ERP data from the Training Tracker.
-   - Headline: total trainees.
-   - Detail: financial-year-wise trainee figures.
-   - Optional highlight: distinct units and individuals trained for the configured
-     technical category (AR/VR by default).
+4. Improved Deck Settings UX
+   - History milestones use a structured add/edit/reorder/delete editor.
+   - MoU/partner entries use a structured add/edit/reorder/delete editor.
+   - Training highlight uses the authoritative PRISM technical-category picker.
+   - A live layout summary explains the automatic one-slide composition.
+   - Partnership selection is validated so a selected module cannot disappear.
 
-5. Intellectual Property
-   - Read-only ERP data from the IPR Register.
-   - Headline: protected IPR total.
-   - Detail: patents granted, copyrights registered and patents filed.
+5. Reusable foundation
+   - Native-table cells now support optional borders, margins, vertical anchoring,
+     grid spans and horizontal merges.
+   - These primitives can be reused for future data-heavy custom briefing slides.
 
-6. Military–Academia–Industry Synergy
-   - User-maintained MoU/institutional-partner lines.
-   - No figures are inferred from JDP or activity records.
+Replacement
+-----------
+Copy the files in this package over the same relative paths in the ProjectManagement
+solution. Stop IIS / the application pool before replacement if deploying directly.
 
-7. Institutional recognition
-   - Optional user-maintained citation label and count.
+Then:
+1. Clean the solution.
+2. Rebuild ProjectManagement.
+3. Build and run ProjectManagement.Tests, especially the ProjectBriefings tests.
+4. Generate Editorial Light and Graphite Dark decks and inspect the SDD profile slide.
 
-MODULAR CONFIGURATION
----------------------
-Deck Settings now allows the user to:
-- enable/disable the SDD profile slide;
-- edit the slide title;
-- enable/disable the history timeline;
-- maintain history milestones using “YEAR | text” lines;
-- include, exclude and reorder the five profile modules;
-- set the maximum number of detail rows;
-- choose the training-highlight technical category;
-- maintain MoU/partner lines;
-- enable an optional unit-citation strip and set its authorised label/count.
+Database
+--------
+No database migration is required. The new project-scope value is stored in the existing
+versioned deck configuration JSON.
 
-ERP-backed metrics are not editable in the deck configuration.
+Validation completed in the packaging environment
+-------------------------------------------------
+- JavaScript syntax check: passed.
+- project-briefing-decks.js tests: 26/26 passed.
+- Patch dry-run and clean application: passed.
+- Whitespace / patch validation: passed.
+- ZIP and SHA-256 verification: included.
 
-COMPATIBILITY
--------------
-- Existing decks remain unchanged: the SDD profile is disabled by default.
-- The configuration is stored in the existing versioned SelectionRulesJson.
-- No database migration is required.
-- All previous briefing-deck functionality, adaptive layouts, status strip,
-  maroon institutional styling and closing slide are retained.
-
-REPLACEMENT METHOD
-------------------
-1. Back up the current solution.
-2. Copy the folders/files from this package over the ProjectManagement project root,
-   preserving the included relative paths.
-3. Allow files with the same names to be replaced.
-4. Clean the solution, delete stale bin/obj output if necessary, and rebuild.
-5. Run the ProjectBriefings test suite.
-6. Open an existing deck, enable “SDD institutional profile” under Deck Settings,
-   review the authorised milestone/MoU/citation content, save, and generate a PPTX.
-
-PATCH ALTERNATIVE
------------------
-A unified patch is included under _PATCH and is also supplied separately. Apply it
-from the ProjectManagement repository root only when the source exactly matches the
-preceding cumulative briefing-deck implementation.
-
-VALIDATION PERFORMED
---------------------
-- Targeted briefing-deck JavaScript tests: 26/26 passed.
-- JavaScript syntax check passed.
-- ProjectManagement.Tests.csproj XML validation passed.
-- git diff whitespace/error check passed.
-- Patch dry-run, clean application and file-by-file comparison passed.
-- ZIP integrity and SHA-256 manifest checks are included.
-
-ENVIRONMENT LIMITATION
-----------------------
-The .NET SDK/compiler is not installed in the packaging environment. Therefore a
-C# build and the .NET ProjectBriefings test suite could not be executed here.
-Perform a Visual Studio Clean/Rebuild and run the ProjectBriefings tests before
-production deployment.
+Limitation
+----------
+The .NET SDK was not available in the packaging environment, so a Visual Studio
+Clean/Rebuild and ProjectBriefings test run is required before production deployment.

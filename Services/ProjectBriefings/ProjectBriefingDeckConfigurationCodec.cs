@@ -97,6 +97,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
     bool IncludeHistory,
     IReadOnlyList<ProjectBriefingInstitutionalHistoryMilestone> HistoryMilestones,
     IReadOnlyList<ProjectBriefingInstitutionalProfileModule> Modules,
+    ProjectBriefingInstitutionalProjectScope ProjectScope,
     int MaximumDetailRows,
     string TrainingHighlightTechnicalCategory,
     IReadOnlyList<string> PartnershipEntries,
@@ -136,6 +137,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
             IncludeHistory: true,
             HistoryMilestones: DefaultHistory,
             Modules: DefaultModules,
+            ProjectScope: ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
             MaximumDetailRows: 6,
             TrainingHighlightTechnicalCategory: DefaultTrainingHighlight,
             PartnershipEntries: Array.Empty<string>(),
@@ -149,6 +151,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
         bool includeHistory,
         IEnumerable<ProjectBriefingInstitutionalHistoryMilestone>? historyMilestones,
         IEnumerable<ProjectBriefingInstitutionalProfileModule>? modules,
+        ProjectBriefingInstitutionalProjectScope projectScope,
         int maximumDetailRows,
         string? trainingHighlightTechnicalCategory,
         IEnumerable<string>? partnershipEntries,
@@ -168,7 +171,7 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
         var normalizedModules = (modules ?? Array.Empty<ProjectBriefingInstitutionalProfileModule>())
             .Where(Enum.IsDefined)
             .Distinct()
-            .Take(5)
+            .Take(6)
             .ToArray();
 
         var normalizedPartnerships = (partnershipEntries ?? Array.Empty<string>())
@@ -186,6 +189,9 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
             includeHistory,
             history.Length == 0 ? DefaultHistory : history,
             normalizedModules,
+            Enum.IsDefined(projectScope)
+                ? projectScope
+                : ProjectBriefingInstitutionalProjectScope.OriginalCompleted,
             Math.Clamp(maximumDetailRows, 3, 7),
             string.IsNullOrWhiteSpace(trainingHighlightTechnicalCategory)
                 ? DefaultTrainingHighlight
@@ -399,6 +405,9 @@ public static class ProjectBriefingDeckConfigurationCodec
             profile["modules"] is JsonArray moduleArray
                 ? ReadEnumArray<ProjectBriefingInstitutionalProfileModule>(moduleArray)
                 : ProjectBriefingInstitutionalProfileOptions.DefaultModules,
+            ReadEnum(
+                profile["projectScope"],
+                ProjectBriefingInstitutionalProjectScope.OriginalCompleted),
             profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
             profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
             partnerships,
@@ -440,6 +449,7 @@ public static class ProjectBriefingDeckConfigurationCodec
             institutionalProfileOptions.IncludeHistory,
             institutionalProfileOptions.HistoryMilestones,
             institutionalProfileOptions.Modules,
+            institutionalProfileOptions.ProjectScope,
             institutionalProfileOptions.MaximumDetailRows,
             institutionalProfileOptions.TrainingHighlightTechnicalCategory,
             institutionalProfileOptions.PartnershipEntries,
@@ -476,6 +486,7 @@ public static class ProjectBriefingDeckConfigurationCodec
                     })
                     .ToArray()),
                 ["modules"] = ToEnumArray(normalizedProfile.Modules),
+                ["projectScope"] = normalizedProfile.ProjectScope.ToString(),
                 ["maximumDetailRows"] = normalizedProfile.MaximumDetailRows,
                 ["trainingHighlightTechnicalCategory"] = normalizedProfile.TrainingHighlightTechnicalCategory,
                 ["partnerships"] = new JsonArray(normalizedProfile.PartnershipEntries

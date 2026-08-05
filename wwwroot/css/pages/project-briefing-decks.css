@@ -3154,3 +3154,133 @@ body.pbd-settings-drawer-open {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+.pbd-institutional-layout-summary {
+    display: flex;
+    align-items: center;
+    min-height: 2.2rem;
+    margin-top: .45rem;
+    padding: .5rem .62rem;
+    border: 1px solid #d8e2ef;
+    border-radius: .52rem;
+    background: #f7f9fc;
+    color: #4a5d76;
+    font-size: .66rem;
+    line-height: 1.4;
+}
+
+.pbd-institutional-list-editor {
+    display: grid;
+    gap: .48rem;
+    padding: .58rem;
+    border: 1px solid #dce4ef;
+    border-radius: .58rem;
+    background: #f8fafd;
+}
+
+.pbd-institutional-list-editor.has-validation-error {
+    border-color: #d92d48;
+    box-shadow: 0 0 0 3px rgba(217, 45, 72, .08);
+}
+
+.pbd-institutional-list-editor__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.pbd-institutional-list-editor__heading > span {
+    display: grid;
+    min-width: 0;
+    gap: .08rem;
+}
+
+.pbd-institutional-list-editor__heading strong {
+    color: #25364d;
+    font-size: .72rem;
+}
+
+.pbd-institutional-list-editor__heading small {
+    color: var(--pbd-muted);
+    font-size: .63rem;
+    line-height: 1.35;
+}
+
+.pbd-institutional-list-editor__items {
+    display: grid;
+    gap: .34rem;
+}
+
+.pbd-institutional-list-editor__item {
+    display: grid;
+    grid-template-columns: auto 5.6rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .35rem;
+    padding: .38rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .48rem;
+    background: #fff;
+}
+
+.pbd-institutional-list-editor__item--partner {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.pbd-institutional-list-editor__handle {
+    display: grid;
+    width: 1.2rem;
+    place-items: center;
+    color: #8a98ad;
+}
+
+.pbd-institutional-list-editor__year {
+    min-width: 0;
+}
+
+.pbd-institutional-list-editor__actions {
+    display: flex;
+    gap: .14rem;
+}
+
+.pbd-institutional-list-editor__actions .btn {
+    display: grid;
+    width: 1.7rem;
+    height: 1.7rem;
+    place-items: center;
+    padding: 0;
+    border-color: #e3e8f0;
+    background: #fff;
+    color: #526174;
+}
+
+.pbd-institutional-list-editor__actions .btn:disabled {
+    opacity: .32;
+}
+
+.pbd-institutional-list-editor__validation {
+    margin: 0;
+    color: #c81e3a;
+    font-size: .65rem;
+    font-weight: 700;
+}
+
+@media (max-width: 760px) {
+    .pbd-institutional-list-editor__heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .pbd-institutional-list-editor__item,
+    .pbd-institutional-list-editor__item--partner {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .pbd-institutional-list-editor__year {
+        grid-column: 2;
+    }
+
+    .pbd-institutional-list-editor__item:not(.pbd-institutional-list-editor__item--partner) > input:not(.pbd-institutional-list-editor__year) {
+        grid-column: 2 / 4;
+    }
+}
