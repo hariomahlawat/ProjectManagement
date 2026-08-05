@@ -1,7 +1,8 @@
-READY-TO-REPLACE FILES
-
+REPLACE:
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 
-OPTIONAL PATCH
-_PATCH/PRISM-Briefing-Deck-SDD-Profile-Final-Projection-Polish.patch
+ADD:
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingRemainingIssuesContractTests.cs

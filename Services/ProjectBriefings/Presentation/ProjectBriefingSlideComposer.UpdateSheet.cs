@@ -3,6 +3,9 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.ProjectBriefings;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Processing;
 
 namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
@@ -15,12 +18,6 @@ public sealed partial class ProjectBriefingSlideComposer
         {
             plans.Add(new SlidePlan(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)));
         }
-        if (data.InstitutionalProfile is not null)
-        {
-            plans.Add(new SlidePlan(
-                SlidePlanKind.InstitutionalProfile,
-                canvas => RenderInstitutionalProfile(canvas, data.InstitutionalProfile)));
-        }
         if (data.IncludePortfolioSummarySlide)
         {
             plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderPortfolioSummary(canvas, data)));
@@ -28,9 +25,33 @@ public sealed partial class ProjectBriefingSlideComposer
 
         foreach (var project in OrderProjects(data.Projects))
         {
+            var planningRows = ResolveProjectUpdateRows(
+                project,
+                data.UpdateSheetOptions,
+                text: "191B20",
+                muted: "667085");
+            var planningLayout = ResolveProjectUpdateSheetLayout(planningRows, project.ProjectBrief);
+            var briefChunks = SplitUpdateSheetBrief(
+                project.ProjectBrief,
+                planningLayout.BriefWidth - .38,
+                planningLayout.BriefHeight - .62);
+
             var capturedProject = project;
+            var firstChunk = briefChunks[0];
             plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
-                RenderProjectUpdateSheet(canvas, data, capturedProject)));
+                RenderProjectUpdateSheet(canvas, data, capturedProject, firstChunk)));
+
+            for (var index = 1; index < briefChunks.Count; index++)
+            {
+                var continuationChunk = briefChunks[index];
+                var continuationNumber = index + 1;
+                plans.Add(new SlidePlan(SlidePlanKind.Project, canvas =>
+                    RenderProjectUpdateSheetBriefContinuation(
+                        canvas,
+                        capturedProject,
+                        continuationChunk,
+                        continuationNumber)));
+            }
         }
 
         return plans;
@@ -39,7 +60,8 @@ public sealed partial class ProjectBriefingSlideComposer
     private static void RenderProjectUpdateSheet(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
-        ProjectBriefingPresentationProject project)
+        ProjectBriefingPresentationProject project,
+        string projectBrief)
     {
         var theme = canvas.Theme;
         var labelFill = theme.ProjectUpdateLabelFill;
@@ -53,7 +75,7 @@ public sealed partial class ProjectBriefingSlideComposer
             variant: ProjectSlideHeaderVariant.ProjectUpdateSheet);
 
         var rows = ResolveProjectUpdateRows(project, data.UpdateSheetOptions, theme.TextPrimary, theme.TextMuted);
-        var layout = ResolveProjectUpdateSheetLayout(rows, project.ProjectBrief);
+        var layout = ResolveProjectUpdateSheetLayout(rows, projectBrief);
         var layoutName = UpdateSheetLayoutName(layout.Variant);
 
         canvas.AddRect(
@@ -74,7 +96,7 @@ public sealed partial class ProjectBriefingSlideComposer
             $"Project update facts table - {layoutName}");
 
         RenderProjectUpdateSheetPhoto(canvas, project, layout, layoutName);
-        RenderProjectUpdateSheetBrief(canvas, project, layout, labelFill, layoutName);
+        RenderProjectUpdateSheetBrief(canvas, projectBrief, layout, labelFill, layoutName);
     }
 
     private static ProjectUpdateSheetLayout ResolveProjectUpdateSheetLayout(
@@ -193,16 +215,22 @@ public sealed partial class ProjectBriefingSlideComposer
 
         if (project.CoverPhoto is { Length: > 0 })
         {
-            const double inset = .10;
-            var maximumWidth = layout.PhotoWidth - (inset * 2);
-            var maximumHeight = layout.PhotoHeight - (inset * 2);
-            var imageWidth = Math.Min(maximumWidth, maximumHeight * 16d / 9d);
-            var imageHeight = imageWidth * 9d / 16d;
-            canvas.AddImage(
+            const double inset = .08;
+            var imageX = layout.PhotoX + inset;
+            var imageY = layout.PhotoY + inset;
+            var imageWidth = layout.PhotoWidth - (inset * 2);
+            var imageHeight = layout.PhotoHeight - (inset * 2);
+            var prepared = PrepareUpdateSheetPhoto(
                 project.CoverPhoto,
                 project.CoverPhotoContentType,
-                layout.PhotoX + ((layout.PhotoWidth - imageWidth) / 2d),
-                layout.PhotoY + ((layout.PhotoHeight - imageHeight) / 2d),
+                imageWidth,
+                imageHeight);
+
+            canvas.AddImage(
+                prepared.Content,
+                prepared.ContentType,
+                imageX,
+                imageY,
                 imageWidth,
                 imageHeight,
                 $"{project.ProjectName} photograph");
@@ -215,16 +243,75 @@ public sealed partial class ProjectBriefingSlideComposer
             layout.PhotoWidth - .70,
             .55,
             "PHOTOGRAPH NOT AVAILABLE",
-            10.5,
+            10.2,
             theme.TextMuted,
             true,
             "ctr",
             name: "Photograph not available");
     }
 
+    private static UpdateSheetPreparedPhoto PrepareUpdateSheetPhoto(
+        byte[] content,
+        string? contentType,
+        double targetWidth,
+        double targetHeight)
+    {
+        try
+        {
+            using var image = Image.Load(content);
+            var targetAspect = Math.Max(.1d, targetWidth / Math.Max(.1d, targetHeight));
+            var sourceAspect = image.Width / (double)Math.Max(1, image.Height);
+
+            SixLabors.ImageSharp.Rectangle crop;
+            if (sourceAspect > targetAspect)
+            {
+                var cropWidth = Math.Max(1, (int)Math.Round(image.Height * targetAspect));
+                crop = new SixLabors.ImageSharp.Rectangle(
+                    Math.Max(0, (image.Width - cropWidth) / 2),
+                    0,
+                    Math.Min(cropWidth, image.Width),
+                    image.Height);
+            }
+            else
+            {
+                var cropHeight = Math.Max(1, (int)Math.Round(image.Width / targetAspect));
+                crop = new SixLabors.ImageSharp.Rectangle(
+                    0,
+                    Math.Max(0, (image.Height - cropHeight) / 2),
+                    image.Width,
+                    Math.Min(cropHeight, image.Height));
+            }
+
+            const int maximumPixelWidth = 1_600;
+            const int maximumPixelHeight = 1_100;
+            var outputWidth = maximumPixelWidth;
+            var outputHeight = Math.Max(1, (int)Math.Round(outputWidth / targetAspect));
+            if (outputHeight > maximumPixelHeight)
+            {
+                outputHeight = maximumPixelHeight;
+                outputWidth = Math.Max(1, (int)Math.Round(outputHeight * targetAspect));
+            }
+
+            image.Mutate(context => context
+                .Crop(crop)
+                .Resize(outputWidth, outputHeight));
+
+            using var stream = new MemoryStream();
+            image.Save(stream, new PngEncoder());
+            return new UpdateSheetPreparedPhoto(stream.ToArray(), "image/png");
+        }
+        catch
+        {
+            // The source photo has already passed the PRISM media pipeline. If an
+            // unexpected decoder issue occurs, preserve generation and use the
+            // original file rather than replacing it with a placeholder.
+            return new UpdateSheetPreparedPhoto(content, contentType);
+        }
+    }
+
     private static void RenderProjectUpdateSheetBrief(
         SlideCanvas canvas,
-        ProjectBriefingPresentationProject project,
+        string projectBrief,
         ProjectUpdateSheetLayout layout,
         string labelFill,
         string layoutName)
@@ -243,48 +330,186 @@ public sealed partial class ProjectBriefingSlideComposer
             layout.BriefX,
             layout.BriefY,
             layout.BriefWidth,
-            .31,
+            .38,
             labelFill,
             theme.Border,
             .8,
             "Project brief heading");
         canvas.AddText(
             layout.BriefX + .18,
-            layout.BriefY + .02,
+            layout.BriefY + .04,
             layout.BriefWidth - .36,
-            .26,
+            .29,
             "BRIEF OF THE PROJECT",
-            10.2,
+            11.6,
             theme.TextPrimary,
             true,
             "l",
             name: "Project brief heading text");
         canvas.AddRichTextBox(
-            layout.BriefX + .16,
-            layout.BriefY + .39,
-            layout.BriefWidth - .32,
-            layout.BriefHeight - .49,
-            BuildUpdateSheetBriefParagraphs(project.ProjectBrief, theme.TextPrimary, theme.TextMuted),
+            layout.BriefX + .19,
+            layout.BriefY + .48,
+            layout.BriefWidth - .38,
+            layout.BriefHeight - .62,
+            BuildUpdateSheetBriefParagraphs(projectBrief, theme.TextPrimary, theme.TextMuted),
             "Project brief",
             verticalAnchor: "t",
-            allowAutoFit: true,
+            allowAutoFit: false,
             leftInset: .03,
             rightInset: .03,
             topInset: .01,
             bottomInset: .01);
     }
 
+    private static void RenderProjectUpdateSheetBriefContinuation(
+        SlideCanvas canvas,
+        ProjectBriefingPresentationProject project,
+        string projectBrief,
+        int continuationNumber)
+    {
+        var theme = canvas.Theme;
+        AddProjectSlideHeader(
+            canvas,
+            project.ProjectName,
+            subtitle: null,
+            variant: ProjectSlideHeaderVariant.ProjectUpdateSheet);
+
+        const double x = .50;
+        const double y = 1.08;
+        const double width = 12.33;
+        const double height = 5.85;
+        canvas.AddRect(
+            x,
+            y,
+            width,
+            height,
+            theme.Surface,
+            theme.Border,
+            .8,
+            $"Project brief continuation panel {continuationNumber}");
+        canvas.AddRect(
+            x,
+            y,
+            width,
+            .42,
+            theme.ProjectUpdateLabelFill,
+            theme.Border,
+            .8,
+            $"Project brief continuation heading {continuationNumber}");
+        canvas.AddText(
+            x + .22,
+            y + .05,
+            width - .44,
+            .31,
+            "BRIEF OF THE PROJECT — CONTINUED",
+            12.0,
+            theme.TextPrimary,
+            true,
+            "l",
+            name: $"Project brief continuation heading text {continuationNumber}");
+        canvas.AddRichTextBox(
+            x + .26,
+            y + .58,
+            width - .52,
+            height - .78,
+            BuildUpdateSheetBriefParagraphs(projectBrief, theme.TextPrimary, theme.TextMuted),
+            $"Project brief continuation {continuationNumber}",
+            verticalAnchor: "t",
+            allowAutoFit: false,
+            leftInset: .04,
+            rightInset: .04,
+            topInset: .02,
+            bottomInset: .02);
+    }
+
+    private static IReadOnlyList<string> SplitUpdateSheetBrief(
+        string? projectBrief,
+        double firstSlideWidth,
+        double firstSlideHeight)
+    {
+        var normalized = NormalizeUpdateSheetBrief(projectBrief);
+        if (IsMissingUpdateSheetBrief(normalized))
+        {
+            return new[] { normalized };
+        }
+
+        var firstCapacity = EstimateUpdateSheetBriefCapacity(firstSlideWidth, firstSlideHeight);
+        const double continuationWidth = 11.81;
+        const double continuationHeight = 5.07;
+        var continuationCapacity = EstimateUpdateSheetBriefCapacity(continuationWidth, continuationHeight);
+
+        var chunks = new List<string>();
+        var remaining = normalized;
+        var capacity = firstCapacity;
+        while (remaining.Length > capacity)
+        {
+            var splitAt = FindUpdateSheetBriefSplit(remaining, capacity);
+            chunks.Add(remaining[..splitAt].Trim());
+            remaining = remaining[splitAt..].TrimStart();
+            capacity = continuationCapacity;
+        }
+
+        if (!string.IsNullOrWhiteSpace(remaining))
+        {
+            chunks.Add(remaining.Trim());
+        }
+
+        return chunks.Count > 0 ? chunks : new[] { normalized };
+    }
+
+    private static int EstimateUpdateSheetBriefCapacity(double width, double height)
+    {
+        const double minimumFontSize = 12.0;
+        const double lineSpacingPoints = 14.8;
+        var charactersPerLine = Math.Max(38, (int)Math.Floor((width * 72d) / (minimumFontSize * .54d)));
+        var availableLines = Math.Max(3, (int)Math.Floor((height * 72d) / lineSpacingPoints));
+        return Math.Max(300, (int)Math.Floor(charactersPerLine * availableLines * .84d));
+    }
+
+    private static int FindUpdateSheetBriefSplit(string value, int capacity)
+    {
+        var minimumAcceptable = Math.Max(1, (int)Math.Floor(capacity * .58d));
+        var boundedCapacity = Math.Min(capacity, value.Length - 1);
+
+        var paragraphBreak = value.LastIndexOf("\n\n", boundedCapacity, StringComparison.Ordinal);
+        if (paragraphBreak >= minimumAcceptable)
+        {
+            return paragraphBreak + 2;
+        }
+
+        for (var index = boundedCapacity; index >= minimumAcceptable; index--)
+        {
+            if (index + 1 < value.Length
+                && (value[index] == '.' || value[index] == '?' || value[index] == '!')
+                && char.IsWhiteSpace(value[index + 1]))
+            {
+                return index + 1;
+            }
+        }
+
+        var wordBreak = value.LastIndexOf(' ', boundedCapacity);
+        return wordBreak >= minimumAcceptable ? wordBreak + 1 : boundedCapacity;
+    }
+
+    private static string NormalizeUpdateSheetBrief(string? projectBrief)
+        => string.IsNullOrWhiteSpace(projectBrief)
+            ? "Project brief not recorded."
+            : projectBrief
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace("\r", "\n", StringComparison.Ordinal)
+                .Trim();
+
+    private static bool IsMissingUpdateSheetBrief(string value)
+        => string.IsNullOrWhiteSpace(value)
+            || string.Equals(value.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
+
     private static double CompactPhotoWidth(string? projectBrief)
     {
-        var length = string.IsNullOrWhiteSpace(projectBrief)
-            ? 0
-            : string.Join(" ", projectBrief.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Length;
-        return length switch
-        {
-            <= 550 => 6.45,
-            <= 900 => 6.00,
-            _ => 5.55
-        };
+        _ = projectBrief;
+        // Compact sheets intentionally retain an approximately 50:50 visual split.
+        // Long briefs continue on a dedicated narrative slide rather than shrinking
+        // the photograph or forcing unreadably small text.
+        return 6.30;
     }
 
     private static string UpdateSheetLayoutName(ProjectUpdateSheetLayoutVariant variant)
@@ -314,54 +539,54 @@ public sealed partial class ProjectBriefingSlideComposer
                     project.CostRd.IsAvailable ? project.CostRd.DisplayValue : "Not recorded",
                     project.CostRd.IsAvailable,
                     KeepWhenBlank: false,
-                    FontSize: 9.2,
+                    FontSize: 10.8,
                     TextColor: project.CostRd.IsAvailable ? text : muted,
-                    Height: .38),
+                    Height: .46),
                 ProjectBriefingUpdateSheetRow.ArppPppNumber => new UpdateSheetResolvedRow(
                     row,
                     "ARPP/PPP Number",
                     project.ArppPppNumberApplicable ? DisplayOrNotRecorded(project.ArppReference) : string.Empty,
                     project.ArppPppNumberApplicable && IsRecorded(project.ArppReference),
                     KeepWhenBlank: false,
-                    FontSize: 8.8,
+                    FontSize: 10.2,
                     TextColor: IsRecorded(project.ArppReference) ? text : muted,
-                    Height: .40),
+                    Height: .46),
                 ProjectBriefingUpdateSheetRow.FundingAuthority => new UpdateSheetResolvedRow(
                     row,
                     "Fund, DFPDS Sch and CFA",
                     arppDetails,
                     HasAnyArppDetail(project),
                     KeepWhenBlank: false,
-                    FontSize: 8.0,
+                    FontSize: 9.4,
                     TextColor: HasAnyArppDetail(project) ? text : muted,
-                    Height: .58),
+                    Height: .64),
                 ProjectBriefingUpdateSheetRow.AonDate => new UpdateSheetResolvedRow(
                     row,
                     "AoN Date",
                     FormatUpdateDate(project.AonDate),
                     project.AonDate.HasValue,
                     KeepWhenBlank: false,
-                    FontSize: 9.0,
+                    FontSize: 10.5,
                     TextColor: project.AonDate.HasValue ? text : muted,
-                    Height: .38),
+                    Height: .46),
                 ProjectBriefingUpdateSheetRow.SupplyOrder => new UpdateSheetResolvedRow(
                     row,
                     "SO Date and Name of Firm",
                     supplyOrder,
                     HasAnySupplyOrderDetail(project.SupplyOrderDate, project.JdpNames),
                     KeepWhenBlank: false,
-                    FontSize: 8.1,
+                    FontSize: 9.4,
                     TextColor: HasAnySupplyOrderDetail(project.SupplyOrderDate, project.JdpNames) ? text : muted,
-                    Height: .54),
+                    Height: .60),
                 ProjectBriefingUpdateSheetRow.PdcOrCompletionStatus => new UpdateSheetResolvedRow(
                     row,
                     milestone.Label,
                     milestone.Value,
                     milestone.HasRecordedValue,
                     KeepWhenBlank: true,
-                    FontSize: 9.0,
+                    FontSize: 10.5,
                     TextColor: milestone.HasRecordedValue ? text : muted,
-                    Height: .38),
+                    Height: .46),
                 ProjectBriefingUpdateSheetRow.PresentStatus => new UpdateSheetResolvedRow(
                     row,
                     "Present Status",
@@ -377,18 +602,18 @@ public sealed partial class ProjectBriefingSlideComposer
                     DisplayOrNotRecorded(project.ProjectOfficer),
                     IsRecorded(project.ProjectOfficer),
                     KeepWhenBlank: false,
-                    FontSize: 8.8,
+                    FontSize: 10.2,
                     TextColor: IsRecorded(project.ProjectOfficer) ? text : muted,
-                    Height: .38),
+                    Height: .46),
                 ProjectBriefingUpdateSheetRow.LineDirectorate => new UpdateSheetResolvedRow(
                     row,
                     "Line Directorate",
                     DisplayOrNotRecorded(project.LineDirectorate),
                     IsRecorded(project.LineDirectorate),
                     KeepWhenBlank: false,
-                    FontSize: 8.8,
+                    FontSize: 10.2,
                     TextColor: IsRecorded(project.LineDirectorate) ? text : muted,
-                    Height: .38),
+                    Height: .46),
                 _ => null
             })
             .Where(row => row is not null)
@@ -413,8 +638,8 @@ public sealed partial class ProjectBriefingSlideComposer
         string bodyFill)
         => rows.Select((row, index) => (IReadOnlyList<NativeTableCell>)new[]
         {
-            Cell((index + 1).ToString(CultureInfo.InvariantCulture) + ".", 8.8, muted, false, "ctr", serialFill),
-            Cell(row.Label, 8.7, text, false, "l", labelFill),
+            Cell((index + 1).ToString(CultureInfo.InvariantCulture) + ".", 9.6, muted, false, "ctr", serialFill),
+            Cell(row.Label, 10.3, text, false, "l", labelFill),
             Cell(row.Value, row.FontSize, row.TextColor, false, "l", bodyFill)
         }).ToArray();
 
@@ -428,15 +653,15 @@ public sealed partial class ProjectBriefingSlideComposer
         var total = heights.Sum();
         var targetMinimum = variant switch
         {
-            ProjectUpdateSheetLayoutVariant.Compact => rows.Count == 1 ? .64 : 1.08,
-            ProjectUpdateSheetLayoutVariant.Detailed => 3.10,
-            _ => rows.Count <= 4 ? 2.00 : 2.55
+            ProjectUpdateSheetLayoutVariant.Compact => rows.Count == 1 ? .72 : 1.20,
+            ProjectUpdateSheetLayoutVariant.Detailed => 3.18,
+            _ => rows.Count <= 4 ? 2.08 : 2.62
         };
         if (total >= targetMinimum) return heights;
 
         var maximumExtra = variant switch
         {
-            ProjectUpdateSheetLayoutVariant.Compact => .28,
+            ProjectUpdateSheetLayoutVariant.Compact => .30,
             ProjectUpdateSheetLayoutVariant.Detailed => .10,
             _ => .16
         };
@@ -473,23 +698,18 @@ public sealed partial class ProjectBriefingSlideComposer
         string text,
         string muted)
     {
-        var isMissing = string.IsNullOrWhiteSpace(projectBrief)
-            || string.Equals(projectBrief.Trim(), "Project brief not recorded.", StringComparison.OrdinalIgnoreCase);
-        if (isMissing)
+        var normalized = NormalizeUpdateSheetBrief(projectBrief);
+        if (IsMissingUpdateSheetBrief(normalized))
         {
             return new[]
             {
                 new RichTextParagraph(
-                    new[] { new RichTextRun("Project brief not recorded.", 11.2, muted, Italic: true) },
-                    LineSpacingPoints: 13.2)
+                    new[] { new RichTextRun("Project brief not recorded.", 12.0, muted, Italic: true) },
+                    LineSpacingPoints: 14.8)
             };
         }
 
-        var normalized = projectBrief!
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace("\r", "\n", StringComparison.Ordinal);
-        var typography = ProjectBriefingNarrativeTypography.ResolveUpdateSheetBrief(normalized);
-
+        var typography = ResolveUpdateSheetBriefTypography(normalized);
         return normalized
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(paragraph => new RichTextParagraph(
@@ -503,6 +723,22 @@ public sealed partial class ProjectBriefingSlideComposer
                 SpaceAfterPoints: typography.SpaceAfterPoints,
                 LineSpacingPoints: typography.LineSpacingPoints))
             .ToArray();
+    }
+
+    private static UpdateSheetBriefTypography ResolveUpdateSheetBriefTypography(string value)
+    {
+        var characters = value.Length;
+        if (characters <= 560)
+        {
+            return new UpdateSheetBriefTypography(15.0, 18.8, 8.0);
+        }
+
+        if (characters <= 900)
+        {
+            return new UpdateSheetBriefTypography(13.4, 16.8, 6.0);
+        }
+
+        return new UpdateSheetBriefTypography(12.0, 14.8, 4.5);
     }
 
     private static string BuildArppDetails(ProjectBriefingPresentationProject project)
@@ -577,19 +813,19 @@ public sealed partial class ProjectBriefingSlideComposer
     private static double UpdateSheetStatusFontSize(string status)
         => status.Length switch
         {
-            <= 95 => 8.2,
-            <= 165 => 7.9,
-            <= 250 => 7.6,
-            _ => 7.4
+            <= 95 => 10.4,
+            <= 165 => 10.0,
+            <= 250 => 9.6,
+            _ => 9.2
         };
 
     private static double UpdateSheetStatusRowHeight(string status)
         => status.Length switch
         {
-            <= 95 => .48,
-            <= 165 => .57,
-            <= 250 => .68,
-            _ => .80
+            <= 95 => .56,
+            <= 165 => .66,
+            <= 250 => .78,
+            _ => .92
         };
 
     private enum ProjectUpdateSheetLayoutVariant
@@ -625,6 +861,13 @@ public sealed partial class ProjectBriefingSlideComposer
         double FontSize,
         string TextColor,
         double Height);
+
+    private sealed record UpdateSheetPreparedPhoto(byte[] Content, string? ContentType);
+
+    private sealed record UpdateSheetBriefTypography(
+        double BodyFontSize,
+        double LineSpacingPoints,
+        double SpaceAfterPoints);
 
     private sealed record UpdateSheetMilestone(string Label, string Value, bool HasRecordedValue);
 }

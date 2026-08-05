@@ -1790,6 +1790,84 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.DoesNotContain("JAI HIND", SlideText(closing), StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void Compose_ProjectUpdateSheet_LongBriefUsesReadableContinuationAndCropFilledPhoto()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var longBrief = string.Join(
+            " ",
+            Enumerable.Repeat(
+                "The simulator provides realistic mission-oriented training, supports repeatable instructional practice and records performance for structured after-action review.",
+                18));
+        var project = BriefingProject(
+            995,
+            "Readable Update Sheet",
+            StageCodes.DEVP,
+            ProjectBriefingStageOrder.Development,
+            1,
+            projectBrief: longBrief);
+        project.CoverPhoto = TinyPng();
+        project.CoverPhotoContentType = "image/png";
+
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 995,
+            DeckName = "Readable Update Sheet",
+            Layout = ProjectBriefingLayout.ProjectUpdateSheet,
+            BrandingScope = ProjectBriefingBrandingScope.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            UpdateSheetOptions = new ProjectBriefingUpdateSheetOptions(
+                new[]
+                {
+                    ProjectBriefingUpdateSheetRow.ProjectCost,
+                    ProjectBriefingUpdateSheetRow.PresentStatus
+                },
+                HideEmptyValues: false),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary { ProjectCount = 1, OngoingCount = 1 }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(3, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
+        var contentSlides = presentationPart.SlideParts.Where(slide => !IsClosingSlide(slide)).ToArray();
+        Assert.Equal(2, contentSlides.Length);
+
+        var firstSlide = contentSlides.Single(slide =>
+            slide.Slide.Descendants<P.NonVisualDrawingProperties>()
+                .Any(properties => string.Equals(properties.Name?.Value, "Project brief", StringComparison.Ordinal)));
+        var continuationSlide = contentSlides.Single(slide =>
+            SlideText(slide).Contains("BRIEF OF THE PROJECT — CONTINUED", StringComparison.Ordinal));
+
+        var briefShape = ShapeByName(firstSlide, "Project brief");
+        var briefFontSizes = briefShape.Descendants<A.RunProperties>()
+            .Select(properties => properties.FontSize?.Value)
+            .Where(size => size.HasValue)
+            .Select(size => size!.Value)
+            .ToArray();
+        Assert.NotEmpty(briefFontSizes);
+        Assert.All(briefFontSizes, size => Assert.True(size >= 1200, "Update-sheet narrative text must not shrink below 12 pt."));
+        Assert.Null(briefShape.TextBody?.BodyProperties?.GetFirstChild<A.NormalAutoFit>());
+        Assert.Contains("CONTINUED", SlideText(continuationSlide), StringComparison.Ordinal);
+
+        var photoFrame = ShapeByName(firstSlide, "Project photograph frame - Compact");
+        var photo = firstSlide.Slide.Descendants<P.Picture>()
+            .Single(picture => string.Equals(
+                picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name?.Value,
+                "Readable Update Sheet photograph",
+                StringComparison.Ordinal));
+        var photoExtent = Assert.IsType<A.Extents>(photo.ShapeProperties?.Transform2D?.Extents);
+        Assert.True(
+            (photoExtent.Cy?.Value ?? 0L) >= ShapeHeight(photoFrame) - (.20 * 914400),
+            "The project photograph should crop to fill the available panel instead of leaving large unused bands.");
+    }
+
     private static byte[] TinyPng()
         => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1ZsAAAAASUVORK5CYII=");
 

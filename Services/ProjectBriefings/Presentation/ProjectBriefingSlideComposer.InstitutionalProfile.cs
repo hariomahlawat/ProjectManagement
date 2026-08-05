@@ -81,7 +81,7 @@ public sealed partial class ProjectBriefingSlideComposer
                         compact ? 1.48 : 1.78,
                         Math.Max(1.24, (span / items.Length) - .05));
                     var textX = Math.Clamp(markerX - (cellWidth / 2d), left, right - cellWidth);
-                    var textY = above ? 1.09 : 1.78;
+                    var textY = above ? 1.00 : 1.78;
                     var description = Truncate(item.Text, compact ? 36 : 50);
 
                     canvas.AddRichTextBox(

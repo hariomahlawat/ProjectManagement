@@ -700,13 +700,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var introductorySlides = coverAndPortfolioSlides + institutionalProfileSlides;
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
+            var projectUpdateSheetSlides = projects.Sum(EstimateProjectUpdateSheetSlides);
             return new ProjectBriefingSlideEstimateVm
             {
                 CoverAndPortfolioSlides = coverAndPortfolioSlides,
-                ProjectUpdateSheetSlides = projects.Count,
+                ProjectUpdateSheetSlides = projectUpdateSheetSlides,
                 InstitutionalProfileSlides = institutionalProfileSlides,
                 ClosingSlides = 1,
-                TotalSlides = introductorySlides + projects.Count + 1
+                TotalSlides = introductorySlides + projectUpdateSheetSlides + 1
             };
         }
 
@@ -773,6 +774,30 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 + projectBriefSlides
                 + 1
         };
+    }
+
+    private static int EstimateProjectUpdateSheetSlides(ProjectBriefingProjectVm project)
+    {
+        var brief = string.IsNullOrWhiteSpace(project.ProjectBrief)
+            ? string.Empty
+            : project.ProjectBrief
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace("\r", "\n", StringComparison.Ordinal)
+                .Trim();
+        if (brief.Length == 0
+            || string.Equals(brief, "Project brief not recorded.", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        // The exact first-page capacity varies with the selected fact rows. Use the
+        // compact-layout capacity for a stable, conservative preflight estimate; the
+        // composer performs the final geometry-aware pagination during generation.
+        const int firstSlideCapacity = 900;
+        const int continuationCapacity = 2_500;
+        return brief.Length <= firstSlideCapacity
+            ? 1
+            : 1 + (int)Math.Ceiling((brief.Length - firstSlideCapacity) / (double)continuationCapacity);
     }
 
     private static int? ResolveCoverPhotoId(DeckItemSnapshot item)

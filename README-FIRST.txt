@@ -1,41 +1,46 @@
-PRISM ERP — SDD Institutional Profile: Final Projection Polish
-===============================================================
+PRISM BRIEFING DECK — REMAINING READABILITY FIXES
+=================================================
 
-Replace the files in this package at the exact relative paths shown below.
-The code is based on the previously supplied “SDD Profile Header Polish” version.
+Replace/add the files in this package using the exact project-relative paths.
+No database migration is required.
 
-Replacement files
------------------
-1. Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
-2. ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+PRODUCTION CHANGES
+------------------
+1. SDD institutional timeline
+   - Moves the upper milestone blocks upward to create clear separation from the chronology line.
+   - Lower milestone geometry remains unchanged.
 
-Implemented refinements
------------------------
-- Slightly larger timeline years, descriptions and milestone markers.
-- Stronger chronology line for projection.
-- Larger module headings, KPI values, detail labels and detail values.
-- Larger, better-spaced institutional-partnership entries.
-- Sparse IPR and partnership content starts higher and uses improved row spacing.
-- Training highlight is taller and always splits “... trained ...” into a controlled two-line message.
-- Light-theme module header fills are modestly more saturated while remaining restrained.
-- Profile Footer Strip is shorter and uses a quieter divider-colour outline so it remains supporting content.
-- Existing grouped-shape architecture, module selection, project scope and ERP-backed values remain unchanged.
-- Original completed projects continue to exclude rebuilds by default.
-- No database migration is required.
+2. Project Update Sheet typography and pagination
+   - Raises fact-table typography to presentation-readable sizes.
+   - Sets Project Brief body typography to 15 pt / 13.4 pt / 12 pt according to content density.
+   - Removes PowerPoint auto-shrink from Project Brief text.
+   - Paginates long Project Brief content onto editable “BRIEF OF THE PROJECT — CONTINUED” slides.
+   - Keeps compact sheets at an approximately 50:50 photograph/content split.
 
-Deployment
-----------
-1. Back up the two existing files.
-2. Replace them with the files in this package.
-3. Clean and rebuild the solution in Visual Studio.
-4. Run the ProjectBriefings test suite.
-5. Restart the application and generate both Editorial Light and Graphite Dark decks for visual verification.
+3. Project Update Sheet photographs
+   - Crops and resizes selected photographs to fill the complete photo panel.
+   - Preserves aspect ratio and avoids the large unused bands seen previously.
+   - Falls back to the original image if an unexpected decoder error occurs.
 
-Validation performed in packaging environment
----------------------------------------------
-- Unified patch dry-run and clean application: passed.
-- Patched-file byte comparison against packaged replacements: passed.
-- C# delimiter/structure checks: passed.
-- ZIP and checksum verification: passed.
+4. Slide estimate
+   - Includes likely Project Brief continuation slides in the preflight slide estimate.
+   - The composer remains the final geometry-aware source of truth during generation.
 
-The .NET SDK was not available in the packaging environment, so compilation and xUnit execution must be performed in Visual Studio.
+FILES
+-----
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.UpdateSheet.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingRemainingIssuesContractTests.cs   (new)
+
+VALIDATION AFTER REPLACEMENT
+----------------------------
+1. Clean and rebuild the solution in Visual Studio.
+2. Run the ProjectBriefings test suite.
+3. Generate a Project Update Sheet with a long Project Brief and verify:
+   - body text remains at least 12 pt;
+   - a continuation slide is created;
+   - the photograph fills its panel;
+   - slide estimate includes the continuation.
+4. Generate the SDD profile and verify clear space between upper milestones and the timeline.
