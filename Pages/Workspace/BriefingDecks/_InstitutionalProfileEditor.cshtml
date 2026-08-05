@@ -60,17 +60,19 @@
             </button>
         </header>
         <div class="pbd-profile-drawer__body">
-                                            <label class="pbd-institutional-profile-toggle">
-                                                <input type="checkbox"
-                                                       name="IncludeInstitutionalProfile"
-                                                       value="true"
-                                                       checked="@institutionalProfile.IncludeSlide"
-                                                       data-pbd-institutional-profile-enable />
-                                                <span>
-                                                    <strong>Include “SDD – Growth over the years” slide</strong>
-                                                    <small>Placed immediately after the cover. ERP-backed figures refresh whenever the PowerPoint is generated.</small>
-                                                </span>
-                                            </label>
+            <input type="checkbox"
+                   name="IncludeInstitutionalProfile"
+                   value="true"
+                   checked="@institutionalProfile.IncludeSlide"
+                   data-pbd-institutional-profile-enable
+                   hidden />
+            <div class="pbd-additional-slide-editor-context">
+                <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
+                <span>
+                    <strong>@(institutionalProfile.IncludeSlide ? "Included in this deck" : "Currently disabled")</strong>
+                    <small>Enable, disable and arrange this slide from the Additional Slides workspace.</small>
+                </span>
+            </div>
 
                                             <div class="pbd-institutional-profile-settings"
                                                  data-pbd-institutional-profile-settings>

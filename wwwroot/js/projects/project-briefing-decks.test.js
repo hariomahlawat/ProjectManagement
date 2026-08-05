@@ -7,6 +7,13 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '..', 'pages', 'project-briefing-decks.js'),
   'utf8');
 
+const additionalSlidesSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'pages', 'project-briefing-additional-slides.js'),
+  'utf8');
+const viewSource = fs.readFileSync(
+  path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', 'Index.cshtml'),
+  'utf8');
+
 test('briefing deck JSON mutations use the configured antiforgery header and same-origin credentials', () => {
   assert.match(source, /'X-CSRF-TOKEN': token/);
   assert.match(source, /credentials: 'same-origin'/);
@@ -210,4 +217,25 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
   assert.match(source, /syncInstitutionalLayoutSummary/);
   assert.match(source, /footerValid/);
   assert.match(source, /institutionalProfileSlides/);
+});
+
+
+test('additional-slide workspace exposes a registered slide library and ordered slide instances', () => {
+  assert.match(viewSource, /pbd-additional-slide-library-modal/);
+  assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.InstitutionalProfile/);
+  assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.RoleAndCharter/);
+  assert.match(viewSource, /data-pbd-additional-slide-list/);
+  assert.match(viewSource, /asp-page-handler="ReorderAdditionalSlides"/);
+  assert.match(viewSource, /asp-page-handler="RemoveAdditionalSlide"/);
+  assert.doesNotMatch(viewSource, /name="IncludeInstitutionalProfile"[\s\S]{0,250}pbd-settings-slide-toggle/);
+});
+
+test('Role and Charter uses an isolated structured editor with dirty-state and reorder protection', () => {
+  assert.match(additionalSlidesSource, /data-pbd-role-charter-drawer/);
+  assert.match(additionalSlidesSource, /Discard unsaved Role & Charter changes/);
+  assert.match(additionalSlidesSource, /createEntry\('role'/);
+  assert.match(additionalSlidesSource, /createEntry\('charter'/);
+  assert.match(additionalSlidesSource, /data-pbd-additional-slide-handle/);
+  assert.match(additionalSlidesSource, /new window\.Sortable/);
+  assert.match(additionalSlidesSource, /Remove \$\{name\} from this deck/);
 });

@@ -225,12 +225,107 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
         => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();
 }
 
+public sealed record ProjectBriefingRoleCharterEntry(string LeadPhrase, string Text);
+
+/// <summary>
+/// Deck-specific configuration of the optional Role &amp; Charter slide.
+/// Shared authorised content is represented by the immutable defaults below; choosing deck
+/// customisation creates an independent copy inside the existing versioned deck JSON.
+/// </summary>
+public sealed record ProjectBriefingRoleCharterOptions(
+    bool IncludeSlide,
+    string Title,
+    ProjectBriefingRoleCharterLayout Layout,
+    bool UseSharedContent,
+    IReadOnlyList<ProjectBriefingRoleCharterEntry> RoleStatements,
+    IReadOnlyList<ProjectBriefingRoleCharterEntry> CharterItems)
+{
+    public const string DefaultTitle = "Role & Charter";
+
+    public static IReadOnlyList<ProjectBriefingRoleCharterEntry> SharedRoleStatements { get; } =
+        new[]
+        {
+            new ProjectBriefingRoleCharterEntry(
+                "Nodal Centre",
+                "Development of specified simulators, robotics and AI products for the Indian Army"),
+            new ProjectBriefingRoleCharterEntry(
+                "Centre of Excellence",
+                "AR/VR simulators")
+        };
+
+    public static IReadOnlyList<ProjectBriefingRoleCharterEntry> SharedCharterItems { get; } =
+        new[]
+        {
+            new ProjectBriefingRoleCharterEntry("Repository", "Information related to simulators, AI and robotics"),
+            new ProjectBriefingRoleCharterEntry("Facilitator", "QR, feasibility studies and scope of work"),
+            new ProjectBriefingRoleCharterEntry("Procurement support", "On board for procurement of simulators, AI, VR/AR and robotics"),
+            new ProjectBriefingRoleCharterEntry("Advisory role", "Development and production of simulators"),
+            new ProjectBriefingRoleCharterEntry("Joint projects", "DRDO, PSUs and academia"),
+            new ProjectBriefingRoleCharterEntry("Research and development", "Undertake R&D and experimental projects"),
+            new ProjectBriefingRoleCharterEntry("Upgradation", "Upgrade existing projects and simulators"),
+            new ProjectBriefingRoleCharterEntry("Development support", "Develop simulators and projects for FFCs"),
+            new ProjectBriefingRoleCharterEntry("Professional engagement", "Participate in seminars, workshops, training and competitions"),
+            new ProjectBriefingRoleCharterEntry("Coordination", "Coordinate with MGO Branch and EME Directorate on ESP issues")
+        };
+
+    public static ProjectBriefingRoleCharterOptions Default { get; } =
+        new(
+            IncludeSlide: false,
+            Title: DefaultTitle,
+            Layout: ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter,
+            UseSharedContent: true,
+            RoleStatements: SharedRoleStatements,
+            CharterItems: SharedCharterItems);
+
+    public static ProjectBriefingRoleCharterOptions Normalize(
+        bool includeSlide,
+        string? title,
+        ProjectBriefingRoleCharterLayout layout,
+        bool useSharedContent,
+        IEnumerable<ProjectBriefingRoleCharterEntry>? roleStatements,
+        IEnumerable<ProjectBriefingRoleCharterEntry>? charterItems)
+    {
+        var roles = useSharedContent
+            ? SharedRoleStatements
+            : NormalizeEntries(roleStatements, 4);
+        var charter = useSharedContent
+            ? SharedCharterItems
+            : NormalizeEntries(charterItems, 18);
+
+        return new ProjectBriefingRoleCharterOptions(
+            includeSlide,
+            string.IsNullOrWhiteSpace(title) ? DefaultTitle : TrimTo(title.Trim(), 120),
+            Enum.IsDefined(layout) ? layout : ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter,
+            useSharedContent,
+            roles,
+            charter);
+    }
+
+    private static IReadOnlyList<ProjectBriefingRoleCharterEntry> NormalizeEntries(
+        IEnumerable<ProjectBriefingRoleCharterEntry>? source,
+        int maximumCount)
+        => (source ?? Array.Empty<ProjectBriefingRoleCharterEntry>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.LeadPhrase) || !string.IsNullOrWhiteSpace(item.Text))
+            .Select(item => new ProjectBriefingRoleCharterEntry(
+                TrimTo((item.LeadPhrase ?? string.Empty).Trim(), 60),
+                TrimTo((item.Text ?? string.Empty).Trim(), 240)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.LeadPhrase) || !string.IsNullOrWhiteSpace(item.Text))
+            .Distinct()
+            .Take(maximumCount)
+            .ToArray();
+
+    private static string TrimTo(string value, int maximumLength)
+        => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();
+}
+
 public sealed record ProjectBriefingDeckConfiguration(
     string? SelectionRulesJson,
     ProjectBriefingUpdateSheetOptions UpdateSheetOptions,
     ProjectBriefingStandardSlideOptions StandardSlideOptions,
     ProjectBriefingClosingSlideType ClosingSlideType,
-    ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions);
+    ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
+    ProjectBriefingRoleCharterOptions RoleCharterOptions,
+    IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder);
 
 /// <summary>
 /// Stores selection provenance and presentation preferences in the existing JSONB deck configuration field.
@@ -262,17 +357,11 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ReadUpdateSheetOptions(root["updateSheet"] as JsonObject),
                 ReadStandardSlideOptions(root["standardBriefing"] as JsonObject),
                 ReadClosingSlideType(root["closingSlide"]),
-                ReadInstitutionalProfileOptions(root["institutionalProfile"] as JsonObject));
+                ReadInstitutionalProfileOptions(root["institutionalProfile"] as JsonObject),
+                ReadRoleCharterOptions(root["roleCharter"] as JsonObject),
+                ReadAdditionalSlideOrder(root["additionalSlides"] as JsonArray));
         }
-        catch (JsonException)
-        {
-            return Defaults(json);
-        }
-        catch (InvalidOperationException)
-        {
-            return Defaults(json);
-        }
-        catch (FormatException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
         {
             return Defaults(json);
         }
@@ -281,12 +370,7 @@ public static class ProjectBriefingDeckConfigurationCodec
     public static string WithSelectionRules(string? existingJson, string? selectionRulesJson)
     {
         var current = Read(existingJson);
-        return Write(
-            selectionRulesJson,
-            current.UpdateSheetOptions,
-            current.StandardSlideOptions,
-            current.ClosingSlideType,
-            current.InstitutionalProfileOptions);
+        return Write(current with { SelectionRulesJson = selectionRulesJson });
     }
 
     public static string WithUpdateSheetOptions(
@@ -294,12 +378,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingUpdateSheetOptions updateSheetOptions)
     {
         var current = Read(existingJson);
-        return Write(
-            current.SelectionRulesJson,
-            updateSheetOptions,
-            current.StandardSlideOptions,
-            current.ClosingSlideType,
-            current.InstitutionalProfileOptions);
+        return Write(current with { UpdateSheetOptions = updateSheetOptions });
     }
 
     public static string WithStandardSlideOptions(
@@ -307,12 +386,7 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingStandardSlideOptions standardSlideOptions)
     {
         var current = Read(existingJson);
-        return Write(
-            current.SelectionRulesJson,
-            current.UpdateSheetOptions,
-            standardSlideOptions,
-            current.ClosingSlideType,
-            current.InstitutionalProfileOptions);
+        return Write(current with { StandardSlideOptions = standardSlideOptions });
     }
 
     public static string WithInstitutionalProfileOptions(
@@ -320,12 +394,38 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
     {
         var current = Read(existingJson);
-        return Write(
-            current.SelectionRulesJson,
-            current.UpdateSheetOptions,
-            current.StandardSlideOptions,
-            current.ClosingSlideType,
-            institutionalProfileOptions);
+        return Write(current with { InstitutionalProfileOptions = institutionalProfileOptions });
+    }
+
+    public static string WithRoleCharterOptions(
+        string? existingJson,
+        ProjectBriefingRoleCharterOptions roleCharterOptions)
+    {
+        var current = Read(existingJson);
+        return Write(current with { RoleCharterOptions = roleCharterOptions });
+    }
+
+    public static string WithAdditionalSlideOrder(
+        string? existingJson,
+        IEnumerable<ProjectBriefingAdditionalSlideType> order)
+    {
+        var current = Read(existingJson);
+        return Write(current with { AdditionalSlideOrder = NormalizeAdditionalSlideOrder(order) });
+    }
+
+    public static string WithAdditionalSlides(
+        string? existingJson,
+        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions,
+        ProjectBriefingRoleCharterOptions roleCharterOptions,
+        IEnumerable<ProjectBriefingAdditionalSlideType> order)
+    {
+        var current = Read(existingJson);
+        return Write(current with
+        {
+            InstitutionalProfileOptions = institutionalProfileOptions,
+            RoleCharterOptions = roleCharterOptions,
+            AdditionalSlideOrder = NormalizeAdditionalSlideOrder(order)
+        });
     }
 
     public static string WithPresentationOptions(
@@ -335,12 +435,12 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingClosingSlideType closingSlideType)
     {
         var current = Read(existingJson);
-        return WithPresentationOptions(
-            existingJson,
-            updateSheetOptions,
-            standardSlideOptions,
-            closingSlideType,
-            current.InstitutionalProfileOptions);
+        return Write(current with
+        {
+            UpdateSheetOptions = updateSheetOptions,
+            StandardSlideOptions = standardSlideOptions,
+            ClosingSlideType = closingSlideType
+        });
     }
 
     public static string WithPresentationOptions(
@@ -351,12 +451,13 @@ public static class ProjectBriefingDeckConfigurationCodec
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
     {
         var current = Read(existingJson);
-        return Write(
-            current.SelectionRulesJson,
-            updateSheetOptions,
-            standardSlideOptions,
-            closingSlideType,
-            institutionalProfileOptions);
+        return Write(current with
+        {
+            UpdateSheetOptions = updateSheetOptions,
+            StandardSlideOptions = standardSlideOptions,
+            ClosingSlideType = closingSlideType,
+            InstitutionalProfileOptions = institutionalProfileOptions
+        });
     }
 
     private static ProjectBriefingDeckConfiguration Defaults(string? selectionRulesJson)
@@ -365,7 +466,9 @@ public static class ProjectBriefingDeckConfigurationCodec
             ProjectBriefingUpdateSheetOptions.Default,
             ProjectBriefingStandardSlideOptions.Default,
             ProjectBriefingClosingSlideType.JaiHind,
-            ProjectBriefingInstitutionalProfileOptions.Default);
+            ProjectBriefingInstitutionalProfileOptions.Default,
+            ProjectBriefingRoleCharterOptions.Default,
+            new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile });
 
     private static ProjectBriefingUpdateSheetOptions ReadUpdateSheetOptions(JsonObject? updateSheet)
     {
@@ -438,9 +541,7 @@ public static class ProjectBriefingDeckConfigurationCodec
             profile["modules"] is JsonArray moduleArray
                 ? ReadEnumArray<ProjectBriefingInstitutionalProfileModule>(moduleArray)
                 : ProjectBriefingInstitutionalProfileOptions.DefaultModules,
-            ReadEnum(
-                profile["projectScope"],
-                ProjectBriefingInstitutionalProjectScope.OriginalCompleted),
+            ReadEnum(profile["projectScope"], ProjectBriefingInstitutionalProjectScope.OriginalCompleted),
             profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
             profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
             partnerships,
@@ -450,6 +551,52 @@ public static class ProjectBriefingDeckConfigurationCodec
             ReadEnum(profile["footerStripStyle"], ProjectBriefingInstitutionalFooterStyle.Outline),
             ReadEnum(profile["footerStripAlignment"], ProjectBriefingInstitutionalFooterAlignment.Center));
     }
+
+    private static ProjectBriefingRoleCharterOptions ReadRoleCharterOptions(JsonObject? roleCharter)
+    {
+        if (roleCharter is null)
+        {
+            return ProjectBriefingRoleCharterOptions.Default;
+        }
+
+        return ProjectBriefingRoleCharterOptions.Normalize(
+            roleCharter["includeSlide"]?.GetValue<bool>() ?? false,
+            roleCharter["title"]?.GetValue<string>(),
+            ReadEnum(roleCharter["layout"], ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter),
+            roleCharter["useSharedContent"]?.GetValue<bool>() ?? true,
+            ReadRoleCharterEntries(roleCharter["roleStatements"] as JsonArray),
+            ReadRoleCharterEntries(roleCharter["charterItems"] as JsonArray));
+    }
+
+    private static IReadOnlyList<ProjectBriefingRoleCharterEntry> ReadRoleCharterEntries(JsonArray? array)
+        => array is null
+            ? Array.Empty<ProjectBriefingRoleCharterEntry>()
+            : array.OfType<JsonObject>()
+                .Select(item => new ProjectBriefingRoleCharterEntry(
+                    item["leadPhrase"]?.GetValue<string>() ?? string.Empty,
+                    item["text"]?.GetValue<string>() ?? string.Empty))
+                .ToArray();
+
+    private static IReadOnlyList<ProjectBriefingAdditionalSlideType> ReadAdditionalSlideOrder(JsonArray? array)
+    {
+        // Older deck JSON did not contain an additionalSlides node. Preserve the
+        // original SDD-profile behaviour only for that legacy case. An explicitly
+        // stored empty array means the user has removed every optional slide.
+        if (array is null)
+        {
+            return new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile };
+        }
+
+        return NormalizeAdditionalSlideOrder(ReadEnumArray<ProjectBriefingAdditionalSlideType>(array));
+    }
+
+    public static IReadOnlyList<ProjectBriefingAdditionalSlideType> NormalizeAdditionalSlideOrder(
+        IEnumerable<ProjectBriefingAdditionalSlideType>? order)
+        => (order ?? Array.Empty<ProjectBriefingAdditionalSlideType>())
+            .Where(ProjectBriefingAdditionalSlideCatalog.IsRegistered)
+            .Distinct()
+            .Take(8)
+            .ToArray();
 
     private static int? ReadNullableInt(JsonNode? node)
     {
@@ -461,43 +608,48 @@ public static class ProjectBriefingDeckConfigurationCodec
         return value.TryGetValue<int>(out var result) ? result : null;
     }
 
-    private static string Write(
-        string? selectionRulesJson,
-        ProjectBriefingUpdateSheetOptions updateSheetOptions,
-        ProjectBriefingStandardSlideOptions standardSlideOptions,
-        ProjectBriefingClosingSlideType closingSlideType,
-        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions)
+    private static string Write(ProjectBriefingDeckConfiguration configuration)
     {
         var normalizedUpdateSheet = ProjectBriefingUpdateSheetOptions.Normalize(
-            updateSheetOptions.Rows,
-            updateSheetOptions.HideEmptyValues);
+            configuration.UpdateSheetOptions.Rows,
+            configuration.UpdateSheetOptions.HideEmptyValues);
         var normalizedStandard = ProjectBriefingStandardSlideOptions.Normalize(
-            standardSlideOptions.ProjectBriefLayout,
-            standardSlideOptions.ShowPresentStage,
-            standardSlideOptions.ShowPresentStatus);
-        var normalizedClosingSlideType = Enum.IsDefined(closingSlideType)
-            ? closingSlideType
+            configuration.StandardSlideOptions.ProjectBriefLayout,
+            configuration.StandardSlideOptions.ShowPresentStage,
+            configuration.StandardSlideOptions.ShowPresentStatus);
+        var normalizedClosingSlideType = Enum.IsDefined(configuration.ClosingSlideType)
+            ? configuration.ClosingSlideType
             : ProjectBriefingClosingSlideType.JaiHind;
+        var profile = configuration.InstitutionalProfileOptions;
         var normalizedProfile = ProjectBriefingInstitutionalProfileOptions.Normalize(
-            institutionalProfileOptions.IncludeSlide,
-            institutionalProfileOptions.Title,
-            institutionalProfileOptions.IncludeHistory,
-            institutionalProfileOptions.HistoryMilestones,
-            institutionalProfileOptions.Modules,
-            institutionalProfileOptions.ProjectScope,
-            institutionalProfileOptions.MaximumDetailRows,
-            institutionalProfileOptions.TrainingHighlightTechnicalCategory,
-            institutionalProfileOptions.PartnershipEntries,
-            institutionalProfileOptions.IncludeFooterStrip,
-            institutionalProfileOptions.FooterStripText,
-            institutionalProfileOptions.FooterStripEmphasisValue,
-            institutionalProfileOptions.FooterStripStyle,
-            institutionalProfileOptions.FooterStripAlignment);
+            profile.IncludeSlide,
+            profile.Title,
+            profile.IncludeHistory,
+            profile.HistoryMilestones,
+            profile.Modules,
+            profile.ProjectScope,
+            profile.MaximumDetailRows,
+            profile.TrainingHighlightTechnicalCategory,
+            profile.PartnershipEntries,
+            profile.IncludeFooterStrip,
+            profile.FooterStripText,
+            profile.FooterStripEmphasisValue,
+            profile.FooterStripStyle,
+            profile.FooterStripAlignment);
+        var roleCharter = configuration.RoleCharterOptions;
+        var normalizedRoleCharter = ProjectBriefingRoleCharterOptions.Normalize(
+            roleCharter.IncludeSlide,
+            roleCharter.Title,
+            roleCharter.Layout,
+            roleCharter.UseSharedContent,
+            roleCharter.RoleStatements,
+            roleCharter.CharterItems);
+        var normalizedAdditionalSlideOrder = NormalizeAdditionalSlideOrder(configuration.AdditionalSlideOrder);
 
         var root = new JsonObject
         {
             ["schema"] = Schema,
-            ["selectionRules"] = ParseOptionalNode(selectionRulesJson),
+            ["selectionRules"] = ParseOptionalNode(configuration.SelectionRulesJson),
             ["updateSheet"] = new JsonObject
             {
                 ["rows"] = ToEnumArray(normalizedUpdateSheet.Rows),
@@ -534,11 +686,28 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ["footerStripEmphasisValue"] = normalizedProfile.FooterStripEmphasisValue,
                 ["footerStripStyle"] = normalizedProfile.FooterStripStyle.ToString(),
                 ["footerStripAlignment"] = normalizedProfile.FooterStripAlignment.ToString()
-            }
+            },
+            ["roleCharter"] = new JsonObject
+            {
+                ["includeSlide"] = normalizedRoleCharter.IncludeSlide,
+                ["title"] = normalizedRoleCharter.Title,
+                ["layout"] = normalizedRoleCharter.Layout.ToString(),
+                ["useSharedContent"] = normalizedRoleCharter.UseSharedContent,
+                ["roleStatements"] = ToRoleCharterEntryArray(normalizedRoleCharter.RoleStatements),
+                ["charterItems"] = ToRoleCharterEntryArray(normalizedRoleCharter.CharterItems)
+            },
+            ["additionalSlides"] = ToEnumArray(normalizedAdditionalSlideOrder)
         };
 
         return root.ToJsonString(JsonOptions);
     }
+
+    private static JsonArray ToRoleCharterEntryArray(IEnumerable<ProjectBriefingRoleCharterEntry> entries)
+        => new(entries.Select(item => (JsonNode?)new JsonObject
+        {
+            ["leadPhrase"] = item.LeadPhrase,
+            ["text"] = item.Text
+        }).ToArray());
 
     private static TEnum ReadEnum<TEnum>(JsonNode? node, TEnum fallback)
         where TEnum : struct, Enum

@@ -1988,6 +1988,55 @@ public sealed class ProjectBriefingSlideComposerTests
                .Val?.Value
            ?? string.Empty;
 
+    [Fact]
+    public void Compose_RoleAndCharter_UsesConfiguredOrderGroupedShapesAndContinuationSlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var charterItems = Enumerable.Range(1, 13)
+            .Select(index => new ProjectBriefingRoleCharterEntry(
+                $"Charter {index}",
+                $"Authorised charter responsibility number {index}"))
+            .ToArray();
+        var roleCharter = new ProjectBriefingRoleCharterData
+        {
+            Title = "Role & Charter",
+            Layout = ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter,
+            RoleStatements = new[]
+            {
+                new ProjectBriefingRoleCharterEntry(
+                    "Nodal Centre",
+                    "Development of specified simulators, robotics and AI products for the Indian Army")
+            },
+            CharterItems = charterItems
+        };
+
+        var (content, slideCount) = composer.Compose(BuildData(
+            roleCharter: roleCharter,
+            additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.RoleAndCharter }));
+
+        Assert.Equal(10, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var roleSlides = slides
+            .Where(slide => SlideText(slide).Contains("ROLE & CHARTER", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.Equal(2, roleSlides.Length);
+        Assert.Contains("Nodal Centre", SlideText(roleSlides[0]), StringComparison.Ordinal);
+        Assert.Contains("CHARTER — CONTINUED", SlideText(roleSlides[1]), StringComparison.Ordinal);
+        Assert.All(roleSlides, slide => Assert.Empty(slide.Slide.Descendants<A.Table>()));
+        Assert.All(roleSlides, slide => Assert.NotEmpty(slide.Slide.Descendants<P.GroupShape>()));
+        Assert.Equal("F8E8E8", ShapeFillColor(ShapeByName(roleSlides[0], "Role panel background")));
+
+        var allText = slides.Select(SlideText).ToArray();
+        var coverIndex = Array.FindIndex(allText, text => text.Contains("QUARTERLY COMMAND REVIEW", StringComparison.Ordinal));
+        var roleIndex = Array.FindIndex(allText, text => text.Contains("ROLE & CHARTER", StringComparison.OrdinalIgnoreCase));
+        var summaryIndex = Array.FindIndex(allText, text => text.Contains("PORTFOLIO AT A GLANCE", StringComparison.OrdinalIgnoreCase));
+        Assert.True(coverIndex >= 0 && roleIndex > coverIndex && summaryIndex > roleIndex);
+    }
+
     private static int MaxShapeFontSize(P.Shape shape)
         => shape
             .Descendants<A.RunProperties>()
@@ -2023,7 +2072,9 @@ public sealed class ProjectBriefingSlideComposerTests
 
     private static ProjectBriefingPresentationData BuildData(
         ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
-        ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides)
+        ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides,
+        ProjectBriefingRoleCharterData? roleCharter = null,
+        IReadOnlyList<ProjectBriefingAdditionalSlideType>? additionalSlideOrder = null)
     {
         var projects = new[]
         {
@@ -2074,6 +2125,9 @@ public sealed class ProjectBriefingSlideComposerTests
             CostMode = ProjectBriefingCostMode.Both,
             PresentationTheme = presentationTheme,
             BrandingScope = brandingScope,
+            AdditionalSlideOrder = additionalSlideOrder
+                ?? new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile },
+            RoleCharter = roleCharter,
             IncludeStageSummary = true,
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero),
             Projects = projects,

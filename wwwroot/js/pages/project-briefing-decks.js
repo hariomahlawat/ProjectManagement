@@ -559,8 +559,9 @@ if (root) {
   };
 
   const syncInstitutionalProfileSettings = () => {
-    const enabled = Boolean(institutionalProfileEnable?.checked);
-    if (institutionalProfileSettings) institutionalProfileSettings.hidden = !enabled;
+    // Inclusion is controlled exclusively from the Additional Slides workspace.
+    // Keep the focused editor available so a disabled slide can be configured before it is enabled.
+    if (institutionalProfileSettings) institutionalProfileSettings.hidden = false;
     if (institutionalHistoryFields) institutionalHistoryFields.hidden = !institutionalHistoryEnable?.checked;
     if (institutionalFooterFields) institutionalFooterFields.hidden = !institutionalFooterEnable?.checked;
     validateInstitutionalProfile();

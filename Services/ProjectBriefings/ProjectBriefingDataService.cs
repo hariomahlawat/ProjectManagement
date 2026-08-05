@@ -77,6 +77,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             PresentationTheme = snapshot.PresentationTheme,
             ClosingSlideType = snapshot.ClosingSlideType,
             InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
+            RoleCharterOptions = snapshot.RoleCharterOptions,
+            AdditionalSlideOrder = snapshot.AdditionalSlideOrder,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
@@ -93,7 +95,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Readiness = BuildReadiness(projects),
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
-                snapshot.IncludeTechnicalCategorySummary, snapshot.InstitutionalProfileOptions.IncludeSlide,
+                snapshot.IncludeTechnicalCategorySummary, snapshot.InstitutionalProfileOptions,
+                snapshot.RoleCharterOptions, snapshot.AdditionalSlideOrder,
                 snapshot.CostMode, snapshot.NarrativeMode, projects)
         };
     }
@@ -149,9 +152,14 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             }));
 
         var summary = BuildPresentationSummary(projects);
-        var institutionalProfile = await _institutionalProfileService.BuildAsync(
-            snapshot.InstitutionalProfileOptions,
-            cancellationToken);
+        var institutionalProfile = snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+            ? await _institutionalProfileService.BuildAsync(
+                snapshot.InstitutionalProfileOptions,
+                cancellationToken)
+            : null;
+        var roleCharter = snapshot.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.RoleAndCharter)
+            ? BuildRoleCharterData(snapshot.RoleCharterOptions)
+            : null;
         return new ProjectBriefingPresentationData
         {
             DeckId = snapshot.Id,
@@ -169,6 +177,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             PresentationTheme = snapshot.PresentationTheme,
             ClosingSlideType = snapshot.ClosingSlideType,
             InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
+            RoleCharterOptions = snapshot.RoleCharterOptions,
+            AdditionalSlideOrder = snapshot.AdditionalSlideOrder,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
@@ -180,7 +190,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
             Projects = projects,
             Summary = summary,
-            InstitutionalProfile = institutionalProfile
+            InstitutionalProfile = institutionalProfile,
+            RoleCharter = roleCharter
         };
     }
 
@@ -238,6 +249,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var standardSlideOptions = deckConfiguration.StandardSlideOptions;
         var closingSlideType = deckConfiguration.ClosingSlideType;
         var institutionalProfileOptions = deckConfiguration.InstitutionalProfileOptions;
+        var roleCharterOptions = deckConfiguration.RoleCharterOptions;
+        var additionalSlideOrder = deckConfiguration.AdditionalSlideOrder;
 
         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
             .AsNoTracking()
@@ -285,6 +298,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 standardSlideOptions,
                 closingSlideType,
                 institutionalProfileOptions,
+                roleCharterOptions,
+                additionalSlideOrder,
                 deck.HandlingMarking,
                 deck.UpdatedAtUtc,
                 deck.CreatedByDisplay,
@@ -397,6 +412,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             standardSlideOptions,
             closingSlideType,
             institutionalProfileOptions,
+            roleCharterOptions,
+            additionalSlideOrder,
             deck.HandlingMarking,
             deck.UpdatedAtUtc,
             deck.CreatedByDisplay,
@@ -689,15 +706,23 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool includeStageSummary,
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
-        bool includeInstitutionalProfile,
+        ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions,
+        ProjectBriefingRoleCharterOptions roleCharterOptions,
+        IReadOnlyList<ProjectBriefingAdditionalSlideType> additionalSlideOrder,
         ProjectBriefingCostMode costMode,
         ProjectBriefingNarrativeMode narrativeMode,
         IReadOnlyList<ProjectBriefingProjectVm> projects)
     {
         var coverAndPortfolioSlides = (includeCoverSlide ? 1 : 0)
             + (includePortfolioSummarySlide ? 1 : 0);
-        var institutionalProfileSlides = includeInstitutionalProfile ? 1 : 0;
-        var introductorySlides = coverAndPortfolioSlides + institutionalProfileSlides;
+        var institutionalProfileSlides = institutionalProfileOptions.IncludeSlide
+            && additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+                ? 1
+                : 0;
+        var roleCharterSlides = additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.RoleAndCharter)
+            ? EstimateRoleCharterSlides(roleCharterOptions)
+            : 0;
+        var introductorySlides = coverAndPortfolioSlides + institutionalProfileSlides + roleCharterSlides;
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
             var projectUpdateSheetSlides = projects.Sum(EstimateProjectUpdateSheetSlides);
@@ -706,6 +731,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 CoverAndPortfolioSlides = coverAndPortfolioSlides,
                 ProjectUpdateSheetSlides = projectUpdateSheetSlides,
                 InstitutionalProfileSlides = institutionalProfileSlides,
+                RoleCharterSlides = roleCharterSlides,
                 ClosingSlides = 1,
                 TotalSlides = introductorySlides + projectUpdateSheetSlides + 1
             };
@@ -765,6 +791,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             CapabilityContinuationSlides = capabilityContinuationSlides,
             ProjectBriefSlides = projectBriefSlides,
             InstitutionalProfileSlides = institutionalProfileSlides,
+            RoleCharterSlides = roleCharterSlides,
             ClosingSlides = 1,
             TotalSlides = introductorySlides
                 + summarySlides
@@ -774,6 +801,45 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 + projectBriefSlides
                 + 1
         };
+    }
+
+    private static ProjectBriefingRoleCharterData? BuildRoleCharterData(
+        ProjectBriefingRoleCharterOptions options)
+    {
+        var normalized = ProjectBriefingRoleCharterOptions.Normalize(
+            options.IncludeSlide,
+            options.Title,
+            options.Layout,
+            options.UseSharedContent,
+            options.RoleStatements,
+            options.CharterItems);
+        if (!normalized.IncludeSlide)
+        {
+            return null;
+        }
+
+        return new ProjectBriefingRoleCharterData
+        {
+            Title = normalized.Title,
+            Layout = normalized.Layout,
+            RoleStatements = normalized.Layout == ProjectBriefingRoleCharterLayout.CharterOnly
+                ? Array.Empty<ProjectBriefingRoleCharterEntry>()
+                : normalized.RoleStatements,
+            CharterItems = normalized.CharterItems
+        };
+    }
+
+    private static int EstimateRoleCharterSlides(ProjectBriefingRoleCharterOptions options)
+    {
+        if (!options.IncludeSlide)
+        {
+            return 0;
+        }
+
+        const int firstSlideCapacity = 10;
+        const int continuationCapacity = 12;
+        var remaining = Math.Max(0, options.CharterItems.Count - firstSlideCapacity);
+        return 1 + (int)Math.Ceiling(remaining / (double)continuationCapacity);
     }
 
     private static int EstimateProjectUpdateSheetSlides(ProjectBriefingProjectVm project)
@@ -911,6 +977,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingStandardSlideOptions StandardSlideOptions,
         ProjectBriefingClosingSlideType ClosingSlideType,
         ProjectBriefingInstitutionalProfileOptions InstitutionalProfileOptions,
+        ProjectBriefingRoleCharterOptions RoleCharterOptions,
+        IReadOnlyList<ProjectBriefingAdditionalSlideType> AdditionalSlideOrder,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
         string CreatedByDisplay,

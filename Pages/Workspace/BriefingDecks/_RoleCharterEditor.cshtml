@@ -1,0 +1,166 @@
+@model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
+@using ProjectManagement.Models.ProjectBriefings
+@using ProjectManagement.Services.ProjectBriefings
+@{
+    var deck = Model.SelectedDeck!;
+    var options = deck.RoleCharterOptions;
+    var roleLines = string.Join(Environment.NewLine, options.RoleStatements.Select(item => $"{item.LeadPhrase}\t{item.Text}"));
+    var charterLines = string.Join(Environment.NewLine, options.CharterItems.Select(item => $"{item.LeadPhrase}\t{item.Text}"));
+}
+
+<div class="pbd-role-charter-backdrop" data-pbd-role-charter-backdrop hidden></div>
+<aside id="pbd-role-charter-drawer"
+       class="pbd-profile-drawer pbd-role-charter-drawer"
+       data-pbd-role-charter-drawer
+       data-pbd-role-charter-reopen="@Model.ReopenRoleCharter.ToString().ToLowerInvariant()"
+       aria-labelledby="pbd-role-charter-drawer-title"
+       aria-hidden="true">
+    <form method="post" asp-page-handler="SaveRoleCharter" data-pbd-role-charter-form>
+        <input type="hidden" name="DeckId" value="@deck.Id" />
+        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+        <header class="pbd-profile-drawer__header">
+            <div>
+                <span class="pbd-eyebrow">Additional slide</span>
+                <h3 id="pbd-role-charter-drawer-title">Configure Role &amp; Charter</h3>
+                <p>Use the shared authorised content or create a deck-specific selection without changing the institutional master.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-pbd-role-charter-close aria-label="Close Role and Charter editor">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="pbd-profile-drawer__body">
+            <input type="checkbox"
+                   name="IncludeRoleCharter"
+                   value="true"
+                   checked="@options.IncludeSlide"
+                   data-pbd-role-charter-enable
+                   hidden />
+            <div class="pbd-additional-slide-editor-context">
+                <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
+                <span>
+                    <strong>@(options.IncludeSlide ? "Included in this deck" : "Currently disabled")</strong>
+                    <small>Enable, disable and arrange this slide from the Additional Slides workspace.</small>
+                </span>
+            </div>
+
+            <section class="pbd-role-charter-section" data-pbd-role-charter-settings>
+                <div class="pbd-form-grid pbd-form-grid--institutional">
+                    <label class="form-label pbd-form-grid__wide">
+                        <span>Slide title</span>
+                        <input class="form-control"
+                               name="RoleCharterTitle"
+                               value="@options.Title"
+                               maxlength="120" />
+                    </label>
+                    <label class="form-label">
+                        <span>Layout</span>
+                        <select class="form-select" name="RoleCharterLayout">
+                            <option value="@ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter" selected="@(options.Layout == ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter)">Role + two-column charter — recommended</option>
+                            <option value="@ProjectBriefingRoleCharterLayout.RoleAndSingleColumnCharter" selected="@(options.Layout == ProjectBriefingRoleCharterLayout.RoleAndSingleColumnCharter)">Role + single-column charter</option>
+                            <option value="@ProjectBriefingRoleCharterLayout.CharterOnly" selected="@(options.Layout == ProjectBriefingRoleCharterLayout.CharterOnly)">Charter only</option>
+                        </select>
+                    </label>
+                </div>
+
+                <fieldset class="pbd-choice-group pbd-role-charter-source">
+                    <legend>Content source</legend>
+                    <label class="pbd-choice-card">
+                        <input type="radio"
+                               name="UseSharedRoleCharterContent"
+                               value="true"
+                               checked="@options.UseSharedContent"
+                               data-pbd-role-charter-shared />
+                        <span>
+                            <strong>Use shared authorised content</strong>
+                            <small>Recommended. Uses the approved institutional role and charter maintained by PRISM.</small>
+                        </span>
+                    </label>
+                    <label class="pbd-choice-card">
+                        <input type="radio"
+                               name="UseSharedRoleCharterContent"
+                               value="false"
+                               checked="@(!options.UseSharedContent)"
+                               data-pbd-role-charter-custom />
+                        <span>
+                            <strong>Customise for this deck</strong>
+                            <small>Creates a deck-specific copy. The shared authorised content remains unchanged.</small>
+                        </span>
+                    </label>
+                </fieldset>
+
+                <div class="pbd-role-charter-shared-summary" data-pbd-role-charter-shared-summary hidden="@(!options.UseSharedContent)">
+                    <i class="bi bi-shield-check" aria-hidden="true"></i>
+                    <span>
+                        <strong>Shared authorised content</strong>
+                        <small>@ProjectBriefingRoleCharterOptions.SharedRoleStatements.Count role statements · @ProjectBriefingRoleCharterOptions.SharedCharterItems.Count charter items</small>
+                    </span>
+                </div>
+
+                <div class="pbd-role-charter-custom-content" data-pbd-role-charter-custom-content hidden="@options.UseSharedContent">
+                    <section class="pbd-institutional-list-editor" data-pbd-role-editor>
+                        <textarea name="RoleStatementLines" data-pbd-role-lines hidden>@roleLines</textarea>
+                        <div class="pbd-institutional-list-editor__heading">
+                            <span><strong>Role statements</strong><small>Lead phrase and authorised statement are formatted separately on the slide.</small></span>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-role-add>
+                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add statement
+                            </button>
+                        </div>
+                        <div class="pbd-institutional-list-editor__items" data-pbd-role-list>
+                            @foreach (var item in options.RoleStatements)
+                            {
+                                <div class="pbd-role-charter-entry" data-pbd-role-item>
+                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                    <input class="form-control pbd-role-charter-entry__lead" value="@item.LeadPhrase" maxlength="60" placeholder="Lead phrase" data-pbd-role-lead />
+                                    <input class="form-control" value="@item.Text" maxlength="240" placeholder="Authorised role statement" data-pbd-role-text />
+                                    <span class="pbd-institutional-list-editor__actions">
+                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move role statement up"><i class="bi bi-arrow-up"></i></button>
+                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move role statement down"><i class="bi bi-arrow-down"></i></button>
+                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove role statement"><i class="bi bi-trash"></i></button>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </section>
+
+                    <section class="pbd-institutional-list-editor" data-pbd-charter-editor>
+                        <textarea name="CharterItemLines" data-pbd-charter-lines hidden>@charterLines</textarea>
+                        <div class="pbd-institutional-list-editor__heading">
+                            <span><strong>Charter items</strong><small>Up to ten normal items fit on the first slide; excess content generates a continuation slide.</small></span>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-charter-add>
+                                <i class="bi bi-plus-lg" aria-hidden="true"></i> Add item
+                            </button>
+                        </div>
+                        <div class="pbd-institutional-list-editor__items" data-pbd-charter-list>
+                            @foreach (var item in options.CharterItems)
+                            {
+                                <div class="pbd-role-charter-entry" data-pbd-charter-item>
+                                    <span class="pbd-institutional-list-editor__handle" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+                                    <input class="form-control pbd-role-charter-entry__lead" value="@item.LeadPhrase" maxlength="60" placeholder="Lead phrase" data-pbd-charter-lead />
+                                    <input class="form-control" value="@item.Text" maxlength="240" placeholder="Charter detail" data-pbd-charter-text />
+                                    <span class="pbd-institutional-list-editor__actions">
+                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-up aria-label="Move charter item up"><i class="bi bi-arrow-up"></i></button>
+                                        <button type="button" class="btn btn-sm btn-light" data-pbd-list-down aria-label="Move charter item down"><i class="bi bi-arrow-down"></i></button>
+                                        <button type="button" class="btn btn-sm btn-light text-danger" data-pbd-list-remove aria-label="Remove charter item"><i class="bi bi-trash"></i></button>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+
+                <p class="pbd-institutional-profile-validation" data-pbd-role-charter-validation hidden>
+                    Add at least one charter item and, unless Charter only is selected, at least one role statement.
+                </p>
+            </section>
+        </div>
+
+        <footer class="pbd-profile-drawer__footer">
+            <span data-pbd-role-charter-status>No unsaved Role &amp; Charter changes</span>
+            <div>
+                <button type="button" class="btn btn-outline-secondary" data-pbd-role-charter-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" data-pbd-role-charter-save disabled>Save slide</button>
+            </div>
+        </footer>
+    </form>
+</aside>

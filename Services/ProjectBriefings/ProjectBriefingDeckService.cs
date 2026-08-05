@@ -41,6 +41,36 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task UpdateRoleCharterAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingRoleCharterOptions options,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
+    Task ToggleAdditionalSlideAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingAdditionalSlideType slideType,
+        bool enabled,
+        bool ensureAdded,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateAdditionalSlideOrderAsync(
+        long deckId,
+        string requestingUserId,
+        IReadOnlyList<ProjectBriefingAdditionalSlideType> order,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveAdditionalSlideAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingAdditionalSlideType slideType,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task<int> AddProjectsAsync(
         long deckId,
         string requestingUserId,
@@ -377,6 +407,25 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
     }
 
+    private static void ValidateRoleCharter(ProjectBriefingRoleCharterOptions options)
+    {
+        if (!options.IncludeSlide)
+        {
+            return;
+        }
+
+        if (options.Layout != ProjectBriefingRoleCharterLayout.CharterOnly
+            && options.RoleStatements.Count == 0)
+        {
+            throw new InvalidOperationException("Add at least one role statement or choose the Charter-only layout.");
+        }
+
+        if (options.CharterItems.Count == 0)
+        {
+            throw new InvalidOperationException("Add at least one charter item for the Role & Charter slide.");
+        }
+    }
+
     public async Task UpdateInstitutionalProfileAsync(
         long deckId,
         string requestingUserId,
@@ -407,9 +456,18 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             options.FooterStripAlignment);
 
         ValidateInstitutionalProfile(normalized);
-        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var order = normalized.IncludeSlide
+            && !configuration.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+                ? configuration.AdditionalSlideOrder
+                    .Prepend(ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+                    .ToArray()
+                : configuration.AdditionalSlideOrder;
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
             deck.SelectionRulesJson,
-            normalized);
+            normalized,
+            configuration.RoleCharterOptions,
+            order);
         Touch(deck, userId);
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -418,6 +476,230 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             userId,
             deck,
             "SDD institutional profile slide configuration updated.");
+    }
+
+    public async Task UpdateRoleCharterAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingRoleCharterOptions options,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+
+        EnsureVersion(deck, rowVersion);
+        var normalized = ProjectBriefingRoleCharterOptions.Normalize(
+            options.IncludeSlide,
+            options.Title,
+            options.Layout,
+            options.UseSharedContent,
+            options.RoleStatements,
+            options.CharterItems);
+        ValidateRoleCharter(normalized);
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var order = normalized.IncludeSlide
+            && !configuration.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.RoleAndCharter)
+                ? configuration.AdditionalSlideOrder
+                    .Append(ProjectBriefingAdditionalSlideType.RoleAndCharter)
+                    .ToArray()
+                : configuration.AdditionalSlideOrder;
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            configuration.InstitutionalProfileOptions,
+            normalized,
+            order);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.RoleCharterUpdated",
+            userId,
+            deck,
+            "Role & Charter additional slide configuration updated.");
+    }
+
+    public async Task ToggleAdditionalSlideAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingAdditionalSlideType slideType,
+        bool enabled,
+        bool ensureAdded,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ProjectBriefingAdditionalSlideCatalog.IsRegistered(slideType))
+        {
+            throw new InvalidOperationException("The selected additional slide type is not registered.");
+        }
+
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var profile = configuration.InstitutionalProfileOptions;
+        var roleCharter = configuration.RoleCharterOptions;
+        switch (slideType)
+        {
+            case ProjectBriefingAdditionalSlideType.InstitutionalProfile:
+                profile = ProjectBriefingInstitutionalProfileOptions.Normalize(
+                    enabled,
+                    profile.Title,
+                    profile.IncludeHistory,
+                    profile.HistoryMilestones,
+                    profile.Modules,
+                    profile.ProjectScope,
+                    profile.MaximumDetailRows,
+                    profile.TrainingHighlightTechnicalCategory,
+                    profile.PartnershipEntries,
+                    profile.IncludeFooterStrip,
+                    profile.FooterStripText,
+                    profile.FooterStripEmphasisValue,
+                    profile.FooterStripStyle,
+                    profile.FooterStripAlignment);
+                ValidateInstitutionalProfile(profile);
+                break;
+            case ProjectBriefingAdditionalSlideType.RoleAndCharter:
+                roleCharter = ProjectBriefingRoleCharterOptions.Normalize(
+                    enabled,
+                    roleCharter.Title,
+                    roleCharter.Layout,
+                    roleCharter.UseSharedContent,
+                    roleCharter.RoleStatements,
+                    roleCharter.CharterItems);
+                ValidateRoleCharter(roleCharter);
+                break;
+        }
+
+        var order = configuration.AdditionalSlideOrder.ToList();
+        if ((ensureAdded || enabled) && !order.Contains(slideType))
+        {
+            order.Add(slideType);
+        }
+
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            profile,
+            roleCharter,
+            order);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            enabled ? "ProjectBriefing.AdditionalSlideEnabled" : "ProjectBriefing.AdditionalSlideDisabled",
+            userId,
+            deck,
+            $"{slideType} additional slide {(enabled ? "enabled" : "disabled")}.");
+    }
+
+    public async Task UpdateAdditionalSlideOrderAsync(
+        long deckId,
+        string requestingUserId,
+        IReadOnlyList<ProjectBriefingAdditionalSlideType> order,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var normalized = ProjectBriefingDeckConfigurationCodec.NormalizeAdditionalSlideOrder(order);
+        if (configuration.AdditionalSlideOrder.Count != normalized.Count
+            || configuration.AdditionalSlideOrder.Except(normalized).Any()
+            || normalized.Except(configuration.AdditionalSlideOrder).Any())
+        {
+            throw new InvalidOperationException("The additional-slide order must contain every configured slide exactly once.");
+        }
+
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            configuration.InstitutionalProfileOptions,
+            configuration.RoleCharterOptions,
+            normalized);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.AdditionalSlidesReordered",
+            userId,
+            deck,
+            "Additional slide order updated.");
+    }
+
+
+    public async Task RemoveAdditionalSlideAsync(
+        long deckId,
+        string requestingUserId,
+        ProjectBriefingAdditionalSlideType slideType,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ProjectBriefingAdditionalSlideCatalog.IsRegistered(slideType))
+        {
+            throw new InvalidOperationException("The selected additional slide type is not registered.");
+        }
+
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var profile = configuration.InstitutionalProfileOptions;
+        var roleCharter = configuration.RoleCharterOptions;
+        switch (slideType)
+        {
+            case ProjectBriefingAdditionalSlideType.InstitutionalProfile:
+                profile = ProjectBriefingInstitutionalProfileOptions.Normalize(
+                    false,
+                    profile.Title,
+                    profile.IncludeHistory,
+                    profile.HistoryMilestones,
+                    profile.Modules,
+                    profile.ProjectScope,
+                    profile.MaximumDetailRows,
+                    profile.TrainingHighlightTechnicalCategory,
+                    profile.PartnershipEntries,
+                    profile.IncludeFooterStrip,
+                    profile.FooterStripText,
+                    profile.FooterStripEmphasisValue,
+                    profile.FooterStripStyle,
+                    profile.FooterStripAlignment);
+                break;
+            case ProjectBriefingAdditionalSlideType.RoleAndCharter:
+                roleCharter = ProjectBriefingRoleCharterOptions.Normalize(
+                    false,
+                    roleCharter.Title,
+                    roleCharter.Layout,
+                    roleCharter.UseSharedContent,
+                    roleCharter.RoleStatements,
+                    roleCharter.CharterItems);
+                break;
+        }
+
+        var order = configuration.AdditionalSlideOrder
+            .Where(candidate => candidate != slideType)
+            .ToArray();
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            deck.SelectionRulesJson,
+            profile,
+            roleCharter,
+            order);
+        Touch(deck, userId);
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.AdditionalSlideRemoved",
+            userId,
+            deck,
+            $"{slideType} additional slide removed from the deck structure.");
     }
 
     public async Task<int> AddProjectsAsync(

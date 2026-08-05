@@ -106,6 +106,26 @@ public enum ProjectBriefingInstitutionalFooterAlignment
 }
 
 /// <summary>
+/// Registered optional slide types supported by the Briefing Deck Builder.
+/// Their order in the deck is stored independently from each slide's enabled state.
+/// </summary>
+public enum ProjectBriefingAdditionalSlideType
+{
+    InstitutionalProfile = 1,
+    RoleAndCharter = 2
+}
+
+/// <summary>
+/// Approved compositions for the Role &amp; Charter additional slide.
+/// </summary>
+public enum ProjectBriefingRoleCharterLayout
+{
+    RoleAndTwoColumnCharter = 1,
+    RoleAndSingleColumnCharter = 2,
+    CharterOnly = 3
+}
+
+/// <summary>
 /// Logical information rows available on each formal Project Update Sheet.
 /// Project name is always rendered as the slide title and is therefore not a selectable table row.
 /// </summary>

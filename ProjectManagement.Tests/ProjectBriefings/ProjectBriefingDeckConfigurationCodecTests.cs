@@ -320,4 +320,79 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal("03", decoded.InstitutionalProfileOptions.FooterStripEmphasisValue);
     }
 
+    [Fact]
+    public void RoleCharterAndAdditionalSlideOrder_RoundTripWithoutLosingSharedOrCustomContent()
+    {
+        var roleCharter = ProjectBriefingRoleCharterOptions.Normalize(
+            includeSlide: true,
+            title: "Role & Charter",
+            layout: ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter,
+            useSharedContent: false,
+            roleStatements: new[]
+            {
+                new ProjectBriefingRoleCharterEntry("Nodal Centre", "Development of specified simulators")
+            },
+            charterItems: new[]
+            {
+                new ProjectBriefingRoleCharterEntry("Repository", "Information related to simulators and AI"),
+                new ProjectBriefingRoleCharterEntry("Facilitator", "QR, feasibility study and scope of work")
+            });
+        var profile = ProjectBriefingInstitutionalProfileOptions.Default;
+
+        var encoded = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
+            null,
+            profile,
+            roleCharter,
+            new[]
+            {
+                ProjectBriefingAdditionalSlideType.RoleAndCharter,
+                ProjectBriefingAdditionalSlideType.InstitutionalProfile
+            });
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
+
+        Assert.True(decoded.RoleCharterOptions.IncludeSlide);
+        Assert.False(decoded.RoleCharterOptions.UseSharedContent);
+        Assert.Equal(roleCharter.RoleStatements, decoded.RoleCharterOptions.RoleStatements);
+        Assert.Equal(roleCharter.CharterItems, decoded.RoleCharterOptions.CharterItems);
+        Assert.Equal(
+            new[]
+            {
+                ProjectBriefingAdditionalSlideType.RoleAndCharter,
+                ProjectBriefingAdditionalSlideType.InstitutionalProfile
+            },
+            decoded.AdditionalSlideOrder);
+    }
+
+    [Fact]
+    public void AdditionalSlideOrder_ExplicitEmptyArrayRemainsEmptyWhileLegacyJsonGetsProfileCompatibility()
+    {
+        var legacy = ProjectBriefingDeckConfigurationCodec.Read("{\"kind\":\"Ongoing\"}");
+        Assert.Equal(
+            new[] { ProjectBriefingAdditionalSlideType.InstitutionalProfile },
+            legacy.AdditionalSlideOrder);
+
+        var encoded = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlideOrder(
+            null,
+            Array.Empty<ProjectBriefingAdditionalSlideType>());
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
+
+        Assert.Empty(decoded.AdditionalSlideOrder);
+    }
+
+    [Fact]
+    public void RoleCharterCustomContent_DoesNotSilentlyFallBackToSharedAuthorisedContent()
+    {
+        var options = ProjectBriefingRoleCharterOptions.Normalize(
+            includeSlide: true,
+            title: "Role & Charter",
+            layout: ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter,
+            useSharedContent: false,
+            roleStatements: Array.Empty<ProjectBriefingRoleCharterEntry>(),
+            charterItems: Array.Empty<ProjectBriefingRoleCharterEntry>());
+
+        Assert.False(options.UseSharedContent);
+        Assert.Empty(options.RoleStatements);
+        Assert.Empty(options.CharterItems);
+    }
+
 }

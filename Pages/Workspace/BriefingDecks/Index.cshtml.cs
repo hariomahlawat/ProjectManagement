@@ -59,6 +59,9 @@ public sealed class IndexModel : PageModel
     [TempData]
     public bool ReopenInstitutionalProfile { get; set; }
 
+    [TempData]
+    public bool ReopenRoleCharter { get; set; }
+
     public async Task<IActionResult> OnGetAsync(long? deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
@@ -159,24 +162,8 @@ public sealed class IndexModel : PageModel
                 includeItems: false,
                 cancellationToken)
                 ?? throw new KeyNotFoundException("The shared command deck was not found.");
-            var existingProfile = ProjectBriefingDeckConfigurationCodec
-                .Read(existingDeck.SelectionRulesJson)
-                .InstitutionalProfileOptions;
-            var preservedProfile = ProjectBriefingInstitutionalProfileOptions.Normalize(
-                input.IncludeInstitutionalProfile,
-                existingProfile.Title,
-                existingProfile.IncludeHistory,
-                existingProfile.HistoryMilestones,
-                existingProfile.Modules,
-                existingProfile.ProjectScope,
-                existingProfile.MaximumDetailRows,
-                existingProfile.TrainingHighlightTechnicalCategory,
-                existingProfile.PartnershipEntries,
-                existingProfile.IncludeFooterStrip,
-                existingProfile.FooterStripText,
-                existingProfile.FooterStripEmphasisValue,
-                existingProfile.FooterStripStyle,
-                existingProfile.FooterStripAlignment);
+            var additionalSlides = ProjectBriefingDeckConfigurationCodec
+                .Read(existingDeck.SelectionRulesJson);
 
             await _deckService.UpdateSettingsAsync(
                 input.DeckId,
@@ -194,7 +181,9 @@ public sealed class IndexModel : PageModel
                     ShowPresentStatus = input.ShowPresentStatus,
                     PresentationTheme = input.PresentationTheme,
                     ClosingSlideType = input.ClosingSlideType,
-                    InstitutionalProfileOptions = preservedProfile,
+                    InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions,
+                    RoleCharterOptions = additionalSlides.RoleCharterOptions,
+                    AdditionalSlideOrder = additionalSlides.AdditionalSlideOrder,
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
@@ -325,6 +314,196 @@ public sealed class IndexModel : PageModel
             ReopenInstitutionalProfile = enabled;
         }
         catch (KeyNotFoundException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage(new { deckId });
+    }
+
+    public async Task<IActionResult> OnPostSaveRoleCharterAsync(
+        [FromForm] SaveRoleCharterInput input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (!ModelState.IsValid)
+        {
+            ErrorMessage = FirstModelError("Review the Role & Charter slide and try again.");
+            ReopenRoleCharter = true;
+            return RedirectToPage(new { deckId = input.DeckId });
+        }
+
+        try
+        {
+            var options = ProjectBriefingRoleCharterOptions.Normalize(
+                input.IncludeRoleCharter,
+                input.RoleCharterTitle,
+                input.RoleCharterLayout,
+                input.UseSharedRoleCharterContent,
+                ParseRoleCharterEntries(input.RoleStatementLines),
+                ParseRoleCharterEntries(input.CharterItemLines));
+            await _deckService.UpdateRoleCharterAsync(
+                input.DeckId,
+                userId,
+                options,
+                input.RowVersion,
+                cancellationToken);
+            StatusMessage = "Role & Charter slide saved.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload before saving Role & Charter.";
+            ReopenRoleCharter = true;
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+            ReopenRoleCharter = true;
+        }
+
+        return RedirectToPage(new { deckId = input.DeckId });
+    }
+
+    public async Task<IActionResult> OnPostToggleAdditionalSlideAsync(
+        long deckId,
+        ProjectBriefingAdditionalSlideType slideType,
+        bool enabled,
+        bool ensureAdded,
+        string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            await _deckService.ToggleAdditionalSlideAsync(
+                deckId,
+                userId,
+                slideType,
+                enabled,
+                ensureAdded,
+                rowVersion,
+                cancellationToken);
+            StatusMessage = enabled
+                ? $"{AdditionalSlideLabel(slideType)} added to the deck."
+                : $"{AdditionalSlideLabel(slideType)} disabled.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload and try again.";
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+            ReopenInstitutionalProfile = enabled && slideType == ProjectBriefingAdditionalSlideType.InstitutionalProfile;
+            ReopenRoleCharter = enabled && slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter;
+        }
+
+        return RedirectToPage(new { deckId });
+    }
+
+    public async Task<IActionResult> OnPostMoveAdditionalSlideAsync(
+        long deckId,
+        ProjectBriefingAdditionalSlideType slideType,
+        string direction,
+        string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+                ?? throw new KeyNotFoundException("The shared command deck was not found.");
+            var order = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).AdditionalSlideOrder.ToList();
+            var index = order.IndexOf(slideType);
+            var target = string.Equals(direction, "up", StringComparison.OrdinalIgnoreCase)
+                ? index - 1
+                : index + 1;
+            if (index >= 0 && target >= 0 && target < order.Count)
+            {
+                (order[index], order[target]) = (order[target], order[index]);
+                await _deckService.UpdateAdditionalSlideOrderAsync(
+                    deckId,
+                    userId,
+                    order,
+                    rowVersion,
+                    cancellationToken);
+                StatusMessage = "Additional slide order updated.";
+            }
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload and try again.";
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage(new { deckId });
+    }
+
+
+
+    public async Task<IActionResult> OnPostReorderAdditionalSlidesAsync(
+        long deckId,
+        string? order,
+        string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            var parsed = (order ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => Enum.TryParse<ProjectBriefingAdditionalSlideType>(value, ignoreCase: true, out var slideType)
+                    ? slideType
+                    : (ProjectBriefingAdditionalSlideType?)null)
+                .Where(value => value.HasValue && Enum.IsDefined(value.Value))
+                .Select(value => value!.Value)
+                .Distinct()
+                .ToArray();
+            await _deckService.UpdateAdditionalSlideOrderAsync(
+                deckId,
+                userId,
+                parsed,
+                rowVersion,
+                cancellationToken);
+            StatusMessage = "Additional slide order updated.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload and try again.";
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage(new { deckId });
+    }
+
+    public async Task<IActionResult> OnPostRemoveAdditionalSlideAsync(
+        long deckId,
+        ProjectBriefingAdditionalSlideType slideType,
+        string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        try
+        {
+            await _deckService.RemoveAdditionalSlideAsync(
+                deckId,
+                userId,
+                slideType,
+                rowVersion,
+                cancellationToken);
+            StatusMessage = $"{AdditionalSlideLabel(slideType)} removed from the deck.";
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "This deck was updated by another user. Reload and try again.";
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
             ErrorMessage = exception.Message;
         }
@@ -722,6 +901,32 @@ public sealed class IndexModel : PageModel
         return result;
     }
 
+    private static IReadOnlyList<ProjectBriefingRoleCharterEntry> ParseRoleCharterEntries(string? value)
+    {
+        var result = new List<ProjectBriefingRoleCharterEntry>();
+        foreach (var line in ParseSimpleLines(value))
+        {
+            var separator = line.IndexOf('\t');
+            if (separator < 0)
+            {
+                separator = line.IndexOf('|');
+            }
+
+            result.Add(separator < 0
+                ? new ProjectBriefingRoleCharterEntry(string.Empty, line.Trim())
+                : new ProjectBriefingRoleCharterEntry(
+                    line[..separator].Trim(),
+                    line[(separator + 1)..].Trim()));
+        }
+
+        return result;
+    }
+
+    private static string AdditionalSlideLabel(ProjectBriefingAdditionalSlideType slideType)
+        => ProjectBriefingAdditionalSlideCatalog.IsRegistered(slideType)
+            ? ProjectBriefingAdditionalSlideCatalog.Get(slideType).DisplayName
+            : "Additional slide";
+
     private static IReadOnlyList<string> ParseSimpleLines(string? value)
         => (value ?? string.Empty)
             .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -772,6 +977,31 @@ public sealed class IndexModel : PageModel
             = ProjectBriefingInstitutionalFooterStyle.Outline;
         public ProjectBriefingInstitutionalFooterAlignment InstitutionalFooterStripAlignment { get; set; }
             = ProjectBriefingInstitutionalFooterAlignment.Center;
+    }
+
+    public sealed class SaveRoleCharterInput
+    {
+        [Range(1, long.MaxValue)]
+        public long DeckId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
+        public bool IncludeRoleCharter { get; set; }
+
+        [StringLength(120)]
+        public string? RoleCharterTitle { get; set; }
+
+        public ProjectBriefingRoleCharterLayout RoleCharterLayout { get; set; }
+            = ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter;
+
+        public bool UseSharedRoleCharterContent { get; set; } = true;
+
+        [StringLength(1600)]
+        public string? RoleStatementLines { get; set; }
+
+        [StringLength(6000)]
+        public string? CharterItemLines { get; set; }
     }
 
     public sealed class SaveDeckSettingsInput

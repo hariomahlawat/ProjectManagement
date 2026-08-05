@@ -87,6 +87,30 @@
     };
     var institutionalProfile = deck?.InstitutionalProfileOptions
         ?? ProjectBriefingInstitutionalProfileOptions.Default;
+    var roleCharter = deck?.RoleCharterOptions
+        ?? ProjectBriefingRoleCharterOptions.Default;
+    var additionalSlideOrder = deck?.AdditionalSlideOrder
+        ?? Array.Empty<ProjectBriefingAdditionalSlideType>();
+    var configuredAdditionalSlideTypes = additionalSlideOrder.ToHashSet();
+    var availableAdditionalSlideTypes = ProjectBriefingAdditionalSlideCatalog.All;
+    var missingAdditionalSlideTypes = availableAdditionalSlideTypes
+        .Where(definition => !configuredAdditionalSlideTypes.Contains(definition.Type))
+        .ToArray();
+    bool AdditionalSlideIsEnabled(ProjectBriefingAdditionalSlideType type) => type switch
+    {
+        ProjectBriefingAdditionalSlideType.InstitutionalProfile => institutionalProfile.IncludeSlide,
+        ProjectBriefingAdditionalSlideType.RoleAndCharter => roleCharter.IncludeSlide,
+        _ => false
+    };
+    var enabledAdditionalSlideCount = additionalSlideOrder.Count(AdditionalSlideIsEnabled);
+    ProjectBriefingAdditionalSlideDefinition AdditionalSlideDefinition(ProjectBriefingAdditionalSlideType type)
+        => ProjectBriefingAdditionalSlideCatalog.Get(type);
+    string AdditionalSlideDisplayName(ProjectBriefingAdditionalSlideType type)
+        => AdditionalSlideDefinition(type).DisplayName;
+    string AdditionalSlideDescription(ProjectBriefingAdditionalSlideType type)
+        => AdditionalSlideDefinition(type).Description;
+    string AdditionalSlideIcon(ProjectBriefingAdditionalSlideType type)
+        => AdditionalSlideDefinition(type).IconCssClass;
     var standardIncludesDetailedSlides = deck?.PresentationMode
         is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
     var standardIncludesCostRd = deck?.CostMode
@@ -125,12 +149,14 @@
         is ProjectBriefingNarrativeMode.ProjectBrief or ProjectBriefingNarrativeMode.Both;
     var needsCapabilities = !isUpdateSheet && standardNeedsCapabilities;
     var needsProjectBrief = isUpdateSheet || standardNeedsProjectBrief;
-    var institutionalProfileSummary = institutionalProfile.IncludeSlide ? " · SDD profile" : string.Empty;
+    var additionalSlidesSummary = enabledAdditionalSlideCount > 0
+        ? $" · {enabledAdditionalSlideCount} additional slide{(enabledAdditionalSlideCount == 1 ? string.Empty : "s")}"
+        : string.Empty;
     var settingsSummaryLabel = isUpdateSheet
-        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows{institutionalProfileSummary} · {themeLabel} · R&D cost · {closingSlideLabel}"
+        ? $"{layoutLabel} · {selectedUpdateSheetRows.Count} rows{additionalSlidesSummary} · {themeLabel} · R&D cost · {closingSlideLabel}"
         : $"{layoutLabel} · {presentationModeLabel} · {narrativeModeLabel}"
           + (standardNeedsProjectBrief ? $" · {projectBriefLayoutLabel}" : string.Empty)
-          + institutionalProfileSummary
+          + additionalSlidesSummary
           + $" · {themeLabel} · {costModeLabel} · {closingSlideLabel}";
     var missingArppNumberCount = deck?.Projects.Count(project =>
         project.ArppPppNumberApplicable && string.IsNullOrWhiteSpace(project.ArppReference)) ?? 0;
@@ -546,20 +572,13 @@
 
                                     <section class="pbd-settings-section pbd-settings-section--additional-slide" aria-labelledby="pbd-settings-additional-slides-title">
                                         <h4 id="pbd-settings-additional-slides-title">Additional slides</h4>
-                                        <div class="pbd-settings-slide-toggle">
-                                            <label class="pbd-institutional-profile-toggle">
-                                                <input type="checkbox"
-                                                       name="IncludeInstitutionalProfile"
-                                                       value="true"
-                                                       checked="@institutionalProfile.IncludeSlide"
-                                                       data-pbd-profile-include-setting />
-                                                <span>
-                                                    <strong>Include SDD Institutional Profile</strong>
-                                                    <small>Placed immediately after the cover. Detailed content is configured from the Additional Slides workspace.</small>
-                                                </span>
-                                            </label>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
-                                                <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit slide
+                                        <div class="pbd-settings-additional-summary">
+                                            <span>
+                                                <strong>@enabledAdditionalSlideCount enabled</strong>
+                                                <small>Optional slide content and ordering are maintained in the Presentation Structure workspace.</small>
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-manage-additional-slides>
+                                                <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i> Manage slides
                                             </button>
                                         </div>
                                     </section>
@@ -739,6 +758,7 @@
                         </aside>
 
                         @await Html.PartialAsync("_InstitutionalProfileEditor", Model)
+                        @await Html.PartialAsync("_RoleCharterEditor", Model)
 
                         <section class="pbd-export-preflight" aria-labelledby="pbd-preflight-title">
                             <header class="pbd-preflight-header">
@@ -752,11 +772,11 @@
                                     <small data-pbd-slide-breakdown>
                                         @if (isUpdateSheet)
                                         {
-                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
+                                            <text>Cover @(deck.IncludeCoverSlide ? 1 : 0) · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Role &amp; Charter @deck.SlideEstimate.RoleCharterSlides · Portfolio summary @(deck.IncludePortfolioSummarySlide ? 1 : 0) · Project sheets @deck.SlideEstimate.ProjectUpdateSheetSlides · Closing @deck.SlideEstimate.ClosingSlides</text>
                                         }
                                         else
                                         {
-                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
+                                            <text>Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides · SDD profile @deck.SlideEstimate.InstitutionalProfileSlides · Role &amp; Charter @deck.SlideEstimate.RoleCharterSlides · Summary @deck.SlideEstimate.SummarySlides · Tables @deck.SlideEstimate.ExecutiveTableSlides</text>
                                             @if (deck.SlideEstimate.DetailedProjectSlides > 0)
                                             {
                                                 <text> · Capability slides @deck.SlideEstimate.DetailedProjectSlides</text>
@@ -913,58 +933,165 @@
                             </details>
                         </section>
 
-                        <section class="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
+                        <section class="pbd-additional-slides" id="pbd-additional-slides" aria-labelledby="pbd-additional-slides-title" data-pbd-additional-slides>
                             <header class="pbd-section-header pbd-section-header--additional-slides">
                                 <div>
                                     <span class="pbd-eyebrow">Presentation structure</span>
                                     <h3 id="pbd-additional-slides-title">Additional slides</h3>
-                                    <p>Configure optional, professionally designed slides independently of deck-wide settings.</p>
+                                    <p>Add, arrange and configure approved slide types independently of deck-wide settings.</p>
                                 </div>
-                                @if (!institutionalProfile.IncludeSlide)
+                                @if (missingAdditionalSlideTypes.Length > 0)
                                 {
-                                    <form method="post" asp-page-handler="ToggleInstitutionalProfile" class="pbd-additional-slides__add-form">
-                                        <input type="hidden" name="deckId" value="@deck.Id" />
-                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                        <input type="hidden" name="enabled" value="true" />
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
-                                        </button>
-                                    </form>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#pbd-additional-slide-library-modal"
+                                            title="Add an approved slide type">
+                                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
+                                    </button>
                                 }
                                 else
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="All currently available additional slide types are already in this deck.">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="All available slide types are already in this deck.">
                                         <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
                                     </button>
                                 }
                             </header>
 
-                            <article class="pbd-additional-slide-card @(institutionalProfile.IncludeSlide ? "is-enabled" : "is-disabled")">
-                                <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
-                                <div class="pbd-additional-slide-card__body">
-                                    <div class="pbd-additional-slide-card__title-row">
-                                        <h4>SDD Institutional Profile</h4>
-                                        <span class="pbd-additional-slide-card__status">@(institutionalProfile.IncludeSlide ? "Enabled" : "Not included")</span>
+                            @if (additionalSlideOrder.Count == 0)
+                            {
+                                <div class="pbd-additional-slides__empty">
+                                    <i class="bi bi-layout-text-sidebar-reverse" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>No additional slides configured</strong>
+                                        <span>Add an approved slide when the presentation requires institutional or contextual content.</span>
                                     </div>
-                                    <p>@institutionalProfile.Title</p>
-                                    <small>After cover · @institutionalProfile.HistoryMilestones.Count milestone@(institutionalProfile.HistoryMilestones.Count == 1 ? "" : "s") · @institutionalProfile.Modules.Count module@(institutionalProfile.Modules.Count == 1 ? "" : "s")</small>
                                 </div>
-                                <div class="pbd-additional-slide-card__actions">
-                                    <form method="post" asp-page-handler="ToggleInstitutionalProfile" data-pbd-additional-slide-toggle-form>
-                                        <input type="hidden" name="deckId" value="@deck.Id" />
-                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
-                                        <input type="hidden" name="enabled" value="@institutionalProfile.IncludeSlide.ToString().ToLowerInvariant()" data-pbd-additional-slide-enabled />
-                                        <label class="form-check form-switch" title="Include or remove this slide">
-                                            <input class="form-check-input" type="checkbox" checked="@institutionalProfile.IncludeSlide" data-pbd-additional-slide-toggle />
-                                            <span class="visually-hidden">Include SDD Institutional Profile</span>
-                                        </label>
-                                    </form>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
-                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
-                                    </button>
+                            }
+                            else
+                            {
+                                <form method="post" asp-page-handler="ReorderAdditionalSlides" class="pbd-additional-slide-order-form" data-pbd-additional-slide-order-form>
+                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                    <input type="hidden" name="order" value="@string.Join(",", additionalSlideOrder)" data-pbd-additional-slide-order />
+                                </form>
+                                <div class="pbd-additional-slide-list" data-pbd-additional-slide-list>
+                                    @for (var slideIndex = 0; slideIndex < additionalSlideOrder.Count; slideIndex++)
+                                    {
+                                        var slideType = additionalSlideOrder[slideIndex];
+                                        var enabled = AdditionalSlideIsEnabled(slideType);
+                                        var detail = slideType switch
+                                        {
+                                            ProjectBriefingAdditionalSlideType.InstitutionalProfile => $"{institutionalProfile.HistoryMilestones.Count} milestones · {institutionalProfile.Modules.Count} modules",
+                                            ProjectBriefingAdditionalSlideType.RoleAndCharter => $"{roleCharter.RoleStatements.Count} role statements · {roleCharter.CharterItems.Count} charter items · {deck.SlideEstimate.RoleCharterSlides} slide{(deck.SlideEstimate.RoleCharterSlides == 1 ? string.Empty : "s")}",
+                                            _ => string.Empty
+                                        };
+                                        var previousEnabledSlide = additionalSlideOrder
+                                            .Take(slideIndex)
+                                            .LastOrDefault(AdditionalSlideIsEnabled);
+                                        var hasPreviousEnabledSlide = additionalSlideOrder
+                                            .Take(slideIndex)
+                                            .Any(AdditionalSlideIsEnabled);
+                                        var positionLabel = hasPreviousEnabledSlide
+                                            ? $"After {AdditionalSlideDisplayName(previousEnabledSlide)}"
+                                            : "After cover";
+                                        <article class="pbd-additional-slide-card @(enabled ? "is-enabled" : "is-disabled")"
+                                                 data-pbd-additional-slide-card
+                                                 data-slide-type="@slideType">
+                                            <button type="button" class="pbd-additional-slide-card__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
+                                                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <span class="pbd-additional-slide-card__position" aria-label="Slide order">@(slideIndex + 1)</span>
+                                            <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
+                                            <div class="pbd-additional-slide-card__body">
+                                                <div class="pbd-additional-slide-card__title-row">
+                                                    <h4>@AdditionalSlideDisplayName(slideType)</h4>
+                                                    <span class="pbd-additional-slide-card__status">@(enabled ? "Enabled" : "Disabled")</span>
+                                                </div>
+                                                <p>@AdditionalSlideDescription(slideType)</p>
+                                                <small>@positionLabel · @detail</small>
+                                            </div>
+                                            <div class="pbd-additional-slide-card__actions">
+                                                <form method="post" asp-page-handler="ToggleAdditionalSlide" data-pbd-additional-slide-toggle-form>
+                                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                                    <input type="hidden" name="slideType" value="@slideType" />
+                                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                                    <input type="hidden" name="ensureAdded" value="false" />
+                                                    <input type="hidden" name="enabled" value="@enabled.ToString().ToLowerInvariant()" data-pbd-additional-slide-enabled />
+                                                    <label class="form-check form-switch" title="Enable or disable this slide">
+                                                        <input class="form-check-input" type="checkbox" checked="@enabled" data-pbd-additional-slide-toggle />
+                                                        <span class="visually-hidden">Enable @AdditionalSlideDisplayName(slideType)</span>
+                                                    </label>
+                                                </form>
+                                                @if (slideType == ProjectBriefingAdditionalSlideType.InstitutionalProfile)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-profile-open aria-controls="pbd-institutional-profile-drawer" aria-expanded="false">
+                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
+                                                    </button>
+                                                }
+                                                else if (slideType == ProjectBriefingAdditionalSlideType.RoleAndCharter)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-pbd-role-charter-open aria-controls="pbd-role-charter-drawer" aria-expanded="false">
+                                                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Edit
+                                                    </button>
+                                                }
+                                                <form method="post" asp-page-handler="RemoveAdditionalSlide" data-pbd-remove-additional-slide-form data-slide-name="@AdditionalSlideDisplayName(slideType)">
+                                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                                    <input type="hidden" name="slideType" value="@slideType" />
+                                                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                                    <button type="submit" class="btn btn-sm btn-light text-danger" title="Remove from presentation structure" aria-label="Remove @AdditionalSlideDisplayName(slideType)">
+                                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </article>
+                                    }
                                 </div>
-                            </article>
+                            }
                         </section>
+
+                        <div class="modal fade" id="pbd-additional-slide-library-modal" tabindex="-1" aria-labelledby="pbd-additional-slide-library-title" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content pbd-slide-library">
+                                    <div class="modal-header">
+                                        <div>
+                                            <span class="pbd-eyebrow">Slide library</span>
+                                            <h3 class="modal-title" id="pbd-additional-slide-library-title">Add an additional slide</h3>
+                                            <p>Choose from approved templates. Each institutional slide can be added once.</p>
+                                        </div>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        @if (missingAdditionalSlideTypes.Length == 0)
+                                        {
+                                            <p class="pbd-slide-library__empty">All currently available slide types are already configured.</p>
+                                        }
+                                        else
+                                        {
+                                            <div class="pbd-slide-library__grid">
+                                                @foreach (var definition in missingAdditionalSlideTypes)
+                                                {
+                                                    var slideType = definition.Type;
+                                                    <form method="post" asp-page-handler="ToggleAdditionalSlide" class="pbd-slide-library-card">
+                                                        <input type="hidden" name="deckId" value="@deck.Id" />
+                                                        <input type="hidden" name="slideType" value="@slideType" />
+                                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                                        <input type="hidden" name="enabled" value="true" />
+                                                        <input type="hidden" name="ensureAdded" value="true" />
+                                                        <span class="pbd-slide-library-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
+                                                        <span>
+                                                            <strong>@AdditionalSlideDisplayName(slideType)</strong>
+                                                            <small>@AdditionalSlideDescription(slideType)</small>
+                                                        </span>
+                                                        <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                                                    </form>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <section class="pbd-selected" aria-labelledby="pbd-selected-title" data-pbd-selected-section>
                             <header class="pbd-section-header pbd-section-header--selected">
@@ -1394,4 +1521,5 @@
     <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/project-briefing-decks.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/pages/project-briefing-additional-slides.js" asp-append-version="true"></script>
 }

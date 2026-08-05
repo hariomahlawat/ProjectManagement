@@ -1,0 +1,5 @@
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.RoleCharter.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+README-FIRST.md
+MANIFEST.txt
+SHA256SUMS.txt

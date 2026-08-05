@@ -1,25 +1,29 @@
-# Project Briefing Deck — Test Build Fix
+# PRISM Role & Charter HeaderAccentSoft build fix
 
-This package corrects the remaining `ProjectManagement.Tests` build failures after the duplicate-tree repair.
+## Problem fixed
 
-## What it fixes
+`ProjectBriefingSlideComposer.RoleCharter.cs` referenced `canvas.Theme.HeaderAccentSoft`, but `ProjectBriefingThemeDefinition` has no such member. This caused CS1061 during build.
 
-- Updates the technical-category hierarchy test for the command-service architecture.
-- Supplies the required `IAdminAuditService` dependency in activity-type tests.
-- Removes the ambiguous public capability-paginator overload.
-- Uses the EF Core `IMigrator` API for migration-to-target integration testing.
-- Resolves EF metadata nullability warnings in FFC integrity tests.
-- Replaces the xUnit substring assertion pattern with `Assert.StartsWith`.
+## Correction
 
-## Apply
+The Role panel now resolves its background from existing, supported theme tokens:
 
-From PowerShell:
+- Graphite Dark: `SurfaceRaised`
+- Editorial Light: `CriticalSoft` (the existing restrained soft-maroon surface)
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\APPLY-FIX.ps1 `
-  -ProjectRoot "E:\Dot Net Web Development\ProjectManagement"
-```
+This keeps the slide visually consistent without expanding the theme constructor or breaking existing theme definitions.
 
-The script backs up the six affected files, applies the replacements, verifies SHA-256 hashes, and removes stale test `bin`/`obj` output.
+## Replace these files
 
-Then reopen Visual Studio and select **Build > Rebuild Solution**.
+1. `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.RoleCharter.cs`
+2. `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs`
+
+## After replacement
+
+1. Stop the running application.
+2. Clean Solution.
+3. Rebuild Solution.
+4. Run the `ProjectBriefings` tests.
+5. Start the application and regenerate a Role & Charter deck.
+
+No database migration is required.
