@@ -1,5 +1,19 @@
+PRISM Briefing Deck – Role & Charter UX Polish
+Generated: 2026-08-05
+
+Files to replace:
+Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.RoleCharter.cs
+Pages/Workspace/BriefingDecks/Index.cshtml
+wwwroot/css/pages/project-briefing-decks.css
+wwwroot/js/pages/project-briefing-confirm.js
+wwwroot/js/pages/project-briefing-decks.js
+wwwroot/js/pages/project-briefing-additional-slides.js
+wwwroot/js/projects/project-briefing-decks.test.js
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-README-FIRST.md
-MANIFEST.txt
-SHA256SUMS.txt
+
+New file:
+wwwroot/js/pages/project-briefing-confirm.js
+
+No database migration required.

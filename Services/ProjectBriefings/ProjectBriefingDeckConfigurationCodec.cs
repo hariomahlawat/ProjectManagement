@@ -263,7 +263,7 @@ public sealed record ProjectBriefingRoleCharterOptions(
             new ProjectBriefingRoleCharterEntry("Joint projects", "DRDO, PSUs and academia"),
             new ProjectBriefingRoleCharterEntry("Research and development", "Undertake R&D and experimental projects"),
             new ProjectBriefingRoleCharterEntry("Upgradation", "Upgrade existing projects and simulators"),
-            new ProjectBriefingRoleCharterEntry("Development support", "Develop simulators and projects for FFCs"),
+            new ProjectBriefingRoleCharterEntry("Military Diplomacy", "Develop simulators and projects for Friendly Foreign Countries (FFCs)"),
             new ProjectBriefingRoleCharterEntry("Professional engagement", "Participate in seminars, workshops, training and competitions"),
             new ProjectBriefingRoleCharterEntry("Coordination", "Coordinate with MGO Branch and EME Directorate on ESP issues")
         };
@@ -306,13 +306,29 @@ public sealed record ProjectBriefingRoleCharterOptions(
         int maximumCount)
         => (source ?? Array.Empty<ProjectBriefingRoleCharterEntry>())
             .Where(item => !string.IsNullOrWhiteSpace(item.LeadPhrase) || !string.IsNullOrWhiteSpace(item.Text))
-            .Select(item => new ProjectBriefingRoleCharterEntry(
-                TrimTo((item.LeadPhrase ?? string.Empty).Trim(), 60),
-                TrimTo((item.Text ?? string.Empty).Trim(), 240)))
+            .Select(NormalizeEntry)
             .Where(item => !string.IsNullOrWhiteSpace(item.LeadPhrase) || !string.IsNullOrWhiteSpace(item.Text))
             .Distinct()
             .Take(maximumCount)
             .ToArray();
+
+    private static ProjectBriefingRoleCharterEntry NormalizeEntry(ProjectBriefingRoleCharterEntry item)
+    {
+        var leadPhrase = TrimTo((item.LeadPhrase ?? string.Empty).Trim(), 60);
+        var text = TrimTo((item.Text ?? string.Empty).Trim(), 240);
+
+        // Upgrade only the exact legacy PRISM default. User-authored variants are
+        // intentionally preserved verbatim so deck-specific content is never rewritten.
+        if (string.Equals(leadPhrase, "Development support", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(text, "Develop simulators and projects for FFCs", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ProjectBriefingRoleCharterEntry(
+                "Military Diplomacy",
+                "Develop simulators and projects for Friendly Foreign Countries (FFCs)");
+        }
+
+        return new ProjectBriefingRoleCharterEntry(leadPhrase, text);
+    }
 
     private static string TrimTo(string value, int maximumLength)
         => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();

@@ -3937,3 +3937,123 @@ body.pbd-profile-drawer-open {
     color: var(--pbd-muted);
     font-size: .64rem;
 }
+
+/* Role & Charter polish and shared PRISM confirmation dialog */
+.pbd-disabled-control {
+    display: inline-flex;
+    border-radius: .42rem;
+}
+
+.pbd-disabled-control:focus-visible {
+    outline: 2px solid rgba(49, 95, 184, .35);
+    outline-offset: 2px;
+}
+
+.pbd-role-charter-entry {
+    grid-template-columns: auto minmax(13.25rem, 14.5rem) minmax(0, 1fr) auto;
+}
+
+.pbd-role-charter-entry > input {
+    min-width: 0;
+}
+
+.pbd-confirm-dialog {
+    width: min(31rem, calc(100vw - 2rem));
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: .9rem;
+    background: transparent;
+    color: var(--pbd-ink);
+    box-shadow: 0 1.6rem 4rem rgba(15, 23, 42, .24);
+}
+
+.pbd-confirm-dialog::backdrop {
+    background: rgba(15, 23, 42, .52);
+    backdrop-filter: blur(1.5px);
+}
+
+.pbd-confirm-dialog__surface {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .85rem;
+    padding: 1.15rem;
+    border: 1px solid #d8e0eb;
+    border-radius: .9rem;
+    background: #fff;
+}
+
+.pbd-confirm-dialog__icon {
+    display: grid;
+    width: 2.45rem;
+    height: 2.45rem;
+    place-items: center;
+    border-radius: 999px;
+    background: #fff1f3;
+    color: #b42336;
+    font-size: 1.05rem;
+}
+
+.pbd-confirm-dialog[data-tone="primary"] .pbd-confirm-dialog__icon {
+    background: #edf3ff;
+    color: #315fb8;
+}
+
+.pbd-confirm-dialog__content {
+    min-width: 0;
+}
+
+.pbd-confirm-dialog__content h2 {
+    margin: .05rem 0 0;
+    color: var(--pbd-ink);
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.pbd-confirm-dialog__content p {
+    margin: .32rem 0 0;
+    color: var(--pbd-muted);
+    font-size: .75rem;
+    line-height: 1.5;
+}
+
+.pbd-confirm-dialog__actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    gap: .55rem;
+    padding-top: .2rem;
+}
+
+@media (max-width: 900px) {
+    .pbd-role-charter-entry {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: start;
+    }
+
+    .pbd-role-charter-entry__lead,
+    .pbd-role-charter-entry > input:not(.pbd-role-charter-entry__lead) {
+        grid-column: 2;
+    }
+
+    .pbd-role-charter-entry .pbd-institutional-list-editor__actions {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+    }
+}
+
+@media (max-width: 520px) {
+    .pbd-confirm-dialog__actions {
+        flex-direction: column-reverse;
+    }
+
+    .pbd-confirm-dialog__actions .btn {
+        width: 100%;
+    }
+}
+
+@media print {
+    .pbd-confirm-dialog {
+        display: none !important;
+    }
+}

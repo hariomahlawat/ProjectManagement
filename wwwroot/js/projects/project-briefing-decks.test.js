@@ -10,6 +10,9 @@ const source = fs.readFileSync(
 const additionalSlidesSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'pages', 'project-briefing-additional-slides.js'),
   'utf8');
+const confirmSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'pages', 'project-briefing-confirm.js'),
+  'utf8');
 const viewSource = fs.readFileSync(
   path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', 'Index.cshtml'),
   'utf8');
@@ -112,7 +115,7 @@ test('deck settings use an isolated drawer with canonical dirty-state protection
   assert.match(source, /setSettingsDirty/);
   assert.match(source, /beforeunload/);
   assert.match(source, /Save or discard settings before generating/);
-  assert.match(source, /Discard unsaved deck settings/);
+  assert.match(source, /confirmSettingsDiscard/);
 });
 
 test('preflight requirements filter the selected-project list directly', () => {
@@ -151,7 +154,7 @@ test('readiness indicators expose accessible labels and professional hover-focus
 
 test('unsaved settings protect explicit navigation as well as browser and generation paths', () => {
   assert.match(source, /confirmSettingsNavigation/);
-  assert.match(source, /Discard unsaved deck settings and continue/);
+  assert.match(source, /Your unsaved deck settings will be lost if you continue/);
   assert.match(source, /document\.addEventListener\('click'/);
   assert.match(source, /document\.addEventListener\('submit'/);
   assert.match(source, /beforeunload/);
@@ -206,7 +209,7 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
   assert.match(source, /closeProfileDrawer/);
   assert.match(source, /serializeForm\(profileForm\)/);
   assert.match(source, /setProfileDirty/);
-  assert.match(source, /Discard unsaved SDD profile changes/);
+  assert.match(source, /confirmProfileDiscard/);
   assert.match(source, /data-pbd-additional-slide-toggle/);
   assert.match(source, /syncInstitutionalProfileSettings/);
   assert.match(source, /syncInstitutionalModuleOrder/);
@@ -232,10 +235,30 @@ test('additional-slide workspace exposes a registered slide library and ordered 
 
 test('Role and Charter uses an isolated structured editor with dirty-state and reorder protection', () => {
   assert.match(additionalSlidesSource, /data-pbd-role-charter-drawer/);
-  assert.match(additionalSlidesSource, /Discard unsaved Role & Charter changes/);
+  assert.match(additionalSlidesSource, /confirmRoleCharterDiscard/);
   assert.match(additionalSlidesSource, /createEntry\('role'/);
   assert.match(additionalSlidesSource, /createEntry\('charter'/);
   assert.match(additionalSlidesSource, /data-pbd-additional-slide-handle/);
   assert.match(additionalSlidesSource, /new window\.Sortable/);
-  assert.match(additionalSlidesSource, /Remove \$\{name\} from this deck/);
+  assert.match(additionalSlidesSource, /title: `Remove \$\{name\}\?`/);
+});
+
+
+test('briefing workflows use the reusable PRISM confirmation dialog instead of browser confirmations', () => {
+  assert.match(source, /prismConfirm/);
+  assert.match(additionalSlidesSource, /prismConfirm/);
+  assert.doesNotMatch(source, /window\.confirm|window\.alert/);
+  assert.doesNotMatch(additionalSlidesSource, /window\.confirm|window\.alert/);
+  assert.match(confirmSource, /data-pbd-confirm-dialog/);
+  assert.match(confirmSource, /cancelText = 'Cancel'/);
+  assert.match(confirmSource, /ui\.cancel\?\.focus/);
+  assert.match(confirmSource, /event\.target === ui\.dialog/);
+  assert.match(viewSource, /data-pbd-confirm-dialog/);
+  assert.match(viewSource, /data-pbd-confirm-cancel autofocus/);
+});
+
+test('additional-slide workspace explains the exhausted slide-library state', () => {
+  assert.match(viewSource, /data-pbd-add-slide-disabled-tip/);
+  assert.match(viewSource, /All available slide types have been added/);
+  assert.match(additionalSlidesSource, /Tooltip\?\.getOrCreateInstance/);
 });

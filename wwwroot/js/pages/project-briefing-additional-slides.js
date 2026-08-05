@@ -1,3 +1,5 @@
+import { prismConfirm } from './project-briefing-confirm.js';
+
 const root = document.querySelector('[data-pbd-root]');
 
 if (root) {
@@ -18,11 +20,26 @@ if (root) {
   });
 
   root.querySelectorAll('[data-pbd-remove-additional-slide-form]').forEach((form) => {
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
       const name = form.dataset.slideName || 'this slide';
-      if (!window.confirm(`Remove ${name} from this deck? Its deck-specific configuration will be retained and can be added again later.`)) {
-        event.preventDefault();
-      }
+      const confirmed = await prismConfirm({
+        title: `Remove ${name}?`,
+        message: 'The slide will be removed from this deck. Its deck-specific configuration will be retained and restored if the slide is added again.',
+        confirmText: 'Remove from deck',
+        cancelText: 'Keep slide',
+        tone: 'danger',
+        returnFocus: form.querySelector('button[type="submit"]')
+      });
+      if (confirmed) HTMLFormElement.prototype.submit.call(form);
+    });
+  });
+
+  root.querySelectorAll('[data-pbd-add-slide-disabled-tip]').forEach((element) => {
+    window.bootstrap?.Tooltip?.getOrCreateInstance(element, {
+      container: 'body',
+      placement: 'bottom',
+      trigger: 'hover focus'
     });
   });
 
@@ -253,9 +270,21 @@ if (root) {
     setDirty(false);
   };
 
-  const closeDrawer = ({ force = false } = {}) => {
+  const confirmRoleCharterDiscard = async (message = 'Your changes to the Role & Charter slide have not been saved.') => {
+    if (!dirty) return true;
+    return prismConfirm({
+      title: 'Discard unsaved changes?',
+      message,
+      confirmText: 'Discard changes',
+      cancelText: 'Keep editing',
+      tone: 'danger',
+      returnFocus: document.activeElement
+    });
+  };
+
+  const closeDrawer = async ({ force = false } = {}) => {
     if (!drawer || !backdrop) return false;
-    if (dirty && !force && !window.confirm('Discard unsaved Role & Charter changes?')) return false;
+    if (dirty && !force && !(await confirmRoleCharterDiscard())) return false;
     if (dirty) restoreInitial();
     drawer.classList.remove('is-open');
     drawer.setAttribute('aria-hidden', 'true');
@@ -270,14 +299,14 @@ if (root) {
     button.addEventListener('click', () => openDrawer(button));
   });
   root.querySelectorAll('[data-pbd-role-charter-close]').forEach((button) => {
-    button.addEventListener('click', () => closeDrawer());
+    button.addEventListener('click', async () => { await closeDrawer(); });
   });
-  backdrop?.addEventListener('click', () => closeDrawer());
+  backdrop?.addEventListener('click', async () => { await closeDrawer(); });
 
-  drawer?.addEventListener('keydown', (event) => {
+  drawer?.addEventListener('keydown', async (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
-      closeDrawer();
+      await closeDrawer();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -349,6 +378,32 @@ if (root) {
     }
     dirty = false;
   });
+
+  document.addEventListener('click', async (event) => {
+    if (!dirty || event.defaultPrevented || event.button !== 0
+        || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement) || drawer?.contains(link)) return;
+    const href = link.getAttribute('href') || '';
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')
+        || link.target === '_blank' || link.hasAttribute('download')) return;
+
+    event.preventDefault();
+    if (!(await confirmRoleCharterDiscard('Your unsaved Role & Charter changes will be lost if you leave this page.'))) return;
+    setDirty(false);
+    window.location.assign(link.href);
+  }, true);
+
+  document.addEventListener('submit', async (event) => {
+    if (!dirty || event.defaultPrevented) return;
+    const submittedForm = event.target;
+    if (!(submittedForm instanceof HTMLFormElement) || submittedForm === form) return;
+
+    event.preventDefault();
+    if (!(await confirmRoleCharterDiscard('Your unsaved Role & Charter changes will be lost if you continue.'))) return;
+    setDirty(false);
+    HTMLFormElement.prototype.submit.call(submittedForm);
+  }, true);
 
   window.addEventListener('beforeunload', (event) => {
     if (!dirty) return;

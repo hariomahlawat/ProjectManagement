@@ -2028,7 +2028,15 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("CHARTER — CONTINUED", SlideText(roleSlides[1]), StringComparison.Ordinal);
         Assert.All(roleSlides, slide => Assert.Empty(slide.Slide.Descendants<A.Table>()));
         Assert.All(roleSlides, slide => Assert.NotEmpty(slide.Slide.Descendants<P.GroupShape>()));
-        Assert.Equal("F8E8E8", ShapeFillColor(ShapeByName(roleSlides[0], "Role panel background")));
+        var rolePanel = ShapeByName(roleSlides[0], "Role panel background");
+        var charterHeading = ShapeByName(roleSlides[0], "Charter heading");
+        var charterPanel = ShapeByName(roleSlides[0], "Charter items left column background");
+        Assert.Equal("F8E8E8", ShapeFillColor(rolePanel));
+        Assert.True(ShapeHeight(rolePanel) <= 1.15 * 914400, "The Role panel should remain compact.");
+        Assert.True(
+            ShapeY(charterHeading) >= ShapeY(rolePanel) + ShapeHeight(rolePanel) + (.10 * 914400),
+            "The Charter heading must have a clear gap below the Role panel.");
+        Assert.True(ShapeHeight(charterPanel) <= 3.45 * 914400, "Charter panels should fit their content rather than retain dashboard-like empty height.");
 
         var allText = slides.Select(SlideText).ToArray();
         var coverIndex = Array.FindIndex(allText, text => text.Contains("QUARTERLY COMMAND REVIEW", StringComparison.Ordinal));

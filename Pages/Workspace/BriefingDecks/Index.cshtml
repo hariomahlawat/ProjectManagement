@@ -952,9 +952,16 @@
                                 }
                                 else
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="All available slide types are already in this deck.">
-                                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
-                                    </button>
+                                    <span class="pbd-disabled-control"
+                                          tabindex="0"
+                                          data-pbd-add-slide-disabled-tip
+                                          data-bs-title="All available slide types have been added."
+                                          aria-describedby="pbd-add-slide-disabled-help">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add slide
+                                        </button>
+                                    </span>
+                                    <span id="pbd-add-slide-disabled-help" class="visually-hidden">All available slide types have been added.</span>
                                 }
                             </header>
 
@@ -1516,6 +1523,20 @@
         </div>
     </div>
 }
+
+<dialog class="pbd-confirm-dialog" data-pbd-confirm-dialog aria-labelledby="pbd-confirm-title" aria-describedby="pbd-confirm-message">
+    <div class="pbd-confirm-dialog__surface">
+        <div class="pbd-confirm-dialog__icon" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></div>
+        <div class="pbd-confirm-dialog__content">
+            <h2 id="pbd-confirm-title" data-pbd-confirm-title>Confirm action</h2>
+            <p id="pbd-confirm-message" data-pbd-confirm-message>Continue with this action?</p>
+        </div>
+        <div class="pbd-confirm-dialog__actions">
+            <button type="button" class="btn btn-outline-secondary" data-pbd-confirm-cancel autofocus>Cancel</button>
+            <button type="button" class="btn btn-danger" data-pbd-confirm-action>Confirm</button>
+        </div>
+    </div>
+</dialog>
 
 @section Scripts {
     <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>

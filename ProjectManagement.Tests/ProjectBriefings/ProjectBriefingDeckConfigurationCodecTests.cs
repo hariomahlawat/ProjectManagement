@@ -380,6 +380,49 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
     }
 
     [Fact]
+    public void RoleCharterLegacyDefault_UpgradesToMilitaryDiplomacyWithoutRewritingCustomVariants()
+    {
+        const string legacy = """
+        {
+          "schema": "prism.projectBriefing.deckConfig.v1",
+          "roleCharter": {
+            "includeSlide": true,
+            "title": "Role & Charter",
+            "layout": "RoleAndTwoColumnCharter",
+            "useSharedContent": false,
+            "roleStatements": [],
+            "charterItems": [
+              {
+                "leadPhrase": "Development support",
+                "text": "Develop simulators and projects for FFCs"
+              },
+              {
+                "leadPhrase": "Development support",
+                "text": "Custom deck-specific wording"
+              }
+            ]
+          },
+          "additionalSlides": ["RoleAndCharter"]
+        }
+        """;
+
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(legacy);
+
+        Assert.Contains(
+            decoded.RoleCharterOptions.CharterItems,
+            item => item.LeadPhrase == "Military Diplomacy"
+                && item.Text == "Develop simulators and projects for Friendly Foreign Countries (FFCs)");
+        Assert.Contains(
+            decoded.RoleCharterOptions.CharterItems,
+            item => item.LeadPhrase == "Development support"
+                && item.Text == "Custom deck-specific wording");
+        Assert.DoesNotContain(
+            decoded.RoleCharterOptions.CharterItems,
+            item => item.LeadPhrase == "Development support"
+                && item.Text == "Develop simulators and projects for FFCs");
+    }
+
+    [Fact]
     public void RoleCharterCustomContent_DoesNotSilentlyFallBackToSharedAuthorisedContent()
     {
         var options = ProjectBriefingRoleCharterOptions.Normalize(

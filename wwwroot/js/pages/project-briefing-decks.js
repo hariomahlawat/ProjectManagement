@@ -1,3 +1,5 @@
+import { prismConfirm } from './project-briefing-confirm.js';
+
 const root = document.querySelector('[data-pbd-root]');
 
 if (root) {
@@ -681,7 +683,11 @@ if (root) {
   const openProfileDrawer = (launcher) => {
     if (!profileDrawer || !profileBackdrop) return;
     if (settingsDirty) {
-      window.alert('Save or discard deck settings before editing the SDD Institutional Profile.');
+      openSettingsDrawer();
+      if (settingsStatus) {
+        settingsStatus.textContent = 'Save or discard deck settings before editing the SDD Institutional Profile.';
+        settingsStatus.classList.add('is-dirty');
+      }
       return;
     }
     const launchedFromSettings = Boolean(launcher && settingsDrawer?.contains(launcher));
@@ -695,9 +701,21 @@ if (root) {
     window.requestAnimationFrame(() => focusableProfileElements()[0]?.focus());
   };
 
-  const closeProfileDrawer = ({ discard = true, force = false } = {}) => {
+  const confirmProfileDiscard = async (message = 'Your changes to the SDD Institutional Profile have not been saved.') => {
+    if (!profileDirty) return true;
+    return prismConfirm({
+      title: 'Discard unsaved changes?',
+      message,
+      confirmText: 'Discard changes',
+      cancelText: 'Keep editing',
+      tone: 'danger',
+      returnFocus: document.activeElement
+    });
+  };
+
+  const closeProfileDrawer = async ({ discard = true, force = false } = {}) => {
     if (!profileDrawer || !profileBackdrop) return false;
-    if (profileDirty && !force && !window.confirm('Discard unsaved SDD profile changes?')) return false;
+    if (profileDirty && !force && !(await confirmProfileDiscard())) return false;
     if (discard && profileDirty && profileForm instanceof HTMLFormElement) {
       profileForm.reset();
       restoreInstitutionalModuleOrder(institutionalModuleInitialOrder);
@@ -718,12 +736,12 @@ if (root) {
   root.querySelectorAll('[data-pbd-profile-open]').forEach((button) =>
     button.addEventListener('click', () => openProfileDrawer(button)));
   root.querySelectorAll('[data-pbd-profile-close]').forEach((button) =>
-    button.addEventListener('click', () => closeProfileDrawer()));
-  profileBackdrop?.addEventListener('click', () => closeProfileDrawer());
-  profileDrawer?.addEventListener('keydown', (event) => {
+    button.addEventListener('click', async () => { await closeProfileDrawer(); }));
+  profileBackdrop?.addEventListener('click', async () => { await closeProfileDrawer(); });
+  profileDrawer?.addEventListener('keydown', async (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
-      closeProfileDrawer();
+      await closeProfileDrawer();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -811,9 +829,21 @@ if (root) {
     window.requestAnimationFrame(() => focusableSettingsElements()[0]?.focus());
   };
 
-  const closeSettingsDrawer = ({ discard = true, force = false } = {}) => {
+  const confirmSettingsDiscard = async (message = 'Your deck-setting changes have not been saved.') => {
+    if (!settingsDirty) return true;
+    return prismConfirm({
+      title: 'Discard unsaved changes?',
+      message,
+      confirmText: 'Discard changes',
+      cancelText: 'Keep editing',
+      tone: 'danger',
+      returnFocus: document.activeElement
+    });
+  };
+
+  const closeSettingsDrawer = async ({ discard = true, force = false } = {}) => {
     if (!settingsDrawer || !settingsBackdrop || !settingsLauncher) return false;
-    if (settingsDirty && !force && !window.confirm('Discard unsaved deck settings?')) return false;
+    if (settingsDirty && !force && !(await confirmSettingsDiscard())) return false;
     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
       settingsForm.reset();
       restoreUpdateRowOrder(updateRowInitialOrder);
@@ -831,12 +861,12 @@ if (root) {
   };
 
   settingsLauncher?.addEventListener('click', openSettingsDrawer);
-  root.querySelectorAll('[data-pbd-settings-close]').forEach((button) => button.addEventListener('click', () => closeSettingsDrawer()));
-  settingsBackdrop?.addEventListener('click', () => closeSettingsDrawer());
-  settingsDrawer?.addEventListener('keydown', (event) => {
+  root.querySelectorAll('[data-pbd-settings-close]').forEach((button) => button.addEventListener('click', async () => { await closeSettingsDrawer(); }));
+  settingsBackdrop?.addEventListener('click', async () => { await closeSettingsDrawer(); });
+  settingsDrawer?.addEventListener('keydown', async (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
-      closeSettingsDrawer();
+      await closeSettingsDrawer();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -881,47 +911,50 @@ if (root) {
     event.returnValue = '';
   });
 
-  const confirmSettingsNavigation = () => {
+  const confirmSettingsNavigation = async () => {
     if (!settingsDirty) return true;
-    if (!window.confirm('Discard unsaved deck settings and continue?')) return false;
-    setSettingsDirty(false);
-    return true;
+    const confirmed = await confirmSettingsDiscard('Your unsaved deck settings will be lost if you continue.');
+    if (confirmed) setSettingsDirty(false);
+    return confirmed;
   };
 
-  document.addEventListener('click', (event) => {
-    if (!settingsDirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const link = event.target.closest('a[href]');
-    if (!(link instanceof HTMLAnchorElement) || settingsDrawer?.contains(link)) return;
-    const href = link.getAttribute('href') || '';
-    if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download')) return;
-    if (!confirmSettingsNavigation()) event.preventDefault();
-  }, true);
-
-  const confirmProfileNavigation = () => {
+  const confirmProfileNavigation = async () => {
     if (!profileDirty) return true;
-    if (!window.confirm('Discard unsaved SDD profile changes and continue?')) return false;
-    setProfileDirty(false);
-    return true;
+    const confirmed = await confirmProfileDiscard('Your unsaved SDD Institutional Profile changes will be lost if you continue.');
+    if (confirmed) setProfileDirty(false);
+    return confirmed;
   };
 
-  document.addEventListener('click', (event) => {
-    if (!profileDirty || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  document.addEventListener('click', async (event) => {
+    if ((!settingsDirty && !profileDirty) || event.defaultPrevented || event.button !== 0
+        || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest('a[href]');
-    if (!(link instanceof HTMLAnchorElement) || profileDrawer?.contains(link)) return;
+    if (!(link instanceof HTMLAnchorElement)
+        || settingsDrawer?.contains(link)
+        || profileDrawer?.contains(link)) return;
     const href = link.getAttribute('href') || '';
-    if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank' || link.hasAttribute('download')) return;
-    if (!confirmProfileNavigation()) event.preventDefault();
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')
+        || link.target === '_blank' || link.hasAttribute('download')) return;
+
+    event.preventDefault();
+    if (settingsDirty && !(await confirmSettingsNavigation())) return;
+    if (profileDirty && !(await confirmProfileNavigation())) return;
+    window.location.assign(link.href);
   }, true);
 
-  document.addEventListener('submit', (event) => {
+  document.addEventListener('submit', async (event) => {
     if (event.defaultPrevented) return;
-    const form = event.target;
-    if (!(form instanceof HTMLFormElement) || form === settingsForm || form === profileForm || form.matches('[data-pbd-generate-form]')) return;
-    if (settingsDirty && !confirmSettingsNavigation()) {
-      event.preventDefault();
-      return;
-    }
-    if (profileDirty && !confirmProfileNavigation()) event.preventDefault();
+    const submittedForm = event.target;
+    if (!(submittedForm instanceof HTMLFormElement)
+        || submittedForm === settingsForm
+        || submittedForm === profileForm
+        || submittedForm.matches('[data-pbd-generate-form]')) return;
+    if (!settingsDirty && !profileDirty) return;
+
+    event.preventDefault();
+    if (settingsDirty && !(await confirmSettingsNavigation())) return;
+    if (profileDirty && !(await confirmProfileNavigation())) return;
+    HTMLFormElement.prototype.submit.call(submittedForm);
   }, true);
 
   // Preserve the user's working context for this deck.
@@ -1796,7 +1829,15 @@ if (root) {
   bulkRemove?.addEventListener('click', async () => {
     const ids = selectedRowIds();
     if (ids.length === 0) return;
-    if (!window.confirm(`Remove ${ids.length} selected project${ids.length === 1 ? '' : 's'} from this deck?`)) return;
+    const confirmed = await prismConfirm({
+      title: `Remove ${ids.length} selected project${ids.length === 1 ? '' : 's'}?`,
+      message: 'The selected projects will be removed from this briefing deck. The underlying project records will not be changed.',
+      confirmText: ids.length === 1 ? 'Remove project' : 'Remove projects',
+      cancelText: 'Keep projects',
+      tone: 'danger',
+      returnFocus: bulkRemove
+    });
+    if (!confirmed) return;
     await updateMembership([], ids);
   });
 

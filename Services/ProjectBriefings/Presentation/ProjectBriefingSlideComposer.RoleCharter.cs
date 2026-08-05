@@ -49,8 +49,8 @@ public sealed partial class ProjectBriefingSlideComposer
         var showRole = !page.IsContinuation
             && data.Layout != ProjectBriefingRoleCharterLayout.CharterOnly
             && page.RoleStatements.Count > 0;
-        var charterTop = showRole ? 2.82 : 1.34;
-        var charterHeight = showRole ? 3.92 : 5.38;
+        var charterTop = showRole ? 2.82 : 1.42;
+        var charterMaximumHeight = showRole ? 3.78 : 5.18;
 
         if (showRole)
         {
@@ -62,7 +62,7 @@ public sealed partial class ProjectBriefingSlideComposer
             page.CharterItems,
             data.Layout,
             charterTop,
-            charterHeight,
+            charterMaximumHeight,
             page.IsContinuation);
     }
 
@@ -87,18 +87,18 @@ public sealed partial class ProjectBriefingSlideComposer
         const double x = .72;
         const double y = 1.22;
         const double width = 11.90;
-        const double height = 1.32;
+        const double height = 1.12;
         var fill = ResolveRolePanelFill(canvas.Theme);
 
         canvas.AddGroup(x, y, width, height, "Role panel", () =>
         {
-            canvas.AddRoundedRect(x, y, width, height, fill, canvas.Theme.Border, .06, "Role panel background");
+            canvas.AddRoundedRect(x, y, width, height, fill, canvas.Theme.Border, .05, "Role panel background");
             canvas.AddRect(x, y, .075, height, canvas.Theme.HeaderAccent, null, 0, "Role panel accent");
             canvas.AddText(
                 x + .24,
-                y + .16,
-                1.00,
-                .28,
+                y + .13,
+                1.70,
+                .22,
                 "ROLE",
                 11.5,
                 canvas.Theme.HeaderAccent,
@@ -112,23 +112,23 @@ public sealed partial class ProjectBriefingSlideComposer
                     statement,
                     canvas.Theme.HeaderAccent,
                     canvas.Theme.TextPrimary,
-                    fontSize: statements.Count > 2 ? 14.8 : 16.3,
+                    fontSize: statements.Count > 2 ? 14.4 : 16.0,
                     bullet: null,
-                    spaceAfter: statements.Count > 2 ? 4.0 : 6.0))
+                    spaceAfter: statements.Count > 2 ? 3.0 : 4.5))
                 .ToArray();
             canvas.AddRichTextBox(
-                x + 1.18,
-                y + .14,
-                width - 1.42,
-                height - .25,
+                x + .24,
+                y + .38,
+                width - .48,
+                height - .48,
                 paragraphs,
                 "Authorised role statements",
-                verticalAnchor: "ctr",
+                verticalAnchor: "t",
                 allowAutoFit: false,
                 leftInset: .02,
                 rightInset: .04,
-                topInset: .02,
-                bottomInset: .02);
+                topInset: .01,
+                bottomInset: .01);
         });
     }
 
@@ -141,16 +141,17 @@ public sealed partial class ProjectBriefingSlideComposer
         bool continuation)
     {
         canvas.AddText(
-            .76,
-            top - .34,
-            2.0,
-            .26,
+            .80,
+            top - .30,
+            2.25,
+            .22,
             continuation ? "CHARTER — CONTINUED" : "CHARTER",
             11.5,
             canvas.Theme.HeaderAccent,
             true,
             "l",
             name: "Charter heading");
+        canvas.AddLine(2.38, top - .18, 4.05, top - .18, canvas.Theme.Divider, .55);
 
         if (items.Count == 0)
         {
@@ -160,9 +161,10 @@ public sealed partial class ProjectBriefingSlideComposer
 
         var twoColumns = layout == ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter
             || continuation;
+        var resolvedHeight = ResolveCharterPanelHeight(items, twoColumns, height);
         if (!twoColumns)
         {
-            RenderCharterColumn(canvas, .72, top, 11.90, height, items, "Charter items");
+            RenderCharterColumn(canvas, .72, top, 11.90, resolvedHeight, items, "Charter items");
             return;
         }
 
@@ -172,11 +174,47 @@ public sealed partial class ProjectBriefingSlideComposer
         const double x = .72;
         const double gap = .24;
         const double columnWidth = 5.83;
-        RenderCharterColumn(canvas, x, top, columnWidth, height, left, "Charter items left column");
+        RenderCharterColumn(canvas, x, top, columnWidth, resolvedHeight, left, "Charter items left column");
         if (right.Length > 0)
         {
-            RenderCharterColumn(canvas, x + columnWidth + gap, top, columnWidth, height, right, "Charter items right column");
+            RenderCharterColumn(canvas, x + columnWidth + gap, top, columnWidth, resolvedHeight, right, "Charter items right column");
         }
+    }
+
+    private static double ResolveCharterPanelHeight(
+        IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
+        bool twoColumns,
+        double maximumHeight)
+    {
+        var columns = twoColumns
+            ? new[]
+            {
+                items.Take((int)Math.Ceiling(items.Count / 2d)).ToArray(),
+                items.Skip((int)Math.Ceiling(items.Count / 2d)).ToArray()
+            }
+            : new[] { items.ToArray() };
+        var charactersPerLine = twoColumns ? 48 : 104;
+        var estimatedHeight = columns
+            .Where(column => column.Length > 0)
+            .Select(column =>
+            {
+                var lineCount = column.Sum(item => EstimateRoleCharterLines(item, charactersPerLine));
+                return .34 + (lineCount * .19) + (column.Length * .08);
+            })
+            .DefaultIfEmpty(twoColumns ? 2.85 : 3.20)
+            .Max();
+        var minimumHeight = twoColumns ? 2.85 : 3.20;
+        return Math.Clamp(estimatedHeight, minimumHeight, maximumHeight);
+    }
+
+    private static int EstimateRoleCharterLines(
+        ProjectBriefingRoleCharterEntry item,
+        int charactersPerLine)
+    {
+        var combinedLength = (item.LeadPhrase?.Trim().Length ?? 0)
+            + (item.Text?.Trim().Length ?? 0)
+            + 3;
+        return Math.Max(1, (int)Math.Ceiling(combinedLength / (double)charactersPerLine));
     }
 
     private static void RenderCharterColumn(
@@ -193,7 +231,7 @@ public sealed partial class ProjectBriefingSlideComposer
             : canvas.Theme.Surface;
         canvas.AddGroup(x, y, width, height, name, () =>
         {
-            canvas.AddRoundedRect(x, y, width, height, fill, canvas.Theme.Border, .055, $"{name} background");
+            canvas.AddRoundedRect(x, y, width, height, fill, canvas.Theme.Border, .046, $"{name} background");
             var compact = items.Count >= 6;
             var fontSize = compact ? 12.8 : 13.8;
             var paragraphs = items
