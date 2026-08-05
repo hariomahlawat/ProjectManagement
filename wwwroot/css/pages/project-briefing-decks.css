@@ -3041,6 +3041,10 @@ body.pbd-settings-drawer-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.pbd-form-grid--institutional > .pbd-form-grid__wide {
+    grid-column: 1 / -1;
+}
+
 .pbd-institutional-module-list {
     display: grid;
     gap: .38rem;

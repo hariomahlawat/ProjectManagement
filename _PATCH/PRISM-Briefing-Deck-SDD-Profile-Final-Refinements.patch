@@ -1,0 +1,1212 @@
+diff --git a/Models/ProjectBriefings/ProjectBriefingDeck.cs b/Models/ProjectBriefings/ProjectBriefingDeck.cs
+index f83c507..23ff3de 100644
+--- a/Models/ProjectBriefings/ProjectBriefingDeck.cs
++++ b/Models/ProjectBriefings/ProjectBriefingDeck.cs
+@@ -86,6 +86,25 @@ public enum ProjectBriefingInstitutionalProjectScope
+     AllCompletedIncludingRebuilds = 2
+ }
+ 
++/// <summary>
++/// Visual treatment for the optional user-authored footer strip on the SDD profile slide.
++/// </summary>
++public enum ProjectBriefingInstitutionalFooterStyle
++{
++    Outline = 1,
++    SolidMaroon = 2,
++    SubtleNeutral = 3
++}
++
++/// <summary>
++/// Text composition used by the optional SDD profile footer strip.
++/// </summary>
++public enum ProjectBriefingInstitutionalFooterAlignment
++{
++    Center = 1,
++    LabelLeftValueRight = 2
++}
++
+ /// <summary>
+ /// Logical information rows available on each formal Project Update Sheet.
+ /// Project name is always rendered as the slide title and is therefore not a selectable table row.
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
+index a4c7092..2ad4cda 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -759,35 +759,54 @@
+                                                 </div>
+ 
+                                                 <fieldset class="pbd-choice-group">
+-                                                    <legend>Institutional recognition</legend>
++                                                    <legend>Profile footer strip</legend>
+                                                     <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
+                                                         <input type="checkbox"
+-                                                               name="IncludeInstitutionalUnitCitations"
++                                                               name="IncludeInstitutionalFooterStrip"
+                                                                value="true"
+-                                                               checked="@institutionalProfile.IncludeUnitCitations"
+-                                                               data-pbd-institutional-citations-enable />
+-                                                        <span><strong>Include unit-citations strip</strong><small>Manual institutional figure displayed below the output modules.</small></span>
++                                                               checked="@institutionalProfile.IncludeFooterStrip"
++                                                               data-pbd-institutional-footer-enable />
++                                                        <span><strong>Include custom footer strip</strong><small>Optional user-authored message displayed below the output modules exactly as entered.</small></span>
+                                                     </label>
+                                                     <div class="pbd-form-grid pbd-form-grid--institutional"
+-                                                         data-pbd-institutional-citations-fields
+-                                                         hidden="@(!institutionalProfile.IncludeUnitCitations)">
+-                                                        <label class="form-label">
+-                                                            <span>Display label</span>
++                                                         data-pbd-institutional-footer-fields
++                                                         hidden="@(!institutionalProfile.IncludeFooterStrip)">
++                                                        <label class="form-label pbd-form-grid__wide">
++                                                            <span>Footer text</span>
+                                                             <input class="form-control"
+-                                                                   name="InstitutionalUnitCitationLabel"
+-                                                                   value="@institutionalProfile.UnitCitationLabel"
+-                                                                   maxlength="80" />
++                                                                   name="InstitutionalFooterStripText"
++                                                                   value="@institutionalProfile.FooterStripText"
++                                                                   maxlength="160"
++                                                                   placeholder="GOC-in-C Unit Citations" />
++                                                            <small>Shown exactly as entered; PRISM does not generate or rewrite this text.</small>
+                                                         </label>
+                                                         <label class="form-label">
+-                                                            <span>Count</span>
++                                                            <span>Highlighted value <small>optional</small></span>
+                                                             <input class="form-control"
+-                                                                   type="number"
+-                                                                   name="InstitutionalUnitCitationCount"
+-                                                                   value="@institutionalProfile.UnitCitationCount"
+-                                                                   min="0"
+-                                                                   max="999" />
++                                                                   name="InstitutionalFooterStripEmphasisValue"
++                                                                   value="@institutionalProfile.FooterStripEmphasisValue"
++                                                                   maxlength="40"
++                                                                   placeholder="03" />
++                                                        </label>
++                                                        <label class="form-label">
++                                                            <span>Alignment</span>
++                                                            <select class="form-select" name="InstitutionalFooterStripAlignment">
++                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.Center" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.Center)">Centred</option>
++                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight)">Text left · value right</option>
++                                                            </select>
++                                                        </label>
++                                                        <label class="form-label">
++                                                            <span>Style</span>
++                                                            <select class="form-select" name="InstitutionalFooterStripStyle">
++                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.Outline" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.Outline)">Outline — recommended</option>
++                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SolidMaroon" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon)">Solid maroon</option>
++                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SubtleNeutral" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SubtleNeutral)">Subtle neutral</option>
++                                                            </select>
+                                                         </label>
+                                                     </div>
++                                                    <p class="pbd-institutional-profile-validation"
++                                                       data-pbd-institutional-footer-validation
++                                                       hidden>Enter footer text or an optional highlighted value.</p>
+                                                 </fieldset>
+                                             </div>
+                                         </div>
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml.cs b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+index 32230b4..43573c2 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml.cs
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml.cs
+@@ -176,9 +176,11 @@ public sealed class IndexModel : PageModel
+                         input.InstitutionalMaximumDetailRows,
+                         input.InstitutionalTrainingHighlightCategory,
+                         ParseSimpleLines(input.InstitutionalPartnershipLines),
+-                        input.IncludeInstitutionalUnitCitations,
+-                        input.InstitutionalUnitCitationCount,
+-                        input.InstitutionalUnitCitationLabel),
++                        input.IncludeInstitutionalFooterStrip,
++                        input.InstitutionalFooterStripText,
++                        input.InstitutionalFooterStripEmphasisValue,
++                        input.InstitutionalFooterStripStyle,
++                        input.InstitutionalFooterStripAlignment),
+                     BrandingScope = input.BrandingScope,
+                     IncludeCoverSlide = input.IncludeCoverSlide,
+                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
+@@ -669,13 +671,19 @@ public sealed class IndexModel : PageModel
+         [StringLength(1200)]
+         public string? InstitutionalPartnershipLines { get; set; }
+ 
+-        public bool IncludeInstitutionalUnitCitations { get; set; }
++        public bool IncludeInstitutionalFooterStrip { get; set; }
+ 
+-        [Range(0, 999)]
+-        public int? InstitutionalUnitCitationCount { get; set; }
++        [StringLength(160)]
++        public string? InstitutionalFooterStripText { get; set; }
+ 
+-        [StringLength(80)]
+-        public string? InstitutionalUnitCitationLabel { get; set; }
++        [StringLength(40)]
++        public string? InstitutionalFooterStripEmphasisValue { get; set; }
++
++        public ProjectBriefingInstitutionalFooterStyle InstitutionalFooterStripStyle { get; set; }
++            = ProjectBriefingInstitutionalFooterStyle.Outline;
++
++        public ProjectBriefingInstitutionalFooterAlignment InstitutionalFooterStripAlignment { get; set; }
++            = ProjectBriefingInstitutionalFooterAlignment.Center;
+ 
+         [Required]
+         public ProjectBriefingBrandingScope BrandingScope { get; set; }
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+index 0d3499a..1d15cb4 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -482,6 +482,7 @@ public sealed class ProjectBriefingContractTests
+         var script = Read("project-briefing-decks.js");
+         var service = Read("ProjectBriefingInstitutionalProfileService.cs");
+         var composer = Read("ProjectBriefingSlideComposer.InstitutionalProfile.cs");
++        var mainComposer = Read("ProjectBriefingSlideComposer.cs");
+         var dataSource = Read("ProjectBriefingDataService.cs");
+ 
+         Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
+@@ -491,6 +492,9 @@ public sealed class ProjectBriefingContractTests
+         Assert.Contains("InstitutionalProjectScope", page, StringComparison.Ordinal);
+         Assert.Contains("Original completed projects — recommended", page, StringComparison.Ordinal);
+         Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
++        Assert.Contains("Profile footer strip", page, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalFooterStripText", page, StringComparison.Ordinal);
++        Assert.Contains("Shown exactly as entered", page, StringComparison.Ordinal);
+         Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
+         Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
+@@ -515,9 +519,12 @@ public sealed class ProjectBriefingContractTests
+         Assert.Contains("institutional module", composer, StringComparison.Ordinal);
+         Assert.DoesNotContain("AddNativeTable", composer, StringComparison.Ordinal);
+         Assert.DoesNotContain("NativeTableBorders", composer, StringComparison.Ordinal);
+-        Assert.Contains("original five-column composition", composer, StringComparison.Ordinal);
+-        Assert.Contains("Data as on", composer, StringComparison.Ordinal);
+-        Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
++        Assert.Contains("InstitutionalModuleDisplayTitle", composer, StringComparison.Ordinal);
++        Assert.Contains("module labels", composer, StringComparison.Ordinal);
++        Assert.Contains("module values", composer, StringComparison.Ordinal);
++        Assert.Contains("RenderInstitutionalFooterStrip", composer, StringComparison.Ordinal);
++        Assert.Contains("Data as on", mainComposer, StringComparison.Ordinal);
++        Assert.Contains("Source: PRISM ERP", mainComposer, StringComparison.Ordinal);
+         Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);
+     }
+ 
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+index 3304e5f..c1e5d6a 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
+@@ -216,9 +216,11 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+             maximumDetailRows: 5,
+             trainingHighlightTechnicalCategory: "AR/VR",
+             partnershipEntries: new[] { "IIT Hyderabad", "Private industry / start-ups" },
+-            includeUnitCitations: true,
+-            unitCitationCount: 3,
+-            unitCitationLabel: "GOC-in-C Unit Citations");
++            includeFooterStrip: true,
++            footerStripText: "GOC-in-C Unit Citations",
++            footerStripEmphasisValue: "03",
++            footerStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
++            footerStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center);
+ 
+         var encoded = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
+             "{\"kind\":\"Ongoing\"}",
+@@ -230,7 +232,10 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+         Assert.Equal(options.HistoryMilestones, decoded.InstitutionalProfileOptions.HistoryMilestones);
+         Assert.Equal(options.PartnershipEntries, decoded.InstitutionalProfileOptions.PartnershipEntries);
+         Assert.Equal(ProjectBriefingInstitutionalProjectScope.OriginalCompleted, decoded.InstitutionalProfileOptions.ProjectScope);
+-        Assert.Equal(3, decoded.InstitutionalProfileOptions.UnitCitationCount);
++        Assert.True(decoded.InstitutionalProfileOptions.IncludeFooterStrip);
++        Assert.Equal("GOC-in-C Unit Citations", decoded.InstitutionalProfileOptions.FooterStripText);
++        Assert.Equal("03", decoded.InstitutionalProfileOptions.FooterStripEmphasisValue);
++        Assert.Equal(ProjectBriefingInstitutionalFooterStyle.Outline, decoded.InstitutionalProfileOptions.FooterStripStyle);
+         Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
+     }
+ 
+@@ -249,9 +254,11 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+                 maximumDetailRows: 4,
+                 trainingHighlightTechnicalCategory: null,
+                 partnershipEntries: Array.Empty<string>(),
+-                includeUnitCitations: false,
+-                unitCitationCount: null,
+-                unitCitationLabel: null));
++                includeFooterStrip: false,
++                footerStripText: null,
++                footerStripEmphasisValue: null,
++                footerStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
++                footerStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center));
+ 
+         var updated = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+             initial,
+@@ -299,4 +306,18 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
+             },
+             options.Rows);
+     }
++    [Fact]
++    public void InstitutionalProfileOptions_ReadsLegacyUnitCitationConfigurationAsFooterStrip()
++    {
++        const string legacy = """
++        {"schema":"prism.projectBriefing.deckConfig.v1","institutionalProfile":{"includeSlide":true,"includeUnitCitations":true,"unitCitationLabel":"GOC-in-C Unit Citations","unitCitationCount":3}}
++        """;
++
++        var decoded = ProjectBriefingDeckConfigurationCodec.Read(legacy);
++
++        Assert.True(decoded.InstitutionalProfileOptions.IncludeFooterStrip);
++        Assert.Equal("GOC-in-C Unit Citations", decoded.InstitutionalProfileOptions.FooterStripText);
++        Assert.Equal("03", decoded.InstitutionalProfileOptions.FooterStripEmphasisValue);
++    }
++
+ }
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+index faa34b7..72e797f 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -1574,8 +1574,11 @@ public sealed class ProjectBriefingSlideComposerTests
+                         null,
+                         new[] { new ProjectBriefingInstitutionalMetricRow("IIT Hyderabad", string.Empty) })
+                 },
+-                UnitCitationLabel = "GOC-in-C Unit Citations",
+-                UnitCitationCount = 3
++                IncludeFooterStrip = true,
++                FooterStripText = "GOC-in-C Unit Citations",
++                FooterStripEmphasisValue = "03",
++                FooterStripStyle = ProjectBriefingInstitutionalFooterStyle.Outline,
++                FooterStripAlignment = ProjectBriefingInstitutionalFooterAlignment.Center
+             }
+         };
+ 
+@@ -1595,8 +1598,8 @@ public sealed class ProjectBriefingSlideComposerTests
+         Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
+         Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
+         Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
+-        Assert.Contains("GOC-in-C Unit Citations —", profileText, StringComparison.Ordinal);
+-        Assert.Contains("03", profileText, StringComparison.Ordinal);
++        Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
++        Assert.Contains("10,081", profileText, StringComparison.Ordinal);
+         Assert.Contains("Data as on 04 Aug 2026 · Source: PRISM ERP", profileText, StringComparison.Ordinal);
+         Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
+         Assert.Contains(
+@@ -1610,7 +1613,7 @@ public sealed class ProjectBriefingSlideComposerTests
+             properties => string.Equals(properties.Name?.Value, "Military–Academia–Industry Synergy institutional module", StringComparison.Ordinal));
+         Assert.Contains(
+             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+-            properties => string.Equals(properties.Name?.Value, "Institutional recognition strip", StringComparison.Ordinal));
++            properties => string.Equals(properties.Name?.Value, "SDD profile footer strip", StringComparison.Ordinal));
+         Assert.Equal(7, profileSlide.Slide.Descendants<P.GroupShape>().Count());
+         Assert.Empty(profileSlide.Slide.Descendants<P.GraphicFrame>());
+         Assert.Empty(profileSlide.Slide.Descendants<A.Table>());
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+index c21c6f8..899f792 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
+@@ -15,9 +15,6 @@ public sealed partial class ProjectBriefingSlideComposer
+         canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "SDD profile top accent");
+         canvas.AddBrandingImages(HeaderVariant.Standard);
+ 
+-        // This slide intentionally follows the authorised SDD heritage composition.
+-        // It is visually distinct from analytical summaries but uses the deck's theme,
+-        // typography, branding and footer so it remains part of the same presentation.
+         var titleX = canvas.ShowBranding ? 1.28 : .62;
+         var titleWidth = canvas.ShowBranding ? 10.78 : 12.10;
+         canvas.AddRoundedRect(
+@@ -35,19 +32,18 @@ public sealed partial class ProjectBriefingSlideComposer
+             titleWidth - .48,
+             .43,
+             Truncate(profile.Title, 110),
+-            23.5,
++            24.5,
+             theme.TextOnAccent,
+             true,
+             "ctr",
+             name: "SDD profile title");
+ 
+         var hasHistory = profile.HistoryMilestones.Count > 0;
+-        var hasCitation = profile.UnitCitationCount.HasValue
+-            && !string.IsNullOrWhiteSpace(profile.UnitCitationLabel);
+-        var modulesTop = hasHistory ? 2.48 : 1.12;
+-        var modulesHeight = hasCitation
+-            ? 3.34
+-            : 3.70;
++        var hasFooterStrip = profile.IncludeFooterStrip
++            && (!string.IsNullOrWhiteSpace(profile.FooterStripText)
++                || !string.IsNullOrWhiteSpace(profile.FooterStripEmphasisValue));
++        var modulesTop = hasHistory ? 2.43 : 1.12;
++        var modulesHeight = hasFooterStrip ? 3.34 : 3.72;
+ 
+         if (hasHistory)
+         {
+@@ -56,32 +52,16 @@ public sealed partial class ProjectBriefingSlideComposer
+ 
+         RenderInstitutionalModules(canvas, profile.Modules, modulesTop, modulesHeight);
+ 
+-        if (hasCitation)
++        if (hasFooterStrip)
+         {
+-            RenderInstitutionalCitation(
+-                canvas,
+-                profile.UnitCitationLabel!,
+-                profile.UnitCitationCount!.Value);
++            RenderInstitutionalFooterStrip(canvas, profile);
+         }
+-
+-        var dataAsOn = profile.DataAsOnUtc.ToUniversalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+-        canvas.AddText(
+-            .76,
+-            hasCitation ? 6.60 : 6.67,
+-            11.82,
+-            .17,
+-            $"Data as on {dataAsOn} · Source: PRISM ERP",
+-            7.7,
+-            theme.TextMuted,
+-            false,
+-            "ctr",
+-            name: "SDD profile data source");
+     }
+ 
+     /// <summary>
+-    /// Renders the open alternating heritage timeline as one top-level PowerPoint
+-    /// group. Each milestone is one editable rich-text box containing both year and
+-    /// authorised description. No native table or visible grid is used.
++    /// Renders the authorised open alternating timeline as one top-level group.
++    /// Each milestone remains one editable year-and-description text object; no table
++    /// or visible grid is used.
+     /// </summary>
+     private static void RenderInstitutionalHistory(
+         SlideCanvas canvas,
+@@ -96,9 +76,9 @@ public sealed partial class ProjectBriefingSlideComposer
+ 
+         const double left = .82;
+         const double right = 12.52;
+-        const double groupTop = .94;
+-        const double groupHeight = 1.36;
+-        const double lineY = 1.61;
++        const double groupTop = .91;
++        const double groupHeight = 1.40;
++        const double lineY = 1.59;
+         var span = right - left;
+         var compact = items.Length >= 7;
+ 
+@@ -110,7 +90,7 @@ public sealed partial class ProjectBriefingSlideComposer
+             "SDD institutional history timeline",
+             () =>
+             {
+-                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.05);
++                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.25);
+ 
+                 for (var index = 0; index < items.Length; index++)
+                 {
+@@ -120,20 +100,17 @@ public sealed partial class ProjectBriefingSlideComposer
+                         ? (left + right) / 2d
+                         : left + ((span * index) / (items.Length - 1));
+                     var cellWidth = Math.Min(
+-                        compact ? 1.44 : 1.72,
+-                        Math.Max(1.18, (span / items.Length) - .08));
+-                    var textX = Math.Clamp(
+-                        markerX - (cellWidth / 2d),
+-                        left,
+-                        right - cellWidth);
+-                    var textY = above ? .99 : 1.72;
+-                    var description = Truncate(item.Text, compact ? 34 : 46);
++                        compact ? 1.48 : 1.78,
++                        Math.Max(1.24, (span / items.Length) - .05));
++                    var textX = Math.Clamp(markerX - (cellWidth / 2d), left, right - cellWidth);
++                    var textY = above ? .94 : 1.69;
++                    var description = Truncate(item.Text, compact ? 36 : 50);
+ 
+                     canvas.AddRichTextBox(
+                         textX,
+                         textY,
+                         cellWidth,
+-                        .52,
++                        .57,
+                         new[]
+                         {
+                             new RichTextParagraph(
+@@ -141,24 +118,24 @@ public sealed partial class ProjectBriefingSlideComposer
+                                 {
+                                     new RichTextRun(
+                                         item.Year.ToString(CultureInfo.InvariantCulture),
+-                                        compact ? 9.4 : 10.6,
++                                        compact ? 10.6 : 12.0,
+                                         canvas.Theme.HeaderAccent,
+                                         Bold: true)
+                                 },
+                                 Align: "ctr",
+-                                SpaceAfterPoints: 2.0,
+-                                LineSpacingPoints: compact ? 10.2 : 11.4),
++                                SpaceAfterPoints: 2.2,
++                                LineSpacingPoints: compact ? 11.3 : 12.8),
+                             new RichTextParagraph(
+                                 new[]
+                                 {
+                                     new RichTextRun(
+                                         description,
+-                                        compact ? 7.3 : 8.2,
++                                        compact ? 8.4 : 9.5,
+                                         canvas.Theme.TextPrimary,
+                                         Bold: true)
+                                 },
+                                 Align: "ctr",
+-                                LineSpacingPoints: compact ? 8.2 : 9.0)
++                                LineSpacingPoints: compact ? 9.2 : 10.4)
+                         },
+                         $"SDD milestone {item.Year}",
+                         verticalAnchor: above ? "b" : "t",
+@@ -169,12 +146,12 @@ public sealed partial class ProjectBriefingSlideComposer
+                         bottomInset: .01);
+ 
+                     canvas.AddText(
+-                        markerX - .10,
+-                        lineY - .12,
+-                        .20,
+-                        .24,
++                        markerX - .105,
++                        lineY - .125,
++                        .21,
++                        .25,
+                         "●",
+-                        10.5,
++                        11.2,
+                         canvas.Theme.Warning,
+                         true,
+                         "ctr",
+@@ -183,11 +160,6 @@ public sealed partial class ProjectBriefingSlideComposer
+             });
+     }
+ 
+-    /// <summary>
+-    /// Renders every selected output module in the original five-column composition.
+-    /// Each module is one top-level PowerPoint group and contains ordinary shapes and
+-    /// rich text only. No native PowerPoint table is used.
+-    /// </summary>
+     private static void RenderInstitutionalModules(
+         SlideCanvas canvas,
+         IReadOnlyList<ProjectBriefingInstitutionalModuleData> modules,
+@@ -219,6 +191,11 @@ public sealed partial class ProjectBriefingSlideComposer
+         }
+     }
+ 
++    /// <summary>
++    /// Each institutional module is one top-level group. Detail labels and values are
++    /// rendered in two aligned multi-paragraph boxes, avoiding fragile per-row shapes
++    /// and PowerPoint tab-stop wrapping while keeping the module easy to edit.
++    /// </summary>
+     private static void RenderInstitutionalModuleCard(
+         SlideCanvas canvas,
+         ProjectBriefingInstitutionalModuleData module,
+@@ -234,12 +211,13 @@ public sealed partial class ProjectBriefingSlideComposer
+         var hasHeadline = !string.IsNullOrWhiteSpace(module.Headline);
+         var hasHighlight = !string.IsNullOrWhiteSpace(module.Highlight);
+         var compact = width < 2.45;
+-        var titleFont = compact ? 7.8 : 8.7;
+-        var bodyFont = compact ? 7.25 : 8.0;
+-        var valueFont = compact ? 7.45 : 8.2;
+-        var headlineFont = compact ? 18.0 : 20.0;
+-        var headerHeight = .52;
+-        var highlightHeight = hasHighlight ? .32 : 0d;
++        var titleFont = compact ? 8.9 : 10.0;
++        var bodyFont = compact ? 8.4 : 9.2;
++        var valueFont = compact ? 8.7 : 9.5;
++        var headlineFont = compact ? 20.5 : 22.5;
++        const double headerHeight = .58;
++        var highlightHeight = hasHighlight ? .34 : 0d;
++        var displayTitle = InstitutionalModuleDisplayTitle(module.Module, module.Title);
+ 
+         canvas.AddGroup(
+             x,
+@@ -274,10 +252,10 @@ public sealed partial class ProjectBriefingSlideComposer
+                     name: $"{module.Title} module header fill");
+                 canvas.AddText(
+                     x + .10,
+-                    y + .14,
++                    y + .12,
+                     width - .20,
+-                    headerHeight - .10,
+-                    Truncate(module.Title, compact ? 48 : 58),
++                    headerHeight - .05,
++                    displayTitle,
+                     titleFont,
+                     accent,
+                     true,
+@@ -295,24 +273,24 @@ public sealed partial class ProjectBriefingSlideComposer
+                             new[]
+                             {
+                                 new RichTextRun(
+-                                    $"• {Truncate(row.Label, compact ? 28 : 36)}",
+-                                    compact ? 7.5 : 8.2,
++                                    $"• {Truncate(row.Label, compact ? 31 : 40)}",
++                                    compact ? 8.8 : 9.6,
+                                     canvas.Theme.TextSecondary)
+                             },
+-                            SpaceAfterPoints: compact ? 8.0 : 10.0,
+-                            LineSpacingPoints: compact ? 8.6 : 9.4))
++                            SpaceAfterPoints: compact ? 9.0 : 11.0,
++                            LineSpacingPoints: compact ? 9.8 : 10.6))
+                         .ToArray();
+ 
+                     if (partnershipParagraphs.Length > 0)
+                     {
+                         canvas.AddRichTextBox(
+-                            x + .14,
+-                            contentTop + .10,
+-                            width - .28,
+-                            Math.Max(.58, contentBottom - contentTop - .14),
++                            x + .16,
++                            contentTop + .16,
++                            width - .32,
++                            Math.Max(.58, contentBottom - contentTop - .22),
+                             partnershipParagraphs,
+                             $"{module.Title} module content",
+-                            verticalAnchor: "ctr",
++                            verticalAnchor: "t",
+                             allowAutoFit: true,
+                             leftInset: .02,
+                             rightInset: .02,
+@@ -329,50 +307,70 @@ public sealed partial class ProjectBriefingSlideComposer
+                         x + .12,
+                         contentTop,
+                         width - .24,
+-                        .48,
++                        .50,
+                         module.Headline!,
+                         headlineFont,
+                         canvas.Theme.TextPrimary,
+                         true,
+                         "ctr",
+                         name: $"{module.Title} module headline");
+-                    contentTop += .56;
++                    contentTop += .58;
+                 }
+ 
+                 var availableBodyHeight = Math.Max(.42, contentBottom - contentTop);
+-                var maximumRows = Math.Max(1, (int)Math.Floor(availableBodyHeight / (compact ? .28 : .34)));
++                var maximumRows = Math.Max(1, (int)Math.Floor(availableBodyHeight / (compact ? .30 : .34)));
+                 var visibleRows = rows.Take(maximumRows).ToArray();
+-                var bodyParagraphs = new List<RichTextParagraph>(visibleRows.Length);
++                var labels = new List<RichTextParagraph>(visibleRows.Length);
++                var values = new List<RichTextParagraph>(visibleRows.Length);
+                 foreach (var row in visibleRows)
+                 {
+-                    bodyParagraphs.Add(new RichTextParagraph(
++                    labels.Add(new RichTextParagraph(
+                         new[]
+                         {
+                             new RichTextRun(
+-                                Truncate(row.Label, compact ? 25 : 33),
++                                Truncate(row.Label, compact ? 27 : 36),
+                                 bodyFont,
+-                                canvas.Theme.TextSecondary),
++                                canvas.Theme.TextSecondary)
++                        },
++                        Align: "l",
++                        SpaceAfterPoints: compact ? 7.2 : 8.2,
++                        LineSpacingPoints: compact ? 9.2 : 10.0));
++                    values.Add(new RichTextParagraph(
++                        new[]
++                        {
+                             new RichTextRun(
+                                 row.Value,
+                                 valueFont,
+                                 canvas.Theme.TextPrimary,
+                                 Bold: true)
+                         },
+-                        TabStopInches: Math.Max(.58, width - .46),
+-                        TabAfterFirstRun: true,
+-                        SpaceAfterPoints: compact ? 7.0 : 8.0,
+-                        LineSpacingPoints: compact ? 8.4 : 9.2));
++                        Align: "r",
++                        SpaceAfterPoints: compact ? 7.2 : 8.2,
++                        LineSpacingPoints: compact ? 9.2 : 10.0));
+                 }
+ 
+-                if (bodyParagraphs.Count > 0)
++                if (labels.Count > 0)
+                 {
+                     canvas.AddRichTextBox(
+                         x + .14,
+                         contentTop + .02,
+-                        width - .28,
++                        width * .68,
+                         availableBodyHeight - .04,
+-                        bodyParagraphs,
+-                        $"{module.Title} module details",
++                        labels,
++                        $"{module.Title} module labels",
++                        verticalAnchor: "ctr",
++                        allowAutoFit: true,
++                        leftInset: .01,
++                        rightInset: .01,
++                        topInset: .01,
++                        bottomInset: .01);
++                    canvas.AddRichTextBox(
++                        x + (width * .73),
++                        contentTop + .02,
++                        (width * .27) - .14,
++                        availableBodyHeight - .04,
++                        values,
++                        $"{module.Title} module values",
+                         verticalAnchor: "ctr",
+                         allowAutoFit: true,
+                         leftInset: .01,
+@@ -387,20 +385,20 @@ public sealed partial class ProjectBriefingSlideComposer
+                     var highlightText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
+                     canvas.AddRoundedRect(
+                         x + .10,
+-                        y + height - .38,
++                        y + height - .40,
+                         width - .20,
+-                        .27,
++                        .29,
+                         highlightFill,
+                         null,
+                         .025,
+                         $"{module.Title} module highlight fill");
+                     canvas.AddText(
+                         x + .15,
+-                        y + height - .355,
++                        y + height - .375,
+                         width - .30,
+-                        .21,
+-                        Truncate(module.Highlight, compact ? 54 : 72),
+-                        compact ? 6.4 : 7.0,
++                        .23,
++                        Truncate(module.Highlight, compact ? 58 : 76),
++                        compact ? 7.2 : 7.8,
+                         highlightText,
+                         true,
+                         "l",
+@@ -409,39 +407,113 @@ public sealed partial class ProjectBriefingSlideComposer
+             });
+     }
+ 
+-    private static void RenderInstitutionalCitation(
++    private static string InstitutionalModuleDisplayTitle(
++        ProjectBriefingInstitutionalProfileModule module,
++        string fallback)
++        => module switch
++        {
++            ProjectBriefingInstitutionalProfileModule.ProjectsDeveloped => "SIMULATORS / PROJECTS\nDEVELOPED",
++            ProjectBriefingInstitutionalProfileModule.Proliferation => "PROLIFERATED",
++            ProjectBriefingInstitutionalProfileModule.TrainingSupport => "ASSISTANCE TO\nFIELD FORMATIONS",
++            ProjectBriefingInstitutionalProfileModule.IntellectualProperty => "INTELLECTUAL PROPERTY",
++            ProjectBriefingInstitutionalProfileModule.Partnerships => "MILITARY–ACADEMIA–\nINDUSTRY SYNERGY",
++            _ => Truncate(fallback, 58).ToUpperInvariant()
++        };
++
++    private static void RenderInstitutionalFooterStrip(
+         SlideCanvas canvas,
+-        string label,
+-        int count)
++        ProjectBriefingInstitutionalProfileData profile)
+     {
++        const double x = .62;
++        const double y = 6.10;
++        const double width = 12.10;
++        const double height = .43;
++        var theme = canvas.Theme;
++
++        var fill = profile.FooterStripStyle switch
++        {
++            ProjectBriefingInstitutionalFooterStyle.SolidMaroon => theme.HeaderAccent,
++            ProjectBriefingInstitutionalFooterStyle.SubtleNeutral => theme.SurfaceMuted,
++            _ => theme.SurfaceRaised
++        };
++        var border = profile.FooterStripStyle switch
++        {
++            ProjectBriefingInstitutionalFooterStyle.SolidMaroon => theme.HeaderAccent,
++            ProjectBriefingInstitutionalFooterStyle.SubtleNeutral => theme.Divider,
++            _ => theme.HeaderAccent
++        };
++        var textColor = profile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon
++            ? theme.TextOnAccent
++            : theme.TextPrimary;
++        var valueColor = profile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon
++            ? theme.TextOnAccent
++            : theme.HeaderAccent;
++        var label = Truncate(profile.FooterStripText, 150);
++        var value = Truncate(profile.FooterStripEmphasisValue, 36);
++
+         canvas.AddGroup(
+-            4.35,
+-            6.08,
+-            4.63,
+-            .40,
+-            "Institutional recognition strip",
++            x,
++            y,
++            width,
++            height,
++            "SDD profile footer strip",
+             () =>
+             {
+                 canvas.AddRoundedRect(
+-                    4.35,
+-                    6.08,
+-                    4.63,
+-                    .40,
+-                    canvas.Theme.SurfaceRaised,
+-                    canvas.Theme.HeaderAccent,
+-                    .035,
+-                    "Institutional recognition background");
+-                canvas.AddText(
+-                    4.56,
+-                    6.14,
+-                    4.21,
+-                    .25,
+-                    $"{Truncate(label, 58)} — {count:00}",
+-                    11.0,
+-                    canvas.Theme.TextPrimary,
+-                    true,
+-                    "ctr",
+-                    name: "Institutional recognition text");
++                    x,
++                    y,
++                    width,
++                    height,
++                    fill,
++                    border,
++                    .028,
++                    "SDD profile footer-strip background");
++
++                if (profile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight
++                    && !string.IsNullOrWhiteSpace(value))
++                {
++                    canvas.AddText(
++                        x + .20,
++                        y + .085,
++                        width - 1.65,
++                        .26,
++                        label,
++                        12.0,
++                        textColor,
++                        true,
++                        "l",
++                        name: "SDD profile footer-strip text");
++                    canvas.AddText(
++                        x + width - 1.25,
++                        y + .075,
++                        1.02,
++                        .28,
++                        value,
++                        14.0,
++                        valueColor,
++                        true,
++                        "r",
++                        name: "SDD profile footer-strip value");
++                }
++                else
++                {
++                    var combined = string.IsNullOrWhiteSpace(value)
++                        ? label
++                        : string.IsNullOrWhiteSpace(label)
++                            ? value
++                            : $"{label} — {value}";
++                    canvas.AddText(
++                        x + .22,
++                        y + .075,
++                        width - .44,
++                        .28,
++                        combined,
++                        12.6,
++                        textColor,
++                        true,
++                        "ctr",
++                        name: "SDD profile footer-strip text");
++                }
+             });
+     }
+ 
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+index 0e6b7e4..e2b2057 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -2070,7 +2070,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+ 
+         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
+         canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
+-        if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
++        if (kind == SlidePlanKind.InstitutionalProfile && data.InstitutionalProfile is not null)
++        {
++            var dataAsOn = data.InstitutionalProfile.DataAsOnUtc
++                .ToUniversalTime()
++                .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
++            canvas.AddText(
++                4.15,
++                7.12,
++                5.05,
++                .18,
++                $"Data as on {dataAsOn} · Source: PRISM ERP",
++                7.8,
++                canvas.Theme.TextMuted,
++                false,
++                "ctr");
++        }
++        else if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
+         {
+             canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
+         }
+diff --git a/Services/ProjectBriefings/ProjectBriefingContracts.cs b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+index 3aa9d4c..c6b2b24 100644
+--- a/Services/ProjectBriefings/ProjectBriefingContracts.cs
++++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+@@ -362,8 +362,13 @@ public sealed class ProjectBriefingInstitutionalProfileData
+         = Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>();
+     public IReadOnlyList<ProjectBriefingInstitutionalModuleData> Modules { get; init; }
+         = Array.Empty<ProjectBriefingInstitutionalModuleData>();
+-    public string? UnitCitationLabel { get; init; }
+-    public int? UnitCitationCount { get; init; }
++    public bool IncludeFooterStrip { get; init; }
++    public string FooterStripText { get; init; } = string.Empty;
++    public string? FooterStripEmphasisValue { get; init; }
++    public ProjectBriefingInstitutionalFooterStyle FooterStripStyle { get; init; }
++        = ProjectBriefingInstitutionalFooterStyle.Outline;
++    public ProjectBriefingInstitutionalFooterAlignment FooterStripAlignment { get; init; }
++        = ProjectBriefingInstitutionalFooterAlignment.Center;
+     public DateTimeOffset DataAsOnUtc { get; init; }
+ }
+ 
+diff --git a/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs b/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+index 6ddb1f2..35693fb 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
+@@ -89,7 +89,7 @@ public sealed record ProjectBriefingInstitutionalHistoryMilestone(int Year, stri
+ 
+ /// <summary>
+ /// Deck-specific configuration of the optional SDD institutional-profile slide.
+-/// ERP-backed figures remain read-only; only authorised history, partnership and citation text is user-maintained.
++/// ERP-backed figures remain read-only; only authorised history, partnership and optional footer-strip text is user-maintained.
+ /// </summary>
+ public sealed record ProjectBriefingInstitutionalProfileOptions(
+     bool IncludeSlide,
+@@ -101,13 +101,15 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+     int MaximumDetailRows,
+     string TrainingHighlightTechnicalCategory,
+     IReadOnlyList<string> PartnershipEntries,
+-    bool IncludeUnitCitations,
+-    int? UnitCitationCount,
+-    string UnitCitationLabel)
++    bool IncludeFooterStrip,
++    string FooterStripText,
++    string? FooterStripEmphasisValue,
++    ProjectBriefingInstitutionalFooterStyle FooterStripStyle,
++    ProjectBriefingInstitutionalFooterAlignment FooterStripAlignment)
+ {
+     public const string DefaultTitle = "SDD – Growth over the years";
+     public const string DefaultTrainingHighlight = "AR/VR";
+-    public const string DefaultCitationLabel = "GOC-in-C Unit Citations";
++    public const string DefaultFooterText = "GOC-in-C Unit Citations";
+ 
+     public static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> DefaultModules { get; } =
+         new[]
+@@ -141,9 +143,11 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+             MaximumDetailRows: 6,
+             TrainingHighlightTechnicalCategory: DefaultTrainingHighlight,
+             PartnershipEntries: Array.Empty<string>(),
+-            IncludeUnitCitations: false,
+-            UnitCitationCount: null,
+-            UnitCitationLabel: DefaultCitationLabel);
++            IncludeFooterStrip: false,
++            FooterStripText: DefaultFooterText,
++            FooterStripEmphasisValue: null,
++            FooterStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
++            FooterStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center);
+ 
+     public static ProjectBriefingInstitutionalProfileOptions Normalize(
+         bool includeSlide,
+@@ -155,9 +159,11 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+         int maximumDetailRows,
+         string? trainingHighlightTechnicalCategory,
+         IEnumerable<string>? partnershipEntries,
+-        bool includeUnitCitations,
+-        int? unitCitationCount,
+-        string? unitCitationLabel)
++        bool includeFooterStrip,
++        string? footerStripText,
++        string? footerStripEmphasisValue,
++        ProjectBriefingInstitutionalFooterStyle footerStripStyle,
++        ProjectBriefingInstitutionalFooterAlignment footerStripAlignment)
+     {
+         var history = (historyMilestones ?? Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>())
+             .Where(item => item.Year is >= 1900 and <= 2200 && !string.IsNullOrWhiteSpace(item.Text))
+@@ -181,7 +187,14 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+             .Take(8)
+             .ToArray();
+ 
+-        var count = unitCitationCount is >= 0 and <= 999 ? unitCitationCount : null;
++        var normalizedFooterText = string.IsNullOrWhiteSpace(footerStripText)
++            ? string.Empty
++            : TrimTo(footerStripText.Trim(), 160);
++        var normalizedFooterValue = string.IsNullOrWhiteSpace(footerStripEmphasisValue)
++            ? null
++            : TrimTo(footerStripEmphasisValue.Trim(), 40);
++        var footerHasContent = !string.IsNullOrWhiteSpace(normalizedFooterText)
++            || !string.IsNullOrWhiteSpace(normalizedFooterValue);
+ 
+         return new ProjectBriefingInstitutionalProfileOptions(
+             includeSlide,
+@@ -197,11 +210,15 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
+                 ? DefaultTrainingHighlight
+                 : TrimTo(trainingHighlightTechnicalCategory.Trim(), 80),
+             normalizedPartnerships,
+-            includeUnitCitations && count.HasValue,
+-            count,
+-            string.IsNullOrWhiteSpace(unitCitationLabel)
+-                ? DefaultCitationLabel
+-                : TrimTo(unitCitationLabel.Trim(), 80));
++            includeFooterStrip && footerHasContent,
++            normalizedFooterText,
++            normalizedFooterValue,
++            Enum.IsDefined(footerStripStyle)
++                ? footerStripStyle
++                : ProjectBriefingInstitutionalFooterStyle.Outline,
++            Enum.IsDefined(footerStripAlignment)
++                ? footerStripAlignment
++                : ProjectBriefingInstitutionalFooterAlignment.Center);
+     }
+ 
+     private static string TrimTo(string value, int maximumLength)
+@@ -397,6 +414,22 @@ public static class ProjectBriefingDeckConfigurationCodec
+                 .ToArray()
+             : Array.Empty<string>();
+ 
++        var hasNewFooterConfiguration = profile.ContainsKey("includeFooterStrip")
++            || profile.ContainsKey("footerStripText")
++            || profile.ContainsKey("footerStripEmphasisValue");
++        var legacyCitationCount = ReadNullableInt(profile["unitCitationCount"]);
++        var footerEnabled = hasNewFooterConfiguration
++            ? profile["includeFooterStrip"]?.GetValue<bool>() ?? false
++            : profile["includeUnitCitations"]?.GetValue<bool>() ?? false;
++        var footerText = hasNewFooterConfiguration
++            ? profile["footerStripText"]?.GetValue<string>()
++            : profile["unitCitationLabel"]?.GetValue<string>();
++        var footerValue = hasNewFooterConfiguration
++            ? profile["footerStripEmphasisValue"]?.GetValue<string>()
++            : legacyCitationCount.HasValue
++                ? legacyCitationCount.Value.ToString("00", System.Globalization.CultureInfo.InvariantCulture)
++                : null;
++
+         return ProjectBriefingInstitutionalProfileOptions.Normalize(
+             profile["includeSlide"]?.GetValue<bool>() ?? false,
+             profile["title"]?.GetValue<string>(),
+@@ -411,9 +444,11 @@ public static class ProjectBriefingDeckConfigurationCodec
+             profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
+             profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
+             partnerships,
+-            profile["includeUnitCitations"]?.GetValue<bool>() ?? false,
+-            ReadNullableInt(profile["unitCitationCount"]),
+-            profile["unitCitationLabel"]?.GetValue<string>());
++            footerEnabled,
++            footerText,
++            footerValue,
++            ReadEnum(profile["footerStripStyle"], ProjectBriefingInstitutionalFooterStyle.Outline),
++            ReadEnum(profile["footerStripAlignment"], ProjectBriefingInstitutionalFooterAlignment.Center));
+     }
+ 
+     private static int? ReadNullableInt(JsonNode? node)
+@@ -453,9 +488,11 @@ public static class ProjectBriefingDeckConfigurationCodec
+             institutionalProfileOptions.MaximumDetailRows,
+             institutionalProfileOptions.TrainingHighlightTechnicalCategory,
+             institutionalProfileOptions.PartnershipEntries,
+-            institutionalProfileOptions.IncludeUnitCitations,
+-            institutionalProfileOptions.UnitCitationCount,
+-            institutionalProfileOptions.UnitCitationLabel);
++            institutionalProfileOptions.IncludeFooterStrip,
++            institutionalProfileOptions.FooterStripText,
++            institutionalProfileOptions.FooterStripEmphasisValue,
++            institutionalProfileOptions.FooterStripStyle,
++            institutionalProfileOptions.FooterStripAlignment);
+ 
+         var root = new JsonObject
+         {
+@@ -492,9 +529,11 @@ public static class ProjectBriefingDeckConfigurationCodec
+                 ["partnerships"] = new JsonArray(normalizedProfile.PartnershipEntries
+                     .Select(item => (JsonNode?)JsonValue.Create(item))
+                     .ToArray()),
+-                ["includeUnitCitations"] = normalizedProfile.IncludeUnitCitations,
+-                ["unitCitationCount"] = normalizedProfile.UnitCitationCount,
+-                ["unitCitationLabel"] = normalizedProfile.UnitCitationLabel
++                ["includeFooterStrip"] = normalizedProfile.IncludeFooterStrip,
++                ["footerStripText"] = normalizedProfile.FooterStripText,
++                ["footerStripEmphasisValue"] = normalizedProfile.FooterStripEmphasisValue,
++                ["footerStripStyle"] = normalizedProfile.FooterStripStyle.ToString(),
++                ["footerStripAlignment"] = normalizedProfile.FooterStripAlignment.ToString()
+             }
+         };
+ 
+diff --git a/Services/ProjectBriefings/ProjectBriefingDeckService.cs b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+index 22388d7..746dc7f 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDeckService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDeckService.cs
+@@ -294,6 +294,13 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
+             command.ProjectBriefLayout,
+             command.ShowPresentStage,
+             command.ShowPresentStatus);
++        if (command.InstitutionalProfileOptions.IncludeFooterStrip
++            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripText)
++            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripEmphasisValue))
++        {
++            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
++        }
++
+         var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
+             command.InstitutionalProfileOptions.IncludeSlide,
+             command.InstitutionalProfileOptions.Title,
+@@ -304,9 +311,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
+             command.InstitutionalProfileOptions.MaximumDetailRows,
+             command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
+             command.InstitutionalProfileOptions.PartnershipEntries,
+-            command.InstitutionalProfileOptions.IncludeUnitCitations,
+-            command.InstitutionalProfileOptions.UnitCitationCount,
+-            command.InstitutionalProfileOptions.UnitCitationLabel);
++            command.InstitutionalProfileOptions.IncludeFooterStrip,
++            command.InstitutionalProfileOptions.FooterStripText,
++            command.InstitutionalProfileOptions.FooterStripEmphasisValue,
++            command.InstitutionalProfileOptions.FooterStripStyle,
++            command.InstitutionalProfileOptions.FooterStripAlignment);
+         if (institutionalProfileOptions.IncludeSlide
+             && !institutionalProfileOptions.IncludeHistory
+             && institutionalProfileOptions.Modules.Count == 0)
+diff --git a/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs b/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+index f66800d..7c761a4 100644
+--- a/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
+@@ -18,8 +18,8 @@ public interface IProjectBriefingInstitutionalProfileService
+ 
+ /// <summary>
+ /// Builds the single authoritative institutional snapshot used by the SDD profile slide.
+-/// ERP-backed metrics are read-only; only the authorised history, partnership and citation
+-/// content supplied through the deck configuration is carried into the presentation.
++/// ERP-backed metrics are read-only; only the authorised history, partnership and optional
++/// user-authored footer-strip content is carried into the presentation.
+ /// </summary>
+ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefingInstitutionalProfileService
+ {
+@@ -55,9 +55,11 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
+             options.MaximumDetailRows,
+             options.TrainingHighlightTechnicalCategory,
+             options.PartnershipEntries,
+-            options.IncludeUnitCitations,
+-            options.UnitCitationCount,
+-            options.UnitCitationLabel);
++            options.IncludeFooterStrip,
++            options.FooterStripText,
++            options.FooterStripEmphasisValue,
++            options.FooterStripStyle,
++            options.FooterStripAlignment);
+ 
+         if (!normalized.IncludeSlide)
+         {
+@@ -101,12 +103,11 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
+                 ? normalized.HistoryMilestones
+                 : Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
+             Modules = modules,
+-            UnitCitationLabel = normalized.IncludeUnitCitations
+-                ? normalized.UnitCitationLabel
+-                : null,
+-            UnitCitationCount = normalized.IncludeUnitCitations
+-                ? normalized.UnitCitationCount
+-                : null,
++            IncludeFooterStrip = normalized.IncludeFooterStrip,
++            FooterStripText = normalized.FooterStripText,
++            FooterStripEmphasisValue = normalized.FooterStripEmphasisValue,
++            FooterStripStyle = normalized.FooterStripStyle,
++            FooterStripAlignment = normalized.FooterStripAlignment,
+             DataAsOnUtc = _clock.UtcNow.ToUniversalTime()
+         };
+     }
+diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
+index d7558c8..20ed993 100644
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -3041,6 +3041,10 @@ body.pbd-settings-drawer-open {
+     grid-template-columns: repeat(2, minmax(0, 1fr));
+ }
+ 
++.pbd-form-grid--institutional > .pbd-form-grid__wide {
++    grid-column: 1 / -1;
++}
++
+ .pbd-institutional-module-list {
+     display: grid;
+     gap: .38rem;
+diff --git a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
+index 8c78dbc..955af3b 100644
+--- a/wwwroot/js/pages/project-briefing-decks.js
++++ b/wwwroot/js/pages/project-briefing-decks.js
+@@ -261,8 +261,9 @@ if (root) {
+   const institutionalProfileSettings = root.querySelector('[data-pbd-institutional-profile-settings]');
+   const institutionalHistoryEnable = root.querySelector('[data-pbd-institutional-history-enable]');
+   const institutionalHistoryFields = root.querySelector('[data-pbd-institutional-history-fields]');
+-  const institutionalCitationEnable = root.querySelector('[data-pbd-institutional-citations-enable]');
+-  const institutionalCitationFields = root.querySelector('[data-pbd-institutional-citations-fields]');
++  const institutionalFooterEnable = root.querySelector('[data-pbd-institutional-footer-enable]');
++  const institutionalFooterFields = root.querySelector('[data-pbd-institutional-footer-fields]');
++  const institutionalFooterValidation = root.querySelector('[data-pbd-institutional-footer-validation]');
+   const institutionalModuleList = root.querySelector('[data-pbd-institutional-module-list]');
+   const institutionalModuleOrderInput = root.querySelector('[data-pbd-institutional-module-order]');
+   const institutionalProfileValidation = root.querySelector('[data-pbd-institutional-profile-validation]');
+@@ -488,9 +489,9 @@ if (root) {
+     const parts = [];
+     if (institutionalHistoryEnable?.checked) parts.push('original alternating history timeline');
+     if (keys.length > 0) parts.push(`${keys.length} institutional card${keys.length === 1 ? '' : 's'} in the selected order`);
+-    if (institutionalCitationEnable?.checked) parts.push('unit-citations strip');
++    if (institutionalFooterEnable?.checked) parts.push('custom footer strip');
+     institutionalLayoutSummary.textContent = parts.length > 0
+-      ? `Original SDD profile composition: ${parts.join(' · ')}. ERP figures remain read-only and no selected module is omitted.`
++      ? `SDD profile composition: ${parts.join(' · ')}. ERP figures remain read-only and no selected module is omitted.`
+       : 'Select the timeline or at least one output module.';
+   };
+ 
+@@ -502,11 +503,16 @@ if (root) {
+     const hasContent = historySelected || selectedKeys.length > 0;
+     const partnershipSelected = selectedKeys.includes('Partnerships');
+     const partnershipValid = !partnershipSelected || institutionalPartnershipCount() > 0;
+-    const valid = !enabled || (hasContent && historyValid && partnershipValid);
++    const footerSelected = Boolean(institutionalFooterEnable?.checked);
++    const footerText = root.querySelector('input[name="InstitutionalFooterStripText"]')?.value?.trim() || '';
++    const footerValue = root.querySelector('input[name="InstitutionalFooterStripEmphasisValue"]')?.value?.trim() || '';
++    const footerValid = !footerSelected || Boolean(footerText || footerValue);
++    const valid = !enabled || (hasContent && historyValid && partnershipValid && footerValid);
+     institutionalProfileValid = valid;
+     institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
+     institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
+     institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
++    institutionalFooterValidation?.toggleAttribute('hidden', !enabled || footerValid);
+     institutionalModuleList?.classList.toggle('has-validation-error', enabled && !hasContent);
+     institutionalModuleList?.setAttribute('aria-invalid', String(enabled && !hasContent));
+     institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
+@@ -516,6 +522,7 @@ if (root) {
+     if (!valid && focus) {
+       if (!historyValid) institutionalHistoryEditor?.querySelector('input')?.focus();
+       else if (!partnershipValid) institutionalPartnershipEditor?.querySelector('input')?.focus();
++      else if (!footerValid) root.querySelector('input[name="InstitutionalFooterStripText"]')?.focus();
+       else institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
+     }
+     return valid;
+@@ -525,7 +532,7 @@ if (root) {
+     const enabled = Boolean(institutionalProfileEnable?.checked);
+     if (institutionalProfileSettings) institutionalProfileSettings.hidden = !enabled;
+     if (institutionalHistoryFields) institutionalHistoryFields.hidden = !institutionalHistoryEnable?.checked;
+-    if (institutionalCitationFields) institutionalCitationFields.hidden = !institutionalCitationEnable?.checked;
++    if (institutionalFooterFields) institutionalFooterFields.hidden = !institutionalFooterEnable?.checked;
+     validateInstitutionalProfile();
+   };
+ 
+@@ -627,7 +634,7 @@ if (root) {
+ 
+   institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+   institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+-  institutionalCitationEnable?.addEventListener('change', syncInstitutionalProfileSettings);
++  institutionalFooterEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+   syncInstitutionalHistoryEditor();
+   syncInstitutionalPartnershipEditor();
+   syncInstitutionalModuleOrder();
+diff --git a/wwwroot/js/projects/project-briefing-decks.test.js b/wwwroot/js/projects/project-briefing-decks.test.js
+index 5ca8db9..cef9156 100644
+--- a/wwwroot/js/projects/project-briefing-decks.test.js
++++ b/wwwroot/js/projects/project-briefing-decks.test.js
+@@ -204,6 +204,9 @@ test('SDD institutional profile settings remain modular, ordered and valid befor
+   assert.match(source, /syncInstitutionalHistoryEditor/);
+   assert.match(source, /syncInstitutionalPartnershipEditor/);
+   assert.match(source, /syncInstitutionalLayoutSummary/);
++  assert.match(source, /data-pbd-institutional-footer-enable/);
++  assert.match(source, /InstitutionalFooterStripText/);
++  assert.match(source, /footerValid/);
+   assert.match(source, /no selected module is omitted/i);
+   assert.match(source, /institutionalProfileSlides/);
+ });

@@ -261,8 +261,9 @@ if (root) {
   const institutionalProfileSettings = root.querySelector('[data-pbd-institutional-profile-settings]');
   const institutionalHistoryEnable = root.querySelector('[data-pbd-institutional-history-enable]');
   const institutionalHistoryFields = root.querySelector('[data-pbd-institutional-history-fields]');
-  const institutionalCitationEnable = root.querySelector('[data-pbd-institutional-citations-enable]');
-  const institutionalCitationFields = root.querySelector('[data-pbd-institutional-citations-fields]');
+  const institutionalFooterEnable = root.querySelector('[data-pbd-institutional-footer-enable]');
+  const institutionalFooterFields = root.querySelector('[data-pbd-institutional-footer-fields]');
+  const institutionalFooterValidation = root.querySelector('[data-pbd-institutional-footer-validation]');
   const institutionalModuleList = root.querySelector('[data-pbd-institutional-module-list]');
   const institutionalModuleOrderInput = root.querySelector('[data-pbd-institutional-module-order]');
   const institutionalProfileValidation = root.querySelector('[data-pbd-institutional-profile-validation]');
@@ -488,9 +489,9 @@ if (root) {
     const parts = [];
     if (institutionalHistoryEnable?.checked) parts.push('original alternating history timeline');
     if (keys.length > 0) parts.push(`${keys.length} institutional card${keys.length === 1 ? '' : 's'} in the selected order`);
-    if (institutionalCitationEnable?.checked) parts.push('unit-citations strip');
+    if (institutionalFooterEnable?.checked) parts.push('custom footer strip');
     institutionalLayoutSummary.textContent = parts.length > 0
-      ? `Original SDD profile composition: ${parts.join(' · ')}. ERP figures remain read-only and no selected module is omitted.`
+      ? `SDD profile composition: ${parts.join(' · ')}. ERP figures remain read-only and no selected module is omitted.`
       : 'Select the timeline or at least one output module.';
   };
 
@@ -502,11 +503,16 @@ if (root) {
     const hasContent = historySelected || selectedKeys.length > 0;
     const partnershipSelected = selectedKeys.includes('Partnerships');
     const partnershipValid = !partnershipSelected || institutionalPartnershipCount() > 0;
-    const valid = !enabled || (hasContent && historyValid && partnershipValid);
+    const footerSelected = Boolean(institutionalFooterEnable?.checked);
+    const footerText = root.querySelector('input[name="InstitutionalFooterStripText"]')?.value?.trim() || '';
+    const footerValue = root.querySelector('input[name="InstitutionalFooterStripEmphasisValue"]')?.value?.trim() || '';
+    const footerValid = !footerSelected || Boolean(footerText || footerValue);
+    const valid = !enabled || (hasContent && historyValid && partnershipValid && footerValid);
     institutionalProfileValid = valid;
     institutionalProfileValidation?.toggleAttribute('hidden', !enabled || hasContent);
     institutionalHistoryValidation?.toggleAttribute('hidden', !enabled || historyValid);
     institutionalPartnershipValidation?.toggleAttribute('hidden', !enabled || partnershipValid);
+    institutionalFooterValidation?.toggleAttribute('hidden', !enabled || footerValid);
     institutionalModuleList?.classList.toggle('has-validation-error', enabled && !hasContent);
     institutionalModuleList?.setAttribute('aria-invalid', String(enabled && !hasContent));
     institutionalHistoryEditor?.classList.toggle('has-validation-error', enabled && !historyValid);
@@ -516,6 +522,7 @@ if (root) {
     if (!valid && focus) {
       if (!historyValid) institutionalHistoryEditor?.querySelector('input')?.focus();
       else if (!partnershipValid) institutionalPartnershipEditor?.querySelector('input')?.focus();
+      else if (!footerValid) root.querySelector('input[name="InstitutionalFooterStripText"]')?.focus();
       else institutionalModuleElements()[0]?.querySelector('input[name="InstitutionalModules"]')?.focus();
     }
     return valid;
@@ -525,7 +532,7 @@ if (root) {
     const enabled = Boolean(institutionalProfileEnable?.checked);
     if (institutionalProfileSettings) institutionalProfileSettings.hidden = !enabled;
     if (institutionalHistoryFields) institutionalHistoryFields.hidden = !institutionalHistoryEnable?.checked;
-    if (institutionalCitationFields) institutionalCitationFields.hidden = !institutionalCitationEnable?.checked;
+    if (institutionalFooterFields) institutionalFooterFields.hidden = !institutionalFooterEnable?.checked;
     validateInstitutionalProfile();
   };
 
@@ -627,7 +634,7 @@ if (root) {
 
   institutionalProfileEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   institutionalHistoryEnable?.addEventListener('change', syncInstitutionalProfileSettings);
-  institutionalCitationEnable?.addEventListener('change', syncInstitutionalProfileSettings);
+  institutionalFooterEnable?.addEventListener('change', syncInstitutionalProfileSettings);
   syncInstitutionalHistoryEditor();
   syncInstitutionalPartnershipEditor();
   syncInstitutionalModuleOrder();

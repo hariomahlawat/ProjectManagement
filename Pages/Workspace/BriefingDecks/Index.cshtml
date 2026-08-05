@@ -759,35 +759,54 @@
                                                 </div>
 
                                                 <fieldset class="pbd-choice-group">
-                                                    <legend>Institutional recognition</legend>
+                                                    <legend>Profile footer strip</legend>
                                                     <label class="pbd-institutional-profile-toggle pbd-institutional-profile-toggle--compact">
                                                         <input type="checkbox"
-                                                               name="IncludeInstitutionalUnitCitations"
+                                                               name="IncludeInstitutionalFooterStrip"
                                                                value="true"
-                                                               checked="@institutionalProfile.IncludeUnitCitations"
-                                                               data-pbd-institutional-citations-enable />
-                                                        <span><strong>Include unit-citations strip</strong><small>Manual institutional figure displayed below the output modules.</small></span>
+                                                               checked="@institutionalProfile.IncludeFooterStrip"
+                                                               data-pbd-institutional-footer-enable />
+                                                        <span><strong>Include custom footer strip</strong><small>Optional user-authored message displayed below the output modules exactly as entered.</small></span>
                                                     </label>
                                                     <div class="pbd-form-grid pbd-form-grid--institutional"
-                                                         data-pbd-institutional-citations-fields
-                                                         hidden="@(!institutionalProfile.IncludeUnitCitations)">
-                                                        <label class="form-label">
-                                                            <span>Display label</span>
+                                                         data-pbd-institutional-footer-fields
+                                                         hidden="@(!institutionalProfile.IncludeFooterStrip)">
+                                                        <label class="form-label pbd-form-grid__wide">
+                                                            <span>Footer text</span>
                                                             <input class="form-control"
-                                                                   name="InstitutionalUnitCitationLabel"
-                                                                   value="@institutionalProfile.UnitCitationLabel"
-                                                                   maxlength="80" />
+                                                                   name="InstitutionalFooterStripText"
+                                                                   value="@institutionalProfile.FooterStripText"
+                                                                   maxlength="160"
+                                                                   placeholder="GOC-in-C Unit Citations" />
+                                                            <small>Shown exactly as entered; PRISM does not generate or rewrite this text.</small>
                                                         </label>
                                                         <label class="form-label">
-                                                            <span>Count</span>
+                                                            <span>Highlighted value <small>optional</small></span>
                                                             <input class="form-control"
-                                                                   type="number"
-                                                                   name="InstitutionalUnitCitationCount"
-                                                                   value="@institutionalProfile.UnitCitationCount"
-                                                                   min="0"
-                                                                   max="999" />
+                                                                   name="InstitutionalFooterStripEmphasisValue"
+                                                                   value="@institutionalProfile.FooterStripEmphasisValue"
+                                                                   maxlength="40"
+                                                                   placeholder="03" />
+                                                        </label>
+                                                        <label class="form-label">
+                                                            <span>Alignment</span>
+                                                            <select class="form-select" name="InstitutionalFooterStripAlignment">
+                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.Center" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.Center)">Centred</option>
+                                                                <option value="@ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight" selected="@(institutionalProfile.FooterStripAlignment == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight)">Text left · value right</option>
+                                                            </select>
+                                                        </label>
+                                                        <label class="form-label">
+                                                            <span>Style</span>
+                                                            <select class="form-select" name="InstitutionalFooterStripStyle">
+                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.Outline" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.Outline)">Outline — recommended</option>
+                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SolidMaroon" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SolidMaroon)">Solid maroon</option>
+                                                                <option value="@ProjectBriefingInstitutionalFooterStyle.SubtleNeutral" selected="@(institutionalProfile.FooterStripStyle == ProjectBriefingInstitutionalFooterStyle.SubtleNeutral)">Subtle neutral</option>
+                                                            </select>
                                                         </label>
                                                     </div>
+                                                    <p class="pbd-institutional-profile-validation"
+                                                       data-pbd-institutional-footer-validation
+                                                       hidden>Enter footer text or an optional highlighted value.</p>
                                                 </fieldset>
                                             </div>
                                         </div>

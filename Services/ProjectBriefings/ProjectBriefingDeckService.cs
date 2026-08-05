@@ -294,6 +294,13 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.ProjectBriefLayout,
             command.ShowPresentStage,
             command.ShowPresentStatus);
+        if (command.InstitutionalProfileOptions.IncludeFooterStrip
+            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripText)
+            && string.IsNullOrWhiteSpace(command.InstitutionalProfileOptions.FooterStripEmphasisValue))
+        {
+            throw new InvalidOperationException("Enter footer-strip text or a highlighted value for the SDD profile slide.");
+        }
+
         var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
             command.InstitutionalProfileOptions.IncludeSlide,
             command.InstitutionalProfileOptions.Title,
@@ -304,9 +311,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             command.InstitutionalProfileOptions.MaximumDetailRows,
             command.InstitutionalProfileOptions.TrainingHighlightTechnicalCategory,
             command.InstitutionalProfileOptions.PartnershipEntries,
-            command.InstitutionalProfileOptions.IncludeUnitCitations,
-            command.InstitutionalProfileOptions.UnitCitationCount,
-            command.InstitutionalProfileOptions.UnitCitationLabel);
+            command.InstitutionalProfileOptions.IncludeFooterStrip,
+            command.InstitutionalProfileOptions.FooterStripText,
+            command.InstitutionalProfileOptions.FooterStripEmphasisValue,
+            command.InstitutionalProfileOptions.FooterStripStyle,
+            command.InstitutionalProfileOptions.FooterStripAlignment);
         if (institutionalProfileOptions.IncludeSlide
             && !institutionalProfileOptions.IncludeHistory
             && institutionalProfileOptions.Modules.Count == 0)

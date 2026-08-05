@@ -204,6 +204,9 @@ test('SDD institutional profile settings remain modular, ordered and valid befor
   assert.match(source, /syncInstitutionalHistoryEditor/);
   assert.match(source, /syncInstitutionalPartnershipEditor/);
   assert.match(source, /syncInstitutionalLayoutSummary/);
+  assert.match(source, /data-pbd-institutional-footer-enable/);
+  assert.match(source, /InstitutionalFooterStripText/);
+  assert.match(source, /footerValid/);
   assert.match(source, /no selected module is omitted/i);
   assert.match(source, /institutionalProfileSlides/);
 });

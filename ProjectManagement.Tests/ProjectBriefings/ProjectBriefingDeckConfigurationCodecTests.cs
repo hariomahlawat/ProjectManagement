@@ -216,9 +216,11 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             maximumDetailRows: 5,
             trainingHighlightTechnicalCategory: "AR/VR",
             partnershipEntries: new[] { "IIT Hyderabad", "Private industry / start-ups" },
-            includeUnitCitations: true,
-            unitCitationCount: 3,
-            unitCitationLabel: "GOC-in-C Unit Citations");
+            includeFooterStrip: true,
+            footerStripText: "GOC-in-C Unit Citations",
+            footerStripEmphasisValue: "03",
+            footerStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
+            footerStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center);
 
         var encoded = ProjectBriefingDeckConfigurationCodec.WithInstitutionalProfileOptions(
             "{\"kind\":\"Ongoing\"}",
@@ -230,7 +232,10 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(options.HistoryMilestones, decoded.InstitutionalProfileOptions.HistoryMilestones);
         Assert.Equal(options.PartnershipEntries, decoded.InstitutionalProfileOptions.PartnershipEntries);
         Assert.Equal(ProjectBriefingInstitutionalProjectScope.OriginalCompleted, decoded.InstitutionalProfileOptions.ProjectScope);
-        Assert.Equal(3, decoded.InstitutionalProfileOptions.UnitCitationCount);
+        Assert.True(decoded.InstitutionalProfileOptions.IncludeFooterStrip);
+        Assert.Equal("GOC-in-C Unit Citations", decoded.InstitutionalProfileOptions.FooterStripText);
+        Assert.Equal("03", decoded.InstitutionalProfileOptions.FooterStripEmphasisValue);
+        Assert.Equal(ProjectBriefingInstitutionalFooterStyle.Outline, decoded.InstitutionalProfileOptions.FooterStripStyle);
         Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
     }
 
@@ -249,9 +254,11 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
                 maximumDetailRows: 4,
                 trainingHighlightTechnicalCategory: null,
                 partnershipEntries: Array.Empty<string>(),
-                includeUnitCitations: false,
-                unitCitationCount: null,
-                unitCitationLabel: null));
+                includeFooterStrip: false,
+                footerStripText: null,
+                footerStripEmphasisValue: null,
+                footerStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
+                footerStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center));
 
         var updated = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
             initial,
@@ -299,4 +306,18 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             },
             options.Rows);
     }
+    [Fact]
+    public void InstitutionalProfileOptions_ReadsLegacyUnitCitationConfigurationAsFooterStrip()
+    {
+        const string legacy = """
+        {"schema":"prism.projectBriefing.deckConfig.v1","institutionalProfile":{"includeSlide":true,"includeUnitCitations":true,"unitCitationLabel":"GOC-in-C Unit Citations","unitCitationCount":3}}
+        """;
+
+        var decoded = ProjectBriefingDeckConfigurationCodec.Read(legacy);
+
+        Assert.True(decoded.InstitutionalProfileOptions.IncludeFooterStrip);
+        Assert.Equal("GOC-in-C Unit Citations", decoded.InstitutionalProfileOptions.FooterStripText);
+        Assert.Equal("03", decoded.InstitutionalProfileOptions.FooterStripEmphasisValue);
+    }
+
 }

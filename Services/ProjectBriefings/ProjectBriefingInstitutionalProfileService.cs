@@ -18,8 +18,8 @@ public interface IProjectBriefingInstitutionalProfileService
 
 /// <summary>
 /// Builds the single authoritative institutional snapshot used by the SDD profile slide.
-/// ERP-backed metrics are read-only; only the authorised history, partnership and citation
-/// content supplied through the deck configuration is carried into the presentation.
+/// ERP-backed metrics are read-only; only the authorised history, partnership and optional
+/// user-authored footer-strip content is carried into the presentation.
 /// </summary>
 public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefingInstitutionalProfileService
 {
@@ -55,9 +55,11 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
             options.MaximumDetailRows,
             options.TrainingHighlightTechnicalCategory,
             options.PartnershipEntries,
-            options.IncludeUnitCitations,
-            options.UnitCitationCount,
-            options.UnitCitationLabel);
+            options.IncludeFooterStrip,
+            options.FooterStripText,
+            options.FooterStripEmphasisValue,
+            options.FooterStripStyle,
+            options.FooterStripAlignment);
 
         if (!normalized.IncludeSlide)
         {
@@ -101,12 +103,11 @@ public sealed class ProjectBriefingInstitutionalProfileService : IProjectBriefin
                 ? normalized.HistoryMilestones
                 : Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>(),
             Modules = modules,
-            UnitCitationLabel = normalized.IncludeUnitCitations
-                ? normalized.UnitCitationLabel
-                : null,
-            UnitCitationCount = normalized.IncludeUnitCitations
-                ? normalized.UnitCitationCount
-                : null,
+            IncludeFooterStrip = normalized.IncludeFooterStrip,
+            FooterStripText = normalized.FooterStripText,
+            FooterStripEmphasisValue = normalized.FooterStripEmphasisValue,
+            FooterStripStyle = normalized.FooterStripStyle,
+            FooterStripAlignment = normalized.FooterStripAlignment,
             DataAsOnUtc = _clock.UtcNow.ToUniversalTime()
         };
     }

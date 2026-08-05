@@ -176,9 +176,11 @@ public sealed class IndexModel : PageModel
                         input.InstitutionalMaximumDetailRows,
                         input.InstitutionalTrainingHighlightCategory,
                         ParseSimpleLines(input.InstitutionalPartnershipLines),
-                        input.IncludeInstitutionalUnitCitations,
-                        input.InstitutionalUnitCitationCount,
-                        input.InstitutionalUnitCitationLabel),
+                        input.IncludeInstitutionalFooterStrip,
+                        input.InstitutionalFooterStripText,
+                        input.InstitutionalFooterStripEmphasisValue,
+                        input.InstitutionalFooterStripStyle,
+                        input.InstitutionalFooterStripAlignment),
                     BrandingScope = input.BrandingScope,
                     IncludeCoverSlide = input.IncludeCoverSlide,
                     IncludePortfolioSummarySlide = input.IncludePortfolioSummarySlide,
@@ -669,13 +671,19 @@ public sealed class IndexModel : PageModel
         [StringLength(1200)]
         public string? InstitutionalPartnershipLines { get; set; }
 
-        public bool IncludeInstitutionalUnitCitations { get; set; }
+        public bool IncludeInstitutionalFooterStrip { get; set; }
 
-        [Range(0, 999)]
-        public int? InstitutionalUnitCitationCount { get; set; }
+        [StringLength(160)]
+        public string? InstitutionalFooterStripText { get; set; }
 
-        [StringLength(80)]
-        public string? InstitutionalUnitCitationLabel { get; set; }
+        [StringLength(40)]
+        public string? InstitutionalFooterStripEmphasisValue { get; set; }
+
+        public ProjectBriefingInstitutionalFooterStyle InstitutionalFooterStripStyle { get; set; }
+            = ProjectBriefingInstitutionalFooterStyle.Outline;
+
+        public ProjectBriefingInstitutionalFooterAlignment InstitutionalFooterStripAlignment { get; set; }
+            = ProjectBriefingInstitutionalFooterAlignment.Center;
 
         [Required]
         public ProjectBriefingBrandingScope BrandingScope { get; set; }

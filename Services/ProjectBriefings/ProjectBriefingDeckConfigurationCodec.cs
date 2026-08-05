@@ -89,7 +89,7 @@ public sealed record ProjectBriefingInstitutionalHistoryMilestone(int Year, stri
 
 /// <summary>
 /// Deck-specific configuration of the optional SDD institutional-profile slide.
-/// ERP-backed figures remain read-only; only authorised history, partnership and citation text is user-maintained.
+/// ERP-backed figures remain read-only; only authorised history, partnership and optional footer-strip text is user-maintained.
 /// </summary>
 public sealed record ProjectBriefingInstitutionalProfileOptions(
     bool IncludeSlide,
@@ -101,13 +101,15 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
     int MaximumDetailRows,
     string TrainingHighlightTechnicalCategory,
     IReadOnlyList<string> PartnershipEntries,
-    bool IncludeUnitCitations,
-    int? UnitCitationCount,
-    string UnitCitationLabel)
+    bool IncludeFooterStrip,
+    string FooterStripText,
+    string? FooterStripEmphasisValue,
+    ProjectBriefingInstitutionalFooterStyle FooterStripStyle,
+    ProjectBriefingInstitutionalFooterAlignment FooterStripAlignment)
 {
     public const string DefaultTitle = "SDD – Growth over the years";
     public const string DefaultTrainingHighlight = "AR/VR";
-    public const string DefaultCitationLabel = "GOC-in-C Unit Citations";
+    public const string DefaultFooterText = "GOC-in-C Unit Citations";
 
     public static IReadOnlyList<ProjectBriefingInstitutionalProfileModule> DefaultModules { get; } =
         new[]
@@ -141,9 +143,11 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
             MaximumDetailRows: 6,
             TrainingHighlightTechnicalCategory: DefaultTrainingHighlight,
             PartnershipEntries: Array.Empty<string>(),
-            IncludeUnitCitations: false,
-            UnitCitationCount: null,
-            UnitCitationLabel: DefaultCitationLabel);
+            IncludeFooterStrip: false,
+            FooterStripText: DefaultFooterText,
+            FooterStripEmphasisValue: null,
+            FooterStripStyle: ProjectBriefingInstitutionalFooterStyle.Outline,
+            FooterStripAlignment: ProjectBriefingInstitutionalFooterAlignment.Center);
 
     public static ProjectBriefingInstitutionalProfileOptions Normalize(
         bool includeSlide,
@@ -155,9 +159,11 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
         int maximumDetailRows,
         string? trainingHighlightTechnicalCategory,
         IEnumerable<string>? partnershipEntries,
-        bool includeUnitCitations,
-        int? unitCitationCount,
-        string? unitCitationLabel)
+        bool includeFooterStrip,
+        string? footerStripText,
+        string? footerStripEmphasisValue,
+        ProjectBriefingInstitutionalFooterStyle footerStripStyle,
+        ProjectBriefingInstitutionalFooterAlignment footerStripAlignment)
     {
         var history = (historyMilestones ?? Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>())
             .Where(item => item.Year is >= 1900 and <= 2200 && !string.IsNullOrWhiteSpace(item.Text))
@@ -181,7 +187,14 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
             .Take(8)
             .ToArray();
 
-        var count = unitCitationCount is >= 0 and <= 999 ? unitCitationCount : null;
+        var normalizedFooterText = string.IsNullOrWhiteSpace(footerStripText)
+            ? string.Empty
+            : TrimTo(footerStripText.Trim(), 160);
+        var normalizedFooterValue = string.IsNullOrWhiteSpace(footerStripEmphasisValue)
+            ? null
+            : TrimTo(footerStripEmphasisValue.Trim(), 40);
+        var footerHasContent = !string.IsNullOrWhiteSpace(normalizedFooterText)
+            || !string.IsNullOrWhiteSpace(normalizedFooterValue);
 
         return new ProjectBriefingInstitutionalProfileOptions(
             includeSlide,
@@ -197,11 +210,15 @@ public sealed record ProjectBriefingInstitutionalProfileOptions(
                 ? DefaultTrainingHighlight
                 : TrimTo(trainingHighlightTechnicalCategory.Trim(), 80),
             normalizedPartnerships,
-            includeUnitCitations && count.HasValue,
-            count,
-            string.IsNullOrWhiteSpace(unitCitationLabel)
-                ? DefaultCitationLabel
-                : TrimTo(unitCitationLabel.Trim(), 80));
+            includeFooterStrip && footerHasContent,
+            normalizedFooterText,
+            normalizedFooterValue,
+            Enum.IsDefined(footerStripStyle)
+                ? footerStripStyle
+                : ProjectBriefingInstitutionalFooterStyle.Outline,
+            Enum.IsDefined(footerStripAlignment)
+                ? footerStripAlignment
+                : ProjectBriefingInstitutionalFooterAlignment.Center);
     }
 
     private static string TrimTo(string value, int maximumLength)
@@ -397,6 +414,22 @@ public static class ProjectBriefingDeckConfigurationCodec
                 .ToArray()
             : Array.Empty<string>();
 
+        var hasNewFooterConfiguration = profile.ContainsKey("includeFooterStrip")
+            || profile.ContainsKey("footerStripText")
+            || profile.ContainsKey("footerStripEmphasisValue");
+        var legacyCitationCount = ReadNullableInt(profile["unitCitationCount"]);
+        var footerEnabled = hasNewFooterConfiguration
+            ? profile["includeFooterStrip"]?.GetValue<bool>() ?? false
+            : profile["includeUnitCitations"]?.GetValue<bool>() ?? false;
+        var footerText = hasNewFooterConfiguration
+            ? profile["footerStripText"]?.GetValue<string>()
+            : profile["unitCitationLabel"]?.GetValue<string>();
+        var footerValue = hasNewFooterConfiguration
+            ? profile["footerStripEmphasisValue"]?.GetValue<string>()
+            : legacyCitationCount.HasValue
+                ? legacyCitationCount.Value.ToString("00", System.Globalization.CultureInfo.InvariantCulture)
+                : null;
+
         return ProjectBriefingInstitutionalProfileOptions.Normalize(
             profile["includeSlide"]?.GetValue<bool>() ?? false,
             profile["title"]?.GetValue<string>(),
@@ -411,9 +444,11 @@ public static class ProjectBriefingDeckConfigurationCodec
             profile["maximumDetailRows"]?.GetValue<int>() ?? 6,
             profile["trainingHighlightTechnicalCategory"]?.GetValue<string>(),
             partnerships,
-            profile["includeUnitCitations"]?.GetValue<bool>() ?? false,
-            ReadNullableInt(profile["unitCitationCount"]),
-            profile["unitCitationLabel"]?.GetValue<string>());
+            footerEnabled,
+            footerText,
+            footerValue,
+            ReadEnum(profile["footerStripStyle"], ProjectBriefingInstitutionalFooterStyle.Outline),
+            ReadEnum(profile["footerStripAlignment"], ProjectBriefingInstitutionalFooterAlignment.Center));
     }
 
     private static int? ReadNullableInt(JsonNode? node)
@@ -453,9 +488,11 @@ public static class ProjectBriefingDeckConfigurationCodec
             institutionalProfileOptions.MaximumDetailRows,
             institutionalProfileOptions.TrainingHighlightTechnicalCategory,
             institutionalProfileOptions.PartnershipEntries,
-            institutionalProfileOptions.IncludeUnitCitations,
-            institutionalProfileOptions.UnitCitationCount,
-            institutionalProfileOptions.UnitCitationLabel);
+            institutionalProfileOptions.IncludeFooterStrip,
+            institutionalProfileOptions.FooterStripText,
+            institutionalProfileOptions.FooterStripEmphasisValue,
+            institutionalProfileOptions.FooterStripStyle,
+            institutionalProfileOptions.FooterStripAlignment);
 
         var root = new JsonObject
         {
@@ -492,9 +529,11 @@ public static class ProjectBriefingDeckConfigurationCodec
                 ["partnerships"] = new JsonArray(normalizedProfile.PartnershipEntries
                     .Select(item => (JsonNode?)JsonValue.Create(item))
                     .ToArray()),
-                ["includeUnitCitations"] = normalizedProfile.IncludeUnitCitations,
-                ["unitCitationCount"] = normalizedProfile.UnitCitationCount,
-                ["unitCitationLabel"] = normalizedProfile.UnitCitationLabel
+                ["includeFooterStrip"] = normalizedProfile.IncludeFooterStrip,
+                ["footerStripText"] = normalizedProfile.FooterStripText,
+                ["footerStripEmphasisValue"] = normalizedProfile.FooterStripEmphasisValue,
+                ["footerStripStyle"] = normalizedProfile.FooterStripStyle.ToString(),
+                ["footerStripAlignment"] = normalizedProfile.FooterStripAlignment.ToString()
             }
         };
 

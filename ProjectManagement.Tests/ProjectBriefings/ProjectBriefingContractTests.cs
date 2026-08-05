@@ -482,6 +482,7 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var service = Read("ProjectBriefingInstitutionalProfileService.cs");
         var composer = Read("ProjectBriefingSlideComposer.InstitutionalProfile.cs");
+        var mainComposer = Read("ProjectBriefingSlideComposer.cs");
         var dataSource = Read("ProjectBriefingDataService.cs");
 
         Assert.Contains("SDD institutional profile", page, StringComparison.Ordinal);
@@ -491,6 +492,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("InstitutionalProjectScope", page, StringComparison.Ordinal);
         Assert.Contains("Original completed projects — recommended", page, StringComparison.Ordinal);
         Assert.Contains("read-only and are taken from their authoritative PRISM modules", page, StringComparison.Ordinal);
+        Assert.Contains("Profile footer strip", page, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalFooterStripText", page, StringComparison.Ordinal);
+        Assert.Contains("Shown exactly as entered", page, StringComparison.Ordinal);
         Assert.Contains("validateInstitutionalProfile", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalModuleOrder", script, StringComparison.Ordinal);
         Assert.Contains("syncInstitutionalHistoryEditor", script, StringComparison.Ordinal);
@@ -515,9 +519,12 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("institutional module", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("AddNativeTable", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("NativeTableBorders", composer, StringComparison.Ordinal);
-        Assert.Contains("original five-column composition", composer, StringComparison.Ordinal);
-        Assert.Contains("Data as on", composer, StringComparison.Ordinal);
-        Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
+        Assert.Contains("InstitutionalModuleDisplayTitle", composer, StringComparison.Ordinal);
+        Assert.Contains("module labels", composer, StringComparison.Ordinal);
+        Assert.Contains("module values", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderInstitutionalFooterStrip", composer, StringComparison.Ordinal);
+        Assert.Contains("Data as on", mainComposer, StringComparison.Ordinal);
+        Assert.Contains("Source: PRISM ERP", mainComposer, StringComparison.Ordinal);
         Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);
     }
 

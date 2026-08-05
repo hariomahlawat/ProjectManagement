@@ -2070,7 +2070,23 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         canvas.AddLine(.62, 7.05, 12.72, 7.05, canvas.Theme.Divider, .55);
         canvas.AddText(.65, 7.12, 5.55, .18, "SIMULATOR DEVELOPMENT DIVISION", 7.5, canvas.Theme.TextMuted, true, "l");
-        if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
+        if (kind == SlidePlanKind.InstitutionalProfile && data.InstitutionalProfile is not null)
+        {
+            var dataAsOn = data.InstitutionalProfile.DataAsOnUtc
+                .ToUniversalTime()
+                .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            canvas.AddText(
+                4.15,
+                7.12,
+                5.05,
+                .18,
+                $"Data as on {dataAsOn} · Source: PRISM ERP",
+                7.8,
+                canvas.Theme.TextMuted,
+                false,
+                "ctr");
+        }
+        else if (!string.IsNullOrWhiteSpace(data.HandlingMarking))
         {
             canvas.AddText(4.55, 7.12, 4.25, .18, data.HandlingMarking!, 7.5, canvas.Theme.Critical, true, "ctr");
         }

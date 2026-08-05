@@ -87,6 +87,25 @@ public enum ProjectBriefingInstitutionalProjectScope
 }
 
 /// <summary>
+/// Visual treatment for the optional user-authored footer strip on the SDD profile slide.
+/// </summary>
+public enum ProjectBriefingInstitutionalFooterStyle
+{
+    Outline = 1,
+    SolidMaroon = 2,
+    SubtleNeutral = 3
+}
+
+/// <summary>
+/// Text composition used by the optional SDD profile footer strip.
+/// </summary>
+public enum ProjectBriefingInstitutionalFooterAlignment
+{
+    Center = 1,
+    LabelLeftValueRight = 2
+}
+
+/// <summary>
 /// Logical information rows available on each formal Project Update Sheet.
 /// Project name is always rendered as the slide title and is therefore not a selectable table row.
 /// </summary>

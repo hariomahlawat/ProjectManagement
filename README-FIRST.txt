@@ -1,73 +1,66 @@
-PRISM ERP — SDD Institutional Profile Grouped-Shape Correction
-================================================================
+PRISM ERP — SDD Institutional Profile Final Refinements
+=======================================================
 
-PURPOSE
+Purpose
 -------
-This package removes native PowerPoint tables from the SDD institutional-profile
-slide and restores the open, presentation-oriented composition closest to the
-authorised reference slide.
+This package refines the optional “SDD – Growth over the years” briefing slide without returning to PowerPoint tables.
+It is designed to be applied over the latest grouped-shapes implementation.
 
-WHAT CHANGED
-------------
-1. The history timeline is no longer a PowerPoint table.
-   - It is rendered as one top-level PowerPoint group.
-   - The group contains one chronology rule, milestone markers and one editable
-     rich-text box per milestone.
-   - Each milestone text box contains both the year and authorised description.
-   - There are no visible cell borders or spreadsheet grids.
+Implemented refinements
+-----------------------
+1. Readability and visual hierarchy
+   • Larger title, timeline, module-heading, KPI, detail-row and highlight typography.
+   • Long module headings use controlled two-line titles instead of shrinking excessively.
+   • Timeline remains the open alternating original-style composition with larger authorised milestone text.
 
-2. Every institutional output module is no longer a PowerPoint table.
-   - Each selected module is one top-level PowerPoint group.
-   - The group contains a rounded card, coloured header treatment, headline,
-     supporting detail and optional highlight.
-   - All five selected modules are rendered in the original five-column layout.
-   - The Military–Academia–Industry Synergy module remains a proper list module.
+2. Reliable module detail rendering
+   • Removed tab-stop based label/value composition that caused values such as 10,081 to split.
+   • Every numeric module now uses one multi-paragraph label box and one aligned multi-paragraph value box.
+   • Each module remains one selectable top-level PowerPoint group.
+   • No PowerPoint tables or graphic-frame tables are used by this slide.
 
-3. The Unit Citation strip is one grouped PowerPoint object.
+3. Partnership module
+   • Retains a dedicated institutional-list treatment rather than pretending to be a numeric KPI card.
+   • Uses larger list text and controlled spacing.
 
-4. SlideCanvas now supports a reusable AddGroup(...) primitive using native
-   PresentationML group shapes. This can be reused by future modular custom slides.
+4. Reusable Profile Footer Strip
+   • Replaces the hard-coded Unit Citations configuration with a general user-authored footer strip.
+   • User controls exact footer text, optional highlighted value, alignment and style.
+   • Available styles: Outline, Solid maroon and Subtle neutral.
+   • Available alignment: Centred or Text left / value right.
+   • Existing legacy Unit Citation JSON is read automatically and migrated in memory to the new footer-strip configuration.
+   • PRISM does not infer, rewrite or append footer-strip content.
 
-5. The SDD profile slide contains no native PowerPoint tables or graphic frames.
-   Existing native tables elsewhere in the deck remain unchanged.
+5. Footer and data source
+   • “Data as on … · Source: PRISM ERP” now appears in the normal slide footer rather than floating above it.
+   • The optional profile footer strip remains a separate user-controlled presentation element.
 
-6. Original completed projects remain the recommended/default Projects Developed
-   scope. Rebuild projects remain excluded from both the headline and the technical-
-   category breakdown unless the user explicitly selects the inclusive scope.
+6. Data integrity
+   • “Projects Developed” continues to default to original completed projects only.
+   • Rebuild projects remain excluded from both the headline and technical-category breakdown unless explicitly included.
+   • ERP-backed figures remain read-only.
 
-7. The corrected briefing-deck JavaScript is included so the Deck Settings drawer
-   retains the prior initialization-order fix.
+Replacement procedure
+---------------------
+1. Back up the current solution.
+2. Copy the contents of this folder into the ProjectManagement solution root, preserving paths.
+3. Replace the existing files when prompted.
+4. Clean the solution and rebuild in Visual Studio.
+5. Run the ProjectBriefings test suite.
+6. Refresh the browser with Ctrl+F5 so the revised JavaScript and CSS are loaded.
+7. Open Deck Settings, review the new Profile Footer Strip options, save, and generate a fresh PowerPoint.
 
-REPLACEMENT
------------
-Copy each file over the file with the same relative path in the ProjectManagement
-solution. Do not copy the package's outer folder into the application.
-
-Then:
-1. Close the application and Visual Studio debug session.
-2. Replace the files.
-3. Delete bin and obj folders or run Clean Solution.
-4. Rebuild the solution.
-5. Run the ProjectBriefings tests.
-6. Start the application and use Ctrl+F5 once to bypass cached JavaScript.
-7. Generate both Editorial Light and Graphite Dark decks and inspect the SDD profile.
-
-DATABASE
+Database
 --------
-No database migration is required.
+No database migration is required. The new settings remain in the existing versioned deck-configuration JSON.
 
-VALIDATION PERFORMED IN THE PACKAGING ENVIRONMENT
---------------------------------------------------
-- project-briefing-decks.js syntax check passed.
-- 27/27 briefing-deck JavaScript tests passed.
-- PresentationML group-shape XML was validated by injecting an equivalent group into
-  the PRISM PowerPoint template and successfully opening/converting it with
-  LibreOffice Impress.
-- Institutional-profile C# and test files passed structural delimiter checks.
-- Patch generation and ZIP integrity checks passed.
+Validation performed during packaging
+--------------------------------------
+• project-briefing-decks.js syntax check passed.
+• project-briefing-decks.test.js passed 27/27 tests.
+• Unified patch dry-run and clean application passed.
+• Replacement-file comparison and ZIP integrity checks passed.
 
-LIMITATION
-----------
-The .NET SDK is not installed in the packaging environment, so a full C# build and
-xUnit execution could not be performed here. A Visual Studio Clean/Rebuild and the
-ProjectBriefings test run are required after replacement.
+Environment limitation
+----------------------
+The .NET SDK is not available in the packaging environment. A Visual Studio Clean/Rebuild and the .NET ProjectBriefings tests are therefore required after replacement.

@@ -1574,8 +1574,11 @@ public sealed class ProjectBriefingSlideComposerTests
                         null,
                         new[] { new ProjectBriefingInstitutionalMetricRow("IIT Hyderabad", string.Empty) })
                 },
-                UnitCitationLabel = "GOC-in-C Unit Citations",
-                UnitCitationCount = 3
+                IncludeFooterStrip = true,
+                FooterStripText = "GOC-in-C Unit Citations",
+                FooterStripEmphasisValue = "03",
+                FooterStripStyle = ProjectBriefingInstitutionalFooterStyle.Outline,
+                FooterStripAlignment = ProjectBriefingInstitutionalFooterAlignment.Center
             }
         };
 
@@ -1595,8 +1598,8 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
         Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
         Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
-        Assert.Contains("GOC-in-C Unit Citations —", profileText, StringComparison.Ordinal);
-        Assert.Contains("03", profileText, StringComparison.Ordinal);
+        Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
+        Assert.Contains("10,081", profileText, StringComparison.Ordinal);
         Assert.Contains("Data as on 04 Aug 2026 · Source: PRISM ERP", profileText, StringComparison.Ordinal);
         Assert.DoesNotContain("515 ABW", profileText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
@@ -1610,7 +1613,7 @@ public sealed class ProjectBriefingSlideComposerTests
             properties => string.Equals(properties.Name?.Value, "Military–Academia–Industry Synergy institutional module", StringComparison.Ordinal));
         Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
-            properties => string.Equals(properties.Name?.Value, "Institutional recognition strip", StringComparison.Ordinal));
+            properties => string.Equals(properties.Name?.Value, "SDD profile footer strip", StringComparison.Ordinal));
         Assert.Equal(7, profileSlide.Slide.Descendants<P.GroupShape>().Count());
         Assert.Empty(profileSlide.Slide.Descendants<P.GraphicFrame>());
         Assert.Empty(profileSlide.Slide.Descendants<A.Table>());

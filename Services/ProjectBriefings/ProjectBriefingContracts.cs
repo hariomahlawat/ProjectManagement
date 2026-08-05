@@ -362,8 +362,13 @@ public sealed class ProjectBriefingInstitutionalProfileData
         = Array.Empty<ProjectBriefingInstitutionalHistoryMilestone>();
     public IReadOnlyList<ProjectBriefingInstitutionalModuleData> Modules { get; init; }
         = Array.Empty<ProjectBriefingInstitutionalModuleData>();
-    public string? UnitCitationLabel { get; init; }
-    public int? UnitCitationCount { get; init; }
+    public bool IncludeFooterStrip { get; init; }
+    public string FooterStripText { get; init; } = string.Empty;
+    public string? FooterStripEmphasisValue { get; init; }
+    public ProjectBriefingInstitutionalFooterStyle FooterStripStyle { get; init; }
+        = ProjectBriefingInstitutionalFooterStyle.Outline;
+    public ProjectBriefingInstitutionalFooterAlignment FooterStripAlignment { get; init; }
+        = ProjectBriefingInstitutionalFooterAlignment.Center;
     public DateTimeOffset DataAsOnUtc { get; init; }
 }
 
