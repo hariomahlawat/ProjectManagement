@@ -1,61 +1,73 @@
-PRISM ERP — SDD Institutional Profile: Original Visual Restoration + Settings Fix
-=================================================================================
+PRISM ERP — SDD Institutional Profile Grouped-Shape Correction
+================================================================
 
-Purpose
+PURPOSE
 -------
-This package corrects the visual and functional regressions introduced by the
-native-table-only institutional profile implementation.
+This package removes native PowerPoint tables from the SDD institutional-profile
+slide and restores the open, presentation-oriented composition closest to the
+authorised reference slide.
 
-Implemented changes
--------------------
-1. Restores the authorised/original SDD profile composition:
-   - maroon institutional title band;
-   - open alternating history timeline;
-   - five ordered institutional output cards;
-   - compact unit-citations strip;
-   - PRISM source/date line.
+WHAT CHANGED
+------------
+1. The history timeline is no longer a PowerPoint table.
+   - It is rendered as one top-level PowerPoint group.
+   - The group contains one chronology rule, milestone markers and one editable
+     rich-text box per milestone.
+   - Each milestone text box contains both the year and authorised description.
+   - There are no visible cell borders or spreadsheet grids.
 
-2. Preserves maintainability without exposing spreadsheet-style grids:
-   - milestone text is maintained in one borderless native PowerPoint table;
-   - each output card uses one borderless native table for heading, KPI and rows;
-   - card styling remains rounded, colour-coded and presentation-oriented;
-   - no alternating grey table rows or heavy black cell borders.
+2. Every institutional output module is no longer a PowerPoint table.
+   - Each selected module is one top-level PowerPoint group.
+   - The group contains a rounded card, coloured header treatment, headline,
+     supporting detail and optional highlight.
+   - All five selected modules are rendered in the original five-column layout.
+   - The Military–Academia–Industry Synergy module remains a proper list module.
 
-3. Displays every selected institutional module in the configured order.
-   The Military–Academia–Industry Synergy module is no longer silently omitted.
+3. The Unit Citation strip is one grouped PowerPoint object.
 
-4. Retains the corrected default project scope:
-   - Original completed projects (rebuild projects excluded) remains the default;
-   - headline and technical-category breakdown use the same scope.
+4. SlideCanvas now supports a reusable AddGroup(...) primitive using native
+   PresentationML group shapes. This can be reused by future modular custom slides.
 
-5. Fixes Deck Settings not opening:
-   - removes the premature syncInstitutionalLayoutSummary() call from
-     syncUpdateRowOrder();
-   - institutional initialization now occurs only after institutional functions
-     have been declared;
-   - removes a duplicated drag-state assignment.
+5. The SDD profile slide contains no native PowerPoint tables or graphic frames.
+   Existing native tables elsewhere in the deck remain unchanged.
 
-6. Updates regression tests for the restored visual architecture and adds a
-   JavaScript test guarding against the initialization-order failure.
+6. Original completed projects remain the recommended/default Projects Developed
+   scope. Rebuild projects remain excluded from both the headline and the technical-
+   category breakdown unless the user explicitly selects the inclusive scope.
 
-Replacement
+7. The corrected briefing-deck JavaScript is included so the Deck Settings drawer
+   retains the prior initialization-order fix.
+
+REPLACEMENT
 -----------
-Copy the five files from this package into the matching paths in the
-ProjectManagement solution and overwrite the existing files.
+Copy each file over the file with the same relative path in the ProjectManagement
+solution. Do not copy the package's outer folder into the application.
 
+Then:
+1. Close the application and Visual Studio debug session.
+2. Replace the files.
+3. Delete bin and obj folders or run Clean Solution.
+4. Rebuild the solution.
+5. Run the ProjectBriefings tests.
+6. Start the application and use Ctrl+F5 once to bypass cached JavaScript.
+7. Generate both Editorial Light and Graphite Dark decks and inspect the SDD profile.
+
+DATABASE
+--------
 No database migration is required.
 
-Validation completed
---------------------
-- JavaScript syntax validation: passed
-- Briefing-deck JavaScript tests: 27/27 passed
-- Patch dry-run/application comparison: passed
-- Package integrity/checksums: passed
+VALIDATION PERFORMED IN THE PACKAGING ENVIRONMENT
+--------------------------------------------------
+- project-briefing-decks.js syntax check passed.
+- 27/27 briefing-deck JavaScript tests passed.
+- PresentationML group-shape XML was validated by injecting an equivalent group into
+  the PRISM PowerPoint template and successfully opening/converting it with
+  LibreOffice Impress.
+- Institutional-profile C# and test files passed structural delimiter checks.
+- Patch generation and ZIP integrity checks passed.
 
-After replacement
------------------
-1. Clean the solution in Visual Studio.
-2. Rebuild the solution.
-3. Run the ProjectBriefings tests.
-4. Hard-refresh the browser (Ctrl+F5) to invalidate the old JavaScript.
-5. Open Deck Settings and generate both Editorial Light and Graphite Dark decks.
+LIMITATION
+----------
+The .NET SDK is not installed in the packaging environment, so a full C# build and
+xUnit execution could not be performed here. A Visual Studio Clean/Rebuild and the
+ProjectBriefings test run are required after replacement.

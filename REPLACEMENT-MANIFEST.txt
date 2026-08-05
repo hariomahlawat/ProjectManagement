@@ -1,5 +1,15 @@
+Production files
+----------------
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
 wwwroot/js/pages/project-briefing-decks.js
-wwwroot/js/projects/project-briefing-decks.test.js
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+
+Test files
+----------
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+wwwroot/js/projects/project-briefing-decks.test.js
+
+Patch
+-----
+_PATCH/PRISM-Briefing-Deck-SDD-Profile-Grouped-Shapes.patch

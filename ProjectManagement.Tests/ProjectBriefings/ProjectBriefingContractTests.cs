@@ -510,11 +510,12 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("RenderInstitutionalProfile", composer, StringComparison.Ordinal);
         Assert.Contains("RenderInstitutionalHistory", composer, StringComparison.Ordinal);
         Assert.Contains("RenderInstitutionalModules", composer, StringComparison.Ordinal);
-        Assert.Contains("AddNativeTable", composer, StringComparison.Ordinal);
-        Assert.Contains("SDD institutional history timeline text", composer, StringComparison.Ordinal);
-        Assert.Contains("institutional module card", composer, StringComparison.Ordinal);
-        Assert.Contains("NativeTableBorders.None", composer, StringComparison.Ordinal);
-        Assert.Contains("original five-column institutional-output composition", composer, StringComparison.Ordinal);
+        Assert.Contains("AddGroup", composer, StringComparison.Ordinal);
+        Assert.Contains("SDD institutional history timeline", composer, StringComparison.Ordinal);
+        Assert.Contains("institutional module", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddNativeTable", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("NativeTableBorders", composer, StringComparison.Ordinal);
+        Assert.Contains("original five-column composition", composer, StringComparison.Ordinal);
         Assert.Contains("Data as on", composer, StringComparison.Ordinal);
         Assert.Contains("Source: PRISM ERP", composer, StringComparison.Ordinal);
         Assert.Contains("InstitutionalProfileSlides", dataSource, StringComparison.Ordinal);

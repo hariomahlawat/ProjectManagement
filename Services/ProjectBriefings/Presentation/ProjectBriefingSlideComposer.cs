@@ -2482,6 +2482,33 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             }
         }
 
+        public void AddGroup(
+            double x,
+            double y,
+            double width,
+            double height,
+            string name,
+            Action renderChildren)
+        {
+            ArgumentNullException.ThrowIfNull(renderChildren);
+
+            var startIndex = _elements.Count;
+            renderChildren();
+            if (_elements.Count == startIndex) return;
+
+            var childElements = _elements.Skip(startIndex).ToArray();
+            _elements.RemoveRange(startIndex, _elements.Count - startIndex);
+
+            var id = _nextShapeId++;
+            _elements.Add($"""
+<p:grpSp>
+  <p:nvGrpSpPr><p:cNvPr id="{id}" name="{Escape(name)}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+  <p:grpSpPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/><a:chOff x="{Emu(x)}" y="{Emu(y)}"/><a:chExt cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm></p:grpSpPr>
+  {string.Join(Environment.NewLine, childElements)}
+</p:grpSp>
+""");
+        }
+
         public void AddLine(double x1, double y1, double x2, double y2, string color, double width)
         {
             var id = _nextShapeId++;
