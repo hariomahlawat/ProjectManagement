@@ -10,39 +10,17 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingInstitutionalProfileData profile)
     {
-        var theme = canvas.Theme;
-        canvas.AddRect(0, 0, SlideWidth, SlideHeight, theme.Canvas, name: "SDD profile canvas");
-        canvas.AddRect(0, 0, SlideWidth, .10, theme.HeaderAccent, name: "SDD profile top accent");
-        canvas.AddBrandingImages(HeaderVariant.Standard);
-
-        var titleX = canvas.ShowBranding ? 1.28 : .62;
-        var titleWidth = canvas.ShowBranding ? 10.78 : 12.10;
-        canvas.AddRoundedRect(
-            titleX,
-            .22,
-            titleWidth,
-            .62,
-            theme.HeaderAccent,
-            theme.HeaderAccent,
-            .04,
-            "SDD profile title band");
-        canvas.AddText(
-            titleX + .24,
-            .30,
-            titleWidth - .48,
-            .43,
+        AddProjectSlideHeader(
+            canvas,
             Truncate(profile.Title, 110),
-            24.5,
-            theme.TextOnAccent,
-            true,
-            "ctr",
-            name: "SDD profile title");
+            subtitle: null,
+            variant: ProjectSlideHeaderVariant.Standard);
 
         var hasHistory = profile.HistoryMilestones.Count > 0;
         var hasFooterStrip = profile.IncludeFooterStrip
             && (!string.IsNullOrWhiteSpace(profile.FooterStripText)
                 || !string.IsNullOrWhiteSpace(profile.FooterStripEmphasisValue));
-        var modulesTop = hasHistory ? 2.43 : 1.12;
+        var modulesTop = hasHistory ? 2.43 : 1.14;
         var modulesHeight = hasFooterStrip ? 3.34 : 3.72;
 
         if (hasHistory)
@@ -76,9 +54,9 @@ public sealed partial class ProjectBriefingSlideComposer
 
         const double left = .82;
         const double right = 12.52;
-        const double groupTop = .91;
-        const double groupHeight = 1.40;
-        const double lineY = 1.59;
+        const double groupTop = 1.08;
+        const double groupHeight = 1.30;
+        const double lineY = 1.68;
         var span = right - left;
         var compact = items.Length >= 7;
 
@@ -90,7 +68,7 @@ public sealed partial class ProjectBriefingSlideComposer
             "SDD institutional history timeline",
             () =>
             {
-                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.25);
+                canvas.AddLine(left, lineY, right, lineY, canvas.Theme.Divider, 1.55);
 
                 for (var index = 0; index < items.Length; index++)
                 {
@@ -103,7 +81,7 @@ public sealed partial class ProjectBriefingSlideComposer
                         compact ? 1.48 : 1.78,
                         Math.Max(1.24, (span / items.Length) - .05));
                     var textX = Math.Clamp(markerX - (cellWidth / 2d), left, right - cellWidth);
-                    var textY = above ? .94 : 1.69;
+                    var textY = above ? 1.09 : 1.78;
                     var description = Truncate(item.Text, compact ? 36 : 50);
 
                     canvas.AddRichTextBox(
@@ -118,24 +96,24 @@ public sealed partial class ProjectBriefingSlideComposer
                                 {
                                     new RichTextRun(
                                         item.Year.ToString(CultureInfo.InvariantCulture),
-                                        compact ? 10.6 : 12.0,
+                                        compact ? 11.0 : 12.5,
                                         canvas.Theme.HeaderAccent,
                                         Bold: true)
                                 },
                                 Align: "ctr",
                                 SpaceAfterPoints: 2.2,
-                                LineSpacingPoints: compact ? 11.3 : 12.8),
+                                LineSpacingPoints: compact ? 11.8 : 13.2),
                             new RichTextParagraph(
                                 new[]
                                 {
                                     new RichTextRun(
                                         description,
-                                        compact ? 8.4 : 9.5,
+                                        compact ? 8.9 : 10.0,
                                         canvas.Theme.TextPrimary,
                                         Bold: true)
                                 },
                                 Align: "ctr",
-                                LineSpacingPoints: compact ? 9.2 : 10.4)
+                                LineSpacingPoints: compact ? 9.7 : 10.9)
                         },
                         $"SDD milestone {item.Year}",
                         verticalAnchor: above ? "b" : "t",
@@ -146,12 +124,12 @@ public sealed partial class ProjectBriefingSlideComposer
                         bottomInset: .01);
 
                     canvas.AddText(
-                        markerX - .105,
-                        lineY - .125,
-                        .21,
-                        .25,
+                        markerX - .115,
+                        lineY - .135,
+                        .23,
+                        .27,
                         "●",
-                        11.2,
+                        12.3,
                         canvas.Theme.Warning,
                         true,
                         "ctr",
@@ -211,12 +189,12 @@ public sealed partial class ProjectBriefingSlideComposer
         var hasHeadline = !string.IsNullOrWhiteSpace(module.Headline);
         var hasHighlight = !string.IsNullOrWhiteSpace(module.Highlight);
         var compact = width < 2.45;
-        var titleFont = compact ? 8.9 : 10.0;
-        var bodyFont = compact ? 8.4 : 9.2;
-        var valueFont = compact ? 8.7 : 9.5;
-        var headlineFont = compact ? 20.5 : 22.5;
-        const double headerHeight = .58;
-        var highlightHeight = hasHighlight ? .34 : 0d;
+        var titleFont = compact ? 9.6 : 10.4;
+        var bodyFont = compact ? 9.1 : 9.7;
+        var valueFont = compact ? 9.4 : 10.0;
+        var headlineFont = compact ? 21.5 : 23.0;
+        const double headerHeight = .60;
+        var highlightHeight = hasHighlight ? .46 : 0d;
         var displayTitle = InstitutionalModuleDisplayTitle(module.Module, module.Title);
 
         canvas.AddGroup(
@@ -274,11 +252,11 @@ public sealed partial class ProjectBriefingSlideComposer
                             {
                                 new RichTextRun(
                                     $"• {Truncate(row.Label, compact ? 31 : 40)}",
-                                    compact ? 8.8 : 9.6,
+                                    compact ? 9.5 : 10.1,
                                     canvas.Theme.TextSecondary)
                             },
-                            SpaceAfterPoints: compact ? 9.0 : 11.0,
-                            LineSpacingPoints: compact ? 9.8 : 10.6))
+                            SpaceAfterPoints: compact ? 10.0 : 12.0,
+                            LineSpacingPoints: compact ? 10.4 : 11.2))
                         .ToArray();
 
                     if (partnershipParagraphs.Length > 0)
@@ -318,8 +296,12 @@ public sealed partial class ProjectBriefingSlideComposer
                 }
 
                 var availableBodyHeight = Math.Max(.42, contentBottom - contentTop);
-                var maximumRows = Math.Max(1, (int)Math.Floor(availableBodyHeight / (compact ? .30 : .34)));
+                var rowPitch = hasHighlight
+                    ? compact ? .275 : .30
+                    : compact ? .31 : .35;
+                var maximumRows = Math.Max(1, (int)Math.Floor(availableBodyHeight / rowPitch));
                 var visibleRows = rows.Take(maximumRows).ToArray();
+                var isSparse = visibleRows.Length <= 3;
                 var labels = new List<RichTextParagraph>(visibleRows.Length);
                 var values = new List<RichTextParagraph>(visibleRows.Length);
                 foreach (var row in visibleRows)
@@ -333,8 +315,8 @@ public sealed partial class ProjectBriefingSlideComposer
                                 canvas.Theme.TextSecondary)
                         },
                         Align: "l",
-                        SpaceAfterPoints: compact ? 7.2 : 8.2,
-                        LineSpacingPoints: compact ? 9.2 : 10.0));
+                        SpaceAfterPoints: isSparse ? 14.0 : compact ? 6.2 : 7.2,
+                        LineSpacingPoints: compact ? 10.0 : 10.7));
                     values.Add(new RichTextParagraph(
                         new[]
                         {
@@ -345,20 +327,22 @@ public sealed partial class ProjectBriefingSlideComposer
                                 Bold: true)
                         },
                         Align: "r",
-                        SpaceAfterPoints: compact ? 7.2 : 8.2,
-                        LineSpacingPoints: compact ? 9.2 : 10.0));
+                        SpaceAfterPoints: isSparse ? 14.0 : compact ? 6.2 : 7.2,
+                        LineSpacingPoints: compact ? 10.0 : 10.7));
                 }
 
                 if (labels.Count > 0)
                 {
+                    var bodyTopOffset = isSparse ? .14 : .02;
+                    var bodyAnchor = isSparse ? "t" : "ctr";
                     canvas.AddRichTextBox(
                         x + .14,
-                        contentTop + .02,
+                        contentTop + bodyTopOffset,
                         width * .68,
-                        availableBodyHeight - .04,
+                        availableBodyHeight - bodyTopOffset - .02,
                         labels,
                         $"{module.Title} module labels",
-                        verticalAnchor: "ctr",
+                        verticalAnchor: bodyAnchor,
                         allowAutoFit: true,
                         leftInset: .01,
                         rightInset: .01,
@@ -366,12 +350,12 @@ public sealed partial class ProjectBriefingSlideComposer
                         bottomInset: .01);
                     canvas.AddRichTextBox(
                         x + (width * .73),
-                        contentTop + .02,
+                        contentTop + bodyTopOffset,
                         (width * .27) - .14,
-                        availableBodyHeight - .04,
+                        availableBodyHeight - bodyTopOffset - .02,
                         values,
                         $"{module.Title} module values",
-                        verticalAnchor: "ctr",
+                        verticalAnchor: bodyAnchor,
                         allowAutoFit: true,
                         leftInset: .01,
                         rightInset: .01,
@@ -385,26 +369,37 @@ public sealed partial class ProjectBriefingSlideComposer
                     var highlightText = canvas.Theme.IsDark ? canvas.Theme.TextOnAccent : accent;
                     canvas.AddRoundedRect(
                         x + .10,
-                        y + height - .40,
+                        y + height - .52,
                         width - .20,
-                        .29,
+                        .41,
                         highlightFill,
                         null,
                         .025,
                         $"{module.Title} module highlight fill");
                     canvas.AddText(
                         x + .15,
-                        y + height - .375,
+                        y + height - .485,
                         width - .30,
-                        .23,
-                        Truncate(module.Highlight, compact ? 58 : 76),
-                        compact ? 7.2 : 7.8,
+                        .34,
+                        FormatInstitutionalHighlight(module.Highlight, compact ? 76 : 92),
+                        compact ? 8.0 : 8.5,
                         highlightText,
                         true,
                         "l",
                         name: $"{module.Title} module highlight");
                 }
             });
+    }
+
+    private static string FormatInstitutionalHighlight(string? value, int maximum)
+    {
+        var text = Truncate(value, maximum);
+        if (text.Length <= 48) return text;
+
+        var splitAt = text.IndexOf(" trained ", StringComparison.OrdinalIgnoreCase);
+        return splitAt > 0
+            ? text[..splitAt].TrimEnd() + "\n" + text[(splitAt + 1)..].TrimStart()
+            : text;
     }
 
     private static string InstitutionalModuleDisplayTitle(
@@ -424,10 +419,8 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingInstitutionalProfileData profile)
     {
-        const double x = .62;
-        const double y = 6.10;
-        const double width = 12.10;
-        const double height = .43;
+        const double y = 6.12;
+        const double height = .39;
         var theme = canvas.Theme;
 
         var fill = profile.FooterStripStyle switch
@@ -450,6 +443,17 @@ public sealed partial class ProjectBriefingSlideComposer
             : theme.HeaderAccent;
         var label = Truncate(profile.FooterStripText, 150);
         var value = Truncate(profile.FooterStripEmphasisValue, 36);
+        var combinedLength = string.IsNullOrWhiteSpace(value)
+            ? label.Length
+            : string.IsNullOrWhiteSpace(label)
+                ? value.Length
+                : label.Length + value.Length + 3;
+        var minimumWidth = profile.FooterStripAlignment
+            == ProjectBriefingInstitutionalFooterAlignment.LabelLeftValueRight
+            ? 8.15
+            : 7.00;
+        var width = Math.Clamp(3.20 + (combinedLength * .085), minimumWidth, 12.10);
+        var x = (SlideWidth - width) / 2d;
 
         canvas.AddGroup(
             x,
@@ -474,9 +478,9 @@ public sealed partial class ProjectBriefingSlideComposer
                 {
                     canvas.AddText(
                         x + .20,
-                        y + .085,
+                        y + .065,
                         width - 1.65,
-                        .26,
+                        .25,
                         label,
                         12.0,
                         textColor,
@@ -485,9 +489,9 @@ public sealed partial class ProjectBriefingSlideComposer
                         name: "SDD profile footer-strip text");
                     canvas.AddText(
                         x + width - 1.25,
-                        y + .075,
+                        y + .055,
                         1.02,
-                        .28,
+                        .27,
                         value,
                         14.0,
                         valueColor,
@@ -504,9 +508,9 @@ public sealed partial class ProjectBriefingSlideComposer
                             : $"{label} — {value}";
                     canvas.AddText(
                         x + .22,
-                        y + .075,
+                        y + .055,
                         width - .44,
-                        .28,
+                        .27,
                         combined,
                         12.6,
                         textColor,

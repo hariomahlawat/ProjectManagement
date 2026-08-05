@@ -1593,10 +1593,12 @@ public sealed class ProjectBriefingSlideComposerTests
 
         Assert.Contains("SDD – Growth over the years", profileText, StringComparison.Ordinal);
         Assert.Contains("Conceptualised at MCEME", profileText, StringComparison.Ordinal);
-        Assert.Contains("Simulators/Projects Developed", profileText, StringComparison.Ordinal);
+        Assert.Contains("SIMULATORS / PROJECTS", profileText, StringComparison.Ordinal);
+        Assert.Contains("DEVELOPED", profileText, StringComparison.Ordinal);
         Assert.Contains("15,429", profileText, StringComparison.Ordinal);
         Assert.Contains("FY 2025-26", profileText, StringComparison.Ordinal);
-        Assert.Contains("191 Units / 347 Individuals trained in AR/VR", profileText, StringComparison.Ordinal);
+        Assert.Contains("191 Units / 347 Individuals", profileText, StringComparison.Ordinal);
+        Assert.Contains("trained in AR/VR", profileText, StringComparison.Ordinal);
         Assert.Contains("IIT Hyderabad", profileText, StringComparison.Ordinal);
         Assert.Contains("GOC-in-C Unit Citations — 03", profileText, StringComparison.Ordinal);
         Assert.Contains("10,081", profileText, StringComparison.Ordinal);
@@ -1619,7 +1621,16 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Empty(profileSlide.Slide.Descendants<A.Table>());
         Assert.Contains(
             profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Slide title", StringComparison.Ordinal));
+        Assert.Contains(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
+            properties => string.Equals(properties.Name?.Value, "Slide top accent", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            profileSlide.Slide.Descendants<P.NonVisualDrawingProperties>(),
             properties => string.Equals(properties.Name?.Value, "SDD profile title band", StringComparison.Ordinal));
+        Assert.True(
+            ShapeWidth(ShapeByName(profileSlide, "SDD profile footer-strip background")) < 10.0 * 914400,
+            "Short profile-footer content should render as a compact centred strip rather than a full-width bar.");
     }
 
     [Fact]

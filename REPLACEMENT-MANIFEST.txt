@@ -1,21 +1,2 @@
-READY-TO-REPLACE FILES
-======================
-Models/ProjectBriefings/ProjectBriefingDeck.cs
-Pages/Workspace/BriefingDecks/Index.cshtml
-Pages/Workspace/BriefingDecks/Index.cshtml.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.InstitutionalProfile.cs
-Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-Services/ProjectBriefings/ProjectBriefingContracts.cs
-Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
-Services/ProjectBriefings/ProjectBriefingDeckService.cs
-Services/ProjectBriefings/ProjectBriefingInstitutionalProfileService.cs
-wwwroot/css/pages/project-briefing-decks.css
-wwwroot/js/pages/project-briefing-decks.js
-wwwroot/js/projects/project-briefing-decks.test.js
-
-PATCH
-=====
-_PATCH/PRISM-Briefing-Deck-SDD-Profile-Final-Refinements.patch
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
