@@ -74,6 +74,36 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         IReadOnlyList<FfcPresentationCountry> countries,
         int width = 1800,
         int height = 1180)
+        => RenderCore(
+            countries,
+            width,
+            height,
+            expansionRatio: 0.09,
+            minimumLongitudePadding: 8,
+            minimumLatitudePadding: 6,
+            labelTextSize: 22);
+
+    public byte[] RenderFocused(
+        IReadOnlyList<FfcPresentationCountry> countries,
+        int width = 1800,
+        int height = 1180)
+        => RenderCore(
+            countries,
+            width,
+            height,
+            expansionRatio: 0.055,
+            minimumLongitudePadding: 4,
+            minimumLatitudePadding: 4,
+            labelTextSize: 24);
+
+    private byte[] RenderCore(
+        IReadOnlyList<FfcPresentationCountry> countries,
+        int width,
+        int height,
+        double expansionRatio,
+        double minimumLongitudePadding,
+        double minimumLatitudePadding,
+        float labelTextSize)
     {
         ArgumentNullException.ThrowIfNull(countries);
         width = Math.Clamp(width, 1000, 3200);
@@ -95,7 +125,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             ? new GeoBounds(-25, -60, 120, 60)
             : GeoBounds.From(activeFeatures.SelectMany(feature => feature.AllPoints));
         bounds = bounds
-            .Expand(0.09, minimumLongitudePadding: 8, minimumLatitudePadding: 6);
+            .Expand(expansionRatio, minimumLongitudePadding, minimumLatitudePadding);
 
         using var bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(bitmap);
@@ -151,7 +181,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         }
         canvas.Restore();
 
-        DrawLabels(canvas, activeFeatures, activeByIso, bounds, frame);
+        DrawLabels(canvas, activeFeatures, activeByIso, bounds, frame, labelTextSize);
         DrawLegend(canvas, countries, width, height, maximumUnits);
 
         using var image = SKImage.FromBitmap(bitmap);
@@ -165,12 +195,13 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         IReadOnlyList<MapFeature> activeFeatures,
         IReadOnlyDictionary<string, FfcPresentationCountry> activeByIso,
         GeoBounds bounds,
-        SKRect frame)
+        SKRect frame,
+        float labelTextSize)
     {
         using var labelPaint = new SKPaint
         {
             Color = SKColor.Parse("#12223A"),
-            TextSize = 22,
+            TextSize = labelTextSize,
             Typeface = SKTypeface.Default,
             IsAntialias = true,
             TextAlign = SKTextAlign.Center,
@@ -205,7 +236,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         {
             var anchor = Project(feature.LabelPoint, bounds, frame);
             var labelWidth = Math.Max(48, labelPaint.MeasureText(feature.Iso3) + 22);
-            const float labelHeight = 34;
+            var labelHeight = Math.Max(34, labelTextSize + 12);
             var placement = FindBestLabelPlacement(
                 feature.Iso3,
                 anchor,

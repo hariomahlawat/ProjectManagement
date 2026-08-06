@@ -2145,8 +2145,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         }
         else if (kind == SlidePlanKind.FfcGlobalFootprint && data.FfcGlobalFootprint is not null)
         {
-            var dataAsOn = data.FfcGlobalFootprint.DataAsOnUtc
-                .ToUniversalTime()
+            var dataAsOn = TimeZoneInfo
+                .ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst())
                 .ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
             canvas.AddText(
                 4.15,

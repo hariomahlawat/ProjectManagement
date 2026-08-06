@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
 using ProjectManagement.Services.Workspace;
@@ -22,6 +23,7 @@ public sealed class IndexModel : PageModel
     private readonly IProjectBriefingSelectionService _selectionService;
     private readonly IProjectBriefingDataService _dataService;
     private readonly IProjectBriefingPowerPointExportService _exportService;
+    private readonly IFfcFootprintService _ffcFootprintService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<IndexModel> _logger;
@@ -31,6 +33,7 @@ public sealed class IndexModel : PageModel
         IProjectBriefingSelectionService selectionService,
         IProjectBriefingDataService dataService,
         IProjectBriefingPowerPointExportService exportService,
+        IFfcFootprintService ffcFootprintService,
         CommandWorkspaceService commandWorkspaceService,
         UserManager<ApplicationUser> users,
         ILogger<IndexModel> logger)
@@ -39,6 +42,7 @@ public sealed class IndexModel : PageModel
         _selectionService = selectionService ?? throw new ArgumentNullException(nameof(selectionService));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
+        _ffcFootprintService = ffcFootprintService ?? throw new ArgumentNullException(nameof(ffcFootprintService));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -49,6 +53,7 @@ public sealed class IndexModel : PageModel
     public ProjectBriefingDeckVm? SelectedDeck { get; private set; }
     public ProjectBriefingSelectionOptionsVm SelectionOptions { get; private set; } = new();
     public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { ActiveView = "briefing-decks" };
+    public FfcFootprintSummary FfcFootprintPreviewSummary { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -855,6 +860,27 @@ public sealed class IndexModel : PageModel
         }
 
         SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
+        if (SelectedDeck is not null)
+        {
+            try
+            {
+                var footprint = await _ffcFootprintService.GetAsync(
+                    new FfcFootprintRequest(
+                        Metric: FfcFootprintMetric.TotalUnits,
+                        Sort: FfcFootprintSort.TotalUnits),
+                    cancellationToken);
+                FfcFootprintPreviewSummary = footprint.Summary;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "FFC footprint preview could not be loaded for the briefing-deck workspace. DeckId={DeckId}",
+                    SelectedDeck.Id);
+                FfcFootprintPreviewSummary = new FfcFootprintSummary(0, 0, 0, 0, 0, 0);
+            }
+        }
+
         var navigation = await _commandWorkspaceService.GetNavigationShellAsync("briefing-decks", cancellationToken);
         CommandRail = new CommandWorkspaceRailVm
         {

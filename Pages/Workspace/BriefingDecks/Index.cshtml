@@ -987,6 +987,11 @@
                                     <input type="hidden" name="order" value="@string.Join(",", additionalSlideOrder)" data-pbd-additional-slide-order />
                                 </form>
                                 <div class="pbd-additional-slide-list" data-pbd-additional-slide-list>
+                                    @{
+                                        var openingSlideNumber = 0;
+                                        var openingZoneRendered = false;
+                                        var concludingZoneRendered = false;
+                                    }
                                     @for (var slideIndex = 0; slideIndex < additionalSlideOrder.Count; slideIndex++)
                                     {
                                         var slideType = additionalSlideOrder[slideIndex];
@@ -1000,6 +1005,22 @@
                                         };
                                         var definition = AdditionalSlideDefinition(slideType);
                                         var canReorder = definition.CanReorder;
+                                        if (definition.Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover && !openingZoneRendered)
+                                        {
+                                            openingZoneRendered = true;
+                                            <div class="pbd-additional-slide-zone-heading" data-pbd-additional-slide-zone="opening">
+                                                <span>Opening slides</span>
+                                                <small>Shown after the cover and before portfolio content</small>
+                                            </div>
+                                        }
+                                        else if (definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing && !concludingZoneRendered)
+                                        {
+                                            concludingZoneRendered = true;
+                                            <div class="pbd-additional-slide-zone-heading pbd-additional-slide-zone-heading--concluding" data-pbd-additional-slide-zone="before-closing">
+                                                <span>Before closing</span>
+                                                <small>Final substantive content immediately before Jai Hind</small>
+                                            </div>
+                                        }
                                         var previousEnabledSlide = additionalSlideOrder
                                             .Take(slideIndex)
                                             .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
@@ -1009,27 +1030,29 @@
                                             .Where(type => AdditionalSlideDefinition(type).Placement == ProjectBriefingAdditionalSlidePlacement.AfterCover)
                                             .Any(AdditionalSlideIsEnabled);
                                         var positionLabel = definition.Placement == ProjectBriefingAdditionalSlidePlacement.BeforeClosing
-                                            ? "Immediately before closing"
+                                            ? "Before closing"
                                             : hasPreviousEnabledSlide
                                                 ? $"After {AdditionalSlideDisplayName(previousEnabledSlide)}"
                                                 : "After cover";
-                                        <article class="pbd-additional-slide-card @(enabled ? "is-enabled" : "is-disabled")"
+                                        <article class="pbd-additional-slide-card @(enabled ? "is-enabled" : "is-disabled") @(!canReorder ? "is-fixed-placement" : string.Empty)"
                                                  data-pbd-additional-slide-card
                                                  data-can-reorder="@canReorder.ToString().ToLowerInvariant()"
                                                  data-slide-type="@slideType">
                                             @if (canReorder)
                                             {
+                                                openingSlideNumber++;
                                                 <button type="button" class="pbd-additional-slide-card__handle" data-pbd-additional-slide-handle aria-label="Drag @AdditionalSlideDisplayName(slideType) to reorder">
                                                     <i class="bi bi-grip-vertical" aria-hidden="true"></i>
                                                 </button>
+                                                <span class="pbd-additional-slide-card__position" aria-label="Opening-slide order">@openingSlideNumber</span>
                                             }
                                             else
                                             {
-                                                <span class="pbd-additional-slide-card__handle is-fixed" title="Fixed immediately before the closing slide" aria-label="Fixed before closing">
-                                                    <i class="bi bi-pin-angle" aria-hidden="true"></i>
+                                                <span class="pbd-additional-slide-card__placement" title="Fixed immediately before the closing slide" aria-label="Fixed before closing">
+                                                    <i class="bi bi-pin-angle-fill" aria-hidden="true"></i>
+                                                    Before closing
                                                 </span>
                                             }
-                                            <span class="pbd-additional-slide-card__position" aria-label="Slide order">@(slideIndex + 1)</span>
                                             <span class="pbd-additional-slide-card__icon" aria-hidden="true"><i class="bi @AdditionalSlideIcon(slideType)"></i></span>
                                             <div class="pbd-additional-slide-card__body">
                                                 <div class="pbd-additional-slide-card__title-row">
@@ -1091,7 +1114,7 @@
                                         <div>
                                             <span class="pbd-eyebrow">Slide library</span>
                                             <h3 class="modal-title" id="pbd-additional-slide-library-title">Add an additional slide</h3>
-                                            <p>Choose from approved templates. Each institutional slide can be added once.</p>
+                                            <p>Choose from approved templates. Each approved slide type can be added once.</p>
                                         </div>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>

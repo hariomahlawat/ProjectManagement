@@ -1,61 +1,44 @@
-# PRISM Briefing Deck — FFC Global Footprint
+# PRISM Briefing Deck — FFC Global Footprint Design Polish
 
 ## Purpose
-Adds **FFC Global Footprint** as the third registered Additional Slide type in the Project Briefing Deck Builder.
+Cumulative ready-to-replace package for the Additional Slides framework, Role & Charter slide, and FFC Global Footprint slide, including the final FFC design and workflow refinements.
 
-## Placement
-The slide is fixed **immediately before the closing slide**. It cannot be dragged into the introductory slide sequence. The closing slide remains last.
+## Refinements in this phase
+- Additional Slides workspace is divided into **Opening slides** and **Before closing** placement zones.
+- FFC Global Footprint no longer displays a misleading opening-slide sequence number or drag control.
+- FFC remains fixed immediately before the closing/Jai Hind slide.
+- Slide Library wording now states that each **approved slide type** can be added once.
+- FFC editor preview displays current live Countries, Projects and Total Quantity values.
+- FFC preview failure is isolated and logged without preventing the deck page from loading.
+- FFC footer uses the PowerPoint generation date: `Data as on dd MMM yyyy · Source: PRISM ERP`.
+- Map rendering uses a dedicated tighter active-country viewport and larger map labels for briefing slides.
+- Main slide geometry gives the map an aspect-correct panel and the country-position list more width.
+- Country-position heading now reads `TOTAL QTY`.
+- 9–10 country lists use a controlled compact row mode without shrinking the text.
+- Overflow text has additional lower clearance.
 
-## Authoritative data
-The slide refreshes from the existing PRISM FFC module whenever PowerPoint is generated:
-
-- countries;
-- linked projects;
-- installed quantity;
-- delivered, awaiting installation;
-- planned quantity;
-- total quantity;
-- latest FFC record update date.
-
-The map is generated through the existing local FFC presentation-map renderer. No online map tiles, browser screenshot, or internet service is used.
-
-## Slide composition
-- Standard PRISM header and branding.
-- Countries, Projects and Total Quantity KPIs.
-- Installed / Delivered awaiting installation / Planned status bar.
-- Local vector-derived footprint map rendered to the presentation.
-- Configurable country-position list (6–10 countries).
-- Standard footer with `Data as on ... · Source: PRISM ERP`.
-- Editorial Light and Graphite Dark theme support.
-
-## Workspace behaviour
-- Available through **Additional slides → Add slide**.
-- Registered as a singleton slide type.
-- Displays a fixed-position pin and `Immediately before closing` summary.
-- Dedicated focused configuration drawer.
-- Removing and re-adding the slide preserves its configuration.
-- Preflight and generated slide counts include the FFC slide.
+## Data and placement
+All FFC figures remain authoritative and read-only, sourced from the existing PRISM FFC module whenever PowerPoint is generated. The slide remains the final substantive slide immediately before the closing slide.
 
 ## Application
-Stop the running application and copy the project-relative files in this package over the corresponding files in the project.
+Stop the running application and copy the project-relative files in this package over the corresponding project files.
 
 Then perform:
-
-1. **Clean Solution**
-2. **Rebuild Solution**
-3. Run the `ProjectBriefings` test suite
+1. Clean Solution
+2. Rebuild Solution
+3. Run the ProjectBriefings and FFC presentation tests
 4. Start the application
-5. Refresh the page with `Ctrl+F5`
+5. Refresh the browser with Ctrl+F5
 
 ## Database
-No database migration is required. Configuration remains in the existing versioned briefing-deck JSON.
+No database migration is required.
 
-## Validation performed in the packaging environment
-- JavaScript module syntax validation.
-- Briefing-deck JavaScript suite: **32/32 passed**.
-- C# changed-file lexical brace validation.
-- Project and test project XML validation.
-- Patch dry-run and clean-application byte comparison.
-- ZIP integrity and SHA-256 verification.
+## Validation performed
+- Briefing-deck JavaScript tests: 32/32 passed.
+- JavaScript module syntax validation passed.
+- C# changed-file lexical brace validation passed.
+- Project and test-project XML validation passed.
+- Patch dry-run and clean-application comparison passed.
+- ZIP integrity and SHA-256 validation passed.
 
 The .NET SDK is unavailable in the packaging environment, so Visual Studio compilation is the final build verification.

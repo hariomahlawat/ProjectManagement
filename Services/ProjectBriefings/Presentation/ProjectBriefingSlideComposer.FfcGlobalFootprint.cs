@@ -173,9 +173,9 @@ public sealed partial class ProjectBriefingSlideComposer
         ProjectBriefingFfcGlobalFootprintData data)
     {
         const double x = .72;
-        const double y = 2.58;
-        const double width = 7.66;
-        const double height = 4.04;
+        const double y = 2.52;
+        const double width = 7.15;
+        const double height = 4.30;
         canvas.AddRoundedRect(x, y, width, height, "FFFFFF", canvas.Theme.Border, .045, "FFC footprint map frame");
         if (data.MapImage.Length > 0)
         {
@@ -191,47 +191,53 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingFfcGlobalFootprintData data)
     {
-        const double x = 8.62;
-        const double y = 2.58;
-        const double width = 3.98;
-        const double height = 4.04;
+        const double x = 8.12;
+        const double y = 2.52;
+        const double width = 4.48;
+        const double height = 4.30;
         var visible = data.Countries.Take(data.MaximumCountryRows).ToArray();
         canvas.AddRoundedRect(x, y, width, height, canvas.Theme.Surface, canvas.Theme.Border, .045, "FFC country-position panel");
-        canvas.AddText(x + .20, y + .14, 2.55, .22, "COUNTRY POSITION", 10.5, canvas.Theme.TextMuted, true, "l", name: "FFC country-position heading");
-        canvas.AddText(x + 3.02, y + .14, .70, .22, "QTY", 10.5, canvas.Theme.TextMuted, true, "r", name: "FFC country quantity heading");
+        canvas.AddText(x + .20, y + .14, 2.72, .22, "COUNTRY POSITION", 10.5, canvas.Theme.TextMuted, true, "l", name: "FFC country-position heading");
+        canvas.AddText(x + 3.42, y + .14, .78, .22, "TOTAL QTY", 9.6, canvas.Theme.TextMuted, true, "r", name: "FFC country quantity heading");
         canvas.AddLine(x + .20, y + .43, x + width - .20, y + .43, canvas.Theme.Divider, .55);
 
-        var availableHeight = height - .68;
-        var rowHeight = visible.Length == 0 ? .42 : Math.Min(.43, availableHeight / visible.Length);
+        var hasOverflow = data.Countries.Count > visible.Length;
+        var compactRows = visible.Length >= 9;
+        var overflowReserve = hasOverflow ? .34 : .14;
+        var availableHeight = height - .70 - overflowReserve;
+        var preferredRowHeight = compactRows ? .33 : .42;
+        var rowHeight = visible.Length == 0
+            ? preferredRowHeight
+            : Math.Min(preferredRowHeight, availableHeight / visible.Length);
         var maximumQuantity = Math.Max(1, visible.Length == 0 ? 1 : visible.Max(country => country.TotalUnits));
         for (var index = 0; index < visible.Length; index++)
         {
             var country = visible[index];
             var rowY = y + .50 + (index * rowHeight);
-            canvas.AddText(x + .20, rowY, .42, .18, country.IsoCode, 9.0, canvas.Theme.HeaderAccent, true, "l", name: $"{country.CountryName} ISO code");
-            canvas.AddText(x + .66, rowY, 2.05, .18, Truncate(country.CountryName, 25), 9.5, canvas.Theme.TextPrimary, true, "l", name: $"{country.CountryName} name");
-            canvas.AddText(x + 3.02, rowY, .70, .18, country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture), 10.0, canvas.Theme.TextPrimary, true, "r", name: $"{country.CountryName} quantity");
+            canvas.AddText(x + .20, rowY, .44, .17, country.IsoCode, 9.0, canvas.Theme.HeaderAccent, true, "l", name: $"{country.CountryName} ISO code");
+            canvas.AddText(x + .70, rowY, 2.35, .17, Truncate(country.CountryName, 30), 9.5, canvas.Theme.TextPrimary, true, "l", name: $"{country.CountryName} name");
+            canvas.AddText(x + 3.42, rowY, .78, .17, country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture), 10.0, canvas.Theme.TextPrimary, true, "r", name: $"{country.CountryName} quantity");
 
-            var barY = rowY + .22;
-            var barWidth = 3.52;
-            canvas.AddRoundedRect(x + .20, barY, barWidth, .055, canvas.Theme.SurfaceMuted, null, .015, $"{country.CountryName} quantity bar background");
+            var barY = rowY + .20;
+            var barWidth = 4.00;
+            canvas.AddRoundedRect(x + .20, barY, barWidth, .05, canvas.Theme.SurfaceMuted, null, .015, $"{country.CountryName} quantity bar background");
             var installed = barWidth * country.InstalledUnits / maximumQuantity;
             var delivered = barWidth * country.DeliveredNotInstalledUnits / maximumQuantity;
             var planned = barWidth * country.PlannedUnits / maximumQuantity;
             var cursor = x + .20;
             if (installed > 0)
             {
-                canvas.AddRect(cursor, barY, installed, .055, canvas.Theme.Positive, null, 0, $"{country.CountryName} installed quantity");
+                canvas.AddRect(cursor, barY, installed, .05, canvas.Theme.Positive, null, 0, $"{country.CountryName} installed quantity");
                 cursor += installed;
             }
             if (delivered > 0)
             {
-                canvas.AddRect(cursor, barY, delivered, .055, canvas.Theme.Accent, null, 0, $"{country.CountryName} delivered quantity");
+                canvas.AddRect(cursor, barY, delivered, .05, canvas.Theme.Accent, null, 0, $"{country.CountryName} delivered quantity");
                 cursor += delivered;
             }
             if (planned > 0)
             {
-                canvas.AddRect(cursor, barY, planned, .055, canvas.Theme.Divider, null, 0, $"{country.CountryName} planned quantity");
+                canvas.AddRect(cursor, barY, planned, .05, canvas.Theme.Divider, null, 0, $"{country.CountryName} planned quantity");
             }
         }
 
@@ -239,11 +245,11 @@ public sealed partial class ProjectBriefingSlideComposer
         {
             canvas.AddText(
                 x + .20,
-                y + height - .24,
+                y + height - .26,
                 width - .40,
-                .15,
+                .17,
                 $"+ {data.Countries.Count - visible.Length} more countr{(data.Countries.Count - visible.Length == 1 ? "y" : "ies")}",
-                8.2,
+                8.5,
                 canvas.Theme.TextMuted,
                 false,
                 "l",

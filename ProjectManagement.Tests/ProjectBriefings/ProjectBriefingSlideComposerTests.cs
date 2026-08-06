@@ -2069,7 +2069,7 @@ public sealed class ProjectBriefingSlideComposerTests
             },
             MaximumCountryRows = 8,
             MapImage = TinyPng(),
-            DataAsOnUtc = new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero)
+            DataAsOnUtc = new DateTimeOffset(2026, 7, 19, 0, 0, 0, TimeSpan.Zero)
         };
 
         var (content, _) = composer.Compose(BuildData(
@@ -2084,10 +2084,19 @@ public sealed class ProjectBriefingSlideComposerTests
 
         Assert.Equal(slides.Length - 2, footprintIndex);
         Assert.True(IsClosingSlide(slides[^1]));
-        Assert.Contains("DELIVERED, AWAITING INSTALLATION", SlideText(slides[footprintIndex]), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ETH", SlideText(slides[footprintIndex]), StringComparison.Ordinal);
+        var footprintText = SlideText(slides[footprintIndex]);
+        Assert.Contains("DELIVERED, AWAITING INSTALLATION", footprintText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("TOTAL QTY", footprintText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Data as on 21 Jul 2026 · Source: PRISM ERP", footprintText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Data as on 19 Jul 2026", footprintText, StringComparison.Ordinal);
+        Assert.Contains("ETH", footprintText, StringComparison.Ordinal);
         Assert.NotEmpty(slides[footprintIndex].Slide.Descendants<P.Picture>());
         Assert.Equal("7A263A", ShapeFillColor(ShapeByName(slides[footprintIndex], "Slide top accent")));
+
+        var mapFrame = ShapeByName(slides[footprintIndex], "FFC footprint map frame");
+        var countryPanel = ShapeByName(slides[footprintIndex], "FFC country-position panel");
+        Assert.True(ShapeWidth(countryPanel) > 4.2 * 914400, "Country position panel should provide safe width for 9–10 country rows.");
+        Assert.True(ShapeHeight(mapFrame) >= 4.25 * 914400, "Footprint body should use the available vertical space.");
     }
 
     private static int MaxShapeFontSize(P.Shape shape)

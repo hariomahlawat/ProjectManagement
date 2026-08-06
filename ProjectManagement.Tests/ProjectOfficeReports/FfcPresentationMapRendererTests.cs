@@ -34,6 +34,28 @@ public sealed class FfcPresentationMapRendererTests
         Assert.Equal(760, bitmap.Height);
     }
 
+
+    [Fact]
+    public void RenderFocused_CreatesTighterBriefingMapAtRequestedSize()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "Ffc", "PresentationRoot");
+        IFfcPresentationMapRenderer renderer = new FfcPresentationMapRenderer(new TestEnvironment(root));
+        var countries = new[]
+        {
+            Country(1, "Ethiopia", "ETH", 13),
+            Country(2, "Myanmar", "MMR", 10),
+            Country(3, "France", "FRA", 1)
+        };
+
+        var content = renderer.RenderFocused(countries, width: 1700, height: 1020);
+
+        Assert.True(content.Length > 20_000);
+        using var bitmap = SKBitmap.Decode(content);
+        Assert.NotNull(bitmap);
+        Assert.Equal(1700, bitmap!.Width);
+        Assert.Equal(1020, bitmap.Height);
+    }
+
     [Fact]
     public void BuildLegendRanges_CreatesFourBalancedBandsForCurrentPortfolioMaximum()
     {

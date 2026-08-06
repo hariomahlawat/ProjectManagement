@@ -52,6 +52,9 @@ if (root) {
       draggable: '[data-pbd-additional-slide-card][data-can-reorder="true"]',
       ghostClass: 'is-sorting',
       chosenClass: 'is-chosen',
+      onMove: (event) => Boolean(
+        event.related?.matches?.('[data-pbd-additional-slide-card][data-can-reorder="true"]')
+      ),
       onEnd: () => {
         const order = [...additionalSlideList.querySelectorAll('[data-pbd-additional-slide-card]')]
           .map((card) => card.dataset.slideType || '')

@@ -1,16 +1,22 @@
-PRISM Briefing Deck — FFC Global Footprint
+PRISM Briefing Deck — FFC Global Footprint Design Polish
 
-Ready-to-replace project files: 18
+Cumulative ready-to-replace project files: 26
 
 Models/ProjectBriefings/ProjectBriefingDeck.cs
 Pages/Workspace/BriefingDecks/Index.cshtml
 Pages/Workspace/BriefingDecks/Index.cshtml.cs
 Pages/Workspace/BriefingDecks/_FfcGlobalFootprintEditor.cshtml
+Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
+Pages/Workspace/BriefingDecks/_RoleCharterEditor.cshtml
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingDeckConfigurationCodecTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 ProjectManagement.Tests/ProjectManagement.Tests.csproj
+ProjectManagement.Tests/ProjectOfficeReports/FfcPresentationMapRendererTests.cs
+Services/Ffc/Presentation/FfcPresentationMapRenderer.cs
+Services/Ffc/Presentation/IFfcPresentationMapRenderer.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.FfcGlobalFootprint.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.RoleCharter.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
 Services/ProjectBriefings/ProjectBriefingAdditionalSlideCatalog.cs
 Services/ProjectBriefings/ProjectBriefingContracts.cs
@@ -19,6 +25,8 @@ Services/ProjectBriefings/ProjectBriefingDeckConfigurationCodec.cs
 Services/ProjectBriefings/ProjectBriefingDeckService.cs
 wwwroot/css/pages/project-briefing-decks.css
 wwwroot/js/pages/project-briefing-additional-slides.js
+wwwroot/js/pages/project-briefing-confirm.js
+wwwroot/js/pages/project-briefing-decks.js
 wwwroot/js/projects/project-briefing-decks.test.js
 README-FIRST.md
 MANIFEST.txt

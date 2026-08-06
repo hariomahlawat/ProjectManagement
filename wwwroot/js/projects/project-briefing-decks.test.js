@@ -17,6 +17,10 @@ const viewSource = fs.readFileSync(
   path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', 'Index.cshtml'),
   'utf8');
 
+const ffcEditorSource = fs.readFileSync(
+  path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', '_FfcGlobalFootprintEditor.cshtml'),
+  'utf8');
+
 test('briefing deck JSON mutations use the configured antiforgery header and same-origin credentials', () => {
   assert.match(source, /'X-CSRF-TOKEN': token/);
   assert.match(source, /credentials: 'same-origin'/);
@@ -265,9 +269,14 @@ test('additional-slide workspace explains the exhausted slide-library state', ()
 
 test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', () => {
   assert.match(viewSource, /ProjectBriefingAdditionalSlideType\.FfcGlobalFootprint/);
-  assert.match(viewSource, /Immediately before closing/);
+  assert.match(viewSource, /Opening slides/);
+  assert.match(viewSource, /Before closing/);
+  assert.match(viewSource, /pbd-additional-slide-card__placement/);
+  assert.match(viewSource, /Each approved slide type can be added once/);
   assert.match(viewSource, /data-pbd-ffc-footprint-open/);
+  assert.match(ffcEditorSource, /FfcFootprintPreviewSummary/);
   assert.match(additionalSlidesSource, /data-pbd-ffc-footprint-drawer/);
   assert.match(additionalSlidesSource, /confirmFfcDiscard/);
+  assert.match(additionalSlidesSource, /onMove/);
   assert.match(additionalSlidesSource, /data-can-reorder/);
 });

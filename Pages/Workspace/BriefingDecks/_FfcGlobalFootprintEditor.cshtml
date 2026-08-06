@@ -3,6 +3,7 @@
 @{
     var deck = Model.SelectedDeck!;
     var options = deck.FfcGlobalFootprintOptions;
+    var summary = Model.FfcFootprintPreviewSummary;
 }
 
 <div class="pbd-role-charter-backdrop" data-pbd-ffc-footprint-backdrop hidden></div>
@@ -63,7 +64,11 @@
                 </div>
 
                 <div class="pbd-ffc-footprint-layout-preview" aria-label="FFC Global Footprint slide composition">
-                    <div class="pbd-ffc-footprint-layout-preview__metrics"><i></i><i></i><i></i></div>
+                    <div class="pbd-ffc-footprint-layout-preview__metrics" aria-label="Current FFC portfolio headline figures">
+                        <span><strong>@summary.CountryCount.ToString("N0")</strong><small>Countries</small></span>
+                        <span><strong>@summary.ProjectCount.ToString("N0")</strong><small>Projects</small></span>
+                        <span><strong>@summary.TotalUnits.ToString("N0")</strong><small>Total quantity</small></span>
+                    </div>
                     <div class="pbd-ffc-footprint-layout-preview__body">
                         <span><i class="bi bi-globe-asia-australia" aria-hidden="true"></i> Vector footprint map</span>
                         <span><i class="bi bi-list-ol" aria-hidden="true"></i> Country position</span>
