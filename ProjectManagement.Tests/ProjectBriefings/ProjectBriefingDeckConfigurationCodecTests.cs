@@ -20,6 +20,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(ProjectBriefingProjectBriefLayout.Automatic, configuration.StandardSlideOptions.ProjectBriefLayout);
         Assert.True(configuration.StandardSlideOptions.ShowPresentStage);
         Assert.True(configuration.StandardSlideOptions.ShowPresentStatus);
+        Assert.False(configuration.StandardSlideOptions.IncludeStageDistributionTable);
         Assert.Equal(ProjectBriefingClosingSlideType.JaiHind, configuration.ClosingSlideType);
         Assert.False(configuration.InstitutionalProfileOptions.IncludeSlide);
         Assert.Equal(
@@ -110,7 +111,8 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.PhotoEmphasis,
                 ShowPresentStage: false,
-                ShowPresentStatus: true));
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: true));
         var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
 
         Assert.Contains("Ongoing", decoded.SelectionRulesJson, StringComparison.Ordinal);
@@ -119,6 +121,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.Equal(ProjectBriefingProjectBriefLayout.PhotoEmphasis, decoded.StandardSlideOptions.ProjectBriefLayout);
         Assert.False(decoded.StandardSlideOptions.ShowPresentStage);
         Assert.True(decoded.StandardSlideOptions.ShowPresentStatus);
+        Assert.True(decoded.StandardSlideOptions.IncludeStageDistributionTable);
     }
 
     [Fact]
@@ -129,7 +132,8 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.Standard,
                 ShowPresentStage: true,
-                ShowPresentStatus: false));
+                ShowPresentStatus: false,
+                IncludeStageDistributionTable: false));
 
         var encoded = ProjectBriefingDeckConfigurationCodec.WithSelectionRules(
             initial,
@@ -156,7 +160,8 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
             new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.Standard,
                 ShowPresentStage: true,
-                ShowPresentStatus: false),
+                ShowPresentStatus: false,
+                IncludeStageDistributionTable: true),
             ProjectBriefingClosingSlideType.ThankYou);
         var decoded = ProjectBriefingDeckConfigurationCodec.Read(encoded);
 
@@ -165,6 +170,7 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         Assert.True(decoded.UpdateSheetOptions.HideEmptyValues);
         Assert.Equal(ProjectBriefingProjectBriefLayout.Standard, decoded.StandardSlideOptions.ProjectBriefLayout);
         Assert.False(decoded.StandardSlideOptions.ShowPresentStatus);
+        Assert.True(decoded.StandardSlideOptions.IncludeStageDistributionTable);
     }
 
     [Fact]
@@ -371,7 +377,9 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
         var footprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
             includeSlide: true,
             title: "Military Diplomacy — Global Footprint",
-            maximumCountryRows: 9);
+            layout: ProjectBriefingFfcGlobalFootprintLayout.MapDominant,
+            maximumCountryRows: 9,
+            includeCountryWiseBreakdown: true);
 
         var encoded = ProjectBriefingDeckConfigurationCodec.WithAdditionalSlides(
             null,
@@ -388,7 +396,10 @@ public sealed class ProjectBriefingDeckConfigurationCodecTests
 
         Assert.True(decoded.FfcGlobalFootprintOptions.IncludeSlide);
         Assert.Equal("Military Diplomacy — Global Footprint", decoded.FfcGlobalFootprintOptions.Title);
+        Assert.Equal(ProjectBriefingFfcGlobalFootprintLayout.MapDominant, decoded.FfcGlobalFootprintOptions.Layout);
         Assert.Equal(9, decoded.FfcGlobalFootprintOptions.MaximumCountryRows);
+        Assert.True(decoded.FfcGlobalFootprintOptions.IncludeCountryWiseBreakdown);
+        Assert.Equal(3, decoded.FfcGlobalFootprintOptions.EstimateSlideCount(13));
         Assert.Equal(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint, decoded.AdditionalSlideOrder[^1]);
         Assert.Equal(
             new[]

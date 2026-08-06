@@ -23,7 +23,6 @@ public sealed class IndexModel : PageModel
     private readonly IProjectBriefingSelectionService _selectionService;
     private readonly IProjectBriefingDataService _dataService;
     private readonly IProjectBriefingPowerPointExportService _exportService;
-    private readonly IFfcFootprintService _ffcFootprintService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<IndexModel> _logger;
@@ -33,7 +32,6 @@ public sealed class IndexModel : PageModel
         IProjectBriefingSelectionService selectionService,
         IProjectBriefingDataService dataService,
         IProjectBriefingPowerPointExportService exportService,
-        IFfcFootprintService ffcFootprintService,
         CommandWorkspaceService commandWorkspaceService,
         UserManager<ApplicationUser> users,
         ILogger<IndexModel> logger)
@@ -42,7 +40,6 @@ public sealed class IndexModel : PageModel
         _selectionService = selectionService ?? throw new ArgumentNullException(nameof(selectionService));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
-        _ffcFootprintService = ffcFootprintService ?? throw new ArgumentNullException(nameof(ffcFootprintService));
         _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -187,6 +184,7 @@ public sealed class IndexModel : PageModel
                     ProjectBriefLayout = input.ProjectBriefLayout,
                     ShowPresentStage = input.ShowPresentStage,
                     ShowPresentStatus = input.ShowPresentStatus,
+                    IncludeStageDistributionTable = input.IncludeStageDistributionTable,
                     PresentationTheme = input.PresentationTheme,
                     ClosingSlideType = input.ClosingSlideType,
                     InstitutionalProfileOptions = additionalSlides.InstitutionalProfileOptions,
@@ -390,7 +388,9 @@ public sealed class IndexModel : PageModel
             var options = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
                 input.IncludeFfcGlobalFootprint,
                 input.FfcGlobalFootprintTitle,
-                input.MaximumCountryRows);
+                input.FfcGlobalFootprintLayout,
+                input.MaximumCountryRows,
+                input.IncludeCountryWiseBreakdown);
             await _deckService.UpdateFfcGlobalFootprintAsync(
                 input.DeckId,
                 userId,
@@ -889,23 +889,7 @@ public sealed class IndexModel : PageModel
         SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
         if (SelectedDeck is not null)
         {
-            try
-            {
-                var footprint = await _ffcFootprintService.GetAsync(
-                    new FfcFootprintRequest(
-                        Metric: FfcFootprintMetric.TotalUnits,
-                        Sort: FfcFootprintSort.TotalUnits),
-                    cancellationToken);
-                FfcFootprintPreviewSummary = footprint.Summary;
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "FFC footprint preview could not be loaded for the briefing-deck workspace. DeckId={DeckId}",
-                    SelectedDeck.Id);
-                FfcFootprintPreviewSummary = new FfcFootprintSummary(0, 0, 0, 0, 0, 0);
-            }
+            FfcFootprintPreviewSummary = SelectedDeck.FfcFootprintPreviewSummary;
         }
 
         var navigation = await _commandWorkspaceService.GetNavigationShellAsync("briefing-decks", cancellationToken);
@@ -1115,8 +1099,14 @@ public sealed class IndexModel : PageModel
         [StringLength(120)]
         public string? FfcGlobalFootprintTitle { get; set; }
 
+        [Required]
+        public ProjectBriefingFfcGlobalFootprintLayout FfcGlobalFootprintLayout { get; set; }
+            = ProjectBriefingFfcGlobalFootprintLayout.MapWithCountryBreakdown;
+
         [Range(6, 10)]
         public int MaximumCountryRows { get; set; } = 8;
+
+        public bool IncludeCountryWiseBreakdown { get; set; }
     }
 
     public sealed class SaveDeckSettingsInput
@@ -1148,6 +1138,7 @@ public sealed class IndexModel : PageModel
 
         public bool ShowPresentStage { get; set; } = true;
         public bool ShowPresentStatus { get; set; } = true;
+        public bool IncludeStageDistributionTable { get; set; }
 
         [Required]
         public ProjectBriefingPresentationTheme PresentationTheme { get; set; }

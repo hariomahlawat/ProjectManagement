@@ -280,3 +280,10 @@ test('FFC Global Footprint is an ERP-backed fixed concluding additional slide', 
   assert.match(additionalSlidesSource, /onMove/);
   assert.match(additionalSlidesSource, /data-can-reorder/);
 });
+
+test('stage distribution table remains an explicit dependent option', () => {
+  assert.match(viewSource, /data-pbd-stage-summary-toggle/);
+  assert.match(viewSource, /data-pbd-stage-table-option/);
+  assert.match(source, /syncStageSummaryOptions/);
+  assert.match(source, /stageTableToggle\.disabled = !enabled/);
+});

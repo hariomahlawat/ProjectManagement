@@ -1095,7 +1095,8 @@ public sealed class ProjectBriefingSlideComposerTests
             StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.PhotoEmphasis,
                 ShowPresentStage: false,
-                ShowPresentStatus: false),
+                ShowPresentStatus: false,
+                IncludeStageDistributionTable: false),
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 8, 0, 0, TimeSpan.Zero),
@@ -1149,7 +1150,8 @@ public sealed class ProjectBriefingSlideComposerTests
             StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.Standard,
                 ShowPresentStage: false,
-                ShowPresentStatus: true),
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: false),
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 8, 0, 0, TimeSpan.Zero),
@@ -1201,7 +1203,8 @@ public sealed class ProjectBriefingSlideComposerTests
             StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.Standard,
                 ShowPresentStage: true,
-                ShowPresentStatus: true),
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: false),
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
@@ -1252,7 +1255,8 @@ public sealed class ProjectBriefingSlideComposerTests
             StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.PhotoEmphasis,
                 ShowPresentStage: true,
-                ShowPresentStatus: true),
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: false),
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
@@ -1305,7 +1309,8 @@ public sealed class ProjectBriefingSlideComposerTests
             StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.PhotoEmphasis,
                 ShowPresentStage: true,
-                ShowPresentStatus: true),
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: false),
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
@@ -1362,7 +1367,8 @@ public sealed class ProjectBriefingSlideComposerTests
             StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
                 ProjectBriefingProjectBriefLayout.PhotoEmphasis,
                 ShowPresentStage: true,
-                ShowPresentStatus: true),
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: false),
             IncludeCoverSlide = false,
             IncludePortfolioSummarySlide = false,
             GeneratedAtUtc = new DateTimeOffset(2026, 8, 4, 14, 0, 0, TimeSpan.Zero),
@@ -2037,7 +2043,12 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.True(
             ShapeY(charterHeading) >= ShapeY(rolePanel) + ShapeHeight(rolePanel) + (.10 * 914400),
             "The Charter heading must have a clear gap below the Role panel.");
-        Assert.True(ShapeHeight(charterPanel) <= 3.45 * 914400, "Charter panels should fit their content rather than retain dashboard-like empty height.");
+        Assert.True(ShapeHeight(charterPanel) <= 3.80 * 914400, "Charter panels must remain within the approved content region.");
+        var roleCharterText = string.Join("\n", roleSlides.Select(SlideText));
+        foreach (var item in charterItems)
+        {
+            Assert.Contains(item.LeadPhrase, roleCharterText, StringComparison.Ordinal);
+        }
 
         var allText = slides.Select(SlideText).ToArray();
         var coverIndex = Array.FindIndex(allText, text => text.Contains("QUARTERLY COMMAND REVIEW", StringComparison.Ordinal));
@@ -2055,6 +2066,8 @@ public sealed class ProjectBriefingSlideComposerTests
         var footprint = new ProjectBriefingFfcGlobalFootprintData
         {
             Title = "FFC Global Footprint",
+            Layout = ProjectBriefingFfcGlobalFootprintLayout.MapWithCountryBreakdown,
+            IncludeCountryWiseBreakdown = false,
             Summary = new FfcFootprintSummary(
                 CountryCount: 2,
                 RecordCount: 2,
@@ -2086,7 +2099,8 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.True(IsClosingSlide(slides[^1]));
         var footprintText = SlideText(slides[footprintIndex]);
         Assert.Contains("DELIVERED, AWAITING INSTALLATION", footprintText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("TOTAL QTY", footprintText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("COUNTRY-WISE BREAKDOWN", footprintText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("QTY", footprintText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Data as on 21 Jul 2026 · Source: PRISM ERP", footprintText, StringComparison.Ordinal);
         Assert.DoesNotContain("Data as on 19 Jul 2026", footprintText, StringComparison.Ordinal);
         Assert.Contains("ETH", footprintText, StringComparison.Ordinal);
@@ -2094,9 +2108,96 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Equal("7A263A", ShapeFillColor(ShapeByName(slides[footprintIndex], "Slide top accent")));
 
         var mapFrame = ShapeByName(slides[footprintIndex], "FFC footprint map frame");
-        var countryPanel = ShapeByName(slides[footprintIndex], "FFC country-position panel");
-        Assert.True(ShapeWidth(countryPanel) > 4.2 * 914400, "Country position panel should provide safe width for 9–10 country rows.");
+        var countryPanel = ShapeByName(slides[footprintIndex], "FFC country-wise breakdown panel");
+        var combinedWidth = ShapeWidth(mapFrame) + ShapeWidth(countryPanel);
+        var mapShare = ShapeWidth(mapFrame) / (double)combinedWidth;
+        Assert.InRange(mapShare, .71, .73);
+        Assert.InRange(ShapeWidth(countryPanel), 3.20 * 914400, 3.40 * 914400);
+        Assert.True(ShapeWidth(mapFrame) >= 8.30 * 914400, "The footprint map must remain the dominant visual.");
         Assert.True(ShapeHeight(mapFrame) >= 4.25 * 914400, "Footprint body should use the available vertical space.");
+        Assert.Equal("AEB6C2", ShapeFillColor(ShapeByName(slides[footprintIndex], "Ethiopia planned quantity")));
+        Assert.Equal("E9ECEF", ShapeFillColor(ShapeByName(slides[footprintIndex], "Sri Lanka quantity bar background")));
+    }
+
+
+    [Fact]
+    public void Compose_StageDistributionTable_IsOptionalAndChartRemains()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+
+        var (content, slideCount) = composer.Compose(BuildData(includeStageDistributionTable: false));
+
+        Assert.Equal(7, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts.Select(SlideText));
+        Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stage-wise project distribution", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_TechnicalCategorySummary_IsSuppressedForSingleCategory()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var singleCategory = new[] { new ProjectBriefingSummaryPoint("AR/VR", 2) };
+
+        var (content, slideCount) = composer.Compose(BuildData(
+            includeTechnicalCategorySummary: true,
+            technicalCategorySummary: singleCategory));
+
+        Assert.Equal(8, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var text = string.Join("\n", Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts.Select(SlideText));
+        Assert.DoesNotContain("Technical-category summary", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_FfcMapDominantWithBreakdown_GeneratesContiguousPaginatedBlock()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var countries = Enumerable.Range(1, 13)
+            .Select(index => new ProjectBriefingFfcCountryData(
+                $"Country {index}",
+                $"C{index:00}",
+                ProjectCount: index,
+                InstalledUnits: index,
+                DeliveredNotInstalledUnits: index % 3,
+                PlannedUnits: index + 1))
+            .ToArray();
+        var footprint = new ProjectBriefingFfcGlobalFootprintData
+        {
+            Title = "FFC Global Footprint",
+            Layout = ProjectBriefingFfcGlobalFootprintLayout.MapDominant,
+            IncludeCountryWiseBreakdown = true,
+            Summary = new FfcFootprintSummary(13, 13, 91, 91, 13, 104),
+            Countries = countries,
+            MaximumCountryRows = 8,
+            MapImage = TinyPng(),
+            DataAsOnUtc = new DateTimeOffset(2026, 8, 6, 0, 0, 0, TimeSpan.Zero)
+        };
+
+        var (content, slideCount) = composer.Compose(BuildData(
+            additionalSlideOrder: new[] { ProjectBriefingAdditionalSlideType.FfcGlobalFootprint },
+            ffcGlobalFootprint: footprint));
+
+        Assert.Equal(11, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        Assert.True(IsClosingSlide(slides[^1]));
+        Assert.Contains("FFC GLOBAL FOOTPRINT", SlideText(slides[^4]), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("FFC – COUNTRY-WISE BREAKDOWN", SlideText(slides[^3]), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CONTINUED", SlideText(slides[^2]), StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(ShapeByName(slides[^4], "FFC map-dominant frame"));
+        Assert.Single(slides[^3].Slide.Descendants<A.Table>());
+        Assert.Single(slides[^2].Slide.Descendants<A.Table>());
+        Assert.Contains("Country 13", SlideText(slides[^2]), StringComparison.Ordinal);
     }
 
     private static int MaxShapeFontSize(P.Shape shape)
@@ -2137,7 +2238,10 @@ public sealed class ProjectBriefingSlideComposerTests
         ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides,
         ProjectBriefingRoleCharterData? roleCharter = null,
         IReadOnlyList<ProjectBriefingAdditionalSlideType>? additionalSlideOrder = null,
-        ProjectBriefingFfcGlobalFootprintData? ffcGlobalFootprint = null)
+        ProjectBriefingFfcGlobalFootprintData? ffcGlobalFootprint = null,
+        bool includeStageDistributionTable = true,
+        bool includeTechnicalCategorySummary = false,
+        IReadOnlyList<ProjectBriefingSummaryPoint>? technicalCategorySummary = null)
     {
         var projects = new[]
         {
@@ -2186,6 +2290,11 @@ public sealed class ProjectBriefingSlideComposerTests
             DeckDescription = "Selected development and completed projects",
             PresentationMode = ProjectBriefingPresentationMode.Combined,
             CostMode = ProjectBriefingCostMode.Both,
+            StandardSlideOptions = new ProjectBriefingStandardSlideOptions(
+                ProjectBriefingProjectBriefLayout.Automatic,
+                ShowPresentStage: true,
+                ShowPresentStatus: true,
+                IncludeStageDistributionTable: includeStageDistributionTable),
             PresentationTheme = presentationTheme,
             BrandingScope = brandingScope,
             AdditionalSlideOrder = additionalSlideOrder
@@ -2193,6 +2302,7 @@ public sealed class ProjectBriefingSlideComposerTests
             RoleCharter = roleCharter,
             FfcGlobalFootprint = ffcGlobalFootprint,
             IncludeStageSummary = true,
+            IncludeTechnicalCategorySummary = includeTechnicalCategorySummary,
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero),
             Projects = projects,
             Summary = new ProjectBriefingPresentationSummary
@@ -2207,7 +2317,8 @@ public sealed class ProjectBriefingSlideComposerTests
                 MissingExternalStatusCount = 0,
                 MissingPhotoCount = 2,
                 StageSummary = ProjectBriefingStageOrder.BuildSummary(
-                    projects.Select(project => project.PresentStageOrder))
+                    projects.Select(project => project.PresentStageOrder)),
+                TechnicalCategorySummary = technicalCategorySummary ?? Array.Empty<ProjectBriefingSummaryPoint>()
             }
         };
     }

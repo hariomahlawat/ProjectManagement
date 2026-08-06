@@ -1,9 +1,13 @@
 @model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
+@using ProjectManagement.Models.ProjectBriefings
 @using ProjectManagement.Services.ProjectBriefings
 @{
     var deck = Model.SelectedDeck!;
     var options = deck.FfcGlobalFootprintOptions;
     var summary = Model.FfcFootprintPreviewSummary;
+    var breakdownSlides = options.IncludeCountryWiseBreakdown && summary.CountryCount > 0
+        ? (int)Math.Ceiling(summary.CountryCount / (double)ProjectBriefingFfcGlobalFootprintOptions.CountriesPerBreakdownSlide)
+        : 0;
 }
 
 <div class="pbd-role-charter-backdrop" data-pbd-ffc-footprint-backdrop hidden></div>
@@ -34,7 +38,7 @@
                 <i class="bi bi-pin-angle" aria-hidden="true"></i>
                 <span>
                     <strong>Fixed immediately before the closing slide</strong>
-                    <small>Project content remains together; the international footprint becomes the final substantive slide.</small>
+                    <small>The footprint and any supporting country-wise pages remain one contiguous FFC block.</small>
                 </span>
             </div>
 
@@ -44,6 +48,37 @@
                         <span>Slide title</span>
                         <input class="form-control" name="FfcGlobalFootprintTitle" value="@options.Title" maxlength="120" />
                     </label>
+                </div>
+
+                <fieldset class="pbd-choice-group pbd-ffc-layout-choice">
+                    <legend>Layout</legend>
+                    <div class="pbd-choice-cards pbd-choice-cards--two">
+                        <label class="pbd-choice-card">
+                            <input type="radio"
+                                   name="FfcGlobalFootprintLayout"
+                                   value="MapWithCountryBreakdown"
+                                   checked="@(options.Layout != ProjectBriefingFfcGlobalFootprintLayout.MapDominant)"
+                                   data-pbd-ffc-layout-option />
+                            <span>
+                                <strong>Map with country-wise breakdown</strong>
+                                <small>Recommended 72:28 composition for normal briefings</small>
+                            </span>
+                        </label>
+                        <label class="pbd-choice-card">
+                            <input type="radio"
+                                   name="FfcGlobalFootprintLayout"
+                                   value="MapDominant"
+                                   checked="@(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant)"
+                                   data-pbd-ffc-layout-option />
+                            <span>
+                                <strong>Map dominant</strong>
+                                <small>Full-width map with a compact top-country strip</small>
+                            </span>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <div class="pbd-form-grid pbd-form-grid--institutional" data-pbd-ffc-country-control>
                     <label class="form-label">
                         <span>Countries shown in country-wise breakdown</span>
                         <select class="form-select" name="MaximumCountryRows">
@@ -55,6 +90,31 @@
                     </label>
                 </div>
 
+                <div class="pbd-ffc-supporting-slide">
+                    <label class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="IncludeCountryWiseBreakdown"
+                               value="true"
+                               checked="@options.IncludeCountryWiseBreakdown"
+                               data-pbd-ffc-supporting-slide />
+                        <span class="form-check-label">
+                            <strong>Include FFC – Country-wise Breakdown</strong>
+                            <small>Adds the complete country-wise quantity table immediately after the footprint slide. Continuation pages are generated automatically.</small>
+                        </span>
+                    </label>
+                    <span class="pbd-ffc-supporting-slide__estimate" data-pbd-ffc-supporting-estimate data-country-count="@summary.CountryCount">
+                        @if (options.IncludeCountryWiseBreakdown)
+                        {
+                            <text>@breakdownSlides supporting slide@(breakdownSlides == 1 ? string.Empty : "s") · @summary.CountryCount countries</text>
+                        }
+                        else
+                        {
+                            <text>Not included</text>
+                        }
+                    </span>
+                </div>
+
                 <div class="pbd-ffc-footprint-authority">
                     <i class="bi bi-shield-check" aria-hidden="true"></i>
                     <div>
@@ -63,7 +123,9 @@
                     </div>
                 </div>
 
-                <div class="pbd-ffc-footprint-layout-preview" aria-label="FFC Global Footprint slide composition">
+                <div class="pbd-ffc-footprint-layout-preview @(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant ? "is-map-dominant" : string.Empty)"
+                     data-pbd-ffc-layout-preview
+                     aria-label="FFC Global Footprint slide composition">
                     <div class="pbd-ffc-footprint-layout-preview__metrics" aria-label="Current FFC portfolio headline figures">
                         <span><strong>@summary.CountryCount.ToString("N0")</strong><small>Countries</small></span>
                         <span><strong>@summary.ProjectCount.ToString("N0")</strong><small>Projects</small></span>
@@ -71,9 +133,14 @@
                     </div>
                     <div class="pbd-ffc-footprint-layout-preview__body">
                         <span><i class="bi bi-globe-asia-australia" aria-hidden="true"></i> Vector footprint map</span>
-                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> Country-wise breakdown</span>
+                        <span data-pbd-ffc-preview-secondary><i class="bi bi-list-ol" aria-hidden="true"></i> Country-wise breakdown</span>
                     </div>
-                    <small>Map-led 72:28 composition. Total quantity is the intensity metric; no internet map service or screenshot is used.</small>
+                    <small data-pbd-ffc-preview-note>
+                        @(options.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant
+                            ? "Full-width map with a compact top-country strip."
+                            : "Map-led 72:28 composition with the top country positions.")
+                        Total quantity is the intensity metric; no internet map service or screenshot is used.
+                    </small>
                 </div>
             </section>
         </div>

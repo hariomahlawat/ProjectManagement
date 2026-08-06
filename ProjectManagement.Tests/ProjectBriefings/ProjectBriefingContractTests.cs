@@ -25,7 +25,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Project Update Review", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
         Assert.Contains("Estimated deck size", page, StringComparison.Ordinal);
-        Assert.Contains("chart and table", page, StringComparison.Ordinal);
+        Assert.Contains("recommended chart", page, StringComparison.Ordinal);
+        Assert.Contains("optional supporting slide", page, StringComparison.Ordinal);
     }
 
 
@@ -280,6 +281,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);
         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
         Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
+        Assert.Contains("StandardSlideOptions.IncludeStageDistributionTable", composer, StringComparison.Ordinal);
+        Assert.Contains("IncludeStageDistributionTable", dataSource, StringComparison.Ordinal);
         Assert.Contains("Stage-wise project distribution", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("data.Summary.StageSummary.Chunk", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("reverse workflow order", composer, StringComparison.OrdinalIgnoreCase);
@@ -579,7 +582,17 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("IFfcPresentationMapRenderer", dataService, StringComparison.Ordinal);
         Assert.Contains("RenderFocused", dataService, StringComparison.Ordinal);
         Assert.Contains("RenderFfcGlobalFootprint", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderFfcMapDominant", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderFfcCountryWiseBreakdownSlide", composer, StringComparison.Ordinal);
+        Assert.Contains("IncludeCountryWiseBreakdown", editor, StringComparison.Ordinal);
+        Assert.Contains("FfcGlobalFootprintLayout", editor, StringComparison.Ordinal);
+        Assert.Contains("CountriesPerBreakdownSlide", mainComposer, StringComparison.Ordinal);
         Assert.Contains("Delivered, awaiting installation", composer, StringComparison.Ordinal);
+        Assert.Contains("COUNTRY-WISE BREAKDOWN", composer, StringComparison.Ordinal);
+        Assert.Contains("FfcMapWidth = 8.36", composer, StringComparison.Ordinal);
+        Assert.Contains("FfcBreakdownWidth = 3.30", composer, StringComparison.Ordinal);
+        Assert.Contains("2100, height: 1065", dataService, StringComparison.Ordinal);
+        Assert.Contains("countries — recommended", editor, StringComparison.Ordinal);
         Assert.Contains("AddConcludingPlans", mainComposer, StringComparison.Ordinal);
         Assert.Contains("SlidePlanKind.FfcGlobalFootprint", mainComposer, StringComparison.Ordinal);
         Assert.Contains("confirmFfcDiscard", script, StringComparison.Ordinal);

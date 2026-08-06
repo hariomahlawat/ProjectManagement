@@ -5,37 +5,14 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
 public sealed partial class ProjectBriefingSlideComposer
 {
-    private const int RoleCharterFirstPageCapacity = 10;
-    private const int RoleCharterContinuationCapacity = 12;
-
-    private static IReadOnlyList<RoleCharterPage> PaginateRoleCharter(ProjectBriefingRoleCharterData data)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-        var pages = new List<RoleCharterPage>();
-        var firstItems = data.CharterItems.Take(RoleCharterFirstPageCapacity).ToArray();
-        pages.Add(new RoleCharterPage(
-            IsContinuation: false,
-            PageNumber: 1,
-            RoleStatements: data.RoleStatements,
-            CharterItems: firstItems));
-
-        var remaining = data.CharterItems.Skip(RoleCharterFirstPageCapacity).ToArray();
-        for (var offset = 0; offset < remaining.Length; offset += RoleCharterContinuationCapacity)
-        {
-            pages.Add(new RoleCharterPage(
-                IsContinuation: true,
-                PageNumber: pages.Count + 1,
-                RoleStatements: Array.Empty<ProjectBriefingRoleCharterEntry>(),
-                CharterItems: remaining.Skip(offset).Take(RoleCharterContinuationCapacity).ToArray()));
-        }
-
-        return pages;
-    }
+    private static IReadOnlyList<ProjectBriefingRoleCharterPage> PaginateRoleCharter(
+        ProjectBriefingRoleCharterData data)
+        => ProjectBriefingRoleCharterPaginator.Paginate(data);
 
     private static void RenderRoleCharter(
         SlideCanvas canvas,
         ProjectBriefingRoleCharterData data,
-        RoleCharterPage page)
+        ProjectBriefingRoleCharterPage page)
     {
         var title = page.IsContinuation
             ? $"{data.Title} — Continued"
@@ -124,7 +101,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 paragraphs,
                 "Authorised role statements",
                 verticalAnchor: "t",
-                allowAutoFit: false,
+                allowAutoFit: true,
                 leftInset: .02,
                 rightInset: .04,
                 topInset: .01,
@@ -161,10 +138,11 @@ public sealed partial class ProjectBriefingSlideComposer
 
         var twoColumns = layout == ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter
             || continuation;
-        var resolvedHeight = ResolveCharterPanelHeight(items, twoColumns, height);
+        var resolvedHeight = height;
         if (!twoColumns)
         {
-            RenderCharterColumn(canvas, .72, top, 11.90, resolvedHeight, items, "Charter items");
+            var typography = ResolveCharterColumnTypography(items, 11.90);
+            RenderCharterColumn(canvas, .72, top, 11.90, resolvedHeight, items, typography, "Charter items");
             return;
         }
 
@@ -174,47 +152,16 @@ public sealed partial class ProjectBriefingSlideComposer
         const double x = .72;
         const double gap = .24;
         const double columnWidth = 5.83;
-        RenderCharterColumn(canvas, x, top, columnWidth, resolvedHeight, left, "Charter items left column");
+        var leftLoad = MeasureCharterColumn(left, columnWidth);
+        var rightLoad = MeasureCharterColumn(right, columnWidth);
+        var sharedTypography = ResolveCharterTypography(
+            Math.Max(left.Length, right.Length),
+            Math.Max(leftLoad, rightLoad));
+        RenderCharterColumn(canvas, x, top, columnWidth, resolvedHeight, left, sharedTypography, "Charter items left column");
         if (right.Length > 0)
         {
-            RenderCharterColumn(canvas, x + columnWidth + gap, top, columnWidth, resolvedHeight, right, "Charter items right column");
+            RenderCharterColumn(canvas, x + columnWidth + gap, top, columnWidth, resolvedHeight, right, sharedTypography, "Charter items right column");
         }
-    }
-
-    private static double ResolveCharterPanelHeight(
-        IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
-        bool twoColumns,
-        double maximumHeight)
-    {
-        var columns = twoColumns
-            ? new[]
-            {
-                items.Take((int)Math.Ceiling(items.Count / 2d)).ToArray(),
-                items.Skip((int)Math.Ceiling(items.Count / 2d)).ToArray()
-            }
-            : new[] { items.ToArray() };
-        var charactersPerLine = twoColumns ? 48 : 104;
-        var estimatedHeight = columns
-            .Where(column => column.Length > 0)
-            .Select(column =>
-            {
-                var lineCount = column.Sum(item => EstimateRoleCharterLines(item, charactersPerLine));
-                return .34 + (lineCount * .19) + (column.Length * .08);
-            })
-            .DefaultIfEmpty(twoColumns ? 2.85 : 3.20)
-            .Max();
-        var minimumHeight = twoColumns ? 2.85 : 3.20;
-        return Math.Clamp(estimatedHeight, minimumHeight, maximumHeight);
-    }
-
-    private static int EstimateRoleCharterLines(
-        ProjectBriefingRoleCharterEntry item,
-        int charactersPerLine)
-    {
-        var combinedLength = (item.LeadPhrase?.Trim().Length ?? 0)
-            + (item.Text?.Trim().Length ?? 0)
-            + 3;
-        return Math.Max(1, (int)Math.Ceiling(combinedLength / (double)charactersPerLine));
     }
 
     private static void RenderCharterColumn(
@@ -224,6 +171,7 @@ public sealed partial class ProjectBriefingSlideComposer
         double width,
         double height,
         IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
+        CharterTypography typography,
         string name)
     {
         var fill = canvas.Theme.IsDark
@@ -232,16 +180,15 @@ public sealed partial class ProjectBriefingSlideComposer
         canvas.AddGroup(x, y, width, height, name, () =>
         {
             canvas.AddRoundedRect(x, y, width, height, fill, canvas.Theme.Border, .046, $"{name} background");
-            var compact = items.Count >= 6;
-            var fontSize = compact ? 12.8 : 13.8;
             var paragraphs = items
                 .Select(item => BuildRoleCharterParagraph(
                     item,
                     canvas.Theme.HeaderAccent,
                     canvas.Theme.TextPrimary,
-                    fontSize,
+                    typography.FontSize,
                     bullet: "✓ ",
-                    spaceAfter: compact ? 7.0 : 10.0))
+                    spaceAfter: typography.SpaceAfterPoints,
+                    lineSpacingPoints: typography.LineSpacingPoints))
                 .ToArray();
             canvas.AddRichTextBox(
                 x + .20,
@@ -251,7 +198,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 paragraphs,
                 name,
                 verticalAnchor: "t",
-                allowAutoFit: false,
+                allowAutoFit: true,
                 leftInset: .02,
                 rightInset: .02,
                 topInset: .02,
@@ -259,13 +206,53 @@ public sealed partial class ProjectBriefingSlideComposer
         });
     }
 
+
+    private static CharterTypography ResolveCharterColumnTypography(
+        IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
+        double width)
+        => ResolveCharterTypography(items.Count, MeasureCharterColumn(items, width));
+
+    private static double MeasureCharterColumn(
+        IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
+        double width)
+    {
+        var charactersPerLine = width >= 8d ? 104 : 48;
+        return items.Sum(item =>
+            ProjectBriefingRoleCharterPaginator.EstimateLineCount(item, charactersPerLine))
+            + (items.Count * .45);
+    }
+
+    private static CharterTypography ResolveCharterTypography(int itemCount, double lineLoad)
+    {
+        if (lineLoad >= 15 || itemCount >= 6)
+        {
+            return new CharterTypography(11.2, 3.0, 12.6);
+        }
+        if (lineLoad >= 12)
+        {
+            return new CharterTypography(11.8, 4.5, 13.4);
+        }
+        if (lineLoad >= 9)
+        {
+            return new CharterTypography(12.5, 6.0, 14.2);
+        }
+
+        return new CharterTypography(13.2, 8.0, 15.0);
+    }
+
+    private sealed record CharterTypography(
+        double FontSize,
+        double SpaceAfterPoints,
+        double LineSpacingPoints);
+
     private static RichTextParagraph BuildRoleCharterParagraph(
         ProjectBriefingRoleCharterEntry entry,
         string accent,
         string text,
         double fontSize,
         string? bullet,
-        double spaceAfter)
+        double spaceAfter,
+        double? lineSpacingPoints = null)
     {
         var runs = new List<RichTextRun>();
         if (!string.IsNullOrEmpty(bullet))
@@ -291,12 +278,6 @@ public sealed partial class ProjectBriefingSlideComposer
             LeftMarginInches: string.IsNullOrEmpty(bullet) ? 0 : .18,
             FirstLineIndentInches: string.IsNullOrEmpty(bullet) ? 0 : -.18,
             SpaceAfterPoints: spaceAfter,
-            LineSpacingPoints: fontSize * 1.16);
+            LineSpacingPoints: lineSpacingPoints ?? fontSize * 1.16);
     }
-
-    private sealed record RoleCharterPage(
-        bool IsContinuation,
-        int PageNumber,
-        IReadOnlyList<ProjectBriefingRoleCharterEntry> RoleStatements,
-        IReadOnlyList<ProjectBriefingRoleCharterEntry> CharterItems);
 }

@@ -424,9 +424,42 @@ if (root) {
   const ffcForm = root.querySelector('[data-pbd-ffc-footprint-form]');
   const ffcSave = root.querySelector('[data-pbd-ffc-footprint-save]');
   const ffcStatus = root.querySelector('[data-pbd-ffc-footprint-status]');
+  const ffcCountryControl = root.querySelector('[data-pbd-ffc-country-control]');
+  const ffcLayoutPreview = root.querySelector('[data-pbd-ffc-layout-preview]');
+  const ffcPreviewSecondary = root.querySelector('[data-pbd-ffc-preview-secondary]');
+  const ffcPreviewNote = root.querySelector('[data-pbd-ffc-preview-note]');
+  const ffcSupportingSlide = root.querySelector('[data-pbd-ffc-supporting-slide]');
+  const ffcSupportingEstimate = root.querySelector('[data-pbd-ffc-supporting-estimate]');
   let ffcReturnFocus = null;
   let ffcInitialState = '';
   let ffcDirty = false;
+
+  const syncFfcConfiguration = () => {
+    if (!(ffcForm instanceof HTMLFormElement)) return;
+    const selectedLayout = ffcForm.querySelector('input[name="FfcGlobalFootprintLayout"]:checked');
+    const mapDominant = selectedLayout instanceof HTMLInputElement && selectedLayout.value === 'MapDominant';
+    if (ffcCountryControl instanceof HTMLElement) ffcCountryControl.hidden = mapDominant;
+    if (ffcLayoutPreview instanceof HTMLElement) ffcLayoutPreview.classList.toggle('is-map-dominant', mapDominant);
+    if (ffcPreviewSecondary instanceof HTMLElement) {
+      ffcPreviewSecondary.innerHTML = mapDominant
+        ? '<i class="bi bi-list-inline" aria-hidden="true"></i> Compact top-country strip'
+        : '<i class="bi bi-list-ol" aria-hidden="true"></i> Country-wise breakdown';
+    }
+    if (ffcPreviewNote instanceof HTMLElement) {
+      ffcPreviewNote.textContent = mapDominant
+        ? 'Full-width map with a compact top-country strip. Total quantity is the intensity metric; no internet map service or screenshot is used.'
+        : 'Map-led 72:28 composition with the top country positions. Total quantity is the intensity metric; no internet map service or screenshot is used.';
+    }
+
+    if (ffcSupportingEstimate instanceof HTMLElement) {
+      const countryCount = Number.parseInt(ffcSupportingEstimate.dataset.countryCount || '0', 10) || 0;
+      const included = ffcSupportingSlide instanceof HTMLInputElement && ffcSupportingSlide.checked;
+      const slides = included && countryCount > 0 ? Math.ceil(countryCount / 12) : 0;
+      ffcSupportingEstimate.textContent = included
+        ? `${slides} supporting slide${slides === 1 ? '' : 's'} · ${countryCount} countries`
+        : 'Not included';
+    }
+  };
 
   const serializeFfc = () => ffcForm instanceof HTMLFormElement
     ? [...new FormData(ffcForm).entries()]
@@ -459,6 +492,7 @@ if (root) {
     ffcBackdrop.hidden = false;
     document.body.classList.add('pbd-profile-drawer-open');
     root.querySelectorAll('[data-pbd-ffc-footprint-open]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
+    syncFfcConfiguration();
     ffcInitialState = serializeFfc();
     setFfcDirty(false);
     window.requestAnimationFrame(() => ffcFocusable()[0]?.focus());
@@ -476,7 +510,10 @@ if (root) {
   const closeFfcDrawer = async ({ force = false } = {}) => {
     if (!ffcDrawer || !ffcBackdrop) return false;
     if (!force && !(await confirmFfcDiscard())) return false;
-    if (ffcDirty && ffcForm instanceof HTMLFormElement) ffcForm.reset();
+    if (ffcDirty && ffcForm instanceof HTMLFormElement) {
+      ffcForm.reset();
+      syncFfcConfiguration();
+    }
     ffcDrawer.classList.remove('is-open');
     ffcDrawer.setAttribute('aria-hidden', 'true');
     ffcBackdrop.hidden = true;
@@ -494,8 +531,14 @@ if (root) {
     button.addEventListener('click', async () => { await closeFfcDrawer(); });
   });
   ffcBackdrop?.addEventListener('click', async () => { await closeFfcDrawer(); });
-  ffcForm?.addEventListener('input', () => setFfcDirty(serializeFfc() !== ffcInitialState));
-  ffcForm?.addEventListener('change', () => setFfcDirty(serializeFfc() !== ffcInitialState));
+  ffcForm?.addEventListener('input', () => {
+    syncFfcConfiguration();
+    setFfcDirty(serializeFfc() !== ffcInitialState);
+  });
+  ffcForm?.addEventListener('change', () => {
+    syncFfcConfiguration();
+    setFfcDirty(serializeFfc() !== ffcInitialState);
+  });
   ffcForm?.addEventListener('submit', (event) => {
     if (!ffcDirty) {
       event.preventDefault();
@@ -528,6 +571,7 @@ if (root) {
       first.focus();
     }
   });
+  syncFfcConfiguration();
   if (ffcDrawer?.dataset.pbdFfcFootprintReopen === 'true') {
     window.setTimeout(() => openFfcDrawer(), 0);
   }

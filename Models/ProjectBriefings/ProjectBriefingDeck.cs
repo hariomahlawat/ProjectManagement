@@ -131,7 +131,18 @@ public enum ProjectBriefingAdditionalSlideType
 /// </summary>
 public enum ProjectBriefingFfcGlobalFootprintLayout
 {
-    DataLedFootprint = 1
+    /// <summary>
+    /// Recommended compact composition: a 72:28 map and country-wise breakdown.
+    /// </summary>
+    MapWithCountryBreakdown = 1,
+
+    /// <summary>
+    /// Full-width map with a compact top-country strip. Intended for senior-level briefings.
+    /// </summary>
+    MapDominant = 2,
+
+    // Backward-compatible alias for decks saved before controlled layout selection was introduced.
+    DataLedFootprint = MapWithCountryBreakdown
 }
 
 /// <summary>

@@ -180,6 +180,27 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 plans.Add(new SlidePlan(
                     SlidePlanKind.FfcGlobalFootprint,
                     canvas => RenderFfcGlobalFootprint(canvas, footprint)));
+
+                if (footprint.IncludeCountryWiseBreakdown && footprint.Countries.Count > 0)
+                {
+                    var pages = footprint.Countries
+                        .Chunk(ProjectBriefingFfcGlobalFootprintOptions.CountriesPerBreakdownSlide)
+                        .Select(chunk => chunk.ToArray())
+                        .ToArray();
+                    for (var pageIndex = 0; pageIndex < pages.Length; pageIndex++)
+                    {
+                        var capturedCountries = pages[pageIndex];
+                        var capturedPageIndex = pageIndex;
+                        plans.Add(new SlidePlan(
+                            SlidePlanKind.FfcGlobalFootprint,
+                            canvas => RenderFfcCountryWiseBreakdownSlide(
+                                canvas,
+                                footprint,
+                                capturedCountries,
+                                capturedPageIndex + 1,
+                                pages.Length)));
+                    }
+                }
             }
         }
     }
@@ -200,7 +221,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             AddSummaryChartSlides(plans, data, "Project-category summary", data.Summary.ProjectCategorySummary, ThemeAccent.Secondary);
         }
 
-        if (data.IncludeTechnicalCategorySummary)
+        if (data.IncludeTechnicalCategorySummary
+            && data.Summary.TechnicalCategorySummary.Count(point => point.Count > 0) > 1)
         {
             AddSummaryChartSlides(plans, data, "Technical-category summary", data.Summary.TechnicalCategorySummary, ThemeAccent.Positive);
         }
@@ -576,7 +598,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             data.Summary.ProjectCount,
             showShare: true)));
 
-        plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderStageSummaryTable(canvas, data)));
+        if (data.StandardSlideOptions.IncludeStageDistributionTable)
+        {
+            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderStageSummaryTable(canvas, data)));
+        }
     }
 
     private static void AddSummaryChartSlides(

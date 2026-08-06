@@ -737,9 +737,10 @@
                                 <div class="pbd-settings__bottom">
                                     <fieldset class="pbd-checks" data-pbd-standard-settings hidden="@isUpdateSheet">
                                         <legend>Summary slides</legend>
-                                        <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" /> Stage-wise summary <small>chart and table</small></label>
+                                        <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle /> Stage-wise summary <small>recommended chart</small></label>
+                                        <label class="pbd-summary-dependent-option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> Stage-wise distribution table <small>optional supporting slide</small></label>
                                         <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary</label>
-                                        <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary</label>
+                                        <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary <small>automatically omitted when all selected projects share one category</small></label>
                                     </fieldset>
                                     <label class="form-label pbd-marking">
                                         <span>Classification marking <small>optional</small></span>
@@ -1000,7 +1001,9 @@
                                         {
                                             ProjectBriefingAdditionalSlideType.InstitutionalProfile => $"{institutionalProfile.HistoryMilestones.Count} milestones · {institutionalProfile.Modules.Count} modules",
                                             ProjectBriefingAdditionalSlideType.RoleAndCharter => $"{roleCharter.RoleStatements.Count} role statements · {roleCharter.CharterItems.Count} charter items · {deck.SlideEstimate.RoleCharterSlides} slide{(deck.SlideEstimate.RoleCharterSlides == 1 ? string.Empty : "s")}",
-                                            ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => enabled ? "Live ERP data · 1 slide" : "Live ERP data · configured",
+                                            ProjectBriefingAdditionalSlideType.FfcGlobalFootprint => enabled
+                                                ? $"Live ERP data · {(ffcGlobalFootprint.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant ? "Map dominant" : "Map + breakdown")} · {deck.SlideEstimate.FfcGlobalFootprintSlides} slide{(deck.SlideEstimate.FfcGlobalFootprintSlides == 1 ? string.Empty : "s")}"
+                                                : "Live ERP data · configured",
                                             _ => string.Empty
                                         };
                                         var definition = AdditionalSlideDefinition(slideType);

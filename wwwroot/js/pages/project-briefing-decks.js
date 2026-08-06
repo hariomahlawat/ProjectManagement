@@ -797,6 +797,19 @@ if (root) {
     });
   });
 
+  const stageSummaryToggle = settingsForm?.querySelector('[data-pbd-stage-summary-toggle]');
+  const stageTableOption = settingsForm?.querySelector('[data-pbd-stage-table-option]');
+  const stageTableToggle = settingsForm?.querySelector('[data-pbd-stage-table-toggle]');
+
+  const syncStageSummaryOptions = () => {
+    const enabled = !(stageSummaryToggle instanceof HTMLInputElement) || stageSummaryToggle.checked;
+    if (stageTableToggle instanceof HTMLInputElement) stageTableToggle.disabled = !enabled;
+    if (stageTableOption instanceof HTMLElement) {
+      stageTableOption.classList.toggle('is-disabled', !enabled);
+      stageTableOption.setAttribute('aria-disabled', String(!enabled));
+    }
+  };
+
   const serializeSettings = () => serializeForm(settingsForm);
 
   const setSettingsDirty = (dirty) => {
@@ -847,6 +860,7 @@ if (root) {
     if (discard && settingsDirty && settingsForm instanceof HTMLFormElement) {
       settingsForm.reset();
       restoreUpdateRowOrder(updateRowInitialOrder);
+      syncStageSummaryOptions();
       syncTemplateSettings();
       validateUpdateSheetRows();
       setSettingsDirty(false);
@@ -1136,6 +1150,11 @@ if (root) {
     ?.addEventListener('change', syncPreflightRequirementVisibility);
   root.querySelector('input[name="ShowPresentStatus"]')
     ?.addEventListener('change', syncPreflightRequirementVisibility);
+  stageSummaryToggle?.addEventListener('change', () => {
+    syncStageSummaryOptions();
+    refreshSettingsDirtyState();
+  });
+  syncStageSummaryOptions();
   syncTemplateSettings();
   settingsInitialState = serializeSettings();
   setSettingsDirty(false);

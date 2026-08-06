@@ -37,6 +37,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private readonly IFfcFootprintService _ffcFootprintService;
     private readonly IFfcPresentationMapRenderer _ffcMapRenderer;
     private readonly IClock _clock;
+    private readonly ILogger<ProjectBriefingDataService> _logger;
 
     public ProjectBriefingDataService(
         ApplicationDbContext db,
@@ -47,7 +48,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IProjectBriefingInstitutionalProfileService institutionalProfileService,
         IFfcFootprintService ffcFootprintService,
         IFfcPresentationMapRenderer ffcMapRenderer,
-        IClock clock)
+        IClock clock,
+        ILogger<ProjectBriefingDataService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
@@ -58,6 +60,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         _ffcFootprintService = ffcFootprintService ?? throw new ArgumentNullException(nameof(ffcFootprintService));
         _ffcMapRenderer = ffcMapRenderer ?? throw new ArgumentNullException(nameof(ffcMapRenderer));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<ProjectBriefingDeckVm?> GetDeckAsync(
@@ -72,6 +75,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         }
 
         var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, cancellationToken);
+        var ffcPreview = await LoadFfcFootprintPreviewAsync(snapshot.Id, cancellationToken);
         return new ProjectBriefingDeckVm
         {
             Id = snapshot.Id,
@@ -87,6 +91,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             InstitutionalProfileOptions = snapshot.InstitutionalProfileOptions,
             RoleCharterOptions = snapshot.RoleCharterOptions,
             FfcGlobalFootprintOptions = snapshot.FfcGlobalFootprintOptions,
+            FfcFootprintPreviewSummary = ffcPreview,
             AdditionalSlideOrder = snapshot.AdditionalSlideOrder,
             BrandingScope = snapshot.BrandingScope,
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
@@ -104,8 +109,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Readiness = BuildReadiness(projects),
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
-                snapshot.IncludeTechnicalCategorySummary, snapshot.InstitutionalProfileOptions,
-                snapshot.RoleCharterOptions, snapshot.FfcGlobalFootprintOptions,
+                snapshot.IncludeTechnicalCategorySummary, snapshot.StandardSlideOptions,
+                snapshot.InstitutionalProfileOptions, snapshot.RoleCharterOptions,
+                snapshot.FfcGlobalFootprintOptions, ffcPreview.CountryCount,
                 snapshot.AdditionalSlideOrder,
                 snapshot.CostMode, snapshot.NarrativeMode, projects)
         };
@@ -198,7 +204,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
             IncludeStageSummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeStageSummary,
             IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeProjectCategorySummary,
-            IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeTechnicalCategorySummary,
+            IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing
+                && snapshot.IncludeTechnicalCategorySummary
+                && ShouldRenderTechnicalCategorySummary(summary.TechnicalCategorySummary),
             UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
@@ -724,9 +732,11 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool includeStageSummary,
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
+        ProjectBriefingStandardSlideOptions standardSlideOptions,
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions,
         ProjectBriefingRoleCharterOptions roleCharterOptions,
         ProjectBriefingFfcGlobalFootprintOptions ffcGlobalFootprintOptions,
+        int ffcCountryCount,
         IReadOnlyList<ProjectBriefingAdditionalSlideType> additionalSlideOrder,
         ProjectBriefingCostMode costMode,
         ProjectBriefingNarrativeMode narrativeMode,
@@ -739,12 +749,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ? 1
                 : 0;
         var roleCharterSlides = additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.RoleAndCharter)
-            ? EstimateRoleCharterSlides(roleCharterOptions)
+            ? ProjectBriefingRoleCharterPaginator.EstimateSlideCount(roleCharterOptions)
             : 0;
-        var ffcGlobalFootprintSlides = ffcGlobalFootprintOptions.IncludeSlide
-            && additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
-                ? 1
-                : 0;
+        var ffcGlobalFootprintSlides = additionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
+            ? ffcGlobalFootprintOptions.EstimateSlideCount(ffcCountryCount)
+            : 0;
+        var ffcCountryWiseBreakdownSlides = Math.Max(0, ffcGlobalFootprintSlides - (ffcGlobalFootprintSlides > 0 ? 1 : 0));
         var configuredSlides = coverAndPortfolioSlides + institutionalProfileSlides + roleCharterSlides + ffcGlobalFootprintSlides;
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
@@ -756,12 +766,15 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 InstitutionalProfileSlides = institutionalProfileSlides,
                 RoleCharterSlides = roleCharterSlides,
                 FfcGlobalFootprintSlides = ffcGlobalFootprintSlides,
+                FfcCountryWiseBreakdownSlides = ffcCountryWiseBreakdownSlides,
                 ClosingSlides = 1,
                 TotalSlides = configuredSlides + projectUpdateSheetSlides + 1
             };
         }
 
-        var summarySlides = includeStageSummary ? 2 : 0;
+        var summarySlides = includeStageSummary
+            ? 1 + (standardSlideOptions.IncludeStageDistributionTable ? 1 : 0)
+            : 0;
         if (includeProjectCategorySummary)
         {
             summarySlides += Math.Max(1, (int)Math.Ceiling(projects
@@ -769,12 +782,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Count() / 10d));
         }
-        if (includeTechnicalCategorySummary)
+        var technicalCategoryCount = projects
+            .Select(project => project.TechnicalCategory ?? "Not categorised")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        if (includeTechnicalCategorySummary && technicalCategoryCount > 1)
         {
-            summarySlides += Math.Max(1, (int)Math.Ceiling(projects
-                .Select(project => project.TechnicalCategory ?? "Not categorised")
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count() / 10d));
+            summarySlides += Math.Max(1, (int)Math.Ceiling(technicalCategoryCount / 10d));
         }
 
         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
@@ -817,6 +831,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             InstitutionalProfileSlides = institutionalProfileSlides,
             RoleCharterSlides = roleCharterSlides,
             FfcGlobalFootprintSlides = ffcGlobalFootprintSlides,
+            FfcCountryWiseBreakdownSlides = ffcCountryWiseBreakdownSlides,
             ClosingSlides = 1,
             TotalSlides = configuredSlides
                 + summarySlides
@@ -828,6 +843,33 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         };
     }
 
+    private static bool ShouldRenderTechnicalCategorySummary(
+        IReadOnlyList<ProjectBriefingSummaryPoint> points)
+        => points.Count(point => point.Count > 0) > 1;
+
+    private async Task<FfcFootprintSummary> LoadFfcFootprintPreviewAsync(
+        long deckId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var footprint = await _ffcFootprintService.GetAsync(
+                new FfcFootprintRequest(
+                    Metric: FfcFootprintMetric.TotalUnits,
+                    Sort: FfcFootprintSort.TotalUnits),
+                cancellationToken);
+            return footprint.Summary;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                exception,
+                "FFC footprint preview could not be loaded while calculating the briefing deck. DeckId={DeckId}",
+                deckId);
+            return new FfcFootprintSummary(0, 0, 0, 0, 0, 0);
+        }
+    }
+
     private async Task<ProjectBriefingFfcGlobalFootprintData?> BuildFfcGlobalFootprintDataAsync(
         ProjectBriefingFfcGlobalFootprintOptions options,
         CancellationToken cancellationToken)
@@ -835,7 +877,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
             options.IncludeSlide,
             options.Title,
-            options.MaximumCountryRows);
+            options.Layout,
+            options.MaximumCountryRows,
+            options.IncludeCountryWiseBreakdown);
         if (!normalized.IncludeSlide)
         {
             return null;
@@ -873,7 +917,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .ToArray();
         var mapImage = mapCountries.Length == 0
             ? Array.Empty<byte>()
-            : _ffcMapRenderer.RenderFocused(mapCountries, width: 2100, height: 1065);
+            : normalized.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant
+                ? _ffcMapRenderer.RenderFocused(mapCountries, width: 2400, height: 725)
+                : _ffcMapRenderer.RenderFocused(mapCountries, width: 2100, height: 1065);
         var dataAsOn = footprint.Countries.Count == 0
             ? _clock.UtcNow.ToUniversalTime()
             : footprint.Countries.Max(country => country.LastUpdated).ToUniversalTime();
@@ -881,6 +927,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         return new ProjectBriefingFfcGlobalFootprintData
         {
             Title = normalized.Title,
+            Layout = normalized.Layout,
+            IncludeCountryWiseBreakdown = normalized.IncludeCountryWiseBreakdown,
             Summary = footprint.Summary,
             Countries = countries,
             MaximumCountryRows = normalized.MaximumCountryRows,
@@ -913,19 +961,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 : normalized.RoleStatements,
             CharterItems = normalized.CharterItems
         };
-    }
-
-    private static int EstimateRoleCharterSlides(ProjectBriefingRoleCharterOptions options)
-    {
-        if (!options.IncludeSlide)
-        {
-            return 0;
-        }
-
-        const int firstSlideCapacity = 10;
-        const int continuationCapacity = 12;
-        var remaining = Math.Max(0, options.CharterItems.Count - firstSlideCapacity);
-        return 1 + (int)Math.Ceiling(remaining / (double)continuationCapacity);
     }
 
     private static int EstimateProjectUpdateSheetSlides(ProjectBriefingProjectVm project)

@@ -65,24 +65,28 @@ public sealed record ProjectBriefingUpdateSheetOptions(
 public sealed record ProjectBriefingStandardSlideOptions(
     ProjectBriefingProjectBriefLayout ProjectBriefLayout,
     bool ShowPresentStage,
-    bool ShowPresentStatus)
+    bool ShowPresentStatus,
+    bool IncludeStageDistributionTable)
 {
     public static ProjectBriefingStandardSlideOptions Default { get; } =
         new(
             ProjectBriefingProjectBriefLayout.Automatic,
             ShowPresentStage: true,
-            ShowPresentStatus: true);
+            ShowPresentStatus: true,
+            IncludeStageDistributionTable: false);
 
     public static ProjectBriefingStandardSlideOptions Normalize(
         ProjectBriefingProjectBriefLayout projectBriefLayout,
         bool showPresentStage,
-        bool showPresentStatus)
+        bool showPresentStatus,
+        bool includeStageDistributionTable)
         => new(
             Enum.IsDefined(projectBriefLayout)
                 ? projectBriefLayout
                 : ProjectBriefingProjectBriefLayout.Automatic,
             showPresentStage,
-            showPresentStatus);
+            showPresentStatus,
+            includeStageDistributionTable);
 }
 
 public sealed record ProjectBriefingInstitutionalHistoryMilestone(int Year, string Text);
@@ -342,21 +346,49 @@ public sealed record ProjectBriefingRoleCharterOptions(
 public sealed record ProjectBriefingFfcGlobalFootprintOptions(
     bool IncludeSlide,
     string Title,
-    int MaximumCountryRows)
+    ProjectBriefingFfcGlobalFootprintLayout Layout,
+    int MaximumCountryRows,
+    bool IncludeCountryWiseBreakdown)
 {
     public const string DefaultTitle = "FFC Global Footprint";
+    public const string BreakdownTitle = "FFC – Country-wise Breakdown";
+    public const int CountriesPerBreakdownSlide = 12;
 
     public static ProjectBriefingFfcGlobalFootprintOptions Default { get; } =
-        new(false, DefaultTitle, 8);
+        new(
+            IncludeSlide: false,
+            Title: DefaultTitle,
+            Layout: ProjectBriefingFfcGlobalFootprintLayout.MapWithCountryBreakdown,
+            MaximumCountryRows: 8,
+            IncludeCountryWiseBreakdown: false);
 
     public static ProjectBriefingFfcGlobalFootprintOptions Normalize(
         bool includeSlide,
         string? title,
-        int maximumCountryRows)
+        ProjectBriefingFfcGlobalFootprintLayout layout,
+        int maximumCountryRows,
+        bool includeCountryWiseBreakdown)
         => new(
             includeSlide,
             string.IsNullOrWhiteSpace(title) ? DefaultTitle : TrimTo(title.Trim(), 120),
-            Math.Clamp(maximumCountryRows, 6, 10));
+            Enum.IsDefined(layout)
+                ? layout
+                : ProjectBriefingFfcGlobalFootprintLayout.MapWithCountryBreakdown,
+            Math.Clamp(maximumCountryRows, 6, 10),
+            includeCountryWiseBreakdown);
+
+    public int EstimateSlideCount(int countryCount)
+    {
+        if (!IncludeSlide)
+        {
+            return 0;
+        }
+
+        var breakdownSlides = IncludeCountryWiseBreakdown && countryCount > 0
+            ? (int)Math.Ceiling(countryCount / (double)CountriesPerBreakdownSlide)
+            : 0;
+        return 1 + breakdownSlides;
+    }
 
     private static string TrimTo(string value, int maximumLength)
         => value.Length <= maximumLength ? value : value[..maximumLength].TrimEnd();
@@ -539,7 +571,8 @@ public static class ProjectBriefingDeckConfigurationCodec
         => ProjectBriefingStandardSlideOptions.Normalize(
             ReadEnum(standard?["projectBriefLayout"], ProjectBriefingProjectBriefLayout.Automatic),
             standard?["showPresentStage"]?.GetValue<bool>() ?? true,
-            standard?["showPresentStatus"]?.GetValue<bool>() ?? true);
+            standard?["showPresentStatus"]?.GetValue<bool>() ?? true,
+            standard?["includeStageDistributionTable"]?.GetValue<bool>() ?? false);
 
     private static ProjectBriefingClosingSlideType ReadClosingSlideType(JsonNode? node)
         => ReadEnum(node, ProjectBriefingClosingSlideType.JaiHind);
@@ -640,7 +673,11 @@ public static class ProjectBriefingDeckConfigurationCodec
             : ProjectBriefingFfcGlobalFootprintOptions.Normalize(
                 footprint["includeSlide"]?.GetValue<bool>() ?? false,
                 footprint["title"]?.GetValue<string>(),
-                footprint["maximumCountryRows"]?.GetValue<int>() ?? 8);
+                ReadEnum(
+                    footprint["layout"],
+                    ProjectBriefingFfcGlobalFootprintLayout.MapWithCountryBreakdown),
+                footprint["maximumCountryRows"]?.GetValue<int>() ?? 8,
+                footprint["includeCountryWiseBreakdown"]?.GetValue<bool>() ?? false);
 
     private static IReadOnlyList<ProjectBriefingAdditionalSlideType> ReadAdditionalSlideOrder(JsonArray? array)
     {
@@ -690,7 +727,8 @@ public static class ProjectBriefingDeckConfigurationCodec
         var normalizedStandard = ProjectBriefingStandardSlideOptions.Normalize(
             configuration.StandardSlideOptions.ProjectBriefLayout,
             configuration.StandardSlideOptions.ShowPresentStage,
-            configuration.StandardSlideOptions.ShowPresentStatus);
+            configuration.StandardSlideOptions.ShowPresentStatus,
+            configuration.StandardSlideOptions.IncludeStageDistributionTable);
         var normalizedClosingSlideType = Enum.IsDefined(configuration.ClosingSlideType)
             ? configuration.ClosingSlideType
             : ProjectBriefingClosingSlideType.JaiHind;
@@ -722,7 +760,9 @@ public static class ProjectBriefingDeckConfigurationCodec
         var normalizedFfcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
             ffcGlobalFootprint.IncludeSlide,
             ffcGlobalFootprint.Title,
-            ffcGlobalFootprint.MaximumCountryRows);
+            ffcGlobalFootprint.Layout,
+            ffcGlobalFootprint.MaximumCountryRows,
+            ffcGlobalFootprint.IncludeCountryWiseBreakdown);
         var normalizedAdditionalSlideOrder = NormalizeAdditionalSlideOrder(configuration.AdditionalSlideOrder);
 
         var root = new JsonObject
@@ -738,7 +778,8 @@ public static class ProjectBriefingDeckConfigurationCodec
             {
                 ["projectBriefLayout"] = normalizedStandard.ProjectBriefLayout.ToString(),
                 ["showPresentStage"] = normalizedStandard.ShowPresentStage,
-                ["showPresentStatus"] = normalizedStandard.ShowPresentStatus
+                ["showPresentStatus"] = normalizedStandard.ShowPresentStatus,
+                ["includeStageDistributionTable"] = normalizedStandard.IncludeStageDistributionTable
             },
             ["closingSlide"] = normalizedClosingSlideType.ToString(),
             ["institutionalProfile"] = new JsonObject
@@ -779,7 +820,9 @@ public static class ProjectBriefingDeckConfigurationCodec
             {
                 ["includeSlide"] = normalizedFfcGlobalFootprint.IncludeSlide,
                 ["title"] = normalizedFfcGlobalFootprint.Title,
-                ["maximumCountryRows"] = normalizedFfcGlobalFootprint.MaximumCountryRows
+                ["layout"] = normalizedFfcGlobalFootprint.Layout.ToString(),
+                ["maximumCountryRows"] = normalizedFfcGlobalFootprint.MaximumCountryRows,
+                ["includeCountryWiseBreakdown"] = normalizedFfcGlobalFootprint.IncludeCountryWiseBreakdown
             },
             ["additionalSlides"] = ToEnumArray(normalizedAdditionalSlideOrder)
         };

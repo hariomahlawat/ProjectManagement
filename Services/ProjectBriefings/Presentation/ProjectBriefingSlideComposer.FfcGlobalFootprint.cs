@@ -1,4 +1,5 @@
 using System.Globalization;
+using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings;
 
 namespace ProjectManagement.Services.ProjectBriefings.Presentation;
@@ -46,6 +47,12 @@ public sealed partial class ProjectBriefingSlideComposer
                 true,
                 "ctr",
                 name: "FFC empty-state message");
+            return;
+        }
+
+        if (data.Layout == ProjectBriefingFfcGlobalFootprintLayout.MapDominant)
+        {
+            RenderFfcMapDominant(canvas, data);
             return;
         }
 
@@ -179,6 +186,135 @@ public sealed partial class ProjectBriefingSlideComposer
             rightInset: 0,
             topInset: 0,
             bottomInset: 0);
+    }
+
+    private static void RenderFfcMapDominant(
+        SlideCanvas canvas,
+        ProjectBriefingFfcGlobalFootprintData data)
+    {
+        const double width = 11.88;
+        const double imageHeight = 3.56;
+        const double stripGap = .08;
+        const double stripHeight = .52;
+        var stripY = FfcBodyY + imageHeight + stripGap + .06;
+
+        canvas.AddSubtleRoundedRect(
+            FfcBodyX,
+            FfcBodyY,
+            width,
+            FfcBodyHeight,
+            "FFFFFF",
+            canvas.Theme.Border,
+            "FFC map-dominant frame");
+
+        if (data.MapImage.Length > 0)
+        {
+            canvas.AddImage(
+                data.MapImage,
+                "image/png",
+                FfcBodyX + .06,
+                FfcBodyY + .06,
+                width - .12,
+                imageHeight,
+                "FFC map-dominant footprint map");
+        }
+        else
+        {
+            canvas.AddText(
+                FfcBodyX + .3,
+                FfcBodyY + 1.50,
+                width - .6,
+                .42,
+                "Map not available",
+                16,
+                canvas.Theme.TextMuted,
+                true,
+                "ctr",
+                name: "FFC map-dominant map unavailable");
+        }
+
+        RenderFfcTopCountryStrip(
+            canvas,
+            data.Countries.Take(5).ToArray(),
+            FfcBodyX + .10,
+            stripY,
+            width - .20,
+            stripHeight);
+    }
+
+    private static void RenderFfcTopCountryStrip(
+        SlideCanvas canvas,
+        IReadOnlyList<ProjectBriefingFfcCountryData> countries,
+        double x,
+        double y,
+        double width,
+        double height)
+    {
+        canvas.AddRoundedRect(
+            x,
+            y,
+            width,
+            height,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            .045,
+            "FFC top-country strip");
+
+        if (countries.Count == 0)
+        {
+            canvas.AddText(
+                x + .18,
+                y + .14,
+                width - .36,
+                .22,
+                "No country position is available.",
+                9.4,
+                canvas.Theme.TextMuted,
+                false,
+                "ctr",
+                name: "FFC top-country strip empty state");
+            return;
+        }
+
+        const double gap = .08;
+        var itemWidth = (width - ((countries.Count - 1) * gap)) / countries.Count;
+        for (var index = 0; index < countries.Count; index++)
+        {
+            var country = countries[index];
+            var itemX = x + (index * (itemWidth + gap));
+            if (index > 0)
+            {
+                canvas.AddLine(
+                    itemX - (gap / 2),
+                    y + .10,
+                    itemX - (gap / 2),
+                    y + height - .10,
+                    canvas.Theme.Divider,
+                    .45);
+            }
+
+            canvas.AddRichTextBox(
+                itemX + .08,
+                y + .08,
+                itemWidth - .16,
+                height - .16,
+                new[]
+                {
+                    new RichTextParagraph(new[]
+                    {
+                        new RichTextRun(country.IsoCode + "  ", 8.7, canvas.Theme.HeaderAccent, Bold: true),
+                        new RichTextRun(Truncate(country.CountryName, 18) + "  ", 9.2, canvas.Theme.TextPrimary, Bold: true),
+                        new RichTextRun(country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture), 10.2, canvas.Theme.TextPrimary, Bold: true)
+                    }, Align: "ctr")
+                },
+                $"FFC top country {country.CountryName}",
+                verticalAnchor: "ctr",
+                allowAutoFit: true,
+                leftInset: 0,
+                rightInset: 0,
+                topInset: 0,
+                bottomInset: 0);
+        }
     }
 
     private static void RenderFfcMap(
@@ -431,6 +567,85 @@ public sealed partial class ProjectBriefingSlideComposer
                 "l",
                 name: "FFC remaining countries");
         }
+    }
+
+    private static void RenderFfcCountryWiseBreakdownSlide(
+        SlideCanvas canvas,
+        ProjectBriefingFfcGlobalFootprintData data,
+        IReadOnlyList<ProjectBriefingFfcCountryData> countries,
+        int pageNumber,
+        int pageCount)
+    {
+        var isContinuation = pageNumber > 1;
+        var title = isContinuation
+            ? $"{ProjectBriefingFfcGlobalFootprintOptions.BreakdownTitle} — Continued"
+            : ProjectBriefingFfcGlobalFootprintOptions.BreakdownTitle;
+        var subtitle = pageCount > 1
+            ? $"Complete authoritative country-wise quantity position · Page {pageNumber} of {pageCount}"
+            : "Complete authoritative country-wise quantity position";
+        AddProjectSlideHeader(
+            canvas,
+            title,
+            subtitle,
+            ProjectSlideHeaderVariant.FfcGlobalFootprint);
+
+        var rows = new List<IReadOnlyList<NativeTableCell>>
+        {
+            new[]
+            {
+                Cell("COUNTRY", 10.0, canvas.Theme.TextOnAccent, true, "l", canvas.Theme.TableHeader),
+                Cell("PROJECTS", 9.6, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader),
+                Cell("INSTALLED", 9.6, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader),
+                Cell("DELIVERED, AWAITING\nINSTALLATION", 9.0, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader),
+                Cell("PLANNED", 9.6, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader),
+                Cell("TOTAL", 9.8, canvas.Theme.TextOnAccent, true, "r", canvas.Theme.TableHeader)
+            }
+        };
+
+        for (var index = 0; index < countries.Count; index++)
+        {
+            var country = countries[index];
+            var fill = index % 2 == 0
+                ? canvas.Theme.TableRow
+                : canvas.Theme.TableAlternateRow;
+            rows.Add(new[]
+            {
+                Cell($"{country.IsoCode}   {country.CountryName}", 10.4, canvas.Theme.TextPrimary, true, "l", fill),
+                Cell(country.ProjectCount.ToString("N0", CultureInfo.InvariantCulture), 10.4, canvas.Theme.TextPrimary, false, "r", fill),
+                Cell(country.InstalledUnits.ToString("N0", CultureInfo.InvariantCulture), 10.4, canvas.Theme.TextPrimary, false, "r", fill),
+                Cell(country.DeliveredNotInstalledUnits.ToString("N0", CultureInfo.InvariantCulture), 10.4, canvas.Theme.TextPrimary, false, "r", fill),
+                Cell(country.PlannedUnits.ToString("N0", CultureInfo.InvariantCulture), 10.4, canvas.Theme.TextPrimary, false, "r", fill),
+                Cell(country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture), 10.8, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft)
+            });
+        }
+
+        const double headerHeight = .52;
+        var bodyHeight = countries.Count == 0
+            ? .40
+            : Math.Min(.40, 4.78 / countries.Count);
+        var rowHeights = new List<double> { headerHeight };
+        rowHeights.AddRange(Enumerable.Repeat(bodyHeight, countries.Count));
+        canvas.AddNativeTable(
+            .72,
+            1.43,
+            new[] { 3.55, 1.25, 1.35, 3.13, 1.35, 1.25 },
+            rowHeights,
+            rows,
+            $"FFC country-wise breakdown table page {pageNumber}");
+
+        var pageStart = ((pageNumber - 1) * ProjectBriefingFfcGlobalFootprintOptions.CountriesPerBreakdownSlide) + 1;
+        var pageEnd = pageStart + countries.Count - 1;
+        canvas.AddText(
+            .76,
+            6.75,
+            8.00,
+            .18,
+            $"Countries {pageStart}–{pageEnd} of {data.Countries.Count}",
+            8.5,
+            canvas.Theme.TextMuted,
+            false,
+            "l",
+            name: "FFC country-wise breakdown range");
     }
 
     private static string FfcPlannedColor(ProjectBriefingThemeDefinition theme)

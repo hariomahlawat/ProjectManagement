@@ -337,7 +337,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var standardSlideOptions = ProjectBriefingStandardSlideOptions.Normalize(
             command.ProjectBriefLayout,
             command.ShowPresentStage,
-            command.ShowPresentStatus);
+            command.ShowPresentStatus,
+            command.IncludeStageDistributionTable);
         var institutionalProfileOptions = ProjectBriefingInstitutionalProfileOptions.Normalize(
             command.InstitutionalProfileOptions.IncludeSlide,
             command.InstitutionalProfileOptions.Title,
@@ -547,7 +548,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var normalized = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
             options.IncludeSlide,
             options.Title,
-            options.MaximumCountryRows);
+            options.Layout,
+            options.MaximumCountryRows,
+            options.IncludeCountryWiseBreakdown);
         var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
         var order = normalized.IncludeSlide
             && !configuration.AdditionalSlideOrder.Contains(ProjectBriefingAdditionalSlideType.FfcGlobalFootprint)
@@ -626,7 +629,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ffcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
                     enabled,
                     ffcGlobalFootprint.Title,
-                    ffcGlobalFootprint.MaximumCountryRows);
+                    ffcGlobalFootprint.Layout,
+                    ffcGlobalFootprint.MaximumCountryRows,
+                    ffcGlobalFootprint.IncludeCountryWiseBreakdown);
                 break;
         }
 
@@ -743,7 +748,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ffcGlobalFootprint = ProjectBriefingFfcGlobalFootprintOptions.Normalize(
                     false,
                     ffcGlobalFootprint.Title,
-                    ffcGlobalFootprint.MaximumCountryRows);
+                    ffcGlobalFootprint.Layout,
+                    ffcGlobalFootprint.MaximumCountryRows,
+                    ffcGlobalFootprint.IncludeCountryWiseBreakdown);
                 break;
         }
 
