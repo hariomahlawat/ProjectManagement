@@ -109,25 +109,31 @@ public sealed class ProjectBriefingSlideComposerTests
             .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
         var text = SlideText(stageSlide);
 
+        Assert.Contains("25 SELECTED PROJECTS", text, StringComparison.Ordinal);
         Assert.Contains("Completed", text, StringComparison.Ordinal);
-        Assert.Contains("15 (60%)", text, StringComparison.Ordinal);
+        Assert.Contains("15", text, StringComparison.Ordinal);
+        Assert.Contains("(60%)", text, StringComparison.Ordinal);
         Assert.Contains("Ongoing", text, StringComparison.Ordinal);
-        Assert.Contains("10 (40%)", text, StringComparison.Ordinal);
+        Assert.Contains("10", text, StringComparison.Ordinal);
+        Assert.Contains("(40%)", text, StringComparison.Ordinal);
         Assert.Contains("Breakdown of ongoing projects by stage", text, StringComparison.Ordinal);
-        Assert.Contains("Key takeaway:", text, StringComparison.Ordinal);
-        Assert.Contains("AoN is the principal concentration", text, StringComparison.Ordinal);
+        Assert.Contains("KEY TAKEAWAY", text, StringComparison.Ordinal);
+        Assert.Contains("5 of 10", text, StringComparison.Ordinal);
+        Assert.Contains("ongoing projects are at the AoN stage", text, StringComparison.Ordinal);
+        Assert.NotNull(ShapeByName(stageSlide, "Development stage track"));
+        Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage track"));
         Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage column"));
         Assert.Empty(stageSlide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
             shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
             "Completed stage column",
             StringComparison.Ordinal)));
 
-        Assert.True(text.IndexOf("1. Development", StringComparison.Ordinal)
-                    < text.IndexOf("2. Technical Evaluation", StringComparison.Ordinal));
-        Assert.True(text.IndexOf("2. Technical Evaluation", StringComparison.Ordinal)
-                    < text.IndexOf("3. Bidding / Tendering", StringComparison.Ordinal));
-        Assert.True(text.IndexOf("3. Bidding / Tendering", StringComparison.Ordinal)
-                    < text.IndexOf("4. Acceptance of Necessity", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("Development", StringComparison.Ordinal)
+                    < text.IndexOf("Technical Evaluation", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("Technical Evaluation", StringComparison.Ordinal)
+                    < text.IndexOf("Bidding / Tendering", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("Bidding / Tendering", StringComparison.Ordinal)
+                    < text.IndexOf("Acceptance of Necessity", StringComparison.Ordinal));
     }
 
     [Fact]
