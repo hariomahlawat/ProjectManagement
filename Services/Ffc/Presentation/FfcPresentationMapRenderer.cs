@@ -140,8 +140,21 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         using var oceanPaint = new SKPaint { Color = SKColor.Parse("#EAF1F8"), Style = SKPaintStyle.Fill, IsAntialias = true };
         canvas.DrawRoundRect(frame, 20, 20, oceanPaint);
 
+        var inactiveBoundaryColor = legendProfile == MapLegendProfile.Briefing
+            ? "#98A5B5"
+            : "#AAB5C3";
+        var inactiveBoundaryWidth = legendProfile == MapLegendProfile.Briefing
+            ? 1.35f
+            : 1.2f;
+
         using var inactiveFill = new SKPaint { Color = SKColor.Parse("#F7F9FC"), Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var inactiveLine = new SKPaint { Color = SKColor.Parse("#AAB5C3"), Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
+        using var inactiveLine = new SKPaint
+        {
+            Color = SKColor.Parse(inactiveBoundaryColor),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = inactiveBoundaryWidth,
+            IsAntialias = true
+        };
         using var activeLine = new SKPaint { Color = SKColor.Parse("#34465E"), Style = SKPaintStyle.Stroke, StrokeWidth = 2.1f, IsAntialias = true };
 
         var maximumUnits = Math.Max(1, countries.Count == 0 ? 1 : countries.Max(country => country.TotalUnits));
@@ -392,7 +405,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
     {
         // The embedded briefing map is projected at a larger physical size. This compact
         // legend removes repeated portfolio totals and increases the type/swatch scale.
-        var legend = new SKRect(68, height - 254, 410, height - 68);
+        var legend = new SKRect(82, height - 268, 424, height - 82);
         using var background = new SKPaint { Color = new SKColor(255, 255, 255, 238), Style = SKPaintStyle.Fill, IsAntialias = true };
         using var border = new SKPaint { Color = SKColor.Parse("#C7D0DC"), Style = SKPaintStyle.Stroke, StrokeWidth = 1.35f, IsAntialias = true };
         using var title = new SKPaint { Color = SKColor.Parse("#12223A"), TextSize = 24, FakeBoldText = true, IsAntialias = true };

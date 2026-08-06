@@ -229,9 +229,25 @@ public sealed partial class ProjectBriefingSlideComposer
         const double y = FfcBodyY;
         const double width = FfcBreakdownWidth;
         const double height = FfcBodyHeight;
+        const double panelPadding = .16;
+        const double quantityColumnWidth = .42;
+        const double rowsTopOffset = .50;
+        const double rowTextHeight = .18;
+        const double barOffset = .22;
+        const double barHeight = .05;
+        const double rowContentHeight = barOffset + barHeight;
+        const double overflowGap = .04;
+        const double overflowTextHeight = .18;
+        const double panelBottomPadding = .12;
+
         var visible = data.Countries.Take(data.MaximumCountryRows).ToArray();
         var plannedColor = FfcPlannedColor(canvas.Theme);
         var trackColor = FfcTrackColor(canvas.Theme);
+        var quantityX = x + width - panelPadding - quantityColumnWidth;
+        var countryNameX = x + .58;
+        var countryNameWidth = Math.Max(.70, quantityX - countryNameX - .10);
+        var headingWidth = Math.Max(.90, quantityX - (x + panelPadding) - .10);
+        var barWidth = width - (panelPadding * 2);
 
         canvas.AddSubtleRoundedRect(
             x,
@@ -242,9 +258,9 @@ public sealed partial class ProjectBriefingSlideComposer
             canvas.Theme.Border,
             "FFC country-wise breakdown panel");
         canvas.AddText(
-            x + .16,
+            x + panelPadding,
             y + .14,
-            2.42,
+            headingWidth,
             .22,
             "COUNTRY-WISE BREAKDOWN",
             8.8,
@@ -253,9 +269,9 @@ public sealed partial class ProjectBriefingSlideComposer
             "l",
             name: "FFC country-wise breakdown heading");
         canvas.AddText(
-            x + 2.68,
+            quantityX,
             y + .14,
-            .42,
+            quantityColumnWidth,
             .22,
             "QTY",
             9.0,
@@ -263,98 +279,153 @@ public sealed partial class ProjectBriefingSlideComposer
             true,
             "r",
             name: "FFC country quantity heading");
-        canvas.AddLine(x + .16, y + .43, x + width - .16, y + .43, canvas.Theme.Divider, .55);
+        canvas.AddLine(
+            x + panelPadding,
+            y + .43,
+            x + width - panelPadding,
+            y + .43,
+            canvas.Theme.Divider,
+            .55);
 
         var hasOverflow = data.Countries.Count > visible.Length;
         var compactRows = visible.Length >= 9;
-        var overflowReserve = hasOverflow ? .34 : .14;
-        var availableHeight = height - .70 - overflowReserve;
-        var preferredRowHeight = compactRows ? .33 : .42;
-        var rowHeight = visible.Length == 0
+        var preferredRowHeight = compactRows ? .35 : .45;
+        var reservedAfterRows = panelBottomPadding
+            + (hasOverflow ? overflowGap + overflowTextHeight : 0);
+        var maximumRowHeight = visible.Length <= 1
             ? preferredRowHeight
-            : Math.Min(preferredRowHeight, availableHeight / visible.Length);
-        var maximumQuantity = Math.Max(1, visible.Length == 0 ? 1 : visible.Max(country => country.TotalUnits));
+            : (height
+               - rowsTopOffset
+               - rowContentHeight
+               - reservedAfterRows)
+              / (visible.Length - 1);
+        var rowHeight = Math.Min(
+            preferredRowHeight,
+            Math.Max(.30, maximumRowHeight));
+        var isoFontSize = compactRows ? 8.9 : 9.3;
+        var countryFontSize = compactRows ? 9.2 : 9.8;
+        var quantityFontSize = compactRows ? 9.8 : 10.2;
+        var maximumQuantity = Math.Max(
+            1,
+            visible.Length == 0
+                ? 1
+                : visible.Max(country => country.TotalUnits));
 
         for (var index = 0; index < visible.Length; index++)
         {
             var country = visible[index];
-            var rowY = y + .50 + (index * rowHeight);
+            var rowY = y + rowsTopOffset + (index * rowHeight);
+
             canvas.AddText(
-                x + .16,
+                x + panelPadding,
                 rowY,
                 .38,
-                .17,
+                rowTextHeight,
                 country.IsoCode,
-                8.7,
+                isoFontSize,
                 canvas.Theme.HeaderAccent,
                 true,
                 "l",
                 name: $"{country.CountryName} ISO code");
             canvas.AddText(
-                x + .58,
+                countryNameX,
                 rowY,
-                1.94,
-                .17,
+                countryNameWidth,
+                rowTextHeight,
                 Truncate(country.CountryName, 24),
-                compactRows ? 8.9 : 9.2,
+                countryFontSize,
                 canvas.Theme.TextPrimary,
                 true,
                 "l",
                 name: $"{country.CountryName} name");
             canvas.AddText(
-                x + 2.68,
+                quantityX,
                 rowY,
-                .42,
-                .17,
+                quantityColumnWidth,
+                rowTextHeight,
                 country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture),
-                9.6,
+                quantityFontSize,
                 canvas.Theme.TextPrimary,
                 true,
                 "r",
                 name: $"{country.CountryName} quantity");
 
-            var barY = rowY + .20;
-            const double barWidth = 2.94;
+            var barY = rowY + barOffset;
             canvas.AddRoundedRect(
-                x + .16,
+                x + panelPadding,
                 barY,
                 barWidth,
-                .05,
+                barHeight,
                 trackColor,
                 null,
                 .015,
                 $"{country.CountryName} quantity bar background");
+
             var installed = barWidth * country.InstalledUnits / maximumQuantity;
             var delivered = barWidth * country.DeliveredNotInstalledUnits / maximumQuantity;
             var planned = barWidth * country.PlannedUnits / maximumQuantity;
-            var cursor = x + .16;
+            var cursor = x + panelPadding;
 
             if (installed > 0)
             {
-                canvas.AddRect(cursor, barY, installed, .05, canvas.Theme.Positive, null, 0, $"{country.CountryName} installed quantity");
+                canvas.AddRect(
+                    cursor,
+                    barY,
+                    installed,
+                    barHeight,
+                    canvas.Theme.Positive,
+                    null,
+                    0,
+                    $"{country.CountryName} installed quantity");
                 cursor += installed;
             }
+
             if (delivered > 0)
             {
-                canvas.AddRect(cursor, barY, delivered, .05, canvas.Theme.Accent, null, 0, $"{country.CountryName} delivered quantity");
+                canvas.AddRect(
+                    cursor,
+                    barY,
+                    delivered,
+                    barHeight,
+                    canvas.Theme.Accent,
+                    null,
+                    0,
+                    $"{country.CountryName} delivered quantity");
                 cursor += delivered;
             }
+
             if (planned > 0)
             {
-                canvas.AddRect(cursor, barY, planned, .05, plannedColor, null, 0, $"{country.CountryName} planned quantity");
+                canvas.AddRect(
+                    cursor,
+                    barY,
+                    planned,
+                    barHeight,
+                    plannedColor,
+                    null,
+                    0,
+                    $"{country.CountryName} planned quantity");
             }
         }
 
         if (hasOverflow)
         {
             var remaining = data.Countries.Count - visible.Length;
+            var overflowY = visible.Length == 0
+                ? y + rowsTopOffset
+                : y
+                  + rowsTopOffset
+                  + ((visible.Length - 1) * rowHeight)
+                  + rowContentHeight
+                  + overflowGap;
+
             canvas.AddText(
-                x + .16,
-                y + height - .26,
-                width - .32,
-                .17,
+                x + panelPadding,
+                overflowY,
+                width - (panelPadding * 2),
+                overflowTextHeight,
                 $"+{remaining} more countr{(remaining == 1 ? "y" : "ies")}",
-                8.5,
+                8.7,
                 canvas.Theme.TextMuted,
                 false,
                 "l",
