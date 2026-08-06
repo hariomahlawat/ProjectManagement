@@ -144,17 +144,15 @@ public sealed partial class ProjectBriefingSlideComposer
         var iconX = x + (compact ? .21 : .38);
         var iconY = y + ((height - iconSize) / 2d);
         canvas.AddEllipse(iconX, iconY, iconSize, iconSize, status.Fill, canvas.Theme.TextOnAccent, 1.0, $"{status.Label} icon outline");
-        canvas.AddText(
+        AddOpticallyCenteredBadgeText(
+            canvas,
             iconX,
-            iconY - .005,
-            iconSize,
+            iconY,
             iconSize,
             status.Symbol,
             compact ? 15.6 : 18.8,
             canvas.Theme.TextOnAccent,
-            true,
-            "c",
-            name: $"{status.Label} icon");
+            $"{status.Label} icon");
 
         var labelX = iconX + iconSize + (compact ? .11 : .22);
         var dividerX = x + (width * (compact ? .57 : .61));
@@ -259,25 +257,16 @@ public sealed partial class ProjectBriefingSlideComposer
             var isLeader = point.Count == maximum;
             var accent = ResolveOngoingStageAccent(canvas, isLeader);
 
-            canvas.AddEllipse(
+            RenderStageIconBadge(
+                canvas,
+                point,
                 centreX - (badgeSize / 2d),
                 badgeY,
-                badgeSize,
                 badgeSize,
                 canvas.Theme.AccentSoft,
-                null,
-                name: $"{point.Label} stage badge");
-            canvas.AddText(
-                centreX - (badgeSize / 2d),
-                badgeY,
-                badgeSize,
-                badgeSize,
-                ResolveStageBadge(point),
-                badgeFont,
                 accent,
-                true,
-                "c",
-                name: $"{point.Label} stage badge text");
+                badgeFont,
+                $"{point.Label} stage badge");
 
             canvas.AddText(
                 centreX - .24,
@@ -426,25 +415,15 @@ public sealed partial class ProjectBriefingSlideComposer
                         $"{point.Label} leading stage marker");
                 }
 
-                canvas.AddEllipse(
+                RenderStageAbbreviationBadge(
+                    canvas,
+                    point,
                     x + .12,
                     y + .12,
-                    .40,
                     .40,
                     badgeFill,
-                    null,
-                    name: $"{point.Label} compact stage badge");
-                canvas.AddText(
-                    x + .12,
-                    y + .12,
-                    .40,
-                    .40,
-                    ResolveStageBadge(point),
-                    9.6,
                     badgeText,
-                    true,
-                    "c",
-                    name: $"{point.Label} compact stage badge text");
+                    $"{point.Label} compact stage badge");
 
                 canvas.AddText(
                     x + .60,
