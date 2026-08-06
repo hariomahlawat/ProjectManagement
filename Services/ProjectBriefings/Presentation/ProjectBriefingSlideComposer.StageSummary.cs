@@ -366,52 +366,207 @@ public sealed partial class ProjectBriefingSlideComposer
             "c",
             name: "Ongoing stage breakdown heading");
 
-        const int columns = 5;
         const double gridX = .55;
         const double gridWidth = 12.23;
         const double gap = .16;
         const double cardHeight = 1.46;
+        const double rowGap = .17;
+        const double firstRowY = 2.72;
+
+        var columns = points.Count <= 8 ? 4 : 5;
         var cardWidth = (gridWidth - (gap * (columns - 1))) / columns;
         var maximum = Math.Max(1, points.Max(point => point.Count));
+        var leaders = points.Where(point => point.Count == maximum).ToArray();
+        var uniqueLeader = leaders.Length == 1 ? leaders[0] : null;
+        var rowCounts = BuildBalancedStageCardRows(points.Count, columns);
 
-        for (var index = 0; index < points.Count; index++)
+        var pointIndex = 0;
+        for (var row = 0; row < rowCounts.Count; row++)
         {
-            var row = index / columns;
-            var column = index % columns;
-            var x = gridX + (column * (cardWidth + gap));
-            var y = 2.72 + (row * 1.64);
-            var point = points[index];
-            var accent = ResolveOngoingStageAccent(canvas, point.Count == maximum);
+            var rowCount = rowCounts[row];
+            var rowWidth = (rowCount * cardWidth) + ((rowCount - 1) * gap);
+            var rowX = gridX + ((gridWidth - rowWidth) / 2d);
+            var y = firstRowY + (row * (cardHeight + rowGap));
 
-            canvas.AddSubtleRoundedRect(x, y, cardWidth, cardHeight, canvas.Theme.Surface, canvas.Theme.Border, $"{point.Label} compact stage card");
-            canvas.AddEllipse(x + .12, y + .12, .38, .38, canvas.Theme.AccentSoft, null, name: $"{point.Label} compact stage badge");
-            canvas.AddText(x + .12, y + .12, .38, .38, ResolveStageBadge(point), 8.8, accent, true, "c");
-            canvas.AddText(x + .57, y + .10, cardWidth - .69, .44, point.Label, 9.5, canvas.Theme.TextPrimary, true, "l", verticalAnchor: "t");
-            canvas.AddText(x + .14, y + .58, .48, .34, point.Count.ToString(CultureInfo.InvariantCulture), 16.2, accent, true, "c");
-            canvas.AddRoundedRect(x + .70, y + .67, cardWidth - .86, .18, canvas.Theme.SurfaceMuted, canvas.Theme.SurfaceMuted, .03);
-            canvas.AddRoundedRect(
-                x + .70,
-                y + .67,
-                Math.Max(.12, (cardWidth - .86) * point.Count / maximum),
-                .18,
-                accent,
-                accent,
-                .03,
-                $"{point.Label} compact stage bar");
-            canvas.AddText(
-                x + .14,
-                y + 1.04,
-                cardWidth - .28,
-                .24,
-                $"{FormatPercentage(point.Count, Math.Max(1, summary.OngoingCount))} of ongoing",
-                8.5,
-                canvas.Theme.TextMuted,
-                false,
-                "l");
+            for (var column = 0; column < rowCount; column++)
+            {
+                var point = points[pointIndex++];
+                var x = rowX + (column * (cardWidth + gap));
+                var isLeader = uniqueLeader is not null && point.Equals(uniqueLeader);
+                var accent = ResolveOngoingStageAccent(canvas, isLeader);
+                var cardFill = ResolveStageSummaryCardFill(canvas, isLeader);
+                var cardBorder = ResolveStageSummaryCardBorder(canvas, isLeader);
+                var badgeFill = ResolveStageSummaryBadgeFill(canvas, accent, isLeader);
+                var badgeText = canvas.Theme.IsDark || isLeader
+                    ? canvas.Theme.TextOnAccent
+                    : accent;
+                var trackFill = ResolveStageSummaryCardTrack(canvas, cardFill);
+                var stageNameFont = columns == 4 ? 11.4 : 10.8;
+                var countFont = columns == 4 ? 20.2 : 19.0;
+
+                canvas.AddSubtleRoundedRect(
+                    x,
+                    y,
+                    cardWidth,
+                    cardHeight,
+                    cardFill,
+                    cardBorder,
+                    $"{point.Label} compact stage card");
+
+                if (isLeader)
+                {
+                    canvas.AddRoundedRect(
+                        x + .02,
+                        y + .08,
+                        .04,
+                        cardHeight - .16,
+                        canvas.Theme.Accent,
+                        null,
+                        .02,
+                        $"{point.Label} leading stage marker");
+                }
+
+                canvas.AddEllipse(
+                    x + .12,
+                    y + .12,
+                    .40,
+                    .40,
+                    badgeFill,
+                    null,
+                    name: $"{point.Label} compact stage badge");
+                canvas.AddText(
+                    x + .12,
+                    y + .12,
+                    .40,
+                    .40,
+                    ResolveStageBadge(point),
+                    9.6,
+                    badgeText,
+                    true,
+                    "c",
+                    name: $"{point.Label} compact stage badge text");
+
+                canvas.AddText(
+                    x + .60,
+                    y + .08,
+                    cardWidth - .72,
+                    .47,
+                    point.Label,
+                    stageNameFont,
+                    canvas.Theme.TextPrimary,
+                    true,
+                    "l",
+                    verticalAnchor: "t",
+                    name: $"{point.Label} compact stage label");
+
+                canvas.AddText(
+                    x + .14,
+                    y + .57,
+                    .50,
+                    .36,
+                    point.Count.ToString(CultureInfo.InvariantCulture),
+                    countFont,
+                    accent,
+                    true,
+                    "c",
+                    name: $"{point.Label} compact stage count");
+
+                var barX = x + .72;
+                var barY = y + .68;
+                var barWidth = cardWidth - .88;
+                canvas.AddRoundedRect(
+                    barX,
+                    barY,
+                    barWidth,
+                    .18,
+                    trackFill,
+                    null,
+                    .03,
+                    $"{point.Label} compact stage track");
+                canvas.AddRoundedRect(
+                    barX,
+                    barY,
+                    Math.Max(.12, barWidth * point.Count / maximum),
+                    .18,
+                    accent,
+                    accent,
+                    .03,
+                    $"{point.Label} compact stage bar");
+
+                canvas.AddText(
+                    x + .14,
+                    y + 1.05,
+                    cardWidth - .28,
+                    .24,
+                    $"{FormatPercentage(point.Count, Math.Max(1, summary.OngoingCount))} of ongoing",
+                    9.0,
+                    canvas.Theme.TextMuted,
+                    false,
+                    "l",
+                    name: $"{point.Label} compact stage share");
+            }
         }
 
-        RenderInsightStrip(canvas, BuildStageTakeaway(summary, points));
+        RenderInsightStrip(canvas, BuildDenseStageTakeaway(summary, points));
     }
+
+    private static IReadOnlyList<int> BuildBalancedStageCardRows(
+        int pointCount,
+        int maximumColumns)
+    {
+        if (pointCount <= maximumColumns)
+        {
+            return new[] { pointCount };
+        }
+
+        return new[]
+        {
+            maximumColumns,
+            pointCount - maximumColumns
+        };
+    }
+
+    private static string ResolveStageSummaryCardFill(
+        SlideCanvas canvas,
+        bool isLeader)
+    {
+        if (isLeader)
+        {
+            return canvas.Theme.IsDark
+                ? BlendStageSummaryColor(canvas.Theme.AccentSoft, canvas.Theme.Surface, .26)
+                : BlendStageSummaryColor(canvas.Theme.AccentSoft, canvas.Theme.Surface, .18);
+        }
+
+        return canvas.Theme.IsDark
+            ? BlendStageSummaryColor(canvas.Theme.Surface, canvas.Theme.Canvas, .18)
+            : BlendStageSummaryColor(canvas.Theme.Surface, canvas.Theme.Canvas, .08);
+    }
+
+    private static string ResolveStageSummaryCardBorder(
+        SlideCanvas canvas,
+        bool isLeader)
+        => isLeader
+            ? canvas.Theme.Accent
+            : BlendStageSummaryColor(
+                canvas.Theme.Border,
+                canvas.Theme.Canvas,
+                canvas.Theme.IsDark ? .48 : .62);
+
+    private static string ResolveStageSummaryBadgeFill(
+        SlideCanvas canvas,
+        string accent,
+        bool isLeader)
+        => canvas.Theme.IsDark || isLeader
+            ? accent
+            : canvas.Theme.AccentSoft;
+
+    private static string ResolveStageSummaryCardTrack(
+        SlideCanvas canvas,
+        string cardFill)
+        => BlendStageSummaryColor(
+            canvas.Theme.SurfaceMuted,
+            cardFill,
+            canvas.Theme.IsDark ? .42 : .34);
 
     private static void RenderOngoingStageCompactBars(
         SlideCanvas canvas,
@@ -464,7 +619,7 @@ public sealed partial class ProjectBriefingSlideComposer
             }
         }
 
-        RenderInsightStrip(canvas, BuildStageTakeaway(summary, points));
+        RenderInsightStrip(canvas, BuildDenseStageTakeaway(summary, points));
     }
 
     private static void RenderNoOngoingProjects(
@@ -608,10 +763,44 @@ public sealed partial class ProjectBriefingSlideComposer
 
     private static void RenderInsightStrip(SlideCanvas canvas, string message)
     {
-        canvas.AddSubtleRoundedRect(2.05, 6.36, 9.23, .42, canvas.Theme.AccentSoft, canvas.Theme.Accent, "Stage summary insight strip");
-        canvas.AddEllipse(2.25, 6.43, .27, .27, canvas.Theme.Accent, null, name: "Stage summary insight strip icon");
-        canvas.AddText(2.25, 6.425, .27, .27, "i", 9.4, canvas.Theme.TextOnAccent, true, "c");
-        canvas.AddText(2.63, 6.38, 8.40, .36, message, 10.6, canvas.Theme.TextPrimary, true, "c");
+        canvas.AddSubtleRoundedRect(
+            2.05,
+            6.36,
+            9.23,
+            .42,
+            canvas.Theme.AccentSoft,
+            canvas.Theme.Accent,
+            "Stage summary insight strip");
+        canvas.AddEllipse(
+            2.25,
+            6.43,
+            .27,
+            .27,
+            canvas.Theme.Accent,
+            null,
+            name: "Stage summary insight strip icon");
+        canvas.AddText(
+            2.25,
+            6.425,
+            .27,
+            .27,
+            "i",
+            9.4,
+            canvas.Theme.TextOnAccent,
+            true,
+            "c",
+            name: "Stage summary insight strip icon text");
+        canvas.AddText(
+            2.64,
+            6.38,
+            8.33,
+            .36,
+            message,
+            10.6,
+            canvas.Theme.TextPrimary,
+            true,
+            "l",
+            name: "Stage summary insight strip message");
     }
 
     private static StageSummaryInsight BuildStageInsight(
@@ -658,15 +847,46 @@ public sealed partial class ProjectBriefingSlideComposer
             $"{ResolveTakeawayStageName(leader)} stage");
     }
 
-    private static string BuildStageTakeaway(
+    private static string BuildDenseStageTakeaway(
         ProjectBriefingPresentationSummary summary,
         IReadOnlyList<ProjectBriefingSummaryPoint> points)
     {
-        var insight = BuildStageInsight(summary, points);
-        var emphasis = string.IsNullOrWhiteSpace(insight.Emphasis)
-            ? string.Empty
-            : $" {insight.Emphasis}";
-        return $"{insight.Headline}: {insight.Body}{emphasis}";
+        if (summary.OngoingCount <= 0)
+        {
+            return summary.CompletedCount == summary.ProjectCount
+                ? "All selected projects are completed"
+                : "No selected project is currently ongoing";
+        }
+
+        if (points.Count == 0)
+        {
+            return "The ongoing stage position has not yet been resolved";
+        }
+
+        var maximum = points.Max(point => point.Count);
+        var leaders = points.Where(point => point.Count == maximum).ToArray();
+        if (leaders.Length != 1)
+        {
+            return "No single ongoing stage dominates · portfolio distributed across multiple stages";
+        }
+
+        var leader = leaders[0];
+        var stageName = CapitaliseStageSummaryLabel(ResolveTakeawayStageName(leader));
+        var projectWord = summary.OngoingCount == 1 ? "project" : "projects";
+        return $"{stageName} is the leading stage · " +
+               $"{leader.Count.ToString(CultureInfo.InvariantCulture)} of " +
+               $"{summary.OngoingCount.ToString(CultureInfo.InvariantCulture)} ongoing {projectWord} " +
+               $"({FormatPercentage(leader.Count, summary.OngoingCount)})";
+    }
+
+    private static string CapitaliseStageSummaryLabel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        return char.ToUpperInvariant(value[0]) + value[1..];
     }
 
     private static string ResolveOngoingStageAccent(SlideCanvas canvas, bool isLeader)
