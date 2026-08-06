@@ -873,7 +873,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .ToArray();
         var mapImage = mapCountries.Length == 0
             ? Array.Empty<byte>()
-            : _ffcMapRenderer.RenderFocused(mapCountries, width: 1700, height: 1020);
+            : _ffcMapRenderer.RenderFocused(mapCountries, width: 2100, height: 1065);
         var dataAsOn = footprint.Countries.Count == 0
             ? _clock.UtcNow.ToUniversalTime()
             : footprint.Countries.Max(country => country.LastUpdated).ToUniversalTime();

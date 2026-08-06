@@ -4171,7 +4171,7 @@ body.pbd-profile-drawer-open {
 }
 .pbd-ffc-footprint-layout-preview__body {
     display: grid;
-    grid-template-columns: 1.8fr 1fr;
+    grid-template-columns: minmax(0, 2.57fr) minmax(0, 1fr);
     gap: .55rem;
     margin-top: .55rem;
 }

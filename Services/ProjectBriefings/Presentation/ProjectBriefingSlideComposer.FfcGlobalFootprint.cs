@@ -5,6 +5,13 @@ namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
 public sealed partial class ProjectBriefingSlideComposer
 {
+    private const double FfcBodyX = .72;
+    private const double FfcBodyY = 2.52;
+    private const double FfcBodyHeight = 4.30;
+    private const double FfcMapWidth = 8.36;
+    private const double FfcBodyGap = .22;
+    private const double FfcBreakdownWidth = 3.30;
+
     private static void RenderFfcGlobalFootprint(
         SlideCanvas canvas,
         ProjectBriefingFfcGlobalFootprintData data)
@@ -13,14 +20,21 @@ public sealed partial class ProjectBriefingSlideComposer
             canvas,
             Truncate(data.Title, 110),
             subtitle: null,
-            variant: ProjectSlideHeaderVariant.Standard);
+            variant: ProjectSlideHeaderVariant.FfcGlobalFootprint);
 
         RenderFfcHeadlineMetrics(canvas, data);
         RenderFfcQuantityPosition(canvas, data);
 
         if (data.Countries.Count == 0)
         {
-            canvas.AddRoundedRect(.72, 2.55, 11.88, 3.92, canvas.Theme.Surface, canvas.Theme.Border, .05, "FFC empty-state panel");
+            canvas.AddSubtleRoundedRect(
+                FfcBodyX,
+                2.55,
+                11.88,
+                3.92,
+                canvas.Theme.Surface,
+                canvas.Theme.Border,
+                "FFC empty-state panel");
             canvas.AddText(
                 1.10,
                 3.75,
@@ -32,13 +46,11 @@ public sealed partial class ProjectBriefingSlideComposer
                 true,
                 "ctr",
                 name: "FFC empty-state message");
-        }
-        else
-        {
-            RenderFfcMap(canvas, data);
-            RenderFfcCountryPosition(canvas, data);
+            return;
         }
 
+        RenderFfcMap(canvas, data);
+        RenderFfcCountryWiseBreakdown(canvas, data);
     }
 
     private static void RenderFfcHeadlineMetrics(
@@ -114,6 +126,7 @@ public sealed partial class ProjectBriefingSlideComposer
         var installedWidth = width * data.Summary.InstalledUnits / total;
         var deliveredWidth = width * data.Summary.DeliveredNotInstalledUnits / total;
         var plannedWidth = Math.Max(0, width - installedWidth - deliveredWidth);
+        var plannedColor = FfcPlannedColor(canvas.Theme);
 
         canvas.AddRoundedRect(x, y, width, height, canvas.Theme.SurfaceMuted, canvas.Theme.Border, .035, "FFC quantity-position background");
         var cursor = x;
@@ -129,12 +142,12 @@ public sealed partial class ProjectBriefingSlideComposer
         }
         if (plannedWidth > 0)
         {
-            canvas.AddRect(cursor, y, plannedWidth, .12, canvas.Theme.Divider, null, 0, "FFC planned segment");
+            canvas.AddRect(cursor, y, plannedWidth, .12, plannedColor, null, 0, "FFC planned segment");
         }
 
         AddFfcLegendItem(canvas, x + .18, y + .17, "Installed", data.Summary.InstalledUnits, canvas.Theme.Positive);
         AddFfcLegendItem(canvas, x + 3.10, y + .17, "Delivered, awaiting installation", data.Summary.DeliveredNotInstalledUnits, canvas.Theme.Accent);
-        AddFfcLegendItem(canvas, x + 8.70, y + .17, "Planned", data.Summary.PlannedUnits, canvas.Theme.Divider);
+        AddFfcLegendItem(canvas, x + 8.70, y + .17, "Planned", data.Summary.PlannedUnits, plannedColor);
     }
 
     private static void AddFfcLegendItem(
@@ -172,34 +185,85 @@ public sealed partial class ProjectBriefingSlideComposer
         SlideCanvas canvas,
         ProjectBriefingFfcGlobalFootprintData data)
     {
-        const double x = .72;
-        const double y = 2.52;
-        const double width = 7.15;
-        const double height = 4.30;
-        canvas.AddRoundedRect(x, y, width, height, "FFFFFF", canvas.Theme.Border, .045, "FFC footprint map frame");
+        canvas.AddSubtleRoundedRect(
+            FfcBodyX,
+            FfcBodyY,
+            FfcMapWidth,
+            FfcBodyHeight,
+            "FFFFFF",
+            canvas.Theme.Border,
+            "FFC footprint map frame");
+
         if (data.MapImage.Length > 0)
         {
-            canvas.AddImage(data.MapImage, "image/png", x + .06, y + .06, width - .12, height - .12, "FFC global footprint map");
+            canvas.AddImage(
+                data.MapImage,
+                "image/png",
+                FfcBodyX + .06,
+                FfcBodyY + .06,
+                FfcMapWidth - .12,
+                FfcBodyHeight - .12,
+                "FFC global footprint map");
         }
         else
         {
-            canvas.AddText(x + .3, y + 1.65, width - .6, .42, "Map not available", 16, canvas.Theme.TextMuted, true, "ctr", name: "FFC map unavailable");
+            canvas.AddText(
+                FfcBodyX + .3,
+                FfcBodyY + 1.65,
+                FfcMapWidth - .6,
+                .42,
+                "Map not available",
+                16,
+                canvas.Theme.TextMuted,
+                true,
+                "ctr",
+                name: "FFC map unavailable");
         }
     }
 
-    private static void RenderFfcCountryPosition(
+    private static void RenderFfcCountryWiseBreakdown(
         SlideCanvas canvas,
         ProjectBriefingFfcGlobalFootprintData data)
     {
-        const double x = 8.12;
-        const double y = 2.52;
-        const double width = 4.48;
-        const double height = 4.30;
+        var x = FfcBodyX + FfcMapWidth + FfcBodyGap;
+        const double y = FfcBodyY;
+        const double width = FfcBreakdownWidth;
+        const double height = FfcBodyHeight;
         var visible = data.Countries.Take(data.MaximumCountryRows).ToArray();
-        canvas.AddRoundedRect(x, y, width, height, canvas.Theme.Surface, canvas.Theme.Border, .045, "FFC country-position panel");
-        canvas.AddText(x + .20, y + .14, 2.72, .22, "COUNTRY POSITION", 10.5, canvas.Theme.TextMuted, true, "l", name: "FFC country-position heading");
-        canvas.AddText(x + 3.42, y + .14, .78, .22, "TOTAL QTY", 9.6, canvas.Theme.TextMuted, true, "r", name: "FFC country quantity heading");
-        canvas.AddLine(x + .20, y + .43, x + width - .20, y + .43, canvas.Theme.Divider, .55);
+        var plannedColor = FfcPlannedColor(canvas.Theme);
+        var trackColor = FfcTrackColor(canvas.Theme);
+
+        canvas.AddSubtleRoundedRect(
+            x,
+            y,
+            width,
+            height,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            "FFC country-wise breakdown panel");
+        canvas.AddText(
+            x + .16,
+            y + .14,
+            2.42,
+            .22,
+            "COUNTRY-WISE BREAKDOWN",
+            8.8,
+            canvas.Theme.TextMuted,
+            true,
+            "l",
+            name: "FFC country-wise breakdown heading");
+        canvas.AddText(
+            x + 2.68,
+            y + .14,
+            .42,
+            .22,
+            "QTY",
+            9.0,
+            canvas.Theme.TextMuted,
+            true,
+            "r",
+            name: "FFC country quantity heading");
+        canvas.AddLine(x + .16, y + .43, x + width - .16, y + .43, canvas.Theme.Divider, .55);
 
         var hasOverflow = data.Countries.Count > visible.Length;
         var compactRows = visible.Length >= 9;
@@ -210,21 +274,61 @@ public sealed partial class ProjectBriefingSlideComposer
             ? preferredRowHeight
             : Math.Min(preferredRowHeight, availableHeight / visible.Length);
         var maximumQuantity = Math.Max(1, visible.Length == 0 ? 1 : visible.Max(country => country.TotalUnits));
+
         for (var index = 0; index < visible.Length; index++)
         {
             var country = visible[index];
             var rowY = y + .50 + (index * rowHeight);
-            canvas.AddText(x + .20, rowY, .44, .17, country.IsoCode, 9.0, canvas.Theme.HeaderAccent, true, "l", name: $"{country.CountryName} ISO code");
-            canvas.AddText(x + .70, rowY, 2.35, .17, Truncate(country.CountryName, 30), 9.5, canvas.Theme.TextPrimary, true, "l", name: $"{country.CountryName} name");
-            canvas.AddText(x + 3.42, rowY, .78, .17, country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture), 10.0, canvas.Theme.TextPrimary, true, "r", name: $"{country.CountryName} quantity");
+            canvas.AddText(
+                x + .16,
+                rowY,
+                .38,
+                .17,
+                country.IsoCode,
+                8.7,
+                canvas.Theme.HeaderAccent,
+                true,
+                "l",
+                name: $"{country.CountryName} ISO code");
+            canvas.AddText(
+                x + .58,
+                rowY,
+                1.94,
+                .17,
+                Truncate(country.CountryName, 24),
+                compactRows ? 8.9 : 9.2,
+                canvas.Theme.TextPrimary,
+                true,
+                "l",
+                name: $"{country.CountryName} name");
+            canvas.AddText(
+                x + 2.68,
+                rowY,
+                .42,
+                .17,
+                country.TotalUnits.ToString("N0", CultureInfo.InvariantCulture),
+                9.6,
+                canvas.Theme.TextPrimary,
+                true,
+                "r",
+                name: $"{country.CountryName} quantity");
 
             var barY = rowY + .20;
-            var barWidth = 4.00;
-            canvas.AddRoundedRect(x + .20, barY, barWidth, .05, canvas.Theme.SurfaceMuted, null, .015, $"{country.CountryName} quantity bar background");
+            const double barWidth = 2.94;
+            canvas.AddRoundedRect(
+                x + .16,
+                barY,
+                barWidth,
+                .05,
+                trackColor,
+                null,
+                .015,
+                $"{country.CountryName} quantity bar background");
             var installed = barWidth * country.InstalledUnits / maximumQuantity;
             var delivered = barWidth * country.DeliveredNotInstalledUnits / maximumQuantity;
             var planned = barWidth * country.PlannedUnits / maximumQuantity;
-            var cursor = x + .20;
+            var cursor = x + .16;
+
             if (installed > 0)
             {
                 canvas.AddRect(cursor, barY, installed, .05, canvas.Theme.Positive, null, 0, $"{country.CountryName} installed quantity");
@@ -237,18 +341,19 @@ public sealed partial class ProjectBriefingSlideComposer
             }
             if (planned > 0)
             {
-                canvas.AddRect(cursor, barY, planned, .05, canvas.Theme.Divider, null, 0, $"{country.CountryName} planned quantity");
+                canvas.AddRect(cursor, barY, planned, .05, plannedColor, null, 0, $"{country.CountryName} planned quantity");
             }
         }
 
-        if (data.Countries.Count > visible.Length)
+        if (hasOverflow)
         {
+            var remaining = data.Countries.Count - visible.Length;
             canvas.AddText(
-                x + .20,
+                x + .16,
                 y + height - .26,
-                width - .40,
+                width - .32,
                 .17,
-                $"+ {data.Countries.Count - visible.Length} more countr{(data.Countries.Count - visible.Length == 1 ? "y" : "ies")}",
+                $"+{remaining} more countr{(remaining == 1 ? "y" : "ies")}",
                 8.5,
                 canvas.Theme.TextMuted,
                 false,
@@ -256,4 +361,10 @@ public sealed partial class ProjectBriefingSlideComposer
                 name: "FFC remaining countries");
         }
     }
+
+    private static string FfcPlannedColor(ProjectBriefingThemeDefinition theme)
+        => theme.IsDark ? "737D8E" : "AEB6C2";
+
+    private static string FfcTrackColor(ProjectBriefingThemeDefinition theme)
+        => theme.IsDark ? "2A303A" : "E9ECEF";
 }

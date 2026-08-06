@@ -81,7 +81,8 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             expansionRatio: 0.09,
             minimumLongitudePadding: 8,
             minimumLatitudePadding: 6,
-            labelTextSize: 22);
+            labelTextSize: 22,
+            legendProfile: MapLegendProfile.Standard);
 
     public byte[] RenderFocused(
         IReadOnlyList<FfcPresentationCountry> countries,
@@ -94,7 +95,8 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             expansionRatio: 0.055,
             minimumLongitudePadding: 4,
             minimumLatitudePadding: 4,
-            labelTextSize: 24);
+            labelTextSize: 25,
+            legendProfile: MapLegendProfile.Briefing);
 
     private byte[] RenderCore(
         IReadOnlyList<FfcPresentationCountry> countries,
@@ -103,7 +105,8 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         double expansionRatio,
         double minimumLongitudePadding,
         double minimumLatitudePadding,
-        float labelTextSize)
+        float labelTextSize,
+        MapLegendProfile legendProfile)
     {
         ArgumentNullException.ThrowIfNull(countries);
         width = Math.Clamp(width, 1000, 3200);
@@ -182,7 +185,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         canvas.Restore();
 
         DrawLabels(canvas, activeFeatures, activeByIso, bounds, frame, labelTextSize);
-        DrawLegend(canvas, countries, width, height, maximumUnits);
+        DrawLegend(canvas, countries, width, height, maximumUnits, legendProfile);
 
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(SKEncodedImageFormat.Png, 96)
@@ -349,8 +352,15 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         IReadOnlyList<FfcPresentationCountry> countries,
         int width,
         int height,
-        int maximumUnits)
+        int maximumUnits,
+        MapLegendProfile profile)
     {
+        if (profile == MapLegendProfile.Briefing)
+        {
+            DrawBriefingLegend(canvas, height, maximumUnits);
+            return;
+        }
+
         var legend = new SKRect(68, height - 252, 365, height - 68);
         using var background = new SKPaint { Color = new SKColor(255, 255, 255, 235), Style = SKPaintStyle.Fill, IsAntialias = true };
         using var border = new SKPaint { Color = SKColor.Parse("#CBD5E1"), Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
@@ -373,6 +383,34 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
 
         var total = countries.Sum(country => country.TotalUnits);
         canvas.DrawText($"{countries.Count} countries · Total {total}", legend.Left + 18, legend.Bottom - 13, text);
+    }
+
+    private static void DrawBriefingLegend(
+        SKCanvas canvas,
+        int height,
+        int maximumUnits)
+    {
+        // The embedded briefing map is projected at a larger physical size. This compact
+        // legend removes repeated portfolio totals and increases the type/swatch scale.
+        var legend = new SKRect(68, height - 254, 410, height - 68);
+        using var background = new SKPaint { Color = new SKColor(255, 255, 255, 238), Style = SKPaintStyle.Fill, IsAntialias = true };
+        using var border = new SKPaint { Color = SKColor.Parse("#C7D0DC"), Style = SKPaintStyle.Stroke, StrokeWidth = 1.35f, IsAntialias = true };
+        using var title = new SKPaint { Color = SKColor.Parse("#12223A"), TextSize = 24, FakeBoldText = true, IsAntialias = true };
+        using var text = new SKPaint { Color = SKColor.Parse("#46566C"), TextSize = 20, IsAntialias = true };
+
+        canvas.DrawRoundRect(legend, 14, 14, background);
+        canvas.DrawRoundRect(legend, 14, 14, border);
+        canvas.DrawText("Total quantity", legend.Left + 20, legend.Top + 35, title);
+
+        var ranges = BuildLegendRanges(maximumUnits);
+        var y = legend.Top + 68;
+        foreach (var range in ranges)
+        {
+            using var sample = new SKPaint { Color = ActiveShade(range.End, maximumUnits), Style = SKPaintStyle.Fill, IsAntialias = true };
+            canvas.DrawRoundRect(new SKRect(legend.Left + 20, y - 15, legend.Left + 66, y + 5), 5, 5, sample);
+            canvas.DrawText(range.Label, legend.Left + 82, y + 2, text);
+            y += 29;
+        }
     }
 
     private static IReadOnlyList<LegendRange> BuildLegendRanges(int maximum)
@@ -649,6 +687,12 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
                  MinimumLongitude > other.MaximumLongitude ||
                  MaximumLatitude < other.MinimumLatitude ||
                  MinimumLatitude > other.MaximumLatitude);
+    }
+
+    private enum MapLegendProfile
+    {
+        Standard,
+        Briefing
     }
 
     private readonly record struct LabelPlacement(SKPoint Center, SKRect Rect);

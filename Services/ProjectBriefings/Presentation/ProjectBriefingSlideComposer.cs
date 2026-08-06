@@ -2086,7 +2086,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         var titleAlign = canvas.ShowBranding ? "ctr" : "l";
         return new ProjectSlideHeaderStyle(
-            HeaderVariant.Standard,
+            variant == ProjectSlideHeaderVariant.FfcGlobalFootprint
+                ? HeaderVariant.FfcGlobalFootprint
+                : HeaderVariant.Standard,
             canvas.Theme.HeaderAccent,
             canvas.Theme.TextPrimary,
             canvas.Theme.TextMuted,
@@ -2326,12 +2328,14 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         Cover,
         Closing,
         Standard,
+        FfcGlobalFootprint,
         ProjectUpdateSheet
     }
 
     private enum ProjectSlideHeaderVariant
     {
         Standard,
+        FfcGlobalFootprint,
         ProjectUpdateSheet
     }
 
@@ -2588,6 +2592,39 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     // The SDD insignia is visually slender. A larger optical box balances it
                     // against the denser formation crest without changing the title safe area.
                     AddImageContained(_branding.RightLogo, 12.39, .10, .46, .68, "Right division insignia");
+                }
+
+                return;
+            }
+
+            if (variant == HeaderVariant.FfcGlobalFootprint)
+            {
+                if (_branding.LeftLogo is { Length: > 0 })
+                {
+                    if (Theme.IsDark)
+                    {
+                        AddRoundedRect(.27, .16, .58, .58, Theme.BrandingPlate, Theme.BrandingPlateBorder, .045, "Left branding plate");
+                        AddImageContained(_branding.LeftLogo, .34, .23, .44, .44, "Left formation insignia");
+                    }
+                    else
+                    {
+                        AddImageContained(_branding.LeftLogo, .32, .20, .48, .48, "Left formation insignia");
+                    }
+                }
+
+                if (_branding.RightLogo is { Length: > 0 })
+                {
+                    // The division insignia is optically slender. The FFC footprint slide uses
+                    // a slightly larger box so both institutional marks carry equal visual weight.
+                    if (Theme.IsDark)
+                    {
+                        AddRoundedRect(12.40, .12, .53, .64, Theme.BrandingPlate, Theme.BrandingPlateBorder, .045, "Right branding plate");
+                        AddImageContained(_branding.RightLogo, 12.46, .16, .41, .57, "Right division insignia");
+                    }
+                    else
+                    {
+                        AddImageContained(_branding.RightLogo, 12.43, .13, .42, .62, "Right division insignia");
+                    }
                 }
 
                 return;

@@ -45,11 +45,11 @@
                         <input class="form-control" name="FfcGlobalFootprintTitle" value="@options.Title" maxlength="120" />
                     </label>
                     <label class="form-label">
-                        <span>Countries shown in position list</span>
+                        <span>Countries shown in country-wise breakdown</span>
                         <select class="form-select" name="MaximumCountryRows">
                             @for (var rows = 6; rows <= 10; rows++)
                             {
-                                <option value="@rows" selected="@(options.MaximumCountryRows == rows)">@rows countries</option>
+                                <option value="@rows" selected="@(options.MaximumCountryRows == rows)">@(rows == 8 ? $"{rows} countries — recommended" : $"{rows} countries")</option>
                             }
                         </select>
                     </label>
@@ -71,9 +71,9 @@
                     </div>
                     <div class="pbd-ffc-footprint-layout-preview__body">
                         <span><i class="bi bi-globe-asia-australia" aria-hidden="true"></i> Vector footprint map</span>
-                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> Country position</span>
+                        <span><i class="bi bi-list-ol" aria-hidden="true"></i> Country-wise breakdown</span>
                     </div>
-                    <small>Total quantity is the map intensity metric. No internet map service or screenshot is used.</small>
+                    <small>Map-led 72:28 composition. Total quantity is the intensity metric; no internet map service or screenshot is used.</small>
                 </div>
             </section>
         </div>
