@@ -60,6 +60,166 @@ public sealed class ProjectBriefingSlideComposerTests
 
 
     [Fact]
+    public void Compose_StageSummary_UsesExecutiveLifecycleBandAndOngoingStageInfographic()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 601,
+            DeckName = "Stage Summary Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            IncludeStageSummary = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 6, 15, 30, 0, TimeSpan.Zero),
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 25,
+                CompletedCount = 15,
+                OngoingCount = 10,
+                StageSummary = new[]
+                {
+                    new ProjectBriefingSummaryPoint("Completed", 15, ProjectBriefingStageOrder.Completed),
+                    new ProjectBriefingSummaryPoint("Development", 2, ProjectBriefingStageOrder.Development),
+                    new ProjectBriefingSummaryPoint("Technical Evaluation", 1, ProjectBriefingStageOrder.TechnicalEvaluation),
+                    new ProjectBriefingSummaryPoint("Bidding / Tendering", 1, ProjectBriefingStageOrder.BiddingTendering),
+                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 5, ProjectBriefingStageOrder.AcceptanceOfNecessity),
+                    new ProjectBriefingSummaryPoint("Scope of Work Vetting", 1, ProjectBriefingStageOrder.SowVetting)
+                },
+                OngoingStageSummary = new[]
+                {
+                    new ProjectBriefingSummaryPoint("Development", 2, ProjectBriefingStageOrder.Development),
+                    new ProjectBriefingSummaryPoint("Technical Evaluation", 1, ProjectBriefingStageOrder.TechnicalEvaluation),
+                    new ProjectBriefingSummaryPoint("Bidding / Tendering", 1, ProjectBriefingStageOrder.BiddingTendering),
+                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 5, ProjectBriefingStageOrder.AcceptanceOfNecessity),
+                    new ProjectBriefingSummaryPoint("Scope of Work Vetting", 1, ProjectBriefingStageOrder.SowVetting)
+                }
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(2, slideCount);
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var stageSlide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
+        var text = SlideText(stageSlide);
+
+        Assert.Contains("Completed", text, StringComparison.Ordinal);
+        Assert.Contains("15 (60%)", text, StringComparison.Ordinal);
+        Assert.Contains("Ongoing", text, StringComparison.Ordinal);
+        Assert.Contains("10 (40%)", text, StringComparison.Ordinal);
+        Assert.Contains("Breakdown of ongoing projects by stage", text, StringComparison.Ordinal);
+        Assert.Contains("Key takeaway:", text, StringComparison.Ordinal);
+        Assert.Contains("AoN is the principal concentration", text, StringComparison.Ordinal);
+        Assert.NotNull(ShapeByName(stageSlide, "Acceptance of Necessity stage column"));
+        Assert.Empty(stageSlide.Slide.Descendants<P.Shape>().Where(shape => string.Equals(
+            shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name?.Value,
+            "Completed stage column",
+            StringComparison.Ordinal)));
+
+        Assert.True(text.IndexOf("1. Development", StringComparison.Ordinal)
+                    < text.IndexOf("2. Technical Evaluation", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("2. Technical Evaluation", StringComparison.Ordinal)
+                    < text.IndexOf("3. Bidding / Tendering", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("3. Bidding / Tendering", StringComparison.Ordinal)
+                    < text.IndexOf("4. Acceptance of Necessity", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Compose_StageSummary_UsesCompactGridAndCancelledPanelWhenRequired()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var points = new[]
+        {
+            new ProjectBriefingSummaryPoint("Transfer of Technology", 1, ProjectBriefingStageOrder.TransferOfTechnology),
+            new ProjectBriefingSummaryPoint("Acceptance Testing", 1, ProjectBriefingStageOrder.AcceptanceTesting),
+            new ProjectBriefingSummaryPoint("Development", 1, ProjectBriefingStageOrder.Development),
+            new ProjectBriefingSummaryPoint("Supply Order", 1, ProjectBriefingStageOrder.SupplyOrder),
+            new ProjectBriefingSummaryPoint("Technical Evaluation", 1, ProjectBriefingStageOrder.TechnicalEvaluation),
+            new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, ProjectBriefingStageOrder.AcceptanceOfNecessity),
+            new ProjectBriefingSummaryPoint("Scope of Work Vetting", 1, ProjectBriefingStageOrder.SowVetting)
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 602,
+            DeckName = "Compact Stage Summary Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            IncludeStageSummary = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 6, 15, 30, 0, TimeSpan.Zero),
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 10,
+                CompletedCount = 2,
+                OngoingCount = 7,
+                CancelledCount = 1,
+                OngoingStageSummary = points
+            }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var stageSlide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
+        var text = SlideText(stageSlide);
+
+        Assert.Contains("Cancelled", text, StringComparison.Ordinal);
+        Assert.Contains("1 (10%)", text, StringComparison.Ordinal);
+        Assert.NotNull(ShapeByName(stageSlide, "Development compact stage card"));
+        Assert.NotNull(ShapeByName(stageSlide, "Stage summary insight strip"));
+    }
+
+    [Fact]
+    public void Compose_StageSummary_HandlesAllCompletedPortfolioWithoutEmptyChart()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 603,
+            DeckName = "Completed Portfolio Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.None,
+            IncludeCoverSlide = false,
+            IncludePortfolioSummarySlide = false,
+            IncludeStageSummary = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 8, 6, 15, 30, 0, TimeSpan.Zero),
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 12,
+                CompletedCount = 12,
+                OngoingCount = 0
+            }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var stageSlide = Assert.Single(Assert.IsType<PresentationPart>(document.PresentationPart)
+            .SlideParts
+            .Where(slide => SlideText(slide).Contains("Stage-wise summary", StringComparison.Ordinal)));
+        var text = SlideText(stageSlide);
+
+        Assert.Contains("12 (100%)", text, StringComparison.Ordinal);
+        Assert.Contains("0 (0%)", text, StringComparison.Ordinal);
+        Assert.Contains("All selected projects are completed", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("No summary data is available", text, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
     public void Compose_ProjectBriefMode_CreatesDedicatedNarrativeSlideWithoutCapabilitySlide()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
@@ -2318,6 +2478,10 @@ public sealed class ProjectBriefingSlideComposerTests
                 MissingPhotoCount = 2,
                 StageSummary = ProjectBriefingStageOrder.BuildSummary(
                     projects.Select(project => project.PresentStageOrder)),
+                OngoingStageSummary = ProjectBriefingStageOrder.BuildSummary(
+                    projects
+                        .Where(project => project.LifecycleStatus == ProjectLifecycleStatus.Active)
+                        .Select(project => project.PresentStageOrder)),
                 TechnicalCategorySummary = technicalCategorySummary ?? Array.Empty<ProjectBriefingSummaryPoint>()
             }
         };

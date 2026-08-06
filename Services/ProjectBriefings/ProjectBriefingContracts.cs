@@ -369,6 +369,7 @@ public sealed class ProjectBriefingPresentationSummary
     public int ProjectCount { get; init; }
     public int OngoingCount { get; init; }
     public int CompletedCount { get; init; }
+    public int CancelledCount { get; init; }
     public decimal TotalCostRdInRupees { get; init; }
     public int CostRdRecordedCount { get; init; }
     public decimal TotalIpaCostInRupees { get; init; }
@@ -378,6 +379,8 @@ public sealed class ProjectBriefingPresentationSummary
     public int MissingExternalStatusCount { get; init; }
     public int MissingPhotoCount { get; init; }
     public IReadOnlyList<ProjectBriefingSummaryPoint> StageSummary { get; init; } = Array.Empty<ProjectBriefingSummaryPoint>();
+    /// <summary>Canonical stage distribution for active projects only; used by the executive stage infographic.</summary>
+    public IReadOnlyList<ProjectBriefingSummaryPoint> OngoingStageSummary { get; init; } = Array.Empty<ProjectBriefingSummaryPoint>();
     public IReadOnlyList<ProjectBriefingSummaryPoint> ProjectCategorySummary { get; init; } = Array.Empty<ProjectBriefingSummaryPoint>();
     public IReadOnlyList<ProjectBriefingSummaryPoint> TechnicalCategorySummary { get; init; } = Array.Empty<ProjectBriefingSummaryPoint>();
 }

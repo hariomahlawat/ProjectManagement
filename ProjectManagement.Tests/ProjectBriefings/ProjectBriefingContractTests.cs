@@ -274,12 +274,21 @@ public sealed class ProjectBriefingContractTests
     {
         var dataSource = Read("ProjectBriefingDataService.cs");
         var composer = Read("ProjectBriefingSlideComposer.cs");
+        var stageComposer = Read("ProjectBriefingSlideComposer.StageSummary.cs");
 
         Assert.Contains("ProjectBriefingStageOrder.BuildSummary", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingProjectOrdering.OrderProjects", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingStageOrder.Resolve", dataSource, StringComparison.Ordinal);
         Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);
         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderStageWiseExecutiveSummary", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderStageWiseExecutiveSummary", stageComposer, StringComparison.Ordinal);
+        Assert.Contains("OngoingStageSummary", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectLifecycleStatus.Active", dataSource, StringComparison.Ordinal);
+        Assert.Contains("CancelledCount", dataSource, StringComparison.Ordinal);
+        Assert.Contains("Breakdown of ongoing projects by stage", stageComposer, StringComparison.Ordinal);
+        Assert.Contains("Key takeaway:", stageComposer, StringComparison.Ordinal);
+        Assert.Contains("AddEllipse", composer, StringComparison.Ordinal);
         Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
         Assert.Contains("StandardSlideOptions.IncludeStageDistributionTable", composer, StringComparison.Ordinal);
         Assert.Contains("IncludeStageDistributionTable", dataSource, StringComparison.Ordinal);

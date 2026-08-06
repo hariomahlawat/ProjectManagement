@@ -690,6 +690,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         var stageSummary = ProjectBriefingStageOrder.BuildSummary(
             projects.Select(project => project.PresentStageOrder));
+        var ongoingStageSummary = ProjectBriefingStageOrder.BuildSummary(
+            projects
+                .Where(project => project.LifecycleStatus == ProjectLifecycleStatus.Active)
+                .Select(project => project.PresentStageOrder));
 
         var projectCategorySummary = projects
             .GroupBy(project => string.IsNullOrWhiteSpace(project.ProjectCategory) ? "Not categorised" : project.ProjectCategory!)
@@ -710,6 +714,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ProjectCount = projects.Count,
             OngoingCount = projects.Count(project => project.LifecycleStatus == ProjectLifecycleStatus.Active),
             CompletedCount = projects.Count(project => project.LifecycleStatus == ProjectLifecycleStatus.Completed),
+            CancelledCount = projects.Count(project => project.LifecycleStatus == ProjectLifecycleStatus.Cancelled),
             TotalCostRdInRupees = projects.Sum(project => project.CostRd.AmountInRupees ?? 0m),
             CostRdRecordedCount = projects.Count(project => project.CostRd.IsAvailable),
             TotalIpaCostInRupees = projects.Sum(project => project.IpaCost.AmountInRupees ?? 0m),
@@ -719,6 +724,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             MissingExternalStatusCount = projects.Count(project => string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal)),
             MissingPhotoCount = projects.Count(project => !project.CoverPhotoIsReady),
             StageSummary = stageSummary,
+            OngoingStageSummary = ongoingStageSummary,
             ProjectCategorySummary = projectCategorySummary,
             TechnicalCategorySummary = technicalCategorySummary
         };

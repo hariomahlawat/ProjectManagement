@@ -585,18 +585,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         List<SlidePlan> plans,
         ProjectBriefingPresentationData data)
     {
-        var chartPoints = data.Summary.StageSummary
-            .Where(point => point.Count > 0)
-            .ToArray();
-
-        plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderBarChart(
-            canvas,
-            "Stage-wise summary",
-            null,
-            chartPoints,
-            ThemeAccent.Primary,
-            data.Summary.ProjectCount,
-            showShare: true)));
+        plans.Add(new SlidePlan(
+            SlidePlanKind.Summary,
+            canvas => RenderStageWiseExecutiveSummary(canvas, data)));
 
         if (data.StandardSlideOptions.IncludeStageDistributionTable)
         {
@@ -2515,6 +2506,33 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 "l",
                 "ctr",
                 name ?? "Rounded rectangle",
+                isTextBox: false);
+
+        public void AddEllipse(
+            double x,
+            double y,
+            double width,
+            double height,
+            string fill,
+            string? line = null,
+            double lineWidth = .75,
+            string? name = null)
+            => AddShape(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                lineWidth,
+                "ellipse",
+                null,
+                0,
+                Theme.TextPrimary,
+                false,
+                "c",
+                "ctr",
+                name ?? "Ellipse",
                 isTextBox: false);
 
         public void AddSubtleRoundedRect(
