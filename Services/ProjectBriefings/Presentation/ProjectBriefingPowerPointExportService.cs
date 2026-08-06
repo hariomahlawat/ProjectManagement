@@ -41,7 +41,24 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
             await AttachPhotosAsync(data, cancellationToken);
         }
 
-        var (content, slideCount) = _composer.Compose(data);
+        byte[] content;
+        int slideCount;
+        try
+        {
+            (content, slideCount) = _composer.Compose(data);
+        }
+        catch (ProjectBriefingPresentationIntegrityException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Generated briefing deck failed PowerPoint integrity validation. "
+                + "DeckId={DeckId}, IssueCount={IssueCount}, Issues={IntegrityIssues}",
+                deckId,
+                exception.Issues.Count,
+                string.Join(" || ", exception.Issues));
+            throw;
+        }
+
         await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken);
 
         var date = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst()).ToString("yyyyMMdd");

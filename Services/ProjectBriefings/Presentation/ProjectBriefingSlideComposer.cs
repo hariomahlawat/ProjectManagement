@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Security;
 using System.Text;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
 using Microsoft.AspNetCore.Hosting;
@@ -60,12 +61,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                 ?? throw new InvalidOperationException("The PowerPoint template has no slide layout.");
 
             RemoveTemplateSlides(presentationPart);
-            var slideIdList = presentationPart.Presentation.SlideIdList;
-            if (slideIdList is null)
-            {
-                slideIdList = new SlideIdList();
-                presentationPart.Presentation.Append(slideIdList);
-            }
+            var slideIdList = EnsureSlideIdList(presentationPart.Presentation);
 
             uint nextSlideId = 256;
             var theme = ProjectBriefingThemeCatalog.Resolve(data.PresentationTheme);
@@ -91,7 +87,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             }
 
             presentationPart.Presentation.Save();
-            document.PackageProperties.Title = data.DeckName;
+            document.PackageProperties.Title = SanitizeOpenXmlText(data.DeckName);
             document.PackageProperties.Subject = data.Layout == ProjectBriefingLayout.ProjectUpdateSheet
                 ? "Formal project update sheets"
                 : "Professional project briefing deck";
@@ -100,7 +96,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             document.PackageProperties.Modified = data.GeneratedAtUtc.UtcDateTime;
         }
 
-        return (stream.ToArray(), plans.Count);
+        var content = stream.ToArray();
+        ProjectBriefingPresentationIntegrityValidator.Validate(content, plans.Count);
+        return (content, plans.Count);
     }
 
     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
@@ -2232,6 +2230,51 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             _ => theme.Accent
         };
 
+    private static SlideIdList EnsureSlideIdList(DocumentFormat.OpenXml.Presentation.Presentation presentation)
+    {
+        var existing = presentation.SlideIdList;
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var slideIdList = new SlideIdList();
+
+        // Let the Open XML SDK place p:sldIdLst in the schema-defined position.
+        // Manual null-coalescing across different child-element types is both
+        // type-unsafe and vulnerable to invalid PresentationML element ordering.
+        presentation.AddChild(slideIdList, throwOnError: true);
+
+        return slideIdList;
+    }
+
+    private static string SanitizeOpenXmlText(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var rune in value.EnumerateRunes())
+        {
+            var scalar = rune.Value;
+            if (scalar is 0x9 or 0xA or 0xD
+                || scalar is >= 0x20 and <= 0xD7FF
+                || scalar is >= 0xE000 and <= 0xFFFD
+                || scalar is >= 0x10000 and <= 0x10FFFF)
+            {
+                builder.Append(rune.ToString());
+            }
+            else
+            {
+                builder.Append(' ');
+            }
+        }
+
+        return builder.ToString();
+    }
+
     private static SlideLayoutPart? FindBlankLayout(PresentationPart presentationPart)
         => presentationPart.SlideMasterParts
                .SelectMany(master => master.SlideLayoutParts)
@@ -2254,6 +2297,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             }
             slideId.Remove();
         }
+
+        // A generated deck must not retain custom-show references to template slides
+        // that no longer exist. Stale references can make PowerPoint repair the file.
+        presentationPart.Presentation.CustomShowList?.Remove();
     }
 
     private enum ThemeAccent
@@ -2582,6 +2629,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             Action renderChildren)
         {
             ArgumentNullException.ThrowIfNull(renderChildren);
+            EnsureFrame(x, y, width, height, name);
 
             var startIndex = _elements.Count;
             renderChildren();
@@ -2602,11 +2650,32 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         public void AddLine(double x1, double y1, double x2, double y2, string color, double width)
         {
+            EnsureFinite(x1, nameof(x1));
+            EnsureFinite(y1, nameof(y1));
+            EnsureFinite(x2, nameof(x2));
+            EnsureFinite(y2, nameof(y2));
+            if (width <= 0 || !double.IsFinite(width))
+            {
+                throw new ArgumentOutOfRangeException(nameof(width), "Line width must be a finite positive value.");
+            }
+
+            var extentX = Math.Abs(x2 - x1);
+            var extentY = Math.Abs(y2 - y1);
+            if (extentX == 0 && extentY == 0)
+            {
+                return;
+            }
+
+            var originX = Math.Min(x1, x2);
+            var originY = Math.Min(y1, y2);
+            var flipAttributes = string.Concat(
+                x2 < x1 ? " flipH=\"1\"" : string.Empty,
+                y2 < y1 ? " flipV=\"1\"" : string.Empty);
             var id = _nextShapeId++;
             _elements.Add($"""
 <p:cxnSp>
   <p:nvCxnSpPr><p:cNvPr id="{id}" name="Line {id}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>
-  <p:spPr><a:xfrm><a:off x="{Emu(x1)}" y="{Emu(y1)}"/><a:ext cx="{Emu(x2 - x1)}" cy="{Emu(y2 - y1)}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="{LineWidth(width)}"><a:solidFill><a:srgbClr val="{CleanColor(color)}"/></a:solidFill></a:ln></p:spPr>
+  <p:spPr><a:xfrm{flipAttributes}><a:off x="{Emu(originX)}" y="{Emu(originY)}"/><a:ext cx="{Emu(extentX)}" cy="{Emu(extentY)}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="{LineWidth(width)}"><a:solidFill><a:srgbClr val="{CleanColor(color)}"/></a:solidFill></a:ln></p:spPr>
 </p:cxnSp>
 """);
         }
@@ -2726,6 +2795,16 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             {
                 throw new ArgumentException("Every native PowerPoint table row must contain one cell per column.", nameof(rows));
             }
+            if (widths.Any(width => width <= 0 || !double.IsFinite(width)))
+            {
+                throw new ArgumentException("Every native PowerPoint table column width must be finite and positive.", nameof(widths));
+            }
+            if (heights.Any(height => height <= 0 || !double.IsFinite(height)))
+            {
+                throw new ArgumentException("Every native PowerPoint table row height must be finite and positive.", nameof(heights));
+            }
+            EnsureFinite(x, nameof(x));
+            EnsureFinite(y, nameof(y));
 
             var id = _nextShapeId++;
             var columnXml = string.Join(string.Empty, widths.Select(width => $"<a:gridCol w=\"{Emu(width)}\"/>"));
@@ -2745,8 +2824,8 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 <a:tc{mergeAttributes}>
   {BuildTableTextBody(cell)}
   <a:tcPr marL="{Emu(cell.LeftMargin)}" marR="{Emu(cell.RightMargin)}" marT="{Emu(cell.TopMargin)}" marB="{Emu(cell.BottomMargin)}" anchor="{VerticalAnchor(cell.VerticalAnchor)}">
-    <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
     {TableBorders(cell.Borders)}
+    <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
   </a:tcPr>
 </a:tc>
 """);
@@ -2819,10 +2898,10 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
 
         public void AddImage(byte[] content, string? contentType, double x, double y, double width, double height, string name)
         {
-            var imageType = string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(contentType, "image/jpg", StringComparison.OrdinalIgnoreCase)
-                ? ImagePartType.Jpeg
-                : ImagePartType.Png;
+            ArgumentNullException.ThrowIfNull(content);
+            EnsureFrame(x, y, width, height, name);
+
+            var imageType = DetectImagePartType(content, contentType, name);
             var imagePart = _slidePart.AddImagePart(imageType);
             using (var imageStream = new MemoryStream(content, writable: false))
             {
@@ -2943,6 +3022,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             bool isTextBox,
             string? geometryAdjustmentsXml = null)
         {
+            EnsureFrame(x, y, width, height, name);
             var id = _nextShapeId++;
             var fillXml = string.IsNullOrWhiteSpace(fill)
                 ? "<a:noFill/>"
@@ -3085,12 +3165,66 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
             return $"<p:txBody><a:bodyPr wrap=\"square\" vertOverflow=\"clip\" horzOverflow=\"clip\" lIns=\"45720\" rIns=\"45720\" tIns=\"22860\" bIns=\"22860\" anchor=\"{anchor}\"><a:normAutofit fontScale=\"92000\" lnSpcReduction=\"10000\"/></a:bodyPr><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</p:txBody>";
         }
 
+        private static PartTypeInfo DetectImagePartType(
+            ReadOnlySpan<byte> content,
+            string? declaredContentType,
+            string name)
+        {
+            if (content.Length >= 8
+                && content[0] == 0x89
+                && content[1] == 0x50
+                && content[2] == 0x4E
+                && content[3] == 0x47
+                && content[4] == 0x0D
+                && content[5] == 0x0A
+                && content[6] == 0x1A
+                && content[7] == 0x0A)
+            {
+                return ImagePartType.Png;
+            }
+
+            if (content.Length >= 3
+                && content[0] == 0xFF
+                && content[1] == 0xD8
+                && content[2] == 0xFF)
+            {
+                return ImagePartType.Jpeg;
+            }
+
+            throw new InvalidOperationException(
+                $"The image '{SanitizeOpenXmlText(name)}' is not a supported PNG or JPEG payload. " +
+                $"Declared content type: {declaredContentType ?? "not supplied"}.");
+        }
+
+        private static void EnsureFrame(double x, double y, double width, double height, string name)
+        {
+            EnsureFinite(x, nameof(x));
+            EnsureFinite(y, nameof(y));
+            if (width <= 0 || !double.IsFinite(width))
+            {
+                throw new ArgumentOutOfRangeException(nameof(width), $"The width for '{SanitizeOpenXmlText(name)}' must be finite and positive.");
+            }
+            if (height <= 0 || !double.IsFinite(height))
+            {
+                throw new ArgumentOutOfRangeException(nameof(height), $"The height for '{SanitizeOpenXmlText(name)}' must be finite and positive.");
+            }
+        }
+
+        private static void EnsureFinite(double value, string parameterName)
+        {
+            if (!double.IsFinite(value))
+            {
+                throw new ArgumentOutOfRangeException(parameterName, "PowerPoint coordinates must be finite values.");
+            }
+        }
+
         private static string Alignment(string value) => value switch { "ctr" => "ctr", "r" => "r", _ => "l" };
         private static string VerticalAnchor(string value) => value switch { "t" => "t", "b" => "b", _ => "ctr" };
         private static long Emu(double inches) => (long)Math.Round(inches * 914400d);
         private static long LineWidth(double points) => (long)Math.Round(points * 12700d);
         private static int FontSize(double points) => (int)Math.Round(points * 100d);
-        private static string Escape(string value) => SecurityElement.Escape(value) ?? string.Empty;
+        private static string Escape(string? value)
+            => SecurityElement.Escape(SanitizeOpenXmlText(value)) ?? string.Empty;
         private static string CleanColor(string value) => value.Trim().TrimStart('#').ToUpperInvariant();
     }
 }

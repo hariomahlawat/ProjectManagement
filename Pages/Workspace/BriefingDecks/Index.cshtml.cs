@@ -814,6 +814,33 @@ public sealed class IndexModel : PageModel
         {
             throw;
         }
+        catch (ProjectBriefingPresentationIntegrityException exception)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(
+                exception,
+                "Project briefing deck failed integrity validation. DeckId={DeckId}, TraceId={TraceId}, Issues={IntegrityIssues}",
+                deckId,
+                traceId,
+                string.Join(" || ", exception.Issues));
+
+            var message =
+                $"PowerPoint integrity check failed: {exception.GetUserSafeSummary()}. Reference: {traceId}";
+            if (isAjax)
+            {
+                return StatusCode(
+                    StatusCodes.Status422UnprocessableEntity,
+                    new
+                    {
+                        message,
+                        traceId,
+                        issues = exception.Issues.Take(6).ToArray()
+                    });
+            }
+
+            ErrorMessage = message;
+            return RedirectToPage(new { deckId });
+        }
         catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
         {
             if (isAjax)
