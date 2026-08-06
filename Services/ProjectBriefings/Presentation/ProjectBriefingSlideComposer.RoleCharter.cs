@@ -136,12 +136,14 @@ public sealed partial class ProjectBriefingSlideComposer
             return;
         }
 
-        var twoColumns = layout == ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter
-            || continuation;
+        // Preserve the user-selected composition on the single Role & Charter slide.
+        // Charter content is never pushed to a continuation slide; typography is
+        // reduced progressively when the configured list is longer.
+        var twoColumns = layout == ProjectBriefingRoleCharterLayout.RoleAndTwoColumnCharter;
         var resolvedHeight = height;
         if (!twoColumns)
         {
-            var typography = ResolveCharterColumnTypography(items, 11.90);
+            var typography = ResolveCharterColumnTypography(items, 11.90, resolvedHeight);
             RenderCharterColumn(canvas, .72, top, 11.90, resolvedHeight, items, typography, "Charter items");
             return;
         }
@@ -156,7 +158,8 @@ public sealed partial class ProjectBriefingSlideComposer
         var rightLoad = MeasureCharterColumn(right, columnWidth);
         var sharedTypography = ResolveCharterTypography(
             Math.Max(left.Length, right.Length),
-            Math.Max(leftLoad, rightLoad));
+            Math.Max(leftLoad, rightLoad),
+            resolvedHeight);
         RenderCharterColumn(canvas, x, top, columnWidth, resolvedHeight, left, sharedTypography, "Charter items left column");
         if (right.Length > 0)
         {
@@ -209,8 +212,12 @@ public sealed partial class ProjectBriefingSlideComposer
 
     private static CharterTypography ResolveCharterColumnTypography(
         IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
-        double width)
-        => ResolveCharterTypography(items.Count, MeasureCharterColumn(items, width));
+        double width,
+        double height)
+        => ResolveCharterTypography(
+            items.Count,
+            MeasureCharterColumn(items, width),
+            height);
 
     private static double MeasureCharterColumn(
         IReadOnlyList<ProjectBriefingRoleCharterEntry> items,
@@ -222,22 +229,47 @@ public sealed partial class ProjectBriefingSlideComposer
             + (items.Count * .45);
     }
 
-    private static CharterTypography ResolveCharterTypography(int itemCount, double lineLoad)
+    private static CharterTypography ResolveCharterTypography(
+        int itemCount,
+        double lineLoad,
+        double availableHeightInches)
     {
-        if (lineLoad >= 15 || itemCount >= 6)
+        if (itemCount <= 0)
         {
-            return new CharterTypography(11.2, 3.0, 12.6);
-        }
-        if (lineLoad >= 12)
-        {
-            return new CharterTypography(11.8, 4.5, 13.4);
-        }
-        if (lineLoad >= 9)
-        {
-            return new CharterTypography(12.5, 6.0, 14.2);
+            return new CharterTypography(13.2, 8.0, 15.0);
         }
 
-        return new CharterTypography(13.2, 8.0, 15.0);
+        // The charter is an institutional statement and must remain on one slide.
+        // Estimate the usable vertical budget in points and choose the largest
+        // typography that fits. PowerPoint normal auto-fit remains enabled as a
+        // final safeguard for unusual wrapping caused by user-authored text.
+        var usableHeightPoints = Math.Max(72d, (availableHeightInches - .34d) * 72d);
+        var estimatedTextLines = Math.Max(1d, lineLoad - (itemCount * .45d));
+
+        for (var fontSize = 13.2d; fontSize >= 6.5d; fontSize -= .1d)
+        {
+            var density = fontSize switch
+            {
+                >= 12.4d => new CharterTypography(fontSize, 6.0d, fontSize * 1.14d),
+                >= 11.2d => new CharterTypography(fontSize, 4.0d, fontSize * 1.12d),
+                >= 10.0d => new CharterTypography(fontSize, 2.5d, fontSize * 1.10d),
+                >= 8.5d => new CharterTypography(fontSize, 1.25d, fontSize * 1.08d),
+                _ => new CharterTypography(fontSize, .5d, fontSize * 1.05d)
+            };
+
+            var requiredHeightPoints =
+                (estimatedTextLines * density.LineSpacingPoints)
+                + (Math.Max(0, itemCount - 1) * density.SpaceAfterPoints);
+
+            if (requiredHeightPoints <= usableHeightPoints)
+            {
+                return density;
+            }
+        }
+
+        // Extremely long custom text still remains on the same slide. The low
+        // baseline and normal auto-fit prevent clipping while preserving every item.
+        return new CharterTypography(6.5d, .25d, 6.8d);
     }
 
     private sealed record CharterTypography(
