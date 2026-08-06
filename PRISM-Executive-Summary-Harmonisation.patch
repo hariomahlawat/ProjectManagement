@@ -1,0 +1,1171 @@
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
+index 26cc79f..f3ac5ca 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -739,7 +739,7 @@
+                                         <legend>Summary slides</legend>
+                                         <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" data-pbd-stage-summary-toggle /> Stage-wise summary <small>recommended chart</small></label>
+                                         <label class="pbd-summary-dependent-option" data-pbd-stage-table-option><input type="checkbox" name="IncludeStageDistributionTable" value="true" checked="@deck.StandardSlideOptions.IncludeStageDistributionTable" data-pbd-stage-table-toggle /> Stage-wise distribution table <small>optional supporting slide</small></label>
+-                                        <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary</label>
++                                        <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary <small>automatically omitted when only one category is represented</small></label>
+                                         <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary <small>automatically omitted when all selected projects share one category</small></label>
+                                     </fieldset>
+                                     <label class="form-label pbd-marking">
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.ExecutiveSummary.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.ExecutiveSummary.cs
+new file mode 100644
+index 0000000..08efd04
+--- /dev/null
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.ExecutiveSummary.cs
+@@ -0,0 +1,621 @@
++using System.Globalization;
++using ProjectManagement.Models.ProjectBriefings;
++using ProjectManagement.Services.ProjectBriefings;
++
++namespace ProjectManagement.Services.ProjectBriefings.Presentation;
++
++public sealed partial class ProjectBriefingSlideComposer
++{
++    private const double ExecutiveSummaryCardRadius = .07;
++    private const double ExecutiveSummaryContentLeft = .65;
++    private const double ExecutiveSummaryContentWidth = 12.03;
++
++    private static void RenderExecutivePortfolioSummary(
++        SlideCanvas canvas,
++        ProjectBriefingPresentationData data)
++    {
++        AddSlideTitle(canvas, "Portfolio at a glance");
++
++        var summary = data.Summary;
++        var statusCards = new List<ExecutivePortfolioStatus>
++        {
++            new("SELECTED PROJECTS", summary.ProjectCount, null, canvas.Theme.HeaderAccent),
++            new("COMPLETED", summary.CompletedCount, FormatPercentage(summary.CompletedCount, summary.ProjectCount), canvas.Theme.Positive),
++            new("ONGOING", summary.OngoingCount, FormatPercentage(summary.OngoingCount, summary.ProjectCount), canvas.Theme.Accent)
++        };
++
++        if (summary.CancelledCount > 0)
++        {
++            statusCards.Add(new(
++                "CANCELLED",
++                summary.CancelledCount,
++                FormatPercentage(summary.CancelledCount, summary.ProjectCount),
++                canvas.Theme.Critical));
++        }
++
++        RenderPortfolioStatusCards(canvas, statusCards);
++
++        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
++        {
++            RenderRecordedCostPair(
++                canvas,
++                "RECORDED R&D COST",
++                summary.TotalCostRdInRupees,
++                summary.CostRdRecordedCount,
++                canvas.Theme.Accent,
++                canvas.Theme.AccentSoft,
++                "RECORDED IPA COST",
++                summary.TotalIpaCostInRupees,
++                summary.IpaCostRecordedCount,
++                canvas.Theme.SecondaryAccent,
++                canvas.Theme.SecondaryAccentSoft,
++                summary.ProjectCount,
++                fixedTwoDecimalPrecision: true);
++            return;
++        }
++
++        var showRd = data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
++        var showProliferation = data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
++
++        if (showRd && showProliferation)
++        {
++            RenderRecordedCostPair(
++                canvas,
++                "RECORDED R&D COST",
++                summary.TotalCostRdInRupees,
++                summary.CostRdRecordedCount,
++                canvas.Theme.Accent,
++                canvas.Theme.AccentSoft,
++                "RECORDED PROLIFERATION COST",
++                summary.TotalProliferationCostInRupees,
++                summary.ProliferationCostRecordedCount,
++                canvas.Theme.SecondaryAccent,
++                canvas.Theme.SecondaryAccentSoft,
++                summary.ProjectCount);
++            return;
++        }
++
++        if (showRd)
++        {
++            RenderRecordedCostCard(
++                canvas,
++                2.00,
++                3.48,
++                9.33,
++                "RECORDED R&D COST",
++                summary.TotalCostRdInRupees,
++                summary.CostRdRecordedCount,
++                summary.ProjectCount,
++                canvas.Theme.Accent,
++                canvas.Theme.AccentSoft);
++            return;
++        }
++
++        if (showProliferation)
++        {
++            RenderRecordedCostCard(
++                canvas,
++                2.00,
++                3.48,
++                9.33,
++                "RECORDED PROLIFERATION COST",
++                summary.TotalProliferationCostInRupees,
++                summary.ProliferationCostRecordedCount,
++                summary.ProjectCount,
++                canvas.Theme.SecondaryAccent,
++                canvas.Theme.SecondaryAccentSoft);
++            return;
++        }
++
++        canvas.AddRoundedRect(
++            ExecutiveSummaryContentLeft,
++            3.48,
++            ExecutiveSummaryContentWidth,
++            1.96,
++            canvas.Theme.Surface,
++            canvas.Theme.Border,
++            ExecutiveSummaryCardRadius,
++            "Portfolio cost exclusion message");
++        canvas.AddText(
++            .95,
++            4.12,
++            11.43,
++            .42,
++            "Cost information is not included in this deck.",
++            17.5,
++            canvas.Theme.TextPrimary,
++            true,
++            "c",
++            name: "Portfolio cost exclusion text");
++    }
++
++    private static void RenderPortfolioStatusCards(
++        SlideCanvas canvas,
++        IReadOnlyList<ExecutivePortfolioStatus> cards)
++    {
++        const double startX = .65;
++        const double y = 1.35;
++        const double totalWidth = 12.03;
++        const double gap = .24;
++        const double height = 1.52;
++        var cardWidth = (totalWidth - (gap * (cards.Count - 1))) / cards.Count;
++
++        for (var index = 0; index < cards.Count; index++)
++        {
++            var card = cards[index];
++            var x = startX + (index * (cardWidth + gap));
++            var softFill = BlendStageSummaryColor(card.Accent, canvas.Theme.Canvas, canvas.Theme.IsDark ? .72 : .90);
++
++            canvas.AddRoundedRect(
++                x,
++                y,
++                cardWidth,
++                height,
++                softFill,
++                BlendStageSummaryColor(card.Accent, canvas.Theme.Canvas, .50),
++                ExecutiveSummaryCardRadius,
++                $"{card.Label} portfolio card");
++            canvas.AddRoundedRect(
++                x,
++                y,
++                .07,
++                height,
++                card.Accent,
++                null,
++                .035,
++                $"{card.Label} portfolio accent");
++
++            canvas.AddText(
++                x + .28,
++                y + .20,
++                cardWidth - .56,
++                .25,
++                card.Label,
++                cards.Count > 3 ? 9.7 : 10.7,
++                card.Accent,
++                true,
++                "l",
++                name: $"{card.Label} portfolio label");
++
++            var valueText = card.Count.ToString(CultureInfo.InvariantCulture);
++            if (string.IsNullOrWhiteSpace(card.Share))
++            {
++                canvas.AddText(
++                    x + .28,
++                    y + .57,
++                    cardWidth - .56,
++                    .55,
++                    valueText,
++                    cards.Count > 3 ? 25.5 : 29.0,
++                    canvas.Theme.TextPrimary,
++                    true,
++                    "l",
++                    name: $"{card.Label} portfolio count");
++            }
++            else
++            {
++                canvas.AddRichTextBox(
++                    x + .28,
++                    y + .53,
++                    cardWidth - .56,
++                    .62,
++                    new[]
++                    {
++                        new RichTextParagraph(
++                            new[]
++                            {
++                                new RichTextRun(
++                                    valueText,
++                                    cards.Count > 3 ? 24.0 : 28.0,
++                                    canvas.Theme.TextPrimary,
++                                    Bold: true),
++                                new RichTextRun(
++                                    $"  {card.Share}",
++                                    cards.Count > 3 ? 11.0 : 12.5,
++                                    card.Accent,
++                                    Bold: true)
++                            },
++                            Align: "l")
++                    },
++                    $"{card.Label} portfolio count and share",
++                    verticalAnchor: "ctr",
++                    allowAutoFit: false,
++                    leftInset: 0,
++                    rightInset: 0,
++                    topInset: 0,
++                    bottomInset: 0);
++            }
++        }
++    }
++
++    private static void RenderRecordedCostPair(
++        SlideCanvas canvas,
++        string leftTitle,
++        decimal leftAmount,
++        int leftRecorded,
++        string leftAccent,
++        string leftFill,
++        string rightTitle,
++        decimal rightAmount,
++        int rightRecorded,
++        string rightAccent,
++        string rightFill,
++        int total,
++        bool fixedTwoDecimalPrecision = false)
++    {
++        RenderRecordedCostCard(
++            canvas,
++            .65,
++            3.48,
++            5.86,
++            leftTitle,
++            leftAmount,
++            leftRecorded,
++            total,
++            leftAccent,
++            leftFill,
++            fixedTwoDecimalPrecision);
++        RenderRecordedCostCard(
++            canvas,
++            6.82,
++            3.48,
++            5.86,
++            rightTitle,
++            rightAmount,
++            rightRecorded,
++            total,
++            rightAccent,
++            rightFill,
++            fixedTwoDecimalPrecision);
++    }
++
++    private static void RenderRecordedCostCard(
++        SlideCanvas canvas,
++        double x,
++        double y,
++        double width,
++        string title,
++        decimal amount,
++        int recorded,
++        int total,
++        string accent,
++        string fill,
++        bool fixedTwoDecimalPrecision = false)
++    {
++        canvas.AddRoundedRect(
++            x,
++            y,
++            width,
++            2.02,
++            fill,
++            BlendStageSummaryColor(accent, canvas.Theme.Canvas, .35),
++            ExecutiveSummaryCardRadius,
++            $"{title} card");
++
++        canvas.AddText(
++            x + .30,
++            y + .24,
++            width - .60,
++            .27,
++            title,
++            10.8,
++            accent,
++            true,
++            "l",
++            name: $"{title} label");
++
++        var amountDisplay = recorded > 0
++            ? ProjectBriefingCurrencyFormatter.FormatRupees(
++                amount,
++                minimumDecimalPlaces: fixedTwoDecimalPrecision ? 2 : 0)
++            : "Not recorded";
++        canvas.AddText(
++            x + .30,
++            y + .65,
++            width - .60,
++            .48,
++            amountDisplay,
++            24.5,
++            canvas.Theme.TextPrimary,
++            true,
++            "l",
++            name: $"{title} value");
++
++        var coverageText = total > 0
++            ? $"{recorded.ToString(CultureInfo.InvariantCulture)} of {total.ToString(CultureInfo.InvariantCulture)} projects recorded"
++            : "No projects selected";
++        canvas.AddText(
++            x + .30,
++            y + 1.30,
++            width - .60,
++            .24,
++            coverageText,
++            9.7,
++            canvas.Theme.TextMuted,
++            false,
++            "l",
++            name: $"{title} coverage");
++
++        var trackX = x + .30;
++        var trackY = y + 1.67;
++        var trackWidth = width - .60;
++        canvas.AddRoundedRect(
++            trackX,
++            trackY,
++            trackWidth,
++            .10,
++            BlendStageSummaryColor(canvas.Theme.SurfaceMuted, canvas.Theme.Canvas, .18),
++            null,
++            .05,
++            $"{title} coverage track");
++        if (recorded > 0 && total > 0)
++        {
++            canvas.AddRoundedRect(
++                trackX,
++                trackY,
++                Math.Max(.10, trackWidth * recorded / total),
++                .10,
++                accent,
++                null,
++                .05,
++                $"{title} coverage fill");
++        }
++    }
++
++    private static void RenderAdaptiveCategorySummary(
++        SlideCanvas canvas,
++        string title,
++        IReadOnlyList<ProjectBriefingSummaryPoint> points,
++        int totalProjects,
++        int totalCategories,
++        ThemeAccent accentRole,
++        int pageNumber,
++        int pageCount)
++    {
++        var slideTitle = pageNumber > 1 ? $"{title} — Continued" : title;
++        var subtitle = pageCount > 1 ? $"Page {pageNumber} of {pageCount}" : null;
++        AddSlideTitle(canvas, slideTitle, subtitle);
++
++        if (points.Count == 0)
++        {
++            AddEmptyMessage(canvas, "No category data is available for the selected projects.");
++            return;
++        }
++
++        var accent = ResolveAccent(canvas.Theme, accentRole);
++        canvas.AddText(
++            4.30,
++            1.08,
++            4.73,
++            .20,
++            $"{totalProjects.ToString(CultureInfo.InvariantCulture)} SELECTED PROJECTS · " +
++            $"{totalCategories.ToString(CultureInfo.InvariantCulture)} CATEGORIES",
++            10.6,
++            canvas.Theme.TextSecondary,
++            true,
++            "c",
++            name: $"{title} summary eyebrow");
++
++        if (points.Count <= 5)
++        {
++            RenderRankedCategoryBars(canvas, points, totalProjects, accent, compact: false);
++            return;
++        }
++
++        if (points.Count <= 10)
++        {
++            RenderTwoColumnCategoryDistribution(canvas, points, totalProjects, accent);
++            return;
++        }
++
++        RenderRankedCategoryBars(canvas, points, totalProjects, accent, compact: true);
++    }
++
++    private static void RenderRankedCategoryBars(
++        SlideCanvas canvas,
++        IReadOnlyList<ProjectBriefingSummaryPoint> points,
++        int totalProjects,
++        string accent,
++        bool compact)
++    {
++        var maximum = Math.Max(1, points.Max(point => point.Count));
++        var leaders = points.Count(point => point.Count == maximum);
++        var top = compact ? 1.47 : 1.66;
++        var height = compact ? 5.20 : 4.78;
++        var rowHeight = height / points.Count;
++        var labelFont = compact ? 10.4 : 12.3;
++        var countFont = compact ? 11.2 : 13.0;
++        var trackHeight = compact ? .16 : .22;
++
++        for (var index = 0; index < points.Count; index++)
++        {
++            var point = points[index];
++            var y = top + (index * rowHeight);
++            var isUniqueLeader = leaders == 1 && point.Count == maximum;
++            var rowAccent = isUniqueLeader
++                ? accent
++                : BlendStageSummaryColor(accent, canvas.Theme.Canvas, .18);
++
++            canvas.AddText(
++                .70,
++                y,
++                .42,
++                rowHeight,
++                (index + 1).ToString("00", CultureInfo.InvariantCulture),
++                compact ? 8.5 : 9.2,
++                canvas.Theme.TextMuted,
++                true,
++                "c",
++                name: $"{point.Label} category rank");
++            canvas.AddText(
++                1.20,
++                y,
++                compact ? 3.15 : 3.35,
++                rowHeight,
++                Truncate(point.Label, compact ? 46 : 42),
++                labelFont,
++                canvas.Theme.TextPrimary,
++                true,
++                "l",
++                name: $"{point.Label} category label");
++
++            var trackX = compact ? 4.45 : 4.72;
++            var trackWidth = compact ? 6.50 : 6.18;
++            var trackY = y + ((rowHeight - trackHeight) / 2d);
++            canvas.AddRoundedRect(
++                trackX,
++                trackY,
++                trackWidth,
++                trackHeight,
++                BlendStageSummaryColor(canvas.Theme.SurfaceMuted, canvas.Theme.Canvas, .12),
++                null,
++                trackHeight / 2d,
++                $"{point.Label} category track");
++            canvas.AddRoundedRect(
++                trackX,
++                trackY,
++                Math.Max(.16, trackWidth * point.Count / maximum),
++                trackHeight,
++                rowAccent,
++                null,
++                trackHeight / 2d,
++                $"{point.Label} category bar");
++
++            canvas.AddText(
++                11.05,
++                y,
++                .55,
++                rowHeight,
++                point.Count.ToString(CultureInfo.InvariantCulture),
++                countFont,
++                canvas.Theme.TextPrimary,
++                true,
++                "r",
++                name: $"{point.Label} category count");
++            canvas.AddText(
++                11.72,
++                y,
++                .68,
++                rowHeight,
++                FormatPercentage(point.Count, totalProjects),
++                compact ? 9.2 : 10.1,
++                canvas.Theme.TextMuted,
++                false,
++                "r",
++                name: $"{point.Label} category share");
++        }
++    }
++
++    private static void RenderTwoColumnCategoryDistribution(
++        SlideCanvas canvas,
++        IReadOnlyList<ProjectBriefingSummaryPoint> points,
++        int totalProjects,
++        string accent)
++    {
++        const double leftX = .65;
++        const double rightX = 6.78;
++        const double columnWidth = 5.90;
++        const double top = 1.55;
++        const double rowHeight = .93;
++        var maximum = Math.Max(1, points.Max(point => point.Count));
++        var leaders = points.Count(point => point.Count == maximum);
++        var firstColumnCount = (int)Math.Ceiling(points.Count / 2d);
++
++        for (var index = 0; index < points.Count; index++)
++        {
++            var column = index < firstColumnCount ? 0 : 1;
++            var row = column == 0 ? index : index - firstColumnCount;
++            var x = column == 0 ? leftX : rightX;
++            var y = top + (row * rowHeight);
++            var point = points[index];
++            var isUniqueLeader = leaders == 1 && point.Count == maximum;
++            var rowAccent = isUniqueLeader
++                ? accent
++                : BlendStageSummaryColor(accent, canvas.Theme.Canvas, .18);
++
++            if (row > 0)
++            {
++                canvas.AddLine(
++                    x,
++                    y - .05,
++                    x + columnWidth,
++                    y - .05,
++                    BlendStageSummaryColor(canvas.Theme.Divider, canvas.Theme.Canvas, .35),
++                    .45);
++            }
++
++            canvas.AddText(
++                x,
++                y + .03,
++                .40,
++                .24,
++                (index + 1).ToString("00", CultureInfo.InvariantCulture),
++                8.4,
++                canvas.Theme.TextMuted,
++                true,
++                "c",
++                name: $"{point.Label} category rank");
++            canvas.AddText(
++                x + .48,
++                y,
++                3.65,
++                .31,
++                Truncate(point.Label, 38),
++                10.6,
++                canvas.Theme.TextPrimary,
++                true,
++                "l",
++                name: $"{point.Label} category label");
++            canvas.AddText(
++                x + 4.25,
++                y,
++                .52,
++                .31,
++                point.Count.ToString(CultureInfo.InvariantCulture),
++                11.5,
++                rowAccent,
++                true,
++                "r",
++                name: $"{point.Label} category count");
++            canvas.AddText(
++                x + 4.84,
++                y,
++                .94,
++                .31,
++                FormatPercentage(point.Count, totalProjects),
++                9.0,
++                canvas.Theme.TextMuted,
++                false,
++                "r",
++                name: $"{point.Label} category share");
++
++            const double trackXOffset = .48;
++            const double trackWidth = 5.30;
++            const double trackHeight = .13;
++            canvas.AddRoundedRect(
++                x + trackXOffset,
++                y + .47,
++                trackWidth,
++                trackHeight,
++                BlendStageSummaryColor(canvas.Theme.SurfaceMuted, canvas.Theme.Canvas, .12),
++                null,
++                trackHeight / 2d,
++                $"{point.Label} category track");
++            canvas.AddRoundedRect(
++                x + trackXOffset,
++                y + .47,
++                Math.Max(.14, trackWidth * point.Count / maximum),
++                trackHeight,
++                rowAccent,
++                null,
++                trackHeight / 2d,
++                $"{point.Label} category bar");
++        }
++    }
++
++    private sealed record ExecutivePortfolioStatus(
++        string Label,
++        int Count,
++        string? Share,
++        string Accent);
++}
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageIcons.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageIcons.cs
+index b3d98a3..c0f9346 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageIcons.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageIcons.cs
+@@ -124,6 +124,12 @@ public sealed partial class ProjectBriefingSlideComposer
+         return baseSize * scale;
+     }
+ 
++    private static string ResolveStageIconStroke(SlideCanvas canvas, string accent)
++        => BlendStageSummaryColor(
++            accent,
++            canvas.Theme.IsDark ? "FFFFFF" : "000000",
++            canvas.Theme.IsDark ? .10 : .08);
++
+     private static bool RenderDevelopmentStageIcon(
+         SlideCanvas canvas,
+         double x,
+@@ -133,10 +139,13 @@ public sealed partial class ProjectBriefingSlideComposer
+         string color,
+         string name)
+     {
+-        var centreX = x + (size / 2d);
+-        var centreY = y + (size / 2d);
+-        var outerRadius = size * .205;
+-        var innerRadius = size * .080;
++        var iconSize = size * 1.08;
++        var iconX = x - ((iconSize - size) / 2d);
++        var iconY = y - ((iconSize - size) / 2d);
++        var centreX = iconX + (iconSize / 2d);
++        var centreY = iconY + (iconSize / 2d);
++        var outerRadius = iconSize * .205;
++        var innerRadius = iconSize * .080;
+         canvas.AddEllipse(
+             centreX - outerRadius,
+             centreY - outerRadius,
+@@ -182,23 +191,26 @@ public sealed partial class ProjectBriefingSlideComposer
+         string color,
+         string name)
+     {
+-        var documentX = x + (size * .22);
+-        var documentY = y + (size * .18);
+-        var documentWidth = size * .42;
+-        var documentHeight = size * .55;
++        var iconSize = size * .96;
++        var iconX = x + ((size - iconSize) / 2d);
++        var iconY = y + ((size - iconSize) / 2d);
++        var documentX = iconX + (iconSize * .22);
++        var documentY = iconY + (iconSize * .18);
++        var documentWidth = iconSize * .42;
++        var documentHeight = iconSize * .55;
+         canvas.AddRoundedRect(documentX, documentY, documentWidth, documentHeight, background, color, .02, $"{name} clipboard");
+         canvas.AddRoundedRect(
+             documentX + (documentWidth * .27),
+-            documentY - (size * .025),
++            documentY - (iconSize * .025),
+             documentWidth * .46,
+-            size * .09,
++            iconSize * .09,
+             background,
+             color,
+             .02,
+             $"{name} clipboard clip");
+-        canvas.AddLine(documentX + size * .08, documentY + size * .18, documentX + size * .27, documentY + size * .18, color, .80);
+-        canvas.AddLine(documentX + size * .08, documentY + size * .29, documentX + size * .24, documentY + size * .29, color, .80);
+-        RenderMagnifier(canvas, x + (size * .50), y + (size * .48), size * .19, background, color, name);
++        canvas.AddLine(documentX + iconSize * .08, documentY + iconSize * .18, documentX + iconSize * .27, documentY + iconSize * .18, color, .80);
++        canvas.AddLine(documentX + iconSize * .08, documentY + iconSize * .29, documentX + iconSize * .24, documentY + iconSize * .29, color, .80);
++        RenderMagnifier(canvas, iconX + (iconSize * .50), iconY + (iconSize * .48), iconSize * .19, background, color, name);
+         return true;
+     }
+ 
+@@ -211,10 +223,11 @@ public sealed partial class ProjectBriefingSlideComposer
+         string color,
+         string name)
+     {
+-        canvas.AddRoundedRect(x + size * .19, y + size * .24, size * .36, size * .15, background, color, .02, $"{name} gavel head");
+-        canvas.AddLine(x + size * .48, y + size * .39, x + size * .68, y + size * .64, color, 1.25);
+-        canvas.AddLine(x + size * .26, y + size * .70, x + size * .68, y + size * .70, color, 1.05);
+-        canvas.AddLine(x + size * .32, y + size * .64, x + size * .62, y + size * .64, color, .85);
++        var iconY = y - (size * .025);
++        canvas.AddRoundedRect(x + size * .19, iconY + size * .24, size * .36, size * .15, background, color, .02, $"{name} gavel head");
++        canvas.AddLine(x + size * .48, iconY + size * .39, x + size * .68, iconY + size * .64, color, 1.25);
++        canvas.AddLine(x + size * .26, iconY + size * .70, x + size * .68, iconY + size * .70, color, 1.05);
++        canvas.AddLine(x + size * .32, iconY + size * .64, x + size * .62, iconY + size * .64, color, .85);
+         return true;
+     }
+ 
+@@ -242,10 +255,11 @@ public sealed partial class ProjectBriefingSlideComposer
+         string color,
+         string name)
+     {
+-        RenderDocumentOutline(canvas, x, y, size, background, color, name);
+-        canvas.AddLine(x + size * .31, y + size * .35, x + size * .51, y + size * .35, color, .80);
+-        canvas.AddLine(x + size * .31, y + size * .46, x + size * .48, y + size * .46, color, .80);
+-        RenderMagnifier(canvas, x + size * .51, y + size * .51, size * .16, background, color, name);
++        var iconX = x - (size * .025);
++        RenderDocumentOutline(canvas, iconX, y, size, background, color, name);
++        canvas.AddLine(iconX + size * .31, y + size * .35, iconX + size * .51, y + size * .35, color, .80);
++        canvas.AddLine(iconX + size * .31, y + size * .46, iconX + size * .48, y + size * .46, color, .80);
++        RenderMagnifier(canvas, iconX + size * .51, y + size * .51, size * .16, background, color, name);
+         return true;
+     }
+ 
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageSummary.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageSummary.cs
+index 20c7667..62f3afa 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageSummary.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageSummary.cs
+@@ -264,7 +264,7 @@ public sealed partial class ProjectBriefingSlideComposer
+                 badgeY,
+                 badgeSize,
+                 canvas.Theme.AccentSoft,
+-                accent,
++                ResolveStageIconStroke(canvas, accent),
+                 badgeFont,
+                 $"{point.Label} stage badge");
+ 
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+index b6d6680..22bcdb3 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -216,15 +216,28 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+             AddStageSummarySlides(plans, data);
+         }
+ 
+-        if (data.IncludeProjectCategorySummary)
++        if (data.IncludeProjectCategorySummary
++            && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
++                data.Summary.ProjectCategorySummary.Count(point => point.Count > 0)))
+         {
+-            AddSummaryChartSlides(plans, data, "Project-category summary", data.Summary.ProjectCategorySummary, ThemeAccent.Secondary);
++            AddSummaryChartSlides(
++                plans,
++                data,
++                "Project-category summary",
++                data.Summary.ProjectCategorySummary,
++                ThemeAccent.Secondary);
+         }
+ 
+         if (data.IncludeTechnicalCategorySummary
+-            && data.Summary.TechnicalCategorySummary.Count(point => point.Count > 0) > 1)
++            && ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
++                data.Summary.TechnicalCategorySummary.Count(point => point.Count > 0)))
+         {
+-            AddSummaryChartSlides(plans, data, "Technical-category summary", data.Summary.TechnicalCategorySummary, ThemeAccent.Positive);
++            AddSummaryChartSlides(
++                plans,
++                data,
++                "Technical-category summary",
++                data.Summary.TechnicalCategorySummary,
++                ThemeAccent.Primary);
+         }
+ 
+         if (data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable
+@@ -419,167 +432,7 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+     }
+ 
+     private static void RenderPortfolioSummary(SlideCanvas canvas, ProjectBriefingPresentationData data)
+-    {
+-        AddSlideTitle(canvas, "Portfolio at a glance");
+-
+-        var cards = new[]
+-        {
+-            ("SELECTED PROJECTS", data.Summary.ProjectCount, canvas.Theme.Accent),
+-            ("ONGOING", data.Summary.OngoingCount, canvas.Theme.SecondaryAccent),
+-            ("COMPLETED", data.Summary.CompletedCount, canvas.Theme.Positive)
+-        };
+-
+-        const double cardWidth = 3.72;
+-        const double cardGap = .44;
+-        const double cardStartX = .65;
+-        for (var index = 0; index < cards.Length; index++)
+-        {
+-            var x = cardStartX + (index * (cardWidth + cardGap));
+-            canvas.AddRoundedRect(x, 1.35, cardWidth, 1.58, canvas.Theme.Surface, canvas.Theme.Border, .08);
+-            canvas.AddRect(x, 1.35, .08, 1.58, cards[index].Item3);
+-            canvas.AddText(x + .28, 1.63, cardWidth - .56, .52,
+-                cards[index].Item2.ToString(CultureInfo.InvariantCulture),
+-                29,
+-                canvas.Theme.TextPrimary,
+-                true,
+-                "l");
+-            canvas.AddText(x + .28, 2.30, cardWidth - .56, .28,
+-                cards[index].Item1,
+-                10.8,
+-                canvas.Theme.TextMuted,
+-                true,
+-                "l");
+-        }
+-
+-        if (data.Layout == ProjectBriefingLayout.ProjectUpdateSheet)
+-        {
+-            AddCostSummaryCard(
+-                canvas,
+-                .65,
+-                3.42,
+-                5.86,
+-                "TOTAL R&D COST",
+-                data.Summary.TotalCostRdInRupees,
+-                data.Summary.CostRdRecordedCount,
+-                data.Summary.ProjectCount,
+-                canvas.Theme.Accent,
+-                canvas.Theme.AccentSoft,
+-                useFixedTwoDecimalPrecision: true);
+-            AddCostSummaryCard(
+-                canvas,
+-                6.82,
+-                3.42,
+-                5.86,
+-                "TOTAL IPA COST",
+-                data.Summary.TotalIpaCostInRupees,
+-                data.Summary.IpaCostRecordedCount,
+-                data.Summary.ProjectCount,
+-                canvas.Theme.SecondaryAccent,
+-                canvas.Theme.SecondaryAccentSoft,
+-                useFixedTwoDecimalPrecision: true);
+-            return;
+-        }
+-
+-        var showRd = data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+-        var showProliferation = data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+-
+-        if (showRd && showProliferation)
+-        {
+-            AddCostSummaryCard(
+-                canvas,
+-                .65,
+-                3.42,
+-                5.86,
+-                "COST (R&D)",
+-                data.Summary.TotalCostRdInRupees,
+-                data.Summary.CostRdRecordedCount,
+-                data.Summary.ProjectCount,
+-                canvas.Theme.Accent,
+-                canvas.Theme.AccentSoft);
+-            AddCostSummaryCard(
+-                canvas,
+-                6.82,
+-                3.42,
+-                5.86,
+-                "PROLIFERATION COST",
+-                data.Summary.TotalProliferationCostInRupees,
+-                data.Summary.ProliferationCostRecordedCount,
+-                data.Summary.ProjectCount,
+-                canvas.Theme.Positive,
+-                canvas.Theme.PositiveSoft);
+-        }
+-        else if (showRd)
+-        {
+-            AddCostSummaryCard(
+-                canvas,
+-                2.00,
+-                3.42,
+-                9.33,
+-                "COST (R&D)",
+-                data.Summary.TotalCostRdInRupees,
+-                data.Summary.CostRdRecordedCount,
+-                data.Summary.ProjectCount,
+-                canvas.Theme.Accent,
+-                canvas.Theme.AccentSoft);
+-        }
+-        else if (showProliferation)
+-        {
+-            AddCostSummaryCard(
+-                canvas,
+-                2.00,
+-                3.42,
+-                9.33,
+-                "PROLIFERATION COST",
+-                data.Summary.TotalProliferationCostInRupees,
+-                data.Summary.ProliferationCostRecordedCount,
+-                data.Summary.ProjectCount,
+-                canvas.Theme.Positive,
+-                canvas.Theme.PositiveSoft);
+-        }
+-        else
+-        {
+-            canvas.AddRoundedRect(.65, 3.42, 12.03, 1.92, canvas.Theme.Surface, canvas.Theme.Border, .08);
+-            canvas.AddText(.95, 4.10, 11.43, .38,
+-                "Cost information is not included in this deck.",
+-                18,
+-                canvas.Theme.TextPrimary,
+-                true,
+-                "ctr");
+-        }
+-    }
+-
+-    private static void AddCostSummaryCard(
+-        SlideCanvas canvas,
+-        double x,
+-        double y,
+-        double width,
+-        string title,
+-        decimal amount,
+-        int recorded,
+-        int total,
+-        string accent,
+-        string fill,
+-        bool useFixedTwoDecimalPrecision = false)
+-    {
+-        canvas.AddRoundedRect(x, y, width, 1.92, fill, accent, .08);
+-        canvas.AddText(x + .30, y + .28, width - .60, .28, title, 11.2, accent, true, "l");
+-        var amountDisplay = recorded > 0
+-            ? ProjectBriefingCurrencyFormatter.FormatRupees(
+-                amount,
+-                minimumDecimalPlaces: useFixedTwoDecimalPrecision ? 2 : 0)
+-            : "Not recorded";
+-        canvas.AddText(x + .30, y + .70, width - .60, .48, amountDisplay, 25, canvas.Theme.TextPrimary, true, "l");
+-        canvas.AddText(
+-            x + .30,
+-            y + 1.36,
+-            width - .60,
+-            .26,
+-            $"Available for {recorded} of {total} selected projects",
+-            9.8,
+-            canvas.Theme.TextMuted,
+-            false,
+-            "l");
+-    }
++        => RenderExecutivePortfolioSummary(canvas, data);
+ 
+     private static void AddStageSummarySlides(
+         List<SlidePlan> plans,
+@@ -602,69 +455,22 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
+         IReadOnlyList<ProjectBriefingSummaryPoint> points,
+         ThemeAccent accent)
+     {
+-        var chunks = points.Count == 0
+-            ? new[] { Array.Empty<ProjectBriefingSummaryPoint>() }
+-            : points.Chunk(10).Select(chunk => chunk.ToArray()).ToArray();
+-
+-        for (var index = 0; index < chunks.Length; index++)
+-        {
+-            var captured = chunks[index];
+-            var capturedIndex = index;
+-            plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderBarChart(
+-                canvas,
+-                title + (chunks.Length > 1 ? $" ({capturedIndex + 1}/{chunks.Length})" : string.Empty),
+-                null,
+-                captured,
+-                accent)));
+-        }
+-    }
+-
+-    private static void RenderBarChart(
+-        SlideCanvas canvas,
+-        string title,
+-        string? subtitle,
+-        IReadOnlyList<ProjectBriefingSummaryPoint> points,
+-        ThemeAccent accentRole,
+-        int total = 0,
+-        bool showShare = false)
+-    {
+-        AddSlideTitle(canvas, title, subtitle);
+-        var accent = ResolveAccent(canvas.Theme, accentRole);
+-        if (points.Count == 0)
+-        {
+-            AddEmptyMessage(canvas, "No summary data is available for the selected projects.");
+-            return;
+-        }
+-
+-        var maximum = Math.Max(1, points.Max(point => point.Count));
+-        const double chartTop = 1.16;
+-        const double chartHeight = 5.56;
+-        var rowHeight = Math.Min(.64, chartHeight / points.Count);
+-        var usedHeight = rowHeight * points.Count;
+-        var startY = chartTop + Math.Max(0, (chartHeight - usedHeight) / 2d);
+-        var labelFont = points.Count switch
+-        {
+-            <= 6 => 13.0,
+-            <= 9 => 12.0,
+-            <= 12 => 11.2,
+-            _ => 10.4
+-        };
+-        var barHeight = Math.Clamp(rowHeight * .58, .22, .34);
+-
+-        for (var index = 0; index < points.Count; index++)
+-        {
+-            var point = points[index];
+-            var y = startY + (index * rowHeight);
+-            var barWidth = 7.05 * point.Count / maximum;
+-            canvas.AddText(.72, y, 3.15, rowHeight, Truncate(point.Label, 42), labelFont, canvas.Theme.TextPrimary, true, "l");
+-            canvas.AddRoundedRect(3.90, y + ((rowHeight - barHeight) / 2), 7.25, barHeight, canvas.Theme.SurfaceMuted, canvas.Theme.SurfaceMuted, .04);
+-            canvas.AddRoundedRect(3.90, y + ((rowHeight - barHeight) / 2), Math.Max(.16, barWidth), barHeight, accent, accent, .04);
+-            canvas.AddText(11.30, y, .50, rowHeight, point.Count.ToString(CultureInfo.InvariantCulture), 12.2, canvas.Theme.TextPrimary, true, "r");
+-            if (showShare && total > 0)
+-            {
+-                var share = point.Count * 100d / total;
+-                canvas.AddText(11.86, y, .55, rowHeight, $"{share:0.#}%", 10.2, canvas.Theme.TextMuted, false, "r");
+-            }
++        var pages = ProjectBriefingSummaryPlanning.PaginateCategories(points);
++        for (var pageIndex = 0; pageIndex < pages.Count; pageIndex++)
++        {
++            var capturedPage = pages[pageIndex];
++            var capturedPageIndex = pageIndex;
++            plans.Add(new SlidePlan(
++                SlidePlanKind.Summary,
++                canvas => RenderAdaptiveCategorySummary(
++                    canvas,
++                    title,
++                    capturedPage,
++                    data.Summary.ProjectCount,
++                    points.Count(point => point.Count > 0),
++                    accent,
++                    capturedPageIndex + 1,
++                    pages.Count)));
+         }
+     }
+ 
+diff --git a/Services/ProjectBriefings/ProjectBriefingDataService.cs b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+index 7bbb01d..81b9764 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDataService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+@@ -203,10 +203,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             IncludeCoverSlide = snapshot.IncludeCoverSlide,
+             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
+             IncludeStageSummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeStageSummary,
+-            IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeProjectCategorySummary,
++            IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing
++                && snapshot.IncludeProjectCategorySummary
++                && ShouldRenderCategorySummary(summary.ProjectCategorySummary),
+             IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing
+                 && snapshot.IncludeTechnicalCategorySummary
+-                && ShouldRenderTechnicalCategorySummary(summary.TechnicalCategorySummary),
++                && ShouldRenderCategorySummary(summary.TechnicalCategorySummary),
+             UpdateSheetOptions = snapshot.UpdateSheetOptions,
+             HandlingMarking = snapshot.HandlingMarking,
+             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
+@@ -781,20 +783,22 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         var summarySlides = includeStageSummary
+             ? 1 + (standardSlideOptions.IncludeStageDistributionTable ? 1 : 0)
+             : 0;
++        var projectCategoryCount = projects
++            .Select(project => project.ProjectCategory ?? "Not categorised")
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .Count();
+         if (includeProjectCategorySummary)
+         {
+-            summarySlides += Math.Max(1, (int)Math.Ceiling(projects
+-                .Select(project => project.ProjectCategory ?? "Not categorised")
+-                .Distinct(StringComparer.OrdinalIgnoreCase)
+-                .Count() / 10d));
++            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(projectCategoryCount);
+         }
++
+         var technicalCategoryCount = projects
+             .Select(project => project.TechnicalCategory ?? "Not categorised")
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .Count();
+-        if (includeTechnicalCategorySummary && technicalCategoryCount > 1)
++        if (includeTechnicalCategorySummary)
+         {
+-            summarySlides += Math.Max(1, (int)Math.Ceiling(technicalCategoryCount / 10d));
++            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(technicalCategoryCount);
+         }
+ 
+         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
+@@ -849,9 +853,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         };
+     }
+ 
+-    private static bool ShouldRenderTechnicalCategorySummary(
++    private static bool ShouldRenderCategorySummary(
+         IReadOnlyList<ProjectBriefingSummaryPoint> points)
+-        => points.Count(point => point.Count > 0) > 1;
++        => ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
++            points.Count(point => point.Count > 0));
+ 
+     private async Task<FfcFootprintSummary> LoadFfcFootprintPreviewAsync(
+         long deckId,
+diff --git a/Services/ProjectBriefings/ProjectBriefingSummaryPlanning.cs b/Services/ProjectBriefings/ProjectBriefingSummaryPlanning.cs
+new file mode 100644
+index 0000000..821c0c0
+--- /dev/null
++++ b/Services/ProjectBriefings/ProjectBriefingSummaryPlanning.cs
+@@ -0,0 +1,56 @@
++namespace ProjectManagement.Services.ProjectBriefings;
++
++/// <summary>
++/// Shared slide-planning rules for portfolio category summaries. The same rules are
++/// used by the workspace estimate and the PowerPoint composer so that automatic
++/// suppression and continuation counts cannot drift apart.
++/// </summary>
++public static class ProjectBriefingSummaryPlanning
++{
++    public const int MaximumCategoriesPerSlide = 12;
++
++    public static bool ShouldRenderCategorySummary(int distinctCategoryCount)
++        => distinctCategoryCount > 1;
++
++    public static int EstimateCategorySlideCount(int distinctCategoryCount)
++    {
++        if (!ShouldRenderCategorySummary(distinctCategoryCount))
++        {
++            return 0;
++        }
++
++        return (int)Math.Ceiling(distinctCategoryCount / (double)MaximumCategoriesPerSlide);
++    }
++
++    public static IReadOnlyList<IReadOnlyList<ProjectBriefingSummaryPoint>> PaginateCategories(
++        IReadOnlyList<ProjectBriefingSummaryPoint> points)
++    {
++        ArgumentNullException.ThrowIfNull(points);
++
++        var populated = points
++            .Where(point => point.Count > 0)
++            .OrderByDescending(point => point.Count)
++            .ThenBy(point => point.Label, StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++
++        if (!ShouldRenderCategorySummary(populated.Length))
++        {
++            return Array.Empty<IReadOnlyList<ProjectBriefingSummaryPoint>>();
++        }
++
++        var pageCount = EstimateCategorySlideCount(populated.Length);
++        var basePageSize = populated.Length / pageCount;
++        var remainder = populated.Length % pageCount;
++        var pages = new List<IReadOnlyList<ProjectBriefingSummaryPoint>>(pageCount);
++        var offset = 0;
++
++        for (var pageIndex = 0; pageIndex < pageCount; pageIndex++)
++        {
++            var pageSize = basePageSize + (pageIndex < remainder ? 1 : 0);
++            pages.Add(populated.Skip(offset).Take(pageSize).ToArray());
++            offset += pageSize;
++        }
++
++        return pages;
++    }
++}

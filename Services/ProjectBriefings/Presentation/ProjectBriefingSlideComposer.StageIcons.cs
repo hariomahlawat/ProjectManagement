@@ -124,6 +124,12 @@ public sealed partial class ProjectBriefingSlideComposer
         return baseSize * scale;
     }
 
+    private static string ResolveStageIconStroke(SlideCanvas canvas, string accent)
+        => BlendStageSummaryColor(
+            accent,
+            canvas.Theme.IsDark ? "FFFFFF" : "000000",
+            canvas.Theme.IsDark ? .10 : .08);
+
     private static bool RenderDevelopmentStageIcon(
         SlideCanvas canvas,
         double x,
@@ -133,10 +139,13 @@ public sealed partial class ProjectBriefingSlideComposer
         string color,
         string name)
     {
-        var centreX = x + (size / 2d);
-        var centreY = y + (size / 2d);
-        var outerRadius = size * .205;
-        var innerRadius = size * .080;
+        var iconSize = size * 1.08;
+        var iconX = x - ((iconSize - size) / 2d);
+        var iconY = y - ((iconSize - size) / 2d);
+        var centreX = iconX + (iconSize / 2d);
+        var centreY = iconY + (iconSize / 2d);
+        var outerRadius = iconSize * .205;
+        var innerRadius = iconSize * .080;
         canvas.AddEllipse(
             centreX - outerRadius,
             centreY - outerRadius,
@@ -182,23 +191,26 @@ public sealed partial class ProjectBriefingSlideComposer
         string color,
         string name)
     {
-        var documentX = x + (size * .22);
-        var documentY = y + (size * .18);
-        var documentWidth = size * .42;
-        var documentHeight = size * .55;
+        var iconSize = size * .96;
+        var iconX = x + ((size - iconSize) / 2d);
+        var iconY = y + ((size - iconSize) / 2d);
+        var documentX = iconX + (iconSize * .22);
+        var documentY = iconY + (iconSize * .18);
+        var documentWidth = iconSize * .42;
+        var documentHeight = iconSize * .55;
         canvas.AddRoundedRect(documentX, documentY, documentWidth, documentHeight, background, color, .02, $"{name} clipboard");
         canvas.AddRoundedRect(
             documentX + (documentWidth * .27),
-            documentY - (size * .025),
+            documentY - (iconSize * .025),
             documentWidth * .46,
-            size * .09,
+            iconSize * .09,
             background,
             color,
             .02,
             $"{name} clipboard clip");
-        canvas.AddLine(documentX + size * .08, documentY + size * .18, documentX + size * .27, documentY + size * .18, color, .80);
-        canvas.AddLine(documentX + size * .08, documentY + size * .29, documentX + size * .24, documentY + size * .29, color, .80);
-        RenderMagnifier(canvas, x + (size * .50), y + (size * .48), size * .19, background, color, name);
+        canvas.AddLine(documentX + iconSize * .08, documentY + iconSize * .18, documentX + iconSize * .27, documentY + iconSize * .18, color, .80);
+        canvas.AddLine(documentX + iconSize * .08, documentY + iconSize * .29, documentX + iconSize * .24, documentY + iconSize * .29, color, .80);
+        RenderMagnifier(canvas, iconX + (iconSize * .50), iconY + (iconSize * .48), iconSize * .19, background, color, name);
         return true;
     }
 
@@ -211,10 +223,11 @@ public sealed partial class ProjectBriefingSlideComposer
         string color,
         string name)
     {
-        canvas.AddRoundedRect(x + size * .19, y + size * .24, size * .36, size * .15, background, color, .02, $"{name} gavel head");
-        canvas.AddLine(x + size * .48, y + size * .39, x + size * .68, y + size * .64, color, 1.25);
-        canvas.AddLine(x + size * .26, y + size * .70, x + size * .68, y + size * .70, color, 1.05);
-        canvas.AddLine(x + size * .32, y + size * .64, x + size * .62, y + size * .64, color, .85);
+        var iconY = y - (size * .025);
+        canvas.AddRoundedRect(x + size * .19, iconY + size * .24, size * .36, size * .15, background, color, .02, $"{name} gavel head");
+        canvas.AddLine(x + size * .48, iconY + size * .39, x + size * .68, iconY + size * .64, color, 1.25);
+        canvas.AddLine(x + size * .26, iconY + size * .70, x + size * .68, iconY + size * .70, color, 1.05);
+        canvas.AddLine(x + size * .32, iconY + size * .64, x + size * .62, iconY + size * .64, color, .85);
         return true;
     }
 
@@ -242,10 +255,11 @@ public sealed partial class ProjectBriefingSlideComposer
         string color,
         string name)
     {
-        RenderDocumentOutline(canvas, x, y, size, background, color, name);
-        canvas.AddLine(x + size * .31, y + size * .35, x + size * .51, y + size * .35, color, .80);
-        canvas.AddLine(x + size * .31, y + size * .46, x + size * .48, y + size * .46, color, .80);
-        RenderMagnifier(canvas, x + size * .51, y + size * .51, size * .16, background, color, name);
+        var iconX = x - (size * .025);
+        RenderDocumentOutline(canvas, iconX, y, size, background, color, name);
+        canvas.AddLine(iconX + size * .31, y + size * .35, iconX + size * .51, y + size * .35, color, .80);
+        canvas.AddLine(iconX + size * .31, y + size * .46, iconX + size * .48, y + size * .46, color, .80);
+        RenderMagnifier(canvas, iconX + size * .51, y + size * .51, size * .16, background, color, name);
         return true;
     }
 

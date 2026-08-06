@@ -264,7 +264,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 badgeY,
                 badgeSize,
                 canvas.Theme.AccentSoft,
-                accent,
+                ResolveStageIconStroke(canvas, accent),
                 badgeFont,
                 $"{point.Label} stage badge");
 

@@ -1,48 +1,77 @@
-# PRISM Project Officer Smooth Experience
+# PRISM Executive Summary Harmonisation
 
-This is a cumulative ready-to-replace package. Copy the files into the project root while preserving the folder structure.
+This package is built on the current Stage-wise Summary implementation, including the responsive layouts and Stage Icon and Badge Precision pass.
 
-## Main improvements
+## Replace/add these production files together
 
-- The Project Officer may continue submitting updates for any number of stages while earlier updates await HoD approval.
-- The update modal now shows the complete projected lifecycle, including existing pending updates, new updates and the current revision.
-- Revising a pending stage start to completion retains the earlier proposed start date without adding database columns.
-- The retained start is shown in the modal, timeline and HoD review, and is applied when completion is approved.
-- Every stage with a pending proposal exposes a consistent **Review update** action.
-- Pending completion suppresses the competing planned-completion warning and action.
-- The Next Stage summary acknowledges a submitted start update.
-- The stage-update modal uses a viewport-safe scrollable body with permanently accessible header and footer controls.
-- The add-stage action is compact and remains on one line.
-- Timeline and Remarks tab state now stays synchronized with the URL hash.
-- HoD pending-stage review uses update-oriented wording and shows proposed start and completion separately.
-- Existing multi-stage projected validation, workflow-version awareness, role controls and approval governance are retained.
+1. `Services/ProjectBriefings/ProjectBriefingSummaryPlanning.cs` — **new**
+2. `Services/ProjectBriefings/ProjectBriefingDataService.cs` — replace
+3. `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs` — replace
+4. `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.ExecutiveSummary.cs` — **new**
+5. `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageSummary.cs` — replace
+6. `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageIcons.cs` — replace
+7. `Pages/Workspace/BriefingDecks/Index.cshtml` — replace
 
-## Database
+The project uses SDK-style wildcard compilation, so the two new `.cs` files are included automatically. No `.csproj` change is required.
 
-No database migration is required. Existing `StageChangeRequest` history is used to carry forward a superseded proposed start.
+## Implemented
 
-## Deployment
+### Portfolio at a glance
 
-1. Back up the solution.
-2. Replace the files in this package using the included relative paths.
-3. Delete the solution `bin` and `obj` folders.
-4. Rebuild the main project, then rebuild the test project.
-5. Restart the application.
-6. Perform a hard browser refresh (`Ctrl+F5`).
+- Harmonised KPI cards for Selected, Completed, Ongoing and optional Cancelled projects.
+- Common semantic colours:
+  - institutional burgundy for the selected total;
+  - green for completed;
+  - blue for ongoing;
+  - red only when cancelled projects exist.
+- Completed/Ongoing cards include portfolio share.
+- Cost cards now use accurate labels:
+  - `RECORDED R&D COST`
+  - `RECORDED PROLIFERATION COST`
+  - `RECORDED IPA COST` for update-sheet decks.
+- Each cost card shows source coverage and a proportional coverage bar.
+- Light and Graphite Dark themes use the same information hierarchy.
 
-## Recommended verification
+### Project-category and technical-category summaries
 
-1. Submit completion for the current stage.
-2. Submit a start update for the next stage while the first update remains pending.
-3. Open the second stage again and revise it from Start to Completion.
-4. Confirm the modal shows the earlier proposed start and the new completion in the projected lifecycle.
-5. Confirm the timeline displays both proposed dates after submission.
-6. Approve the completion and confirm the retained start becomes the stage actual start.
-7. Switch between Timeline and Remarks and refresh the page to confirm the URL state is preserved.
+- Single-category summaries are automatically suppressed because they add no analytical value.
+- Two to five categories use a ranked full-width horizontal distribution.
+- Six to ten categories use a compact two-column ranked layout.
+- Eleven or twelve categories use the full-width compact ranked layout.
+- More than twelve categories generate balanced continuation pages, with a maximum of twelve categories per slide.
+- Continuation page counts are shared between the workspace estimate and the composer.
+- Counts and portfolio shares are shown consistently.
+- Project categories use the secondary teal accent; technical categories use the institutional blue accent.
+- Green is reserved for completion semantics and is no longer used for technical-category charts.
 
-## Validation performed
+### Stage icon normalisation
 
-- JavaScript syntax validation passed for `stages.js` and `overview.js`.
-- Focused Node tests passed for direct refresh, Project Officer updates, projected lifecycle, retained start and panel hash synchronization.
-- ZIP integrity was checked.
-- A full .NET build could not be run in the packaging environment because the .NET SDK is not installed.
+- Development icon enlarged approximately 8–10%.
+- Technical Evaluation icon reduced slightly.
+- Bidding/Tendering icon moved upward optically.
+- Scope of Work Vetting icon shifted left.
+- Icon strokes are slightly darker in Editorial Light and slightly lighter in Graphite Dark.
+- Existing slide geometry and responsive rules remain unchanged.
+
+### Workspace behaviour
+
+- Project-category helper text now states that the slide is automatically omitted when only one category is represented.
+- Slide estimates and generated slide counts use the same category-pagination rules.
+
+## Apply
+
+1. Stop the running application/IIS Express.
+2. Copy the contents of `ReadyToPaste` into the project root, preserving folders.
+3. Clean the solution.
+4. Delete `bin` and `obj` only if Visual Studio retains stale compilation output.
+5. Rebuild and generate both Editorial Light and Graphite Dark decks.
+
+## Verification
+
+Optional focused regression tests are provided under `VerificationTests`.
+
+Reference geometry previews are provided under `ReferencePreviews`; they are not application assets and do not need to be copied into the project.
+
+No database migration, NuGet package, dependency-injection registration, JavaScript or CSS change is required.
+
+A complete .NET build could not be executed in the packaging environment because the .NET SDK is unavailable. The files were checked for balanced source structure, shared pagination consistency, patch applicability and archive integrity.

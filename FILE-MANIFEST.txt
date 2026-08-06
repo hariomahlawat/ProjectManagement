@@ -1,0 +1,17 @@
+ReadyToPaste/Pages/Workspace/BriefingDecks/Index.cshtml
+ReadyToPaste/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.ExecutiveSummary.cs
+ReadyToPaste/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageIcons.cs
+ReadyToPaste/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageSummary.cs
+ReadyToPaste/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+ReadyToPaste/Services/ProjectBriefings/ProjectBriefingDataService.cs
+ReadyToPaste/Services/ProjectBriefings/ProjectBriefingSummaryPlanning.cs
+
+Verification files:
+VerificationTests/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingExecutiveSummaryTests.cs
+
+Reference previews:
+ReferencePreviews/portfolio_harmonised_preview.png
+ReferencePreviews/project_category_harmonised_preview.png
+
+Patch:
+PRISM-Executive-Summary-Harmonisation.patch

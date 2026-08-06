@@ -203,10 +203,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             IncludeCoverSlide = snapshot.IncludeCoverSlide,
             IncludePortfolioSummarySlide = snapshot.IncludePortfolioSummarySlide,
             IncludeStageSummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeStageSummary,
-            IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing && snapshot.IncludeProjectCategorySummary,
+            IncludeProjectCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing
+                && snapshot.IncludeProjectCategorySummary
+                && ShouldRenderCategorySummary(summary.ProjectCategorySummary),
             IncludeTechnicalCategorySummary = snapshot.Layout == ProjectBriefingLayout.StandardBriefing
                 && snapshot.IncludeTechnicalCategorySummary
-                && ShouldRenderTechnicalCategorySummary(summary.TechnicalCategorySummary),
+                && ShouldRenderCategorySummary(summary.TechnicalCategorySummary),
             UpdateSheetOptions = snapshot.UpdateSheetOptions,
             HandlingMarking = snapshot.HandlingMarking,
             GeneratedAtUtc = _clock.UtcNow.ToUniversalTime(),
@@ -781,20 +783,22 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var summarySlides = includeStageSummary
             ? 1 + (standardSlideOptions.IncludeStageDistributionTable ? 1 : 0)
             : 0;
+        var projectCategoryCount = projects
+            .Select(project => project.ProjectCategory ?? "Not categorised")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
         if (includeProjectCategorySummary)
         {
-            summarySlides += Math.Max(1, (int)Math.Ceiling(projects
-                .Select(project => project.ProjectCategory ?? "Not categorised")
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count() / 10d));
+            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(projectCategoryCount);
         }
+
         var technicalCategoryCount = projects
             .Select(project => project.TechnicalCategory ?? "Not categorised")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-        if (includeTechnicalCategorySummary && technicalCategoryCount > 1)
+        if (includeTechnicalCategorySummary)
         {
-            summarySlides += Math.Max(1, (int)Math.Ceiling(technicalCategoryCount / 10d));
+            summarySlides += ProjectBriefingSummaryPlanning.EstimateCategorySlideCount(technicalCategoryCount);
         }
 
         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
@@ -849,9 +853,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         };
     }
 
-    private static bool ShouldRenderTechnicalCategorySummary(
+    private static bool ShouldRenderCategorySummary(
         IReadOnlyList<ProjectBriefingSummaryPoint> points)
-        => points.Count(point => point.Count > 0) > 1;
+        => ProjectBriefingSummaryPlanning.ShouldRenderCategorySummary(
+            points.Count(point => point.Count > 0));
 
     private async Task<FfcFootprintSummary> LoadFfcFootprintPreviewAsync(
         long deckId,
