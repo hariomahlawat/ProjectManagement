@@ -221,24 +221,24 @@ public sealed partial class ProjectBriefingSlideComposer
         const double chartWidth = 8.72;
         const double calloutX = 9.47;
         const double calloutWidth = 3.40;
-        const double sectionHeadingY = 2.29;
-        const double badgeY = 2.69;
+        const double sectionHeadingY = 2.31;
+        const double badgeY = 2.67;
         const double badgeSize = .46;
-        const double sequenceY = 3.23;
-        const double labelY = 3.42;
-        const double labelHeight = .58;
-        const double trackTop = 4.39;
-        const double baselineY = 6.49;
+        const double sequenceY = 3.16;
+        const double labelY = 3.36;
+        const double labelHeight = .52;
+        const double trackTop = 4.12;
+        const double baselineY = 6.08;
         const double trackHeight = baselineY - trackTop;
 
         canvas.AddText(
             chartX + .05,
             sectionHeadingY,
             chartWidth - .10,
-            .30,
-            "Breakdown of ongoing projects by stage",
-            14.8,
-            canvas.Theme.TextPrimary,
+            .24,
+            "ONGOING PROJECTS BY PRESENT STAGE",
+            11.8,
+            canvas.Theme.TextSecondary,
             true,
             "l",
             name: "Ongoing stage breakdown heading");
@@ -247,7 +247,7 @@ public sealed partial class ProjectBriefingSlideComposer
         var cellWidth = chartWidth / points.Count;
         var labelFont = points.Count <= 5 ? 10.7 : 9.7;
         var badgeFont = points.Count <= 5 ? 10.0 : 9.2;
-        var trackWidth = Math.Clamp(cellWidth * .34, .50, .66);
+        var trackWidth = Math.Clamp(cellWidth * .42, .62, .78);
 
         canvas.AddLine(chartX + .02, baselineY, chartX + chartWidth - .02, baselineY, canvas.Theme.TextSecondary, .70);
 
@@ -280,21 +280,21 @@ public sealed partial class ProjectBriefingSlideComposer
                 name: $"{point.Label} stage badge text");
 
             canvas.AddText(
-                cellX + .08,
+                centreX - .24,
                 sequenceY,
-                cellWidth - .16,
+                .48,
                 .18,
-                $"{index + 1}.",
-                8.5,
+                (index + 1).ToString("00", CultureInfo.InvariantCulture),
+                8.3,
                 canvas.Theme.TextMuted,
                 true,
                 "c",
                 name: $"{point.Label} stage sequence");
 
             canvas.AddText(
-                cellX + .07,
+                cellX + .05,
                 labelY,
-                cellWidth - .14,
+                cellWidth - .10,
                 labelHeight,
                 point.Label,
                 labelFont,
@@ -311,7 +311,7 @@ public sealed partial class ProjectBriefingSlideComposer
                 trackWidth,
                 trackHeight,
                 canvas.Theme.SurfaceMuted,
-                canvas.Theme.Border,
+                null,
                 .30,
                 $"{point.Label} stage track");
 
@@ -328,11 +328,11 @@ public sealed partial class ProjectBriefingSlideComposer
                 $"{point.Label} stage column");
             canvas.AddText(
                 centreX - .34,
-                Math.Max(trackTop - .31, barY - .31),
+                Math.Max(trackTop - .27, barY - .28),
                 .68,
-                .27,
+                .24,
                 point.Count.ToString(CultureInfo.InvariantCulture),
-                13.8,
+                13.4,
                 accent,
                 true,
                 "c",
@@ -344,9 +344,9 @@ public sealed partial class ProjectBriefingSlideComposer
             summary,
             points,
             calloutX,
-            3.38,
+            3.83,
             calloutWidth,
-            2.02);
+            1.58);
     }
 
     private static void RenderOngoingStageCardGrid(
@@ -359,9 +359,9 @@ public sealed partial class ProjectBriefingSlideComposer
             2.24,
             12.23,
             .32,
-            "Breakdown of ongoing projects by stage",
-            14.6,
-            canvas.Theme.TextPrimary,
+            "ONGOING PROJECTS BY PRESENT STAGE",
+            11.8,
+            canvas.Theme.TextSecondary,
             true,
             "c",
             name: "Ongoing stage breakdown heading");
@@ -423,9 +423,9 @@ public sealed partial class ProjectBriefingSlideComposer
             2.23,
             12.23,
             .32,
-            "Breakdown of ongoing projects by stage",
-            14.4,
-            canvas.Theme.TextPrimary,
+            "ONGOING PROJECTS BY PRESENT STAGE",
+            11.8,
+            canvas.Theme.TextSecondary,
             true,
             "c",
             name: "Ongoing stage breakdown heading");
@@ -476,9 +476,9 @@ public sealed partial class ProjectBriefingSlideComposer
             2.45,
             12.03,
             .38,
-            "Breakdown of ongoing projects by stage",
-            15.0,
-            canvas.Theme.TextPrimary,
+            "ONGOING PROJECTS BY PRESENT STAGE",
+            11.8,
+            canvas.Theme.TextSecondary,
             true,
             "c");
         canvas.AddSubtleRoundedRect(2.12, 3.12, 9.10, 2.10, canvas.Theme.PositiveSoft, canvas.Theme.Positive, "All projects completed message panel");
@@ -518,41 +518,92 @@ public sealed partial class ProjectBriefingSlideComposer
         double height)
     {
         var insight = BuildStageInsight(summary, points);
-        canvas.AddSubtleRoundedRect(x, y, width, height, canvas.Theme.AccentSoft, canvas.Theme.Accent, "Stage summary key takeaway panel");
+        canvas.AddSubtleRoundedRect(
+            x,
+            y,
+            width,
+            height,
+            canvas.Theme.AccentSoft,
+            canvas.Theme.Accent,
+            "Stage summary key takeaway panel");
         canvas.AddText(
-            x + .28,
-            y + .20,
-            width - .56,
+            x + .30,
+            y + .18,
+            width - .60,
             .18,
             "KEY TAKEAWAY",
-            9.2,
+            8.9,
             canvas.Theme.Accent,
             true,
-            "c",
+            "l",
             name: "Stage summary key takeaway eyebrow");
         canvas.AddText(
-            x + .25,
-            y + .50,
-            width - .50,
-            .50,
+            x + .28,
+            y + .47,
+            width - .56,
+            .42,
             insight.Headline,
-            23.0,
+            22.6,
             canvas.Theme.Accent,
             true,
-            "c",
+            "l",
             name: "Stage summary key takeaway metric");
-        canvas.AddText(
-            x + .34,
-            y + 1.09,
-            width - .68,
-            height - 1.30,
-            insight.Body,
-            11.4,
-            canvas.Theme.TextPrimary,
-            false,
-            "c",
-            verticalAnchor: "t",
-            name: "Stage summary key takeaway body");
+
+        if (!string.IsNullOrWhiteSpace(insight.Emphasis))
+        {
+            canvas.AddRichTextBox(
+                x + .28,
+                y + 1.00,
+                width - .56,
+                Math.Max(.34, height - 1.12),
+                new[]
+                {
+                    new RichTextParagraph(
+                        new[]
+                        {
+                            new RichTextRun(
+                                insight.Body,
+                                10.8,
+                                canvas.Theme.TextPrimary)
+                        },
+                        Align: "l",
+                        SpaceAfterPoints: 1.5,
+                        LineSpacingPoints: 12.6),
+                    new RichTextParagraph(
+                        new[]
+                        {
+                            new RichTextRun(
+                                insight.Emphasis!,
+                                11.5,
+                                canvas.Theme.Accent,
+                                Bold: true)
+                        },
+                        Align: "l",
+                        LineSpacingPoints: 13.2)
+                },
+                "Stage summary key takeaway body",
+                verticalAnchor: "t",
+                allowAutoFit: false,
+                leftInset: 0,
+                rightInset: 0,
+                topInset: 0,
+                bottomInset: 0);
+        }
+        else
+        {
+            canvas.AddText(
+                x + .28,
+                y + 1.00,
+                width - .56,
+                Math.Max(.34, height - 1.12),
+                insight.Body,
+                10.8,
+                canvas.Theme.TextPrimary,
+                false,
+                "l",
+                verticalAnchor: "t",
+                name: "Stage summary key takeaway body");
+        }
     }
 
     private static void RenderInsightStrip(SlideCanvas canvas, string message)
@@ -603,7 +654,8 @@ public sealed partial class ProjectBriefingSlideComposer
         var noun = summary.OngoingCount == 1 ? "project is" : "projects are";
         return new StageSummaryInsight(
             $"{leader.Count.ToString(CultureInfo.InvariantCulture)} of {summary.OngoingCount.ToString(CultureInfo.InvariantCulture)}",
-            $"ongoing {noun} at the {ResolveTakeawayStageName(leader)} stage.");
+            $"ongoing {noun} at the",
+            $"{ResolveTakeawayStageName(leader)} stage");
     }
 
     private static string BuildStageTakeaway(
@@ -611,7 +663,10 @@ public sealed partial class ProjectBriefingSlideComposer
         IReadOnlyList<ProjectBriefingSummaryPoint> points)
     {
         var insight = BuildStageInsight(summary, points);
-        return $"{insight.Headline}: {insight.Body}";
+        var emphasis = string.IsNullOrWhiteSpace(insight.Emphasis)
+            ? string.Empty
+            : $" {insight.Emphasis}";
+        return $"{insight.Headline}: {insight.Body}{emphasis}";
     }
 
     private static string ResolveOngoingStageAccent(SlideCanvas canvas, bool isLeader)
@@ -694,5 +749,6 @@ public sealed partial class ProjectBriefingSlideComposer
 
     private sealed record StageSummaryInsight(
         string Headline,
-        string Body);
+        string Body,
+        string? Emphasis = null);
 }
