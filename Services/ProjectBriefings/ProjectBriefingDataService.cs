@@ -110,6 +110,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             SlideEstimate = BuildSlideEstimate(snapshot.Layout, snapshot.IncludeCoverSlide, snapshot.IncludePortfolioSummarySlide,
                 snapshot.PresentationMode, snapshot.IncludeStageSummary, snapshot.IncludeProjectCategorySummary,
                 snapshot.IncludeTechnicalCategorySummary, snapshot.StandardSlideOptions,
+                snapshot.UpdateSheetOptions,
                 snapshot.InstitutionalProfileOptions, snapshot.RoleCharterOptions,
                 snapshot.FfcGlobalFootprintOptions, ffcPreview.CountryCount,
                 snapshot.AdditionalSlideOrder,
@@ -741,6 +742,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool includeProjectCategorySummary,
         bool includeTechnicalCategorySummary,
         ProjectBriefingStandardSlideOptions standardSlideOptions,
+        ProjectBriefingUpdateSheetOptions updateSheetOptions,
         ProjectBriefingInstitutionalProfileOptions institutionalProfileOptions,
         ProjectBriefingRoleCharterOptions roleCharterOptions,
         ProjectBriefingFfcGlobalFootprintOptions ffcGlobalFootprintOptions,
@@ -766,7 +768,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var configuredSlides = coverAndPortfolioSlides + institutionalProfileSlides + roleCharterSlides + ffcGlobalFootprintSlides;
         if (layout == ProjectBriefingLayout.ProjectUpdateSheet)
         {
-            var projectUpdateSheetSlides = projects.Sum(EstimateProjectUpdateSheetSlides);
+            var projectUpdateSheetSlides = projects.Sum(project =>
+                ProjectBriefingUpdateSheetPlanner.EstimateSlideCount(project, updateSheetOptions));
             return new ProjectBriefingSlideEstimateVm
             {
                 CoverAndPortfolioSlides = coverAndPortfolioSlides,
@@ -972,30 +975,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 : normalized.RoleStatements,
             CharterItems = normalized.CharterItems
         };
-    }
-
-    private static int EstimateProjectUpdateSheetSlides(ProjectBriefingProjectVm project)
-    {
-        var brief = string.IsNullOrWhiteSpace(project.ProjectBrief)
-            ? string.Empty
-            : project.ProjectBrief
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace("\r", "\n", StringComparison.Ordinal)
-                .Trim();
-        if (brief.Length == 0
-            || string.Equals(brief, "Project brief not recorded.", StringComparison.OrdinalIgnoreCase))
-        {
-            return 1;
-        }
-
-        // The exact first-page capacity varies with the selected fact rows. Use the
-        // compact-layout capacity for a stable, conservative preflight estimate; the
-        // composer performs the final geometry-aware pagination during generation.
-        const int firstSlideCapacity = 900;
-        const int continuationCapacity = 2_500;
-        return brief.Length <= firstSlideCapacity
-            ? 1
-            : 1 + (int)Math.Ceiling((brief.Length - firstSlideCapacity) / (double)continuationCapacity);
     }
 
     private static int? ResolveCoverPhotoId(DeckItemSnapshot item)

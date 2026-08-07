@@ -268,30 +268,30 @@ public sealed partial class ProjectBriefingSlideComposer
                 badgeFont,
                 $"{point.Label} stage badge");
 
-            canvas.AddText(
-                centreX - .24,
+            AddZeroInsetCentredText(
+                canvas,
+                cellX,
                 sequenceY,
-                .48,
+                cellWidth,
                 .18,
                 (index + 1).ToString("00", CultureInfo.InvariantCulture),
                 8.3,
                 canvas.Theme.TextMuted,
                 true,
-                "c",
-                name: $"{point.Label} stage sequence");
+                $"{point.Label} stage sequence");
 
-            canvas.AddText(
-                cellX + .05,
+            AddZeroInsetCentredText(
+                canvas,
+                cellX + .04,
                 labelY,
-                cellWidth - .10,
+                cellWidth - .08,
                 labelHeight,
                 point.Label,
                 labelFont,
                 canvas.Theme.TextPrimary,
                 true,
-                "c",
-                verticalAnchor: "t",
-                name: $"{point.Label} stage label");
+                $"{point.Label} stage label",
+                verticalAnchor: "t");
 
             var trackX = centreX - (trackWidth / 2d);
             canvas.AddRoundedRect(
@@ -315,17 +315,17 @@ public sealed partial class ProjectBriefingSlideComposer
                 accent,
                 .30,
                 $"{point.Label} stage column");
-            canvas.AddText(
-                centreX - .34,
+            AddZeroInsetCentredText(
+                canvas,
+                trackX,
                 Math.Max(trackTop - .27, barY - .28),
-                .68,
+                trackWidth,
                 .24,
                 point.Count.ToString(CultureInfo.InvariantCulture),
                 13.4,
                 accent,
                 true,
-                "c",
-                name: $"{point.Label} stage count");
+                $"{point.Label} stage count");
         }
 
         RenderKeyTakeawayCard(
@@ -336,6 +336,42 @@ public sealed partial class ProjectBriefingSlideComposer
             3.83,
             calloutWidth,
             1.58);
+    }
+
+    private static void AddZeroInsetCentredText(
+        SlideCanvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        string text,
+        double fontSize,
+        string color,
+        bool bold,
+        string name,
+        string verticalAnchor = "ctr")
+    {
+        canvas.AddRichTextBox(
+            x,
+            y,
+            width,
+            height,
+            new[]
+            {
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(text, fontSize, color, Bold: bold)
+                    },
+                    Align: "ctr")
+            },
+            name,
+            verticalAnchor: verticalAnchor,
+            allowAutoFit: false,
+            leftInset: 0,
+            rightInset: 0,
+            topInset: 0,
+            bottomInset: 0);
     }
 
     private static void RenderOngoingStageCardGrid(
