@@ -456,10 +456,12 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
         ThemeAccent accent)
     {
         var pages = ProjectBriefingSummaryPlanning.PaginateCategories(points);
+        var rankOffset = 0;
         for (var pageIndex = 0; pageIndex < pages.Count; pageIndex++)
         {
             var capturedPage = pages[pageIndex];
             var capturedPageIndex = pageIndex;
+            var capturedRankOffset = rankOffset;
             plans.Add(new SlidePlan(
                 SlidePlanKind.Summary,
                 canvas => RenderAdaptiveCategorySummary(
@@ -470,7 +472,9 @@ public sealed partial class ProjectBriefingSlideComposer : IProjectBriefingSlide
                     points.Count(point => point.Count > 0),
                     accent,
                     capturedPageIndex + 1,
-                    pages.Count)));
+                    pages.Count,
+                    capturedRankOffset)));
+            rankOffset += capturedPage.Count;
         }
     }
 
