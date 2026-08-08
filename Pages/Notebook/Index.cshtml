@@ -1,18 +1,16 @@
 @page
 @model ProjectManagement.Pages.Notebook.IndexModel
-@using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
 @inject ProjectManagement.Services.Notebook.INotebookCardModelFactory CardModelFactory
 @{
     ViewData["Title"] = "My Notebook";
     ViewData["UseFullWidth"] = true;
-    var selected = Model.Notebook.SelectedItem;
-    var selectedType = Model.Input.Type;
-    var isCreateMode = string.Equals(Model.Mode, "new", StringComparison.OrdinalIgnoreCase);
     var emptyTitle = Model.Notebook.View switch
     {
         "labels" => "No labels yet.",
-        "today" or "reminders" => "No reminders due.",
+        "today" => "No reminders due today.",
+        "overdue" => "No overdue reminders.",
+        "reminders" => "No active reminders.",
         "archive" or "archived" => "No archived items.",
         "completed" => "No completed items.",
         "trash" => "Trash is empty.",
@@ -21,7 +19,7 @@
     var emptyText = Model.Notebook.View switch
     {
         "labels" => "Add tags to notebook items, then browse by label here.",
-        "today" or "reminders" => "Add a reminder to any note, checklist or sticky item.",
+        "today" or "overdue" or "reminders" => "Add a reminder to any note or checklist.",
         "shared" => "Shared notes from other PRISM users will appear here.",
         "archive" or "archived" => "Archived notes will appear here.",
         "completed" => "Completed notes will appear here.",
@@ -36,6 +34,7 @@
         "archive" or "archived" => "Archive",
         "completed" => "Completed",
         "today" => "Today",
+        "overdue" => "Overdue",
         "reminders" => "Reminders",
         "shared" => "Shared with me",
         "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => selectedLabelName,
@@ -48,18 +47,19 @@
         "archive" or "archived" => "Archived notes and checklists.",
         "completed" => "Completed reminders and notebook items.",
         "today" => "Items due today.",
-        "reminders" => "Upcoming reminders across your notebook.",
+        "overdue" => "Past reminders that still need attention.",
+        "reminders" => "All active reminders across your notebook.",
         "shared" => "Notes and checklists shared with you by other PRISM users.",
         "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => $"Items labelled {selectedLabelName}.",
         "labels" => "Browse and organise notebook labels.",
         "trash" => "Items in Trash are permanently deleted after 30 days.",
-        _ => "Notes, reminders, checklists, ideas and drafts."
+        _ => "Notes, checklists and reminders."
     };
     var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
-<div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
+<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
     @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
     <div id="notebook-antiforgery-token" hidden>
         @Html.AntiForgeryToken()
@@ -68,9 +68,9 @@
     <aside class="notebook-rail" aria-label="Notebook views">
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
 
-        @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "home" or "today" or "reminders" or "shared"))
+        @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "home" or "today" or "overdue" or "reminders" or "shared"))
         {
-            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
+            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url" hidden="@(item.Key == "overdue" && item.Count == 0 && !item.IsActive)"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
         }
 
         <div class="notebook-rail-labels notebook-rail-labels--flat" data-notebook-label-rail aria-label="Notebook labels">
@@ -113,7 +113,7 @@
                     <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
                     <button type="button" data-notebook-view="list" aria-label="List view"><i class="bi bi-list-ul"></i></button>
                 </div>
-                @if (Model.Notebook.View == "home" && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
+                @if (Model.Notebook.View == "home" && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Notebook.Tag) && string.IsNullOrWhiteSpace(Model.Notebook.Filter))
                 {
                     <button type="button" class="notebook-rearrange-toggle" data-notebook-rearrange-toggle><i class="bi bi-arrows-move"></i><span>Rearrange</span></button>
                     <button type="button" class="notebook-rearrange-toggle is-done" data-notebook-rearrange-done hidden><i class="bi bi-check2"></i><span>Done</span></button>
@@ -122,7 +122,7 @@
         </section>
 
         @* SECTION: Expandable async notebook composer *@
-        @if (string.Equals(Model.Notebook.View, "home", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Tag))
+        @if (string.Equals(Model.Notebook.View, "home", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Tag) && string.IsNullOrWhiteSpace(Model.Notebook.Filter))
         {
                     <section class="notebook-composer" aria-label="Create a notebook item" data-notebook-composer data-state="collapsed">
                         <div class="notebook-composer__collapsed" data-composer-collapsed>
@@ -181,7 +181,7 @@
                 <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-threshold" data-layout="grid" data-item-count="@Model.Notebook.PinnedItems.Count">
                     @foreach (var item in Model.Notebook.PinnedItems)
                     {
-                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
+                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
                 </div>
             </section>
@@ -190,7 +190,7 @@
                 <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-threshold" data-layout="@(Model.Notebook.OtherItems.Count > 4 ? "masonry" : "grid")" data-item-count="@Model.Notebook.OtherItems.Count">
                     @foreach (var item in Model.Notebook.OtherItems)
                     {
-                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
+                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
                 </div>
                 @if (!hasAnyHomeItems)
@@ -205,14 +205,14 @@
                 <div class="notebook-board" data-notebook-board data-layout-policy="masonry-threshold" data-layout="@(Model.Notebook.Items.Count > 4 ? "masonry" : "grid")" data-item-count="@Model.Notebook.Items.Count">
                     @foreach (var item in Model.Notebook.Items)
                     {
-                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
+                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
                 </div>
                 @if (!Model.Notebook.Items.Any())
                 {
                     var emptyType = Model.Notebook.View switch
                     {
-                        "reminders" or "today" => "Reminder",
+                        "reminders" or "today" or "overdue" => "Reminder",
                         _ => "Note"
                     };
                     var cta = Model.Notebook.View is "archive" or "archived" or "completed" or "trash" ? null : $"New {emptyType}";
@@ -223,94 +223,6 @@
         <div class="visually-hidden" data-notebook-reorder-live aria-live="polite" aria-atomic="true"></div>
     </main>
 
-    @if (Model.UseLegacyEditor)
-    {
-    <aside class="notebook-editor-drawer">
-        <div class="notebook-editor-header"><h2>@(isCreateMode || selected is null ? $"New {Model.Input.Type.ToString().ToLowerInvariant()}" : "Edit item")</h2><a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="@Model.Notebook.Filter" asp-route-tag="@Model.Notebook.Tag" class="notebook-editor-close" aria-label="Close editor"><i class="bi bi-x-lg"></i></a></div>
-        <form method="post" asp-page-handler="@(selected is null ? "Create" : "Update")" asp-route-id="@selected?.Id" class="notebook-editor-form">
-            <input type="hidden" asp-for="View" />
-            <input type="hidden" asp-for="Query" />
-            <input type="hidden" asp-for="Filter" />
-            <input type="hidden" asp-for="Tag" />
-            @* SECTION: Preserve optimistic concurrency version for legacy form edits *@
-            @if (selected is not null)
-            {
-                <input type="hidden" name="expectedVersion" value="@selected.Version" />
-            }
-            <label class="notebook-title-field">Title<input asp-for="Input.Title" class="notebook-editor-title-input" required maxlength="220" /></label>
-            <section class="notebook-editor-primary">
-            <div class="notebook-editor-fields" data-notebook-type-fields="Note,Idea,Draft">
-                <label>Body<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
-            </div>
-            <div class="notebook-editor-fields" data-notebook-type-fields="Sticky">
-                <label>Quick note<textarea asp-for="Input.BodyMarkdown" class="notebook-sticky-editor" data-autoresize></textarea></label>
-
-            </div>
-            <div class="notebook-editor-fields" data-notebook-type-fields="Checklist">
-                <div class="notebook-field-prominent notebook-checklist-edit-list">
-                    <span>Checklist items</span>
-                    @if (selected?.ChecklistItems.Any() == true)
-                    {
-                        var rowIndex = 0;
-                        foreach (var row in selected.ChecklistItems)
-                        {
-                            <label class="notebook-checklist-edit-row">
-                                <input type="hidden" name="ChecklistRows[@rowIndex].Id" value="@row.Id" />
-                                <input type="hidden" name="ChecklistRows[@rowIndex].SortOrder" value="@row.SortOrder" />
-                                <input type="hidden" name="ChecklistRows[@rowIndex].IsDone" value="@(row.IsDone ? "true" : "false")" />
-                                <input name="ChecklistRows[@rowIndex].Text" value="@row.Text" maxlength="500" />
-                            </label>
-                            rowIndex++;
-                        }
-
-                        @* SECTION: Blank checklist append row for existing checklists *@
-                        <label class="notebook-checklist-edit-row notebook-checklist-add-row">
-                            <input type="hidden" name="ChecklistRows[@rowIndex].SortOrder" value="@rowIndex" />
-                            <input type="hidden" name="ChecklistRows[@rowIndex].IsDone" value="false" />
-                            <input name="ChecklistRows[@rowIndex].Text" value="" maxlength="500" placeholder="Add another checklist item" />
-                        </label>
-                    }
-                    else
-                    {
-                        <textarea asp-for="ChecklistText" placeholder="One checklist item per line"></textarea>
-                    }
-                </div>
-                <label data-notebook-checklist-reminder>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-                <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
-                <label>Optional notes<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
-            </div>
-            <div class="notebook-editor-fields" data-notebook-type-fields="Reminder">
-                <label class="notebook-field-prominent">Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-                <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
-                <label>Notes<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
-            </div>
-            </section>
-            <section class="notebook-editor-details"><div class="notebook-editor-section-title">Details</div>
-            <label>Type<select asp-for="Input.Type" asp-items="Html.GetEnumSelectList<NotebookItemType>()" data-notebook-type-select></select></label>
-            <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
-            <label data-notebook-shared-reminder>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-            <label data-notebook-shared-priority>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
-            <label>Colour<select asp-for="Input.ColorKey"><option>white</option><option>blue</option><option>amber</option><option>green</option><option>rose</option><option>slate</option></select></label>
-            <div class="notebook-checks"><label><input asp-for="Input.IsPinned" /> Pin</label><label><input asp-for="Input.IsFavorite" /> Favourite</label></div>
-            </section>
-            <div class="notebook-editor-footer"><button class="btn btn-primary w-100" type="submit">@(isCreateMode || selected is null ? "Create" : "Save")</button></div>
-        </form>
-        @if (selected is not null && (selected.Type == NotebookItemType.Reminder || selected.ReminderAtUtc is not null))
-        {
-            <form method="post" asp-page-handler="Complete" asp-route-id="@selected.Id" class="notebook-editor-complete">
-                <input type="hidden" asp-for="View" />
-                <input type="hidden" asp-for="Query" />
-                <input type="hidden" name="isComplete" value="true" />
-                <input type="hidden" name="expectedVersion" value="@selected.Version" />
-                <button class="btn btn-success w-100" type="submit"><i class="bi bi-check2-circle"></i> Mark done</button>
-            </form>
-        }
-        @if (selected?.ChecklistItems.Any() == true)
-        {
-            <div class="notebook-checklist-toggle">@foreach (var c in selected.ChecklistItems) { <form method="post" asp-page-handler="ToggleChecklistItem"><input type="hidden" name="checklistItemId" value="@c.Id" /><input type="hidden" name="selectedId" value="@selected.Id" /><input type="hidden" name="expectedVersion" value="@selected.Version" /><input type="hidden" asp-for="View" /><input type="hidden" asp-for="Query" /><label><input type="checkbox" name="isDone" value="true" checked="@c.IsDone" data-submit-on-change /> @c.Text</label></form> }</div>
-        }
-    </aside>
-    }
 </div>
 
 

@@ -16,10 +16,19 @@ function loadHelpers(document) {
 }
 
 test('serialiseBoard preserves DOM order and versions', () => {
-  const dom = new JSDOM('<div id="b"><article data-note-id="a" data-version="v1"></article><article data-note-id="b" data-version="v2"></article></div>');
+  const dom = new JSDOM('<div id="b"><article data-note-id="a" data-version="v1" data-reorderable="true"></article><article data-note-id="b" data-version="v2" data-reorderable="true"></article></div>');
   const helpers = loadHelpers(dom.window.document);
   assert.deepEqual(JSON.parse(JSON.stringify(helpers.serialiseBoard(dom.window.document.querySelector('#b')))), [
     { id: 'a', version: 'v1' }, { id: 'b', version: 'v2' }
+  ]);
+});
+
+
+test('serialiseBoard excludes shared read-only cards from an owner reorder payload', () => {
+  const dom = new JSDOM('<div id="b"><article data-note-id="owned-a" data-version="v1" data-reorderable="true"></article><article data-note-id="shared" data-version="v2" data-reorderable="false"></article><article data-note-id="owned-b" data-version="v3" data-reorderable="true"></article></div>');
+  const helpers = loadHelpers(dom.window.document);
+  assert.deepEqual(JSON.parse(JSON.stringify(helpers.serialiseBoard(dom.window.document.querySelector('#b')))), [
+    { id: 'owned-a', version: 'v1' }, { id: 'owned-b', version: 'v3' }
   ]);
 });
 
@@ -47,7 +56,7 @@ test('card body and open area are valid drag surfaces while controls are exclude
 });
 
 test('visual rows are ordered top-to-bottom and left-to-right', () => {
-  const dom = new JSDOM('<div id="b"><article id="c" data-note-id="c"></article><article id="a" data-note-id="a"></article><article id="b2" data-note-id="b"></article></div>');
+  const dom = new JSDOM('<div id="b"><article id="c" data-note-id="c" data-reorderable="true"></article><article id="a" data-note-id="a" data-reorderable="true"></article><article id="b2" data-note-id="b" data-reorderable="true"></article></div>');
   const document = dom.window.document;
   const rects = {
     a: { top: 0, left: 0, right: 100, bottom: 80, width: 100, height: 80 },
@@ -63,7 +72,7 @@ test('visual rows are ordered top-to-bottom and left-to-right', () => {
 });
 
 test('insertion index follows row midpoint boundaries', () => {
-  const dom = new JSDOM('<div id="b"><article id="a" data-note-id="a"></article><article id="b2" data-note-id="b"></article><article id="c" data-note-id="c"></article></div>');
+  const dom = new JSDOM('<div id="b"><article id="a" data-note-id="a" data-reorderable="true"></article><article id="b2" data-note-id="b" data-reorderable="true"></article><article id="c" data-note-id="c" data-reorderable="true"></article></div>');
   const document = dom.window.document;
   const rects = {
     a: { top: 0, left: 0, right: 100, bottom: 80, width: 100, height: 80 },

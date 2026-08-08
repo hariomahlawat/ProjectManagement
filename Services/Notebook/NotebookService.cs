@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.ViewModels.Notebook;
@@ -11,8 +10,6 @@ namespace ProjectManagement.Services.Notebook;
 
 public sealed class NotebookService : INotebookService
 {
-    private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
-
     private readonly IAuditService _audit;
     private readonly IClock _clock;
     private readonly ApplicationDbContext _db;
@@ -50,6 +47,7 @@ public sealed class NotebookService : INotebookService
 
         var accessibleQuery = _db.NotebookItems
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(item => item.Owner)
             .Include(item => item.Collaborators).ThenInclude(collaborator => collaborator.User)
             .Include(item => item.Tags)
@@ -68,7 +66,7 @@ public sealed class NotebookService : INotebookService
         var scopedQuery = view switch
         {
             "shared" => sharedQuery,
-            "home" or "today" or "reminders" => accessibleQuery,
+            "home" or "today" or "overdue" or "reminders" => accessibleQuery,
             _ => ownedQuery
         };
 
@@ -93,7 +91,11 @@ public sealed class NotebookService : INotebookService
         {
             "today" => activeQuery.Where(item =>
                 item.ReminderAtUtc != null &&
+                item.ReminderAtUtc >= bounds.StartUtc &&
                 item.ReminderAtUtc < bounds.EndUtc),
+            "overdue" => activeQuery.Where(item =>
+                item.ReminderAtUtc != null &&
+                item.ReminderAtUtc < bounds.StartUtc),
             "labels" when !string.IsNullOrWhiteSpace(tag) => activeQuery,
             "labels" => activeQuery.Where(_ => false),
             "reminders" => remindersQuery,
@@ -104,57 +106,52 @@ public sealed class NotebookService : INotebookService
             _ => activeQuery
         };
 
-        var items = (await filteredQuery
-                .OrderByDescending(item => item.IsPinned)
-                .ThenBy(item => item.ReminderAtUtc == null)
-                .ThenBy(item => item.ReminderAtUtc)
-                .ThenByDescending(item => item.UpdatedAtUtc)
-                .Take(80)
-                .ToListAsync(ct))
-            .Select(item => ToListVm(item, bounds, ownerId))
-            .ToArray();
+        NotebookItemListVm[] items = Array.Empty<NotebookItemListVm>();
+        NotebookItemListVm[] pinned = Array.Empty<NotebookItemListVm>();
+        NotebookItemListVm[] recent = Array.Empty<NotebookItemListVm>();
 
-        var pinned = (await activeQuery
-                .Where(item => item.Status == NotebookItemStatus.Active &&
-                               item.OwnerId == ownerId &&
-                               item.IsPinned)
-                .OrderBy(item => item.SortOrder == 0 ? int.MaxValue : item.SortOrder)
-                .ThenByDescending(item => item.UpdatedAtUtc)
-                .Take(80)
-                .ToListAsync(ct))
-            .Select(item => ToListVm(item, bounds, ownerId))
-            .ToArray();
+        // SECTION: Read only the collection the current page actually renders.
+        // Home uses the manually ordered Pinned/Others board; every other view uses
+        // the filtered Items collection. This avoids loading the full notebook two or
+        // three times now that the historical 80-card cap has been removed.
+        if (view == "home")
+        {
+            pinned = (await activeQuery
+                    .Where(item => item.Status == NotebookItemStatus.Active &&
+                                   item.OwnerId == ownerId &&
+                                   item.IsPinned)
+                    .OrderBy(item => item.SortOrder)
+                    .ThenByDescending(item => item.UpdatedAtUtc)
+                    .ToListAsync(ct))
+                .Select(item => ToListVm(item, bounds, ownerId))
+                .ToArray();
 
-        var sticky = (await activeQuery
-                .Where(item => item.Type == NotebookItemType.Sticky && item.Status == NotebookItemStatus.Active)
-                .OrderByDescending(item => item.UpdatedAtUtc)
-                .Take(12)
-                .ToListAsync(ct))
-            .Select(item => ToListVm(item, bounds, ownerId))
-            .ToArray();
+            recent = (await activeQuery
+                    .Where(item => item.Status == NotebookItemStatus.Active &&
+                                   (item.OwnerId != ownerId || !item.IsPinned))
+                    // Owned cards remain the reorderable section. Shared cards follow them
+                    // so another user's SortOrder cannot destabilise this user's board.
+                    .OrderBy(item => item.OwnerId != ownerId)
+                    .ThenBy(item => item.SortOrder)
+                    .ThenByDescending(item => item.UpdatedAtUtc)
+                    .ToListAsync(ct))
+                .Select(item => ToListVm(item, bounds, ownerId))
+                .ToArray();
+        }
+        else
+        {
+            items = (await filteredQuery
+                    .OrderByDescending(item => item.IsPinned)
+                    .ThenBy(item => item.ReminderAtUtc == null)
+                    .ThenBy(item => item.ReminderAtUtc)
+                    .ThenByDescending(item => item.UpdatedAtUtc)
+                    .ToListAsync(ct))
+                .Select(item => ToListVm(item, bounds, ownerId))
+                .ToArray();
+        }
 
-        var due = (await activeQuery
-                .Where(item =>
-                    item.Status == NotebookItemStatus.Active &&
-                    item.ReminderAtUtc != null &&
-                    item.ReminderAtUtc < bounds.EndUtc)
-                .OrderBy(item => item.ReminderAtUtc)
-                .Take(6)
-                .ToListAsync(ct))
-            .Select(item => ToListVm(item, bounds, ownerId))
-            .ToArray();
-
-
-        // SECTION: Home board uses a manual-order friendly Others section.
-        var recent = (await activeQuery
-                .Where(item => item.Status == NotebookItemStatus.Active &&
-                               (item.OwnerId != ownerId || !item.IsPinned))
-                .OrderBy(item => item.SortOrder == 0 ? int.MaxValue : item.SortOrder)
-                .ThenByDescending(item => item.UpdatedAtUtc)
-                .Take(80)
-                .ToListAsync(ct))
-            .Select(item => ToListVm(item, bounds, ownerId))
-            .ToArray();
+        var sticky = Array.Empty<NotebookItemListVm>();
+        var due = Array.Empty<NotebookItemListVm>();
 
         // SECTION: Board-first selection
         NotebookItemDetailVm? selected = null;
@@ -200,7 +197,7 @@ public sealed class NotebookService : INotebookService
         var reminderQuery = baseQuery.Where(item => item.ReminderAtUtc != null);
 
         var dueItems = await reminderQuery
-            .Where(item => item.ReminderAtUtc < bounds.EndUtc)
+            .Where(item => item.ReminderAtUtc >= bounds.StartUtc && item.ReminderAtUtc < bounds.EndUtc)
             .OrderBy(item => item.ReminderAtUtc)
             .Take(take)
             .Select(item => new NotebookWidgetItemVm
@@ -209,7 +206,7 @@ public sealed class NotebookService : INotebookService
                 Title = item.Title,
                 Type = item.Type,
                 ReminderAtUtc = item.ReminderAtUtc,
-                IsOverdue = item.ReminderAtUtc < nowUtc,
+                IsOverdue = item.ReminderAtUtc < bounds.StartUtc,
                 OpenUrl = $"/Notebook?view=today&note={item.Id}"
             })
             .ToListAsync(ct);
@@ -228,19 +225,7 @@ public sealed class NotebookService : INotebookService
             })
             .ToListAsync(ct);
 
-        var stickyItems = await baseQuery
-            .Where(item => item.Type == NotebookItemType.Sticky)
-            .OrderByDescending(item => item.UpdatedAtUtc)
-            .Take(take)
-            .Select(item => new NotebookWidgetItemVm
-            {
-                Id = item.Id,
-                Title = item.Title,
-                Type = item.Type,
-                ReminderAtUtc = item.ReminderAtUtc,
-                OpenUrl = $"/Notebook?view=sticky&note={item.Id}"
-            })
-            .ToListAsync(ct);
+        IReadOnlyList<NotebookWidgetItemVm> stickyItems = Array.Empty<NotebookWidgetItemVm>();
 
         return new NotebookWidgetVm
         {
@@ -270,15 +255,16 @@ public sealed class NotebookService : INotebookService
         return new Dictionary<string, int>
         {
             ["home"] = await active.CountAsync(ct),
-            ["today"] = await active.CountAsync(item => item.ReminderAtUtc != null && item.ReminderAtUtc < bounds.EndUtc, ct),
+            ["today"] = await active.CountAsync(item => item.ReminderAtUtc != null && item.ReminderAtUtc >= bounds.StartUtc && item.ReminderAtUtc < bounds.EndUtc, ct),
+            ["overdue"] = await active.CountAsync(item => item.ReminderAtUtc != null && item.ReminderAtUtc < bounds.StartUtc, ct),
             ["reminders"] = await ReminderItems(active).CountAsync(ct),
             ["shared"] = await _db.NotebookItemCollaborators.AsNoTracking().CountAsync(collaborator => collaborator.UserId == ownerId && collaborator.NotebookItem.DeletedAtUtc == null && collaborator.NotebookItem.Status == NotebookItemStatus.Active, ct),
             ["labels"] = await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
             ["archive"] = await owned.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             ["completed"] = await owned.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
             ["trash"] = await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc != null, ct),
-            ["pinned"] = await active.CountAsync(item => item.IsPinned, ct),
-            ["others"] = await active.CountAsync(item => !item.IsPinned, ct)
+            ["pinned"] = await active.CountAsync(item => item.OwnerId == ownerId && item.IsPinned, ct),
+            ["others"] = await active.CountAsync(item => item.OwnerId != ownerId || !item.IsPinned, ct)
         };
     }
 
@@ -295,13 +281,23 @@ public sealed class NotebookService : INotebookService
         CancellationToken ct = default)
     {
         var parsed = NotebookQuickCaptureParser.Parse(input, _clock.UtcNow, forcedType);
+        var tags = parsed.Tags.ToList();
+        if (parsed.Type == NotebookItemType.Idea && !tags.Any(tag => string.Equals(tag, "Idea", StringComparison.OrdinalIgnoreCase)))
+        {
+            tags.Add("Idea");
+        }
+        else if (parsed.Type == NotebookItemType.Draft && !tags.Any(tag => string.Equals(tag, "Draft", StringComparison.OrdinalIgnoreCase)))
+        {
+            tags.Add("Draft");
+        }
+
         return CreateIdAsync(ownerId, new NotebookCreateInput
         {
             Title = parsed.Title,
             Type = parsed.Type,
             Priority = parsed.Priority,
             ReminderAtUtc = parsed.ReminderAtUtc,
-            Tags = parsed.Tags,
+            Tags = tags,
             ColorKey = parsed.Type == NotebookItemType.Sticky ? "blue" : null
         }, ct);
     }
@@ -319,14 +315,14 @@ public sealed class NotebookService : INotebookService
         }
 
         var now = _clock.UtcNow;
-        if (input.Type == NotebookItemType.Reminder && input.ReminderAtUtc is null)
+        if (!NotebookRules.IsSupportedCreateType(input.Type))
         {
-            throw new NotebookValidationException("Choose a reminder date and time.");
+            throw new NotebookValidationException("Invalid notebook type.");
         }
-        if (input.Type == NotebookItemType.Reminder && input.ReminderAtUtc.HasValue && input.ReminderAtUtc.Value <= now)
-        {
-            throw new NotebookValidationException("Choose a future reminder date and time.");
-        }
+
+        NotebookRules.ValidatePriority(input.Priority);
+        NotebookRules.ValidateReminder(input.ReminderAtUtc, now, required: input.Type == NotebookItemType.Reminder);
+        ValidateBody(input.BodyMarkdown);
 
         var initialSortOrder = await GetTopSortOrderAsync(ownerId, input.IsPinned, ct);
         var item = new NotebookItem
@@ -334,12 +330,12 @@ public sealed class NotebookService : INotebookService
             OwnerId = ownerId,
             Title = CleanTitle(input.Title),
             BodyMarkdown = input.BodyMarkdown,
-            Type = input.Type,
+            Type = NotebookRules.NormalizeContentType(input.Type),
             Priority = input.Priority,
             ReminderAtUtc = input.ReminderAtUtc,
             IsPinned = input.IsPinned,
-            IsFavorite = input.IsFavorite,
-            ColorKey = CleanColor(input.ColorKey, input.Type),
+            IsFavorite = false,
+            ColorKey = NotebookRules.CleanColour(input.ColorKey),
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
             Version = Guid.NewGuid(),
@@ -403,10 +399,13 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         item.Title = CleanTitle(input.Title);
+        ValidateBody(input.BodyMarkdown);
         item.BodyMarkdown = input.BodyMarkdown;
+        if (input.Priority.HasValue) NotebookRules.ValidatePriority(input.Priority.Value);
         item.Priority = input.Priority ?? item.Priority;
+        if (input.ReminderAtUtc.HasValue) NotebookRules.ValidateReminder(input.ReminderAtUtc, _clock.UtcNow);
         item.ReminderAtUtc = input.ReminderAtUtc;
-        item.ColorKey = CleanColor(input.ColorKey, item.Type);
+        item.ColorKey = NotebookRules.CleanColour(input.ColorKey);
         Touch(item, _clock.UtcNow);
 
         SyncChecklistItems(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), item.UpdatedAtUtc);
@@ -430,6 +429,7 @@ public sealed class NotebookService : INotebookService
         // SECTION: Content autosave updates text only and preserves notebook metadata.
         var item = await LoadAccessibleForUpdate(ownerId, id, expectedVersion, NotebookAccessLevel.Editor, ct);
         item.Title = CleanTitle(title ?? string.Empty);
+        ValidateBody(body);
         item.BodyMarkdown = body;
         Touch(item, _clock.UtcNow);
 
@@ -461,6 +461,7 @@ public sealed class NotebookService : INotebookService
         ValidateChecklistRows(item, checklistRows);
 
         item.Title = CleanTitle(title ?? string.Empty);
+        ValidateBody(body);
         item.BodyMarkdown = body;
         Touch(item, _clock.UtcNow);
         var createdRowClientKeys = SyncChecklistItems(item, checklistRows, item.UpdatedAtUtc);
@@ -500,21 +501,44 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        await ArchiveLoadedAsync(item, ownerId, ct);
+        try
+        {
+            await ArchiveLoadedAsync(item, ownerId, ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
         return MapDetail(item, ownerId);
     }
 
     public async Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        await RestoreLoadedAsync(item, ct);
+        try
+        {
+            await RestoreLoadedAsync(item, ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+        await TryWriteAuditAsync("Notebook.Restore", ownerId, item.Id, ct);
         return MapDetail(item, ownerId);
     }
 
     public async Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        await ReopenLoadedAsync(item, ct);
+        try
+        {
+            await ReopenLoadedAsync(item, ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+        await TryWriteAuditAsync("Notebook.Reopen", ownerId, item.Id, ct);
         return MapDetail(item, ownerId);
     }
 
@@ -524,7 +548,14 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookItemDetailVm> MoveToTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        await MoveToTrashLoadedAsync(item, ownerId, ct);
+        try
+        {
+            await MoveToTrashLoadedAsync(item, ownerId, ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
         return MapDetail(item, ownerId);
     }
 
@@ -533,7 +564,14 @@ public sealed class NotebookService : INotebookService
         var item = await LoadOwnedTrashForUpdate(ownerId, id, expectedVersion, ct);
         item.DeletedAtUtc = null;
         Touch(item, _clock.UtcNow);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
         await TryWriteAuditAsync("Notebook.RestoreFromTrash", ownerId, item.Id, ct);
         return MapDetail(item, ownerId);
     }
@@ -542,7 +580,15 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwnedTrashForUpdate(ownerId, id, expectedVersion, ct);
         _db.NotebookItems.Remove(item);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+
         await TryWriteAuditAsync("Notebook.DeletePermanently", ownerId, id, ct);
     }
 
@@ -569,13 +615,81 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        if (item.IsPinned != isPinned)
+        if (item.IsPinned == isPinned)
         {
-            item.IsPinned = isPinned;
-            item.SortOrder = await GetTopSortOrderAsync(ownerId, isPinned, ct, item.Id);
-            Touch(item, _clock.UtcNow);
+            return MapDetail(item, ownerId);
+        }
+
+        // Determine the target position before mutating the tracked entity. This avoids
+        // leaking a partial pin-state change into the defensive sort-order recovery path.
+        var targetSortOrder = await GetTopSortOrderAsync(ownerId, isPinned, ct, item.Id);
+        item.IsPinned = isPinned;
+        item.SortOrder = targetSortOrder;
+        Touch(item, _clock.UtcNow);
+
+        try
+        {
             await _db.SaveChangesAsync(ct);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+
+        await TryWriteAuditAsync(isPinned ? "Notebook.Pinned" : "Notebook.Unpinned", ownerId, item.Id, ct);
+        return MapDetail(item, ownerId);
+    }
+
+    public async Task<NotebookItemDetailVm> SetReminderAsync(
+        string ownerId,
+        Guid id,
+        DateTimeOffset? reminderAtUtc,
+        NotebookPriority priority,
+        Guid expectedVersion,
+        CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        NotebookRules.ValidatePriority(priority);
+        if (reminderAtUtc.HasValue)
+        {
+            NotebookRules.ValidateReminder(reminderAtUtc, _clock.UtcNow);
+        }
+
+        var previousReminder = item.ReminderAtUtc;
+        var previousPriority = item.Priority;
+        if (previousReminder == reminderAtUtc && previousPriority == priority)
+        {
+            return MapDetail(item, ownerId);
+        }
+
+        item.ReminderAtUtc = reminderAtUtc;
+        item.Priority = priority;
+        Touch(item, _clock.UtcNow);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+
+        var auditAction = previousReminder switch
+        {
+            null when reminderAtUtc.HasValue => "Notebook.ReminderSet",
+            not null when reminderAtUtc is null => "Notebook.ReminderRemoved",
+            _ => "Notebook.ReminderChanged"
+        };
+
+        await TryWriteAuditAsync(auditAction, ownerId, item.Id, ct, new Dictionary<string, string?>
+        {
+            ["PreviousReminderAtUtc"] = previousReminder?.ToString("O"),
+            ["ReminderAtUtc"] = reminderAtUtc?.ToString("O"),
+            ["PreviousPriority"] = previousPriority.ToString(),
+            ["Priority"] = priority.ToString()
+        });
+
         return MapDetail(item, ownerId);
     }
 
@@ -585,15 +699,15 @@ public sealed class NotebookService : INotebookService
         IReadOnlyList<NotebookOrderItem> items,
         CancellationToken ct = default)
     {
-        if (items.Count > 200)
-        {
-            throw new NotebookValidationException("Too many notebook items were submitted for reordering.");
-        }
-
         var duplicateIds = items.GroupBy(item => item.Id).FirstOrDefault(group => group.Count() > 1);
         if (duplicateIds is not null)
         {
             throw new NotebookValidationException("A notebook item was submitted more than once.");
+        }
+
+        if (items.Count > (int.MaxValue / NotebookLimits.SortOrderStep) + 1)
+        {
+            throw new NotebookValidationException("The notebook board is too large to reorder safely.");
         }
 
         var isPinned = section == NotebookBoardSection.Pinned;
@@ -620,12 +734,11 @@ public sealed class NotebookService : INotebookService
             }
         }
 
-        var order = 1000;
-        foreach (var submitted in items)
+        for (var index = 0; index < items.Count; index++)
         {
+            var submitted = items[index];
             var databaseItem = databaseItems.Single(item => item.Id == submitted.Id);
-            databaseItem.SortOrder = order;
-            order += 1000;
+            databaseItem.SortOrder = checked(index * NotebookLimits.SortOrderStep);
         }
 
         try
@@ -647,7 +760,7 @@ public sealed class NotebookService : INotebookService
     {
         // SECTION: Dedicated colour mutation preserves all non-colour notebook metadata.
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        item.ColorKey = CleanColor(colorKey, item.Type);
+        item.ColorKey = NotebookRules.CleanColour(colorKey);
         Touch(item, _clock.UtcNow);
 
         try
@@ -760,14 +873,27 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        await CompleteLoadedAsync(item, isComplete, ct);
+        try
+        {
+            await CompleteLoadedAsync(item, isComplete, ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+        await TryWriteAuditAsync(isComplete ? "Notebook.Complete" : "Notebook.Reopen", ownerId, item.Id, ct);
         return MapDetail(item, ownerId);
     }
 
     public async Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default)
     {
+        if (newType is not NotebookItemType.Note and not NotebookItemType.Checklist)
+        {
+            throw new NotebookValidationException("Notebook content can only be a note or checklist.");
+        }
+
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        if (item.Type == newType)
+        if (NotebookRules.NormalizeContentType(item.Type) == newType)
         {
             return MapDetail(item, ownerId);
         }
@@ -807,11 +933,22 @@ public sealed class NotebookService : INotebookService
             item.ChecklistItems.Clear();
         }
 
-        item.Type = newType;
-        item.ColorKey = CleanColor(item.ColorKey, newType);
+        item.Type = NotebookRules.NormalizeContentType(newType);
+        item.ColorKey = NotebookRules.CleanColour(item.ColorKey);
         Touch(item, now);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
         await tx.CommitAsync(ct);
+        await TryWriteAuditAsync("Notebook.TypeConverted", ownerId, item.Id, ct, new Dictionary<string, string?>
+        {
+            ["Type"] = item.Type.ToString()
+        });
         return MapDetail(item, ownerId);
     }
 
@@ -824,12 +961,13 @@ public sealed class NotebookService : INotebookService
             OwnerId = ownerId,
             Title = CleanTitle($"{source.Title} copy"),
             BodyMarkdown = source.BodyMarkdown,
-            Type = source.Type,
+            Type = NotebookRules.NormalizeContentType(source.Type),
             Priority = source.Priority,
             ReminderAtUtc = null,
             IsPinned = false,
             IsFavorite = false,
-            ColorKey = CleanColor(source.ColorKey, source.Type),
+            ColorKey = NotebookRules.CleanColour(source.ColorKey),
+            SortOrder = await GetTopSortOrderAsync(ownerId, isPinned: false, ct),
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
             Version = Guid.NewGuid()
@@ -869,7 +1007,18 @@ public sealed class NotebookService : INotebookService
         var now = _clock.UtcNow;
         checklistItem.CompletedAtUtc = isDone ? now : null;
         Touch(item, now);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, itemId, expectedVersion, ex, ct);
+        }
+        await TryWriteAuditAsync(isDone ? "Notebook.ChecklistItemCompleted" : "Notebook.ChecklistItemReopened", ownerId, item.Id, ct, new Dictionary<string, string?>
+        {
+            ["ChecklistItemId"] = checklistItemId.ToString()
+        });
         return MapDetail(item, ownerId);
     }
 
@@ -1243,8 +1392,7 @@ public sealed class NotebookService : INotebookService
             .Include(item => item.Attachments)
             .FirstOrDefaultAsync(item =>
                 item.Id == itemId &&
-                (item.OwnerId == ownerId || item.Collaborators.Any(collaborator => collaborator.UserId == ownerId)) &&
-                item.DeletedAtUtc == null,
+                (item.OwnerId == ownerId || item.Collaborators.Any(collaborator => collaborator.UserId == ownerId)),
                 ct);
 
         return new NotebookConcurrencyException(
@@ -1330,8 +1478,37 @@ public sealed class NotebookService : INotebookService
         }
 
         var minimum = await query.Select(item => (int?)item.SortOrder).MinAsync(ct);
-        if (!minimum.HasValue || minimum.Value == 0) return 1000;
-        return minimum.Value <= int.MinValue + 1000 ? int.MinValue + 1000 : minimum.Value - 1000;
+        if (!minimum.HasValue)
+        {
+            return 0;
+        }
+
+        var candidate = (long)minimum.Value - NotebookLimits.SortOrderStep;
+        if (candidate >= int.MinValue)
+        {
+            return (int)candidate;
+        }
+
+        // Extremely defensive overflow recovery. Re-normalising board metadata does
+        // not change content timestamps or optimistic-concurrency versions.
+        var ordered = await query
+            .OrderBy(item => item.SortOrder)
+            .ThenByDescending(item => item.UpdatedAtUtc)
+            .ThenBy(item => item.Id)
+            .ToListAsync(ct);
+
+        if (ordered.Count > (int.MaxValue / NotebookLimits.SortOrderStep) + 1)
+        {
+            throw new NotebookValidationException("The notebook board is too large to normalise safely.");
+        }
+
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            ordered[index].SortOrder = checked(index * NotebookLimits.SortOrderStep);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return -NotebookLimits.SortOrderStep;
     }
 
     private static string CleanTitle(string title)
@@ -1345,12 +1522,12 @@ public sealed class NotebookService : INotebookService
         return string.IsNullOrWhiteSpace(trimmed) ? "Untitled" : trimmed;
     }
 
-    private static string CleanColor(string? color, NotebookItemType type)
+    private static void ValidateBody(string? body)
     {
-        var allowedColors = new[] { "white", "blue", "amber", "green", "rose", "slate" };
-        return allowedColors.Contains(color, StringComparer.OrdinalIgnoreCase)
-            ? color!.Trim().ToLowerInvariant()
-            : "white";
+        if ((body?.Length ?? 0) > NotebookLimits.BodyMaxLength)
+        {
+            throw new NotebookValidationException($"Body cannot exceed {NotebookLimits.BodyMaxLength} characters.");
+        }
     }
 
     private static string NormalizeView(string? view)
@@ -1367,7 +1544,7 @@ public sealed class NotebookService : INotebookService
             return normalizedLegacy;
         }
 
-        var allowedViews = new[] { "home", "today", "reminders", "shared", "labels", "archive", "archived", "completed", "trash" };
+        var allowedViews = new[] { "home", "today", "overdue", "reminders", "shared", "labels", "archive", "archived", "completed", "trash" };
         if (string.Equals(view, "archived", StringComparison.OrdinalIgnoreCase)) return "archive";
         return allowedViews.Contains(view) ? view! : "home";
     }
@@ -1415,7 +1592,7 @@ public sealed class NotebookService : INotebookService
         return filter switch
         {
             "notes" => query.Where(item => item.Type == NotebookItemType.Note),
-            "sticky" => query.Where(item => item.Type == NotebookItemType.Sticky),
+            "sticky" => query.Where(item => item.Type == NotebookItemType.Note),
             "checklists" => query.Where(item => item.Type == NotebookItemType.Checklist),
             _ => query
         };
@@ -1433,28 +1610,13 @@ public sealed class NotebookService : INotebookService
 
     private static IQueryable<NotebookItem> ReminderItems(IQueryable<NotebookItem> query)
     {
-        return query.Where(item =>
-            item.Type == NotebookItemType.Reminder ||
-            item.ReminderAtUtc != null);
+        return query.Where(item => item.ReminderAtUtc != null);
     }
 
     private static (DateTimeOffset StartUtc, DateTimeOffset EndUtc) TodayBounds(DateTimeOffset nowUtc)
     {
-        var nowIst = TimeZoneInfo.ConvertTime(nowUtc, Ist);
-        var startLocal = nowIst.Date;
-        var endLocal = startLocal.AddDays(1);
-
-        var startUtc = TimeZoneInfo.ConvertTimeToUtc(
-            DateTime.SpecifyKind(startLocal, DateTimeKind.Unspecified),
-            Ist);
-
-        var endUtc = TimeZoneInfo.ConvertTimeToUtc(
-            DateTime.SpecifyKind(endLocal, DateTimeKind.Unspecified),
-            Ist);
-
-        return (
-            new DateTimeOffset(startUtc, TimeSpan.Zero),
-            new DateTimeOffset(endUtc, TimeSpan.Zero));
+        var bounds = NotebookDateBounds.For(nowUtc);
+        return (bounds.StartUtc, bounds.EndUtc);
     }
 
     private static NotebookItemListVm ToListVm(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds, string? currentUserId = null) => new()
@@ -1570,7 +1732,7 @@ public sealed class NotebookService : INotebookService
             TotalActive = await query.CountAsync(item => item.Status == NotebookItemStatus.Active, ct),
             DueToday = await query.CountAsync(item => item.ReminderAtUtc >= bounds.StartUtc && item.ReminderAtUtc < bounds.EndUtc, ct),
             Overdue = await query.CountAsync(item => item.ReminderAtUtc < bounds.StartUtc && item.Status == NotebookItemStatus.Active, ct),
-            StickyCount = await query.CountAsync(item => item.Type == NotebookItemType.Sticky, ct),
+            StickyCount = 0,
             PinnedCount = await query.CountAsync(item => item.OwnerId == ownerId && item.IsPinned, ct),
             ChecklistCount = await query.CountAsync(item => item.Type == NotebookItemType.Checklist, ct),
             CompletedCount = await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc == null && item.Status == NotebookItemStatus.Completed, ct)
@@ -1596,7 +1758,13 @@ public sealed class NotebookService : INotebookService
             "today" => await accessibleQuery.CountAsync(item =>
                 item.Status == NotebookItemStatus.Active &&
                 item.ReminderAtUtc != null &&
+                item.ReminderAtUtc >= bounds.StartUtc &&
                 item.ReminderAtUtc < bounds.EndUtc,
+                ct),
+            "overdue" => await accessibleQuery.CountAsync(item =>
+                item.Status == NotebookItemStatus.Active &&
+                item.ReminderAtUtc != null &&
+                item.ReminderAtUtc < bounds.StartUtc,
                 ct),
             "reminders" => await ReminderItems(ActiveItems(accessibleQuery)).CountAsync(ct),
             "shared" => await _db.NotebookItemCollaborators.AsNoTracking().CountAsync(collaborator => collaborator.UserId == ownerId && collaborator.NotebookItem.DeletedAtUtc == null && collaborator.NotebookItem.Status == NotebookItemStatus.Active, ct),
@@ -1610,6 +1778,7 @@ public sealed class NotebookService : INotebookService
         {
             ("home", "All Notes", "bi-journal-text"),
             ("today", "Today", "bi-calendar-check"),
+            ("overdue", "Overdue", "bi-exclamation-circle"),
             ("reminders", "Reminders", "bi-bell"),
             ("shared", "Shared with me", "bi-people"),
             ("archive", "Archive", "bi-archive"),
@@ -1701,8 +1870,14 @@ public sealed class NotebookService : INotebookService
 
     private static void ApplyChecklist(NotebookItem item, IReadOnlyList<NotebookChecklistEditRow> rows, DateTimeOffset now)
     {
+        var requestedRows = rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Text))
+            .OrderBy(row => row.SortOrder)
+            .ToList();
+        ValidateChecklistRowCount(requestedRows.Count);
+
         var sortOrder = 0;
-        foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).OrderBy(row => row.SortOrder))
+        foreach (var row in requestedRows)
         {
             var text = row.Text.Trim();
             item.ChecklistItems.Add(new NotebookChecklistItem
@@ -1739,6 +1914,7 @@ public sealed class NotebookService : INotebookService
             .Where(row => !string.IsNullOrWhiteSpace(row.Text))
             .OrderBy(row => row.SortOrder)
             .ToList();
+        ValidateChecklistRowCount(requestedRows.Count);
 
         var submittedIds = requestedRows
             .Where(row => row.Id.HasValue)
@@ -1784,6 +1960,7 @@ public sealed class NotebookService : INotebookService
             .Where(row => !string.IsNullOrWhiteSpace(row.Text))
             .OrderBy(row => row.SortOrder)
             .ToList();
+        ValidateChecklistRowCount(requestedRows.Count);
 
         var submittedIds = requestedRows.Where(row => row.Id.HasValue).Select(row => row.Id!.Value).ToArray();
         if (submittedIds.Length != submittedIds.Distinct().Count())
@@ -1846,11 +2023,19 @@ public sealed class NotebookService : INotebookService
         return createdRows;
     }
 
+    private static void ValidateChecklistRowCount(int count)
+    {
+        if (count > NotebookLimits.MaxChecklistRows)
+        {
+            throw new NotebookValidationException($"Checklist cannot exceed {NotebookLimits.MaxChecklistRows} rows.");
+        }
+    }
+
     private static string ValidateChecklistText(string text)
     {
         if (text.Length > NotebookLimits.ChecklistTextMaxLength)
         {
-            throw new ArgumentException($"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters.");
+            throw new NotebookValidationException($"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters.");
         }
 
         return text;
@@ -1858,13 +2043,7 @@ public sealed class NotebookService : INotebookService
 
     private async Task SyncTags(NotebookItem item, string ownerId, IReadOnlyList<string> tags, CancellationToken ct)
     {
-        var requestedNames = tags
-            .Select(tag => tag.Trim().TrimStart('#'))
-            .Where(tag => tag.Length > 0)
-            .Select(tag => tag[..Math.Min(tag.Length, NotebookLimits.LabelNameMaxLength)])
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(NotebookLimits.MaxLabelsPerItem)
-            .ToList();
+        var requestedNames = ValidateLabelNames(tags).ToList();
 
         var requestedKeys = requestedNames
             .Select(NormalizeTag)

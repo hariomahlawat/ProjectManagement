@@ -163,6 +163,36 @@ public sealed class NotebookController : Controller
     }
 
     [Consumes("application/json")]
+    [HttpPut("{id:guid}/reminder")]
+    public async Task<IActionResult> SetReminder(Guid id, [FromBody] SetNotebookReminderRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The reminder could not be saved.", "version", "Version is required."));
+        }
+
+        if (!Enum.IsDefined(request.Priority))
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The reminder could not be saved.", "priority", "Invalid notebook priority."));
+        }
+
+        if (request.ReminderAtUtc.HasValue && request.ReminderAtUtc.Value <= _clock.UtcNow)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The reminder time is invalid.", "reminderAtUtc", "Choose a future reminder date and time."));
+        }
+
+        var updated = await _notebook.SetReminderAsync(
+            CurrentUserId(),
+            id,
+            request.ReminderAtUtc,
+            request.Priority,
+            request.Version,
+            ct);
+
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
     [HttpPut("~/api/notebook/order")]
     public async Task<IActionResult> Reorder([FromBody] ReorderNotebookItemsRequest request, CancellationToken ct)
     {
@@ -239,7 +269,7 @@ public sealed class NotebookController : Controller
             return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         }
         request.Labels ??= [];
-        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(x => x.Trim().TrimStart('#').Length > NotebookLimits.LabelNameMaxLength))
+        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(x => (x ?? string.Empty).Trim().TrimStart('#').Length > NotebookLimits.LabelNameMaxLength))
         {
             return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
         }
@@ -515,9 +545,8 @@ public sealed class NotebookController : Controller
         var oversizedRow = request.ChecklistRows.Select((row, index) => new { row, index }).FirstOrDefault(x => (x.row.Text?.Length ?? 0) > NotebookLimits.ChecklistTextMaxLength);
         if (oversizedRow is not null) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{oversizedRow.index}].text", $"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters."));
         if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id).Any(group => group.Count() > 1)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", "Duplicate checklist row ids are not allowed."));
-        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => label.Length > NotebookLimits.LabelNameMaxLength)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
-        var allowedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "white", "blue", "amber", "green", "rose", "slate" };
-        if (!string.IsNullOrWhiteSpace(request.ColorKey) && !allowedColors.Contains(request.ColorKey)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
+        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => (label?.Length ?? 0) > NotebookLimits.LabelNameMaxLength)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
+        if (!NotebookRules.IsAllowedColour(request.ColorKey)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
         return null;
     }
 
@@ -536,9 +565,8 @@ public sealed class NotebookController : Controller
         var oversizedRow = request.ChecklistRows.Select((row, index) => new { row, index }).FirstOrDefault(x => (x.row.Text?.Length ?? 0) > NotebookLimits.ChecklistTextMaxLength);
         if (oversizedRow is not null) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{oversizedRow.index}].text", $"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters."));
         if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id).Any(group => group.Count() > 1)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", "Duplicate checklist row ids are not allowed."));
-        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => label.Length > NotebookLimits.LabelNameMaxLength)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
-        var allowedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "white", "blue", "amber", "green", "rose", "slate" };
-        if (!string.IsNullOrWhiteSpace(request.ColorKey) && !allowedColors.Contains(request.ColorKey)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
+        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => (label?.Length ?? 0) > NotebookLimits.LabelNameMaxLength)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
+        if (!NotebookRules.IsAllowedColour(request.ColorKey)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
         return null;
     }
 
@@ -664,6 +692,7 @@ public sealed class NotebookController : Controller
     {
         Home = counts.GetValueOrDefault("home"),
         Today = counts.GetValueOrDefault("today"),
+        Overdue = counts.GetValueOrDefault("overdue"),
         Reminders = counts.GetValueOrDefault("reminders"),
         Shared = counts.GetValueOrDefault("shared"),
         Labels = counts.GetValueOrDefault("labels"),
@@ -707,9 +736,7 @@ public sealed class NotebookController : Controller
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         var normalised = value.Trim().ToLowerInvariant();
-        return normalised is "white" or "blue" or "amber" or "green" or "rose" or "slate"
-            ? normalised
-            : null;
+        return NotebookRules.IsAllowedColour(normalised) ? normalised : null;
     }
 
     private static object ApiError(string code, string message, string field, string error) => new { code, message, errors = new Dictionary<string, string[]> { [field] = new[] { error } } };

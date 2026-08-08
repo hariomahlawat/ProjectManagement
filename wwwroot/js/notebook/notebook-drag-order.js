@@ -1,6 +1,7 @@
 // SECTION: Notebook board drag-and-drop and keyboard reordering
 const BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
-const CARD_SELECTOR = ':scope > [data-note-id]';
+const CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
+const ALL_CARD_SELECTOR = ':scope > [data-note-id]';
 const DRAG_THRESHOLD_PX = 6;
 const TOUCH_LONG_PRESS_MS = 300;
 const TOUCH_CANCEL_DISTANCE_PX = 8;
@@ -13,6 +14,10 @@ function directCards(board) {
   return [...board.querySelectorAll(CARD_SELECTOR)];
 }
 
+function allCards(board) {
+  return [...board.querySelectorAll(ALL_CARD_SELECTOR)];
+}
+
 function serialiseBoard(board) {
   return directCards(board).map((card) => ({
     id: card.dataset.noteId,
@@ -21,7 +26,7 @@ function serialiseBoard(board) {
 }
 
 function restoreOrder(board, ids) {
-  const map = new Map(directCards(board).map((card) => [card.dataset.noteId, card]));
+  const map = new Map(allCards(board).map((card) => [card.dataset.noteId, card]));
   ids.forEach((id) => {
     const card = map.get(id);
     if (card) board.append(card);
@@ -112,7 +117,7 @@ function findInsertionTarget(board, x, y) {
 
 function movePlaceholder(board, placeholder, desiredIndex, lastMove, pointer) {
   const cards = directCards(board);
-  const currentChildren = [...board.children].filter((child) => child === placeholder || child.matches?.('[data-note-id]'));
+  const currentChildren = [...board.children].filter((child) => child === placeholder || child.matches?.(CARD_SELECTOR));
   const currentIndex = currentChildren.indexOf(placeholder);
   const normalizedIndex = Math.max(0, Math.min(cards.length, desiredIndex));
   if (normalizedIndex === currentIndex) return false;
@@ -317,7 +322,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
   const beginKeyboard = (handle, card) => {
     const board = card.parentElement;
     if (!isEnabled() || !board?.matches(BOARD_SELECTOR)) return;
-    keyboardState = { handle, card, board, originalIds: directCards(board).map((entry) => entry.dataset.noteId) };
+    keyboardState = { handle, card, board, originalIds: allCards(board).map((entry) => entry.dataset.noteId) };
     card.classList.add('is-keyboard-dragging');
     handle.setAttribute('aria-grabbed', 'true');
     announce(`Picked up ${card.querySelector('.notebook-card-title')?.textContent || 'note'}, position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
@@ -340,7 +345,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 
   const onPointerDown = (event) => {
     if (!isEnabled() || event.button !== 0 || pointerState || dragState) return;
-    const card = event.target.closest('[data-note-id]');
+    const card = event.target.closest('[data-note-id][data-reorderable="true"]');
     const board = card?.parentElement;
     if (!card || !board?.matches(BOARD_SELECTOR) || isInteractiveDragTarget(event.target)) return;
 
@@ -353,7 +358,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       startY: event.clientY,
       clientX: event.clientX,
       clientY: event.clientY,
-      originalIds: directCards(board).map((entry) => entry.dataset.noteId),
+      originalIds: allCards(board).map((entry) => entry.dataset.noteId),
       timer: null
     };
     pointerState = state;
@@ -407,7 +412,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
   const onKeyDown = (event) => {
     const handle = event.target.closest('[data-notebook-drag-handle]');
     if (!handle) return;
-    const card = handle.closest('[data-note-id]');
+    const card = handle.closest('[data-note-id][data-reorderable="true"]');
     if (!keyboardState && (event.key === ' ' || event.key === 'Enter')) {
       event.preventDefault();
       beginKeyboard(handle, card);

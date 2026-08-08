@@ -88,6 +88,7 @@ test('all Notebook JSON mutations declare application/json content type', async 
   await NotebookApi.updateContent('note-1', { title: 'Updated', body: 'Body', version: 'version-1' });
   await NotebookApi.updateChecklist('note-1', { title: 'Updated', body: 'Body', version: 'version-1', checklistRows: [{ id: 7, text: 'Task', isDone: false, sortOrder: 0 }] });
   await NotebookApi.setPinned('note-1', true, 'version-1');
+  await NotebookApi.setReminder('note-1', '2026-08-08T06:30:00.000Z', 'High', 'version-1');
   await NotebookApi.setColour('note-1', 'amber', 'version-1');
   await NotebookApi.archiveItem('note-1', 'version-1');
   await NotebookApi.completeItem('note-1', 'version-1');
@@ -105,6 +106,26 @@ test('all Notebook JSON mutations declare application/json content type', async 
   }
 });
 
+
+
+test('setReminder sends a dedicated versioned reminder mutation payload', async () => {
+  const { NotebookApi } = await loadApiModule();
+  let captured;
+  global.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, mutationResponse());
+  };
+
+  await NotebookApi.setReminder('note-1', '2026-08-08T06:30:00.000Z', 'High', 'version-1');
+
+  assert.equal(captured.url, '/api/notebook/items/note-1/reminder');
+  assert.equal(captured.options.method, 'PUT');
+  assert.deepEqual(JSON.parse(captured.options.body), {
+    reminderAtUtc: '2026-08-08T06:30:00.000Z',
+    priority: 'High',
+    version: 'version-1'
+  });
+});
 
 test('setColour sends a dedicated colour mutation payload', async () => {
   const { NotebookApi } = await loadApiModule();

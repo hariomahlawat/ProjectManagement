@@ -6,6 +6,9 @@ namespace ProjectManagement.Models;
 
 public enum NotebookItemType : byte
 {
+    // Note and Checklist are the active persisted content types.
+    // The remaining values are retained for legacy input/database compatibility and
+    // are normalised to Note by NotebookRules during creation/migration.
     Note = 0,
     Sticky = 1,
     Checklist = 2,

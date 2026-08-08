@@ -87,6 +87,14 @@ export function getIstTodayValue(now = new Date()) {
   return toDateValue(istCalendarDate(now));
 }
 
+export function toIstPartsFromIso(value) {
+  if (!value) return { date: '', time: '' };
+  const instant = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(instant.getTime())) return { date: '', time: '' };
+  const local = istCalendarDate(instant);
+  return { date: toDateValue(local), time: toTimeValue(local) };
+}
+
 export function getReminderPreset(preset, now = new Date()) {
   const currentIst = istCalendarDate(now);
   const today = {

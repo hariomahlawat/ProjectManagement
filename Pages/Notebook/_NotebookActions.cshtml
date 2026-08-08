@@ -20,7 +20,7 @@ else
     {
         <button title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="button" class="notebook-action-icon notebook-action-pin" data-action="pin-note" data-is-pinned="@Model.Item.IsPinned.ToString().ToLowerInvariant()"><i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i></button>
     }
-    @if (Model.Item.CanManageLifecycle && Model.Item.Status != NotebookItemStatus.Completed && (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null))
+    @if (Model.Item.CanManageLifecycle && Model.Item.Status != NotebookItemStatus.Completed && (Model.Item.ReminderAtUtc is not null))
     {
         <button type="button" data-action="complete-note" class="notebook-action-done">Done</button>
     }

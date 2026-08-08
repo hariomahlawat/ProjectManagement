@@ -76,6 +76,12 @@ public sealed class SetNotebookPinRequest : NotebookVersionedRequest
     public bool IsPinned { get; set; }
 }
 
+public sealed class SetNotebookReminderRequest : NotebookVersionedRequest
+{
+    public DateTimeOffset? ReminderAtUtc { get; set; }
+    public NotebookPriority Priority { get; set; } = NotebookPriority.Normal;
+}
+
 public sealed class SetNotebookColourRequest : NotebookVersionedRequest
 {
     [StringLength(32)]
@@ -223,6 +229,7 @@ public sealed class NotebookCountsResponse
 {
     public int Home { get; init; }
     public int Today { get; init; }
+    public int Overdue { get; init; }
     public int Reminders { get; init; }
     public int Shared { get; init; }
     public int Labels { get; init; }

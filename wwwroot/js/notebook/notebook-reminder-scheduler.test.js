@@ -9,7 +9,7 @@ function loadModule() {
   let source = fs.readFileSync(file, 'utf8');
   source = source
     .replace(/export function /g, 'function ')
-    .concat('\nmodule.exports = { toIstIsoFromParts, istScheduleInstant, isFutureIstSchedule, getIstTodayValue, getReminderPreset, getDefaultReminderSchedule, formatReminderSummary };');
+    .concat('\nmodule.exports = { toIstIsoFromParts, toIstPartsFromIso, istScheduleInstant, isFutureIstSchedule, getIstTodayValue, getReminderPreset, getDefaultReminderSchedule, formatReminderSummary };');
   const context = { module: { exports: {} }, exports: {}, Date, Intl, Math, Number, String, Boolean };
   vm.createContext(context);
   vm.runInContext(source, context);
@@ -21,6 +21,13 @@ test('IST schedule serialisation is explicit and host-time-zone independent', ()
   assert.equal(toIstIsoFromParts('2026-07-18', '09:15'), '2026-07-18T09:15:00+05:30');
   assert.equal(istScheduleInstant('2026-07-18', '09:15').toISOString(), '2026-07-18T03:45:00.000Z');
   assert.equal(toIstIsoFromParts('invalid', '09:15'), null);
+});
+
+
+test('stored UTC reminder converts back to the correct IST editor fields', () => {
+  const { toIstPartsFromIso } = loadModule();
+  assert.deepEqual({ ...toIstPartsFromIso('2026-08-08T04:00:00.000Z') }, { date: '2026-08-08', time: '09:30' });
+  assert.deepEqual({ ...toIstPartsFromIso(null) }, { date: '', time: '' });
 });
 
 test('later today rounds to the next 30 minute IST slot', () => {

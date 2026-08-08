@@ -1,4 +1,44 @@
-Pages/Process/Index.cshtml
-wwwroot/css/process-flow.css
-wwwroot/js/process-flow.js
-ProjectManagement.Tests/ProcessJourneyPresentationContractTests.cs
+PRISM Notebook Stabilization - source file inventory
+==================================================
+
+Copy these paths over the project root.
+
+MODIFIED  Contracts/Notebook/NotebookContracts.cs
+MODIFIED  Controllers/Api/NotebookController.cs
+MODIFIED  Data/ApplicationDbContext.cs
+NEW       Migrations/20261207190000_StabilizeNotebookModule.cs
+MODIFIED  Migrations/ApplicationDbContextModelSnapshot.cs
+MODIFIED  Migrations/immutable-migration-ids.txt
+MODIFIED  Models/NotebookItem.cs
+NEW       Models/NotebookMigrationState.cs
+MODIFIED  Pages/Notebook/Edit.cshtml.cs
+MODIFIED  Pages/Notebook/Index.cshtml
+MODIFIED  Pages/Notebook/Index.cshtml.cs
+MODIFIED  Pages/Notebook/_NotebookActions.cshtml
+MODIFIED  Pages/Notebook/_NotebookCard.cshtml
+MODIFIED  Pages/Notebook/_NotebookEditorTemplate.cshtml
+MODIFIED  ProjectManagement.Tests/DashboardPageTests.cs
+NEW       ProjectManagement.Tests/NotebookDateClassificationTests.cs
+MODIFIED  ProjectManagement.Tests/NotebookMigrationTests.cs
+MODIFIED  ProjectManagement.Tests/NotebookReminderValidationTests.cs
+MODIFIED  ProjectManagement.Tests/NotebookReorderTests.cs
+MODIFIED  Services/Notebook/INotebookService.cs
+MODIFIED  Services/Notebook/NotebookCardModelFactory.cs
+NEW       Services/Notebook/NotebookDateBounds.cs
+MODIFIED  Services/Notebook/NotebookLimits.cs
+NEW       Services/Notebook/NotebookRules.cs
+MODIFIED  Services/Notebook/NotebookService.cs
+MODIFIED  Services/Notebook/NotebookTodoImportService.cs
+MODIFIED  wwwroot/css/notebook.css
+MODIFIED  wwwroot/js/notebook/notebook-api.js
+MODIFIED  wwwroot/js/notebook/notebook-api.test.js
+MODIFIED  wwwroot/js/notebook/notebook-app.js
+MODIFIED  wwwroot/js/notebook/notebook-composer.js
+MODIFIED  wwwroot/js/notebook/notebook-drag-order.js
+MODIFIED  wwwroot/js/notebook/notebook-drag-order.test.js
+MODIFIED  wwwroot/js/notebook/notebook-editor.js
+MODIFIED  wwwroot/js/notebook/notebook-reminder-scheduler.js
+MODIFIED  wwwroot/js/notebook/notebook-reminder-scheduler.test.js
+MODIFIED  wwwroot/js/pages/notebook-index.js
+
+Generated wwwroot/dist Notebook artifacts are not included; run: npm run build:notebook

@@ -1921,10 +1921,10 @@ public sealed class ProjectBriefingSlideComposerTests
         var saffron = ShapeByName(closing, "Closing saffron accent");
         var white = ShapeByName(closing, "Closing white accent");
         var green = ShapeByName(closing, "Closing green accent");
-        var panelAdjustment = Assert.Single(panel.ShapeProperties!
-            .PresetGeometry!
-            .AdjustValueList!
-            .Elements<A.ShapeGuide>());
+        var panelGeometry = Assert.Single(panel.ShapeProperties!
+            .Elements<A.PresetGeometry>());
+        var panelAdjustment = Assert.Single(panelGeometry
+            .Descendants<A.ShapeGuide>());
 
         Assert.Equal("7A263A", ShapeFillColor(panel));
         Assert.True(ShapeWidth(panel) >= 11.70 * 914400, "The ceremonial field should use the slide width confidently.");

@@ -65,6 +65,14 @@ public interface INotebookService
 
     Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default);
 
+    Task<NotebookItemDetailVm> SetReminderAsync(
+        string ownerId,
+        Guid id,
+        DateTimeOffset? reminderAtUtc,
+        NotebookPriority priority,
+        Guid expectedVersion,
+        CancellationToken ct = default);
+
     Task ReorderAsync(string ownerId, NotebookBoardSection section, IReadOnlyList<NotebookOrderItem> items, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> SetColourAsync(string ownerId, Guid id, string? colorKey, Guid expectedVersion, CancellationToken ct = default);

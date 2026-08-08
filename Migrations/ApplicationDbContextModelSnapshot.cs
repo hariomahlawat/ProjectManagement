@@ -9565,12 +9565,23 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
                     b.HasKey("Id");
                     b.HasIndex("DeletedAtUtc");
+                    b.HasIndex("OwnerId", "IsPinned", "SortOrder");
                     b.HasIndex("OwnerId", "IsPinned", "UpdatedAtUtc");
-                    b.HasIndex("OwnerId", "LegacyTodoItemId");
+                    b.HasIndex("OwnerId", "LegacyTodoItemId").IsUnique().HasFilter("\"LegacyTodoItemId\" IS NOT NULL");
                     b.HasIndex("OwnerId", "ClientRequestId").IsUnique().HasFilter("\"ClientRequestId\" IS NOT NULL");
                     b.HasIndex("OwnerId", "ReminderAtUtc");
                     b.HasIndex("OwnerId", "Status", "Type");
                     b.ToTable("NotebookItems");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookMigrationState", b =>
+                {
+                    b.Property<string>("UserId").HasMaxLength(450).HasColumnType("character varying(450)");
+                    b.Property<string>("MigrationKey").HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<DateTimeOffset>("CompletedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<int>("ImportedCount").HasColumnType("integer");
+                    b.HasKey("UserId", "MigrationKey");
+                    b.ToTable("NotebookMigrationStates");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
@@ -9649,6 +9660,12 @@ namespace ProjectManagement.Migrations
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "Owner").WithMany().HasForeignKey("OwnerId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                     b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookMigrationState", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User").WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>

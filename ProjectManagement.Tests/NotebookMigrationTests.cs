@@ -47,6 +47,22 @@ public sealed class NotebookMigrationTests
         Assert.Contains("ALTER COLUMN \"Version\" SET NOT NULL", migration, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void Notebook_stabilization_migration_hardens_legacy_import_and_ordering()
+    {
+        var migration = File.ReadAllText(Path.Combine(GetRepoRoot(), "20261207190000_StabilizeNotebookModule.cs"));
+
+        Assert.Contains("NotebookMigrationStates", migration, StringComparison.Ordinal);
+        Assert.Contains("LegacyTodoImportV1", migration, StringComparison.Ordinal);
+        Assert.Contains("unique: true", migration, StringComparison.Ordinal);
+        Assert.Contains("\"LegacyTodoItemId\" IS NOT NULL", migration, StringComparison.Ordinal);
+        Assert.Contains("ROW_NUMBER() OVER", migration, StringComparison.Ordinal);
+        Assert.Contains("* 1024", migration, StringComparison.Ordinal);
+        Assert.Contains("WHERE \"Type\" IN (1, 3, 4, 5)", migration, StringComparison.Ordinal);
+        Assert.Contains("LOWER(BTRIM(\"ColorKey\"))", migration, StringComparison.Ordinal);
+    }
+
     private static string GetRepoRoot()
     {
         var current = AppContext.BaseDirectory;

@@ -62,8 +62,41 @@ public sealed class NotebookReminderValidationTests
                 ReminderAtUtc = dueAt
             });
 
+        Assert.Equal(NotebookItemType.Note, created.Type);
         Assert.Equal(dueAt, created.ReminderAtUtc);
         Assert.Single(fixture.Db.NotebookItems);
+    }
+
+
+    [Fact]
+    public async Task Existing_note_can_add_change_and_remove_reminder_metadata()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(
+            "owner-1",
+            new NotebookCreateInput
+            {
+                ClientRequestId = Guid.NewGuid(),
+                Title = "Review briefing",
+                Type = NotebookItemType.Note
+            });
+
+        var firstDue = fixture.Clock.UtcNow.AddHours(2);
+        var withReminder = await fixture.Service.SetReminderAsync(
+            "owner-1", created.Id, firstDue, NotebookPriority.High, created.Version);
+        Assert.Equal(firstDue, withReminder.ReminderAtUtc);
+        Assert.Equal(NotebookPriority.High, withReminder.Priority);
+
+        var secondDue = fixture.Clock.UtcNow.AddDays(1);
+        var changed = await fixture.Service.SetReminderAsync(
+            "owner-1", created.Id, secondDue, NotebookPriority.Low, withReminder.Version);
+        Assert.Equal(secondDue, changed.ReminderAtUtc);
+        Assert.Equal(NotebookPriority.Low, changed.Priority);
+
+        var removed = await fixture.Service.SetReminderAsync(
+            "owner-1", created.Id, null, NotebookPriority.Low, changed.Version);
+        Assert.Null(removed.ReminderAtUtc);
+        Assert.Equal(NotebookPriority.Low, removed.Priority);
     }
 
     private static Fixture CreateFixture()

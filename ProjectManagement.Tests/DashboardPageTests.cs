@@ -223,6 +223,9 @@ namespace ProjectManagement.Tests
             public Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> SetReminderAsync(string ownerId, Guid id, DateTimeOffset? reminderAtUtc, NotebookPriority priority, Guid expectedVersion, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task ReorderAsync(string ownerId, NotebookBoardSection section, IReadOnlyList<NotebookOrderItem> items, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 

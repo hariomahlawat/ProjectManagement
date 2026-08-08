@@ -1,4 +1,4 @@
-﻿import { NotebookApi, NotebookApiError } from './notebook-api.js';
+import { NotebookApi, NotebookApiError } from './notebook-api.js';
 import { createAutosave } from './notebook-autosave.js';
 import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation, requireMutationItem } from './notebook-reconcile.js';
@@ -6,6 +6,7 @@ import { getFirstValidationMessage, getValidationMessages } from './notebook-err
 import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
 import { initNotebookLabelPicker, normaliseLabels } from './notebook-label-picker.js';
 import { confirmNotebookAction } from './notebook-confirm-dialog.js';
+import { createReminderScheduler, toIstPartsFromIso } from './notebook-reminder-scheduler.js';
 
 export const ConflictType = Object.freeze({
   StaleDraft: 'stale-draft',
@@ -106,6 +107,7 @@ export function initNotebookEditor(board, view, options = {}) {
   let checklist;
   let colourPicker;
   let labelPicker;
+  let reminderScheduler;
   let trigger;
   let openedByPushState = false;
   let currentSaveError = null;
@@ -124,7 +126,8 @@ export function initNotebookEditor(board, view, options = {}) {
     resolving: false,
     error: null,
     pendingColour: null,
-    pendingLabels: null
+    pendingLabels: null,
+    pendingReminder: null
   };
 
   const shell = options.shell || document.querySelector('.notebook-shell');
@@ -158,6 +161,7 @@ export function initNotebookEditor(board, view, options = {}) {
     const body = modal.querySelector('[data-modal-body]');
     const toolbar = modal.querySelector('[data-notebook-editor-toolbar]');
     const labelHost = modal.querySelector('[data-notebook-label-picker]');
+    const reminderRoot = modal.querySelector('[data-notebook-edit-reminder]');
     const banner = modal.querySelector('[data-notebook-access-banner]');
     const bannerText = modal.querySelector('[data-notebook-access-text]');
     const bannerIcon = modal.querySelector('[data-notebook-access-icon]');
@@ -167,6 +171,7 @@ export function initNotebookEditor(board, view, options = {}) {
     checklist?.setReadOnly?.(!editable);
     if (toolbar) toolbar.hidden = !metadata;
     if (labelHost) labelHost.hidden = !metadata;
+    if (reminderRoot) reminderRoot.hidden = !metadata;
     modal.classList.toggle('is-read-only', !editable);
 
     const level = accessLevel(target);
@@ -209,6 +214,9 @@ export function initNotebookEditor(board, view, options = {}) {
     const useLocal = modal?.querySelector('[data-notebook-use-local]');
     const reloadLatestButton = modal?.querySelector('[data-notebook-reload-latest]');
     const copyLocal = modal?.querySelector('[data-notebook-copy-local]');
+    const reminderToggle = modal?.querySelector('[data-notebook-edit-reminder-toggle]');
+    const reminderSave = modal?.querySelector('[data-notebook-edit-reminder-save]');
+    const reminderRemove = modal?.querySelector('[data-notebook-edit-reminder-remove]');
     if (!panel) return;
 
     panel.hidden = !conflictState.active;
@@ -218,6 +226,9 @@ export function initNotebookEditor(board, view, options = {}) {
         : (conflictState.error || conflictState.message || 'This note changed elsewhere.');
     }
     if (pin) pin.disabled = conflictState.active;
+    if (reminderToggle) reminderToggle.disabled = conflictState.active;
+    if (reminderSave) reminderSave.disabled = conflictState.active || conflictState.resolving;
+    if (reminderRemove) reminderRemove.disabled = conflictState.active || conflictState.resolving;
     if (useLocal) useLocal.disabled = conflictState.resolving;
     if (reloadLatestButton) reloadLatestButton.disabled = conflictState.resolving;
     if (copyLocal) copyLocal.disabled = conflictState.resolving;
@@ -235,6 +246,7 @@ export function initNotebookEditor(board, view, options = {}) {
     conflictState.error = null;
     conflictState.pendingColour = null;
     conflictState.pendingLabels = null;
+    conflictState.pendingReminder = null;
     renderConflictState();
   }
 
@@ -242,7 +254,7 @@ export function initNotebookEditor(board, view, options = {}) {
     return conflictState.active;
   }
 
-  function activateConflict({ type, pendingServerItem = null, localDraft = null, pendingColour = undefined, pendingLabels = undefined, message }) {
+  function activateConflict({ type, pendingServerItem = null, localDraft = null, pendingColour = undefined, pendingLabels = undefined, pendingReminder = undefined, message }) {
     conflictGeneration += 1;
     conflictState.active = true;
     conflictState.type = type;
@@ -250,6 +262,7 @@ export function initNotebookEditor(board, view, options = {}) {
     conflictState.localDraft = localDraft ?? conflictState.localDraft;
     if (pendingColour !== undefined) conflictState.pendingColour = pendingColour;
     if (pendingLabels !== undefined) conflictState.pendingLabels = pendingLabels;
+    if (pendingReminder !== undefined) conflictState.pendingReminder = pendingReminder;
     conflictState.message = message || 'This note changed elsewhere.';
     conflictState.resolving = false;
     conflictState.error = null;
@@ -342,6 +355,132 @@ export function initNotebookEditor(board, view, options = {}) {
     }
   }
 
+  function setReminderStatus(message = '', isError = false) {
+    const status = modal?.querySelector('[data-notebook-edit-reminder-status]');
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('is-error', Boolean(isError));
+  }
+
+  function setReminderPanelExpanded(expanded) {
+    const toggle = modal?.querySelector('[data-notebook-edit-reminder-toggle]');
+    const panel = modal?.querySelector('[data-notebook-edit-reminder-panel]');
+    if (!toggle || !panel) return;
+    const open = Boolean(expanded);
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.classList.toggle('is-expanded', open);
+
+    if (open && !item?.reminderAtUtc && !reminderScheduler?.getValue?.().date) {
+      reminderScheduler?.setDefault?.();
+    }
+  }
+
+  function renderReminderEditor(target = item) {
+    const root = modal?.querySelector('[data-notebook-edit-reminder]');
+    if (!root || !target) return;
+    const canManage = canManageMetadata(target);
+    root.hidden = !canManage;
+    if (!canManage) return;
+
+    const value = root.querySelector('[data-notebook-edit-reminder-value]');
+    const priority = root.querySelector('[data-notebook-edit-reminder-priority]');
+    const remove = root.querySelector('[data-notebook-edit-reminder-remove]');
+    const parts = toIstPartsFromIso(target.reminderAtUtc);
+
+    reminderScheduler?.setValue?.(parts, { markTouched: false, validate: false });
+    if (priority) priority.value = target.priority || 'Normal';
+    if (value) value.textContent = target.reminderDisplay || (target.reminderAtUtc ? 'Reminder set' : 'None');
+    if (remove) remove.hidden = !target.reminderAtUtc;
+    setReminderStatus('');
+  }
+
+  async function saveReminder() {
+    if (!item || !canManageMetadata() || isConflictBlocked()) return;
+    const save = modal.querySelector('[data-notebook-edit-reminder-save]');
+    const remove = modal.querySelector('[data-notebook-edit-reminder-remove]');
+    const priority = modal.querySelector('[data-notebook-edit-reminder-priority]')?.value || 'Normal';
+    const schedule = reminderScheduler?.getValue?.() || {};
+    const validation = reminderScheduler?.validate?.({ focus: true }) || { valid: false, message: 'Choose a reminder date and time.' };
+    if (!validation.valid || !schedule.iso) {
+      setReminderStatus(validation.message || 'Choose a future reminder date and time.', true);
+      return;
+    }
+
+    save.disabled = true;
+    if (remove) remove.disabled = true;
+    setReminderStatus('Saving…');
+    try {
+      await autosave?.flush();
+      const response = await NotebookApi.setReminder(item.id, schedule.iso, priority, item.version);
+      item = requireMutationItem(response, 'The reminder response did not contain the updated note.');
+      draftSourceVersion = item.version;
+      renderReminderEditor(item);
+      setReminderPanelExpanded(false);
+      await reconcileMutation({
+        response, board, view, getCardHtml: NotebookApi.getCardHtml,
+        applyCounts: options.applyCounts, preservePosition: true,
+        showGlobalError: options.showGlobalError,
+        reconcileFailureMessage: 'The reminder was saved, but the board could not refresh. Reload the page.'
+      });
+      setSaveStatus('Saved', SaveState.Saved);
+    } catch (error) {
+      if (error?.status === 409) {
+        activateConflict({
+          type: ConflictType.VersionConflict,
+          pendingServerItem: error?.currentItem ?? null,
+          pendingReminder: { reminderAtUtc: schedule.iso, priority },
+          message: 'This note changed elsewhere. Resolve the conflict before saving the reminder.'
+        });
+      } else {
+        setReminderStatus(error?.message || 'Unable to save the reminder.', true);
+        handleEditorError(error);
+      }
+    } finally {
+      save.disabled = false;
+      if (remove) remove.disabled = false;
+    }
+  }
+
+  async function removeReminder() {
+    if (!item || !item.reminderAtUtc || !canManageMetadata() || isConflictBlocked()) return;
+    const save = modal.querySelector('[data-notebook-edit-reminder-save]');
+    const remove = modal.querySelector('[data-notebook-edit-reminder-remove]');
+    remove.disabled = true;
+    if (save) save.disabled = true;
+    setReminderStatus('Removing…');
+    try {
+      await autosave?.flush();
+      const response = await NotebookApi.setReminder(item.id, null, item.priority || 'Normal', item.version);
+      item = requireMutationItem(response, 'The reminder response did not contain the updated note.');
+      draftSourceVersion = item.version;
+      renderReminderEditor(item);
+      setReminderPanelExpanded(false);
+      await reconcileMutation({
+        response, board, view, getCardHtml: NotebookApi.getCardHtml,
+        applyCounts: options.applyCounts, preservePosition: true,
+        showGlobalError: options.showGlobalError,
+        reconcileFailureMessage: 'The reminder was removed, but the board could not refresh. Reload the page.'
+      });
+      setSaveStatus('Saved', SaveState.Saved);
+    } catch (error) {
+      if (error?.status === 409) {
+        activateConflict({
+          type: ConflictType.VersionConflict,
+          pendingServerItem: error?.currentItem ?? null,
+          pendingReminder: { reminderAtUtc: null, priority: item.priority || 'Normal' },
+          message: 'This note changed elsewhere. Resolve the conflict before removing the reminder.'
+        });
+      } else {
+        setReminderStatus(error?.message || 'Unable to remove the reminder.', true);
+        handleEditorError(error);
+      }
+    } finally {
+      remove.disabled = false;
+      if (save) save.disabled = false;
+    }
+  }
+
   function applyAuthoritativeItem(updated) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || '');
@@ -369,6 +508,7 @@ export function initNotebookEditor(board, view, options = {}) {
     draftSourceVersion = updated.version ?? null;
     clearValidationBlock();
     applyAccessMode(updated);
+    renderReminderEditor(updated);
     configureAutosave();
     renderPin();
   }
@@ -395,6 +535,10 @@ export function initNotebookEditor(board, view, options = {}) {
         scheduleAutosave();
       }
     });
+
+    reminderScheduler = createReminderScheduler(
+      requireEditorElement(modal, '[data-notebook-edit-reminder-scheduler]')
+    );
 
     colourPicker = initNotebookColourPicker(
       requireEditorElement(modal, '[data-notebook-colour-picker]'),
@@ -424,6 +568,12 @@ export function initNotebookEditor(board, view, options = {}) {
       scheduleAutosave();
     });
     pinButton.addEventListener('click', pinItem);
+    modal.querySelector('[data-notebook-edit-reminder-toggle]')?.addEventListener('click', () => {
+      const expanded = modal.querySelector('[data-notebook-edit-reminder-toggle]')?.getAttribute('aria-expanded') === 'true';
+      setReminderPanelExpanded(!expanded);
+    });
+    modal.querySelector('[data-notebook-edit-reminder-save]')?.addEventListener('click', saveReminder);
+    modal.querySelector('[data-notebook-edit-reminder-remove]')?.addEventListener('click', removeReminder);
     modal.querySelector('[data-notebook-retry]')?.addEventListener('click', retrySave);
     modal.querySelector('[data-notebook-reload-application]')?.addEventListener('click', () => window.location.reload());
     modal.querySelector('[data-notebook-sign-in]')?.addEventListener('click', signInAgain);
@@ -800,7 +950,27 @@ export function initNotebookEditor(board, view, options = {}) {
 
   async function useMyChanges() {
     if (!conflictState.active || conflictState.resolving || !item || !canEditContent()) return;
-    const confirmed = await confirmNotebookAction({ title: 'Replace the newer saved version?', message: 'Your current changes will be saved over the newer version of this note.', detail: 'Use Reload latest instead to keep the newer saved version.', confirmText: 'Use my changes', tone: 'warning' });
+
+    const metadataOnlyConflict = !hasDirtyChanges() && [
+      conflictState.pendingColour,
+      conflictState.pendingLabels,
+      conflictState.pendingReminder
+    ].some((value) => value !== null && value !== undefined);
+    const confirmed = await confirmNotebookAction(metadataOnlyConflict
+      ? {
+          title: 'Apply this setting to the latest note?',
+          message: 'The latest saved note content will be kept and your setting will be applied to it.',
+          detail: 'Use Reload latest instead to discard this setting.',
+          confirmText: 'Apply setting',
+          tone: 'warning'
+        }
+      : {
+          title: 'Replace the newer saved version?',
+          message: 'Your current changes will be saved over the newer version of this note.',
+          detail: 'Use Reload latest instead to keep the newer saved version.',
+          confirmText: 'Use my changes',
+          tone: 'warning'
+        });
     if (!confirmed) return;
 
     const resolutionGeneration = conflictGeneration;
@@ -811,22 +981,37 @@ export function initNotebookEditor(board, view, options = {}) {
 
     try {
       const knownLatest = conflictState.pendingServerItem;
-      const latest = knownLatest?.version ? knownLatest : await NotebookApi.getItem(item.id);
+      const latest = knownLatest?.id && knownLatest?.version
+        ? knownLatest
+        : await NotebookApi.getItem(item.id);
       if (resolutionGeneration !== conflictGeneration) return;
-
-      item.version = latest.version;
-      draftSourceVersion = latest.version;
-      currentSaveError = null;
-      clearValidationBlock();
 
       const pendingColour = conflictState.pendingColour;
       const pendingLabels = conflictState.pendingLabels;
-      const result = await saveEditorPayload(buildCurrentPayload(), {
-        sequence: ++directSaveSequence,
-        conflictGenerationAtDispatch: resolutionGeneration,
-        deliberateConflictResolution: (pendingColour === null || pendingColour === undefined) && (pendingLabels === null || pendingLabels === undefined)
-      });
-      await applyPersistedResponse(result);
+      const pendingReminder = conflictState.pendingReminder;
+      const hasPendingMetadata =
+        (pendingColour !== null && pendingColour !== undefined)
+        || (pendingLabels !== null && pendingLabels !== undefined)
+        || (pendingReminder !== null && pendingReminder !== undefined);
+      const hasLocalContentChanges = hasDirtyChanges();
+
+      currentSaveError = null;
+      clearValidationBlock();
+
+      if (hasLocalContentChanges || !hasPendingMetadata) {
+        // Content conflicts deliberately replay the local content against the latest
+        // server version. Metadata-only conflicts must not overwrite newer content.
+        item.version = latest.version;
+        draftSourceVersion = latest.version;
+        const result = await saveEditorPayload(buildCurrentPayload(), {
+          sequence: ++directSaveSequence,
+          conflictGenerationAtDispatch: resolutionGeneration,
+          deliberateConflictResolution: !hasPendingMetadata
+        });
+        await applyPersistedResponse(result);
+      } else {
+        applyAuthoritativeItem(latest);
+      }
 
       if (pendingColour !== null && pendingColour !== undefined) {
         const colourResponse = await NotebookApi.setColour(item.id, pendingColour, item.version);
@@ -850,7 +1035,31 @@ export function initNotebookEditor(board, view, options = {}) {
         await reconcileMutation({ response: labelsResponse, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError });
         setSaveStatus('Saved', SaveState.Saved);
       }
-      if (pendingColour !== null && pendingColour !== undefined || pendingLabels !== null && pendingLabels !== undefined) clearConflictState();
+
+      if (pendingReminder !== null && pendingReminder !== undefined) {
+        const reminderResponse = await NotebookApi.setReminder(
+          item.id,
+          pendingReminder.reminderAtUtc,
+          pendingReminder.priority || 'Normal',
+          item.version
+        );
+        item = requireMutationItem(reminderResponse, 'The reminder response did not contain the updated note.');
+        draftSourceVersion = item.version;
+        renderReminderEditor(item);
+        setReminderPanelExpanded(false);
+        await reconcileMutation({
+          response: reminderResponse, board, view, getCardHtml: NotebookApi.getCardHtml,
+          applyCounts: options.applyCounts, preservePosition: true,
+          showGlobalError: options.showGlobalError
+        });
+        setSaveStatus('Saved', SaveState.Saved);
+      }
+
+      if (
+        (pendingColour !== null && pendingColour !== undefined)
+        || (pendingLabels !== null && pendingLabels !== undefined)
+        || (pendingReminder !== null && pendingReminder !== undefined)
+      ) clearConflictState();
     } catch (error) {
       handleEditorError(error);
     } finally {

@@ -29,12 +29,76 @@ public sealed class NotebookReorderTests
             new NotebookOrderItem(first.Id, first.Version)
         ]);
 
-        Assert.Equal(1000, second.SortOrder);
-        Assert.Equal(2000, first.SortOrder);
+        Assert.Equal(0, second.SortOrder);
+        Assert.Equal(NotebookLimits.SortOrderStep, first.SortOrder);
         Assert.Equal(now, first.UpdatedAtUtc);
         Assert.Equal(now, second.UpdatedAtUtc);
         Assert.Equal(first.Version, db.Entry(first).Property(x => x.Version).CurrentValue);
         Assert.Equal(second.Version, db.Entry(second).Property(x => x.Version).CurrentValue);
+    }
+
+
+    [Fact]
+    public async Task Index_and_reorder_support_more_than_eighty_active_items()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        var now = new DateTimeOffset(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
+        var items = Enumerable.Range(0, 120)
+            .Select(index => CreateItem("owner", $"Note {index + 1}", now.AddMinutes(-index), index * NotebookLimits.SortOrderStep))
+            .ToArray();
+        db.NotebookItems.AddRange(items);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, now);
+
+        var indexVm = await service.GetIndexAsync("owner", "home", null, null, null, null);
+
+        Assert.Equal(120, indexVm.OtherItems.Count);
+
+        var reversed = items
+            .OrderByDescending(item => item.SortOrder)
+            .Select(item => new NotebookOrderItem(item.Id, item.Version))
+            .ToArray();
+        await service.ReorderAsync("owner", NotebookBoardSection.Others, reversed);
+
+        var persisted = await db.NotebookItems
+            .OrderBy(item => item.SortOrder)
+            .Select(item => item.Id)
+            .ToArrayAsync();
+        Assert.Equal(reversed.Select(item => item.Id), persisted);
+    }
+
+    [Fact]
+    public async Task Sequential_creates_keep_newest_item_at_top_with_distinct_sparse_orders()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        var now = new DateTimeOffset(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
+        var service = CreateService(db, now);
+
+        for (var index = 1; index <= 100; index++)
+        {
+            await service.CreateAsync("owner", new NotebookCreateInput
+            {
+                ClientRequestId = Guid.NewGuid(),
+                Title = $"Note {index}",
+                Type = NotebookItemType.Note
+            });
+        }
+
+        var persistedOrders = await db.NotebookItems
+            .Select(item => item.SortOrder)
+            .ToArrayAsync();
+        Assert.Equal(100, persistedOrders.Distinct().Count());
+
+        var indexVm = await service.GetIndexAsync("owner", "home", null, null, null, null);
+        Assert.Equal(100, indexVm.OtherItems.Count);
+        Assert.Equal("Note 100", indexVm.OtherItems[0].Title);
+        Assert.Equal("Note 1", indexVm.OtherItems[^1].Title);
     }
 
     [Fact]

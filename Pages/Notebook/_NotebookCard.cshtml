@@ -50,7 +50,7 @@
 }
 
 @* SECTION: Notebook board card *@
-<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" data-can-edit-content="@item.CanEditContent.ToString().ToLowerInvariant()" data-can-manage-metadata="@item.CanManageMetadata.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" data-can-edit-content="@item.CanEditContent.ToString().ToLowerInvariant()" data-can-manage-metadata="@item.CanManageMetadata.ToString().ToLowerInvariant()" data-reorderable="@((!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner).ToString().ToLowerInvariant())" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
     @if (!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner)
     {
         <button type="button" class="notebook-card-drag-handle" data-notebook-drag-handle hidden aria-label="Rearrange @item.Title" aria-grabbed="false" title="Drag to rearrange"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button>
@@ -60,7 +60,6 @@
             <div class="notebook-card-topline">
                 <span class="notebook-card-indicators">
                     @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
-                    @if (item.IsFavorite) { <i class="bi bi-star-fill" title="Favourite"></i> }
                     @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell" title="Reminder"></i> }
                 </span>
                 @if (item.IsPinned)

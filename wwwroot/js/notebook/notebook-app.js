@@ -68,7 +68,18 @@ export function initNotebookApp() {
   const globalError = document.querySelector('[data-notebook-global-error]');
   const globalErrorText = document.querySelector('[data-notebook-global-error-text]');
   const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
-  const applyCounts = (counts) => { if (!counts) return; Object.entries(counts).forEach(([key, value]) => shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => { el.textContent = String(value); })); };
+  const applyCounts = (counts) => {
+    if (!counts) return;
+    Object.entries(counts).forEach(([key, value]) => {
+      shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
+        el.textContent = String(value);
+        if (key.toLowerCase() === 'overdue') {
+          const isCurrentView = String(shell.dataset.view || '').toLowerCase() === 'overdue';
+          el.closest('.notebook-rail__item')?.toggleAttribute('hidden', Number(value) <= 0 && !isCurrentView);
+        }
+      });
+    });
+  };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
@@ -125,11 +136,17 @@ export function initNotebookApp() {
   renderNotebookLabelNavigation(shell, labels);
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
-  const storageKey = 'notebook.boardView';
+  const storageKey = 'prism.notebook.view';
+  const legacyStorageKeys = ['notebook.boardView', 'notebook-board-view'];
   const viewButtons = [...shell.querySelectorAll('[data-notebook-view]')];
+  const storedView = localStorage.getItem(storageKey)
+    || legacyStorageKeys.map((key) => localStorage.getItem(key)).find(Boolean)
+    || shell.dataset.boardView
+    || 'grid';
+  legacyStorageKeys.forEach((key) => localStorage.removeItem(key));
   function applyBoardView(next) { const selected = next === 'list' ? 'list' : 'grid'; shell.dataset.boardView = selected; localStorage.setItem(storageKey, selected); viewButtons.forEach((button) => { const active = button.dataset.notebookView === selected; button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active)); }); document.dispatchEvent(new CustomEvent('notebook:board-view-changed', { detail: { view: selected } })); }
   viewButtons.forEach((button) => button.addEventListener('click', () => applyBoardView(button.dataset.notebookView)));
-  applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
+  applyBoardView(storedView);
   const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
   const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });

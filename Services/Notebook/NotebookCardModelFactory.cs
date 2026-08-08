@@ -52,9 +52,11 @@ public sealed class NotebookCardModelFactory : INotebookCardModelFactory
     private static string NormalizeView(string? view) => view?.Trim().ToLowerInvariant() switch
     {
         "today" => "today",
+        "overdue" => "overdue",
         "reminders" => "reminders",
+        "shared" => "shared",
         "labels" => "labels",
-        "archive" => "archive",
+        "archive" or "archived" => "archive",
         "completed" => "completed",
         "trash" => "trash",
         _ => NotebookCardContexts.Home

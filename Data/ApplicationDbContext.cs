@@ -72,6 +72,7 @@ namespace ProjectManagement.Data
         public DbSet<NotebookItemTag> NotebookItemTags => Set<NotebookItemTag>();
         public DbSet<NotebookAttachment> NotebookAttachments => Set<NotebookAttachment>();
         public DbSet<NotebookItemCollaborator> NotebookItemCollaborators => Set<NotebookItemCollaborator>();
+        public DbSet<NotebookMigrationState> NotebookMigrationStates => Set<NotebookMigrationState>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
         public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
         public DbSet<ActionSprintAuditLog> ActionSprintAuditLogs => Set<ActionSprintAuditLog>();
@@ -254,8 +255,11 @@ namespace ProjectManagement.Data
             {
                 entity.HasIndex(x => new { x.OwnerId, x.Status, x.Type });
                 entity.HasIndex(x => new { x.OwnerId, x.IsPinned, x.UpdatedAtUtc });
+                entity.HasIndex(x => new { x.OwnerId, x.IsPinned, x.SortOrder });
                 entity.HasIndex(x => new { x.OwnerId, x.ReminderAtUtc });
-                entity.HasIndex(x => new { x.OwnerId, x.LegacyTodoItemId });
+                entity.HasIndex(x => new { x.OwnerId, x.LegacyTodoItemId })
+                    .IsUnique()
+                    .HasFilter("\"LegacyTodoItemId\" IS NOT NULL");
                 entity.HasIndex(x => new { x.OwnerId, x.ClientRequestId }).IsUnique().HasFilter("\"ClientRequestId\" IS NOT NULL");
                 entity.HasIndex(x => x.DeletedAtUtc);
                 entity.Property(x => x.Type).HasConversion<byte>();
@@ -302,6 +306,14 @@ namespace ProjectManagement.Data
                 entity.HasOne(x => x.NotebookItem).WithMany(x => x.Collaborators).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(x => x.AddedByUser).WithMany().HasForeignKey(x => x.AddedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<NotebookMigrationState>(entity =>
+            {
+                entity.HasKey(x => new { x.UserId, x.MigrationKey });
+                entity.Property(x => x.UserId).HasMaxLength(450);
+                entity.Property(x => x.MigrationKey).HasMaxLength(80);
+                entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             });
 
             // SECTION: Project Ideas module

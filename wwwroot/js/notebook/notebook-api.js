@@ -225,6 +225,7 @@ export const NotebookApi = {
   updateContent: (id, payload, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions('PATCH', payload, options)),
   updateChecklist: (id, payload, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/checklist`, jsonRequestOptions('PUT', payload, options)),
   setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions('POST', { isPinned, version })),
+  setReminder: (id, reminderAtUtc, priority, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/reminder`, jsonRequestOptions('PUT', { reminderAtUtc: reminderAtUtc || null, priority: priority || 'Normal', version })),
   reorderItems: (section, items) => request('/api/notebook/order', jsonRequestOptions('PUT', { section, items })),
   setColour: (id, colorKey, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/colour`, jsonRequestOptions('POST', { colorKey: colorKey || null, version })),
   getLabels: () => request('/api/notebook/labels'),
