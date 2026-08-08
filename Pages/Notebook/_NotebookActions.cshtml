@@ -27,6 +27,13 @@ else
     @if (Model.Item.CanManageMetadata)
     {
         <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="Model.Item.ColorKey ?? string.Empty" />
+        <button type="button"
+                class="notebook-action-icon"
+                data-action="label-note"
+                title="Edit labels"
+                aria-label="Edit labels">
+            <i class="bi bi-tags"></i>
+        </button>
     }
     <button type="button"
             class="notebook-action-icon"
@@ -38,10 +45,6 @@ else
     <details class="notebook-card-more">
         <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
-            @if (Model.Item.CanManageMetadata)
-            {
-                <button type="button" role="menuitem" data-action="label-note"><i class="bi bi-tag"></i><span>Add label</span></button>
-            }
             @if (Model.Item.CanDuplicate)
             {
                 <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>

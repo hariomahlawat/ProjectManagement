@@ -97,3 +97,13 @@ test('notebook board switches adaptive layout to masonry above four cards', asyn
   assert.equal(element.dataset.itemCount, '5');
   assert.equal(element.dataset.layout, 'masonry');
 });
+
+
+test('notebook board honours always-masonry policy even for compact sections', async () => {
+  const dom = new JSDOM('<div data-notebook-board="others" data-layout-policy="masonry-always"><article data-note-id="1"></article><article data-note-id="2"></article></div>');
+  const board = loadBoard(dom);
+  const element = dom.window.document.querySelector('[data-notebook-board="others"]');
+  board.refreshSectionVisibility();
+  assert.equal(element.dataset.itemCount, '2');
+  assert.equal(element.dataset.layout, 'masonry');
+});

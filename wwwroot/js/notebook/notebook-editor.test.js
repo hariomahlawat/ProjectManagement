@@ -172,13 +172,13 @@ test('resizeNotebookBodyEditor keeps short notes compact and caps long notes', a
   const textarea = { style: {}, scrollHeight: 40 };
 
   const shortNote = resizeNotebookBodyEditor(textarea, 'Note');
-  assert.equal(shortNote.height, 84);
-  assert.equal(textarea.style.height, '84px');
+  assert.equal(shortNote.height, 64);
+  assert.equal(textarea.style.height, '64px');
   assert.equal(textarea.style.overflowY, 'hidden');
 
   textarea.scrollHeight = 420;
   const longNote = resizeNotebookBodyEditor(textarea, 'Note');
-  assert.equal(longNote.height, 280);
+  assert.equal(longNote.height, 260);
   assert.equal(longNote.overflowing, true);
   assert.equal(textarea.style.overflowY, 'auto');
 });
@@ -189,6 +189,6 @@ test('resizeNotebookBodyEditor gives checklist description a smaller compact bas
 
   const result = resizeNotebookBodyEditor(textarea, 'Checklist');
 
-  assert.equal(result.height, 52);
-  assert.equal(textarea.style.height, '52px');
+  assert.equal(result.height, 46);
+  assert.equal(textarea.style.height, '46px');
 });

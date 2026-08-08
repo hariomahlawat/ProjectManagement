@@ -43,7 +43,8 @@ export function createNotebookBoard(root = document) {
     const count = board.querySelectorAll(':scope > [data-note-id]').length;
     board.dataset.itemCount = String(count);
     const policy = board.dataset.layoutPolicy || 'fixed-grid';
-    board.dataset.layout = policy === 'masonry-threshold' && count > 4 ? 'masonry' : 'grid';
+    const useMasonry = policy === 'masonry-always' || (policy === 'masonry-threshold' && count > 4);
+    board.dataset.layout = useMasonry ? 'masonry' : 'grid';
     const EventCtor = board.ownerDocument?.defaultView?.CustomEvent;
     if (EventCtor) board.dispatchEvent(new EventCtor('notebook:masonry-refresh', { bubbles: true }));
   }

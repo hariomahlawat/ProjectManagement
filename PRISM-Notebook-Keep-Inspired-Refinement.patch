@@ -1,0 +1,879 @@
+--- a/Pages/Notebook/Index.cshtml
++++ b/Pages/Notebook/Index.cshtml
+@@ -140,6 +140,10 @@
+                             <textarea data-composer-body maxlength="20000" placeholder="Take a note…" aria-label="Note body"></textarea>
+                             <div data-composer-checklist hidden></div>
+                             <div class="notebook-composer__footer">
++                                <div class="notebook-composer__tools" role="toolbar" aria-label="Note options">
++                                    <partial name="_NotebookColourPicker" model="string.Empty" />
++                                    <partial name="_NotebookLabelPicker" />
++                                </div>
+                                 <span data-composer-status aria-live="polite"></span>
+                                 <button type="button" class="notebook-composer__close" data-composer-close>Close</button>
+                             </div>
+@@ -178,7 +182,7 @@
+             @* SECTION: Manual-order friendly home board sections *@
+             <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">
+                 <div class="notebook-section-header"><h2>Pinned</h2><span data-notebook-count="pinned">@Model.Notebook.PinnedItems.Count</span></div>
+-                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-threshold" data-layout="grid" data-item-count="@Model.Notebook.PinnedItems.Count">
++                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.PinnedItems.Count">
+                     @foreach (var item in Model.Notebook.PinnedItems)
+                     {
+                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+@@ -187,7 +191,7 @@
+             </section>
+             <section class="notebook-board-section" data-notebook-section="others">
+                 <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@Model.Notebook.OtherItems.Count</span></div>
+-                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-threshold" data-layout="@(Model.Notebook.OtherItems.Count > 4 ? "masonry" : "grid")" data-item-count="@Model.Notebook.OtherItems.Count">
++                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.OtherItems.Count">
+                     @foreach (var item in Model.Notebook.OtherItems)
+                     {
+                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+@@ -202,7 +206,7 @@
+         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
+         {
+             <section class="notebook-board-section">
+-                <div class="notebook-board" data-notebook-board data-layout-policy="masonry-threshold" data-layout="@(Model.Notebook.Items.Count > 4 ? "masonry" : "grid")" data-item-count="@Model.Notebook.Items.Count">
++                <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.Items.Count">
+                     @foreach (var item in Model.Notebook.Items)
+                     {
+                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+--- a/Pages/Notebook/_NotebookActions.cshtml
++++ b/Pages/Notebook/_NotebookActions.cshtml
+@@ -27,6 +27,13 @@
+     @if (Model.Item.CanManageMetadata)
+     {
+         <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="Model.Item.ColorKey ?? string.Empty" />
++        <button type="button"
++                class="notebook-action-icon"
++                data-action="label-note"
++                title="Edit labels"
++                aria-label="Edit labels">
++            <i class="bi bi-tags"></i>
++        </button>
+     }
+     <button type="button"
+             class="notebook-action-icon"
+@@ -38,10 +45,6 @@
+     <details class="notebook-card-more">
+         <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
+         <div class="notebook-card-more__menu" role="menu">
+-            @if (Model.Item.CanManageMetadata)
+-            {
+-                <button type="button" role="menuitem" data-action="label-note"><i class="bi bi-tag"></i><span>Add label</span></button>
+-            }
+             @if (Model.Item.CanDuplicate)
+             {
+                 <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>
+--- a/Pages/Notebook/_NotebookCard.cshtml
++++ b/Pages/Notebook/_NotebookCard.cshtml
+@@ -57,16 +57,18 @@
+     }
+     <div class="notebook-card-body">
+         <a href="@(isTrash ? "#" : Model.OpenUrl)" class="notebook-card-link notebook-card__open-area @(isTrash ? "is-disabled" : "")" data-action="@(isTrash ? null : "open-note")" aria-label="@(isTrash ? item.Title : $"Open {item.Title}")" aria-disabled="@isTrash.ToString().ToLowerInvariant()">
+-            <div class="notebook-card-topline">
+-                <span class="notebook-card-indicators">
+-                    @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
+-                    @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell" title="Reminder"></i> }
+-                </span>
+-                @if (item.IsPinned)
+-                {
+-                    <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
+-                }
+-            </div>
++            @if (item.Status == NotebookItemStatus.Completed || item.IsPinned)
++            {
++                <div class="notebook-card-topline">
++                    <span class="notebook-card-indicators">
++                        @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
++                    </span>
++                    @if (item.IsPinned)
++                    {
++                        <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
++                    }
++                </div>
++            }
+             <h3 class="notebook-card-title">@item.Title</h3>
+             @if (!string.IsNullOrWhiteSpace(item.Preview))
+             {
+--- a/Pages/Notebook/_NotebookEditorTemplate.cshtml
++++ b/Pages/Notebook/_NotebookEditorTemplate.cshtml
+@@ -189,22 +189,6 @@
+                 </div>
+             </section>
+ 
+-            <div class="notebook-editor-toolbar" data-notebook-editor-toolbar>
+-                <partial name="_NotebookColourPicker" model="string.Empty" />
+-                <partial name="_NotebookLabelPicker" />
+-            </div>
+-
+-            <div class="notebook-save-feedback">
+-                <span class="notebook-modal__save-state"
+-                      data-notebook-save-state
+-                      aria-live="polite"></span>
+-                <button type="button" data-notebook-retry hidden>Retry</button>
+-                <button type="button" data-notebook-reload-application hidden>Reload application</button>
+-                <button type="button" data-notebook-sign-in hidden>Sign in again</button>
+-                <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
+-                <button type="button" data-modal-discard hidden>Discard changes</button>
+-            </div>
+-
+             <section class="notebook-conflict"
+                      data-notebook-conflict
+                      hidden
+@@ -231,27 +215,45 @@
+                 </div>
+             </section>
+ 
+-            <footer>
+-                <button type="button"
+-                        class="btn btn-sm notebook-create-discard"
+-                        data-notebook-create-discard
+-                        hidden>
+-                    Discard draft
+-                </button>
+-                <span class="notebook-create-draft-status" data-notebook-create-draft-status aria-live="polite"></span>
+-                <button type="button"
+-                        class="btn btn-sm btn-primary notebook-create-submit"
+-                        data-notebook-create-submit
+-                        hidden>
+-                    Create
+-                </button>
+-                <button type="button"
+-                        class="btn btn-sm notebook-editor-close-button"
+-                        data-close
+-                        aria-label="Close note editor">
+-                    Close
+-                </button>
+-            </footer>
++            <div class="notebook-editor-bottom-bar">
++                <div class="notebook-editor-toolbar" data-notebook-editor-toolbar role="toolbar" aria-label="Note options">
++                    <partial name="_NotebookColourPicker" model="string.Empty" />
++                    <partial name="_NotebookLabelPicker" />
++                </div>
++
++                <div class="notebook-save-feedback">
++                    <span class="notebook-modal__save-state"
++                          data-notebook-save-state
++                          aria-live="polite"></span>
++                    <button type="button" data-notebook-retry hidden>Retry</button>
++                    <button type="button" data-notebook-reload-application hidden>Reload application</button>
++                    <button type="button" data-notebook-sign-in hidden>Sign in again</button>
++                    <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
++                    <button type="button" data-modal-discard hidden>Discard changes</button>
++                </div>
++
++                <footer>
++                    <button type="button"
++                            class="btn btn-sm notebook-create-discard"
++                            data-notebook-create-discard
++                            hidden>
++                        Discard draft
++                    </button>
++                    <span class="notebook-create-draft-status" data-notebook-create-draft-status aria-live="polite"></span>
++                    <button type="button"
++                            class="btn btn-sm btn-primary notebook-create-submit"
++                            data-notebook-create-submit
++                            hidden>
++                        Create
++                    </button>
++                    <button type="button"
++                            class="btn btn-sm notebook-editor-close-button"
++                            data-close
++                            aria-label="Close note editor">
++                        Close
++                    </button>
++                </footer>
++            </div>
+         </section>
+     </div>
+ </template>
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -3460,3 +3460,406 @@
+         flex: 1 1 0;
+     }
+ }
++
++/* SECTION: Keep-inspired interaction refinement — PRISM visual language */
++.notebook-composer {
++    max-width: 760px;
++    margin-inline: auto;
++    overflow: visible;
++    border-color: rgba(71, 85, 105, .18);
++    border-radius: 10px;
++    box-shadow: 0 1px 2px rgba(15, 23, 42, .08), 0 3px 10px rgba(15, 23, 42, .07);
++    transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
++}
++
++.notebook-composer:focus-within {
++    border-color: rgba(71, 85, 105, .24);
++    box-shadow: 0 2px 4px rgba(15, 23, 42, .10), 0 8px 22px rgba(15, 23, 42, .09);
++}
++
++.notebook-composer__collapsed {
++    min-height: 56px;
++    padding: 4px 8px 4px 14px;
++}
++
++.notebook-composer__trigger {
++    min-height: 46px;
++    padding: 0;
++    font-size: .9rem;
++    font-weight: 550;
++}
++
++.notebook-composer__expanded {
++    gap: 0;
++}
++
++.notebook-composer__top {
++    min-height: 48px;
++    padding: 4px 7px 0 10px;
++}
++
++.notebook-composer__top input {
++    min-height: 42px;
++    padding: .45rem .65rem;
++    color: #172033;
++    font-size: .98rem;
++    font-weight: 650;
++}
++
++.notebook-composer__expanded textarea {
++    min-height: 56px;
++    max-height: 200px;
++    padding: .45rem 1rem .6rem;
++    box-sizing: border-box;
++    resize: none;
++    overflow-x: hidden;
++    overflow-y: hidden;
++    color: #25324a;
++    font-size: .9rem;
++    line-height: 1.48;
++}
++
++.notebook-composer [data-composer-checklist] {
++    padding: 0 10px 2px;
++}
++
++.notebook-composer__footer {
++    min-height: 44px;
++    justify-content: flex-start;
++    gap: .35rem;
++    padding: 4px 8px 6px 10px;
++}
++
++.notebook-composer__tools {
++    display: inline-flex;
++    align-items: center;
++    gap: 2px;
++    flex: 0 0 auto;
++}
++
++.notebook-composer__tools .notebook-action-icon,
++.notebook-composer__tools .notebook-toolbar-action,
++.notebook-composer__tools .notebook-colour-picker__toggle {
++    display: inline-grid;
++    place-items: center;
++    width: 34px;
++    height: 34px;
++    min-width: 34px;
++    min-height: 34px;
++    padding: 0;
++    border: 0;
++    border-radius: 50%;
++    background: transparent;
++    color: #59677b;
++}
++
++.notebook-composer__tools .notebook-action-icon:hover,
++.notebook-composer__tools .notebook-toolbar-action:hover,
++.notebook-composer__tools .notebook-action-icon:focus-visible,
++.notebook-composer__tools .notebook-toolbar-action:focus-visible {
++    background: rgba(60, 64, 67, .08);
++    color: #1f2937;
++    outline: none;
++}
++
++.notebook-composer__footer [data-composer-status] {
++    flex: 1 1 auto;
++    min-width: 0;
++    padding-left: .15rem;
++}
++
++.notebook-composer__close {
++    margin-left: auto;
++    min-height: 34px;
++    padding: .3rem .72rem;
++}
++
++.notebook-composer .notebook-colour-picker__popover,
++.notebook-composer .notebook-label-picker__popover {
++    bottom: calc(100% + 6px);
++}
++
++/* Content-first cards: persistent state remains visible; editing controls appear on intent. */
++.notebook-card {
++    border-color: rgba(71, 85, 105, .18);
++    border-radius: 9px;
++    transition: border-color .14s ease, box-shadow .14s ease, background-color .16s ease;
++}
++
++.notebook-card:hover,
++.notebook-card:focus-within {
++    border-color: rgba(71, 85, 105, .27);
++    box-shadow: 0 1px 2px rgba(15, 23, 42, .10), 0 5px 14px rgba(15, 23, 42, .09);
++}
++
++.notebook-card-body {
++    position: relative;
++    padding: 13px 14px 10px;
++}
++
++.notebook-card-topline {
++    min-height: 0;
++    margin: 0 0 2px;
++    justify-content: flex-end;
++}
++
++.notebook-card-indicators:empty {
++    display: none;
++}
++
++.notebook-card-title {
++    margin: 1px 0 5px;
++    font-size: .98rem;
++    line-height: 1.3;
++}
++
++.notebook-card-preview {
++    color: #3f4c60;
++    line-height: 1.4;
++}
++
++.notebook-card-meta > span {
++    display: inline-flex;
++    align-items: center;
++    gap: .28rem;
++    width: fit-content;
++    max-width: 100%;
++    padding: 2px 7px;
++    border: 1px solid rgba(100, 116, 139, .16);
++    border-radius: 999px;
++    background: rgba(255, 255, 255, .58);
++    font-size: .7rem;
++    font-weight: 650;
++}
++
++.notebook-card-tags {
++    margin-top: 7px;
++}
++
++.notebook-tag-chip {
++    background: rgba(71, 85, 105, .08);
++    color: #4b5565;
++}
++
++.notebook-card-actions {
++    right: 7px;
++    bottom: 6px;
++    padding: 2px;
++    border-radius: 999px;
++    background: color-mix(in srgb, var(--bs-body-bg, #fff) 84%, transparent) !important;
++    backdrop-filter: blur(7px);
++}
++
++.notebook-actions {
++    gap: 1px;
++}
++
++.notebook-action-icon,
++.notebook-card-more summary,
++.notebook-actions .notebook-colour-picker__toggle {
++    width: 29px;
++    height: 29px;
++    min-width: 29px;
++    min-height: 29px;
++    padding: 0;
++}
++
++.notebook-sharing-summary {
++    max-width: calc(100% - 10rem);
++    margin-top: .25rem;
++    margin-bottom: 9px;
++}
++
++.notebook-rearrange-toggle {
++    min-height: 36px;
++    padding: .4rem .65rem;
++    border-color: #e0e6ef;
++    background: rgba(255,255,255,.72);
++    color: #59677b;
++    font-size: .84rem;
++    font-weight: 600;
++}
++
++.notebook-rearrange-toggle:hover,
++.notebook-rearrange-toggle:focus-visible {
++    border-color: #c7d0dd;
++    background: #f7f9fc;
++    color: #334155;
++}
++
++/* Existing item editor behaves as an enlarged note card rather than a form dialog. */
++.notebook-modal:not(.is-create-mode) .notebook-modal__backdrop {
++    background: rgba(15, 23, 42, .34);
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-modal__dialog {
++    width: min(690px, calc(100vw - 32px));
++    max-height: min(760px, calc(100vh - 32px));
++    padding: 12px 16px 10px;
++    border: 1px solid rgba(71, 85, 105, .18);
++    border-radius: 12px;
++    box-shadow: 0 20px 54px rgba(15, 23, 42, .24), 0 2px 8px rgba(15, 23, 42, .08);
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-modal__header {
++    min-height: 42px;
++    gap: .45rem;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-modal__title {
++    padding: .3rem .15rem;
++    font-size: 1.08rem;
++    line-height: 1.35;
++    font-weight: 700;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-modal__header-actions {
++    gap: 2px;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-modal__header-actions .notebook-action-icon {
++    width: 32px;
++    height: 32px;
++    min-width: 32px;
++    min-height: 32px;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-modal__body {
++    min-height: 64px;
++    max-height: 260px;
++    margin: 2px 0 4px;
++    padding: .4rem .15rem .55rem;
++    color: #25324a;
++    font-size: .92rem;
++    line-height: 1.5;
++}
++
++.notebook-modal:not(.is-create-mode)[data-item-type="checklist"] .notebook-modal__body {
++    min-height: 46px;
++    max-height: 150px;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-checklist-editor {
++    margin-top: 0;
++    border-top-color: rgba(100, 116, 139, .13);
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-edit-reminder {
++    margin: 6px 0 4px;
++    border: 0;
++    border-top: 1px solid rgba(100, 116, 139, .14);
++    border-bottom: 1px solid rgba(100, 116, 139, .14);
++    border-radius: 0;
++    background: transparent;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-edit-reminder__toggle {
++    min-height: 40px;
++    padding: .5rem .25rem;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-edit-reminder__toggle:hover,
++.notebook-modal:not(.is-create-mode) .notebook-edit-reminder__toggle:focus-visible {
++    background: rgba(255,255,255,.42);
++}
++
++.notebook-editor-bottom-bar {
++    display: flex;
++    align-items: center;
++    gap: .35rem;
++    min-height: 42px;
++    padding-top: 4px;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-editor-toolbar {
++    flex: 0 0 auto;
++    min-height: 36px;
++    padding: 0;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-save-feedback {
++    flex: 1 1 auto;
++    min-width: 0;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-editor-bottom-bar > footer {
++    display: flex;
++    align-items: center;
++    gap: .35rem;
++    flex: 0 0 auto;
++    margin-left: auto;
++    padding: 0;
++}
++
++.notebook-modal:not(.is-create-mode) .notebook-editor-close-button {
++    min-height: 34px;
++    padding: .3rem .72rem;
++}
++
++/* Keep create-mode layout unchanged even though the shared action bar now wraps its controls. */
++.notebook-modal.is-create-mode .notebook-editor-bottom-bar {
++    display: contents;
++}
++
++@media (max-width: 640px) {
++    .notebook-composer {
++        max-width: none;
++    }
++
++    .notebook-composer__footer {
++        flex-wrap: wrap;
++    }
++
++    .notebook-composer__footer [data-composer-status] {
++        order: 3;
++        flex-basis: 100%;
++        padding: 0 .25rem;
++    }
++
++    .notebook-modal:not(.is-create-mode) .notebook-modal__dialog {
++        width: 100%;
++        max-height: 100%;
++        min-height: 100%;
++        padding: 12px 14px 10px;
++        border: 0;
++        border-radius: 0;
++    }
++
++    .notebook-card-actions {
++        background: transparent !important;
++        backdrop-filter: none;
++    }
++
++    .notebook-sharing-summary {
++        max-width: 100%;
++    }
++}
++
++@media (hover: none) {
++    .notebook-card-actions {
++        position: static;
++        border-radius: 0;
++    }
++}
++
++/* Shared compact toolbar affordance for label controls in composer/editor. */
++.notebook-editor-toolbar .notebook-toolbar-action {
++    display: inline-grid;
++    place-items: center;
++    width: 34px;
++    height: 34px;
++    min-width: 34px;
++    min-height: 34px;
++    padding: 0;
++    border: 0;
++    border-radius: 50%;
++    background: transparent;
++    color: #59677b;
++}
++
++.notebook-editor-toolbar .notebook-toolbar-action:hover,
++.notebook-editor-toolbar .notebook-toolbar-action:focus-visible {
++    background: rgba(60, 64, 67, .08);
++    color: #1f2937;
++    outline: none;
++}
+--- a/wwwroot/js/notebook/notebook-board.js
++++ b/wwwroot/js/notebook/notebook-board.js
+@@ -43,7 +43,8 @@
+     const count = board.querySelectorAll(':scope > [data-note-id]').length;
+     board.dataset.itemCount = String(count);
+     const policy = board.dataset.layoutPolicy || 'fixed-grid';
+-    board.dataset.layout = policy === 'masonry-threshold' && count > 4 ? 'masonry' : 'grid';
++    const useMasonry = policy === 'masonry-always' || (policy === 'masonry-threshold' && count > 4);
++    board.dataset.layout = useMasonry ? 'masonry' : 'grid';
+     const EventCtor = board.ownerDocument?.defaultView?.CustomEvent;
+     if (EventCtor) board.dispatchEvent(new EventCtor('notebook:masonry-refresh', { bubbles: true }));
+   }
+--- a/wwwroot/js/notebook/notebook-board.test.js
++++ b/wwwroot/js/notebook/notebook-board.test.js
+@@ -97,3 +97,13 @@
+   assert.equal(element.dataset.itemCount, '5');
+   assert.equal(element.dataset.layout, 'masonry');
+ });
++
++
++test('notebook board honours always-masonry policy even for compact sections', async () => {
++  const dom = new JSDOM('<div data-notebook-board="others" data-layout-policy="masonry-always"><article data-note-id="1"></article><article data-note-id="2"></article></div>');
++  const board = loadBoard(dom);
++  const element = dom.window.document.querySelector('[data-notebook-board="others"]');
++  board.refreshSectionVisibility();
++  assert.equal(element.dataset.itemCount, '2');
++  assert.equal(element.dataset.layout, 'masonry');
++});
+--- a/wwwroot/js/notebook/notebook-composer-contract.test.js
++++ b/wwwroot/js/notebook/notebook-composer-contract.test.js
+@@ -14,3 +14,15 @@
+   assert.match(markup, /class="notebook-composer__pin"[^>]*data-composer-pin[^>]*aria-pressed="false"/);
+   assert.match(markup, /class="notebook-composer__close"[^>]*data-composer-close/);
+ });
++
++
++test('quick composer exposes lightweight colour and label controls', () => {
++  assert.match(markup, /notebook-composer__tools/);
++  assert.match(markup, /<partial name="_NotebookColourPicker"/);
++  assert.match(markup, /<partial name="_NotebookLabelPicker"/);
++});
++
++test('home boards opt into deterministic masonry in grid view', () => {
++  assert.match(markup, /data-notebook-board="pinned"[^>]*data-layout-policy="masonry-always"[^>]*data-layout="masonry"/);
++  assert.match(markup, /data-notebook-board="others"[^>]*data-layout-policy="masonry-always"[^>]*data-layout="masonry"/);
++});
+--- a/wwwroot/js/notebook/notebook-composer.js
++++ b/wwwroot/js/notebook/notebook-composer.js
+@@ -1,6 +1,9 @@
+ import { NotebookApi, NotebookApiError } from './notebook-api.js';
+ import { createChecklistEditor } from './notebook-checklist-editor.js';
+ import { reconcileMutation } from './notebook-reconcile.js';
++import { applyNotebookSurfaceColour, initNotebookColourPicker } from './notebook-colour-picker.js';
++import { initNotebookLabelPicker, refreshNotebookLabelCatalog } from './notebook-label-picker.js';
++import { resizeTextareaToContent } from './notebook-textarea-autosize.js';
+ 
+ const QUICK_DRAFT_PREFIX = 'prism.notebook.quickDraft';
+ const DRAFT_DEBOUNCE_MS = 250;
+@@ -17,6 +20,8 @@
+   const pin = root.querySelector('[data-composer-pin]');
+   const closeButton = root.querySelector('[data-composer-close]');
+   const checklistButton = root.querySelector('[data-composer-open-checklist]');
++  const colourPickerRoot = root.querySelector('[data-notebook-colour-picker]');
++  const labelPickerRoot = root.querySelector('[data-notebook-label-picker]');
+   const showGlobalError = options.showGlobalError || (() => {});
+   const applyCounts = options.applyCounts || (() => {});
+   const currentUserId = root.closest('.notebook-shell')?.dataset.currentUserId || 'current';
+@@ -28,10 +33,36 @@
+   let isSaving = false;
+   let draftTimer = null;
+   let clientRequestId = crypto.randomUUID();
++  let colourPicker = null;
++  let labelPicker = null;
+ 
+   const checklist = createChecklistEditor(checklistRoot, { onChange: scheduleDraftSave });
++  colourPicker = colourPickerRoot ? initNotebookColourPicker(colourPickerRoot, {
++    value: '',
++    onSelect: (value) => {
++      applyNotebookSurfaceColour(root, value);
++      scheduleDraftSave();
++    }
++  }) : null;
++  labelPicker = labelPickerRoot ? initNotebookLabelPicker(labelPickerRoot, {
++    value: [],
++    onChange: () => scheduleDraftSave(),
++    onError: (error) => showGlobalError(error?.message || 'Unable to create the label.')
++  }) : null;
++
++  const refreshBodyLayout = () => {
++    if (!body || mode === 'checklist') return;
++    resizeTextareaToContent(body, { minimumHeight: 56, maximumHeight: 200 });
++  };
++
+   const setStatus = (text) => { if (status) status.textContent = text || ''; };
+-  const setDisabled = (disabled) => { if (closeButton) closeButton.disabled = disabled; if (checklistButton) checklistButton.disabled = disabled; if (pin) pin.disabled = disabled; };
++  const setDisabled = (disabled) => {
++    if (closeButton) closeButton.disabled = disabled;
++    if (checklistButton) checklistButton.disabled = disabled;
++    if (pin) pin.disabled = disabled;
++    colourPicker?.setBusy(disabled);
++    labelPicker?.setBusy(disabled);
++  };
+   const renderPinState = () => {
+     if (!pin) return;
+     pin.classList.toggle('is-active', isPinned);
+@@ -49,6 +80,7 @@
+     body.hidden = next === 'checklist';
+     checklistRoot.hidden = next !== 'checklist';
+     if (next === 'checklist') checklist.refreshLayout?.();
++    else queueMicrotask(refreshBodyLayout);
+     if (persist) scheduleDraftSave();
+   };
+ 
+@@ -59,9 +91,9 @@
+     type: mode === 'checklist' ? 'Checklist' : 'Note',
+     priority: 'Normal',
+     reminderAtUtc: null,
+-    colorKey: null,
++    colorKey: colourPicker?.getValue() || null,
+     isPinned,
+-    labels: [],
++    labels: labelPicker?.getValue() || [],
+     clientRequestId,
+     checklistRows: mode === 'checklist'
+       ? checklist.getRows()
+@@ -89,6 +121,8 @@
+       mode: mode === 'checklist' ? 'checklist' : 'note',
+       checklistRows: checklist.getRows(),
+       isPinned,
++      colorKey: colourPicker?.getValue() || null,
++      labels: labelPicker?.getValue() || [],
+       clientRequestId,
+       savedAtUtc: new Date().toISOString()
+     }));
+@@ -119,10 +153,14 @@
+     body.value = '';
+     checklist.clear();
+     isPinned = false;
++    colourPicker?.setValue('');
++    labelPicker?.setValue([]);
++    applyNotebookSurfaceColour(root, '');
+     created = null;
+     clientRequestId = crypto.randomUUID();
+     renderPinState();
+     setStatus('');
++    refreshBodyLayout();
+     if (clearDraft) clearStoredDraft();
+   };
+ 
+@@ -133,6 +171,9 @@
+     body.value = String(draft.body || '');
+     checklist.setRows(Array.isArray(draft.checklistRows) ? draft.checklistRows : []);
+     isPinned = Boolean(draft.isPinned);
++    colourPicker?.setValue(draft.colorKey || '');
++    labelPicker?.setValue(Array.isArray(draft.labels) ? draft.labels : []);
++    applyNotebookSurfaceColour(root, draft.colorKey || '');
+     renderPinState();
+     if (typeof draft.clientRequestId === 'string' && draft.clientRequestId) clientRequestId = draft.clientRequestId;
+     setMode(draft.mode === 'checklist' ? 'checklist' : 'note', { persist: false });
+@@ -148,6 +189,8 @@
+       return true;
+     }
+     if (isSaving) return false;
++    colourPicker?.close();
++    labelPicker?.close();
+     if (draftTimer) window.clearTimeout(draftTimer);
+     draftTimer = null;
+     writeDraft();
+@@ -172,6 +215,10 @@
+         renderFailureMessage: 'The note was saved, but its card could not be rendered. Reload the page.',
+         reconcileFailureMessage: 'The note was saved, but the board could not refresh. Reload the page.'
+       });
++      if (data.labels.length > 0) {
++        try { await refreshNotebookLabelCatalog(); }
++        catch (error) { console.warn('Notebook label counts could not be refreshed after quick capture.', error); }
++      }
+       reset();
+       setMode('collapsed', { persist: false });
+       return true;
+@@ -204,7 +251,10 @@
+     scheduleDraftSave();
+   });
+   title?.addEventListener('input', scheduleDraftSave);
+-  body?.addEventListener('input', scheduleDraftSave);
++  body?.addEventListener('input', () => {
++    refreshBodyLayout();
++    scheduleDraftSave();
++  });
+   window.addEventListener('beforeunload', writeDraft);
+ 
+   // A quick-capture draft survives an accidental refresh in the current browser session.
+@@ -215,6 +265,7 @@
+     isOpen: () => mode !== 'collapsed',
+     destroy() {
+       if (draftTimer) window.clearTimeout(draftTimer);
++      labelPicker?.destroy?.();
+       window.removeEventListener('beforeunload', writeDraft);
+     }
+   };
+--- a/wwwroot/js/notebook/notebook-editor.js
++++ b/wwwroot/js/notebook/notebook-editor.js
+@@ -104,8 +104,8 @@
+ export function resizeNotebookBodyEditor(textarea, itemType = 'Note') {
+   const isChecklist = String(itemType || '').toLowerCase() === 'checklist';
+   return resizeTextareaToContent(textarea, {
+-    minimumHeight: isChecklist ? 52 : 84,
+-    maximumHeight: isChecklist ? 180 : 280
++    minimumHeight: isChecklist ? 46 : 64,
++    maximumHeight: isChecklist ? 150 : 260
+   });
+ }
+ 
+--- a/wwwroot/js/notebook/notebook-editor.test.js
++++ b/wwwroot/js/notebook/notebook-editor.test.js
+@@ -172,13 +172,13 @@
+   const textarea = { style: {}, scrollHeight: 40 };
+ 
+   const shortNote = resizeNotebookBodyEditor(textarea, 'Note');
+-  assert.equal(shortNote.height, 84);
+-  assert.equal(textarea.style.height, '84px');
++  assert.equal(shortNote.height, 64);
++  assert.equal(textarea.style.height, '64px');
+   assert.equal(textarea.style.overflowY, 'hidden');
+ 
+   textarea.scrollHeight = 420;
+   const longNote = resizeNotebookBodyEditor(textarea, 'Note');
+-  assert.equal(longNote.height, 280);
++  assert.equal(longNote.height, 260);
+   assert.equal(longNote.overflowing, true);
+   assert.equal(textarea.style.overflowY, 'auto');
+ });
+@@ -189,6 +189,6 @@
+ 
+   const result = resizeNotebookBodyEditor(textarea, 'Checklist');
+ 
+-  assert.equal(result.height, 52);
+-  assert.equal(textarea.style.height, '52px');
++  assert.equal(result.height, 46);
++  assert.equal(textarea.style.height, '46px');
+ });
+--- a/wwwroot/js/notebook/notebook-keep-refinement-contract.test.js
++++ b/wwwroot/js/notebook/notebook-keep-refinement-contract.test.js
+@@ -0,0 +1,37 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const indexMarkup = fs.readFileSync(path.join(root, 'Pages/Notebook/Index.cshtml'), 'utf8');
++const actionMarkup = fs.readFileSync(path.join(root, 'Pages/Notebook/_NotebookActions.cshtml'), 'utf8');
++const editorMarkup = fs.readFileSync(path.join(root, 'Pages/Notebook/_NotebookEditorTemplate.cshtml'), 'utf8');
++const composerSource = fs.readFileSync(path.join(root, 'wwwroot/js/notebook/notebook-composer.js'), 'utf8');
++const boardSource = fs.readFileSync(path.join(root, 'wwwroot/js/notebook/notebook-board.js'), 'utf8');
++const css = fs.readFileSync(path.join(root, 'wwwroot/css/notebook.css'), 'utf8');
++
++test('quick capture carries colour and labels into the create payload', () => {
++  assert.match(indexMarkup, /notebook-composer__tools[^>]*role="toolbar"/);
++  assert.match(composerSource, /colorKey:\s*colourPicker\?\.getValue\(\)\s*\|\|\s*null/);
++  assert.match(composerSource, /labels:\s*labelPicker\?\.getValue\(\)\s*\|\|\s*\[\]/);
++  assert.match(composerSource, /resizeTextareaToContent\(body,\s*\{\s*minimumHeight:\s*56,\s*maximumHeight:\s*200\s*\}\)/);
++});
++
++test('card actions keep labels one click away instead of duplicating the command in More', () => {
++  const matches = actionMarkup.match(/data-action="label-note"/g) || [];
++  assert.equal(matches.length, 1);
++  assert.match(actionMarkup, /class="notebook-action-icon"\s+data-action="label-note"/);
++});
++
++test('all notebook grid boards opt into deterministic masonry', () => {
++  assert.doesNotMatch(indexMarkup, /data-layout-policy="masonry-threshold"/);
++  assert.match(indexMarkup, /data-layout-policy="masonry-always"/);
++  assert.match(boardSource, /policy === 'masonry-always'/);
++});
++
++test('existing note editor has a unified bottom action bar', () => {
++  assert.match(editorMarkup, /class="notebook-editor-bottom-bar"/);
++  assert.match(editorMarkup, /data-notebook-editor-toolbar role="toolbar"/);
++  assert.match(css, /\.notebook-modal:not\(\.is-create-mode\) \.notebook-editor-bottom-bar > footer/);
++});

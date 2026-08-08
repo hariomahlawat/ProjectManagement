@@ -189,22 +189,6 @@
                 </div>
             </section>
 
-            <div class="notebook-editor-toolbar" data-notebook-editor-toolbar>
-                <partial name="_NotebookColourPicker" model="string.Empty" />
-                <partial name="_NotebookLabelPicker" />
-            </div>
-
-            <div class="notebook-save-feedback">
-                <span class="notebook-modal__save-state"
-                      data-notebook-save-state
-                      aria-live="polite"></span>
-                <button type="button" data-notebook-retry hidden>Retry</button>
-                <button type="button" data-notebook-reload-application hidden>Reload application</button>
-                <button type="button" data-notebook-sign-in hidden>Sign in again</button>
-                <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
-                <button type="button" data-modal-discard hidden>Discard changes</button>
-            </div>
-
             <section class="notebook-conflict"
                      data-notebook-conflict
                      hidden
@@ -231,27 +215,45 @@
                 </div>
             </section>
 
-            <footer>
-                <button type="button"
-                        class="btn btn-sm notebook-create-discard"
-                        data-notebook-create-discard
-                        hidden>
-                    Discard draft
-                </button>
-                <span class="notebook-create-draft-status" data-notebook-create-draft-status aria-live="polite"></span>
-                <button type="button"
-                        class="btn btn-sm btn-primary notebook-create-submit"
-                        data-notebook-create-submit
-                        hidden>
-                    Create
-                </button>
-                <button type="button"
-                        class="btn btn-sm notebook-editor-close-button"
-                        data-close
-                        aria-label="Close note editor">
-                    Close
-                </button>
-            </footer>
+            <div class="notebook-editor-bottom-bar">
+                <div class="notebook-editor-toolbar" data-notebook-editor-toolbar role="toolbar" aria-label="Note options">
+                    <partial name="_NotebookColourPicker" model="string.Empty" />
+                    <partial name="_NotebookLabelPicker" />
+                </div>
+
+                <div class="notebook-save-feedback">
+                    <span class="notebook-modal__save-state"
+                          data-notebook-save-state
+                          aria-live="polite"></span>
+                    <button type="button" data-notebook-retry hidden>Retry</button>
+                    <button type="button" data-notebook-reload-application hidden>Reload application</button>
+                    <button type="button" data-notebook-sign-in hidden>Sign in again</button>
+                    <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
+                    <button type="button" data-modal-discard hidden>Discard changes</button>
+                </div>
+
+                <footer>
+                    <button type="button"
+                            class="btn btn-sm notebook-create-discard"
+                            data-notebook-create-discard
+                            hidden>
+                        Discard draft
+                    </button>
+                    <span class="notebook-create-draft-status" data-notebook-create-draft-status aria-live="polite"></span>
+                    <button type="button"
+                            class="btn btn-sm btn-primary notebook-create-submit"
+                            data-notebook-create-submit
+                            hidden>
+                        Create
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm notebook-editor-close-button"
+                            data-close
+                            aria-label="Close note editor">
+                        Close
+                    </button>
+                </footer>
+            </div>
         </section>
     </div>
 </template>

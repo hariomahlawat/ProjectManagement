@@ -57,16 +57,18 @@
     }
     <div class="notebook-card-body">
         <a href="@(isTrash ? "#" : Model.OpenUrl)" class="notebook-card-link notebook-card__open-area @(isTrash ? "is-disabled" : "")" data-action="@(isTrash ? null : "open-note")" aria-label="@(isTrash ? item.Title : $"Open {item.Title}")" aria-disabled="@isTrash.ToString().ToLowerInvariant()">
-            <div class="notebook-card-topline">
-                <span class="notebook-card-indicators">
-                    @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
-                    @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell" title="Reminder"></i> }
-                </span>
-                @if (item.IsPinned)
-                {
-                    <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
-                }
-            </div>
+            @if (item.Status == NotebookItemStatus.Completed || item.IsPinned)
+            {
+                <div class="notebook-card-topline">
+                    <span class="notebook-card-indicators">
+                        @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
+                    </span>
+                    @if (item.IsPinned)
+                    {
+                        <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
+                    }
+                </div>
+            }
             <h3 class="notebook-card-title">@item.Title</h3>
             @if (!string.IsNullOrWhiteSpace(item.Preview))
             {

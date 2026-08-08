@@ -14,3 +14,15 @@ test('quick composer uses explicit styled controls instead of native browser but
   assert.match(markup, /class="notebook-composer__pin"[^>]*data-composer-pin[^>]*aria-pressed="false"/);
   assert.match(markup, /class="notebook-composer__close"[^>]*data-composer-close/);
 });
+
+
+test('quick composer exposes lightweight colour and label controls', () => {
+  assert.match(markup, /notebook-composer__tools/);
+  assert.match(markup, /<partial name="_NotebookColourPicker"/);
+  assert.match(markup, /<partial name="_NotebookLabelPicker"/);
+});
+
+test('home boards opt into deterministic masonry in grid view', () => {
+  assert.match(markup, /data-notebook-board="pinned"[^>]*data-layout-policy="masonry-always"[^>]*data-layout="masonry"/);
+  assert.match(markup, /data-notebook-board="others"[^>]*data-layout-policy="masonry-always"[^>]*data-layout="masonry"/);
+});

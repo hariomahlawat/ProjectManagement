@@ -1,6 +1,9 @@
 import { NotebookApi, NotebookApiError } from './notebook-api.js';
 import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation } from './notebook-reconcile.js';
+import { applyNotebookSurfaceColour, initNotebookColourPicker } from './notebook-colour-picker.js';
+import { initNotebookLabelPicker, refreshNotebookLabelCatalog } from './notebook-label-picker.js';
+import { resizeTextareaToContent } from './notebook-textarea-autosize.js';
 
 const QUICK_DRAFT_PREFIX = 'prism.notebook.quickDraft';
 const DRAFT_DEBOUNCE_MS = 250;
@@ -17,6 +20,8 @@ export function initNotebookComposer(root, board, view, options = {}) {
   const pin = root.querySelector('[data-composer-pin]');
   const closeButton = root.querySelector('[data-composer-close]');
   const checklistButton = root.querySelector('[data-composer-open-checklist]');
+  const colourPickerRoot = root.querySelector('[data-notebook-colour-picker]');
+  const labelPickerRoot = root.querySelector('[data-notebook-label-picker]');
   const showGlobalError = options.showGlobalError || (() => {});
   const applyCounts = options.applyCounts || (() => {});
   const currentUserId = root.closest('.notebook-shell')?.dataset.currentUserId || 'current';
@@ -28,10 +33,36 @@ export function initNotebookComposer(root, board, view, options = {}) {
   let isSaving = false;
   let draftTimer = null;
   let clientRequestId = crypto.randomUUID();
+  let colourPicker = null;
+  let labelPicker = null;
 
   const checklist = createChecklistEditor(checklistRoot, { onChange: scheduleDraftSave });
+  colourPicker = colourPickerRoot ? initNotebookColourPicker(colourPickerRoot, {
+    value: '',
+    onSelect: (value) => {
+      applyNotebookSurfaceColour(root, value);
+      scheduleDraftSave();
+    }
+  }) : null;
+  labelPicker = labelPickerRoot ? initNotebookLabelPicker(labelPickerRoot, {
+    value: [],
+    onChange: () => scheduleDraftSave(),
+    onError: (error) => showGlobalError(error?.message || 'Unable to create the label.')
+  }) : null;
+
+  const refreshBodyLayout = () => {
+    if (!body || mode === 'checklist') return;
+    resizeTextareaToContent(body, { minimumHeight: 56, maximumHeight: 200 });
+  };
+
   const setStatus = (text) => { if (status) status.textContent = text || ''; };
-  const setDisabled = (disabled) => { if (closeButton) closeButton.disabled = disabled; if (checklistButton) checklistButton.disabled = disabled; if (pin) pin.disabled = disabled; };
+  const setDisabled = (disabled) => {
+    if (closeButton) closeButton.disabled = disabled;
+    if (checklistButton) checklistButton.disabled = disabled;
+    if (pin) pin.disabled = disabled;
+    colourPicker?.setBusy(disabled);
+    labelPicker?.setBusy(disabled);
+  };
   const renderPinState = () => {
     if (!pin) return;
     pin.classList.toggle('is-active', isPinned);
@@ -49,6 +80,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     body.hidden = next === 'checklist';
     checklistRoot.hidden = next !== 'checklist';
     if (next === 'checklist') checklist.refreshLayout?.();
+    else queueMicrotask(refreshBodyLayout);
     if (persist) scheduleDraftSave();
   };
 
@@ -59,9 +91,9 @@ export function initNotebookComposer(root, board, view, options = {}) {
     type: mode === 'checklist' ? 'Checklist' : 'Note',
     priority: 'Normal',
     reminderAtUtc: null,
-    colorKey: null,
+    colorKey: colourPicker?.getValue() || null,
     isPinned,
-    labels: [],
+    labels: labelPicker?.getValue() || [],
     clientRequestId,
     checklistRows: mode === 'checklist'
       ? checklist.getRows()
@@ -89,6 +121,8 @@ export function initNotebookComposer(root, board, view, options = {}) {
       mode: mode === 'checklist' ? 'checklist' : 'note',
       checklistRows: checklist.getRows(),
       isPinned,
+      colorKey: colourPicker?.getValue() || null,
+      labels: labelPicker?.getValue() || [],
       clientRequestId,
       savedAtUtc: new Date().toISOString()
     }));
@@ -119,10 +153,14 @@ export function initNotebookComposer(root, board, view, options = {}) {
     body.value = '';
     checklist.clear();
     isPinned = false;
+    colourPicker?.setValue('');
+    labelPicker?.setValue([]);
+    applyNotebookSurfaceColour(root, '');
     created = null;
     clientRequestId = crypto.randomUUID();
     renderPinState();
     setStatus('');
+    refreshBodyLayout();
     if (clearDraft) clearStoredDraft();
   };
 
@@ -133,6 +171,9 @@ export function initNotebookComposer(root, board, view, options = {}) {
     body.value = String(draft.body || '');
     checklist.setRows(Array.isArray(draft.checklistRows) ? draft.checklistRows : []);
     isPinned = Boolean(draft.isPinned);
+    colourPicker?.setValue(draft.colorKey || '');
+    labelPicker?.setValue(Array.isArray(draft.labels) ? draft.labels : []);
+    applyNotebookSurfaceColour(root, draft.colorKey || '');
     renderPinState();
     if (typeof draft.clientRequestId === 'string' && draft.clientRequestId) clientRequestId = draft.clientRequestId;
     setMode(draft.mode === 'checklist' ? 'checklist' : 'note', { persist: false });
@@ -148,6 +189,8 @@ export function initNotebookComposer(root, board, view, options = {}) {
       return true;
     }
     if (isSaving) return false;
+    colourPicker?.close();
+    labelPicker?.close();
     if (draftTimer) window.clearTimeout(draftTimer);
     draftTimer = null;
     writeDraft();
@@ -172,6 +215,10 @@ export function initNotebookComposer(root, board, view, options = {}) {
         renderFailureMessage: 'The note was saved, but its card could not be rendered. Reload the page.',
         reconcileFailureMessage: 'The note was saved, but the board could not refresh. Reload the page.'
       });
+      if (data.labels.length > 0) {
+        try { await refreshNotebookLabelCatalog(); }
+        catch (error) { console.warn('Notebook label counts could not be refreshed after quick capture.', error); }
+      }
       reset();
       setMode('collapsed', { persist: false });
       return true;
@@ -204,7 +251,10 @@ export function initNotebookComposer(root, board, view, options = {}) {
     scheduleDraftSave();
   });
   title?.addEventListener('input', scheduleDraftSave);
-  body?.addEventListener('input', scheduleDraftSave);
+  body?.addEventListener('input', () => {
+    refreshBodyLayout();
+    scheduleDraftSave();
+  });
   window.addEventListener('beforeunload', writeDraft);
 
   // A quick-capture draft survives an accidental refresh in the current browser session.
@@ -215,6 +265,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     isOpen: () => mode !== 'collapsed',
     destroy() {
       if (draftTimer) window.clearTimeout(draftTimer);
+      labelPicker?.destroy?.();
       window.removeEventListener('beforeunload', writeDraft);
     }
   };

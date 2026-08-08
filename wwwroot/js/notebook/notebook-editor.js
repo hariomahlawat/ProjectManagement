@@ -104,8 +104,8 @@ export function serialiseNotebookContent({ title = '', body = '', type = 'Note',
 export function resizeNotebookBodyEditor(textarea, itemType = 'Note') {
   const isChecklist = String(itemType || '').toLowerCase() === 'checklist';
   return resizeTextareaToContent(textarea, {
-    minimumHeight: isChecklist ? 52 : 84,
-    maximumHeight: isChecklist ? 180 : 280
+    minimumHeight: isChecklist ? 46 : 64,
+    maximumHeight: isChecklist ? 150 : 260
   });
 }
 
