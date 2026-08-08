@@ -7,6 +7,7 @@ import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook
 import { initNotebookLabelPicker, normaliseLabels } from './notebook-label-picker.js';
 import { confirmNotebookAction } from './notebook-confirm-dialog.js';
 import { createReminderScheduler, toIstPartsFromIso } from './notebook-reminder-scheduler.js';
+import { resizeTextareaToContent } from './notebook-textarea-autosize.js';
 
 export const ConflictType = Object.freeze({
   StaleDraft: 'stale-draft',
@@ -99,6 +100,15 @@ export function serialiseNotebookContent({ title = '', body = '', type = 'Note',
   return sections.join('\n\n');
 }
 
+
+export function resizeNotebookBodyEditor(textarea, itemType = 'Note') {
+  const isChecklist = String(itemType || '').toLowerCase() === 'checklist';
+  return resizeTextareaToContent(textarea, {
+    minimumHeight: isChecklist ? 52 : 84,
+    maximumHeight: isChecklist ? 180 : 280
+  });
+}
+
 // SECTION: Notebook modal editor lifecycle and coordinated mutations
 export function initNotebookEditor(board, view, options = {}) {
   let modal;
@@ -152,6 +162,12 @@ export function initNotebookEditor(board, view, options = {}) {
 
   const canEditContent = (target = item) => hasCapability(target, 'canEditContent', 2);
   const canManageMetadata = (target = item) => hasCapability(target, 'canManageMetadata', 3);
+
+  function refreshEditorLayout() {
+    if (!modal) return;
+    resizeNotebookBodyEditor(modal.querySelector('[data-modal-body]'), item?.type || 'Note');
+    if (item?.type === 'Checklist') checklist?.refreshLayout?.();
+  }
 
   function applyAccessMode(target = item) {
     if (!modal || !target) return;
@@ -500,6 +516,7 @@ export function initNotebookEditor(board, view, options = {}) {
     applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), updated.colorKey || '');
     modal.querySelector('[data-modal-title]').value = updated.title || '';
     modal.querySelector('[data-modal-body]').value = updated.body || '';
+    refreshEditorLayout();
     modal.querySelector('[data-modal-checklist]').hidden = updated.type !== 'Checklist';
     if (updated.type === 'Checklist') checklist.reconcileRows(updated.checklistRows || []);
     else checklist.setRows([]);
@@ -564,6 +581,7 @@ export function initNotebookEditor(board, view, options = {}) {
       scheduleAutosave();
     });
     bodyInput.addEventListener('input', () => {
+      resizeNotebookBodyEditor(bodyInput, item?.type || 'Note');
       markChanged('body');
       scheduleAutosave();
     });
@@ -831,6 +849,7 @@ export function initNotebookEditor(board, view, options = {}) {
 
     modal.querySelector('[data-modal-title]').value = storedDraft.title || '';
     modal.querySelector('[data-modal-body]').value = storedDraft.body || '';
+    refreshEditorLayout();
     if (item.type === 'Checklist') checklist.setRows(storedDraft.checklistRows || []);
     draftSourceVersion = storedDraft.sourceVersion || item.version;
     markChanged('title');
@@ -1218,6 +1237,7 @@ export function initNotebookEditor(board, view, options = {}) {
     renderMode();
     await restoreStoredDraftIfNeeded();
     modal.hidden = false;
+    refreshEditorLayout();
     setBackgroundInert(true);
     (canEditContent() ? modal.querySelector('[data-modal-title]') : modal.querySelector('[data-close]:not(.notebook-modal__backdrop)'))?.focus();
     if (openOptions.pushHistory !== false) {

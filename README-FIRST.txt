@@ -1,59 +1,71 @@
-PRISM BRIEFING DECK — ADDITIONAL SLIDES WORKSPACE (CUMULATIVE FIX)
-==================================================================
+PRISM ERP — NOTEBOOK UI REFINEMENT
+Ready-to-paste files
+Date: 08 Aug 2026
 
-Purpose
--------
-This cumulative package implements the modular Additional Slides workspace and includes
-the Razor namespace correction required by the new SDD Institutional Profile editor.
-Use this package instead of applying the earlier workspace package and namespace fix
-separately.
+PURPOSE
+This is the final UI refinement pass following the Notebook stabilisation work.
+It addresses the issues visible in runtime testing without changing the Notebook domain model or backend architecture.
 
-Implemented workflow
---------------------
-1. Deck Settings contains only a compact include/exclude control for the SDD profile.
-2. A new Additional Slides section appears between Deck Preflight and Projects.
-3. The SDD Institutional Profile is represented as an independent slide card with:
-   - enabled/not-included state;
-   - fixed position summary (after cover);
-   - milestone/module summary;
-   - immediate include/remove switch;
-   - dedicated Edit action.
-4. Detailed profile configuration opens in its own focused drawer.
-5. The profile has an isolated save handler, validation and dirty-state protection.
-6. Deck-wide settings preserve the complete profile configuration and only change its
-   include/exclude state.
-7. Profile edits and enable/disable actions use optimistic concurrency and audit logging.
-8. Server-side validation failures reopen the profile editor automatically.
-9. The partial imports ProjectManagement.Services.ProjectBriefings, resolving:
-   CS0103: ProjectBriefingInstitutionalProfileOptions does not exist in the current context.
-10. No database migration is required; the existing versioned deck JSON remains the
-    authoritative configuration store.
+IMPLEMENTED
+1. Checklist items are now multiline auto-growing textareas instead of single-line inputs.
+   - Long text wraps while editing.
+   - Rows grow automatically up to a controlled maximum height.
+   - Excessively long rows scroll vertically rather than horizontally.
+   - Enter creates the next checklist item.
+   - Shift+Enter remains available for an intentional line break.
+   - IME composition Enter is not intercepted.
 
-Ready-to-replace files
-----------------------
-Copy every production file in this package over the matching project-relative path.
-The new partial must also be added:
-  Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
+2. Quick composer controls are fully styled.
+   - Checklist, Reminder and Pin controls use one consistent icon-button treatment.
+   - Pin exposes aria-pressed and updates its accessible label/title.
+   - Close is a clean PRISM text action rather than a native browser button.
+   - Footer alignment is corrected so status remains left and Close remains right.
 
-The two ProjectManagement.Tests files are regression-test replacements and should be
-copied into the test project when that project is present in the solution.
+3. Existing-item Note editor is content-responsive.
+   - Short notes use a compact 84 px baseline.
+   - Checklist description uses a compact 52 px baseline.
+   - Note body grows with content to 280 px, then scrolls.
+   - Checklist description grows to 180 px, then scrolls.
+   - Autosizing is refreshed after load, draft restore and runtime input.
+   - Create-mode editor retains its existing manual-resize behaviour.
 
-After replacement
------------------
-1. Close the running application/IIS Express instance.
-2. Clean the solution.
-3. Rebuild the solution.
-4. Run ProjectManagement.Tests, especially the ProjectBriefings tests.
-5. Start the application and hard-refresh the browser with Ctrl+F5.
+4. Regression tests added/extended for textarea sizing, checklist wrapping/keyboard behaviour,
+   and quick-composer control contracts.
 
-Validation performed in this environment
-----------------------------------------
-- Cumulative replacement package assembled and namespace correction verified.
-- JavaScript syntax validation passed.
-- Project briefing JavaScript tests passed: 27/27.
-- Test project XML validation passed.
-- Cumulative patch dry-run and clean-application comparison passed.
-- ZIP integrity and SHA-256 manifest validation passed.
+FILES TO REPLACE / ADD
+Pages/Notebook/Index.cshtml
+wwwroot/css/notebook.css
+wwwroot/js/notebook/notebook-composer.js
+wwwroot/js/notebook/notebook-checklist-editor.js
+wwwroot/js/notebook/notebook-editor.js
+wwwroot/js/notebook/notebook-textarea-autosize.js                 [NEW]
+wwwroot/js/notebook/notebook-checklist-editor.test.js
+wwwroot/js/notebook/notebook-editor.test.js
+wwwroot/js/notebook/notebook-textarea-autosize.test.js            [NEW]
+wwwroot/js/notebook/notebook-composer-contract.test.js             [NEW]
 
-The .NET SDK is not installed in this environment, so the final .NET compile/test run
-must be performed in Visual Studio after replacement.
+AFTER COPYING
+No EF migration is required.
+No C# production file is changed.
+
+Your ProjectManagement.csproj already runs `npm run build:notebook` before Build/Publish when Notebook JS inputs change.
+Therefore a normal Visual Studio rebuild will regenerate wwwroot/dist/notebook-index.bundle.js provided node_modules/esbuild exists.
+
+Recommended verification:
+  npm test
+  npm run build:notebook
+  dotnet build
+
+If dependencies are missing:
+  npm ci
+
+Then hard-refresh the Notebook page (Ctrl+F5) and verify:
+- long checklist item wraps while editing;
+- Enter creates next row and Shift+Enter does not;
+- quick checklist/pin/close controls have no native black border;
+- short Note modal is visibly more compact;
+- long Note body grows and then scrolls;
+- Reminder, labels, colour, sharing and autosave still work normally.
+
+Patch file:
+PRISM-Notebook-UI-Refinement.patch

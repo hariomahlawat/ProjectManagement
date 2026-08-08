@@ -403,6 +403,32 @@ var init_notebook_board = __esm({
   }
 });
 
+// wwwroot/js/notebook/notebook-textarea-autosize.js
+function resizeTextareaToContent(textarea, options = {}) {
+  if (!textarea?.style) return { height: 0, overflowing: false };
+  const minimumHeight = normalisePositiveNumber(options.minimumHeight, 38);
+  const maximumHeight = Math.max(
+    minimumHeight,
+    normalisePositiveNumber(options.maximumHeight, 280)
+  );
+  textarea.style.height = "auto";
+  const measuredHeight = Number.isFinite(Number(textarea.scrollHeight)) ? Number(textarea.scrollHeight) : 0;
+  const contentHeight = Math.max(minimumHeight, measuredHeight);
+  const height = Math.min(contentHeight, maximumHeight);
+  const overflowing = contentHeight > maximumHeight;
+  textarea.style.height = `${height}px`;
+  textarea.style.overflowY = overflowing ? "auto" : "hidden";
+  return { height, overflowing };
+}
+function normalisePositiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+var init_notebook_textarea_autosize = __esm({
+  "wwwroot/js/notebook/notebook-textarea-autosize.js"() {
+  }
+});
+
 // wwwroot/js/notebook/notebook-checklist-editor.js
 function createClientKey() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
@@ -412,6 +438,8 @@ function createClientKey() {
 }
 function createChecklistEditor(root, options = {}) {
   const maxLength = options.maxLength || 500;
+  const textareaMinimumHeight = options.textareaMinimumHeight || 38;
+  const textareaMaximumHeight = options.textareaMaximumHeight || 150;
   let rows = [];
   let isReconciling = false;
   let readOnly = Boolean(options.readOnly);
@@ -436,7 +464,7 @@ function createChecklistEditor(root, options = {}) {
     const wrapper = document.createElement("div");
     wrapper.className = "notebook-checklist-row";
     wrapper.dataset.checklistRow = "";
-    wrapper.innerHTML = `<label class="notebook-checklist-row__check" aria-label="Checklist item completion"><input type="checkbox" data-checklist-done><span aria-hidden="true"></span></label><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" class="notebook-checklist-remove" data-checklist-remove aria-label="Remove checklist item" title="Remove item"><i class="bi bi-x-lg" aria-hidden="true"></i></button>`;
+    wrapper.innerHTML = `<label class="notebook-checklist-row__check" aria-label="Checklist item completion"><input type="checkbox" data-checklist-done><span aria-hidden="true"></span></label><textarea data-checklist-text rows="1" maxlength="${maxLength}" placeholder="List item" aria-label="Checklist item"></textarea><button type="button" class="notebook-checklist-remove" data-checklist-remove aria-label="Remove checklist item" title="Remove item"><i class="bi bi-x-lg" aria-hidden="true"></i></button>`;
     row.element = wrapper;
     updateRowElement(row, { forceContent: true });
     return wrapper;
@@ -449,6 +477,7 @@ function createChecklistEditor(root, options = {}) {
     const text = row.element.querySelector("[data-checklist-text]");
     if (done && (forceContent || done.checked !== Boolean(row.isDone))) done.checked = Boolean(row.isDone);
     if (text && (forceContent || text.value !== (row.text || ""))) text.value = row.text || "";
+    resizeTextArea(text);
     applyRowAccess(row.element);
   }
   function applyRowAccess(element) {
@@ -472,6 +501,16 @@ function createChecklistEditor(root, options = {}) {
   }
   function findRowByElement(element) {
     return rows.find((row) => row.element === element) || null;
+  }
+  function resizeTextArea(textarea) {
+    if (!textarea) return;
+    resizeTextareaToContent(textarea, {
+      minimumHeight: textareaMinimumHeight,
+      maximumHeight: textareaMaximumHeight
+    });
+  }
+  function refreshLayout() {
+    root.querySelectorAll("[data-checklist-text]").forEach(resizeTextArea);
   }
   function captureFocusState() {
     const active = document.activeElement;
@@ -617,7 +656,10 @@ function createChecklistEditor(root, options = {}) {
   }
   function handleInput(event) {
     if (isReconciling || readOnly) return;
-    if (event.target.matches("[data-checklist-text]")) notify();
+    if (event.target.matches("[data-checklist-text]")) {
+      resizeTextArea(event.target);
+      notify();
+    }
   }
   function handleChange(event) {
     if (isReconciling || readOnly) return;
@@ -637,7 +679,7 @@ function createChecklistEditor(root, options = {}) {
     const input = event.target.closest("[data-checklist-text]");
     if (!input) return;
     const row = input.closest("[data-checklist-row]");
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       addRow(row).querySelector("[data-checklist-text]").focus();
       notify();
@@ -660,13 +702,14 @@ function createChecklistEditor(root, options = {}) {
   root.addEventListener("click", handleClick);
   root.addEventListener("keydown", handleKeydown2);
   setReadOnly(readOnly);
-  return { setRows, getRows, addRow, removeRow, reconcileRows, setReadOnly, isReadOnly: () => readOnly, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => {
+  return { setRows, getRows, addRow, removeRow, reconcileRows, setReadOnly, refreshLayout, isReadOnly: () => readOnly, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => {
     if (!readOnly) (root.querySelector("[data-checklist-text]") || ensureAddItemControl())?.focus();
   }, clear: () => setRows([]), destroy };
 }
 var parseNullableInt;
 var init_notebook_checklist_editor = __esm({
   "wwwroot/js/notebook/notebook-checklist-editor.js"() {
+    init_notebook_textarea_autosize();
     parseNullableInt = (value) => value ? Number.parseInt(value, 10) : null;
   }
 });
@@ -784,6 +827,14 @@ function initNotebookComposer(root, board, view, options = {}) {
     if (checklistButton) checklistButton.disabled = disabled;
     if (pin) pin.disabled = disabled;
   };
+  const renderPinState = () => {
+    if (!pin) return;
+    pin.classList.toggle("is-active", isPinned);
+    pin.setAttribute("aria-pressed", isPinned ? "true" : "false");
+    const label = isPinned ? "Unpin note" : "Pin note";
+    pin.setAttribute("aria-label", label);
+    pin.title = label;
+  };
   const setMode = (next, { persist = true } = {}) => {
     mode = next;
     root.dataset.state = next;
@@ -791,6 +842,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     expanded.hidden = next === "collapsed";
     body.hidden = next === "checklist";
     checklistRoot.hidden = next !== "checklist";
+    if (next === "checklist") checklist.refreshLayout?.();
     if (persist) scheduleDraftSave();
   };
   const payload = () => ({
@@ -852,7 +904,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     isPinned = false;
     created = null;
     clientRequestId = crypto.randomUUID();
-    pin.classList.remove("is-active");
+    renderPinState();
     setStatus("");
     if (clearDraft) clearStoredDraft();
   };
@@ -863,7 +915,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     body.value = String(draft.body || "");
     checklist.setRows(Array.isArray(draft.checklistRows) ? draft.checklistRows : []);
     isPinned = Boolean(draft.isPinned);
-    pin.classList.toggle("is-active", isPinned);
+    renderPinState();
     if (typeof draft.clientRequestId === "string" && draft.clientRequestId) clientRequestId = draft.clientRequestId;
     setMode(draft.mode === "checklist" ? "checklist" : "note", { persist: false });
     return true;
@@ -926,13 +978,13 @@ function initNotebookComposer(root, board, view, options = {}) {
   pin?.addEventListener("click", () => {
     if (isSaving) return;
     isPinned = !isPinned;
-    pin.classList.toggle("is-active", isPinned);
+    renderPinState();
     scheduleDraftSave();
   });
   title?.addEventListener("input", scheduleDraftSave);
   body?.addEventListener("input", scheduleDraftSave);
   window.addEventListener("beforeunload", writeDraft);
-  restoreDraft();
+  if (!restoreDraft()) renderPinState();
   return {
     close: closeComposer,
     isOpen: () => mode !== "collapsed",
@@ -1860,6 +1912,13 @@ function serialiseNotebookContent({ title = "", body = "", type = "Note", checkl
   }
   return sections.join("\n\n");
 }
+function resizeNotebookBodyEditor(textarea, itemType = "Note") {
+  const isChecklist = String(itemType || "").toLowerCase() === "checklist";
+  return resizeTextareaToContent(textarea, {
+    minimumHeight: isChecklist ? 52 : 84,
+    maximumHeight: isChecklist ? 180 : 280
+  });
+}
 function initNotebookEditor(board, view, options = {}) {
   let modal;
   let item;
@@ -1907,6 +1966,11 @@ function initNotebookEditor(board, view, options = {}) {
   }
   const canEditContent = (target = item) => hasCapability(target, "canEditContent", 2);
   const canManageMetadata = (target = item) => hasCapability(target, "canManageMetadata", 3);
+  function refreshEditorLayout() {
+    if (!modal) return;
+    resizeNotebookBodyEditor(modal.querySelector("[data-modal-body]"), item?.type || "Note");
+    if (item?.type === "Checklist") checklist?.refreshLayout?.();
+  }
   function applyAccessMode(target = item) {
     if (!modal || !target) return;
     const editable = canEditContent(target);
@@ -2224,6 +2288,7 @@ function initNotebookEditor(board, view, options = {}) {
     applyNotebookSurfaceColour(modal.querySelector(".notebook-modal__dialog"), updated.colorKey || "");
     modal.querySelector("[data-modal-title]").value = updated.title || "";
     modal.querySelector("[data-modal-body]").value = updated.body || "";
+    refreshEditorLayout();
     modal.querySelector("[data-modal-checklist]").hidden = updated.type !== "Checklist";
     if (updated.type === "Checklist") checklist.reconcileRows(updated.checklistRows || []);
     else checklist.setRows([]);
@@ -2281,6 +2346,7 @@ function initNotebookEditor(board, view, options = {}) {
       scheduleAutosave();
     });
     bodyInput.addEventListener("input", () => {
+      resizeNotebookBodyEditor(bodyInput, item?.type || "Note");
       markChanged("body");
       scheduleAutosave();
     });
@@ -2509,6 +2575,7 @@ function initNotebookEditor(board, view, options = {}) {
     if (!confirmed) return;
     modal.querySelector("[data-modal-title]").value = storedDraft.title || "";
     modal.querySelector("[data-modal-body]").value = storedDraft.body || "";
+    refreshEditorLayout();
     if (item.type === "Checklist") checklist.setRows(storedDraft.checklistRows || []);
     draftSourceVersion = storedDraft.sourceVersion || item.version;
     markChanged("title");
@@ -2869,6 +2936,7 @@ function initNotebookEditor(board, view, options = {}) {
     renderMode();
     await restoreStoredDraftIfNeeded();
     modal.hidden = false;
+    refreshEditorLayout();
     setBackgroundInert(true);
     (canEditContent() ? modal.querySelector("[data-modal-title]") : modal.querySelector("[data-close]:not(.notebook-modal__backdrop)"))?.focus();
     if (openOptions.pushHistory !== false) {
@@ -3021,6 +3089,7 @@ var init_notebook_editor = __esm({
     init_notebook_label_picker();
     init_notebook_confirm_dialog();
     init_notebook_reminder_scheduler();
+    init_notebook_textarea_autosize();
     ConflictType = Object.freeze({
       StaleDraft: "stale-draft",
       ExternalUpdate: "external-update",

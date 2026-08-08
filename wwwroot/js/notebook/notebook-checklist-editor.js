@@ -1,3 +1,5 @@
+import { resizeTextareaToContent } from './notebook-textarea-autosize.js';
+
 // SECTION: Shared notebook checklist row editor
 const parseNullableInt = (value) => value ? Number.parseInt(value, 10) : null;
 
@@ -12,6 +14,8 @@ export function createClientKey() {
 
 export function createChecklistEditor(root, options = {}) {
   const maxLength = options.maxLength || 500;
+  const textareaMinimumHeight = options.textareaMinimumHeight || 38;
+  const textareaMaximumHeight = options.textareaMaximumHeight || 150;
   let rows = [];
   let isReconciling = false;
   let readOnly = Boolean(options.readOnly);
@@ -38,7 +42,7 @@ export function createChecklistEditor(root, options = {}) {
     const wrapper = document.createElement('div');
     wrapper.className = 'notebook-checklist-row';
     wrapper.dataset.checklistRow = '';
-    wrapper.innerHTML = `<label class="notebook-checklist-row__check" aria-label="Checklist item completion"><input type="checkbox" data-checklist-done><span aria-hidden="true"></span></label><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" class="notebook-checklist-remove" data-checklist-remove aria-label="Remove checklist item" title="Remove item"><i class="bi bi-x-lg" aria-hidden="true"></i></button>`;
+    wrapper.innerHTML = `<label class="notebook-checklist-row__check" aria-label="Checklist item completion"><input type="checkbox" data-checklist-done><span aria-hidden="true"></span></label><textarea data-checklist-text rows="1" maxlength="${maxLength}" placeholder="List item" aria-label="Checklist item"></textarea><button type="button" class="notebook-checklist-remove" data-checklist-remove aria-label="Remove checklist item" title="Remove item"><i class="bi bi-x-lg" aria-hidden="true"></i></button>`;
     row.element = wrapper;
     updateRowElement(row, { forceContent: true });
     return wrapper;
@@ -52,6 +56,7 @@ export function createChecklistEditor(root, options = {}) {
     const text = row.element.querySelector('[data-checklist-text]');
     if (done && (forceContent || done.checked !== Boolean(row.isDone))) done.checked = Boolean(row.isDone);
     if (text && (forceContent || text.value !== (row.text || ''))) text.value = row.text || '';
+    resizeTextArea(text);
     applyRowAccess(row.element);
   }
 
@@ -78,6 +83,18 @@ export function createChecklistEditor(root, options = {}) {
 
   function findRowByElement(element) {
     return rows.find((row) => row.element === element) || null;
+  }
+
+  function resizeTextArea(textarea) {
+    if (!textarea) return;
+    resizeTextareaToContent(textarea, {
+      minimumHeight: textareaMinimumHeight,
+      maximumHeight: textareaMaximumHeight
+    });
+  }
+
+  function refreshLayout() {
+    root.querySelectorAll('[data-checklist-text]').forEach(resizeTextArea);
   }
 
   // SECTION: Focus and scroll preservation
@@ -251,10 +268,10 @@ export function createChecklistEditor(root, options = {}) {
   }
 
   // SECTION: Checklist event wiring
-  function handleInput(event) { if (isReconciling || readOnly) return; if (event.target.matches('[data-checklist-text]')) notify(); }
+  function handleInput(event) { if (isReconciling || readOnly) return; if (event.target.matches('[data-checklist-text]')) { resizeTextArea(event.target); notify(); } }
   function handleChange(event) { if (isReconciling || readOnly) return; if (event.target.matches('[data-checklist-done]')) notify(); }
   function handleClick(event) { if (isReconciling || readOnly) return; if (event.target.closest('[data-checklist-add]')) { addRow().querySelector('[data-checklist-text]')?.focus(); return; } const button = event.target.closest('[data-checklist-remove]'); if (button) removeRow(button.closest('[data-checklist-row]')); }
-  function handleKeydown(event) { if (isReconciling || readOnly) return; const input = event.target.closest('[data-checklist-text]'); if (!input) return; const row = input.closest('[data-checklist-row]'); if (event.key === 'Enter') { event.preventDefault(); addRow(row).querySelector('[data-checklist-text]').focus(); notify(); } if (event.key === 'Backspace' && input.value.length === 0 && root.querySelectorAll('[data-checklist-row]').length > 1) { event.preventDefault(); removeRow(row); } }
+  function handleKeydown(event) { if (isReconciling || readOnly) return; const input = event.target.closest('[data-checklist-text]'); if (!input) return; const row = input.closest('[data-checklist-row]'); if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); addRow(row).querySelector('[data-checklist-text]').focus(); notify(); } if (event.key === 'Backspace' && input.value.length === 0 && root.querySelectorAll('[data-checklist-row]').length > 1) { event.preventDefault(); removeRow(row); } }
   function destroy() { root.removeEventListener('input', handleInput); root.removeEventListener('change', handleChange); root.removeEventListener('click', handleClick); root.removeEventListener('keydown', handleKeydown); root.replaceChildren(); rows = []; }
 
   root.addEventListener('input', handleInput);
@@ -263,5 +280,5 @@ export function createChecklistEditor(root, options = {}) {
   root.addEventListener('keydown', handleKeydown);
   setReadOnly(readOnly);
 
-  return { setRows, getRows, addRow, removeRow, reconcileRows, setReadOnly, isReadOnly: () => readOnly, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => { if (!readOnly) (root.querySelector('[data-checklist-text]') || ensureAddItemControl())?.focus(); }, clear: () => setRows([]), destroy };
+  return { setRows, getRows, addRow, removeRow, reconcileRows, setReadOnly, refreshLayout, isReadOnly: () => readOnly, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => { if (!readOnly) (root.querySelector('[data-checklist-text]') || ensureAddItemControl())?.focus(); }, clear: () => setRows([]), destroy };
 }

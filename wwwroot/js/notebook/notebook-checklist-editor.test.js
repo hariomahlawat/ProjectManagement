@@ -10,6 +10,8 @@ async function loadChecklistModule() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notebook-checklist-test-'));
   fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}');
   const source = fs.readFileSync(path.resolve(__dirname, 'notebook-checklist-editor.js'), 'utf8');
+  const autosizeSource = fs.readFileSync(path.resolve(__dirname, 'notebook-textarea-autosize.js'), 'utf8');
+  fs.writeFileSync(path.join(tempDir, 'notebook-textarea-autosize.js'), autosizeSource);
   const modulePath = path.join(tempDir, `notebook-checklist-editor-${Date.now()}-${Math.random()}.mjs`);
   fs.writeFileSync(modulePath, source);
   return import(`file://${modulePath}`);
@@ -221,4 +223,51 @@ test('setReadOnly disables checklist mutation controls without hiding content', 
   done.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.equal(changes, 0);
   assert.equal(editor.addRow(), null);
+});
+
+
+test('checklist rows use wrapping auto-growing textareas', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([{ id: 1, text: 'A long checklist item', isDone: false, sortOrder: 0 }]);
+
+  const textarea = root.querySelector('[data-checklist-text]');
+  assert.equal(textarea.tagName, 'TEXTAREA');
+  assert.equal(textarea.getAttribute('rows'), '1');
+  assert.equal(textarea.style.height, '38px');
+
+  Object.defineProperty(textarea, 'scrollHeight', { configurable: true, value: 92 });
+  textarea.value = 'A much longer checklist item that wraps over multiple visual lines.';
+  textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+  assert.equal(textarea.style.height, '92px');
+  assert.equal(textarea.style.overflowY, 'hidden');
+});
+
+test('checklist textarea caps excessive growth and enables vertical scrolling', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([{ text: 'Long item' }]);
+
+  const textarea = root.querySelector('[data-checklist-text]');
+  Object.defineProperty(textarea, 'scrollHeight', { configurable: true, value: 260 });
+  textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+  assert.equal(textarea.style.height, '150px');
+  assert.equal(textarea.style.overflowY, 'auto');
+});
+
+test('Enter creates the next checklist row while Shift+Enter remains available for a line break', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([{ text: 'First item' }]);
+
+  const textarea = root.querySelector('[data-checklist-text]');
+  const shiftEnter = new window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true });
+  textarea.dispatchEvent(shiftEnter);
+  assert.equal(shiftEnter.defaultPrevented, false);
+  assert.equal(root.querySelectorAll('[data-checklist-row]').length, 1);
+
+  const enter = new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  textarea.dispatchEvent(enter);
+  assert.equal(enter.defaultPrevented, true);
+  assert.equal(root.querySelectorAll('[data-checklist-row]').length, 2);
+  assert.equal(document.activeElement, root.querySelectorAll('[data-checklist-text]')[1]);
 });

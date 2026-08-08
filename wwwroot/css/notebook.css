@@ -128,6 +128,25 @@
     gap: .5rem;
 }
 
+.notebook-composer__top input {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.notebook-composer__footer {
+    justify-content: space-between;
+    min-height: 2.35rem;
+    padding: .1rem .35rem .2rem .55rem;
+}
+
+.notebook-composer__footer [data-composer-status] {
+    min-width: 0;
+    flex: 1 1 auto;
+    color: #64748b;
+    font-size: .75rem;
+    font-weight: 650;
+}
+
 .notebook-composer__trigger {
     flex: 1;
     border: 0;
@@ -837,9 +856,13 @@
 }
 
 .notebook-modal__body {
-    min-height: 220px;
-    resize: vertical;
+    min-height: 84px;
+    max-height: 280px;
     margin-top: .75rem;
+    box-sizing: border-box;
+    resize: none;
+    overflow-y: hidden;
+    line-height: 1.5;
 }
 
 .notebook-modal__status {
@@ -1569,21 +1592,55 @@
   gap: 2px;
 }
 
-.notebook-composer__reminder-trigger {
+.notebook-composer__checklist-trigger,
+.notebook-composer__reminder-trigger,
+.notebook-composer__pin {
   display: inline-grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  padding: 0;
   border: 0;
+  border-radius: 50%;
   background: transparent;
   color: var(--notebook-muted, #687386);
-  border-radius: 50%;
 }
 
+.notebook-composer__checklist-trigger:hover,
+.notebook-composer__checklist-trigger:focus-visible,
 .notebook-composer__reminder-trigger:hover,
-.notebook-composer__reminder-trigger:focus-visible {
+.notebook-composer__reminder-trigger:focus-visible,
+.notebook-composer__pin:hover,
+.notebook-composer__pin:focus-visible {
   background: rgba(60, 64, 67, .08);
   color: var(--notebook-text, #172033);
+  outline: none;
+}
+
+.notebook-composer__pin.is-active,
+.notebook-composer__pin[aria-pressed="true"] {
+  background: #eef3ff;
+  color: #2f5fd0;
+}
+
+.notebook-composer__close {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  padding: .35rem .68rem;
+  border: 0;
+  border-radius: .55rem;
+  background: transparent;
+  color: #334155;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.notebook-composer__close:hover,
+.notebook-composer__close:focus-visible {
+  background: rgba(60, 64, 67, .08);
+  color: #1d4ed8;
+  outline: none;
 }
 
 .notebook-modal.is-create-mode .notebook-modal__dialog {
@@ -1594,6 +1651,8 @@
 
 .notebook-modal.is-create-mode .notebook-modal__body {
   min-height: 120px;
+  resize: vertical;
+  overflow-y: auto;
 }
 
 .notebook-create-details {
@@ -2835,8 +2894,9 @@ body.notebook-confirm-open { overflow: hidden; }
 
 /* SECTION: Refined checklist editor */
 .notebook-modal[data-item-type="checklist"] .notebook-modal__body {
-    min-height: 96px;
-    margin-bottom: .35rem;
+    min-height: 52px;
+    max-height: 180px;
+    margin-bottom: .25rem;
 }
 
 .notebook-checklist-editor {
@@ -2849,7 +2909,7 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-checklist-row {
     display: grid;
     grid-template-columns: 30px minmax(0, 1fr) 34px;
-    align-items: center;
+    align-items: start;
     gap: .35rem;
     min-height: 44px;
     padding: 2px 0;
@@ -2863,7 +2923,7 @@ body.notebook-confirm-open { overflow: hidden; }
     place-items: center;
     width: 30px;
     height: 36px;
-    margin: 0;
+    margin: 3px 0 0;
     cursor: pointer;
 }
 
@@ -2876,14 +2936,24 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 .notebook-checklist-row [data-checklist-text] {
+    display: block;
     width: 100%;
     min-width: 0;
     min-height: 38px;
+    max-height: 150px;
     padding: .45rem .2rem;
     border: 0;
     border-radius: .4rem;
+    box-sizing: border-box;
     background: transparent;
     color: #1f2937;
+    font: inherit;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    resize: none;
+    overflow-x: hidden;
+    overflow-y: hidden;
     outline: 0;
 }
 
@@ -2903,6 +2973,7 @@ body.notebook-confirm-open { overflow: hidden; }
     color: #697586;
     opacity: 0;
     transition: opacity .12s ease, background-color .12s ease, color .12s ease;
+    margin-top: 5px;
 }
 
 .notebook-checklist-row:hover .notebook-checklist-remove,

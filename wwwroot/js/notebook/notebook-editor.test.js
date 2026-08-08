@@ -17,6 +17,7 @@ async function loadEditorModule() {
   fs.writeFileSync(path.join(tempDir, 'notebook-colour-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-colour-picker.js'), 'utf8'));
   fs.writeFileSync(path.join(tempDir, 'notebook-label-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-label-picker.js'), 'utf8').replace("./notebook-api.js", './notebook-api.mjs'));
   fs.writeFileSync(path.join(tempDir, 'notebook-confirm-dialog.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-confirm-dialog.js'), 'utf8'));
+  fs.writeFileSync(path.join(tempDir, 'notebook-textarea-autosize.js'), fs.readFileSync(path.resolve(__dirname, 'notebook-textarea-autosize.js'), 'utf8'));
   const source = fs.readFileSync(path.resolve(__dirname, 'notebook-editor.js'), 'utf8')
     .replace("./notebook-api.js", './notebook-api.mjs')
     .replace("./notebook-autosave.js", './notebook-autosave.mjs')
@@ -163,4 +164,31 @@ test('Notebook Index renders the editor template partial', () => {
   );
 
   assert.match(page, /<partial\s+name="_NotebookEditorTemplate"\s*\/>/);
+});
+
+
+test('resizeNotebookBodyEditor keeps short notes compact and caps long notes', async () => {
+  const { resizeNotebookBodyEditor } = await loadEditorModule();
+  const textarea = { style: {}, scrollHeight: 40 };
+
+  const shortNote = resizeNotebookBodyEditor(textarea, 'Note');
+  assert.equal(shortNote.height, 84);
+  assert.equal(textarea.style.height, '84px');
+  assert.equal(textarea.style.overflowY, 'hidden');
+
+  textarea.scrollHeight = 420;
+  const longNote = resizeNotebookBodyEditor(textarea, 'Note');
+  assert.equal(longNote.height, 280);
+  assert.equal(longNote.overflowing, true);
+  assert.equal(textarea.style.overflowY, 'auto');
+});
+
+test('resizeNotebookBodyEditor gives checklist description a smaller compact baseline', async () => {
+  const { resizeNotebookBodyEditor } = await loadEditorModule();
+  const textarea = { style: {}, scrollHeight: 12 };
+
+  const result = resizeNotebookBodyEditor(textarea, 'Checklist');
+
+  assert.equal(result.height, 52);
+  assert.equal(textarea.style.height, '52px');
 });

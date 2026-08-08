@@ -32,6 +32,15 @@ export function initNotebookComposer(root, board, view, options = {}) {
   const checklist = createChecklistEditor(checklistRoot, { onChange: scheduleDraftSave });
   const setStatus = (text) => { if (status) status.textContent = text || ''; };
   const setDisabled = (disabled) => { if (closeButton) closeButton.disabled = disabled; if (checklistButton) checklistButton.disabled = disabled; if (pin) pin.disabled = disabled; };
+  const renderPinState = () => {
+    if (!pin) return;
+    pin.classList.toggle('is-active', isPinned);
+    pin.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+    const label = isPinned ? 'Unpin note' : 'Pin note';
+    pin.setAttribute('aria-label', label);
+    pin.title = label;
+  };
+
   const setMode = (next, { persist = true } = {}) => {
     mode = next;
     root.dataset.state = next;
@@ -39,6 +48,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     expanded.hidden = next === 'collapsed';
     body.hidden = next === 'checklist';
     checklistRoot.hidden = next !== 'checklist';
+    if (next === 'checklist') checklist.refreshLayout?.();
     if (persist) scheduleDraftSave();
   };
 
@@ -111,7 +121,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     isPinned = false;
     created = null;
     clientRequestId = crypto.randomUUID();
-    pin.classList.remove('is-active');
+    renderPinState();
     setStatus('');
     if (clearDraft) clearStoredDraft();
   };
@@ -123,7 +133,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
     body.value = String(draft.body || '');
     checklist.setRows(Array.isArray(draft.checklistRows) ? draft.checklistRows : []);
     isPinned = Boolean(draft.isPinned);
-    pin.classList.toggle('is-active', isPinned);
+    renderPinState();
     if (typeof draft.clientRequestId === 'string' && draft.clientRequestId) clientRequestId = draft.clientRequestId;
     setMode(draft.mode === 'checklist' ? 'checklist' : 'note', { persist: false });
     return true;
@@ -190,7 +200,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
   pin?.addEventListener('click', () => {
     if (isSaving) return;
     isPinned = !isPinned;
-    pin.classList.toggle('is-active', isPinned);
+    renderPinState();
     scheduleDraftSave();
   });
   title?.addEventListener('input', scheduleDraftSave);
@@ -198,7 +208,7 @@ export function initNotebookComposer(root, board, view, options = {}) {
   window.addEventListener('beforeunload', writeDraft);
 
   // A quick-capture draft survives an accidental refresh in the current browser session.
-  restoreDraft();
+  if (!restoreDraft()) renderPinState();
 
   return {
     close: closeComposer,
