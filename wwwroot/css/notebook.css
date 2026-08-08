@@ -3863,3 +3863,76 @@ body.notebook-confirm-open { overflow: hidden; }
     color: #1f2937;
     outline: none;
 }
+
+/* SECTION: Consistent card-opening interaction
+   Checklist completion is intentionally limited to the checkbox control.
+   Checklist text and other passive card content use the same open-card contract as notes. */
+.notebook-check-row {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 7px;
+}
+
+.notebook-check-toggle {
+    width: 22px;
+    min-width: 22px;
+    min-height: 24px;
+    padding: 2px 0;
+    justify-content: flex-start;
+    flex: 0 0 22px;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.notebook-check-toggle:hover,
+.notebook-check-toggle:focus-visible {
+    color: #315fba;
+}
+
+.notebook-check-toggle.is-done {
+    color: #94a3b8;
+    text-decoration: none;
+}
+
+.notebook-check-text {
+    min-width: 0;
+    padding: 2px 0;
+    color: #334155;
+    font-size: .855rem;
+    line-height: 1.32;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    cursor: pointer;
+}
+
+.notebook-check-text.is-done {
+    color: #94a3b8;
+    text-decoration: line-through;
+}
+
+.notebook-check-toggle--readonly {
+    cursor: default;
+}
+
+.notebook-check-toggle--readonly:hover,
+.notebook-check-toggle--readonly:focus-visible {
+    color: inherit;
+    background: transparent;
+}
+
+.notebook-shell.is-rearranging .notebook-check-text,
+.notebook-shell.is-pointer-dragging .notebook-check-text {
+    cursor: grab;
+}
+
+@media (pointer: coarse) {
+    .notebook-check-toggle {
+        min-height: 28px;
+    }
+
+    .notebook-check-text {
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+}

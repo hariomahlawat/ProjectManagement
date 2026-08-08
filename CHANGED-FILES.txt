@@ -1,12 +1,7 @@
-Pages/Notebook/Index.cshtml
-Pages/Notebook/_NotebookActions.cshtml
 Pages/Notebook/_NotebookCard.cshtml
-Pages/Notebook/_NotebookEditorTemplate.cshtml
+wwwroot/js/notebook/notebook-app.js
+wwwroot/js/notebook/notebook-utils.js
 wwwroot/css/notebook.css
-wwwroot/js/notebook/notebook-board.js
-wwwroot/js/notebook/notebook-board.test.js
-wwwroot/js/notebook/notebook-composer-contract.test.js
-wwwroot/js/notebook/notebook-composer.js
-wwwroot/js/notebook/notebook-editor.js
-wwwroot/js/notebook/notebook-editor.test.js
-wwwroot/js/notebook/notebook-keep-refinement-contract.test.js
+wwwroot/js/notebook/notebook-drag-order.test.js
+wwwroot/js/notebook/notebook-card-open.test.js
+ProjectManagement.Tests/NotebookCardRendererTests.cs

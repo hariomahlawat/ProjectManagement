@@ -1,87 +1,70 @@
-PRISM ERP — Notebook Keep-Inspired UI Refinement
-Date: 08 Aug 2026
+PRISM ERP — Notebook Card Click Consistency Fix
+Date: 09 Aug 2026
 
-PURPOSE
+Purpose
 -------
-This package refines the already-stabilised PRISM Notebook UI using the strongest
-interaction principles visible in Google Keep while preserving PRISM's enterprise
-navigation, reminder semantics, collaboration controls, audit/concurrency model,
-and existing backend architecture.
+This focused refinement makes Note and Checklist cards follow one interaction model:
 
-WHAT CHANGES
-------------
-1. Quick capture now behaves as a compact expanding note surface.
-   - Short notes remain compact and auto-grow with content.
-   - Manual textarea resizing is removed.
-   - Colour and label controls are available directly in quick capture.
-   - Selected colour/labels are persisted in the quick-capture draft and sent in
-     the normal create payload.
-   - Label catalogue counts refresh after a labelled quick-capture note is saved.
+  • Click passive card content -> open the note/checklist editor.
+  • Click a checklist checkbox -> toggle only that checklist item.
+  • Click checklist item text -> open the checklist editor.
+  • Click labels/actions/buttons -> keep their own action; do not open the card.
+  • Rearrange mode -> passive card opening is suppressed so drag/reorder remains predictable.
 
-2. Existing-note editor is visually consolidated into an enlarged card.
-   - Compact title/body spacing.
-   - Existing autosizing now uses 64–260px for notes and 46–150px for checklist
-     descriptions.
-   - Reminder metadata is visually lighter.
-   - Colour/label controls, save state and Close share one bottom action bar.
-   - Create-mode behaviour is intentionally preserved.
+Implementation details
+----------------------
+1. Checklist preview markup now separates the checkbox control from the item text.
+   The previous implementation placed both icon and text inside the toggle button, causing a
+   click anywhere on the row text to complete/uncomplete the item.
 
-3. Card chrome is reduced.
-   - Reminder is no longer duplicated as a top icon when the reminder pill already
-     communicates the state.
-   - Pin/completed state remains visible.
-   - Labels move to a direct one-click hover action alongside colour/share.
-   - Card actions remain hover/focus driven on pointer devices and visible on touch.
-   - Borders, shadows, labels and metadata are lighter and more content-first.
+2. notebook-app.js now uses a single passive card-opening contract for ordinary card content.
+   Interactive descendants are explicitly excluded.
 
-4. Grid mode now uses deterministic masonry for every board size.
-   - The existing DOM-order-safe grid-span masonry engine is retained.
-   - Manual SortOrder and drag/keyboard rearrangement remain authoritative.
-   - List view remains conventional and clears masonry spans.
+3. notebook-utils.js contains getPassiveNotebookCardOpenTarget(), centralising the interaction
+   rule rather than duplicating selector logic in the application bootstrap.
 
-5. Rearrange remains available but has reduced visual emphasis.
+4. CSS now lays checklist rows out as a dedicated checkbox column + content column, preserving
+   compact PRISM styling and multiline wrapping.
 
-FILES
+5. Accessibility is retained/improved: checkbox controls have item-specific aria-labels, while
+   keyboard users can still open the record via the card title link.
+
+6. Regression tests cover passive content, interactive descendants, rearrange mode, checklist
+   rendering, and drag-target semantics.
+
+Files to replace/add
+--------------------
+See CHANGED-FILES.txt. Copy the package contents over the project root, preserving folders.
+
+Build
 -----
-See CHANGED-FILES.txt. Copy the package contents over the ProjectManagement
-project root, preserving folders.
+No database migration or C# production/service change is required.
 
-NO DATABASE / BACKEND MIGRATION
--------------------------------
-There are no entity, EF Core, database, API contract or service-layer changes in
-this package.
+After replacing the files, rebuild the Notebook assets and solution:
 
-FRONTEND BUILD
---------------
-The generated wwwroot/dist/notebook-index.bundle.js is intentionally not shipped.
-Your project already generates Notebook assets through the existing build pipeline.
-After copying the files, run a normal Visual Studio Rebuild Solution, or:
-
-  npm ci
   npm run build:notebook
   npm run check:notebook-assets
   dotnet build
   dotnet test
 
-Then hard-refresh the Notebook page (Ctrl+F5).
+If node_modules are not present, run npm ci first.
 
-VALIDATION PERFORMED HERE
--------------------------
-- All modified Notebook source JavaScript files passed Node syntax validation.
-- 10 dependency-free Notebook regression/contract tests passed.
-- Full DOM-backed JS tests could not run in this environment because jsdom is not
-  installed here. Those tests are included/updated in the package.
-- .NET compile/tests could not be executed here because the .NET SDK is unavailable.
+Then hard-refresh Notebook (Ctrl+F5).
 
-RECOMMENDED MANUAL CHECKS
+Acceptance checks
+-----------------
+1. Click a normal Note title/body -> editor opens.
+2. Click a Checklist title -> editor opens.
+3. Click checklist ITEM TEXT -> editor opens; item state does not change.
+4. Click checklist CHECKBOX -> item toggles; editor does not open.
+5. Click a label chip -> label view opens; editor does not open.
+6. Click Pin/Colour/Labels/Share/More -> only that command executes.
+7. Click passive blank content inside a checklist card -> editor opens.
+8. Enter Rearrange mode -> clicking/dragging passive content does not open the editor.
+
+Validation performed here
 -------------------------
-1. Expand quick Note: short body should remain compact; long body should auto-grow.
-2. Choose a colour and one or more labels in quick capture, save, and verify card
-   colour/labels plus rail label counts.
-3. Create/edit a long checklist and confirm multiline rows remain readable.
-4. Hover a card: Pin / Colour / Labels / Collaborators / More should appear without
-   persistent clutter.
-5. Open a note: verify the compact expanded-card editor and unified bottom toolbar.
-6. Check 2, 4, 5+ mixed-height cards in Grid view for masonry packing.
-7. Enter Rearrange mode and confirm drag + keyboard reorder still persist correctly.
-8. Switch to List view and back to Grid view.
+• Modified ES-module sources passed Node syntax checks using module input mode.
+• New dependency-free interaction tests: 4/4 passed.
+• Existing dependency-free Notebook refinement/contract tests included in the check: 11/11 passed total.
+• Full .NET compilation cannot be executed in this runtime because the .NET SDK is unavailable.

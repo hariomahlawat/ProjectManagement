@@ -57,6 +57,8 @@ public sealed class NotebookCardRendererTests : IClassFixture<NotebookCardRender
         Assert.Contains("First checklist row", html, StringComparison.Ordinal);
         Assert.Contains("Second checklist row", html, StringComparison.Ordinal);
         Assert.Contains("data-action=\"toggle-checklist\"", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"notebook-check-text", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<i class=\"bi bi-square\" aria-hidden=\"true\"></i><span>First checklist row</span>", html, StringComparison.Ordinal);
         Assert.Contains("1/2", html, StringComparison.Ordinal);
         Assert.Contains($"data-version=\"{item.Version}\"", html, StringComparison.Ordinal);
     }

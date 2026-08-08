@@ -7,10 +7,32 @@ var __commonJS = (cb, mod) => function __require() {
 };
 
 // wwwroot/js/notebook/notebook-utils.js
-var closestAction;
+function getPassiveNotebookCardOpenTarget(target, shell) {
+  if (!target?.closest || !shell?.contains) return null;
+  const card = target.closest("[data-note-id]");
+  if (!card || !shell.contains(card)) return null;
+  if (shell.classList.contains("is-rearranging") || shell.classList.contains("is-pointer-dragging")) return null;
+  if (target.closest(CARD_OPEN_INTERACTIVE_SELECTOR)) return null;
+  if (!card.querySelector('[data-action="open-note"]')) return null;
+  return card;
+}
+var closestAction, CARD_OPEN_INTERACTIVE_SELECTOR;
 var init_notebook_utils = __esm({
   "wwwroot/js/notebook/notebook-utils.js"() {
     closestAction = (event) => event.target.closest("[data-action]");
+    CARD_OPEN_INTERACTIVE_SELECTOR = [
+      "a",
+      "button",
+      "input",
+      "textarea",
+      "select",
+      "summary",
+      "details",
+      '[role="button"]',
+      '[contenteditable="true"]',
+      "[data-notebook-drag-handle]",
+      ".notebook-card-actions"
+    ].join(", ");
   }
 });
 
@@ -5025,7 +5047,18 @@ function initNotebookApp() {
       return;
     }
     const action = closestAction(event);
-    if (!action) return;
+    if (!action) {
+      const card2 = getPassiveNotebookCardOpenTarget(event.target, shell);
+      if (card2) {
+        event.preventDefault();
+        try {
+          await editor.open(card2.dataset.noteId);
+        } catch (error) {
+          showGlobalError(error.message || "Unable to open the note.");
+        }
+      }
+      return;
+    }
     if (action.closest(".notebook-card-more__menu")) closeNotebookMenus();
     const card = action.closest("[data-note-id]");
     const id = card?.dataset.noteId;
@@ -5073,6 +5106,7 @@ function initNotebookApp() {
       } catch (error) {
         showGlobalError(error.message || "Unable to open the note.");
       }
+      return;
     }
     if (action.dataset.action === "toggle-checklist" && card) {
       event.preventDefault();

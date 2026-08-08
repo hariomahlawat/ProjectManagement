@@ -98,12 +98,15 @@ test('drag engine no longer depends on native HTML drag events', () => {
 });
 
 
-test('checklist blank space is draggable while checklist controls remain protected', () => {
+test('checklist text remains a passive card surface while the checkbox stays protected during rearrange', () => {
   const dom = new JSDOM(`
     <article data-note-id="a">
       <div class="notebook-checklist-preview" id="checklist">
         <div id="blank"></div>
-        <button class="notebook-check-toggle" id="toggle"><span id="rowtext">Row</span></button>
+        <div class="notebook-check-row">
+          <button class="notebook-check-toggle" id="toggle"></button>
+          <span class="notebook-check-text" id="rowtext">Row</span>
+        </div>
         <strong id="summary">1/2 complete</strong>
       </div>
     </article>`);
@@ -111,5 +114,5 @@ test('checklist blank space is draggable while checklist controls remain protect
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#blank')), false);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#summary')), false);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#toggle')), true);
-  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#rowtext')), true);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#rowtext')), false);
 });

@@ -1,4 +1,4 @@
-import { closestAction } from './notebook-utils.js';
+import { closestAction, getPassiveNotebookCardOpenTarget } from './notebook-utils.js';
 import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
@@ -250,7 +250,16 @@ export function initNotebookApp() {
       createEditor.open(createTrigger.dataset.notebookCreateType || 'Note');
       return;
     }
-    const action = closestAction(event); if (!action) return;
+    const action = closestAction(event);
+    if (!action) {
+      const card = getPassiveNotebookCardOpenTarget(event.target, shell);
+      if (card) {
+        event.preventDefault();
+        try { await editor.open(card.dataset.noteId); }
+        catch (error) { showGlobalError(error.message || 'Unable to open the note.'); }
+      }
+      return;
+    }
     if (action.closest('.notebook-card-more__menu')) closeNotebookMenus();
     const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
     if (action.dataset.action === 'label-note' && card) {
@@ -279,7 +288,12 @@ export function initNotebookApp() {
       catch (error) { showGlobalError(error?.message || 'Unable to leave the shared note.'); }
       return;
     }
-    if (action.dataset.action === 'open-note' && id) { event.preventDefault(); try { await editor.open(id); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } }
+    if (action.dataset.action === 'open-note' && id) {
+      event.preventDefault();
+      try { await editor.open(id); }
+      catch (error) { showGlobalError(error.message || 'Unable to open the note.'); }
+      return;
+    }
     if (action.dataset.action === 'toggle-checklist' && card) {
       event.preventDefault(); action.disabled = true;
       try {

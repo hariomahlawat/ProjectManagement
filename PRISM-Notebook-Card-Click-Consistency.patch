@@ -1,0 +1,283 @@
+--- a/Pages/Notebook/_NotebookCard.cshtml
++++ b/Pages/Notebook/_NotebookCard.cshtml
+@@ -96,16 +96,19 @@
+                                         data-item-id="@item.Id"
+                                         data-row-id="@checklistItem.Id"
+                                         data-is-done="@checklistItem.IsDone.ToString().ToLowerInvariant()"
+-                                        aria-label="@(checklistItem.IsDone ? "Mark item incomplete" : "Mark item complete")">
+-                                    <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i><span>@checklistItem.Text</span>
++                                        aria-label="@(checklistItem.IsDone ? $"Mark {checklistItem.Text} incomplete" : $"Mark {checklistItem.Text} complete")"
++                                        title="@(checklistItem.IsDone ? "Mark incomplete" : "Mark complete")">
++                                    <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i>
+                                 </button>
+                             }
+                             else
+                             {
+-                                <span class="notebook-check-toggle notebook-check-toggle--readonly @(checklistItem.IsDone ? "is-done" : string.Empty)" aria-label="@(checklistItem.IsDone ? "Completed checklist item" : "Incomplete checklist item")">
+-                                    <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i><span>@checklistItem.Text</span>
++                                <span class="notebook-check-toggle notebook-check-toggle--readonly @(checklistItem.IsDone ? "is-done" : string.Empty)"
++                                      aria-label="@(checklistItem.IsDone ? $"Completed: {checklistItem.Text}" : $"Incomplete: {checklistItem.Text}")">
++                                    <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i>
+                                 </span>
+                             }
++                            <span class="notebook-check-text @(checklistItem.IsDone ? "is-done" : string.Empty)">@checklistItem.Text</span>
+                         </div>
+                     }
+                     <strong>@item.ChecklistDone/@item.ChecklistTotal complete</strong>
+--- a/wwwroot/js/notebook/notebook-app.js
++++ b/wwwroot/js/notebook/notebook-app.js
+@@ -1,4 +1,4 @@
+-import { closestAction } from './notebook-utils.js';
++import { closestAction, getPassiveNotebookCardOpenTarget } from './notebook-utils.js';
+ import { NotebookApi } from './notebook-api.js';
+ import { createNotebookBoard } from './notebook-board.js';
+ import { initNotebookComposer } from './notebook-composer.js';
+@@ -250,7 +250,16 @@
+       createEditor.open(createTrigger.dataset.notebookCreateType || 'Note');
+       return;
+     }
+-    const action = closestAction(event); if (!action) return;
++    const action = closestAction(event);
++    if (!action) {
++      const card = getPassiveNotebookCardOpenTarget(event.target, shell);
++      if (card) {
++        event.preventDefault();
++        try { await editor.open(card.dataset.noteId); }
++        catch (error) { showGlobalError(error.message || 'Unable to open the note.'); }
++      }
++      return;
++    }
+     if (action.closest('.notebook-card-more__menu')) closeNotebookMenus();
+     const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
+     if (action.dataset.action === 'label-note' && card) {
+@@ -279,7 +288,12 @@
+       catch (error) { showGlobalError(error?.message || 'Unable to leave the shared note.'); }
+       return;
+     }
+-    if (action.dataset.action === 'open-note' && id) { event.preventDefault(); try { await editor.open(id); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } }
++    if (action.dataset.action === 'open-note' && id) {
++      event.preventDefault();
++      try { await editor.open(id); }
++      catch (error) { showGlobalError(error.message || 'Unable to open the note.'); }
++      return;
++    }
+     if (action.dataset.action === 'toggle-checklist' && card) {
+       event.preventDefault(); action.disabled = true;
+       try {
+--- a/wwwroot/js/notebook/notebook-utils.js
++++ b/wwwroot/js/notebook/notebook-utils.js
+@@ -2,3 +2,35 @@
+ export const qs = (root, selector) => root ? root.querySelector(selector) : null;
+ export const qsa = (root, selector) => Array.from(root ? root.querySelectorAll(selector) : []);
+ export const closestAction = (event) => event.target.closest('[data-action]');
++
++// SECTION: Passive card-opening contract
++const CARD_OPEN_INTERACTIVE_SELECTOR = [
++  'a',
++  'button',
++  'input',
++  'textarea',
++  'select',
++  'summary',
++  'details',
++  '[role="button"]',
++  '[contenteditable="true"]',
++  '[data-notebook-drag-handle]',
++  '.notebook-card-actions'
++].join(', ');
++
++/**
++ * Returns the note card that should open for a passive content click.
++ * Interactive descendants keep their own action, while ordinary card content
++ * (including checklist item text) follows the same open-card behaviour as notes.
++ */
++export function getPassiveNotebookCardOpenTarget(target, shell) {
++  if (!target?.closest || !shell?.contains) return null;
++
++  const card = target.closest('[data-note-id]');
++  if (!card || !shell.contains(card)) return null;
++  if (shell.classList.contains('is-rearranging') || shell.classList.contains('is-pointer-dragging')) return null;
++  if (target.closest(CARD_OPEN_INTERACTIVE_SELECTOR)) return null;
++  if (!card.querySelector('[data-action="open-note"]')) return null;
++
++  return card;
++}
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -3863,3 +3863,76 @@
+     color: #1f2937;
+     outline: none;
+ }
++
++/* SECTION: Consistent card-opening interaction
++   Checklist completion is intentionally limited to the checkbox control.
++   Checklist text and other passive card content use the same open-card contract as notes. */
++.notebook-check-row {
++    display: grid;
++    grid-template-columns: 22px minmax(0, 1fr);
++    align-items: start;
++    column-gap: 7px;
++}
++
++.notebook-check-toggle {
++    width: 22px;
++    min-width: 22px;
++    min-height: 24px;
++    padding: 2px 0;
++    justify-content: flex-start;
++    flex: 0 0 22px;
++    color: #64748b;
++    cursor: pointer;
++}
++
++.notebook-check-toggle:hover,
++.notebook-check-toggle:focus-visible {
++    color: #315fba;
++}
++
++.notebook-check-toggle.is-done {
++    color: #94a3b8;
++    text-decoration: none;
++}
++
++.notebook-check-text {
++    min-width: 0;
++    padding: 2px 0;
++    color: #334155;
++    font-size: .855rem;
++    line-height: 1.32;
++    overflow-wrap: anywhere;
++    white-space: normal;
++    cursor: pointer;
++}
++
++.notebook-check-text.is-done {
++    color: #94a3b8;
++    text-decoration: line-through;
++}
++
++.notebook-check-toggle--readonly {
++    cursor: default;
++}
++
++.notebook-check-toggle--readonly:hover,
++.notebook-check-toggle--readonly:focus-visible {
++    color: inherit;
++    background: transparent;
++}
++
++.notebook-shell.is-rearranging .notebook-check-text,
++.notebook-shell.is-pointer-dragging .notebook-check-text {
++    cursor: grab;
++}
++
++@media (pointer: coarse) {
++    .notebook-check-toggle {
++        min-height: 28px;
++    }
++
++    .notebook-check-text {
++        padding-top: 4px;
++        padding-bottom: 4px;
++    }
++}
+--- a/wwwroot/js/notebook/notebook-drag-order.test.js
++++ b/wwwroot/js/notebook/notebook-drag-order.test.js
+@@ -98,12 +98,15 @@
+ });
+ 
+ 
+-test('checklist blank space is draggable while checklist controls remain protected', () => {
++test('checklist text remains a passive card surface while the checkbox stays protected during rearrange', () => {
+   const dom = new JSDOM(`
+     <article data-note-id="a">
+       <div class="notebook-checklist-preview" id="checklist">
+         <div id="blank"></div>
+-        <button class="notebook-check-toggle" id="toggle"><span id="rowtext">Row</span></button>
++        <div class="notebook-check-row">
++          <button class="notebook-check-toggle" id="toggle"></button>
++          <span class="notebook-check-text" id="rowtext">Row</span>
++        </div>
+         <strong id="summary">1/2 complete</strong>
+       </div>
+     </article>`);
+@@ -111,5 +114,5 @@
+   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#blank')), false);
+   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#summary')), false);
+   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#toggle')), true);
+-  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#rowtext')), true);
++  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#rowtext')), false);
+ });
+--- a/wwwroot/js/notebook/notebook-card-open.test.js
++++ b/wwwroot/js/notebook/notebook-card-open.test.js
+@@ -0,0 +1,59 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++
++function loadOpenTargetHelper() {
++  const source = fs.readFileSync(path.resolve(__dirname, 'notebook-utils.js'), 'utf8')
++    .replace(/export const /g, 'const ')
++    .replace('export function getPassiveNotebookCardOpenTarget', 'function getPassiveNotebookCardOpenTarget');
++  const context = vm.createContext({});
++  vm.runInContext(`${source}; globalThis.__helper = getPassiveNotebookCardOpenTarget;`, context);
++  return context.__helper;
++}
++
++function createFixture({ interactive = false, openable = true, rearranging = false, pointerDragging = false } = {}) {
++  const interactiveNode = {};
++  const card = {
++    querySelector: (selector) => selector === '[data-action="open-note"]' && openable ? {} : null
++  };
++  const shell = {
++    contains: (node) => node === card,
++    classList: {
++      contains: (name) => (name === 'is-rearranging' && rearranging) || (name === 'is-pointer-dragging' && pointerDragging)
++    }
++  };
++  const target = {
++    closest: (selector) => {
++      if (selector === '[data-note-id]') return card;
++      if (selector.includes('button') || selector.includes('a,')) return interactive ? interactiveNode : null;
++      return null;
++    }
++  };
++  return { target, shell, card };
++}
++
++test('passive checklist text resolves to its card for opening', () => {
++  const helper = loadOpenTargetHelper();
++  const { target, shell, card } = createFixture();
++  assert.equal(helper(target, shell), card);
++});
++
++test('interactive descendants keep their own action instead of opening the card', () => {
++  const helper = loadOpenTargetHelper();
++  const { target, shell } = createFixture({ interactive: true });
++  assert.equal(helper(target, shell), null);
++});
++
++test('passive card opening is disabled while rearranging', () => {
++  const helper = loadOpenTargetHelper();
++  const { target, shell } = createFixture({ rearranging: true });
++  assert.equal(helper(target, shell), null);
++});
++
++test('cards without an open-note route are not opened passively', () => {
++  const helper = loadOpenTargetHelper();
++  const { target, shell } = createFixture({ openable: false });
++  assert.equal(helper(target, shell), null);
++});
+--- a/ProjectManagement.Tests/NotebookCardRendererTests.cs
++++ b/ProjectManagement.Tests/NotebookCardRendererTests.cs
+@@ -57,6 +57,8 @@
+         Assert.Contains("First checklist row", html, StringComparison.Ordinal);
+         Assert.Contains("Second checklist row", html, StringComparison.Ordinal);
+         Assert.Contains("data-action=\"toggle-checklist\"", html, StringComparison.Ordinal);
++        Assert.Contains("class=\"notebook-check-text", html, StringComparison.Ordinal);
++        Assert.DoesNotContain("<i class=\"bi bi-square\" aria-hidden=\"true\"></i><span>First checklist row</span>", html, StringComparison.Ordinal);
+         Assert.Contains("1/2", html, StringComparison.Ordinal);
+         Assert.Contains($"data-version=\"{item.Version}\"", html, StringComparison.Ordinal);
+     }
