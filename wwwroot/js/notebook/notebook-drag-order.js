@@ -1,7 +1,9 @@
 // SECTION: Notebook board drag-and-drop and keyboard reordering
 const BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
-const CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
-const ALL_CARD_SELECTOR = ':scope > [data-note-id]';
+const OWNED_CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
+const SYSTEM_CARD_SELECTOR = ':scope > [data-notebook-system-home-card][data-reorderable="true"]';
+const CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
+const ALL_CARD_SELECTOR = ':scope > [data-note-id], :scope > [data-notebook-system-home-card]';
 const DRAG_THRESHOLD_PX = 6;
 const TOUCH_LONG_PRESS_MS = 300;
 const TOUCH_CANCEL_DISTANCE_PX = 8;
@@ -18,17 +20,27 @@ function allCards(board) {
   return [...board.querySelectorAll(ALL_CARD_SELECTOR)];
 }
 
+function ownedCards(board) {
+  return [...board.querySelectorAll(OWNED_CARD_SELECTOR)];
+}
+
+function cardKey(card) {
+  if (card?.dataset?.noteId) return `note:${card.dataset.noteId}`;
+  if (card?.dataset?.notebookSystemHomeCard) return `system:${card.dataset.notebookSystemHomeCard}`;
+  return '';
+}
+
 function serialiseBoard(board) {
-  return directCards(board).map((card) => ({
+  return ownedCards(board).map((card) => ({
     id: card.dataset.noteId,
     version: card.dataset.version
   }));
 }
 
-function restoreOrder(board, ids) {
-  const map = new Map(allCards(board).map((card) => [card.dataset.noteId, card]));
-  ids.forEach((id) => {
-    const card = map.get(id);
+function restoreOrder(board, keys) {
+  const map = new Map(allCards(board).map((card) => [cardKey(card), card]));
+  keys.forEach((key) => {
+    const card = map.get(key);
     if (card) board.append(card);
   });
 }
@@ -175,7 +187,7 @@ function createPreview(card, rect) {
 export function initNotebookDragOrder(shell, boardController, options = {}) {
   if (!shell || shell.dataset.view !== 'home') return null;
   const api = options.api;
-  if (!api?.reorderItems) throw new Error('Notebook reorder API is unavailable.');
+  if (!api?.reorderItems || !api?.setSystemItemPlacement) throw new Error('Notebook reorder API is unavailable.');
 
   const showError = options.showError || (() => {});
   const liveRegion = shell.querySelector('[data-notebook-reorder-live]');
@@ -208,22 +220,37 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     });
   };
 
-  const persist = (board, originalIds) => {
+  const persist = (board, originalKeys) => {
     const section = board.dataset.notebookBoard;
     const items = serialiseBoard(board);
-    pendingSave = { board, section, items, originalIds };
+    pendingSave = { board, section, items, originalKeys };
     activeSave = activeSave.then(async () => {
       const job = pendingSave;
       pendingSave = null;
       if (!job) return;
       try {
+        // Normal Notebook items keep their authoritative sparse order contract. The
+        // system note stores only its visual slot among those owned cards.
         await api.reorderItems(job.section, job.items);
+        const mixedCards = directCards(job.board);
+        const systemCard = mixedCards.find((card) => card.dataset.notebookSystemHomeCard);
+        if (systemCard) {
+          const position = mixedCards.indexOf(systemCard);
+          const key = systemCard.dataset.notebookSystemHomeCard;
+          const response = await api.setSystemItemPlacement(key, job.section === 'pinned', position);
+          const preference = response?.preference;
+          if (preference) {
+            systemCard.dataset.systemIsPinned = String(Boolean(preference.isPinned));
+            systemCard.dataset.systemHomePosition = String(Number(preference.homePosition || 0));
+            systemCard.dataset.systemPreferenceVersion = preference.version || '';
+          }
+        }
       } catch (error) {
-        restoreOrder(job.board, job.originalIds);
+        restoreOrder(job.board, job.originalKeys);
         boardController.refreshSectionVisibility();
         showError(error?.message || 'Could not save note order. Previous order restored.');
       }
-      if (pendingSave) return persist(pendingSave.board, pendingSave.originalIds);
+      if (pendingSave) return persist(pendingSave.board, pendingSave.originalKeys);
     });
   };
 
@@ -280,7 +307,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       pointer: { x: clientX, y: clientY },
       offsetX: clientX - rect.left,
       offsetY: clientY - rect.top,
-      originalIds: state.originalIds,
+      originalKeys: state.originalKeys,
       lastMove: null
     };
     document.body.classList.add('notebook-is-dragging');
@@ -298,7 +325,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       cancelPointerArm();
       return;
     }
-    const { card, board, placeholder, preview, originalIds, pointerId } = dragState;
+    const { card, board, placeholder, preview, originalKeys, pointerId } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
     board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
@@ -307,11 +334,11 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     document.body.classList.remove('notebook-is-dragging');
     shell.releasePointerCapture?.(pointerId);
     if (save) {
-      persist(board, originalIds);
+      persist(board, originalKeys);
       suppressClickUntil = performance.now() + 300;
       announce(`Dropped at position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
     } else {
-      restoreOrder(board, originalIds);
+      restoreOrder(board, originalKeys);
       announce('Rearrangement cancelled.');
     }
     dragState = null;
@@ -322,7 +349,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
   const beginKeyboard = (handle, card) => {
     const board = card.parentElement;
     if (!isEnabled() || !board?.matches(BOARD_SELECTOR)) return;
-    keyboardState = { handle, card, board, originalIds: allCards(board).map((entry) => entry.dataset.noteId) };
+    keyboardState = { handle, card, board, originalKeys: allCards(board).map(cardKey) };
     card.classList.add('is-keyboard-dragging');
     handle.setAttribute('aria-grabbed', 'true');
     announce(`Picked up ${card.querySelector('.notebook-card-title')?.textContent || 'note'}, position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
@@ -330,14 +357,14 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 
   const finishKeyboard = (save) => {
     if (!keyboardState) return;
-    const { handle, card, board, originalIds } = keyboardState;
+    const { handle, card, board, originalKeys } = keyboardState;
     card.classList.remove('is-keyboard-dragging');
     handle.setAttribute('aria-grabbed', 'false');
     if (save) {
-      persist(board, originalIds);
+      persist(board, originalKeys);
       announce('Note dropped.');
     } else {
-      restoreOrder(board, originalIds);
+      restoreOrder(board, originalKeys);
       announce('Rearrangement cancelled.');
     }
     keyboardState = null;
@@ -345,7 +372,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 
   const onPointerDown = (event) => {
     if (!isEnabled() || event.button !== 0 || pointerState || dragState) return;
-    const card = event.target.closest('[data-note-id][data-reorderable="true"]');
+    const card = event.target.closest('[data-note-id][data-reorderable="true"], [data-notebook-system-home-card][data-reorderable="true"]');
     const board = card?.parentElement;
     if (!card || !board?.matches(BOARD_SELECTOR) || isInteractiveDragTarget(event.target)) return;
 
@@ -358,7 +385,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       startY: event.clientY,
       clientX: event.clientX,
       clientY: event.clientY,
-      originalIds: allCards(board).map((entry) => entry.dataset.noteId),
+      originalKeys: allCards(board).map(cardKey),
       timer: null
     };
     pointerState = state;
@@ -404,7 +431,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
   };
 
   const onClickCapture = (event) => {
-    if (performance.now() >= suppressClickUntil || !event.target.closest('[data-note-id]')) return;
+    if (performance.now() >= suppressClickUntil || !event.target.closest('[data-note-id], [data-notebook-system-home-card]')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -412,7 +439,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
   const onKeyDown = (event) => {
     const handle = event.target.closest('[data-notebook-drag-handle]');
     if (!handle) return;
-    const card = handle.closest('[data-note-id][data-reorderable="true"]');
+    const card = handle.closest('[data-note-id][data-reorderable="true"], [data-notebook-system-home-card][data-reorderable="true"]');
     if (!keyboardState && (event.key === ' ' || event.key === 'Enter')) {
       event.preventDefault();
       beginKeyboard(handle, card);
@@ -490,6 +517,8 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 
 export const notebookDragOrderTestHelpers = {
   directCards,
+  ownedCards,
+  cardKey,
   serialiseBoard,
   restoreOrder,
   findInsertionTarget,

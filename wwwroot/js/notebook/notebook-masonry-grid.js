@@ -1,6 +1,10 @@
 // SECTION: DOM-order-safe adaptive masonry for Notebook cards
 const BOARD_SELECTOR = '[data-notebook-board]';
-const ITEM_SELECTOR = ':scope > [data-note-id], :scope > .notebook-card-placeholder';
+const ITEM_SELECTOR = [
+  ':scope > [data-note-id]',
+  ':scope > [data-notebook-system-home-card]',
+  ':scope > .notebook-card-placeholder'
+].join(', ');
 const DEFAULT_ROW_HEIGHT = 8;
 const DEFAULT_GAP = 12;
 

@@ -30,5 +30,5 @@ test('PRISM-shared compact card follows the same PO-to-item-to-direction hierarc
 
 test('supporting actions do not compete with content', () => {
     assert.match(rule('.notebook-conference-digest-officer__review-link'), /font-weight:\s*500\s*;/);
-    assert.match(rule('.notebook-conference-shared-card__more'), /font-weight:\s*500\s*;/);
+    assert.match(rule('.notebook-conference-shared-card__view-all'), /font-weight:\s*500\s*;/);
 });

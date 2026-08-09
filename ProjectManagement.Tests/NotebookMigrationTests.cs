@@ -63,6 +63,20 @@ public sealed class NotebookMigrationTests
         Assert.Contains("LOWER(BTRIM(\"ColorKey\"))", migration, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Notebook_system_item_preferences_migration_stores_presentation_metadata_only()
+    {
+        var migration = File.ReadAllText(Path.Combine(GetRepoRoot(), "20261207200000_AddNotebookSystemItemPreferences.cs"));
+
+        Assert.Contains("NotebookSystemItemPreferences", migration, StringComparison.Ordinal);
+        Assert.Contains("NotebookSystemItemTags", migration, StringComparison.Ordinal);
+        Assert.Contains("ShowInHome", migration, StringComparison.Ordinal);
+        Assert.Contains("HomePosition", migration, StringComparison.Ordinal);
+        Assert.Contains("ColorKey", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("DirectionText", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("BodyMarkdown", migration, StringComparison.Ordinal);
+    }
+
     private static string GetRepoRoot()
     {
         var current = AppContext.BaseDirectory;

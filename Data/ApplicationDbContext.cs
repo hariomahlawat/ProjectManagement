@@ -72,6 +72,8 @@ namespace ProjectManagement.Data
         public DbSet<NotebookItemTag> NotebookItemTags => Set<NotebookItemTag>();
         public DbSet<NotebookAttachment> NotebookAttachments => Set<NotebookAttachment>();
         public DbSet<NotebookItemCollaborator> NotebookItemCollaborators => Set<NotebookItemCollaborator>();
+        public DbSet<NotebookSystemItemPreference> NotebookSystemItemPreferences => Set<NotebookSystemItemPreference>();
+        public DbSet<NotebookSystemItemTag> NotebookSystemItemTags => Set<NotebookSystemItemTag>();
         public DbSet<NotebookMigrationState> NotebookMigrationStates => Set<NotebookMigrationState>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
         public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
@@ -314,6 +316,28 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.UserId).HasMaxLength(450);
                 entity.Property(x => x.MigrationKey).HasMaxLength(80);
                 entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<NotebookSystemItemPreference>(entity =>
+            {
+                entity.ToTable("NotebookSystemItemPreferences", table =>
+                    table.HasCheckConstraint(
+                        "CK_NotebookSystemItemPreferences_HomePosition",
+                        "\"HomePosition\" >= 0"));
+                entity.HasIndex(x => new { x.UserId, x.SystemItemKey }).IsUnique();
+                entity.Property(x => x.UserId).HasMaxLength(450);
+                entity.Property(x => x.SystemItemKey).HasMaxLength(80);
+                entity.Property(x => x.ColorKey).HasMaxLength(24);
+                entity.Property(x => x.Version).IsConcurrencyToken();
+                entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<NotebookSystemItemTag>(entity =>
+            {
+                entity.HasKey(x => new { x.PreferenceId, x.NotebookTagId });
+                entity.HasIndex(x => x.NotebookTagId);
+                entity.HasOne(x => x.Preference).WithMany(x => x.Tags).HasForeignKey(x => x.PreferenceId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.NotebookTag).WithMany(x => x.SystemItems).HasForeignKey(x => x.NotebookTagId).OnDelete(DeleteBehavior.Cascade);
             });
 
             // SECTION: Project Ideas module

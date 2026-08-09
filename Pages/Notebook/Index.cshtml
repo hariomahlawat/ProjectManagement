@@ -60,7 +60,7 @@
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
-<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-system-shared-count="@Model.SystemSharedSurfaceCount" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
+<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-system-shared-count="@Model.SystemSharedSurfaceCount" data-system-home-count="@Model.SystemHomeSurfaceCount" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
     @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
     <div id="notebook-antiforgery-token" hidden>
         @Html.AntiForgeryToken()
@@ -177,24 +177,52 @@
         }
         @if (Model.Notebook.View == "home")
         {
+            var showSystemHome = Model.ShowConferenceDigest && Model.ConferenceDigestPreference is not null;
+            var systemPinned = showSystemHome && Model.ConferenceDigestPreference!.IsPinned;
+            var systemOthers = showSystemHome && !Model.ConferenceDigestPreference!.IsPinned;
+            var ownedOthers = Model.Notebook.OtherItems.Where(item => item.OwnerId == currentUserId).ToArray();
+            var sharedOthers = Model.Notebook.OtherItems.Where(item => item.OwnerId != currentUserId).ToArray();
+            var pinnedSystemPosition = systemPinned ? Math.Clamp(Model.ConferenceDigestPreference!.HomePosition, 0, Model.Notebook.PinnedItems.Count) : -1;
+            var otherSystemPosition = systemOthers ? Math.Clamp(Model.ConferenceDigestPreference!.HomePosition, 0, ownedOthers.Length) : -1;
+            var pinnedVisibleCount = Model.Notebook.PinnedItems.Count + (systemPinned ? 1 : 0);
+            var otherVisibleCount = Model.Notebook.OtherItems.Count + (systemOthers ? 1 : 0);
+            var hasAnyHomeItems = pinnedVisibleCount > 0 || otherVisibleCount > 0;
 
-            var hasAnyHomeItems = Model.Notebook.PinnedItems.Any()
-                || Model.Notebook.OtherItems.Any();
-
-            @* SECTION: Manual-order friendly home board sections *@
-            <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">
-                <div class="notebook-section-header"><h2>Pinned</h2><span data-notebook-count="pinned">@Model.Notebook.PinnedItems.Count</span></div>
-                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.PinnedItems.Count">
-                    @foreach (var item in Model.Notebook.PinnedItems)
+            @* SECTION: Manual-order friendly home board sections. The PRISM system note
+               participates in the user's visual order without becoming a NotebookItem. *@
+            <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(pinnedVisibleCount == 0)">
+                <div class="notebook-section-header"><h2>Pinned</h2><span data-notebook-count="pinned">@pinnedVisibleCount</span></div>
+                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@pinnedVisibleCount">
+                    @for (var index = 0; index <= Model.Notebook.PinnedItems.Count; index++)
                     {
-                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                        if (systemPinned && index == pinnedSystemPosition)
+                        {
+                            <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
+                        }
+                        if (index < Model.Notebook.PinnedItems.Count)
+                        {
+                            var item = Model.Notebook.PinnedItems[index];
+                            <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                        }
                     }
                 </div>
             </section>
             <section class="notebook-board-section" data-notebook-section="others">
-                <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@Model.Notebook.OtherItems.Count</span></div>
-                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.OtherItems.Count">
-                    @foreach (var item in Model.Notebook.OtherItems)
+                <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@otherVisibleCount</span></div>
+                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@otherVisibleCount">
+                    @for (var index = 0; index <= ownedOthers.Length; index++)
+                    {
+                        if (systemOthers && index == otherSystemPosition)
+                        {
+                            <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
+                        }
+                        if (index < ownedOthers.Length)
+                        {
+                            var item = ownedOthers[index];
+                            <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                        }
+                    }
+                    @foreach (var item in sharedOthers)
                     {
                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
@@ -213,12 +241,12 @@
 
             @* SECTION: System-shared surfaces are intentionally separated from person-to-person
                collaboration. They use normal Notebook card geometry but remain live/read-only. *@
-            @if (showPrismShared && Model.ConferenceDigest is { } sharedDigest)
+            @if (showPrismShared)
             {
                 <section class="notebook-board-section notebook-shared-source-section" data-notebook-shared-source="prism">
                     <div class="notebook-section-header"><h2>From PRISM</h2><span>1</span></div>
                     <div class="notebook-board notebook-system-shared-board" data-layout="grid" data-item-count="1">
-                        <partial name="_NotebookConferenceDigest" model="sharedDigest" />
+                        <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
                     </div>
                 </section>
             }
@@ -243,14 +271,19 @@
         }
         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
         {
+            var showSystemInCurrentView = Model.ShowConferenceDigest && Model.ConferenceDigestPreference is not null;
             <section class="notebook-board-section">
-                <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.Items.Count">
+                <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@(Model.Notebook.Items.Count + (showSystemInCurrentView ? 1 : 0))">
+                    @if (showSystemInCurrentView)
+                    {
+                        <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
+                    }
                     @foreach (var item in Model.Notebook.Items)
                     {
                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
                     }
                 </div>
-                @if (!Model.Notebook.Items.Any())
+                @if (!Model.Notebook.Items.Any() && !showSystemInCurrentView)
                 {
                     var emptyType = Model.Notebook.View switch
                     {
@@ -274,5 +307,9 @@
 <partial name="_NotebookToastRegion" />
 <partial name="_NotebookCollaboratorsDialog" />
 <partial name="_NotebookEditorTemplate" />
+@if (Model.ConferenceDigest is { TotalDirectionCount: > 0 } conferenceDigestModal)
+{
+    <partial name="_NotebookConferenceDigestModal" model="conferenceDigestModal" />
+}
 
 @section Scripts { <script type="module" src="~/dist/notebook-index.bundle.js" asp-append-version="true"></script> }

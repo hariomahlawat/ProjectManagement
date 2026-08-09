@@ -53,8 +53,82 @@ function parseCardLabels(card) {
   catch { return []; }
 }
 
+function isNotebookSystemCard(card) {
+  return Boolean(card?.dataset?.notebookSystemCard);
+}
+
+function applySystemCardColour(card, colorKey) {
+  if (!card) return;
+  const resolved = normaliseNotebookColour(colorKey);
+  [...card.classList].filter((name) => name.startsWith('notebook-card-color-')).forEach((name) => card.classList.remove(name));
+  card.classList.add(`notebook-card-color-${resolved}`);
+  card.querySelectorAll('[data-colour-choice]').forEach((choice) => {
+    const selected = normaliseNotebookColour(choice.dataset.colourChoice) === resolved;
+    choice.classList.toggle('is-selected', selected);
+    choice.setAttribute('aria-checked', String(selected));
+  });
+}
+
+function renderSystemCardTags(card, labels = []) {
+  const root = card?.querySelector?.('[data-system-card-tags]');
+  if (!root) return;
+  const values = Array.isArray(labels) ? labels.filter(Boolean) : [];
+  root.innerHTML = '';
+  values.slice(0, 3).forEach((label) => {
+    const link = document.createElement('a');
+    link.className = 'notebook-tag-chip';
+    link.href = `/Notebook?view=labels&tag=${encodeURIComponent(label)}`;
+    link.setAttribute('aria-label', `Open label ${label}`);
+    link.textContent = label;
+    root.appendChild(link);
+  });
+  if (values.length > 3) {
+    const more = document.createElement('span');
+    more.className = 'notebook-tag-chip';
+    more.textContent = `+${values.length - 3}`;
+    root.appendChild(more);
+  }
+  root.hidden = values.length === 0;
+}
+
+function applySystemPreference(card, preference) {
+  if (!card || !preference) return;
+  card.dataset.systemShowHome = String(Boolean(preference.showInHome));
+  card.dataset.systemIsPinned = String(Boolean(preference.isPinned));
+  card.dataset.systemHomePosition = String(Number(preference.homePosition || 0));
+  card.dataset.systemPreferenceVersion = preference.version || '';
+  card.dataset.labels = JSON.stringify(Array.isArray(preference.labels) ? preference.labels : []);
+  applySystemCardColour(card, preference.colorKey || 'white');
+  renderSystemCardTags(card, preference.labels || []);
+
+  card.classList.toggle('is-system-pinned', Boolean(preference.isPinned));
+  const pinState = card.querySelector('[data-system-pin-state]');
+  if (pinState) pinState.hidden = !Boolean(preference.isPinned);
+
+  const pin = card.querySelector('[data-action="system-pin-note"]');
+  if (pin) {
+    const pinned = Boolean(preference.isPinned);
+    pin.classList.toggle('is-active', pinned);
+    pin.title = pinned ? 'Unpin' : 'Pin';
+    pin.setAttribute('aria-label', pinned ? 'Unpin system note' : 'Pin system note');
+    const icon = pin.querySelector('i');
+    if (icon) icon.className = `bi ${pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}`;
+  }
+}
+
 function escapeLabelHtml(value) {
   return String(value || '').replace(/[&<>'"]/g, (character) => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[character]));
+}
+
+async function updateSystemPreferenceWithSingleRetry(key, payload) {
+  try {
+    return await NotebookApi.updateSystemItemPreference(key, payload);
+  } catch (error) {
+    // Presentation preferences are independent of Conference content. A single retry
+    // safely resolves a rare simultaneous colour/label/pin update from another tab.
+    if (error?.status === 409) return NotebookApi.updateSystemItemPreference(key, payload);
+    throw error;
+  }
 }
 
 // SECTION: Notebook app bootstrap and delegated interactions
@@ -69,13 +143,17 @@ export function initNotebookApp() {
   const globalErrorText = document.querySelector('[data-notebook-global-error-text]');
   const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
   const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || '0', 10) || 0);
+  let systemHomeCount = Math.max(0, Number.parseInt(shell.dataset.systemHomeCount || '0', 10) || 0);
   const applyCounts = (counts) => {
     if (!counts) return;
     Object.entries(counts).forEach(([key, value]) => {
       const numericValue = Number(value) || 0;
-      const displayValue = key.toLowerCase() === 'shared'
+      const normalizedKey = key.toLowerCase();
+      const displayValue = normalizedKey === 'shared'
         ? numericValue + systemSharedCount
-        : numericValue;
+        : normalizedKey === 'home'
+          ? numericValue + systemHomeCount
+          : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
         el.textContent = String(displayValue);
         if (key.toLowerCase() === 'overdue') {
@@ -106,7 +184,18 @@ export function initNotebookApp() {
       onError: (error) => showGlobalError(error?.message || 'Unable to create the label.'),
       onChange: async (labels) => {
         const card = activeLabelCard;
-        if (!card?.dataset?.noteId) return;
+        if (!card) return;
+
+        if (isNotebookSystemCard(card)) {
+          const key = card.dataset.systemItemKey || card.dataset.notebookSystemCard;
+          const response = await updateSystemPreferenceWithSingleRetry(key, { labels });
+          applySystemPreference(card, response?.preference);
+          const catalogue = await refreshNotebookLabelCatalog();
+          renderNotebookLabelNavigation(shell, catalogue);
+          return;
+        }
+
+        if (!card.dataset.noteId) return;
         const apply = async (version) => {
           const response = await NotebookApi.setLabels(card.dataset.noteId, labels, version);
           const updated = requireMutationItem(response);
@@ -134,9 +223,23 @@ export function initNotebookApp() {
     }
   );
 
-  document.addEventListener('notebook:labels-changed', (event) => {
+  document.addEventListener('notebook:labels-changed', async (event) => {
     const nextLabels = Array.isArray(event.detail?.labels) ? event.detail.labels : [];
     renderNotebookLabelNavigation(shell, nextLabels);
+
+    // A label rename/delete can affect the virtual PRISM note even though it is not a
+    // NotebookItem. Refresh its personal association by stable system-item key.
+    const cards = [...shell.querySelectorAll('[data-notebook-system-card]')];
+    if (cards.length === 0) return;
+    const key = cards[0].dataset.systemItemKey || cards[0].dataset.notebookSystemCard;
+    if (!key) return;
+    try {
+      const response = await NotebookApi.getSystemItemPreference(key);
+      cards.forEach((card) => applySystemPreference(card, response?.preference));
+    } catch {
+      // Label catalogue refresh remains useful even if the system-note preference
+      // cannot be refreshed (for example after a role change in another session).
+    }
   });
   renderNotebookLabelNavigation(shell, labels);
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
@@ -208,12 +311,19 @@ export function initNotebookApp() {
     if (cardColourChoice) {
       event.preventDefault();
       event.stopPropagation();
-      const card = cardColourChoice.closest('[data-note-id]');
+      const card = cardColourChoice.closest('.notebook-card');
       if (!card) return;
       const picker = cardColourChoice.closest('[data-notebook-colour-picker]');
       const colorKey = normaliseNotebookColour(cardColourChoice.dataset.colourChoice);
       cardColourChoice.disabled = true;
       try {
+        if (isNotebookSystemCard(card)) {
+          const key = card.dataset.systemItemKey || card.dataset.notebookSystemCard;
+          const response = await updateSystemPreferenceWithSingleRetry(key, { colorKey });
+          applySystemPreference(card, response?.preference);
+          return;
+        }
+
         const response = await NotebookApi.setColour(card.dataset.noteId, colorKey, card.dataset.version);
         const updated = requireMutationItem(response);
         updateCardConcurrencyState(card, updated);
@@ -266,15 +376,69 @@ export function initNotebookApp() {
       return;
     }
     if (action.closest('.notebook-card-more__menu')) closeNotebookMenus();
-    const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
-    if (action.dataset.action === 'label-note' && card) {
+    const card = action.closest('[data-note-id]');
+    const systemCard = action.closest('[data-notebook-system-card]');
+    const actionCard = card || systemCard;
+    const id = card?.dataset.noteId;
+    if (action.dataset.action === 'label-note' && actionCard) {
       event.preventDefault();
       action.closest('details')?.removeAttribute('open');
-      activeLabelCard = card;
-      cardLabelPicker?.configure({ value: parseCardLabels(card) });
+      activeLabelCard = actionCard;
+      cardLabelPicker?.configure({ value: parseCardLabels(actionCard) });
       cardLabelPicker?.open(action);
       return;
     }
+    if (systemCard && ['system-add-home', 'system-remove-home', 'system-pin-note'].includes(action.dataset.action)) {
+      event.preventDefault();
+      action.closest('details')?.removeAttribute('open');
+      action.disabled = true;
+      const key = systemCard.dataset.systemItemKey || systemCard.dataset.notebookSystemCard;
+      try {
+        if (action.dataset.action === 'system-add-home') {
+          await updateSystemPreferenceWithSingleRetry(key, { showInHome: true });
+          window.location.assign('/Notebook?view=home');
+          return;
+        }
+
+        if (action.dataset.action === 'system-remove-home') {
+          const response = await updateSystemPreferenceWithSingleRetry(key, { showInHome: false });
+          applySystemPreference(systemCard, response?.preference);
+          if (view === 'home') {
+            systemCard.remove();
+            systemHomeCount = 0;
+            shell.dataset.systemHomeCount = '0';
+            board.refreshSectionVisibility();
+            board.refreshEmptyState();
+            dragOrder?.refresh?.();
+            await refreshCounts();
+          }
+          showNotebookToast({ message: 'Removed from All Notes. It remains available in Shared with me.', tone: 'neutral' });
+          return;
+        }
+
+        if (action.dataset.action === 'system-pin-note') {
+          const nextPinned = systemCard.dataset.systemIsPinned !== 'true';
+          const response = await updateSystemPreferenceWithSingleRetry(key, { isPinned: nextPinned });
+          applySystemPreference(systemCard, response?.preference);
+          if (view === 'home') {
+            const target = board.getBoard(nextPinned);
+            target?.prepend(systemCard);
+            systemCard.dataset.notebookSystemHomeCard = key;
+            systemCard.dataset.reorderable = 'true';
+            board.refreshSectionVisibility();
+            board.refreshEmptyState();
+            dragOrder?.refresh?.();
+          }
+          return;
+        }
+      } catch (error) {
+        showGlobalError(error?.message || 'Unable to update the PRISM note.');
+      } finally {
+        action.disabled = false;
+      }
+      return;
+    }
+
     if (action.dataset.action === 'share-note' && card) { event.preventDefault(); action.closest('details')?.removeAttribute('open'); collaborators?.open(card); return; }
     if (action.dataset.action === 'share-note-editor') {
       event.preventDefault();

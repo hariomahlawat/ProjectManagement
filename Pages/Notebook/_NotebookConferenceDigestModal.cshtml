@@ -1,0 +1,60 @@
+@model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
+@using ProjectManagement.Infrastructure
+@{ var digest = Model; }
+
+<div class="modal fade notebook-conference-digest-modal"
+     id="notebookConferenceDigestModal"
+     tabindex="-1"
+     aria-labelledby="notebookConferenceDigestModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable notebook-conference-digest-modal__dialog">
+        <div class="modal-content notebook-conference-digest-modal__content">
+            <header class="notebook-conference-digest-modal__header">
+                <div>
+                    <div class="notebook-conference-digest-modal__eyebrow">PRISM · Conference Review</div>
+                    <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
+                    <p>@digest.TotalDirectionCount latest direction@(digest.TotalDirectionCount == 1 ? string.Empty : "s") · @digest.OfficerCount Project Officer@(digest.OfficerCount == 1 ? string.Empty : "s")</p>
+                </div>
+                <div class="notebook-conference-digest-modal__header-actions">
+                    <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </header>
+
+            <div class="modal-body notebook-conference-digest-modal__body">
+                @foreach (var group in digest.OfficerGroups)
+                {
+                    <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
+                        <header class="notebook-conference-digest-officer__header">
+                            <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
+                            <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
+                                Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                            </a>
+                        </header>
+
+                        <div class="notebook-conference-digest-officer__items">
+                            @foreach (var item in group.Directions)
+                            {
+                                var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+                                <article class="notebook-conference-digest-item">
+                                    <div class="notebook-conference-digest-item__heading">
+                                        <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
+                                            @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                        </a>
+                                        <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
+                                    </div>
+                                    <p>@item.DirectionText</p>
+                                </article>
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
+
+            <footer class="modal-footer notebook-conference-digest-modal__footer">
+                <span>Source: Conference Review</span>
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+            </footer>
+        </div>
+    </div>
+</div>

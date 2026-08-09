@@ -63,3 +63,31 @@ test('normal grid layout clears spans and relies on natural row height', () => {
   assert.equal(document.querySelector('[data-note-id="a"]').style.gridRowEnd, '');
   assert.equal(board.classList.contains('is-masonry-ready'), false);
 });
+
+test('system home card participates in masonry measurement exactly like a normal note', () => {
+  const dom = new JSDOM('<div class="notebook-shell" data-board-view="grid"><div id="b" data-notebook-board data-layout="masonry"><article data-notebook-system-home-card="conference-directions"></article><article data-note-id="a"></article></div></div>');
+  const document = dom.window.document;
+  const board = document.querySelector('#b');
+  Object.defineProperty(dom.window, 'getComputedStyle', { value: () => ({ gridAutoRows: '8px', rowGap: '12px' }) });
+  global.getComputedStyle = dom.window.getComputedStyle;
+  document.querySelector('[data-notebook-system-home-card]').getBoundingClientRect = () => ({ height: 328 });
+  document.querySelector('[data-note-id="a"]').getBoundingClientRect = () => ({ height: 88 });
+
+  const { layoutMasonryBoard, notebookMasonryTestHelpers } = load(document);
+  layoutMasonryBoard(board, document.querySelector('.notebook-shell'));
+
+  assert.equal(notebookMasonryTestHelpers.directItems(board).length, 2);
+  assert.equal(document.querySelector('[data-notebook-system-home-card]').style.gridRowEnd, 'span 17');
+  assert.equal(document.querySelector('[data-note-id="a"]').style.gridRowEnd, 'span 5');
+});
+
+test('list mode clears an existing masonry span from the system home card', () => {
+  const dom = new JSDOM('<div class="notebook-shell" data-board-view="list"><div id="b" data-notebook-board data-layout="masonry"><article data-notebook-system-home-card="conference-directions" style="grid-row-end:span 17"></article></div></div>');
+  const document = dom.window.document;
+  const { layoutMasonryBoard } = load(document);
+
+  layoutMasonryBoard(document.querySelector('#b'), document.querySelector('.notebook-shell'));
+
+  assert.equal(document.querySelector('[data-notebook-system-home-card]').style.gridRowEnd, '');
+});
+

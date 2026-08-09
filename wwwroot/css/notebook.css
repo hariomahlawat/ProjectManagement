@@ -4475,3 +4475,98 @@ body.notebook-confirm-open { overflow: hidden; }
         padding-inline: .9rem;
     }
 }
+
+/* SECTION: Personal organisation controls for PRISM-owned Notebook surfaces */
+.notebook-conference-shared-card__open {
+    z-index: 1;
+}
+
+.notebook-conference-shared-card__summary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notebook-conference-shared-card__view-all {
+    position: relative;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    margin-top: .48rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #556fa5;
+    font-size: .7rem;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.notebook-conference-shared-card__view-all:hover,
+.notebook-conference-shared-card__view-all:focus-visible {
+    color: #315fba;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.notebook-conference-shared-card .notebook-card-tags,
+.notebook-conference-shared-card__sharing,
+.notebook-conference-shared-card__actions {
+    position: relative;
+    z-index: 4;
+}
+
+.notebook-conference-shared-card__actions .notebook-actions {
+    align-items: center;
+}
+
+.notebook-system-home-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    min-height: 1.72rem;
+    padding: .22rem .48rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #53657d;
+    font-size: .69rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.notebook-system-home-toggle:hover,
+.notebook-system-home-toggle:focus-visible {
+    background: rgba(60, 64, 67, .08);
+    color: #1f3f78;
+    outline: none;
+}
+
+.notebook-conference-shared-card.is-system-pinned .notebook-card-pin-indicator {
+    color: #536fa8;
+}
+
+/* Long work-item titles must never compete with the issued date. */
+.notebook-conference-digest-item__heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: start;
+}
+
+.notebook-conference-digest-item__title {
+    width: auto;
+    max-width: none;
+    white-space: normal;
+}
+
+@media (max-width: 760px) {
+    .notebook-conference-shared-card__summary {
+        white-space: normal;
+    }
+
+    .notebook-conference-digest-item__heading {
+        grid-template-columns: 1fr;
+        gap: .08rem;
+    }
+}

@@ -1,73 +1,53 @@
-PRISM ERP - Notebook System-Shared Conference Digest
-09 Aug 2026
+PRISM Notebook — System Card Masonry Fix
+Date: 09 Aug 2026
 
 PURPOSE
--------
-Moves the live Latest Conference Directions digest out of All Notes and into
-Shared with me, where it is treated as a PRISM-shared, read-only virtual note.
+Fixes the overlap seen after "Latest Conference Directions" is added to All Notes.
+The PRISM system note was a real visual card but the masonry measurement engine only
+measured normal [data-note-id] cards. With an 8px masonry row track, the system card
+therefore received no grid-row span and the next note could render on top of it.
 
-UX RESULT
----------
-1. All Notes is again reserved for normal Notebook content. The system digest no
-   longer occupies the top of the personal Notebook canvas or pushes notes down.
-2. Shared with me contains two provenance-aware sections when applicable:
-      - From PRISM
-      - From people
-3. The Conference digest uses normal Notebook card width, border, radius, hover
-   behaviour and typography instead of a special double-width card.
-4. The card is marked subtly as "PRISM · Read only" and opens the existing full
-   PO-wise Conference register.
-5. The Shared with me rail count includes the digest as ONE shared surface, not
-   as N conference directions. Example: 2 person-shared notes + digest = 3.
-6. The digest remains virtual/live. It is not persisted as NotebookItem and is
-   not pinnable, reorderable, editable, archivable, shareable or trashable.
-7. Only Comdt/HoD users with at least one latest Conference Direction receive the
-   PRISM-shared card. Users without the role are unchanged.
-8. Shared-view search can match the system note by title, PRISM/Command/Conference
-   terms, PO name, item name or direction text. Label/type filters intentionally
-   exclude the virtual note because it has no Notebook labels/type.
+FILES TO REPLACE
+1. wwwroot/js/notebook/notebook-masonry-grid.js
+2. wwwroot/js/notebook/notebook-masonry-grid.test.js
 
-IMPLEMENTATION NOTES
---------------------
+WHAT CHANGED
+- The masonry item selector now treats [data-notebook-system-home-card] as a first-class
+  masonry item, alongside normal Notebook notes and drag placeholders.
+- ResizeObserver observation automatically includes the PRISM system card.
+- Existing mutation, explicit refresh, board-view, image-load and window-resize refresh
+  paths now remeasure the system card without special-case CSS.
+- Added regression tests for system-card masonry span calculation and span clearing in
+  list mode.
+
+NO CHANGES REQUIRED
+- No CSS workaround/min-height/z-index hack.
+- No Razor change.
+- No backend/service/controller change.
 - No database or EF migration.
-- No Conference query/model changes.
-- Existing IOfficerConferenceReadService remains the authoritative source.
-- IndexModel augments only the rendered Shared-with-me count by one when the live
-  digest exists.
-- Notebook client count refreshes preserve that one-system-surface offset so an
-  AJAX note mutation does not incorrectly reset Shared with me from 1 to 0.
-- Empty-state reconciliation now recognises system-shared virtual cards.
+- No change to Conference direction query logic.
+- No change to drag/reorder persistence logic.
 
-FILES
------
-See CHANGED-FILES.txt.
+WHY THIS IS THE CORRECT FIX
+The system note already participates in visual drag order using
+[data-notebook-system-home-card]. The masonry engine now uses the same visual-card
+contract. Its grid span is derived from actual rendered height, so it remains correct
+when labels, responsive width, content wrapping, pinning, or future card content change.
 
-APPLY
------
-Copy the package contents over the ProjectManagement project root.
+AFTER REPLACEMENT
+npm ci
+npm run build:notebook
+npm run check:notebook-assets
+npm test
 
-Because notebook-app.js and notebook-board.js changed, the Notebook bundle must
-be regenerated. Your ProjectManagement.csproj already runs the Notebook asset
-build before Build/Publish when JS inputs are newer, but node_modules/esbuild
-must exist first.
+dotnet build
+dotnet test
 
-Recommended:
-    npm ci
-    npm run build:notebook
-    npm run check:notebook-assets
-    dotnet build
-    dotnet test
-
-Then hard-refresh Notebook (Ctrl+F5).
-
-VALIDATION PERFORMED HERE
--------------------------
-- Modified module JS parses successfully as ES modules.
-- 82 dependency-free Notebook JavaScript tests passed, including 12 focused tests
-  covering this Conference digest/shared-surface behaviour.
-- CSS/Razor/C# structural brace counts are balanced.
-- npm ci could not complete in this environment because the configured package
-  registry returned 404 for xmlchars@2.2.0; therefore the esbuild bundle was not
-  regenerated here.
-- .NET SDK is not installed in this execution environment, so dotnet build/test
-  must be run in the development environment.
+Then hard refresh (Ctrl+F5) and verify:
+1. Add Latest Conference Directions to My Notebook.
+2. No normal note overlaps it.
+3. Enter Rearrange and move it between ordinary notes.
+4. Refresh — position remains stable.
+5. Add/remove a label — masonry reflows without overlap.
+6. Pin/unpin — both boards reflow correctly.
+7. Switch Grid/List/Grid — no stale row span remains.

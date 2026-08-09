@@ -260,6 +260,9 @@ var init_notebook_api = __esm({
       reorderItems: (section, items) => request("/api/notebook/order", jsonRequestOptions("PUT", { section, items })),
       setColour: (id, colorKey, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/colour`, jsonRequestOptions("POST", { colorKey: colorKey || null, version })),
       getLabels: () => request("/api/notebook/labels"),
+      getSystemItemPreference: (key) => request(`/api/notebook/system-items/${encodeURIComponent(key)}`),
+      updateSystemItemPreference: (key, payload) => request(`/api/notebook/system-items/${encodeURIComponent(key)}`, jsonRequestOptions("PATCH", payload)),
+      setSystemItemPlacement: (key, isPinned, position) => request(`/api/notebook/system-items/${encodeURIComponent(key)}/placement`, jsonRequestOptions("PUT", { isPinned: Boolean(isPinned), position: Number(position) || 0 })),
       createLabel: (name) => request("/api/notebook/labels", jsonRequestOptions("POST", { name })),
       setLabels: (id, labels, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/labels`, jsonRequestOptions("POST", { labels, version })),
       renameLabel: (id, name) => request(`/api/notebook/labels/${encodeURIComponent(id)}`, jsonRequestOptions("PATCH", { name })),
@@ -352,7 +355,7 @@ function createNotebookBoard(root = document) {
   }
   function refreshBoardLayout(board) {
     if (!board) return;
-    const count = board.querySelectorAll(":scope > [data-note-id]").length;
+    const count = board.querySelectorAll(VISUAL_CARD_SELECTOR).length;
     board.dataset.itemCount = String(count);
     const policy = board.dataset.layoutPolicy || "fixed-grid";
     const useMasonry = policy === "masonry-always" || policy === "masonry-threshold" && count > 4;
@@ -376,8 +379,8 @@ function createNotebookBoard(root = document) {
     const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector("[data-notebook-empty-state]") || root.querySelector("[data-notebook-empty]");
     if (!empty) return;
     const notebookCount = [...root.querySelectorAll("[data-notebook-board]")].reduce((total, board) => total + board.querySelectorAll(":scope > [data-note-id]").length, 0);
-    const systemSharedCount = root.querySelectorAll("[data-notebook-system-shared-card]").length;
-    empty.hidden = notebookCount + systemSharedCount > 0;
+    const systemCount = root.querySelectorAll("[data-notebook-system-card]").length;
+    empty.hidden = notebookCount + systemCount > 0;
   };
   const upsertCard = (id, html, isPinned, options = {}) => {
     const current = findCard(id);
@@ -421,9 +424,11 @@ function createNotebookBoard(root = document) {
   };
   return { findCard, getSection, getBoard, replaceCard, insertCard, upsertCard, removeCard, refreshSectionVisibility, refreshBoardLayout, refreshEmptyState, htmlToCardElement };
 }
+var VISUAL_CARD_SELECTOR;
 var init_notebook_board = __esm({
   "wwwroot/js/notebook/notebook-board.js"() {
     init_notebook_errors();
+    VISUAL_CARD_SELECTOR = ":scope > [data-note-id], :scope > [data-notebook-system-card]";
   }
 });
 
@@ -4001,16 +4006,24 @@ function directCards(board) {
 function allCards(board) {
   return [...board.querySelectorAll(ALL_CARD_SELECTOR)];
 }
+function ownedCards(board) {
+  return [...board.querySelectorAll(OWNED_CARD_SELECTOR)];
+}
+function cardKey(card) {
+  if (card?.dataset?.noteId) return `note:${card.dataset.noteId}`;
+  if (card?.dataset?.notebookSystemHomeCard) return `system:${card.dataset.notebookSystemHomeCard}`;
+  return "";
+}
 function serialiseBoard(board) {
-  return directCards(board).map((card) => ({
+  return ownedCards(board).map((card) => ({
     id: card.dataset.noteId,
     version: card.dataset.version
   }));
 }
-function restoreOrder(board, ids) {
-  const map = new Map(allCards(board).map((card) => [card.dataset.noteId, card]));
-  ids.forEach((id) => {
-    const card = map.get(id);
+function restoreOrder(board, keys) {
+  const map = new Map(allCards(board).map((card) => [cardKey(card), card]));
+  keys.forEach((key) => {
+    const card = map.get(key);
     if (card) board.append(card);
   });
 }
@@ -4139,7 +4152,7 @@ function createPreview(card, rect) {
 function initNotebookDragOrder(shell, boardController, options = {}) {
   if (!shell || shell.dataset.view !== "home") return null;
   const api = options.api;
-  if (!api?.reorderItems) throw new Error("Notebook reorder API is unavailable.");
+  if (!api?.reorderItems || !api?.setSystemItemPlacement) throw new Error("Notebook reorder API is unavailable.");
   const showError = options.showError || (() => {
   });
   const liveRegion = shell.querySelector("[data-notebook-reorder-live]");
@@ -4170,22 +4183,35 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       });
     });
   };
-  const persist = (board, originalIds) => {
+  const persist = (board, originalKeys) => {
     const section = board.dataset.notebookBoard;
     const items = serialiseBoard(board);
-    pendingSave = { board, section, items, originalIds };
+    pendingSave = { board, section, items, originalKeys };
     activeSave = activeSave.then(async () => {
       const job = pendingSave;
       pendingSave = null;
       if (!job) return;
       try {
         await api.reorderItems(job.section, job.items);
+        const mixedCards = directCards(job.board);
+        const systemCard = mixedCards.find((card) => card.dataset.notebookSystemHomeCard);
+        if (systemCard) {
+          const position = mixedCards.indexOf(systemCard);
+          const key = systemCard.dataset.notebookSystemHomeCard;
+          const response = await api.setSystemItemPlacement(key, job.section === "pinned", position);
+          const preference = response?.preference;
+          if (preference) {
+            systemCard.dataset.systemIsPinned = String(Boolean(preference.isPinned));
+            systemCard.dataset.systemHomePosition = String(Number(preference.homePosition || 0));
+            systemCard.dataset.systemPreferenceVersion = preference.version || "";
+          }
+        }
       } catch (error) {
-        restoreOrder(job.board, job.originalIds);
+        restoreOrder(job.board, job.originalKeys);
         boardController.refreshSectionVisibility();
         showError(error?.message || "Could not save note order. Previous order restored.");
       }
-      if (pendingSave) return persist(pendingSave.board, pendingSave.originalIds);
+      if (pendingSave) return persist(pendingSave.board, pendingSave.originalKeys);
     });
   };
   const updatePreview = () => {
@@ -4237,7 +4263,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       pointer: { x: clientX, y: clientY },
       offsetX: clientX - rect.left,
       offsetY: clientY - rect.top,
-      originalIds: state3.originalIds,
+      originalKeys: state3.originalKeys,
       lastMove: null
     };
     document.body.classList.add("notebook-is-dragging");
@@ -4253,7 +4279,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       cancelPointerArm();
       return;
     }
-    const { card, board, placeholder, preview, originalIds, pointerId } = dragState;
+    const { card, board, placeholder, preview, originalKeys, pointerId } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
     board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
@@ -4262,11 +4288,11 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     document.body.classList.remove("notebook-is-dragging");
     shell.releasePointerCapture?.(pointerId);
     if (save) {
-      persist(board, originalIds);
+      persist(board, originalKeys);
       suppressClickUntil = performance.now() + 300;
       announce(`Dropped at position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
     } else {
-      restoreOrder(board, originalIds);
+      restoreOrder(board, originalKeys);
       announce("Rearrangement cancelled.");
     }
     dragState = null;
@@ -4276,28 +4302,28 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
   const beginKeyboard = (handle, card) => {
     const board = card.parentElement;
     if (!isEnabled() || !board?.matches(BOARD_SELECTOR)) return;
-    keyboardState = { handle, card, board, originalIds: allCards(board).map((entry) => entry.dataset.noteId) };
+    keyboardState = { handle, card, board, originalKeys: allCards(board).map(cardKey) };
     card.classList.add("is-keyboard-dragging");
     handle.setAttribute("aria-grabbed", "true");
     announce(`Picked up ${card.querySelector(".notebook-card-title")?.textContent || "note"}, position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
   };
   const finishKeyboard = (save) => {
     if (!keyboardState) return;
-    const { handle, card, board, originalIds } = keyboardState;
+    const { handle, card, board, originalKeys } = keyboardState;
     card.classList.remove("is-keyboard-dragging");
     handle.setAttribute("aria-grabbed", "false");
     if (save) {
-      persist(board, originalIds);
+      persist(board, originalKeys);
       announce("Note dropped.");
     } else {
-      restoreOrder(board, originalIds);
+      restoreOrder(board, originalKeys);
       announce("Rearrangement cancelled.");
     }
     keyboardState = null;
   };
   const onPointerDown = (event) => {
     if (!isEnabled() || event.button !== 0 || pointerState || dragState) return;
-    const card = event.target.closest('[data-note-id][data-reorderable="true"]');
+    const card = event.target.closest('[data-note-id][data-reorderable="true"], [data-notebook-system-home-card][data-reorderable="true"]');
     const board = card?.parentElement;
     if (!card || !board?.matches(BOARD_SELECTOR) || isInteractiveDragTarget(event.target)) return;
     const state3 = {
@@ -4309,7 +4335,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       startY: event.clientY,
       clientX: event.clientX,
       clientY: event.clientY,
-      originalIds: allCards(board).map((entry) => entry.dataset.noteId),
+      originalKeys: allCards(board).map(cardKey),
       timer: null
     };
     pointerState = state3;
@@ -4350,14 +4376,14 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     else if (pointerState && event.pointerId === pointerState.pointerId) cancelPointerArm();
   };
   const onClickCapture = (event) => {
-    if (performance.now() >= suppressClickUntil || !event.target.closest("[data-note-id]")) return;
+    if (performance.now() >= suppressClickUntil || !event.target.closest("[data-note-id], [data-notebook-system-home-card]")) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   };
   const onKeyDown = (event) => {
     const handle = event.target.closest("[data-notebook-drag-handle]");
     if (!handle) return;
-    const card = handle.closest('[data-note-id][data-reorderable="true"]');
+    const card = handle.closest('[data-note-id][data-reorderable="true"], [data-notebook-system-home-card][data-reorderable="true"]');
     if (!keyboardState && (event.key === " " || event.key === "Enter")) {
       event.preventDefault();
       beginKeyboard(handle, card);
@@ -4428,12 +4454,14 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     }
   };
 }
-var BOARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
+var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
 var init_notebook_drag_order = __esm({
   "wwwroot/js/notebook/notebook-drag-order.js"() {
     BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
-    CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
-    ALL_CARD_SELECTOR = ":scope > [data-note-id]";
+    OWNED_CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
+    SYSTEM_CARD_SELECTOR = ':scope > [data-notebook-system-home-card][data-reorderable="true"]';
+    CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
+    ALL_CARD_SELECTOR = ":scope > [data-note-id], :scope > [data-notebook-system-home-card]";
     DRAG_THRESHOLD_PX = 6;
     TOUCH_LONG_PRESS_MS = 300;
     TOUCH_CANCEL_DISTANCE_PX = 8;
@@ -4534,7 +4562,11 @@ var BOARD_SELECTOR2, ITEM_SELECTOR, DEFAULT_ROW_HEIGHT, DEFAULT_GAP;
 var init_notebook_masonry_grid = __esm({
   "wwwroot/js/notebook/notebook-masonry-grid.js"() {
     BOARD_SELECTOR2 = "[data-notebook-board]";
-    ITEM_SELECTOR = ":scope > [data-note-id], :scope > .notebook-card-placeholder";
+    ITEM_SELECTOR = [
+      ":scope > [data-note-id]",
+      ":scope > [data-notebook-system-home-card]",
+      ":scope > .notebook-card-placeholder"
+    ].join(", ");
     DEFAULT_ROW_HEIGHT = 8;
     DEFAULT_GAP = 12;
   }
@@ -4827,8 +4859,73 @@ function parseCardLabels(card) {
     return [];
   }
 }
+function isNotebookSystemCard(card) {
+  return Boolean(card?.dataset?.notebookSystemCard);
+}
+function applySystemCardColour(card, colorKey) {
+  if (!card) return;
+  const resolved = normaliseNotebookColour(colorKey);
+  [...card.classList].filter((name) => name.startsWith("notebook-card-color-")).forEach((name) => card.classList.remove(name));
+  card.classList.add(`notebook-card-color-${resolved}`);
+  card.querySelectorAll("[data-colour-choice]").forEach((choice) => {
+    const selected = normaliseNotebookColour(choice.dataset.colourChoice) === resolved;
+    choice.classList.toggle("is-selected", selected);
+    choice.setAttribute("aria-checked", String(selected));
+  });
+}
+function renderSystemCardTags(card, labels = []) {
+  const root = card?.querySelector?.("[data-system-card-tags]");
+  if (!root) return;
+  const values = Array.isArray(labels) ? labels.filter(Boolean) : [];
+  root.innerHTML = "";
+  values.slice(0, 3).forEach((label) => {
+    const link = document.createElement("a");
+    link.className = "notebook-tag-chip";
+    link.href = `/Notebook?view=labels&tag=${encodeURIComponent(label)}`;
+    link.setAttribute("aria-label", `Open label ${label}`);
+    link.textContent = label;
+    root.appendChild(link);
+  });
+  if (values.length > 3) {
+    const more = document.createElement("span");
+    more.className = "notebook-tag-chip";
+    more.textContent = `+${values.length - 3}`;
+    root.appendChild(more);
+  }
+  root.hidden = values.length === 0;
+}
+function applySystemPreference(card, preference) {
+  if (!card || !preference) return;
+  card.dataset.systemShowHome = String(Boolean(preference.showInHome));
+  card.dataset.systemIsPinned = String(Boolean(preference.isPinned));
+  card.dataset.systemHomePosition = String(Number(preference.homePosition || 0));
+  card.dataset.systemPreferenceVersion = preference.version || "";
+  card.dataset.labels = JSON.stringify(Array.isArray(preference.labels) ? preference.labels : []);
+  applySystemCardColour(card, preference.colorKey || "white");
+  renderSystemCardTags(card, preference.labels || []);
+  card.classList.toggle("is-system-pinned", Boolean(preference.isPinned));
+  const pinState = card.querySelector("[data-system-pin-state]");
+  if (pinState) pinState.hidden = !Boolean(preference.isPinned);
+  const pin = card.querySelector('[data-action="system-pin-note"]');
+  if (pin) {
+    const pinned = Boolean(preference.isPinned);
+    pin.classList.toggle("is-active", pinned);
+    pin.title = pinned ? "Unpin" : "Pin";
+    pin.setAttribute("aria-label", pinned ? "Unpin system note" : "Pin system note");
+    const icon = pin.querySelector("i");
+    if (icon) icon.className = `bi ${pinned ? "bi-pin-angle-fill" : "bi-pin-angle"}`;
+  }
+}
 function escapeLabelHtml(value) {
   return String(value || "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
+}
+async function updateSystemPreferenceWithSingleRetry(key, payload) {
+  try {
+    return await NotebookApi.updateSystemItemPreference(key, payload);
+  } catch (error) {
+    if (error?.status === 409) return NotebookApi.updateSystemItemPreference(key, payload);
+    throw error;
+  }
 }
 function initNotebookApp() {
   const shell = document.querySelector(".notebook-shell");
@@ -4849,11 +4946,13 @@ function initNotebookApp() {
     globalError.hidden = false;
   };
   const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || "0", 10) || 0);
+  let systemHomeCount = Math.max(0, Number.parseInt(shell.dataset.systemHomeCount || "0", 10) || 0);
   const applyCounts = (counts) => {
     if (!counts) return;
     Object.entries(counts).forEach(([key, value]) => {
       const numericValue = Number(value) || 0;
-      const displayValue = key.toLowerCase() === "shared" ? numericValue + systemSharedCount : numericValue;
+      const normalizedKey = key.toLowerCase();
+      const displayValue = normalizedKey === "shared" ? numericValue + systemSharedCount : normalizedKey === "home" ? numericValue + systemHomeCount : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
         el.textContent = String(displayValue);
         if (key.toLowerCase() === "overdue") {
@@ -4883,7 +4982,16 @@ function initNotebookApp() {
       onError: (error) => showGlobalError(error?.message || "Unable to create the label."),
       onChange: async (labels2) => {
         const card = activeLabelCard;
-        if (!card?.dataset?.noteId) return;
+        if (!card) return;
+        if (isNotebookSystemCard(card)) {
+          const key = card.dataset.systemItemKey || card.dataset.notebookSystemCard;
+          const response = await updateSystemPreferenceWithSingleRetry(key, { labels: labels2 });
+          applySystemPreference(card, response?.preference);
+          const catalogue = await refreshNotebookLabelCatalog();
+          renderNotebookLabelNavigation(shell, catalogue);
+          return;
+        }
+        if (!card.dataset.noteId) return;
         const apply = async (version) => {
           const response = await NotebookApi.setLabels(card.dataset.noteId, labels2, version);
           const updated = requireMutationItem(response);
@@ -4916,9 +5024,18 @@ function initNotebookApp() {
       }
     }
   );
-  document.addEventListener("notebook:labels-changed", (event) => {
+  document.addEventListener("notebook:labels-changed", async (event) => {
     const nextLabels = Array.isArray(event.detail?.labels) ? event.detail.labels : [];
     renderNotebookLabelNavigation(shell, nextLabels);
+    const cards = [...shell.querySelectorAll("[data-notebook-system-card]")];
+    if (cards.length === 0) return;
+    const key = cards[0].dataset.systemItemKey || cards[0].dataset.notebookSystemCard;
+    if (!key) return;
+    try {
+      const response = await NotebookApi.getSystemItemPreference(key);
+      cards.forEach((card) => applySystemPreference(card, response?.preference));
+    } catch {
+    }
   });
   renderNotebookLabelNavigation(shell, labels);
   composer = initNotebookComposer(shell.querySelector("[data-notebook-composer]"), board, view, { showGlobalError, applyCounts });
@@ -4993,12 +5110,18 @@ function initNotebookApp() {
     if (cardColourChoice) {
       event.preventDefault();
       event.stopPropagation();
-      const card2 = cardColourChoice.closest("[data-note-id]");
+      const card2 = cardColourChoice.closest(".notebook-card");
       if (!card2) return;
       const picker = cardColourChoice.closest("[data-notebook-colour-picker]");
       const colorKey = normaliseNotebookColour(cardColourChoice.dataset.colourChoice);
       cardColourChoice.disabled = true;
       try {
+        if (isNotebookSystemCard(card2)) {
+          const key = card2.dataset.systemItemKey || card2.dataset.notebookSystemCard;
+          const response2 = await updateSystemPreferenceWithSingleRetry(key, { colorKey });
+          applySystemPreference(card2, response2?.preference);
+          return;
+        }
         const response = await NotebookApi.setColour(card2.dataset.noteId, colorKey, card2.dataset.version);
         const updated = requireMutationItem(response);
         updateCardConcurrencyState(card2, updated);
@@ -5065,13 +5188,63 @@ function initNotebookApp() {
     }
     if (action.closest(".notebook-card-more__menu")) closeNotebookMenus();
     const card = action.closest("[data-note-id]");
+    const systemCard = action.closest("[data-notebook-system-card]");
+    const actionCard = card || systemCard;
     const id = card?.dataset.noteId;
-    if (action.dataset.action === "label-note" && card) {
+    if (action.dataset.action === "label-note" && actionCard) {
       event.preventDefault();
       action.closest("details")?.removeAttribute("open");
-      activeLabelCard = card;
-      cardLabelPicker?.configure({ value: parseCardLabels(card) });
+      activeLabelCard = actionCard;
+      cardLabelPicker?.configure({ value: parseCardLabels(actionCard) });
       cardLabelPicker?.open(action);
+      return;
+    }
+    if (systemCard && ["system-add-home", "system-remove-home", "system-pin-note"].includes(action.dataset.action)) {
+      event.preventDefault();
+      action.closest("details")?.removeAttribute("open");
+      action.disabled = true;
+      const key = systemCard.dataset.systemItemKey || systemCard.dataset.notebookSystemCard;
+      try {
+        if (action.dataset.action === "system-add-home") {
+          await updateSystemPreferenceWithSingleRetry(key, { showInHome: true });
+          window.location.assign("/Notebook?view=home");
+          return;
+        }
+        if (action.dataset.action === "system-remove-home") {
+          const response = await updateSystemPreferenceWithSingleRetry(key, { showInHome: false });
+          applySystemPreference(systemCard, response?.preference);
+          if (view === "home") {
+            systemCard.remove();
+            systemHomeCount = 0;
+            shell.dataset.systemHomeCount = "0";
+            board.refreshSectionVisibility();
+            board.refreshEmptyState();
+            dragOrder?.refresh?.();
+            await refreshCounts();
+          }
+          showNotebookToast({ message: "Removed from All Notes. It remains available in Shared with me.", tone: "neutral" });
+          return;
+        }
+        if (action.dataset.action === "system-pin-note") {
+          const nextPinned = systemCard.dataset.systemIsPinned !== "true";
+          const response = await updateSystemPreferenceWithSingleRetry(key, { isPinned: nextPinned });
+          applySystemPreference(systemCard, response?.preference);
+          if (view === "home") {
+            const target = board.getBoard(nextPinned);
+            target?.prepend(systemCard);
+            systemCard.dataset.notebookSystemHomeCard = key;
+            systemCard.dataset.reorderable = "true";
+            board.refreshSectionVisibility();
+            board.refreshEmptyState();
+            dragOrder?.refresh?.();
+          }
+          return;
+        }
+      } catch (error) {
+        showGlobalError(error?.message || "Unable to update the PRISM note.");
+      } finally {
+        action.disabled = false;
+      }
       return;
     }
     if (action.dataset.action === "share-note" && card) {

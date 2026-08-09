@@ -1,15 +1,10 @@
-PRISM Notebook System-Shared Conference Digest - validation
-Date: 2026-08-09
+Static validation:
+PASS - system selector included
+PASS - normal note selector retained
+PASS - placeholder retained
+PASS - ResizeObserver still observes directItems
+PASS - system masonry regression test present
+PASS - list clear regression test present
 
-PASS: 82 / 82 dependency-free Notebook JavaScript tests.
-PASS: 12 / 12 focused Conference digest/system-shared tests.
-PASS: notebook-app.js parses as an ES module.
-PASS: notebook-board.js parses as an ES module.
-PASS: CSS/Razor/C# structural brace counts balanced.
-
-NOT RUN: jsdom-dependent Notebook tests because npm ci could not restore the local
-         dependency tree. Registry returned HTTP 404 for xmlchars@2.2.0.
-NOT RUN: dotnet build / dotnet test because .NET SDK is unavailable in this
-         execution environment.
-NOT GENERATED: wwwroot/dist Notebook bundle. Rebuild it after applying the source
-               files using npm ci + npm run build:notebook.
+JavaScript syntax: PASS (node --check on both files)
+Runtime jsdom tests require npm ci in the development environment.

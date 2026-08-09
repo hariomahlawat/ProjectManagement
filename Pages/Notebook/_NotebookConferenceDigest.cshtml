@@ -1,39 +1,59 @@
-@model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
+@model ProjectManagement.ViewModels.Notebook.NotebookConferenceDigestCardVm
 @using ProjectManagement.Infrastructure
+@using System.Text.Json
 @{
     const int previewOfficerLimit = 2;
     const int previewDirectionLimit = 3;
 
-    var previewGroups = Model.OfficerGroups.Take(previewOfficerLimit).ToArray();
+    var digest = Model.Digest;
+    var preference = Model.Preference;
+    var previewGroups = digest.OfficerGroups.Take(previewOfficerLimit).ToArray();
     var previewTakes = new int[previewGroups.Length];
     var remainingPreviewSlots = previewDirectionLimit;
+    var colorKey = string.IsNullOrWhiteSpace(preference.ColorKey) ? "white" : preference.ColorKey;
+    var labels = preference.Labels.Take(3).ToArray();
+    var extraLabels = Math.Max(0, preference.Labels.Count - labels.Length);
 
-    // Preserve PO context in the compact note: when two officers are available,
-    // reserve at least one preview slot for the second officer.
+    // Preserve PO context in the compact preview: when two officers are available,
+    // reserve at least one direction for the second officer.
     for (var index = 0; index < previewGroups.Length && remainingPreviewSlots > 0; index++)
     {
         var groupsAfter = previewGroups.Length - index - 1;
         var reservedForLaterGroups = Math.Min(groupsAfter, remainingPreviewSlots);
         var availableForCurrentGroup = Math.Max(0, remainingPreviewSlots - reservedForLaterGroups);
         var take = Math.Min(previewGroups[index].Directions.Count, availableForCurrentGroup);
-
-        if (take == 0 && previewGroups[index].Directions.Count > 0)
-        {
-            take = 1;
-        }
-
+        if (take == 0 && previewGroups[index].Directions.Count > 0) take = 1;
         previewTakes[index] = take;
         remainingPreviewSlots -= take;
     }
-
-    var previewedDirectionCount = previewTakes.Sum();
-    var hiddenDirectionCount = Math.Max(0, Model.TotalDirectionCount - previewedDirectionCount);
 }
 
-@* SECTION: PRISM-shared virtual note. It deliberately uses the same geometry and
-   surface treatment as a normal Notebook card while remaining live and read-only. *@
-<article class="notebook-card notebook-card-color-white notebook-conference-shared-card"
-         data-notebook-system-shared-card="conference-directions">
+@* SECTION: A live PRISM-owned note with user-owned presentation metadata.
+   Conference content stays read-only; colour, labels, pin and home placement are personal. *@
+<article class="notebook-card notebook-card-color-@colorKey notebook-conference-shared-card @(preference.IsPinned && Model.IsHomePlacement ? "is-system-pinned" : string.Empty)"
+         data-notebook-system-card="conference-directions"
+         data-system-item-key="conference-directions"
+         data-system-show-home="@preference.ShowInHome.ToString().ToLowerInvariant()"
+         data-system-is-pinned="@preference.IsPinned.ToString().ToLowerInvariant()"
+         data-system-home-position="@preference.HomePosition"
+         data-system-preference-version="@preference.Version"
+         data-labels='@JsonSerializer.Serialize(preference.Labels)'
+         data-reorderable="@(Model.IsHomePlacement ? "true" : "false")"
+         data-notebook-system-home-card="@(Model.IsHomePlacement ? "conference-directions" : null)">
+
+    @if (Model.IsHomePlacement)
+    {
+        <button type="button"
+                class="notebook-card-drag-handle"
+                data-notebook-drag-handle
+                hidden
+                aria-label="Rearrange Latest Conference Directions"
+                aria-grabbed="false"
+                title="Drag to rearrange">
+            <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+        </button>
+    }
+
     <button type="button"
             class="notebook-conference-shared-card__open"
             data-bs-toggle="modal"
@@ -42,11 +62,17 @@
             aria-label="Open latest conference directions"></button>
 
     <div class="notebook-card-body notebook-conference-shared-card__body">
+        @if (Model.IsHomePlacement)
+        {
+            <div class="notebook-card-topline" data-system-pin-state hidden="@(!preference.IsPinned)">
+                <span class="notebook-card-indicators"></span>
+                <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
+            </div>
+        }
+
         <h3 class="notebook-card-title">Latest Conference Directions</h3>
         <p class="notebook-card-preview notebook-conference-shared-card__summary">
-            @Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s")
-            <span aria-hidden="true"> · </span>
-            @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")
+            @digest.TotalDirectionCount latest direction@(digest.TotalDirectionCount == 1 ? string.Empty : "s") · @digest.OfficerCount Project Officer@(digest.OfficerCount == 1 ? string.Empty : "s")
         </p>
 
         <div class="notebook-conference-shared-card__groups">
@@ -54,7 +80,6 @@
             {
                 var group = previewGroups[groupIndex];
                 var previewTake = previewTakes[groupIndex];
-
                 <div class="notebook-conference-shared-card__group">
                     <div class="notebook-conference-shared-card__officer">
                         <span title="@group.OfficerDisplayName">@group.OfficerDisplayName</span>
@@ -71,71 +96,83 @@
             }
         </div>
 
-        @if (hiddenDirectionCount > 0)
+        <button type="button"
+                class="notebook-conference-shared-card__view-all"
+                data-bs-toggle="modal"
+                data-bs-target="#notebookConferenceDigestModal">
+            View all @digest.TotalDirectionCount <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </button>
+
+        @if (preference.Labels.Count > 0)
         {
-            <div class="notebook-conference-shared-card__more">+@hiddenDirectionCount more direction@(hiddenDirectionCount == 1 ? string.Empty : "s")</div>
+            <div class="notebook-card-tags" data-system-card-tags aria-label="Labels">
+                @foreach (var label in labels)
+                {
+                    <a class="notebook-tag-chip" asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@label" aria-label="Open label @label">@label</a>
+                }
+                @if (extraLabels > 0)
+                {
+                    <span class="notebook-tag-chip">+@extraLabels</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="notebook-card-tags" data-system-card-tags aria-label="Labels" hidden></div>
         }
     </div>
 
-    <div class="notebook-sharing-summary notebook-conference-shared-card__sharing" aria-label="Shared by PRISM. Read only.">
+    <div class="notebook-sharing-summary notebook-conference-shared-card__sharing"
+         title="Shared by PRISM. Available to authorised Comdt / HoD users. Content is read only."
+         aria-label="Shared by PRISM. Read only.">
         <i class="bi bi-shield-lock" aria-hidden="true"></i>
         <span>PRISM · Read only</span>
     </div>
-</article>
 
-    <div class="modal fade notebook-conference-digest-modal"
-         id="notebookConferenceDigestModal"
-         tabindex="-1"
-         aria-labelledby="notebookConferenceDigestModalLabel"
-         aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable notebook-conference-digest-modal__dialog">
-            <div class="modal-content notebook-conference-digest-modal__content">
-                <header class="notebook-conference-digest-modal__header">
-                    <div>
-                        <div class="notebook-conference-digest-modal__eyebrow">Command · PRISM</div>
-                        <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
-                        <p>@Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
+    <div class="notebook-card-actions notebook-conference-shared-card__actions" data-no-card-drag>
+        <div class="notebook-actions" aria-label="System note actions">
+            @if (Model.IsHomePlacement)
+            {
+                <button type="button"
+                        class="notebook-action-icon notebook-action-pin @(preference.IsPinned ? "is-active" : string.Empty)"
+                        data-action="system-pin-note"
+                        title="@(preference.IsPinned ? "Unpin" : "Pin")"
+                        aria-label="@(preference.IsPinned ? "Unpin system note" : "Pin system note")">
+                    <i class="bi @(preference.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
+                </button>
+            }
+
+            <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="colorKey" />
+
+            <button type="button"
+                    class="notebook-action-icon"
+                    data-action="label-note"
+                    title="Edit labels"
+                    aria-label="Edit labels">
+                <i class="bi bi-tags"></i>
+            </button>
+
+            @if (!preference.ShowInHome)
+            {
+                <button type="button"
+                        class="notebook-system-home-toggle"
+                        data-action="system-add-home"
+                        title="Add this live PRISM note to All Notes">
+                    <i class="bi bi-journal-plus" aria-hidden="true"></i>
+                    <span>Add to My Notebook</span>
+                </button>
+            }
+            else
+            {
+                <details class="notebook-card-more">
+                    <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
+                    <div class="notebook-card-more__menu" role="menu">
+                        <button type="button" role="menuitem" data-action="system-remove-home">
+                            <i class="bi bi-journal-minus" aria-hidden="true"></i> Remove from My Notebook
+                        </button>
                     </div>
-                    <div class="notebook-conference-digest-modal__header-actions">
-                        <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                </header>
-
-                <div class="modal-body notebook-conference-digest-modal__body">
-                    @foreach (var group in Model.OfficerGroups)
-                    {
-                        <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
-                            <header class="notebook-conference-digest-officer__header">
-                                <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
-                                <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
-                                    Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                                </a>
-                            </header>
-
-                            <div class="notebook-conference-digest-officer__items">
-                                @foreach (var item in group.Directions)
-                                {
-                                    var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
-                                    <article class="notebook-conference-digest-item">
-                                        <div class="notebook-conference-digest-item__heading">
-                                            <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
-                                                @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                                            </a>
-                                            <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
-                                        </div>
-                                        <p>@item.DirectionText</p>
-                                    </article>
-                                }
-                            </div>
-                        </section>
-                    }
-                </div>
-
-                <footer class="modal-footer notebook-conference-digest-modal__footer">
-                    <span>Source: Conference Review</span>
-                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
-                </footer>
-            </div>
+                </details>
+            }
         </div>
     </div>
+</article>

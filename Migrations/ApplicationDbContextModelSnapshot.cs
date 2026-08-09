@@ -9584,6 +9584,34 @@ namespace ProjectManagement.Migrations
                     b.ToTable("NotebookMigrationStates");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemPreference", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
+                    b.Property<string>("ColorKey").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
+                    b.Property<int>("HomePosition").HasColumnType("integer");
+                    b.Property<bool>("IsPinned").HasColumnType("boolean");
+                    b.Property<bool>("ShowInHome").HasColumnType("boolean");
+                    b.Property<string>("SystemItemKey").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)");
+                    b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("UserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+                    b.Property<Guid>("Version").IsConcurrencyToken().HasColumnType("uuid");
+                    b.HasKey("Id");
+                    b.HasIndex("UserId", "SystemItemKey").IsUnique();
+                    b.ToTable("NotebookSystemItemPreferences", t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookSystemItemPreferences_HomePosition", "\"HomePosition\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemTag", b =>
+                {
+                    b.Property<Guid>("PreferenceId").HasColumnType("uuid");
+                    b.Property<int>("NotebookTagId").HasColumnType("integer");
+                    b.HasKey("PreferenceId", "NotebookTagId");
+                    b.HasIndex("NotebookTagId");
+                    b.ToTable("NotebookSystemItemTags");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
@@ -9668,6 +9696,20 @@ namespace ProjectManagement.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemPreference", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User").WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemTag", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.NotebookSystemItemPreference", "Preference").WithMany("Tags").HasForeignKey("PreferenceId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("ProjectManagement.Models.NotebookTag", "NotebookTag").WithMany("SystemItems").HasForeignKey("NotebookTagId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("Preference");
+                    b.Navigation("NotebookTag");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
                 {
                     b.HasOne("ProjectManagement.Models.NotebookItem", "NotebookItem").WithMany("ChecklistItems").HasForeignKey("NotebookItemId").OnDelete(DeleteBehavior.Cascade).IsRequired();
@@ -9703,9 +9745,15 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Tags");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemPreference", b =>
+                {
+                    b.Navigation("Tags");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.NotebookTag", b =>
                 {
                     b.Navigation("Items");
+                    b.Navigation("SystemItems");
                 });
 
 #pragma warning restore 612, 618

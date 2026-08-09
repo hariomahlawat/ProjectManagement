@@ -32,11 +32,33 @@ test('serialiseBoard excludes shared read-only cards from an owner reorder paylo
   ]);
 });
 
+
+
+test('system note participates in visual drag order but is excluded from normal Notebook reorder payload', () => {
+  const dom = new JSDOM('<div id="b"><article data-note-id="a" data-version="v1" data-reorderable="true"></article><article data-notebook-system-home-card="conference-directions" data-reorderable="true"></article><article data-note-id="b" data-version="v2" data-reorderable="true"></article></div>');
+  const helpers = loadHelpers(dom.window.document);
+  const board = dom.window.document.querySelector('#b');
+  assert.equal(helpers.directCards(board).length, 3);
+  assert.deepEqual(JSON.parse(JSON.stringify(helpers.serialiseBoard(board))), [
+    { id: 'a', version: 'v1' }, { id: 'b', version: 'v2' }
+  ]);
+  assert.equal(helpers.cardKey(board.children[1]), 'system:conference-directions');
+});
+
+test('restoreOrder restores mixed normal/system card sequence by stable keys', () => {
+  const dom = new JSDOM('<div id="b"><article data-note-id="a"></article><article data-notebook-system-home-card="conference-directions"></article><article data-note-id="b"></article></div>');
+  const helpers = loadHelpers(dom.window.document);
+  const board = dom.window.document.querySelector('#b');
+  helpers.restoreOrder(board, ['note:b', 'system:conference-directions', 'note:a']);
+  assert.deepEqual([...board.children].map((card) => helpers.cardKey(card)), [
+    'note:b', 'system:conference-directions', 'note:a'
+  ]);
+});
 test('restoreOrder restores a previous board sequence', () => {
   const dom = new JSDOM('<div id="b"><article data-note-id="b"></article><article data-note-id="a"></article></div>');
   const helpers = loadHelpers(dom.window.document);
   const board = dom.window.document.querySelector('#b');
-  helpers.restoreOrder(board, ['a', 'b']);
+  helpers.restoreOrder(board, ['note:a', 'note:b']);
   assert.deepEqual([...board.children].map((x) => x.dataset.noteId), ['a', 'b']);
 });
 

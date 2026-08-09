@@ -1,5 +1,7 @@
 import { NotebookBoardTargetError, NotebookCardHtmlError } from './notebook-errors.js';
 
+const VISUAL_CARD_SELECTOR = ':scope > [data-note-id], :scope > [data-notebook-system-card]';
+
 // SECTION: Notebook board DOM updates
 export function createNotebookBoard(root = document) {
   // SECTION: Board lookup helpers
@@ -40,7 +42,7 @@ export function createNotebookBoard(root = document) {
   // SECTION: Board state refresh helpers
   function refreshBoardLayout(board) {
     if (!board) return;
-    const count = board.querySelectorAll(':scope > [data-note-id]').length;
+    const count = board.querySelectorAll(VISUAL_CARD_SELECTOR).length;
     board.dataset.itemCount = String(count);
     const policy = board.dataset.layoutPolicy || 'fixed-grid';
     const useMasonry = policy === 'masonry-always' || (policy === 'masonry-threshold' && count > 4);
@@ -61,7 +63,7 @@ export function createNotebookBoard(root = document) {
       if (countEl) countEl.textContent = String(count);
     });
   };
-  const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const notebookCount = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); const systemSharedCount = root.querySelectorAll('[data-notebook-system-shared-card]').length; empty.hidden = notebookCount + systemSharedCount > 0; };
+  const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const notebookCount = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); const systemCount = root.querySelectorAll('[data-notebook-system-card]').length; empty.hidden = notebookCount + systemCount > 0; };
 
   // SECTION: Card mutation helpers
   const upsertCard = (id, html, isPinned, options = {}) => { const current = findCard(id); const targetBoard = getBoard(isPinned); if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? 'pinned' : 'others'}" was not found.`); const fragment = htmlToCardElement(html, id); const sameBoard = current && current.parentElement === targetBoard; const preservePosition = options.preservePosition !== false; if (sameBoard && preservePosition) { current.replaceWith(fragment); } else { current?.remove(); options.prepend === false ? targetBoard.append(fragment) : targetBoard.prepend(fragment); } refreshSectionVisibility(); refreshEmptyState(); return fragment; };

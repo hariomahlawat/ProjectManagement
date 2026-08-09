@@ -11,4 +11,5 @@ public class NotebookTag
     [Required, MaxLength(64)] public string Name { get; set; } = string.Empty;
     [MaxLength(64)] public string NormalizedName { get; set; } = string.Empty;
     public ICollection<NotebookItemTag> Items { get; set; } = new List<NotebookItemTag>();
+    public ICollection<NotebookSystemItemTag> SystemItems { get; set; } = new List<NotebookSystemItemTag>();
 }

@@ -844,15 +844,37 @@ public sealed class NotebookService : INotebookService
     public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default)
     {
         var cleanName = ValidateLabelName(name);
-        var tag = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
+        var tag = await _db.NotebookTags
+            .Include(x => x.Items)
+            .Include(x => x.SystemItems)
+            .FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
             ?? throw new KeyNotFoundException("The label could not be found.");
         var affected = tag.Items.Select(x => x.NotebookItemId).Distinct().ToArray();
         var normalized = NormalizeTag(cleanName);
-        var target = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized && x.Id != labelId, ct);
+        var target = await _db.NotebookTags
+            .Include(x => x.Items)
+            .Include(x => x.SystemItems)
+            .FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized && x.Id != labelId, ct);
         if (target is not null)
         {
             var existing = target.Items.Select(x => x.NotebookItemId).ToHashSet();
-            foreach (var join in tag.Items.ToList()) if (!existing.Contains(join.NotebookItemId)) target.Items.Add(new NotebookItemTag { NotebookItemId = join.NotebookItemId, NotebookTagId = target.Id });
+            foreach (var join in tag.Items.ToList())
+            {
+                if (!existing.Contains(join.NotebookItemId))
+                {
+                    target.Items.Add(new NotebookItemTag { NotebookItemId = join.NotebookItemId, NotebookTagId = target.Id });
+                }
+            }
+
+            var existingSystem = target.SystemItems.Select(x => x.PreferenceId).ToHashSet();
+            foreach (var join in tag.SystemItems.ToList())
+            {
+                if (!existingSystem.Contains(join.PreferenceId))
+                {
+                    target.SystemItems.Add(new NotebookSystemItemTag { PreferenceId = join.PreferenceId, NotebookTagId = target.Id });
+                }
+            }
+
             _db.NotebookTags.Remove(tag);
         }
         else { tag.Name = cleanName; tag.NormalizedName = normalized; }
@@ -862,7 +884,10 @@ public sealed class NotebookService : INotebookService
 
     public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> DeleteLabelAsync(string ownerId, int labelId, CancellationToken ct = default)
     {
-        var tag = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
+        var tag = await _db.NotebookTags
+            .Include(x => x.Items)
+            .Include(x => x.SystemItems)
+            .FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
             ?? throw new KeyNotFoundException("The label could not be found.");
         var affected = tag.Items.Select(x => x.NotebookItemId).Distinct().ToArray();
         _db.NotebookTags.Remove(tag);
@@ -1816,6 +1841,7 @@ public sealed class NotebookService : INotebookService
                     join.NotebookItem != null &&
                     join.NotebookItem.DeletedAtUtc == null &&
                     join.NotebookItem.Status == NotebookItemStatus.Active)
+                    + tag.SystemItems.Count()
             })
             .OrderBy(tag => tag.Name)
             .ToArrayAsync(ct);
@@ -2101,7 +2127,13 @@ public sealed class NotebookService : INotebookService
     private async Task<IReadOnlyList<NotebookTagVm>> BuildAllTags(string ownerId, CancellationToken ct)
     {
         return await _db.NotebookTags.AsNoTracking().Where(x => x.OwnerId == ownerId)
-            .Select(x => new NotebookTagVm { Id = x.Id, Name = x.Name, Count = x.Items.Count(j => j.NotebookItem != null && j.NotebookItem.DeletedAtUtc == null && j.NotebookItem.Status == NotebookItemStatus.Active) })
+            .Select(x => new NotebookTagVm
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Count = x.Items.Count(j => j.NotebookItem != null && j.NotebookItem.DeletedAtUtc == null && j.NotebookItem.Status == NotebookItemStatus.Active)
+                    + x.SystemItems.Count()
+            })
             .OrderBy(x => x.Name).ToArrayAsync(ct);
     }
 

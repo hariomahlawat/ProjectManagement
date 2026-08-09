@@ -107,3 +107,12 @@ test('notebook board honours always-masonry policy even for compact sections', a
   assert.equal(element.dataset.itemCount, '2');
   assert.equal(element.dataset.layout, 'masonry');
 });
+
+test('notebook board counts a home system note as a visual card without requiring a note id', () => {
+  const dom = new JSDOM('<section data-notebook-section="others"><span data-notebook-count="others"></span><div data-notebook-board="others" data-layout-policy="masonry-always"><article data-note-id="1"></article><article data-notebook-system-card="conference-directions" data-notebook-system-home-card="conference-directions"></article></div></section>');
+  const board = loadBoard(dom);
+  const element = dom.window.document.querySelector('[data-notebook-board="others"]');
+  board.refreshSectionVisibility();
+  assert.equal(element.dataset.itemCount, '2');
+  assert.equal(dom.window.document.querySelector('[data-notebook-count="others"]').textContent, '2');
+});

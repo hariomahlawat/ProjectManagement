@@ -16,15 +16,18 @@ public class IndexModel : PageModel
 {
     private readonly INotebookService _notebook;
     private readonly IOfficerConferenceReadService _conferenceRead;
+    private readonly INotebookSystemItemPreferenceService _systemItemPreferences;
     private readonly UserManager<ApplicationUser> _users;
 
     public IndexModel(
         INotebookService notebook,
         IOfficerConferenceReadService conferenceRead,
+        INotebookSystemItemPreferenceService systemItemPreferences,
         UserManager<ApplicationUser> users)
     {
         _notebook = notebook ?? throw new ArgumentNullException(nameof(notebook));
         _conferenceRead = conferenceRead ?? throw new ArgumentNullException(nameof(conferenceRead));
+        _systemItemPreferences = systemItemPreferences ?? throw new ArgumentNullException(nameof(systemItemPreferences));
         _users = users ?? throw new ArgumentNullException(nameof(users));
     }
 
@@ -50,8 +53,15 @@ public class IndexModel : PageModel
 
     public NotebookIndexVm Notebook { get; private set; } = new();
     public ConferenceDirectionDigestVm? ConferenceDigest { get; private set; }
+    public NotebookSystemItemPreferenceVm? ConferenceDigestPreference { get; private set; }
     public bool ShowConferenceDigest { get; private set; }
+    public bool ConferenceDigestIsHomePlacement => ShowConferenceDigest
+        && string.Equals(Notebook.View, "home", StringComparison.OrdinalIgnoreCase);
+    public bool ConferenceDigestIsLabelView => ShowConferenceDigest
+        && string.Equals(Notebook.View, "labels", StringComparison.OrdinalIgnoreCase);
     public int SystemSharedSurfaceCount => ConferenceDigest is { TotalDirectionCount: > 0 } ? 1 : 0;
+    public int SystemHomeSurfaceCount => ConferenceDigest is { TotalDirectionCount: > 0 }
+        && ConferenceDigestPreference?.ShowInHome == true ? 1 : 0;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
@@ -89,8 +99,12 @@ public class IndexModel : PageModel
             ConferenceDigest = await _conferenceRead.GetLatestDirectionDigestAsync(userId, ct);
             if (ConferenceDigest is { TotalDirectionCount: > 0 })
             {
-                AddSystemSharedSurfaceToRail();
-                ShowConferenceDigest = ShouldShowConferenceDigest(ConferenceDigest);
+                ConferenceDigestPreference = await _systemItemPreferences.GetAsync(
+                    userId,
+                    NotebookSystemItemKeys.ConferenceDirections,
+                    ct);
+                AddSystemSurfaceToRail(ConferenceDigestPreference);
+                ShowConferenceDigest = ShouldShowConferenceDigest(ConferenceDigest, ConferenceDigestPreference);
             }
         }
 
@@ -100,7 +114,7 @@ public class IndexModel : PageModel
     private bool HasCommandNotebookRole()
         => User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
 
-    private void AddSystemSharedSurfaceToRail()
+    private void AddSystemSurfaceToRail(NotebookSystemItemPreferenceVm preference)
     {
         var shared = Notebook.RailItems.FirstOrDefault(item =>
             string.Equals(item.Key, "shared", StringComparison.OrdinalIgnoreCase));
@@ -108,13 +122,54 @@ public class IndexModel : PageModel
         {
             shared.Count += 1;
         }
+
+        // Once the user explicitly adds the live PRISM note to My Notebook it is
+        // part of the visible All Notes surface, so the rail count should match
+        // what the user actually sees without turning it into a NotebookItem.
+        if (!preference.ShowInHome) return;
+
+        var home = Notebook.RailItems.FirstOrDefault(item =>
+            string.Equals(item.Key, "home", StringComparison.OrdinalIgnoreCase));
+        if (home is not null)
+        {
+            home.Count += 1;
+        }
     }
 
-    private bool ShouldShowConferenceDigest(ConferenceDirectionDigestVm digest)
+    public NotebookConferenceDigestCardVm CreateConferenceDigestCardVm()
     {
-        if (!string.Equals(Notebook.View, "shared", StringComparison.OrdinalIgnoreCase)
-            || !string.IsNullOrWhiteSpace(Filter)
-            || !string.IsNullOrWhiteSpace(Tag))
+        if (ConferenceDigest is null || ConferenceDigestPreference is null)
+        {
+            throw new InvalidOperationException("Conference digest card state is unavailable.");
+        }
+
+        return new NotebookConferenceDigestCardVm
+        {
+            Digest = ConferenceDigest,
+            Preference = ConferenceDigestPreference,
+            View = Notebook.View,
+            IsHomePlacement = ConferenceDigestIsHomePlacement,
+            IsLabelView = ConferenceDigestIsLabelView
+        };
+    }
+
+    private bool ShouldShowConferenceDigest(ConferenceDirectionDigestVm digest, NotebookSystemItemPreferenceVm preference)
+    {
+        if (!string.IsNullOrWhiteSpace(Filter))
+        {
+            return false;
+        }
+
+        var viewAllows = Notebook.View.ToLowerInvariant() switch
+        {
+            "shared" => string.IsNullOrWhiteSpace(Tag),
+            "home" => preference.ShowInHome && string.IsNullOrWhiteSpace(Tag),
+            "labels" => !string.IsNullOrWhiteSpace(Tag)
+                && preference.Labels.Any(label => string.Equals(label, Tag, StringComparison.OrdinalIgnoreCase)),
+            _ => false
+        };
+
+        if (!viewAllows)
         {
             return false;
         }
@@ -128,7 +183,8 @@ public class IndexModel : PageModel
         if (Contains("Latest Conference Directions", term)
             || Contains("Conference Review", term)
             || Contains("PRISM", term)
-            || Contains("Command", term))
+            || Contains("Command", term)
+            || preference.Labels.Any(label => Contains(label, term)))
         {
             return true;
         }

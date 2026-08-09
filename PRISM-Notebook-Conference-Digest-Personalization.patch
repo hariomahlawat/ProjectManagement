@@ -1,0 +1,2490 @@
+diff --git a/Controllers/Api/NotebookSystemItemsController.cs b/Controllers/Api/NotebookSystemItemsController.cs
+new file mode 100644
+--- /dev/null
++++ b/Controllers/Api/NotebookSystemItemsController.cs
+@@ -0,0 +1,101 @@
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Identity;
++using Microsoft.AspNetCore.Mvc;
++using ProjectManagement.Configuration;
++using ProjectManagement.Models;
++using ProjectManagement.Services.Notebook;
++
++namespace ProjectManagement.Controllers.Api;
++
++/// <summary>
++/// Personal Notebook presentation preferences for live PRISM-owned surfaces.
++/// The endpoint never mutates Conference Review or any source-domain content.
++/// </summary>
++[Authorize(Roles = RoleNames.Comdt + "," + RoleNames.HoD)]
++[ApiController]
++[AutoValidateAntiforgeryToken]
++[TypeFilter(typeof(NotebookApiExceptionFilter))]
++[Route("api/notebook/system-items")]
++public sealed class NotebookSystemItemsController : ControllerBase
++{
++    private readonly INotebookSystemItemPreferenceService _preferences;
++    private readonly INotebookService _notebook;
++    private readonly UserManager<ApplicationUser> _users;
++
++    public NotebookSystemItemsController(
++        INotebookSystemItemPreferenceService preferences,
++        INotebookService notebook,
++        UserManager<ApplicationUser> users)
++    {
++        _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
++        _notebook = notebook ?? throw new ArgumentNullException(nameof(notebook));
++        _users = users ?? throw new ArgumentNullException(nameof(users));
++    }
++
++    [HttpGet("{key}")]
++    public async Task<IActionResult> Get(string key, CancellationToken ct)
++    {
++        var preference = await _preferences.GetAsync(CurrentUserId(), key, ct);
++        return Ok(new { preference });
++    }
++
++    [Consumes("application/json")]
++    [HttpPatch("{key}")]
++    public async Task<IActionResult> Update(string key, [FromBody] UpdateNotebookSystemItemRequest request, CancellationToken ct)
++    {
++        request ??= new UpdateNotebookSystemItemRequest();
++        var preference = await _preferences.UpdateAsync(
++            CurrentUserId(),
++            key,
++            new NotebookSystemItemPreferencePatch
++            {
++                ShowInHome = request.ShowInHome,
++                IsPinned = request.IsPinned,
++                ColorKey = request.ColorKey,
++                Labels = request.Labels
++            },
++            ct);
++
++        var labels = request.Labels is null
++            ? null
++            : await _notebook.GetLabelsAsync(CurrentUserId(), ct);
++
++        return Ok(new { preference, labels });
++    }
++
++    [Consumes("application/json")]
++    [HttpPut("{key}/placement")]
++    public async Task<IActionResult> Placement(string key, [FromBody] SetNotebookSystemItemPlacementRequest request, CancellationToken ct)
++    {
++        if (request.Position < 0)
++        {
++            return BadRequest(new
++            {
++                code = "notebook_validation_failed",
++                message = "The system note position is invalid.",
++                errors = new Dictionary<string, string[]> { ["position"] = ["Position cannot be negative."] }
++            });
++        }
++
++        var preference = await _preferences.SetPlacementAsync(
++            CurrentUserId(), key, request.IsPinned, request.Position, ct);
++        return Ok(new { preference });
++    }
++
++    private string CurrentUserId()
++        => _users.GetUserId(User) ?? throw new UnauthorizedAccessException();
++}
++
++public sealed class UpdateNotebookSystemItemRequest
++{
++    public bool? ShowInHome { get; set; }
++    public bool? IsPinned { get; set; }
++    public string? ColorKey { get; set; }
++    public IReadOnlyList<string>? Labels { get; set; }
++}
++
++public sealed class SetNotebookSystemItemPlacementRequest
++{
++    public bool IsPinned { get; set; }
++    public int Position { get; set; }
++}
+diff --git a/Data/ApplicationDbContext.cs b/Data/ApplicationDbContext.cs
+--- a/Data/ApplicationDbContext.cs
++++ b/Data/ApplicationDbContext.cs
+@@ -72,6 +72,8 @@
+         public DbSet<NotebookItemTag> NotebookItemTags => Set<NotebookItemTag>();
+         public DbSet<NotebookAttachment> NotebookAttachments => Set<NotebookAttachment>();
+         public DbSet<NotebookItemCollaborator> NotebookItemCollaborators => Set<NotebookItemCollaborator>();
++        public DbSet<NotebookSystemItemPreference> NotebookSystemItemPreferences => Set<NotebookSystemItemPreference>();
++        public DbSet<NotebookSystemItemTag> NotebookSystemItemTags => Set<NotebookSystemItemTag>();
+         public DbSet<NotebookMigrationState> NotebookMigrationStates => Set<NotebookMigrationState>();
+         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
+         public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
+@@ -314,6 +316,28 @@
+                 entity.Property(x => x.UserId).HasMaxLength(450);
+                 entity.Property(x => x.MigrationKey).HasMaxLength(80);
+                 entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
++            });
++
++            builder.Entity<NotebookSystemItemPreference>(entity =>
++            {
++                entity.ToTable("NotebookSystemItemPreferences", table =>
++                    table.HasCheckConstraint(
++                        "CK_NotebookSystemItemPreferences_HomePosition",
++                        "\"HomePosition\" >= 0"));
++                entity.HasIndex(x => new { x.UserId, x.SystemItemKey }).IsUnique();
++                entity.Property(x => x.UserId).HasMaxLength(450);
++                entity.Property(x => x.SystemItemKey).HasMaxLength(80);
++                entity.Property(x => x.ColorKey).HasMaxLength(24);
++                entity.Property(x => x.Version).IsConcurrencyToken();
++                entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
++            });
++
++            builder.Entity<NotebookSystemItemTag>(entity =>
++            {
++                entity.HasKey(x => new { x.PreferenceId, x.NotebookTagId });
++                entity.HasIndex(x => x.NotebookTagId);
++                entity.HasOne(x => x.Preference).WithMany(x => x.Tags).HasForeignKey(x => x.PreferenceId).OnDelete(DeleteBehavior.Cascade);
++                entity.HasOne(x => x.NotebookTag).WithMany(x => x.SystemItems).HasForeignKey(x => x.NotebookTagId).OnDelete(DeleteBehavior.Cascade);
+             });
+ 
+             // SECTION: Project Ideas module
+diff --git a/Migrations/20261207200000_AddNotebookSystemItemPreferences.cs b/Migrations/20261207200000_AddNotebookSystemItemPreferences.cs
+new file mode 100644
+--- /dev/null
++++ b/Migrations/20261207200000_AddNotebookSystemItemPreferences.cs
+@@ -0,0 +1,82 @@
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using ProjectManagement.Data;
++
++#nullable disable
++
++namespace ProjectManagement.Migrations;
++
++[DbContext(typeof(ApplicationDbContext))]
++[Migration("20261207200000_AddNotebookSystemItemPreferences")]
++public sealed class AddNotebookSystemItemPreferences : Migration
++{
++    protected override void Up(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.CreateTable(
++            name: "NotebookSystemItemPreferences",
++            columns: table => new
++            {
++                Id = table.Column<Guid>(type: "uuid", nullable: false),
++                UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
++                SystemItemKey = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
++                ShowInHome = table.Column<bool>(type: "boolean", nullable: false),
++                IsPinned = table.Column<bool>(type: "boolean", nullable: false),
++                HomePosition = table.Column<int>(type: "integer", nullable: false),
++                ColorKey = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
++                Version = table.Column<Guid>(type: "uuid", nullable: false),
++                UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
++            },
++            constraints: table =>
++            {
++                table.PrimaryKey("PK_NotebookSystemItemPreferences", x => x.Id);
++                table.CheckConstraint("CK_NotebookSystemItemPreferences_HomePosition", "\"HomePosition\" >= 0");
++                table.ForeignKey(
++                    name: "FK_NotebookSystemItemPreferences_AspNetUsers_UserId",
++                    column: x => x.UserId,
++                    principalTable: "AspNetUsers",
++                    principalColumn: "Id",
++                    onDelete: ReferentialAction.Cascade);
++            });
++
++        migrationBuilder.CreateTable(
++            name: "NotebookSystemItemTags",
++            columns: table => new
++            {
++                PreferenceId = table.Column<Guid>(type: "uuid", nullable: false),
++                NotebookTagId = table.Column<int>(type: "integer", nullable: false)
++            },
++            constraints: table =>
++            {
++                table.PrimaryKey("PK_NotebookSystemItemTags", x => new { x.PreferenceId, x.NotebookTagId });
++                table.ForeignKey(
++                    name: "FK_NotebookSystemItemTags_NotebookSystemItemPreferences_PreferenceId",
++                    column: x => x.PreferenceId,
++                    principalTable: "NotebookSystemItemPreferences",
++                    principalColumn: "Id",
++                    onDelete: ReferentialAction.Cascade);
++                table.ForeignKey(
++                    name: "FK_NotebookSystemItemTags_NotebookTags_NotebookTagId",
++                    column: x => x.NotebookTagId,
++                    principalTable: "NotebookTags",
++                    principalColumn: "Id",
++                    onDelete: ReferentialAction.Cascade);
++            });
++
++        migrationBuilder.CreateIndex(
++            name: "IX_NotebookSystemItemPreferences_UserId_SystemItemKey",
++            table: "NotebookSystemItemPreferences",
++            columns: new[] { "UserId", "SystemItemKey" },
++            unique: true);
++
++        migrationBuilder.CreateIndex(
++            name: "IX_NotebookSystemItemTags_NotebookTagId",
++            table: "NotebookSystemItemTags",
++            column: "NotebookTagId");
++    }
++
++    protected override void Down(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.DropTable(name: "NotebookSystemItemTags");
++        migrationBuilder.DropTable(name: "NotebookSystemItemPreferences");
++    }
++}
+diff --git a/Migrations/ApplicationDbContextModelSnapshot.cs b/Migrations/ApplicationDbContextModelSnapshot.cs
+--- a/Migrations/ApplicationDbContextModelSnapshot.cs
++++ b/Migrations/ApplicationDbContextModelSnapshot.cs
+@@ -9584,6 +9584,34 @@
+                     b.ToTable("NotebookMigrationStates");
+                 });
+ 
++            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemPreference", b =>
++                {
++                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
++                    b.Property<string>("ColorKey").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
++                    b.Property<int>("HomePosition").HasColumnType("integer");
++                    b.Property<bool>("IsPinned").HasColumnType("boolean");
++                    b.Property<bool>("ShowInHome").HasColumnType("boolean");
++                    b.Property<string>("SystemItemKey").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)");
++                    b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
++                    b.Property<string>("UserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
++                    b.Property<Guid>("Version").IsConcurrencyToken().HasColumnType("uuid");
++                    b.HasKey("Id");
++                    b.HasIndex("UserId", "SystemItemKey").IsUnique();
++                    b.ToTable("NotebookSystemItemPreferences", t =>
++                        {
++                            t.HasCheckConstraint("CK_NotebookSystemItemPreferences_HomePosition", "\"HomePosition\" >= 0");
++                        });
++                });
++
++            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemTag", b =>
++                {
++                    b.Property<Guid>("PreferenceId").HasColumnType("uuid");
++                    b.Property<int>("NotebookTagId").HasColumnType("integer");
++                    b.HasKey("PreferenceId", "NotebookTagId");
++                    b.HasIndex("NotebookTagId");
++                    b.ToTable("NotebookSystemItemTags");
++                });
++
+             modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
+                 {
+                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+@@ -9668,6 +9696,20 @@
+                     b.Navigation("User");
+                 });
+ 
++            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemPreference", b =>
++                {
++                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User").WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemTag", b =>
++                {
++                    b.HasOne("ProjectManagement.Models.NotebookSystemItemPreference", "Preference").WithMany("Tags").HasForeignKey("PreferenceId").OnDelete(DeleteBehavior.Cascade).IsRequired();
++                    b.HasOne("ProjectManagement.Models.NotebookTag", "NotebookTag").WithMany("SystemItems").HasForeignKey("NotebookTagId").OnDelete(DeleteBehavior.Cascade).IsRequired();
++                    b.Navigation("Preference");
++                    b.Navigation("NotebookTag");
++                });
++
+             modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
+                 {
+                     b.HasOne("ProjectManagement.Models.NotebookItem", "NotebookItem").WithMany("ChecklistItems").HasForeignKey("NotebookItemId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+@@ -9703,9 +9745,15 @@
+                     b.Navigation("Tags");
+                 });
+ 
++            modelBuilder.Entity("ProjectManagement.Models.NotebookSystemItemPreference", b =>
++                {
++                    b.Navigation("Tags");
++                });
++
+             modelBuilder.Entity("ProjectManagement.Models.NotebookTag", b =>
+                 {
+                     b.Navigation("Items");
++                    b.Navigation("SystemItems");
+                 });
+ 
+ #pragma warning restore 612, 618
+diff --git a/Migrations/immutable-migration-ids.txt b/Migrations/immutable-migration-ids.txt
+--- a/Migrations/immutable-migration-ids.txt
++++ b/Migrations/immutable-migration-ids.txt
+@@ -88,3 +88,4 @@
+ 20261207170000_RedesignProcurementJourney
+ 20261207180000_RefineProcurementJourneyTopology
+ 20261207190000_StabilizeNotebookModule
++20261207200000_AddNotebookSystemItemPreferences
+diff --git a/Models/NotebookSystemItemPreference.cs b/Models/NotebookSystemItemPreference.cs
+new file mode 100644
+--- /dev/null
++++ b/Models/NotebookSystemItemPreference.cs
+@@ -0,0 +1,50 @@
++using System.ComponentModel.DataAnnotations;
++
++namespace ProjectManagement.Models;
++
++/// <summary>
++/// Personal presentation metadata for live, system-owned Notebook surfaces.
++/// The authoritative content remains in its source module; this row stores only how
++/// one user wants that surface organised inside Notebook.
++/// </summary>
++public sealed class NotebookSystemItemPreference
++{
++    public Guid Id { get; set; } = Guid.NewGuid();
++
++    [Required, MaxLength(450)]
++    public string UserId { get; set; } = string.Empty;
++
++    public ApplicationUser? User { get; set; }
++
++    [Required, MaxLength(80)]
++    public string SystemItemKey { get; set; } = string.Empty;
++
++    public bool ShowInHome { get; set; }
++
++    public bool IsPinned { get; set; }
++
++    /// <summary>
++    /// Zero-based visual slot among the user's reorderable cards in the selected
++    /// Pinned/Others section. Person-shared read-only cards remain outside this order.
++    /// </summary>
++    public int HomePosition { get; set; }
++
++    [MaxLength(24)]
++    public string ColorKey { get; set; } = "white";
++
++    [ConcurrencyCheck]
++    public Guid Version { get; set; } = Guid.NewGuid();
++
++    public DateTimeOffset UpdatedAtUtc { get; set; }
++
++    public ICollection<NotebookSystemItemTag> Tags { get; set; } = new List<NotebookSystemItemTag>();
++}
++
++public sealed class NotebookSystemItemTag
++{
++    public Guid PreferenceId { get; set; }
++    public NotebookSystemItemPreference? Preference { get; set; }
++
++    public int NotebookTagId { get; set; }
++    public NotebookTag? NotebookTag { get; set; }
++}
+diff --git a/Models/NotebookTag.cs b/Models/NotebookTag.cs
+--- a/Models/NotebookTag.cs
++++ b/Models/NotebookTag.cs
+@@ -11,4 +11,5 @@
+     [Required, MaxLength(64)] public string Name { get; set; } = string.Empty;
+     [MaxLength(64)] public string NormalizedName { get; set; } = string.Empty;
+     public ICollection<NotebookItemTag> Items { get; set; } = new List<NotebookItemTag>();
++    public ICollection<NotebookSystemItemTag> SystemItems { get; set; } = new List<NotebookSystemItemTag>();
+ }
+diff --git a/Pages/Notebook/Index.cshtml b/Pages/Notebook/Index.cshtml
+--- a/Pages/Notebook/Index.cshtml
++++ b/Pages/Notebook/Index.cshtml
+@@ -60,7 +60,7 @@
+ }
+ @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
+ 
+-<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-system-shared-count="@Model.SystemSharedSurfaceCount" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
++<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-system-shared-count="@Model.SystemSharedSurfaceCount" data-system-home-count="@Model.SystemHomeSurfaceCount" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
+     @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
+     <div id="notebook-antiforgery-token" hidden>
+         @Html.AntiForgeryToken()
+@@ -177,24 +177,52 @@
+         }
+         @if (Model.Notebook.View == "home")
+         {
+-
+-            var hasAnyHomeItems = Model.Notebook.PinnedItems.Any()
+-                || Model.Notebook.OtherItems.Any();
+-
+-            @* SECTION: Manual-order friendly home board sections *@
+-            <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">
+-                <div class="notebook-section-header"><h2>Pinned</h2><span data-notebook-count="pinned">@Model.Notebook.PinnedItems.Count</span></div>
+-                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.PinnedItems.Count">
+-                    @foreach (var item in Model.Notebook.PinnedItems)
+-                    {
+-                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
++            var showSystemHome = Model.ShowConferenceDigest && Model.ConferenceDigestPreference is not null;
++            var systemPinned = showSystemHome && Model.ConferenceDigestPreference!.IsPinned;
++            var systemOthers = showSystemHome && !Model.ConferenceDigestPreference!.IsPinned;
++            var ownedOthers = Model.Notebook.OtherItems.Where(item => item.OwnerId == currentUserId).ToArray();
++            var sharedOthers = Model.Notebook.OtherItems.Where(item => item.OwnerId != currentUserId).ToArray();
++            var pinnedSystemPosition = systemPinned ? Math.Clamp(Model.ConferenceDigestPreference!.HomePosition, 0, Model.Notebook.PinnedItems.Count) : -1;
++            var otherSystemPosition = systemOthers ? Math.Clamp(Model.ConferenceDigestPreference!.HomePosition, 0, ownedOthers.Length) : -1;
++            var pinnedVisibleCount = Model.Notebook.PinnedItems.Count + (systemPinned ? 1 : 0);
++            var otherVisibleCount = Model.Notebook.OtherItems.Count + (systemOthers ? 1 : 0);
++            var hasAnyHomeItems = pinnedVisibleCount > 0 || otherVisibleCount > 0;
++
++            @* SECTION: Manual-order friendly home board sections. The PRISM system note
++               participates in the user's visual order without becoming a NotebookItem. *@
++            <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(pinnedVisibleCount == 0)">
++                <div class="notebook-section-header"><h2>Pinned</h2><span data-notebook-count="pinned">@pinnedVisibleCount</span></div>
++                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@pinnedVisibleCount">
++                    @for (var index = 0; index <= Model.Notebook.PinnedItems.Count; index++)
++                    {
++                        if (systemPinned && index == pinnedSystemPosition)
++                        {
++                            <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
++                        }
++                        if (index < Model.Notebook.PinnedItems.Count)
++                        {
++                            var item = Model.Notebook.PinnedItems[index];
++                            <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
++                        }
+                     }
+                 </div>
+             </section>
+             <section class="notebook-board-section" data-notebook-section="others">
+-                <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@Model.Notebook.OtherItems.Count</span></div>
+-                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.OtherItems.Count">
+-                    @foreach (var item in Model.Notebook.OtherItems)
++                <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@otherVisibleCount</span></div>
++                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@otherVisibleCount">
++                    @for (var index = 0; index <= ownedOthers.Length; index++)
++                    {
++                        if (systemOthers && index == otherSystemPosition)
++                        {
++                            <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
++                        }
++                        if (index < ownedOthers.Length)
++                        {
++                            var item = ownedOthers[index];
++                            <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
++                        }
++                    }
++                    @foreach (var item in sharedOthers)
+                     {
+                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                     }
+@@ -213,12 +241,12 @@
+ 
+             @* SECTION: System-shared surfaces are intentionally separated from person-to-person
+                collaboration. They use normal Notebook card geometry but remain live/read-only. *@
+-            @if (showPrismShared && Model.ConferenceDigest is { } sharedDigest)
++            @if (showPrismShared)
+             {
+                 <section class="notebook-board-section notebook-shared-source-section" data-notebook-shared-source="prism">
+                     <div class="notebook-section-header"><h2>From PRISM</h2><span>1</span></div>
+                     <div class="notebook-board notebook-system-shared-board" data-layout="grid" data-item-count="1">
+-                        <partial name="_NotebookConferenceDigest" model="sharedDigest" />
++                        <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
+                     </div>
+                 </section>
+             }
+@@ -243,14 +271,19 @@
+         }
+         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
+         {
++            var showSystemInCurrentView = Model.ShowConferenceDigest && Model.ConferenceDigestPreference is not null;
+             <section class="notebook-board-section">
+-                <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.Items.Count">
++                <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@(Model.Notebook.Items.Count + (showSystemInCurrentView ? 1 : 0))">
++                    @if (showSystemInCurrentView)
++                    {
++                        <partial name="_NotebookConferenceDigest" model="Model.CreateConferenceDigestCardVm()" />
++                    }
+                     @foreach (var item in Model.Notebook.Items)
+                     {
+                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                     }
+                 </div>
+-                @if (!Model.Notebook.Items.Any())
++                @if (!Model.Notebook.Items.Any() && !showSystemInCurrentView)
+                 {
+                     var emptyType = Model.Notebook.View switch
+                     {
+@@ -274,5 +307,9 @@
+ <partial name="_NotebookToastRegion" />
+ <partial name="_NotebookCollaboratorsDialog" />
+ <partial name="_NotebookEditorTemplate" />
++@if (Model.ConferenceDigest is { TotalDirectionCount: > 0 } conferenceDigestModal)
++{
++    <partial name="_NotebookConferenceDigestModal" model="conferenceDigestModal" />
++}
+ 
+ @section Scripts { <script type="module" src="~/dist/notebook-index.bundle.js" asp-append-version="true"></script> }
+diff --git a/Pages/Notebook/Index.cshtml.cs b/Pages/Notebook/Index.cshtml.cs
+--- a/Pages/Notebook/Index.cshtml.cs
++++ b/Pages/Notebook/Index.cshtml.cs
+@@ -16,15 +16,18 @@
+ {
+     private readonly INotebookService _notebook;
+     private readonly IOfficerConferenceReadService _conferenceRead;
++    private readonly INotebookSystemItemPreferenceService _systemItemPreferences;
+     private readonly UserManager<ApplicationUser> _users;
+ 
+     public IndexModel(
+         INotebookService notebook,
+         IOfficerConferenceReadService conferenceRead,
++        INotebookSystemItemPreferenceService systemItemPreferences,
+         UserManager<ApplicationUser> users)
+     {
+         _notebook = notebook ?? throw new ArgumentNullException(nameof(notebook));
+         _conferenceRead = conferenceRead ?? throw new ArgumentNullException(nameof(conferenceRead));
++        _systemItemPreferences = systemItemPreferences ?? throw new ArgumentNullException(nameof(systemItemPreferences));
+         _users = users ?? throw new ArgumentNullException(nameof(users));
+     }
+ 
+@@ -50,8 +53,15 @@
+ 
+     public NotebookIndexVm Notebook { get; private set; } = new();
+     public ConferenceDirectionDigestVm? ConferenceDigest { get; private set; }
++    public NotebookSystemItemPreferenceVm? ConferenceDigestPreference { get; private set; }
+     public bool ShowConferenceDigest { get; private set; }
++    public bool ConferenceDigestIsHomePlacement => ShowConferenceDigest
++        && string.Equals(Notebook.View, "home", StringComparison.OrdinalIgnoreCase);
++    public bool ConferenceDigestIsLabelView => ShowConferenceDigest
++        && string.Equals(Notebook.View, "labels", StringComparison.OrdinalIgnoreCase);
+     public int SystemSharedSurfaceCount => ConferenceDigest is { TotalDirectionCount: > 0 } ? 1 : 0;
++    public int SystemHomeSurfaceCount => ConferenceDigest is { TotalDirectionCount: > 0 }
++        && ConferenceDigestPreference?.ShowInHome == true ? 1 : 0;
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
+     {
+@@ -89,8 +99,12 @@
+             ConferenceDigest = await _conferenceRead.GetLatestDirectionDigestAsync(userId, ct);
+             if (ConferenceDigest is { TotalDirectionCount: > 0 })
+             {
+-                AddSystemSharedSurfaceToRail();
+-                ShowConferenceDigest = ShouldShowConferenceDigest(ConferenceDigest);
++                ConferenceDigestPreference = await _systemItemPreferences.GetAsync(
++                    userId,
++                    NotebookSystemItemKeys.ConferenceDirections,
++                    ct);
++                AddSystemSurfaceToRail(ConferenceDigestPreference);
++                ShowConferenceDigest = ShouldShowConferenceDigest(ConferenceDigest, ConferenceDigestPreference);
+             }
+         }
+ 
+@@ -100,7 +114,7 @@
+     private bool HasCommandNotebookRole()
+         => User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
+ 
+-    private void AddSystemSharedSurfaceToRail()
++    private void AddSystemSurfaceToRail(NotebookSystemItemPreferenceVm preference)
+     {
+         var shared = Notebook.RailItems.FirstOrDefault(item =>
+             string.Equals(item.Key, "shared", StringComparison.OrdinalIgnoreCase));
+@@ -108,13 +122,54 @@
+         {
+             shared.Count += 1;
+         }
+-    }
+-
+-    private bool ShouldShowConferenceDigest(ConferenceDirectionDigestVm digest)
+-    {
+-        if (!string.Equals(Notebook.View, "shared", StringComparison.OrdinalIgnoreCase)
+-            || !string.IsNullOrWhiteSpace(Filter)
+-            || !string.IsNullOrWhiteSpace(Tag))
++
++        // Once the user explicitly adds the live PRISM note to My Notebook it is
++        // part of the visible All Notes surface, so the rail count should match
++        // what the user actually sees without turning it into a NotebookItem.
++        if (!preference.ShowInHome) return;
++
++        var home = Notebook.RailItems.FirstOrDefault(item =>
++            string.Equals(item.Key, "home", StringComparison.OrdinalIgnoreCase));
++        if (home is not null)
++        {
++            home.Count += 1;
++        }
++    }
++
++    public NotebookConferenceDigestCardVm CreateConferenceDigestCardVm()
++    {
++        if (ConferenceDigest is null || ConferenceDigestPreference is null)
++        {
++            throw new InvalidOperationException("Conference digest card state is unavailable.");
++        }
++
++        return new NotebookConferenceDigestCardVm
++        {
++            Digest = ConferenceDigest,
++            Preference = ConferenceDigestPreference,
++            View = Notebook.View,
++            IsHomePlacement = ConferenceDigestIsHomePlacement,
++            IsLabelView = ConferenceDigestIsLabelView
++        };
++    }
++
++    private bool ShouldShowConferenceDigest(ConferenceDirectionDigestVm digest, NotebookSystemItemPreferenceVm preference)
++    {
++        if (!string.IsNullOrWhiteSpace(Filter))
++        {
++            return false;
++        }
++
++        var viewAllows = Notebook.View.ToLowerInvariant() switch
++        {
++            "shared" => string.IsNullOrWhiteSpace(Tag),
++            "home" => preference.ShowInHome && string.IsNullOrWhiteSpace(Tag),
++            "labels" => !string.IsNullOrWhiteSpace(Tag)
++                && preference.Labels.Any(label => string.Equals(label, Tag, StringComparison.OrdinalIgnoreCase)),
++            _ => false
++        };
++
++        if (!viewAllows)
+         {
+             return false;
+         }
+@@ -128,7 +183,8 @@
+         if (Contains("Latest Conference Directions", term)
+             || Contains("Conference Review", term)
+             || Contains("PRISM", term)
+-            || Contains("Command", term))
++            || Contains("Command", term)
++            || preference.Labels.Any(label => Contains(label, term)))
+         {
+             return true;
+         }
+diff --git a/Pages/Notebook/_NotebookConferenceDigest.cshtml b/Pages/Notebook/_NotebookConferenceDigest.cshtml
+--- a/Pages/Notebook/_NotebookConferenceDigest.cshtml
++++ b/Pages/Notebook/_NotebookConferenceDigest.cshtml
+@@ -1,39 +1,59 @@
+-@model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
++@model ProjectManagement.ViewModels.Notebook.NotebookConferenceDigestCardVm
+ @using ProjectManagement.Infrastructure
++@using System.Text.Json
+ @{
+     const int previewOfficerLimit = 2;
+     const int previewDirectionLimit = 3;
+ 
+-    var previewGroups = Model.OfficerGroups.Take(previewOfficerLimit).ToArray();
++    var digest = Model.Digest;
++    var preference = Model.Preference;
++    var previewGroups = digest.OfficerGroups.Take(previewOfficerLimit).ToArray();
+     var previewTakes = new int[previewGroups.Length];
+     var remainingPreviewSlots = previewDirectionLimit;
++    var colorKey = string.IsNullOrWhiteSpace(preference.ColorKey) ? "white" : preference.ColorKey;
++    var labels = preference.Labels.Take(3).ToArray();
++    var extraLabels = Math.Max(0, preference.Labels.Count - labels.Length);
+ 
+-    // Preserve PO context in the compact note: when two officers are available,
+-    // reserve at least one preview slot for the second officer.
++    // Preserve PO context in the compact preview: when two officers are available,
++    // reserve at least one direction for the second officer.
+     for (var index = 0; index < previewGroups.Length && remainingPreviewSlots > 0; index++)
+     {
+         var groupsAfter = previewGroups.Length - index - 1;
+         var reservedForLaterGroups = Math.Min(groupsAfter, remainingPreviewSlots);
+         var availableForCurrentGroup = Math.Max(0, remainingPreviewSlots - reservedForLaterGroups);
+         var take = Math.Min(previewGroups[index].Directions.Count, availableForCurrentGroup);
+-
+-        if (take == 0 && previewGroups[index].Directions.Count > 0)
+-        {
+-            take = 1;
+-        }
+-
++        if (take == 0 && previewGroups[index].Directions.Count > 0) take = 1;
+         previewTakes[index] = take;
+         remainingPreviewSlots -= take;
+     }
+-
+-    var previewedDirectionCount = previewTakes.Sum();
+-    var hiddenDirectionCount = Math.Max(0, Model.TotalDirectionCount - previewedDirectionCount);
+ }
+ 
+-@* SECTION: PRISM-shared virtual note. It deliberately uses the same geometry and
+-   surface treatment as a normal Notebook card while remaining live and read-only. *@
+-<article class="notebook-card notebook-card-color-white notebook-conference-shared-card"
+-         data-notebook-system-shared-card="conference-directions">
++@* SECTION: A live PRISM-owned note with user-owned presentation metadata.
++   Conference content stays read-only; colour, labels, pin and home placement are personal. *@
++<article class="notebook-card notebook-card-color-@colorKey notebook-conference-shared-card @(preference.IsPinned && Model.IsHomePlacement ? "is-system-pinned" : string.Empty)"
++         data-notebook-system-card="conference-directions"
++         data-system-item-key="conference-directions"
++         data-system-show-home="@preference.ShowInHome.ToString().ToLowerInvariant()"
++         data-system-is-pinned="@preference.IsPinned.ToString().ToLowerInvariant()"
++         data-system-home-position="@preference.HomePosition"
++         data-system-preference-version="@preference.Version"
++         data-labels='@JsonSerializer.Serialize(preference.Labels)'
++         data-reorderable="@(Model.IsHomePlacement ? "true" : "false")"
++         data-notebook-system-home-card="@(Model.IsHomePlacement ? "conference-directions" : null)">
++
++    @if (Model.IsHomePlacement)
++    {
++        <button type="button"
++                class="notebook-card-drag-handle"
++                data-notebook-drag-handle
++                hidden
++                aria-label="Rearrange Latest Conference Directions"
++                aria-grabbed="false"
++                title="Drag to rearrange">
++            <i class="bi bi-grip-vertical" aria-hidden="true"></i>
++        </button>
++    }
++
+     <button type="button"
+             class="notebook-conference-shared-card__open"
+             data-bs-toggle="modal"
+@@ -42,11 +62,17 @@
+             aria-label="Open latest conference directions"></button>
+ 
+     <div class="notebook-card-body notebook-conference-shared-card__body">
++        @if (Model.IsHomePlacement)
++        {
++            <div class="notebook-card-topline" data-system-pin-state hidden="@(!preference.IsPinned)">
++                <span class="notebook-card-indicators"></span>
++                <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
++            </div>
++        }
++
+         <h3 class="notebook-card-title">Latest Conference Directions</h3>
+         <p class="notebook-card-preview notebook-conference-shared-card__summary">
+-            @Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s")
+-            <span aria-hidden="true"> · </span>
+-            @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")
++            @digest.TotalDirectionCount latest direction@(digest.TotalDirectionCount == 1 ? string.Empty : "s") · @digest.OfficerCount Project Officer@(digest.OfficerCount == 1 ? string.Empty : "s")
+         </p>
+ 
+         <div class="notebook-conference-shared-card__groups">
+@@ -54,7 +80,6 @@
+             {
+                 var group = previewGroups[groupIndex];
+                 var previewTake = previewTakes[groupIndex];
+-
+                 <div class="notebook-conference-shared-card__group">
+                     <div class="notebook-conference-shared-card__officer">
+                         <span title="@group.OfficerDisplayName">@group.OfficerDisplayName</span>
+@@ -71,71 +96,83 @@
+             }
+         </div>
+ 
+-        @if (hiddenDirectionCount > 0)
++        <button type="button"
++                class="notebook-conference-shared-card__view-all"
++                data-bs-toggle="modal"
++                data-bs-target="#notebookConferenceDigestModal">
++            View all @digest.TotalDirectionCount <i class="bi bi-chevron-right" aria-hidden="true"></i>
++        </button>
++
++        @if (preference.Labels.Count > 0)
+         {
+-            <div class="notebook-conference-shared-card__more">+@hiddenDirectionCount more direction@(hiddenDirectionCount == 1 ? string.Empty : "s")</div>
++            <div class="notebook-card-tags" data-system-card-tags aria-label="Labels">
++                @foreach (var label in labels)
++                {
++                    <a class="notebook-tag-chip" asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@label" aria-label="Open label @label">@label</a>
++                }
++                @if (extraLabels > 0)
++                {
++                    <span class="notebook-tag-chip">+@extraLabels</span>
++                }
++            </div>
++        }
++        else
++        {
++            <div class="notebook-card-tags" data-system-card-tags aria-label="Labels" hidden></div>
+         }
+     </div>
+ 
+-    <div class="notebook-sharing-summary notebook-conference-shared-card__sharing" aria-label="Shared by PRISM. Read only.">
++    <div class="notebook-sharing-summary notebook-conference-shared-card__sharing"
++         title="Shared by PRISM. Available to authorised Comdt / HoD users. Content is read only."
++         aria-label="Shared by PRISM. Read only.">
+         <i class="bi bi-shield-lock" aria-hidden="true"></i>
+         <span>PRISM · Read only</span>
+     </div>
+-</article>
+ 
+-    <div class="modal fade notebook-conference-digest-modal"
+-         id="notebookConferenceDigestModal"
+-         tabindex="-1"
+-         aria-labelledby="notebookConferenceDigestModalLabel"
+-         aria-hidden="true">
+-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable notebook-conference-digest-modal__dialog">
+-            <div class="modal-content notebook-conference-digest-modal__content">
+-                <header class="notebook-conference-digest-modal__header">
+-                    <div>
+-                        <div class="notebook-conference-digest-modal__eyebrow">Command · PRISM</div>
+-                        <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
+-                        <p>@Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
++    <div class="notebook-card-actions notebook-conference-shared-card__actions" data-no-card-drag>
++        <div class="notebook-actions" aria-label="System note actions">
++            @if (Model.IsHomePlacement)
++            {
++                <button type="button"
++                        class="notebook-action-icon notebook-action-pin @(preference.IsPinned ? "is-active" : string.Empty)"
++                        data-action="system-pin-note"
++                        title="@(preference.IsPinned ? "Unpin" : "Pin")"
++                        aria-label="@(preference.IsPinned ? "Unpin system note" : "Pin system note")">
++                    <i class="bi @(preference.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
++                </button>
++            }
++
++            <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="colorKey" />
++
++            <button type="button"
++                    class="notebook-action-icon"
++                    data-action="label-note"
++                    title="Edit labels"
++                    aria-label="Edit labels">
++                <i class="bi bi-tags"></i>
++            </button>
++
++            @if (!preference.ShowInHome)
++            {
++                <button type="button"
++                        class="notebook-system-home-toggle"
++                        data-action="system-add-home"
++                        title="Add this live PRISM note to All Notes">
++                    <i class="bi bi-journal-plus" aria-hidden="true"></i>
++                    <span>Add to My Notebook</span>
++                </button>
++            }
++            else
++            {
++                <details class="notebook-card-more">
++                    <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
++                    <div class="notebook-card-more__menu" role="menu">
++                        <button type="button" role="menuitem" data-action="system-remove-home">
++                            <i class="bi bi-journal-minus" aria-hidden="true"></i> Remove from My Notebook
++                        </button>
+                     </div>
+-                    <div class="notebook-conference-digest-modal__header-actions">
+-                        <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
+-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+-                    </div>
+-                </header>
+-
+-                <div class="modal-body notebook-conference-digest-modal__body">
+-                    @foreach (var group in Model.OfficerGroups)
+-                    {
+-                        <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
+-                            <header class="notebook-conference-digest-officer__header">
+-                                <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
+-                                <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
+-                                    Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+-                                </a>
+-                            </header>
+-
+-                            <div class="notebook-conference-digest-officer__items">
+-                                @foreach (var item in group.Directions)
+-                                {
+-                                    var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+-                                    <article class="notebook-conference-digest-item">
+-                                        <div class="notebook-conference-digest-item__heading">
+-                                            <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
+-                                                @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+-                                            </a>
+-                                            <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
+-                                        </div>
+-                                        <p>@item.DirectionText</p>
+-                                    </article>
+-                                }
+-                            </div>
+-                        </section>
+-                    }
+-                </div>
+-
+-                <footer class="modal-footer notebook-conference-digest-modal__footer">
+-                    <span>Source: Conference Review</span>
+-                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+-                </footer>
+-            </div>
++                </details>
++            }
+         </div>
+     </div>
++</article>
+diff --git a/Pages/Notebook/_NotebookConferenceDigestModal.cshtml b/Pages/Notebook/_NotebookConferenceDigestModal.cshtml
+new file mode 100644
+--- /dev/null
++++ b/Pages/Notebook/_NotebookConferenceDigestModal.cshtml
+@@ -0,0 +1,60 @@
++@model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
++@using ProjectManagement.Infrastructure
++@{ var digest = Model; }
++
++<div class="modal fade notebook-conference-digest-modal"
++     id="notebookConferenceDigestModal"
++     tabindex="-1"
++     aria-labelledby="notebookConferenceDigestModalLabel"
++     aria-hidden="true">
++    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable notebook-conference-digest-modal__dialog">
++        <div class="modal-content notebook-conference-digest-modal__content">
++            <header class="notebook-conference-digest-modal__header">
++                <div>
++                    <div class="notebook-conference-digest-modal__eyebrow">PRISM · Conference Review</div>
++                    <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
++                    <p>@digest.TotalDirectionCount latest direction@(digest.TotalDirectionCount == 1 ? string.Empty : "s") · @digest.OfficerCount Project Officer@(digest.OfficerCount == 1 ? string.Empty : "s")</p>
++                </div>
++                <div class="notebook-conference-digest-modal__header-actions">
++                    <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
++                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
++                </div>
++            </header>
++
++            <div class="modal-body notebook-conference-digest-modal__body">
++                @foreach (var group in digest.OfficerGroups)
++                {
++                    <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
++                        <header class="notebook-conference-digest-officer__header">
++                            <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
++                            <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
++                                Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                            </a>
++                        </header>
++
++                        <div class="notebook-conference-digest-officer__items">
++                            @foreach (var item in group.Directions)
++                            {
++                                var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
++                                <article class="notebook-conference-digest-item">
++                                    <div class="notebook-conference-digest-item__heading">
++                                        <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
++                                            @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                                        </a>
++                                        <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
++                                    </div>
++                                    <p>@item.DirectionText</p>
++                                </article>
++                            }
++                        </div>
++                    </section>
++                }
++            </div>
++
++            <footer class="modal-footer notebook-conference-digest-modal__footer">
++                <span>Source: Conference Review</span>
++                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
++            </footer>
++        </div>
++    </div>
++</div>
+diff --git a/Program.cs b/Program.cs
+--- a/Program.cs
++++ b/Program.cs
+@@ -572,6 +572,7 @@
+ // SECTION: My Notebook services
+ builder.Services.Configure<NotebookTrashOptions>(builder.Configuration.GetSection(NotebookTrashOptions.SectionName));
+ builder.Services.AddScoped<INotebookService, NotebookService>();
++builder.Services.AddScoped<INotebookSystemItemPreferenceService, NotebookSystemItemPreferenceService>();
+ builder.Services.AddScoped<INotebookNotificationService, NotebookNotificationService>();
+ builder.Services.AddHostedService<NotebookTrashRetentionWorker>();
+ builder.Services.AddScoped<INotebookCardModelFactory, NotebookCardModelFactory>();
+diff --git a/ProjectManagement.Tests/NotebookMigrationTests.cs b/ProjectManagement.Tests/NotebookMigrationTests.cs
+--- a/ProjectManagement.Tests/NotebookMigrationTests.cs
++++ b/ProjectManagement.Tests/NotebookMigrationTests.cs
+@@ -63,6 +63,20 @@
+         Assert.Contains("LOWER(BTRIM(\"ColorKey\"))", migration, StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void Notebook_system_item_preferences_migration_stores_presentation_metadata_only()
++    {
++        var migration = File.ReadAllText(Path.Combine(GetRepoRoot(), "20261207200000_AddNotebookSystemItemPreferences.cs"));
++
++        Assert.Contains("NotebookSystemItemPreferences", migration, StringComparison.Ordinal);
++        Assert.Contains("NotebookSystemItemTags", migration, StringComparison.Ordinal);
++        Assert.Contains("ShowInHome", migration, StringComparison.Ordinal);
++        Assert.Contains("HomePosition", migration, StringComparison.Ordinal);
++        Assert.Contains("ColorKey", migration, StringComparison.Ordinal);
++        Assert.DoesNotContain("DirectionText", migration, StringComparison.Ordinal);
++        Assert.DoesNotContain("BodyMarkdown", migration, StringComparison.Ordinal);
++    }
++
+     private static string GetRepoRoot()
+     {
+         var current = AppContext.BaseDirectory;
+diff --git a/ProjectManagement.Tests/NotebookSystemItemPreferenceServiceTests.cs b/ProjectManagement.Tests/NotebookSystemItemPreferenceServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/ProjectManagement.Tests/NotebookSystemItemPreferenceServiceTests.cs
+@@ -0,0 +1,214 @@
++using Microsoft.AspNetCore.Identity;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.Extensions.Logging.Abstractions;
++using ProjectManagement.Configuration;
++using ProjectManagement.Data;
++using ProjectManagement.Models;
++using ProjectManagement.Services;
++using ProjectManagement.Services.Notebook;
++using ProjectManagement.ViewModels.Notebook;
++
++namespace ProjectManagement.Tests;
++
++public sealed class NotebookSystemItemPreferenceServiceTests
++{
++    [Fact]
++    public async Task GetAsync_ReturnsNonPersistedDefault_ForAuthorisedCommandUser()
++    {
++        await using var fixture = await Fixture.CreateAsync();
++
++        var preference = await fixture.SystemPreferences.GetAsync(
++            fixture.Command.Id,
++            NotebookSystemItemKeys.ConferenceDirections);
++
++        Assert.False(preference.ShowInHome);
++        Assert.False(preference.IsPinned);
++        Assert.Equal(0, preference.HomePosition);
++        Assert.Equal("white", preference.ColorKey);
++        Assert.Empty(preference.Labels);
++        Assert.Equal(Guid.Empty, preference.Version);
++        Assert.Empty(await fixture.Db.NotebookSystemItemPreferences.ToListAsync());
++    }
++
++    [Fact]
++    public async Task UpdateAsync_PersistsOnlyPersonalPresentationState_AndReusesNotebookLabels()
++    {
++        await using var fixture = await Fixture.CreateAsync();
++
++        var preference = await fixture.SystemPreferences.UpdateAsync(
++            fixture.Command.Id,
++            NotebookSystemItemKeys.ConferenceDirections,
++            new NotebookSystemItemPreferencePatch
++            {
++                ShowInHome = true,
++                ColorKey = "blue",
++                Labels = ["Conference", "Command", "conference"]
++            });
++
++        Assert.True(preference.ShowInHome);
++        Assert.False(preference.IsPinned);
++        Assert.Equal("blue", preference.ColorKey);
++        Assert.Equal(new[] { "Command", "Conference" }, preference.Labels);
++        Assert.NotEqual(Guid.Empty, preference.Version);
++
++        var row = await fixture.Db.NotebookSystemItemPreferences
++            .Include(x => x.Tags)
++            .ThenInclude(x => x.NotebookTag)
++            .SingleAsync();
++        Assert.Equal(2, row.Tags.Count);
++        Assert.Equal(2, await fixture.Db.NotebookTags.CountAsync());
++
++        var labels = await fixture.Notebook.GetLabelsAsync(fixture.Command.Id);
++        Assert.Contains(labels, x => x.Name == "Conference" && x.Count == 1);
++        Assert.Contains(labels, x => x.Name == "Command" && x.Count == 1);
++    }
++
++    [Fact]
++    public async Task SetPlacementAsync_ClampsVisualPosition_AndDoesNotCreateConferenceContent()
++    {
++        await using var fixture = await Fixture.CreateAsync();
++        fixture.Db.NotebookItems.AddRange(
++            NewNote(fixture.Command.Id, false, fixture.Clock.UtcNow),
++            NewNote(fixture.Command.Id, false, fixture.Clock.UtcNow),
++            NewNote(fixture.Command.Id, true, fixture.Clock.UtcNow));
++        await fixture.Db.SaveChangesAsync();
++
++        var preference = await fixture.SystemPreferences.SetPlacementAsync(
++            fixture.Command.Id,
++            NotebookSystemItemKeys.ConferenceDirections,
++            isPinned: false,
++            position: 99);
++
++        Assert.True(preference.ShowInHome);
++        Assert.False(preference.IsPinned);
++        Assert.Equal(2, preference.HomePosition);
++        Assert.Single(await fixture.Db.NotebookSystemItemPreferences.ToListAsync());
++        Assert.Equal(3, await fixture.Db.NotebookItems.CountAsync());
++    }
++
++    [Fact]
++    public async Task UpdateAsync_RejectsNonCommandUsers()
++    {
++        await using var fixture = await Fixture.CreateAsync();
++
++        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
++            fixture.SystemPreferences.UpdateAsync(
++                fixture.Regular.Id,
++                NotebookSystemItemKeys.ConferenceDirections,
++                new NotebookSystemItemPreferencePatch { ShowInHome = true }));
++    }
++
++    [Fact]
++    public async Task UpdateAsync_RejectsUnsupportedColour()
++    {
++        await using var fixture = await Fixture.CreateAsync();
++
++        await Assert.ThrowsAsync<NotebookValidationException>(() =>
++            fixture.SystemPreferences.UpdateAsync(
++                fixture.Command.Id,
++                NotebookSystemItemKeys.ConferenceDirections,
++                new NotebookSystemItemPreferencePatch { ColorKey = "neon" }));
++    }
++
++    private static NotebookItem NewNote(string ownerId, bool pinned, DateTimeOffset now) => new()
++    {
++        OwnerId = ownerId,
++        Title = Guid.NewGuid().ToString("N"),
++        Type = NotebookItemType.Note,
++        Status = NotebookItemStatus.Active,
++        IsPinned = pinned,
++        CreatedAtUtc = now,
++        UpdatedAtUtc = now,
++        Version = Guid.NewGuid()
++    };
++
++    private sealed class Fixture : IAsyncDisposable
++    {
++        private Fixture(
++            ApplicationDbContext db,
++            ApplicationUser command,
++            ApplicationUser regular,
++            TestClock clock,
++            NotebookSystemItemPreferenceService systemPreferences,
++            NotebookService notebook)
++        {
++            Db = db;
++            Command = command;
++            Regular = regular;
++            Clock = clock;
++            SystemPreferences = systemPreferences;
++            Notebook = notebook;
++        }
++
++        public ApplicationDbContext Db { get; }
++        public ApplicationUser Command { get; }
++        public ApplicationUser Regular { get; }
++        public TestClock Clock { get; }
++        public NotebookSystemItemPreferenceService SystemPreferences { get; }
++        public NotebookService Notebook { get; }
++
++        public static async Task<Fixture> CreateAsync()
++        {
++            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++                .UseInMemoryDatabase($"notebook-system-item-{Guid.NewGuid():N}")
++                .Options;
++            var db = new ApplicationDbContext(options);
++            var clock = new TestClock(new DateTimeOffset(2026, 8, 9, 6, 30, 0, TimeSpan.Zero));
++
++            var command = new ApplicationUser
++            {
++                Id = "command-user",
++                UserName = "command-user",
++                NormalizedUserName = "COMMAND-USER",
++                FullName = "Command User"
++            };
++            var regular = new ApplicationUser
++            {
++                Id = "regular-user",
++                UserName = "regular-user",
++                NormalizedUserName = "REGULAR-USER",
++                FullName = "Regular User"
++            };
++            var role = new IdentityRole
++            {
++                Id = "role-hod",
++                Name = RoleNames.HoD,
++                NormalizedName = RoleNames.HoD.ToUpperInvariant()
++            };
++
++            db.Users.AddRange(command, regular);
++            db.Roles.Add(role);
++            db.UserRoles.Add(new IdentityUserRole<string> { UserId = command.Id, RoleId = role.Id });
++            await db.SaveChangesAsync();
++
++            var systemPreferences = new NotebookSystemItemPreferenceService(db, clock);
++            var notebook = new NotebookService(
++                db,
++                new NoOpAuditService(),
++                clock,
++                NullLogger<NotebookService>.Instance);
++
++            return new Fixture(db, command, regular, clock, systemPreferences, notebook);
++        }
++
++        public ValueTask DisposeAsync() => Db.DisposeAsync();
++    }
++
++    private sealed class TestClock(DateTimeOffset now) : IClock
++    {
++        public DateTimeOffset UtcNow { get; } = now;
++    }
++
++    private sealed class NoOpAuditService : IAuditService
++    {
++        public Task LogAsync(
++            string action,
++            string? message = null,
++            string level = "Info",
++            string? userId = null,
++            string? userName = null,
++            IDictionary<string, string?>? data = null,
++            Microsoft.AspNetCore.Http.HttpContext? http = null)
++            => Task.CompletedTask;
++    }
++}
+diff --git a/Services/Notebook/INotebookSystemItemPreferenceService.cs b/Services/Notebook/INotebookSystemItemPreferenceService.cs
+new file mode 100644
+--- /dev/null
++++ b/Services/Notebook/INotebookSystemItemPreferenceService.cs
+@@ -0,0 +1,18 @@
++using ProjectManagement.ViewModels.Notebook;
++
++namespace ProjectManagement.Services.Notebook;
++
++public sealed class NotebookSystemItemPreferencePatch
++{
++    public bool? ShowInHome { get; init; }
++    public bool? IsPinned { get; init; }
++    public string? ColorKey { get; init; }
++    public IReadOnlyList<string>? Labels { get; init; }
++}
++
++public interface INotebookSystemItemPreferenceService
++{
++    Task<NotebookSystemItemPreferenceVm> GetAsync(string userId, string systemItemKey, CancellationToken ct = default);
++    Task<NotebookSystemItemPreferenceVm> UpdateAsync(string userId, string systemItemKey, NotebookSystemItemPreferencePatch patch, CancellationToken ct = default);
++    Task<NotebookSystemItemPreferenceVm> SetPlacementAsync(string userId, string systemItemKey, bool isPinned, int position, CancellationToken ct = default);
++}
+diff --git a/Services/Notebook/NotebookService.cs b/Services/Notebook/NotebookService.cs
+--- a/Services/Notebook/NotebookService.cs
++++ b/Services/Notebook/NotebookService.cs
+@@ -844,15 +844,37 @@
+     public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default)
+     {
+         var cleanName = ValidateLabelName(name);
+-        var tag = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
++        var tag = await _db.NotebookTags
++            .Include(x => x.Items)
++            .Include(x => x.SystemItems)
++            .FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
+             ?? throw new KeyNotFoundException("The label could not be found.");
+         var affected = tag.Items.Select(x => x.NotebookItemId).Distinct().ToArray();
+         var normalized = NormalizeTag(cleanName);
+-        var target = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized && x.Id != labelId, ct);
++        var target = await _db.NotebookTags
++            .Include(x => x.Items)
++            .Include(x => x.SystemItems)
++            .FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized && x.Id != labelId, ct);
+         if (target is not null)
+         {
+             var existing = target.Items.Select(x => x.NotebookItemId).ToHashSet();
+-            foreach (var join in tag.Items.ToList()) if (!existing.Contains(join.NotebookItemId)) target.Items.Add(new NotebookItemTag { NotebookItemId = join.NotebookItemId, NotebookTagId = target.Id });
++            foreach (var join in tag.Items.ToList())
++            {
++                if (!existing.Contains(join.NotebookItemId))
++                {
++                    target.Items.Add(new NotebookItemTag { NotebookItemId = join.NotebookItemId, NotebookTagId = target.Id });
++                }
++            }
++
++            var existingSystem = target.SystemItems.Select(x => x.PreferenceId).ToHashSet();
++            foreach (var join in tag.SystemItems.ToList())
++            {
++                if (!existingSystem.Contains(join.PreferenceId))
++                {
++                    target.SystemItems.Add(new NotebookSystemItemTag { PreferenceId = join.PreferenceId, NotebookTagId = target.Id });
++                }
++            }
++
+             _db.NotebookTags.Remove(tag);
+         }
+         else { tag.Name = cleanName; tag.NormalizedName = normalized; }
+@@ -862,7 +884,10 @@
+ 
+     public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> DeleteLabelAsync(string ownerId, int labelId, CancellationToken ct = default)
+     {
+-        var tag = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
++        var tag = await _db.NotebookTags
++            .Include(x => x.Items)
++            .Include(x => x.SystemItems)
++            .FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
+             ?? throw new KeyNotFoundException("The label could not be found.");
+         var affected = tag.Items.Select(x => x.NotebookItemId).Distinct().ToArray();
+         _db.NotebookTags.Remove(tag);
+@@ -1816,6 +1841,7 @@
+                     join.NotebookItem != null &&
+                     join.NotebookItem.DeletedAtUtc == null &&
+                     join.NotebookItem.Status == NotebookItemStatus.Active)
++                    + tag.SystemItems.Count()
+             })
+             .OrderBy(tag => tag.Name)
+             .ToArrayAsync(ct);
+@@ -2101,7 +2127,13 @@
+     private async Task<IReadOnlyList<NotebookTagVm>> BuildAllTags(string ownerId, CancellationToken ct)
+     {
+         return await _db.NotebookTags.AsNoTracking().Where(x => x.OwnerId == ownerId)
+-            .Select(x => new NotebookTagVm { Id = x.Id, Name = x.Name, Count = x.Items.Count(j => j.NotebookItem != null && j.NotebookItem.DeletedAtUtc == null && j.NotebookItem.Status == NotebookItemStatus.Active) })
++            .Select(x => new NotebookTagVm
++            {
++                Id = x.Id,
++                Name = x.Name,
++                Count = x.Items.Count(j => j.NotebookItem != null && j.NotebookItem.DeletedAtUtc == null && j.NotebookItem.Status == NotebookItemStatus.Active)
++                    + x.SystemItems.Count()
++            })
+             .OrderBy(x => x.Name).ToArrayAsync(ct);
+     }
+ 
+diff --git a/Services/Notebook/NotebookSystemItemPreferenceService.cs b/Services/Notebook/NotebookSystemItemPreferenceService.cs
+new file mode 100644
+--- /dev/null
++++ b/Services/Notebook/NotebookSystemItemPreferenceService.cs
+@@ -0,0 +1,246 @@
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Configuration;
++using ProjectManagement.Data;
++using ProjectManagement.Models;
++using ProjectManagement.ViewModels.Notebook;
++
++namespace ProjectManagement.Services.Notebook;
++
++/// <summary>
++/// Stores only user-specific Notebook presentation state for live system surfaces.
++/// Conference content is never copied into Notebook persistence.
++/// </summary>
++public sealed class NotebookSystemItemPreferenceService : INotebookSystemItemPreferenceService
++{
++    private readonly ApplicationDbContext _db;
++    private readonly IClock _clock;
++
++    public NotebookSystemItemPreferenceService(ApplicationDbContext db, IClock clock)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
++    }
++
++    public async Task<NotebookSystemItemPreferenceVm> GetAsync(string userId, string systemItemKey, CancellationToken ct = default)
++    {
++        await EnsureCommandAccessAsync(userId, systemItemKey, ct);
++        var row = await PreferenceQuery()
++            .AsNoTracking()
++            .FirstOrDefaultAsync(x => x.UserId == userId && x.SystemItemKey == systemItemKey, ct);
++        return row is null ? Default(systemItemKey) : Map(row);
++    }
++
++    public async Task<NotebookSystemItemPreferenceVm> UpdateAsync(
++        string userId,
++        string systemItemKey,
++        NotebookSystemItemPreferencePatch patch,
++        CancellationToken ct = default)
++    {
++        ArgumentNullException.ThrowIfNull(patch);
++        await EnsureCommandAccessAsync(userId, systemItemKey, ct);
++
++        var row = await PreferenceQuery()
++            .FirstOrDefaultAsync(x => x.UserId == userId && x.SystemItemKey == systemItemKey, ct);
++        var created = row is null;
++        row ??= CreateDefault(userId, systemItemKey);
++        if (created) _db.NotebookSystemItemPreferences.Add(row);
++
++        if (patch.ShowInHome.HasValue)
++        {
++            row.ShowInHome = patch.ShowInHome.Value;
++            if (row.ShowInHome && created)
++            {
++                row.IsPinned = false;
++                row.HomePosition = 0;
++            }
++        }
++
++        if (patch.IsPinned.HasValue)
++        {
++            row.IsPinned = patch.IsPinned.Value;
++            row.HomePosition = 0;
++            if (row.IsPinned) row.ShowInHome = true;
++        }
++
++        if (patch.ColorKey is not null)
++        {
++            if (!NotebookRules.IsAllowedColour(patch.ColorKey))
++            {
++                throw new NotebookValidationException("Unsupported colour.");
++            }
++
++            row.ColorKey = NotebookRules.CleanColour(patch.ColorKey);
++        }
++
++        if (patch.Labels is not null)
++        {
++            await SyncLabelsAsync(row, userId, patch.Labels, ct);
++        }
++
++        Touch(row);
++        await _db.SaveChangesAsync(ct);
++        return Map(row);
++    }
++
++    public async Task<NotebookSystemItemPreferenceVm> SetPlacementAsync(
++        string userId,
++        string systemItemKey,
++        bool isPinned,
++        int position,
++        CancellationToken ct = default)
++    {
++        await EnsureCommandAccessAsync(userId, systemItemKey, ct);
++        var row = await PreferenceQuery()
++            .FirstOrDefaultAsync(x => x.UserId == userId && x.SystemItemKey == systemItemKey, ct);
++        row ??= CreateDefault(userId, systemItemKey);
++        if (_db.Entry(row).State == EntityState.Detached) _db.NotebookSystemItemPreferences.Add(row);
++
++        var ownedCount = await _db.NotebookItems.AsNoTracking().CountAsync(item =>
++            item.OwnerId == userId &&
++            item.DeletedAtUtc == null &&
++            item.Status == NotebookItemStatus.Active &&
++            item.IsPinned == isPinned,
++            ct);
++
++        row.ShowInHome = true;
++        row.IsPinned = isPinned;
++        row.HomePosition = Math.Clamp(position, 0, ownedCount);
++        Touch(row);
++        await _db.SaveChangesAsync(ct);
++        return Map(row);
++    }
++
++    private IQueryable<NotebookSystemItemPreference> PreferenceQuery()
++        => _db.NotebookSystemItemPreferences
++            .Include(x => x.Tags)
++            .ThenInclude(x => x.NotebookTag);
++
++    private async Task SyncLabelsAsync(
++        NotebookSystemItemPreference row,
++        string userId,
++        IReadOnlyList<string> labels,
++        CancellationToken ct)
++    {
++        var clean = NormaliseLabels(labels);
++        if (clean.Count > NotebookLimits.MaxLabelsPerItem)
++        {
++            throw new NotebookValidationException($"A note can have at most {NotebookLimits.MaxLabelsPerItem} labels.");
++        }
++
++        var requested = clean.ToDictionary(x => x.ToUpperInvariant(), x => x, StringComparer.Ordinal);
++        var normalized = requested.Keys.ToArray();
++        var tags = await _db.NotebookTags
++            .Where(x => x.OwnerId == userId && normalized.Contains(x.NormalizedName))
++            .ToListAsync(ct);
++
++        var byNormalized = tags.ToDictionary(x => x.NormalizedName, StringComparer.Ordinal);
++        foreach (var pair in requested)
++        {
++            if (byNormalized.ContainsKey(pair.Key)) continue;
++            var tag = new NotebookTag
++            {
++                OwnerId = userId,
++                Name = pair.Value,
++                NormalizedName = pair.Key
++            };
++            _db.NotebookTags.Add(tag);
++            tags.Add(tag);
++            byNormalized[pair.Key] = tag;
++        }
++
++        row.Tags.Clear();
++        foreach (var tag in tags.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
++        {
++            row.Tags.Add(new NotebookSystemItemTag
++            {
++                Preference = row,
++                NotebookTag = tag
++            });
++        }
++    }
++
++    private static IReadOnlyList<string> NormaliseLabels(IReadOnlyList<string>? labels)
++    {
++        var result = new List<string>();
++        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
++        foreach (var raw in labels ?? Array.Empty<string>())
++        {
++            var value = (raw ?? string.Empty).Trim().TrimStart('#').Trim();
++            if (value.Length == 0) continue;
++            if (value.Length > NotebookLimits.LabelNameMaxLength)
++            {
++                throw new NotebookValidationException($"Label name cannot exceed {NotebookLimits.LabelNameMaxLength} characters.");
++            }
++            if (seen.Add(value)) result.Add(value);
++        }
++        return result;
++    }
++
++    private async Task EnsureCommandAccessAsync(string userId, string systemItemKey, CancellationToken ct)
++    {
++        if (!string.Equals(systemItemKey, NotebookSystemItemKeys.ConferenceDirections, StringComparison.Ordinal))
++        {
++            throw new KeyNotFoundException("The system note could not be found.");
++        }
++
++        var roleNames = new[]
++        {
++            RoleNames.Comdt.ToUpperInvariant(),
++            RoleNames.HoD.ToUpperInvariant()
++        };
++
++        var authorised = await (
++            from userRole in _db.UserRoles.AsNoTracking()
++            join role in _db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
++            where userRole.UserId == userId && role.NormalizedName != null && roleNames.Contains(role.NormalizedName)
++            select userRole.UserId)
++            .AnyAsync(ct);
++
++        if (!authorised) throw new UnauthorizedAccessException("This system note is available only to authorised command users.");
++    }
++
++    private NotebookSystemItemPreference CreateDefault(string userId, string systemItemKey) => new()
++    {
++        UserId = userId,
++        SystemItemKey = systemItemKey,
++        ShowInHome = false,
++        IsPinned = false,
++        HomePosition = 0,
++        ColorKey = "white",
++        UpdatedAtUtc = _clock.UtcNow,
++        Version = Guid.NewGuid()
++    };
++
++    private static NotebookSystemItemPreferenceVm Default(string systemItemKey) => new()
++    {
++        SystemItemKey = systemItemKey,
++        ShowInHome = false,
++        IsPinned = false,
++        HomePosition = 0,
++        ColorKey = "white",
++        Labels = Array.Empty<string>(),
++        Version = Guid.Empty
++    };
++
++    private void Touch(NotebookSystemItemPreference row)
++    {
++        row.UpdatedAtUtc = _clock.UtcNow;
++        row.Version = Guid.NewGuid();
++    }
++
++    private static NotebookSystemItemPreferenceVm Map(NotebookSystemItemPreference row) => new()
++    {
++        SystemItemKey = row.SystemItemKey,
++        ShowInHome = row.ShowInHome,
++        IsPinned = row.IsPinned,
++        HomePosition = row.HomePosition,
++        ColorKey = NotebookRules.CleanColour(row.ColorKey),
++        Labels = row.Tags
++            .Select(x => x.NotebookTag?.Name)
++            .Where(x => !string.IsNullOrWhiteSpace(x))
++            .Select(x => x!)
++            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
++            .ToArray(),
++        Version = row.Version
++    };
++}
+diff --git a/ViewModels/Notebook/NotebookSystemItemViewModels.cs b/ViewModels/Notebook/NotebookSystemItemViewModels.cs
+new file mode 100644
+--- /dev/null
++++ b/ViewModels/Notebook/NotebookSystemItemViewModels.cs
+@@ -0,0 +1,28 @@
++using ProjectManagement.ViewModels.Workspace;
++
++namespace ProjectManagement.ViewModels.Notebook;
++
++public static class NotebookSystemItemKeys
++{
++    public const string ConferenceDirections = "conference-directions";
++}
++
++public sealed class NotebookSystemItemPreferenceVm
++{
++    public string SystemItemKey { get; set; } = string.Empty;
++    public bool ShowInHome { get; set; }
++    public bool IsPinned { get; set; }
++    public int HomePosition { get; set; }
++    public string ColorKey { get; set; } = "white";
++    public IReadOnlyList<string> Labels { get; set; } = Array.Empty<string>();
++    public Guid Version { get; set; }
++}
++
++public sealed class NotebookConferenceDigestCardVm
++{
++    public required ConferenceDirectionDigestVm Digest { get; init; }
++    public required NotebookSystemItemPreferenceVm Preference { get; init; }
++    public string View { get; init; } = "shared";
++    public bool IsHomePlacement { get; init; }
++    public bool IsLabelView { get; init; }
++}
+diff --git a/wwwroot/css/notebook.css b/wwwroot/css/notebook.css
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -4475,3 +4475,98 @@
+         padding-inline: .9rem;
+     }
+ }
++
++/* SECTION: Personal organisation controls for PRISM-owned Notebook surfaces */
++.notebook-conference-shared-card__open {
++    z-index: 1;
++}
++
++.notebook-conference-shared-card__summary {
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.notebook-conference-shared-card__view-all {
++    position: relative;
++    z-index: 4;
++    display: inline-flex;
++    align-items: center;
++    gap: .2rem;
++    margin-top: .48rem;
++    padding: 0;
++    border: 0;
++    background: transparent;
++    color: #556fa5;
++    font-size: .7rem;
++    font-weight: 500;
++    line-height: 1.3;
++}
++
++.notebook-conference-shared-card__view-all:hover,
++.notebook-conference-shared-card__view-all:focus-visible {
++    color: #315fba;
++    text-decoration: underline;
++    text-underline-offset: 2px;
++}
++
++.notebook-conference-shared-card .notebook-card-tags,
++.notebook-conference-shared-card__sharing,
++.notebook-conference-shared-card__actions {
++    position: relative;
++    z-index: 4;
++}
++
++.notebook-conference-shared-card__actions .notebook-actions {
++    align-items: center;
++}
++
++.notebook-system-home-toggle {
++    display: inline-flex;
++    align-items: center;
++    gap: .3rem;
++    min-height: 1.72rem;
++    padding: .22rem .48rem;
++    border: 0;
++    border-radius: 999px;
++    background: transparent;
++    color: #53657d;
++    font-size: .69rem;
++    font-weight: 500;
++    white-space: nowrap;
++}
++
++.notebook-system-home-toggle:hover,
++.notebook-system-home-toggle:focus-visible {
++    background: rgba(60, 64, 67, .08);
++    color: #1f3f78;
++    outline: none;
++}
++
++.notebook-conference-shared-card.is-system-pinned .notebook-card-pin-indicator {
++    color: #536fa8;
++}
++
++/* Long work-item titles must never compete with the issued date. */
++.notebook-conference-digest-item__heading {
++    display: grid;
++    grid-template-columns: minmax(0, 1fr) max-content;
++    align-items: start;
++}
++
++.notebook-conference-digest-item__title {
++    width: auto;
++    max-width: none;
++    white-space: normal;
++}
++
++@media (max-width: 760px) {
++    .notebook-conference-shared-card__summary {
++        white-space: normal;
++    }
++
++    .notebook-conference-digest-item__heading {
++        grid-template-columns: 1fr;
++        gap: .08rem;
++    }
++}
+diff --git a/wwwroot/js/notebook/notebook-api.js b/wwwroot/js/notebook/notebook-api.js
+--- a/wwwroot/js/notebook/notebook-api.js
++++ b/wwwroot/js/notebook/notebook-api.js
+@@ -229,6 +229,9 @@
+   reorderItems: (section, items) => request('/api/notebook/order', jsonRequestOptions('PUT', { section, items })),
+   setColour: (id, colorKey, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/colour`, jsonRequestOptions('POST', { colorKey: colorKey || null, version })),
+   getLabels: () => request('/api/notebook/labels'),
++  getSystemItemPreference: (key) => request(`/api/notebook/system-items/${encodeURIComponent(key)}`),
++  updateSystemItemPreference: (key, payload) => request(`/api/notebook/system-items/${encodeURIComponent(key)}`, jsonRequestOptions('PATCH', payload)),
++  setSystemItemPlacement: (key, isPinned, position) => request(`/api/notebook/system-items/${encodeURIComponent(key)}/placement`, jsonRequestOptions('PUT', { isPinned: Boolean(isPinned), position: Number(position) || 0 })),
+   createLabel: (name) => request('/api/notebook/labels', jsonRequestOptions('POST', { name })),
+   setLabels: (id, labels, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/labels`, jsonRequestOptions('POST', { labels, version })),
+   renameLabel: (id, name) => request(`/api/notebook/labels/${encodeURIComponent(id)}`, jsonRequestOptions('PATCH', { name })),
+diff --git a/wwwroot/js/notebook/notebook-app.js b/wwwroot/js/notebook/notebook-app.js
+--- a/wwwroot/js/notebook/notebook-app.js
++++ b/wwwroot/js/notebook/notebook-app.js
+@@ -53,8 +53,82 @@
+   catch { return []; }
+ }
+ 
++function isNotebookSystemCard(card) {
++  return Boolean(card?.dataset?.notebookSystemCard);
++}
++
++function applySystemCardColour(card, colorKey) {
++  if (!card) return;
++  const resolved = normaliseNotebookColour(colorKey);
++  [...card.classList].filter((name) => name.startsWith('notebook-card-color-')).forEach((name) => card.classList.remove(name));
++  card.classList.add(`notebook-card-color-${resolved}`);
++  card.querySelectorAll('[data-colour-choice]').forEach((choice) => {
++    const selected = normaliseNotebookColour(choice.dataset.colourChoice) === resolved;
++    choice.classList.toggle('is-selected', selected);
++    choice.setAttribute('aria-checked', String(selected));
++  });
++}
++
++function renderSystemCardTags(card, labels = []) {
++  const root = card?.querySelector?.('[data-system-card-tags]');
++  if (!root) return;
++  const values = Array.isArray(labels) ? labels.filter(Boolean) : [];
++  root.innerHTML = '';
++  values.slice(0, 3).forEach((label) => {
++    const link = document.createElement('a');
++    link.className = 'notebook-tag-chip';
++    link.href = `/Notebook?view=labels&tag=${encodeURIComponent(label)}`;
++    link.setAttribute('aria-label', `Open label ${label}`);
++    link.textContent = label;
++    root.appendChild(link);
++  });
++  if (values.length > 3) {
++    const more = document.createElement('span');
++    more.className = 'notebook-tag-chip';
++    more.textContent = `+${values.length - 3}`;
++    root.appendChild(more);
++  }
++  root.hidden = values.length === 0;
++}
++
++function applySystemPreference(card, preference) {
++  if (!card || !preference) return;
++  card.dataset.systemShowHome = String(Boolean(preference.showInHome));
++  card.dataset.systemIsPinned = String(Boolean(preference.isPinned));
++  card.dataset.systemHomePosition = String(Number(preference.homePosition || 0));
++  card.dataset.systemPreferenceVersion = preference.version || '';
++  card.dataset.labels = JSON.stringify(Array.isArray(preference.labels) ? preference.labels : []);
++  applySystemCardColour(card, preference.colorKey || 'white');
++  renderSystemCardTags(card, preference.labels || []);
++
++  card.classList.toggle('is-system-pinned', Boolean(preference.isPinned));
++  const pinState = card.querySelector('[data-system-pin-state]');
++  if (pinState) pinState.hidden = !Boolean(preference.isPinned);
++
++  const pin = card.querySelector('[data-action="system-pin-note"]');
++  if (pin) {
++    const pinned = Boolean(preference.isPinned);
++    pin.classList.toggle('is-active', pinned);
++    pin.title = pinned ? 'Unpin' : 'Pin';
++    pin.setAttribute('aria-label', pinned ? 'Unpin system note' : 'Pin system note');
++    const icon = pin.querySelector('i');
++    if (icon) icon.className = `bi ${pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}`;
++  }
++}
++
+ function escapeLabelHtml(value) {
+   return String(value || '').replace(/[&<>'"]/g, (character) => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[character]));
++}
++
++async function updateSystemPreferenceWithSingleRetry(key, payload) {
++  try {
++    return await NotebookApi.updateSystemItemPreference(key, payload);
++  } catch (error) {
++    // Presentation preferences are independent of Conference content. A single retry
++    // safely resolves a rare simultaneous colour/label/pin update from another tab.
++    if (error?.status === 409) return NotebookApi.updateSystemItemPreference(key, payload);
++    throw error;
++  }
+ }
+ 
+ // SECTION: Notebook app bootstrap and delegated interactions
+@@ -69,13 +143,17 @@
+   const globalErrorText = document.querySelector('[data-notebook-global-error-text]');
+   const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
+   const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || '0', 10) || 0);
++  let systemHomeCount = Math.max(0, Number.parseInt(shell.dataset.systemHomeCount || '0', 10) || 0);
+   const applyCounts = (counts) => {
+     if (!counts) return;
+     Object.entries(counts).forEach(([key, value]) => {
+       const numericValue = Number(value) || 0;
+-      const displayValue = key.toLowerCase() === 'shared'
++      const normalizedKey = key.toLowerCase();
++      const displayValue = normalizedKey === 'shared'
+         ? numericValue + systemSharedCount
+-        : numericValue;
++        : normalizedKey === 'home'
++          ? numericValue + systemHomeCount
++          : numericValue;
+       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
+         el.textContent = String(displayValue);
+         if (key.toLowerCase() === 'overdue') {
+@@ -106,7 +184,18 @@
+       onError: (error) => showGlobalError(error?.message || 'Unable to create the label.'),
+       onChange: async (labels) => {
+         const card = activeLabelCard;
+-        if (!card?.dataset?.noteId) return;
++        if (!card) return;
++
++        if (isNotebookSystemCard(card)) {
++          const key = card.dataset.systemItemKey || card.dataset.notebookSystemCard;
++          const response = await updateSystemPreferenceWithSingleRetry(key, { labels });
++          applySystemPreference(card, response?.preference);
++          const catalogue = await refreshNotebookLabelCatalog();
++          renderNotebookLabelNavigation(shell, catalogue);
++          return;
++        }
++
++        if (!card.dataset.noteId) return;
+         const apply = async (version) => {
+           const response = await NotebookApi.setLabels(card.dataset.noteId, labels, version);
+           const updated = requireMutationItem(response);
+@@ -134,9 +223,23 @@
+     }
+   );
+ 
+-  document.addEventListener('notebook:labels-changed', (event) => {
++  document.addEventListener('notebook:labels-changed', async (event) => {
+     const nextLabels = Array.isArray(event.detail?.labels) ? event.detail.labels : [];
+     renderNotebookLabelNavigation(shell, nextLabels);
++
++    // A label rename/delete can affect the virtual PRISM note even though it is not a
++    // NotebookItem. Refresh its personal association by stable system-item key.
++    const cards = [...shell.querySelectorAll('[data-notebook-system-card]')];
++    if (cards.length === 0) return;
++    const key = cards[0].dataset.systemItemKey || cards[0].dataset.notebookSystemCard;
++    if (!key) return;
++    try {
++      const response = await NotebookApi.getSystemItemPreference(key);
++      cards.forEach((card) => applySystemPreference(card, response?.preference));
++    } catch {
++      // Label catalogue refresh remains useful even if the system-note preference
++      // cannot be refreshed (for example after a role change in another session).
++    }
+   });
+   renderNotebookLabelNavigation(shell, labels);
+   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
+@@ -208,12 +311,19 @@
+     if (cardColourChoice) {
+       event.preventDefault();
+       event.stopPropagation();
+-      const card = cardColourChoice.closest('[data-note-id]');
++      const card = cardColourChoice.closest('.notebook-card');
+       if (!card) return;
+       const picker = cardColourChoice.closest('[data-notebook-colour-picker]');
+       const colorKey = normaliseNotebookColour(cardColourChoice.dataset.colourChoice);
+       cardColourChoice.disabled = true;
+       try {
++        if (isNotebookSystemCard(card)) {
++          const key = card.dataset.systemItemKey || card.dataset.notebookSystemCard;
++          const response = await updateSystemPreferenceWithSingleRetry(key, { colorKey });
++          applySystemPreference(card, response?.preference);
++          return;
++        }
++
+         const response = await NotebookApi.setColour(card.dataset.noteId, colorKey, card.dataset.version);
+         const updated = requireMutationItem(response);
+         updateCardConcurrencyState(card, updated);
+@@ -266,15 +376,69 @@
+       return;
+     }
+     if (action.closest('.notebook-card-more__menu')) closeNotebookMenus();
+-    const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
+-    if (action.dataset.action === 'label-note' && card) {
++    const card = action.closest('[data-note-id]');
++    const systemCard = action.closest('[data-notebook-system-card]');
++    const actionCard = card || systemCard;
++    const id = card?.dataset.noteId;
++    if (action.dataset.action === 'label-note' && actionCard) {
+       event.preventDefault();
+       action.closest('details')?.removeAttribute('open');
+-      activeLabelCard = card;
+-      cardLabelPicker?.configure({ value: parseCardLabels(card) });
++      activeLabelCard = actionCard;
++      cardLabelPicker?.configure({ value: parseCardLabels(actionCard) });
+       cardLabelPicker?.open(action);
+       return;
+     }
++    if (systemCard && ['system-add-home', 'system-remove-home', 'system-pin-note'].includes(action.dataset.action)) {
++      event.preventDefault();
++      action.closest('details')?.removeAttribute('open');
++      action.disabled = true;
++      const key = systemCard.dataset.systemItemKey || systemCard.dataset.notebookSystemCard;
++      try {
++        if (action.dataset.action === 'system-add-home') {
++          await updateSystemPreferenceWithSingleRetry(key, { showInHome: true });
++          window.location.assign('/Notebook?view=home');
++          return;
++        }
++
++        if (action.dataset.action === 'system-remove-home') {
++          const response = await updateSystemPreferenceWithSingleRetry(key, { showInHome: false });
++          applySystemPreference(systemCard, response?.preference);
++          if (view === 'home') {
++            systemCard.remove();
++            systemHomeCount = 0;
++            shell.dataset.systemHomeCount = '0';
++            board.refreshSectionVisibility();
++            board.refreshEmptyState();
++            dragOrder?.refresh?.();
++            await refreshCounts();
++          }
++          showNotebookToast({ message: 'Removed from All Notes. It remains available in Shared with me.', tone: 'neutral' });
++          return;
++        }
++
++        if (action.dataset.action === 'system-pin-note') {
++          const nextPinned = systemCard.dataset.systemIsPinned !== 'true';
++          const response = await updateSystemPreferenceWithSingleRetry(key, { isPinned: nextPinned });
++          applySystemPreference(systemCard, response?.preference);
++          if (view === 'home') {
++            const target = board.getBoard(nextPinned);
++            target?.prepend(systemCard);
++            systemCard.dataset.notebookSystemHomeCard = key;
++            systemCard.dataset.reorderable = 'true';
++            board.refreshSectionVisibility();
++            board.refreshEmptyState();
++            dragOrder?.refresh?.();
++          }
++          return;
++        }
++      } catch (error) {
++        showGlobalError(error?.message || 'Unable to update the PRISM note.');
++      } finally {
++        action.disabled = false;
++      }
++      return;
++    }
++
+     if (action.dataset.action === 'share-note' && card) { event.preventDefault(); action.closest('details')?.removeAttribute('open'); collaborators?.open(card); return; }
+     if (action.dataset.action === 'share-note-editor') {
+       event.preventDefault();
+diff --git a/wwwroot/js/notebook/notebook-board.js b/wwwroot/js/notebook/notebook-board.js
+--- a/wwwroot/js/notebook/notebook-board.js
++++ b/wwwroot/js/notebook/notebook-board.js
+@@ -1,4 +1,6 @@
+ import { NotebookBoardTargetError, NotebookCardHtmlError } from './notebook-errors.js';
++
++const VISUAL_CARD_SELECTOR = ':scope > [data-note-id], :scope > [data-notebook-system-card]';
+ 
+ // SECTION: Notebook board DOM updates
+ export function createNotebookBoard(root = document) {
+@@ -40,7 +42,7 @@
+   // SECTION: Board state refresh helpers
+   function refreshBoardLayout(board) {
+     if (!board) return;
+-    const count = board.querySelectorAll(':scope > [data-note-id]').length;
++    const count = board.querySelectorAll(VISUAL_CARD_SELECTOR).length;
+     board.dataset.itemCount = String(count);
+     const policy = board.dataset.layoutPolicy || 'fixed-grid';
+     const useMasonry = policy === 'masonry-always' || (policy === 'masonry-threshold' && count > 4);
+@@ -61,7 +63,7 @@
+       if (countEl) countEl.textContent = String(count);
+     });
+   };
+-  const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const notebookCount = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); const systemSharedCount = root.querySelectorAll('[data-notebook-system-shared-card]').length; empty.hidden = notebookCount + systemSharedCount > 0; };
++  const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const notebookCount = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); const systemCount = root.querySelectorAll('[data-notebook-system-card]').length; empty.hidden = notebookCount + systemCount > 0; };
+ 
+   // SECTION: Card mutation helpers
+   const upsertCard = (id, html, isPinned, options = {}) => { const current = findCard(id); const targetBoard = getBoard(isPinned); if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? 'pinned' : 'others'}" was not found.`); const fragment = htmlToCardElement(html, id); const sameBoard = current && current.parentElement === targetBoard; const preservePosition = options.preservePosition !== false; if (sameBoard && preservePosition) { current.replaceWith(fragment); } else { current?.remove(); options.prepend === false ? targetBoard.append(fragment) : targetBoard.prepend(fragment); } refreshSectionVisibility(); refreshEmptyState(); return fragment; };
+diff --git a/wwwroot/js/notebook/notebook-board.test.js b/wwwroot/js/notebook/notebook-board.test.js
+--- a/wwwroot/js/notebook/notebook-board.test.js
++++ b/wwwroot/js/notebook/notebook-board.test.js
+@@ -107,3 +107,12 @@
+   assert.equal(element.dataset.itemCount, '2');
+   assert.equal(element.dataset.layout, 'masonry');
+ });
++
++test('notebook board counts a home system note as a visual card without requiring a note id', () => {
++  const dom = new JSDOM('<section data-notebook-section="others"><span data-notebook-count="others"></span><div data-notebook-board="others" data-layout-policy="masonry-always"><article data-note-id="1"></article><article data-notebook-system-card="conference-directions" data-notebook-system-home-card="conference-directions"></article></div></section>');
++  const board = loadBoard(dom);
++  const element = dom.window.document.querySelector('[data-notebook-board="others"]');
++  board.refreshSectionVisibility();
++  assert.equal(element.dataset.itemCount, '2');
++  assert.equal(dom.window.document.querySelector('[data-notebook-count="others"]').textContent, '2');
++});
+diff --git a/wwwroot/js/notebook/notebook-conference-digest-contract.test.js b/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
+--- a/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
++++ b/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
+@@ -3,62 +3,63 @@
+ const fs = require('node:fs');
+ const path = require('node:path');
+ 
+-const partialPath = path.join(__dirname, '../../../Pages/Notebook/_NotebookConferenceDigest.cshtml');
+-const indexPath = path.join(__dirname, '../../../Pages/Notebook/Index.cshtml');
+-const cssPath = path.join(__dirname, '../../css/notebook.css');
++const root = path.resolve(__dirname, '../../..');
++const partialPath = path.join(root, 'Pages/Notebook/_NotebookConferenceDigest.cshtml');
++const modalPath = path.join(root, 'Pages/Notebook/_NotebookConferenceDigestModal.cshtml');
++const indexPath = path.join(root, 'Pages/Notebook/Index.cshtml');
++const cssPath = path.join(root, 'wwwroot/css/notebook.css');
+ 
+ const read = (file) => fs.readFileSync(file, 'utf8');
+ 
+-test('conference digest is a PRISM-shared normal-width notebook card', () => {
++test('conference digest uses normal Notebook card geometry and one-line summary metadata', () => {
+   const partial = read(partialPath);
+   const index = read(indexPath);
+   const css = read(cssPath);
+ 
+-  assert.match(partial, /class="notebook-card notebook-card-color-white notebook-conference-shared-card"/);
+-  assert.match(partial, /PRISM · Read only/);
+-  assert.match(index, /Model\.Notebook\.View == "shared"/);
+-  assert.match(index, /<h2>From PRISM<\/h2><span>1<\/span>/);
+-  assert.match(index, /<h2>From people<\/h2>/);
+-  assert.match(css, /\.notebook-shell\[data-board-view="grid"\] \.notebook-board\.notebook-system-shared-board\s*\{[\s\S]*?280px\) !important;/);
++  assert.match(partial, /class="notebook-card notebook-card-color-@colorKey notebook-conference-shared-card/);
++  assert.match(partial, /@digest\.TotalDirectionCount latest direction/);
++  assert.match(partial, /· @digest\.OfficerCount Project Officer/);
++  assert.match(index, /<h2>From PRISM<\/h2>/);
++  assert.match(css, /\.notebook-system-shared-board/);
+   assert.doesNotMatch(css, /\.notebook-conference-digest-card\s*\{[\s\S]*?780px/);
+ });
+ 
+-test('conference digest preview remains deliberately shallow and PO-wise', () => {
++test('compact preview remains shallow, PO-wise and has an unambiguous View all action', () => {
+   const partial = read(partialPath);
+ 
+   assert.match(partial, /const int previewOfficerLimit = 2;/);
+   assert.match(partial, /const int previewDirectionLimit = 3;/);
+-  assert.match(partial, /previewGroups = Model\.OfficerGroups\.Take\(previewOfficerLimit\)/);
++  assert.match(partial, /previewGroups = digest\.OfficerGroups\.Take\(previewOfficerLimit\)/);
+   assert.match(partial, /notebook-conference-shared-card__officer/);
+-  assert.match(partial, /hiddenDirectionCount/);
++  assert.match(partial, /View all @digest\.TotalDirectionCount/);
++  assert.doesNotMatch(partial, /more directions/);
+ });
+ 
+ test('conference digest does not repeat project idea or task type labels', () => {
+   const partial = read(partialPath);
++  const modal = read(modalPath);
++  const combined = partial + modal;
+ 
+-  assert.doesNotMatch(partial, /@item\.KindLabel/);
+-  assert.doesNotMatch(partial, /notebook-conference-digest-item__kind/);
+-  assert.doesNotMatch(partial, />PROJECT</);
+-  assert.doesNotMatch(partial, />IDEA</);
+-  assert.doesNotMatch(partial, />TASK</);
++  assert.doesNotMatch(combined, /@item\.KindLabel/);
++  assert.doesNotMatch(combined, />PROJECT</);
++  assert.doesNotMatch(combined, />IDEA</);
++  assert.doesNotMatch(combined, />TASK</);
+ });
+ 
+-test('expanded digest uses latest terminology and concise PO register hierarchy', () => {
+-  const partial = read(partialPath);
++test('expanded digest uses precise provenance and latest terminology', () => {
++  const modal = read(modalPath);
+ 
+-  assert.match(partial, /@Model\.TotalDirectionCount latest direction/);
+-  assert.doesNotMatch(partial, /@Model\.TotalDirectionCount current direction/);
+-  assert.doesNotMatch(partial, /<span>@group\.Directions\.Count current direction/);
+-  assert.match(partial, /Command · PRISM/);
+-  assert.match(partial, /Source: Conference Review/);
++  assert.match(modal, /PRISM · Conference Review/);
++  assert.match(modal, /@digest\.TotalDirectionCount latest direction/);
++  assert.doesNotMatch(modal, /current direction/);
++  assert.match(modal, /Source: Conference Review/);
+ });
+ 
+-test('expanded digest separates PO groups without rules between every direction', () => {
++test('expanded digest uses a two-column title-date heading and only PO group dividers', () => {
+   const css = read(cssPath);
+   const officerRule = css.match(/\.notebook-conference-digest-officer\s*\{([^}]*)\}/)?.[1] ?? '';
+   const itemRule = css.match(/\.notebook-conference-digest-item\s*\{([^}]*)\}/)?.[1] ?? '';
+-
+   assert.match(officerRule, /border-bottom:\s*1px solid/);
+   assert.doesNotMatch(itemRule, /border-bottom/);
+-  assert.match(css, /\.notebook-conference-digest-officer__items\s*\{[\s\S]*?gap:\s*\.48rem;/);
++  assert.match(css, /\.notebook-conference-digest-item__heading\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)\s+max-content;/);
+ });
+diff --git a/wwwroot/js/notebook/notebook-conference-digest-typography-contract.test.js b/wwwroot/js/notebook/notebook-conference-digest-typography-contract.test.js
+--- a/wwwroot/js/notebook/notebook-conference-digest-typography-contract.test.js
++++ b/wwwroot/js/notebook/notebook-conference-digest-typography-contract.test.js
+@@ -30,5 +30,5 @@
+ 
+ test('supporting actions do not compete with content', () => {
+     assert.match(rule('.notebook-conference-digest-officer__review-link'), /font-weight:\s*500\s*;/);
+-    assert.match(rule('.notebook-conference-shared-card__more'), /font-weight:\s*500\s*;/);
++    assert.match(rule('.notebook-conference-shared-card__view-all'), /font-weight:\s*500\s*;/);
+ });
+diff --git a/wwwroot/js/notebook/notebook-drag-order.js b/wwwroot/js/notebook/notebook-drag-order.js
+--- a/wwwroot/js/notebook/notebook-drag-order.js
++++ b/wwwroot/js/notebook/notebook-drag-order.js
+@@ -1,7 +1,9 @@
+ // SECTION: Notebook board drag-and-drop and keyboard reordering
+ const BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
+-const CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
+-const ALL_CARD_SELECTOR = ':scope > [data-note-id]';
++const OWNED_CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
++const SYSTEM_CARD_SELECTOR = ':scope > [data-notebook-system-home-card][data-reorderable="true"]';
++const CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
++const ALL_CARD_SELECTOR = ':scope > [data-note-id], :scope > [data-notebook-system-home-card]';
+ const DRAG_THRESHOLD_PX = 6;
+ const TOUCH_LONG_PRESS_MS = 300;
+ const TOUCH_CANCEL_DISTANCE_PX = 8;
+@@ -18,17 +20,27 @@
+   return [...board.querySelectorAll(ALL_CARD_SELECTOR)];
+ }
+ 
++function ownedCards(board) {
++  return [...board.querySelectorAll(OWNED_CARD_SELECTOR)];
++}
++
++function cardKey(card) {
++  if (card?.dataset?.noteId) return `note:${card.dataset.noteId}`;
++  if (card?.dataset?.notebookSystemHomeCard) return `system:${card.dataset.notebookSystemHomeCard}`;
++  return '';
++}
++
+ function serialiseBoard(board) {
+-  return directCards(board).map((card) => ({
++  return ownedCards(board).map((card) => ({
+     id: card.dataset.noteId,
+     version: card.dataset.version
+   }));
+ }
+ 
+-function restoreOrder(board, ids) {
+-  const map = new Map(allCards(board).map((card) => [card.dataset.noteId, card]));
+-  ids.forEach((id) => {
+-    const card = map.get(id);
++function restoreOrder(board, keys) {
++  const map = new Map(allCards(board).map((card) => [cardKey(card), card]));
++  keys.forEach((key) => {
++    const card = map.get(key);
+     if (card) board.append(card);
+   });
+ }
+@@ -175,7 +187,7 @@
+ export function initNotebookDragOrder(shell, boardController, options = {}) {
+   if (!shell || shell.dataset.view !== 'home') return null;
+   const api = options.api;
+-  if (!api?.reorderItems) throw new Error('Notebook reorder API is unavailable.');
++  if (!api?.reorderItems || !api?.setSystemItemPlacement) throw new Error('Notebook reorder API is unavailable.');
+ 
+   const showError = options.showError || (() => {});
+   const liveRegion = shell.querySelector('[data-notebook-reorder-live]');
+@@ -208,22 +220,37 @@
+     });
+   };
+ 
+-  const persist = (board, originalIds) => {
++  const persist = (board, originalKeys) => {
+     const section = board.dataset.notebookBoard;
+     const items = serialiseBoard(board);
+-    pendingSave = { board, section, items, originalIds };
++    pendingSave = { board, section, items, originalKeys };
+     activeSave = activeSave.then(async () => {
+       const job = pendingSave;
+       pendingSave = null;
+       if (!job) return;
+       try {
++        // Normal Notebook items keep their authoritative sparse order contract. The
++        // system note stores only its visual slot among those owned cards.
+         await api.reorderItems(job.section, job.items);
++        const mixedCards = directCards(job.board);
++        const systemCard = mixedCards.find((card) => card.dataset.notebookSystemHomeCard);
++        if (systemCard) {
++          const position = mixedCards.indexOf(systemCard);
++          const key = systemCard.dataset.notebookSystemHomeCard;
++          const response = await api.setSystemItemPlacement(key, job.section === 'pinned', position);
++          const preference = response?.preference;
++          if (preference) {
++            systemCard.dataset.systemIsPinned = String(Boolean(preference.isPinned));
++            systemCard.dataset.systemHomePosition = String(Number(preference.homePosition || 0));
++            systemCard.dataset.systemPreferenceVersion = preference.version || '';
++          }
++        }
+       } catch (error) {
+-        restoreOrder(job.board, job.originalIds);
++        restoreOrder(job.board, job.originalKeys);
+         boardController.refreshSectionVisibility();
+         showError(error?.message || 'Could not save note order. Previous order restored.');
+       }
+-      if (pendingSave) return persist(pendingSave.board, pendingSave.originalIds);
++      if (pendingSave) return persist(pendingSave.board, pendingSave.originalKeys);
+     });
+   };
+ 
+@@ -280,7 +307,7 @@
+       pointer: { x: clientX, y: clientY },
+       offsetX: clientX - rect.left,
+       offsetY: clientY - rect.top,
+-      originalIds: state.originalIds,
++      originalKeys: state.originalKeys,
+       lastMove: null
+     };
+     document.body.classList.add('notebook-is-dragging');
+@@ -298,7 +325,7 @@
+       cancelPointerArm();
+       return;
+     }
+-    const { card, board, placeholder, preview, originalIds, pointerId } = dragState;
++    const { card, board, placeholder, preview, originalKeys, pointerId } = dragState;
+     preview.remove();
+     placeholder.replaceWith(card);
+     board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
+@@ -307,11 +334,11 @@
+     document.body.classList.remove('notebook-is-dragging');
+     shell.releasePointerCapture?.(pointerId);
+     if (save) {
+-      persist(board, originalIds);
++      persist(board, originalKeys);
+       suppressClickUntil = performance.now() + 300;
+       announce(`Dropped at position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
+     } else {
+-      restoreOrder(board, originalIds);
++      restoreOrder(board, originalKeys);
+       announce('Rearrangement cancelled.');
+     }
+     dragState = null;
+@@ -322,7 +349,7 @@
+   const beginKeyboard = (handle, card) => {
+     const board = card.parentElement;
+     if (!isEnabled() || !board?.matches(BOARD_SELECTOR)) return;
+-    keyboardState = { handle, card, board, originalIds: allCards(board).map((entry) => entry.dataset.noteId) };
++    keyboardState = { handle, card, board, originalKeys: allCards(board).map(cardKey) };
+     card.classList.add('is-keyboard-dragging');
+     handle.setAttribute('aria-grabbed', 'true');
+     announce(`Picked up ${card.querySelector('.notebook-card-title')?.textContent || 'note'}, position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
+@@ -330,14 +357,14 @@
+ 
+   const finishKeyboard = (save) => {
+     if (!keyboardState) return;
+-    const { handle, card, board, originalIds } = keyboardState;
++    const { handle, card, board, originalKeys } = keyboardState;
+     card.classList.remove('is-keyboard-dragging');
+     handle.setAttribute('aria-grabbed', 'false');
+     if (save) {
+-      persist(board, originalIds);
++      persist(board, originalKeys);
+       announce('Note dropped.');
+     } else {
+-      restoreOrder(board, originalIds);
++      restoreOrder(board, originalKeys);
+       announce('Rearrangement cancelled.');
+     }
+     keyboardState = null;
+@@ -345,7 +372,7 @@
+ 
+   const onPointerDown = (event) => {
+     if (!isEnabled() || event.button !== 0 || pointerState || dragState) return;
+-    const card = event.target.closest('[data-note-id][data-reorderable="true"]');
++    const card = event.target.closest('[data-note-id][data-reorderable="true"], [data-notebook-system-home-card][data-reorderable="true"]');
+     const board = card?.parentElement;
+     if (!card || !board?.matches(BOARD_SELECTOR) || isInteractiveDragTarget(event.target)) return;
+ 
+@@ -358,7 +385,7 @@
+       startY: event.clientY,
+       clientX: event.clientX,
+       clientY: event.clientY,
+-      originalIds: allCards(board).map((entry) => entry.dataset.noteId),
++      originalKeys: allCards(board).map(cardKey),
+       timer: null
+     };
+     pointerState = state;
+@@ -404,7 +431,7 @@
+   };
+ 
+   const onClickCapture = (event) => {
+-    if (performance.now() >= suppressClickUntil || !event.target.closest('[data-note-id]')) return;
++    if (performance.now() >= suppressClickUntil || !event.target.closest('[data-note-id], [data-notebook-system-home-card]')) return;
+     event.preventDefault();
+     event.stopImmediatePropagation();
+   };
+@@ -412,7 +439,7 @@
+   const onKeyDown = (event) => {
+     const handle = event.target.closest('[data-notebook-drag-handle]');
+     if (!handle) return;
+-    const card = handle.closest('[data-note-id][data-reorderable="true"]');
++    const card = handle.closest('[data-note-id][data-reorderable="true"], [data-notebook-system-home-card][data-reorderable="true"]');
+     if (!keyboardState && (event.key === ' ' || event.key === 'Enter')) {
+       event.preventDefault();
+       beginKeyboard(handle, card);
+@@ -490,6 +517,8 @@
+ 
+ export const notebookDragOrderTestHelpers = {
+   directCards,
++  ownedCards,
++  cardKey,
+   serialiseBoard,
+   restoreOrder,
+   findInsertionTarget,
+diff --git a/wwwroot/js/notebook/notebook-drag-order.test.js b/wwwroot/js/notebook/notebook-drag-order.test.js
+--- a/wwwroot/js/notebook/notebook-drag-order.test.js
++++ b/wwwroot/js/notebook/notebook-drag-order.test.js
+@@ -32,11 +32,33 @@
+   ]);
+ });
+ 
++
++
++test('system note participates in visual drag order but is excluded from normal Notebook reorder payload', () => {
++  const dom = new JSDOM('<div id="b"><article data-note-id="a" data-version="v1" data-reorderable="true"></article><article data-notebook-system-home-card="conference-directions" data-reorderable="true"></article><article data-note-id="b" data-version="v2" data-reorderable="true"></article></div>');
++  const helpers = loadHelpers(dom.window.document);
++  const board = dom.window.document.querySelector('#b');
++  assert.equal(helpers.directCards(board).length, 3);
++  assert.deepEqual(JSON.parse(JSON.stringify(helpers.serialiseBoard(board))), [
++    { id: 'a', version: 'v1' }, { id: 'b', version: 'v2' }
++  ]);
++  assert.equal(helpers.cardKey(board.children[1]), 'system:conference-directions');
++});
++
++test('restoreOrder restores mixed normal/system card sequence by stable keys', () => {
++  const dom = new JSDOM('<div id="b"><article data-note-id="a"></article><article data-notebook-system-home-card="conference-directions"></article><article data-note-id="b"></article></div>');
++  const helpers = loadHelpers(dom.window.document);
++  const board = dom.window.document.querySelector('#b');
++  helpers.restoreOrder(board, ['note:b', 'system:conference-directions', 'note:a']);
++  assert.deepEqual([...board.children].map((card) => helpers.cardKey(card)), [
++    'note:b', 'system:conference-directions', 'note:a'
++  ]);
++});
+ test('restoreOrder restores a previous board sequence', () => {
+   const dom = new JSDOM('<div id="b"><article data-note-id="b"></article><article data-note-id="a"></article></div>');
+   const helpers = loadHelpers(dom.window.document);
+   const board = dom.window.document.querySelector('#b');
+-  helpers.restoreOrder(board, ['a', 'b']);
++  helpers.restoreOrder(board, ['note:a', 'note:b']);
+   assert.deepEqual([...board.children].map((x) => x.dataset.noteId), ['a', 'b']);
+ });
+ 
+diff --git a/wwwroot/js/notebook/notebook-system-note-personalization-contract.test.js b/wwwroot/js/notebook/notebook-system-note-personalization-contract.test.js
+new file mode 100644
+--- /dev/null
++++ b/wwwroot/js/notebook/notebook-system-note-personalization-contract.test.js
+@@ -0,0 +1,63 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '../../..');
++const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
++
++const model = read('Models', 'NotebookSystemItemPreference.cs');
++const service = read('Services', 'Notebook', 'NotebookSystemItemPreferenceService.cs');
++const controller = read('Controllers', 'Api', 'NotebookSystemItemsController.cs');
++const migration = read('Migrations', '20261207200000_AddNotebookSystemItemPreferences.cs');
++const snapshot = read('Migrations', 'ApplicationDbContextModelSnapshot.cs');
++const app = read('wwwroot', 'js', 'notebook', 'notebook-app.js');
++const drag = read('wwwroot', 'js', 'notebook', 'notebook-drag-order.js');
++const api = read('wwwroot', 'js', 'notebook', 'notebook-api.js');
++const partial = read('Pages', 'Notebook', '_NotebookConferenceDigest.cshtml');
++
++test('system note persistence stores presentation metadata only', () => {
++  assert.match(model, /ShowInHome/);
++  assert.match(model, /IsPinned/);
++  assert.match(model, /HomePosition/);
++  assert.match(model, /ColorKey/);
++  assert.match(model, /ICollection<NotebookSystemItemTag> Tags/);
++  assert.doesNotMatch(model, /DirectionText|BodyMarkdown|ConferenceDirection/);
++  assert.match(migration, /CreateTable\(\s*name: "NotebookSystemItemPreferences"/);
++  assert.match(migration, /CreateTable\(\s*name: "NotebookSystemItemTags"/);
++  assert.match(snapshot, /ProjectManagement\.Models\.NotebookSystemItemPreference/);
++  assert.match(snapshot, /WithMany\("SystemItems"\)/);
++});
++
++test('preference service is command-scoped and reuses the users own Notebook labels', () => {
++  assert.match(service, /RoleNames\.Comdt/);
++  assert.match(service, /RoleNames\.HoD/);
++  assert.match(service, /SyncLabelsAsync/);
++  assert.match(service, /_db\.NotebookTags/);
++  assert.match(service, /NotebookSystemItemKeys\.ConferenceDirections/);
++});
++
++test('system-note API exposes only personal presentation mutations', () => {
++  assert.match(controller, /\[Authorize\(Roles = RoleNames\.Comdt \+ "," \+ RoleNames\.HoD\)\]/);
++  assert.match(controller, /\[HttpPatch\("\{key\}"\)\]/);
++  assert.match(controller, /\[HttpPut\("\{key\}\/placement"\)\]/);
++  assert.match(controller, /ShowInHome/);
++  assert.match(controller, /IsPinned/);
++  assert.match(controller, /ColorKey/);
++  assert.match(controller, /Labels/);
++  assert.doesNotMatch(controller, /DirectionText|ReminderAtUtc|Archive|Complete/);
++});
++
++test('client supports colour labels pin add remove and dedicated placement persistence', () => {
++  assert.match(partial, /data-action="system-pin-note"/);
++  assert.match(partial, /_NotebookColourPicker/);
++  assert.match(partial, /data-action="label-note"/);
++  assert.match(partial, /data-action="system-add-home"/);
++  assert.match(partial, /data-action="system-remove-home"/);
++  assert.match(app, /updateSystemPreferenceWithSingleRetry\(key, \{ colorKey \}\)/);
++  assert.match(app, /updateSystemPreferenceWithSingleRetry\(key, \{ labels \}\)/);
++  assert.match(api, /setSystemItemPlacement/);
++  assert.match(drag, /api\.setSystemItemPlacement/);
++  assert.match(drag, /serialiseBoard\(board\)/);
++  assert.match(drag, /return ownedCards\(board\)/);
++});
+diff --git a/wwwroot/js/notebook/notebook-system-shared-contract.test.js b/wwwroot/js/notebook/notebook-system-shared-contract.test.js
+--- a/wwwroot/js/notebook/notebook-system-shared-contract.test.js
++++ b/wwwroot/js/notebook/notebook-system-shared-contract.test.js
+@@ -6,34 +6,52 @@
+ const root = path.resolve(__dirname, '../../..');
+ const index = fs.readFileSync(path.join(root, 'Pages/Notebook/Index.cshtml'), 'utf8');
+ const pageModel = fs.readFileSync(path.join(root, 'Pages/Notebook/Index.cshtml.cs'), 'utf8');
++const partial = fs.readFileSync(path.join(root, 'Pages/Notebook/_NotebookConferenceDigest.cshtml'), 'utf8');
+ const app = fs.readFileSync(path.join(root, 'wwwroot/js/notebook/notebook-app.js'), 'utf8');
+ const board = fs.readFileSync(path.join(root, 'wwwroot/js/notebook/notebook-board.js'), 'utf8');
+ 
+-test('system-shared Conference digest is not rendered on All Notes', () => {
+-  assert.doesNotMatch(index, /SECTION: Live command digest/);
++test('Shared with me remains the authoritative home for the PRISM conference digest', () => {
+   assert.match(index, /else if \(Model\.Notebook\.View == "shared"\)/);
+   assert.match(index, /data-notebook-shared-source="prism"/);
+-  assert.match(index, /var hasAnyHomeItems = Model\.Notebook\.PinnedItems\.Any\(\)\s*\|\| Model\.Notebook\.OtherItems\.Any\(\);/);
++  assert.match(index, /<h2>From PRISM<\/h2><span>1<\/span>/);
++  assert.match(partial, /PRISM · Read only/);
++  assert.doesNotMatch(partial, /Shared with [A-Z]/);
+ });
+ 
+-test('Shared with me count includes exactly one live PRISM surface when available', () => {
+-  assert.match(index, /data-system-shared-count="@Model\.SystemSharedSurfaceCount"/);
+-  assert.match(pageModel, /public int SystemSharedSurfaceCount => ConferenceDigest is \{ TotalDirectionCount: > 0 \} \? 1 : 0;/);
+-  assert.match(pageModel, /shared\.Count \+= 1;/);
+-  assert.match(app, /const systemSharedCount = Math\.max\(0, Number\.parseInt\(shell\.dataset\.systemSharedCount/);
+-  assert.match(app, /key\.toLowerCase\(\) === 'shared'[\s\S]*?numericValue \+ systemSharedCount/);
++test('user may explicitly add the live PRISM note to All Notes without creating a NotebookItem', () => {
++  assert.match(index, /preference\.ShowInHome|ConferenceDigestPreference!\.IsPinned/);
++  assert.match(index, /systemOthers && index == otherSystemPosition/);
++  assert.match(index, /systemPinned && index == pinnedSystemPosition/);
++  assert.match(partial, /data-action="system-add-home"/);
++  assert.match(partial, /Add to My Notebook/);
++  assert.match(partial, /data-action="system-remove-home"/);
++  assert.match(app, /updateSystemPreferenceWithSingleRetry\(key, \{ showInHome: true \}\)/);
++  assert.match(app, /updateSystemPreferenceWithSingleRetry\(key, \{ showInHome: false \}\)/);
+ });
+ 
+-test('system digest respects Shared view search and never participates in labels or type filters', () => {
+-  assert.match(pageModel, /Notebook\.View, "shared"/);
+-  assert.match(pageModel, /!string\.IsNullOrWhiteSpace\(Filter\)/);
+-  assert.match(pageModel, /!string\.IsNullOrWhiteSpace\(Tag\)/);
+-  assert.match(pageModel, /Contains\(group\.OfficerDisplayName, term\)/);
+-  assert.match(pageModel, /Contains\(item\.Title, term\)/);
+-  assert.match(pageModel, /Contains\(item\.DirectionText, term\)/);
++test('rail counts preserve virtual shared and home surfaces across normal Notebook count refreshes', () => {
++  assert.match(index, /data-system-shared-count="@Model\.SystemSharedSurfaceCount"/);
++  assert.match(index, /data-system-home-count="@Model\.SystemHomeSurfaceCount"/);
++  assert.match(pageModel, /shared\.Count \+= 1;/);
++  assert.match(pageModel, /if \(!preference\.ShowInHome\) return;/);
++  assert.match(pageModel, /home\.Count \+= 1;/);
++  assert.match(app, /numericValue \+ systemSharedCount/);
++  assert.match(app, /numericValue \+ systemHomeCount/);
+ });
+ 
+-test('client empty-state reconciliation counts PRISM-shared virtual cards', () => {
+-  assert.match(board, /querySelectorAll\('\[data-notebook-system-shared-card\]'\)\.length/);
+-  assert.match(board, /notebookCount \+ systemSharedCount > 0/);
++test('system digest supports personal labels and label view search while content remains read only', () => {
++  assert.match(pageModel, /"labels" => !string\.IsNullOrWhiteSpace\(Tag\)/);
++  assert.match(pageModel, /preference\.Labels\.Any\(label => string\.Equals\(label, Tag/);
++  assert.match(partial, /data-action="label-note"/);
++  assert.match(partial, /data-system-card-tags/);
++  assert.match(app, /updateSystemPreferenceWithSingleRetry\(key, \{ labels \}\)/);
++  assert.doesNotMatch(partial, /data-action="share-note"/);
++  assert.doesNotMatch(partial, /data-action="archive-note"/);
++  assert.doesNotMatch(partial, /data-action="complete-note"/);
+ });
++
++test('client board accounting treats the live system card as a visible surface', () => {
++  assert.match(board, /VISUAL_CARD_SELECTOR/);
++  assert.match(board, /\[data-notebook-system-card\]/);
++  assert.match(board, /querySelectorAll\(VISUAL_CARD_SELECTOR\)\.length/);
++});
