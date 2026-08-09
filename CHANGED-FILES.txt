@@ -1,4 +1,5 @@
-Pages/Notebook/_NotebookConferenceDigest.cshtml
-wwwroot/css/notebook.css
-wwwroot/js/notebook/notebook-app.js
-wwwroot/js/notebook/notebook-system-floating-surfaces-contract.test.js
+Production:
+Pages/Notebook/_NotebookConferenceDigestModal.cshtml
+
+Regression test:
+wwwroot/js/notebook/notebook-conference-digest-new-tab-contract.test.js

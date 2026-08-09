@@ -1,0 +1,32 @@
+--- a/Pages/Notebook/_NotebookConferenceDigestModal.cshtml
++++ b/Pages/Notebook/_NotebookConferenceDigestModal.cshtml
+@@ -27,8 +27,13 @@
+                     <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
+                         <header class="notebook-conference-digest-officer__header">
+                             <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
+-                            <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
++                            <a href="@group.ConferenceReviewUrl"
++                               class="notebook-conference-digest-officer__review-link"
++                               target="_blank"
++                               rel="noopener noreferrer"
++                               title="Open @group.OfficerDisplayName conference review in a new tab">
+                                 Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                                <span class="visually-hidden">(opens in a new tab)</span>
+                             </a>
+                         </header>
+ 
+@@ -38,8 +43,13 @@
+                                 var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+                                 <article class="notebook-conference-digest-item">
+                                     <div class="notebook-conference-digest-item__heading">
+-                                        <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
++                                        <a href="@item.OpenUrl"
++                                           class="notebook-conference-digest-item__title"
++                                           target="_blank"
++                                           rel="noopener noreferrer"
++                                           title="Open @item.Title in a new tab">
+                                             @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                                            <span class="visually-hidden">(opens in a new tab)</span>
+                                         </a>
+                                         <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
+                                     </div>
