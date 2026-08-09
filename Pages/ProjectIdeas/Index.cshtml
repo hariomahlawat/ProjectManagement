@@ -191,9 +191,12 @@
                     </select>
                 </div>
 
-                <button type="submit" class="pi-search-submit">
-                    <span class="bi bi-arrow-right" aria-hidden="true"></span>
-                    <span class="visually-hidden">Apply search</span>
+                <button type="submit"
+                        class="pi-search-submit"
+                        aria-label="Search ideas"
+                        title="Search ideas">
+                    <span class="bi bi-search" aria-hidden="true"></span>
+                    <span class="visually-hidden">Search ideas</span>
                 </button>
             </form>
 
@@ -303,7 +306,7 @@
                         {
                             var lastActivity = IndexModel.LastActivity(idea);
                             var lastActivityIso = lastActivity.ToUniversalTime().ToString("O");
-                var commentCount = idea.Comments.Count(comment => !comment.IsDeleted);
+                            var commentCount = idea.Comments.Count(comment => !comment.IsDeleted);
                             var noteCount = idea.Notes.Count(note => !note.IsDeleted);
                             var documentCount = idea.Documents.Count(document => !document.IsDeleted);
                             var totalActivity = commentCount + noteCount + documentCount;
@@ -320,9 +323,12 @@
                                 aria-label="Open idea @idea.Title">
                                 <td class="pi-table-idea-cell">
                                     <a class="pi-table-title" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">@idea.Title</a>
-                                    <p class="@(needsDetails ? "pi-description-missing" : null)">@IndexModel.DisplayDescription(idea)</p>
+                                    @if (!needsDetails)
+                                    {
+                                        <p>@IndexModel.DisplayDescription(idea)</p>
+                                    }
 
-                                    @if (needsDetails || idea.AssignedProjectOfficerUser is null || isStale)
+                                    @if (needsDetails || idea.AssignedProjectOfficerUser is null)
                                     {
                                         <div class="pi-row-signals" aria-label="Operational indicators">
                                             @if (needsDetails)
@@ -337,13 +343,6 @@
                                                 <span class="pi-signal pi-signal-neutral">
                                                     <span class="bi bi-person-plus" aria-hidden="true"></span>
                                                     Unassigned
-                                                </span>
-                                            }
-                                            @if (isStale)
-                                            {
-                                                <span class="pi-signal pi-signal-danger">
-                                                    <span class="bi bi-clock-history" aria-hidden="true"></span>
-                                                    No update for 30+ days
                                                 </span>
                                             }
                                         </div>
@@ -364,9 +363,19 @@
                                 </td>
                                 <td class="pi-table-date-cell">
                                     <time datetime="@lastActivityIso" title="@Model.DisplayDateTime(lastActivity)">
-                                        @Model.DisplayRelativeDate(lastActivity)
+                                        @Model.DisplayTableActivityPrimary(lastActivity)
                                     </time>
-                                    <small>@Model.DisplayDateTime(lastActivity)</small>
+                                    <small class="pi-table-date-meta">
+                                        <span>@Model.DisplayTableActivitySecondary(lastActivity)</span>
+                                        @if (isStale)
+                                        {
+                                            <span class="pi-table-date-separator" aria-hidden="true">·</span>
+                                            <span class="pi-table-stale" aria-label="No update for more than 30 days">
+                                                <span class="bi bi-clock-history" aria-hidden="true"></span>
+                                                No update &gt;30 days
+                                            </span>
+                                        }
+                                    </small>
                                 </td>
                                 <td>
                                     @if (totalActivity == 0)

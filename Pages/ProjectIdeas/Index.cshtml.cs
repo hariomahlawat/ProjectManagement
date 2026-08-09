@@ -168,6 +168,34 @@ public class IndexModel : PageModel
             : localValue.ToString("dd MMM yyyy");
     }
 
+    public string DisplayTableActivityPrimary(DateTime value)
+    {
+        var utcValue = ToUtc(value);
+        var elapsed = DateTime.UtcNow - utcValue;
+
+        // Relative time is useful only while it remains the fastest way to scan
+        // recent activity. Older records use an unambiguous full date instead.
+        if (elapsed < TimeSpan.FromDays(7))
+        {
+            return DisplayRelativeDate(utcValue);
+        }
+
+        return utcValue.ToLocalTime().ToString("dd MMM yyyy");
+    }
+
+    public string DisplayTableActivitySecondary(DateTime value)
+    {
+        var utcValue = ToUtc(value);
+        var elapsed = DateTime.UtcNow - utcValue;
+        var localValue = utcValue.ToLocalTime();
+
+        // Avoid repeating the date for older records: the primary line already
+        // carries it. Recent records retain the exact timestamp for auditability.
+        return elapsed < TimeSpan.FromDays(7)
+            ? localValue.ToString("dd MMM yyyy, hh:mm tt")
+            : localValue.ToString("hh:mm tt");
+    }
+
     public int StatusCount(string status) => StatusCounts.GetValueOrDefault(status);
 
     public static string CountLabel(int count, string singular) =>

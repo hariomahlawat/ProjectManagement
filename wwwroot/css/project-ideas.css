@@ -135,18 +135,6 @@
     scrollbar-gutter: auto;
 }
 
-.pi-table-scrollable {
-    max-height: min(62vh, 680px) !important;
-    overflow-y: auto !important;
-    scrollbar-gutter: stable;
-}
-
-.pi-table-scrollable .pi-table thead th {
-    position: sticky;
-    z-index: 2;
-    top: 0;
-    box-shadow: 0 1px 0 #dfe7f1;
-}
 
 .pi-table-row {
     cursor: pointer;
