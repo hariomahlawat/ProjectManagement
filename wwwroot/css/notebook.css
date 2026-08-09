@@ -360,8 +360,10 @@
     }
 
     .notebook-card:has(.notebook-card-more[open]),
-    .notebook-card.has-open-menu {
-        z-index: 80;
+    .notebook-card.has-open-menu,
+    .notebook-card.has-open-popover,
+    .notebook-card:has(.notebook-colour-picker__popover:not([hidden])) {
+        z-index: 90;
     }
 
 
@@ -1927,10 +1929,13 @@
   margin-top: auto;
 }
 
-/* Prefer a downward-opening action menu; retain viewport-safe card stacking. */
-.notebook-card-more__menu {
-  top: calc(100% + .35rem);
-  bottom: auto;
+/* Card action menus open inward/upward from the bottom action rail. This avoids
+   masonry siblings or the viewport edge covering a short menu. */
+.notebook-card .notebook-card-more__menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + .4rem);
+  z-index: 1400;
 }
 
 @media (max-height: 640px) {
@@ -2025,6 +2030,11 @@
   left: auto;
   right: 0;
   bottom: calc(100% + 8px);
+  width: min(252px, calc(100vw - 24px));
+  max-width: min(252px, calc(100vw - 24px));
+  grid-template-columns: repeat(4, minmax(44px, 1fr));
+  gap: 7px;
+  z-index: 1400;
 }
 
 .notebook-colour-choice {
@@ -2395,33 +2405,7 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-actions [data-action="restore-trash-note"] { display: inline-flex; align-items: center; gap: .35rem; }
 @media (max-width: 640px) { [data-empty-notebook-trash] { width: 100%; justify-content: center; } }
 
-/* SECTION: Manual note rearrangement */
-.notebook-rearrange-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: .45rem;
-    min-height: 38px;
-    padding: .45rem .75rem;
-    border: 1px solid var(--notebook-border, #d7dce5);
-    border-radius: 999px;
-    background: #fff;
-    color: #344054;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.notebook-rearrange-toggle:hover,
-.notebook-rearrange-toggle:focus-visible {
-    background: #f8fafc;
-    border-color: #98a2b3;
-}
-
-.notebook-rearrange-toggle.is-done {
-    background: #eef4ff;
-    color: #1849a9;
-    border-color: #b2ccff;
-}
-
+/* SECTION: Keep-style direct note rearrangement */
 .notebook-board[data-sortable="true"] {
     display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(230px, 280px));
@@ -2442,11 +2426,14 @@ body.notebook-confirm-open { overflow: hidden; }
     position: relative;
 }
 
+/* The handle remains in the tab order solely for keyboard-accessible reordering.
+   Pointer users drag the passive card surface directly, so the handle never appears
+   on ordinary hover and cannot intercept a click on the title. */
 .notebook-card-drag-handle {
     position: absolute;
     top: 8px;
     left: 8px;
-    z-index: 7;
+    z-index: 8;
     width: 30px;
     height: 30px;
     display: inline-flex;
@@ -2454,19 +2441,23 @@ body.notebook-confirm-open { overflow: hidden; }
     justify-content: center;
     border: 0;
     border-radius: 50%;
-    background: rgba(255,255,255,.94);
+    background: rgba(255,255,255,.97);
     color: #667085;
     box-shadow: 0 1px 3px rgba(16,24,40,.16);
     cursor: grab;
     opacity: 0;
-    transition: opacity .14s ease, background .14s ease, transform .14s ease;
+    pointer-events: none;
+    transform: scale(.96);
+    transition: opacity .12s ease, transform .12s ease;
     touch-action: none;
 }
 
-.notebook-card:hover .notebook-card-drag-handle,
-.notebook-card-drag-handle:focus-visible,
-.notebook-shell.is-rearranging .notebook-card-drag-handle {
+.notebook-card-drag-handle:focus-visible {
     opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+    outline: 2px solid #5b8def;
+    outline-offset: 2px;
 }
 
 .notebook-card-drag-handle:active,
@@ -2475,10 +2466,15 @@ body.notebook-confirm-open { overflow: hidden; }
     cursor: grabbing !important;
 }
 
-.notebook-shell[data-reorder-enabled="true"] .notebook-card,
-.notebook-board[data-reorder-enabled="true"] > .notebook-card,
-.notebook-board[data-reorder-enabled="true"] > .notebook-card .notebook-card__open-area {
+.notebook-board[data-reorder-enabled="true"] > .notebook-card {
     cursor: grab;
+}
+
+/* Interactive descendants keep the semantics users expect even though the card
+   around them is draggable. */
+.notebook-board[data-reorder-enabled="true"] > .notebook-card :is(button, summary, input, select, textarea, a, [role="button"]),
+.notebook-board[data-reorder-enabled="true"] > .notebook-card .notebook-card-actions {
+    cursor: pointer;
 }
 
 .notebook-card a,
@@ -2519,29 +2515,14 @@ body.notebook-confirm-open { overflow: hidden; }
     -webkit-user-select: none !important;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-card-drag-handle,
-.notebook-shell[data-board-view="list"] .notebook-rearrange-toggle {
+.notebook-shell[data-board-view="list"] .notebook-card-drag-handle {
     display: none !important;
 }
 
-.notebook-shell.is-rearranging .notebook-card-link,
-.notebook-shell.is-rearranging .notebook-card-actions,
-.notebook-shell.is-rearranging .notebook-check-toggle {
-    pointer-events: none;
-}
-
+/* On touch, normal vertical scrolling remains available. A stationary long-press
+   arms the JS drag gesture; moving before the hold threshold cancels it. */
 @media (pointer: coarse) {
-    .notebook-card-drag-handle {
-        opacity: 0;
-        pointer-events: none;
-    }
-
-    .notebook-shell.is-rearranging .notebook-card-drag-handle {
-        opacity: 1;
-        pointer-events: auto;
-    }
-
-    .notebook-shell.is-rearranging .notebook-card {
+    .notebook-board[data-reorder-enabled="true"] > .notebook-card {
         touch-action: pan-y;
     }
 }
@@ -2555,10 +2536,6 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 @media (max-width: 640px) {
-    .notebook-rearrange-toggle span {
-        display: none;
-    }
-
     .notebook-board[data-sortable="true"] {
         grid-template-columns: 1fr;
     }
@@ -2696,7 +2673,9 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-card:focus-within .notebook-card-actions,
 .notebook-card.is-selected .notebook-card-actions,
 .notebook-card.has-open-menu .notebook-card-actions,
-.notebook-card:has(.notebook-card-more[open]) .notebook-card-actions {
+.notebook-card.has-open-popover .notebook-card-actions,
+.notebook-card:has(.notebook-card-more[open]) .notebook-card-actions,
+.notebook-card:has(.notebook-colour-picker__popover:not([hidden])) .notebook-card-actions {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
@@ -4569,4 +4548,34 @@ body.notebook-confirm-open { overflow: hidden; }
         grid-template-columns: 1fr;
         gap: .08rem;
     }
+}
+
+
+/* SECTION: Direct-drag floating-surface safety (authoritative overrides) */
+.notebook-card.has-open-menu,
+.notebook-card.has-open-popover,
+.notebook-card:has(.notebook-card-more[open]),
+.notebook-card:has(.notebook-colour-picker__popover:not([hidden])) {
+    z-index: 90;
+}
+
+.notebook-card .notebook-card-more__menu {
+    top: auto !important;
+    right: 0;
+    bottom: calc(100% + .4rem) !important;
+    z-index: 1400;
+}
+
+.notebook-card .notebook-colour-picker__popover {
+    z-index: 1400;
+}
+
+/* System-card modal overlay is intentionally a passive pointer surface so a short
+   click opens the register while click-and-move rearranges the card. */
+.notebook-conference-shared-card__open[data-card-passive-open] {
+    cursor: grab;
+}
+
+.notebook-shell.is-pointer-dragging .notebook-conference-shared-card__open[data-card-passive-open] {
+    cursor: grabbing;
 }

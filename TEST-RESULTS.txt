@@ -1,10 +1,31 @@
-Static validation:
-PASS - system selector included
-PASS - normal note selector retained
-PASS - placeholder retained
-PASS - ResizeObserver still observes directItems
-PASS - system masonry regression test present
-PASS - list clear regression test present
+PRISM Notebook Keep-Style Direct Drag — validation summary
+Date: 09 Aug 2026
 
-JavaScript syntax: PASS (node --check on both files)
-Runtime jsdom tests require npm ci in the development environment.
+PASS
+- notebook-app.js ESM syntax
+- notebook-drag-order.js ESM syntax
+- notebook-masonry-grid.js ESM syntax
+- notebook-direct-drag-contract.test.js syntax
+- notebook-system-note-personalization-contract.test.js syntax
+- notebook-conference-digest-contract.test.js syntax
+- notebook-conference-digest-typography-contract.test.js syntax
+- notebook-system-shared-contract.test.js syntax
+- Dependency-free Node contract suite: 25 passed / 0 failed
+- CSS brace balance
+- No data-notebook-rearrange-toggle in Index.cshtml
+- No data-notebook-rearrange-done in Index.cshtml
+- No rearrangeMode dependency in notebook-drag-order.js
+- Passive system-card drag marker present
+- System-card masonry selector present
+
+NOT RUN IN PACKAGING ENVIRONMENT
+- jsdom-dependent DOM tests (jsdom not installed)
+- dotnet build / dotnet test (.NET SDK not installed)
+
+Run the full project validation commands after copying:
+  npm ci
+  npm run build:notebook
+  npm run check:notebook-assets
+  npm test
+  dotnet build
+  dotnet test

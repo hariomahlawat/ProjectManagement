@@ -61,3 +61,12 @@ test('client supports colour labels pin add remove and dedicated placement persi
   assert.match(drag, /serialiseBoard\(board\)/);
   assert.match(drag, /return ownedCards\(board\)/);
 });
+
+
+test('system note supports Keep-style direct drag without a separate rearrange mode', () => {
+  const index = read('Pages', 'Notebook', 'Index.cshtml');
+  assert.match(partial, /data-card-passive-open/);
+  assert.doesNotMatch(index, /data-notebook-rearrange-toggle/);
+  assert.doesNotMatch(index, /data-notebook-rearrange-done/);
+  assert.doesNotMatch(drag, /rearrangeMode/);
+});

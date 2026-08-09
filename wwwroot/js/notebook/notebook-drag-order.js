@@ -47,10 +47,20 @@ function restoreOrder(board, keys) {
 
 function isInteractiveDragTarget(target) {
   if (!(target instanceof Element)) return true;
+
+  // The keyboard handle itself is a deliberate drag surface.
   if (target.closest('[data-notebook-drag-handle]')) return false;
+
+  // Card metadata and action rails always retain their own interaction semantics.
   if (target.closest('.notebook-card-actions, .notebook-card-tags, [data-no-card-drag]')) return true;
-  const interactive = target.closest('button, input, textarea, select, option, [contenteditable="true"], [role="button"]');
-  if (interactive) return true;
+
+  // Most form/control descendants block card dragging. The one exception is the
+  // system-note full-card open button, which is explicitly marked as a passive
+  // surface: click opens it; click-and-move rearranges it.
+  const interactive = target.closest('button, input, textarea, select, option, summary, details, [contenteditable="true"], [role="button"]');
+  if (interactive && !interactive.matches('[data-card-passive-open]')) return true;
+
+  // Normal note open links are passive surfaces too. Any other link is an action.
   const link = target.closest('a');
   return Boolean(link && !link.classList.contains('notebook-card__open-area'));
 }
@@ -167,9 +177,13 @@ function createPreview(card, rect) {
   const preview = card.cloneNode(true);
   preview.removeAttribute('data-note-id');
   preview.removeAttribute('data-notebook-card-id');
+  preview.removeAttribute('data-notebook-system-home-card');
+  preview.classList.remove('has-open-menu', 'has-open-popover');
   preview.classList.add('is-drag-preview');
   preview.setAttribute('aria-hidden', 'true');
   preview.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  preview.querySelectorAll('details[open]').forEach((node) => node.removeAttribute('open'));
+  preview.querySelectorAll('.notebook-card-actions, [data-notebook-drag-handle]').forEach((node) => node.remove());
   Object.assign(preview.style, {
     position: 'fixed',
     left: '0',
@@ -191,9 +205,6 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 
   const showError = options.showError || (() => {});
   const liveRegion = shell.querySelector('[data-notebook-reorder-live]');
-  const toggle = shell.querySelector('[data-notebook-rearrange-toggle]');
-  const done = shell.querySelector('[data-notebook-rearrange-done]');
-  let rearrangeMode = false;
   let pointerState = null;
   let dragState = null;
   let keyboardState = null;
@@ -206,8 +217,9 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     if (liveRegion) liveRegion.textContent = message;
   };
 
-  const coarsePointer = () => window.matchMedia?.('(pointer: coarse)').matches;
-  const isEnabled = () => shell.dataset.boardView === 'grid' && (rearrangeMode || !coarsePointer());
+  // Rearrangement is a native board interaction in grid view. There is no separate
+  // mode: mouse movement starts a drag; touch uses a deliberate long-press.
+  const isEnabled = () => shell.dataset.boardView === 'grid';
 
   const refreshCards = () => {
     shell.querySelectorAll(BOARD_SELECTOR).forEach((board) => {
@@ -291,6 +303,11 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 
   const beginPointerDrag = (state) => {
     const { card, board, clientX, clientY, pointerId } = state;
+
+    // Floating menus/palettes are owned by the normal card UI. Close them while the
+    // card is still attached to the Notebook before creating the drag preview.
+    shell.dispatchEvent(new CustomEvent('notebook:drag-start', { bubbles: true, detail: { key: cardKey(card) } }));
+
     const rect = card.getBoundingClientRect();
     const placeholder = createPlaceholder(card);
     board.replaceChild(placeholder, card);
@@ -339,10 +356,12 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
       announce(`Dropped at position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
     } else {
       restoreOrder(board, originalKeys);
+      board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
       announce('Rearrangement cancelled.');
     }
     dragState = null;
     pointerState = null;
+    shell.dispatchEvent(new CustomEvent('notebook:drag-end', { bubbles: true, detail: { saved: Boolean(save) } }));
     boardController.refreshSectionVisibility();
   };
 
@@ -391,10 +410,6 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     pointerState = state;
 
     if (event.pointerType !== 'mouse') {
-      if (!rearrangeMode) {
-        pointerState = null;
-        return;
-      }
       state.timer = window.setTimeout(() => {
         if (pointerState === state) beginPointerDrag(state);
       }, TOUCH_LONG_PRESS_MS);
@@ -470,22 +485,6 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     playFlip(cards, before);
     announce(`Moved to position ${directCards(keyboardState.board).indexOf(card) + 1} of ${cards.length}.`);
   };
-
-  toggle?.addEventListener('click', () => {
-    rearrangeMode = true;
-    shell.classList.add('is-rearranging');
-    toggle.hidden = true;
-    if (done) done.hidden = false;
-    refreshCards();
-  });
-
-  done?.addEventListener('click', () => {
-    rearrangeMode = false;
-    shell.classList.remove('is-rearranging');
-    done.hidden = true;
-    if (toggle) toggle.hidden = false;
-    refreshCards();
-  });
 
   shell.addEventListener('pointerdown', onPointerDown);
   shell.addEventListener('pointermove', onPointerMove, { passive: false });

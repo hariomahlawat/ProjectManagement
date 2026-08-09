@@ -68,13 +68,35 @@ test('card body and open area are valid drag surfaces while controls are exclude
       <a class="notebook-card__open-area"><h3 id="title">Title</h3></a>
       <button id="button">Action</button>
       <a class="notebook-tag-chip" id="tag">Tag</a>
+      <div class="notebook-card__open-area"><button id="nested-button">Nested action</button></div>
       <div id="empty"></div>
     </article>`);
   const helpers = loadHelpers(dom.window.document);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#title')), false);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#empty')), false);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#button')), true);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#nested-button')), true);
   assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#tag')), true);
+});
+
+
+test('system note full-card open overlay is a passive drag surface while its actions stay protected', () => {
+  const dom = new JSDOM(`
+    <article data-notebook-system-home-card="conference-directions" data-reorderable="true">
+      <button id="open" data-card-passive-open></button>
+      <div class="notebook-card-actions"><button id="colour">Colour</button></div>
+    </article>`);
+  const helpers = loadHelpers(dom.window.document);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#open')), false);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#colour')), true);
+});
+
+test('direct drag source no longer requires explicit rearrange mode controls', () => {
+  const source = fs.readFileSync('wwwroot/js/notebook/notebook-drag-order.js', 'utf8');
+  assert.equal(source.includes('data-notebook-rearrange-toggle'), false);
+  assert.equal(source.includes('rearrangeMode'), false);
+  assert.match(source, /const isEnabled = \(\) => shell\.dataset\.boardView === 'grid'/);
+  assert.match(source, /TOUCH_LONG_PRESS_MS = 300/);
 });
 
 test('visual rows are ordered top-to-bottom and left-to-right', () => {
@@ -120,7 +142,7 @@ test('drag engine no longer depends on native HTML drag events', () => {
 });
 
 
-test('checklist text remains a passive card surface while the checkbox stays protected during rearrange', () => {
+test('checklist text remains a passive card surface while the checkbox stays protected during direct drag', () => {
   const dom = new JSDOM(`
     <article data-note-id="a">
       <div class="notebook-checklist-preview" id="checklist">

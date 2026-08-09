@@ -259,7 +259,19 @@ export function initNotebookApp() {
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
   const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });
 
-  // SECTION: Accessible, single-open card action menus
+  // SECTION: Accessible, single-open card action menus / popovers
+  const syncCardFloatingState = () => {
+    shell.querySelectorAll('.notebook-card').forEach((card) => {
+      const hasOpenColour = [...card.querySelectorAll('[data-colour-picker-popover]')].some((popover) => !popover.hidden);
+      card.classList.toggle('has-open-popover', hasOpenColour);
+    });
+  };
+
+  const closeCardColourPickers = (except = null) => {
+    closeNotebookColourPickers(document, except);
+    syncCardFloatingState();
+  };
+
   const closeNotebookMenus = (except = null, { restoreFocus = false } = {}) => {
     shell.querySelectorAll('.notebook-card-more[open]').forEach((menu) => {
       if (menu === except) return;
@@ -276,7 +288,10 @@ export function initNotebookApp() {
     const summary = menu.querySelector('summary');
     summary?.setAttribute('aria-expanded', String(menu.open));
     menu.closest('.notebook-card')?.classList.toggle('has-open-menu', menu.open);
-    if (menu.open) closeNotebookMenus(menu);
+    if (menu.open) {
+      closeNotebookMenus(menu);
+      closeCardColourPickers();
+    }
   }, true);
 
   document.addEventListener('pointerdown', (event) => {
@@ -291,6 +306,13 @@ export function initNotebookApp() {
     closeNotebookMenus(null, { restoreFocus: true });
   });
 
+  // Dragging starts from passive card content. Close any floating action surface before
+  // cloning the card so palettes/menus never become part of the drag preview.
+  shell.addEventListener('notebook:drag-start', () => {
+    closeNotebookMenus();
+    closeCardColourPickers();
+  });
+
   document.addEventListener('click', async (event) => {
     const cardColourToggle = event.target.closest('.notebook-card [data-colour-picker-toggle]');
     if (cardColourToggle) {
@@ -300,9 +322,11 @@ export function initNotebookApp() {
       const popover = picker?.querySelector('[data-colour-picker-popover]');
       if (!picker || !popover) return;
       const shouldOpen = popover.hidden;
-      closeNotebookColourPickers(document, shouldOpen ? picker : null);
+      closeNotebookMenus();
+      closeCardColourPickers(shouldOpen ? picker : null);
       popover.hidden = !shouldOpen;
       cardColourToggle.setAttribute('aria-expanded', String(shouldOpen));
+      syncCardFloatingState();
       if (shouldOpen) popover.querySelector('.is-selected,[data-colour-choice]')?.focus?.();
       return;
     }
@@ -352,12 +376,12 @@ export function initNotebookApp() {
         }
       } finally {
         cardColourChoice.disabled = false;
-        closeNotebookColourPickers(document);
+        closeCardColourPickers();
       }
       return;
     }
 
-    if (!event.target.closest('[data-notebook-colour-picker]')) closeNotebookColourPickers(document);
+    if (!event.target.closest('[data-notebook-colour-picker]')) closeCardColourPickers();
 
     const createTrigger = event.target.closest('[data-notebook-create-type]');
     if (createTrigger) {
@@ -383,6 +407,8 @@ export function initNotebookApp() {
     if (action.dataset.action === 'label-note' && actionCard) {
       event.preventDefault();
       action.closest('details')?.removeAttribute('open');
+      closeNotebookMenus();
+      closeCardColourPickers();
       activeLabelCard = actionCard;
       cardLabelPicker?.configure({ value: parseCardLabels(actionCard) });
       cardLabelPicker?.open(action);

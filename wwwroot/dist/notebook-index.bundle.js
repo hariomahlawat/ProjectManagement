@@ -4031,8 +4031,8 @@ function isInteractiveDragTarget(target) {
   if (!(target instanceof Element)) return true;
   if (target.closest("[data-notebook-drag-handle]")) return false;
   if (target.closest(".notebook-card-actions, .notebook-card-tags, [data-no-card-drag]")) return true;
-  const interactive = target.closest('button, input, textarea, select, option, [contenteditable="true"], [role="button"]');
-  if (interactive) return true;
+  const interactive = target.closest('button, input, textarea, select, option, summary, details, [contenteditable="true"], [role="button"]');
+  if (interactive && !interactive.matches("[data-card-passive-open]")) return true;
   const link = target.closest("a");
   return Boolean(link && !link.classList.contains("notebook-card__open-area"));
 }
@@ -4133,9 +4133,13 @@ function createPreview(card, rect) {
   const preview = card.cloneNode(true);
   preview.removeAttribute("data-note-id");
   preview.removeAttribute("data-notebook-card-id");
+  preview.removeAttribute("data-notebook-system-home-card");
+  preview.classList.remove("has-open-menu", "has-open-popover");
   preview.classList.add("is-drag-preview");
   preview.setAttribute("aria-hidden", "true");
   preview.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+  preview.querySelectorAll("details[open]").forEach((node) => node.removeAttribute("open"));
+  preview.querySelectorAll(".notebook-card-actions, [data-notebook-drag-handle]").forEach((node) => node.remove());
   Object.assign(preview.style, {
     position: "fixed",
     left: "0",
@@ -4156,9 +4160,6 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
   const showError = options.showError || (() => {
   });
   const liveRegion = shell.querySelector("[data-notebook-reorder-live]");
-  const toggle = shell.querySelector("[data-notebook-rearrange-toggle]");
-  const done = shell.querySelector("[data-notebook-rearrange-done]");
-  let rearrangeMode = false;
   let pointerState = null;
   let dragState = null;
   let keyboardState = null;
@@ -4169,8 +4170,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
   const announce = (message) => {
     if (liveRegion) liveRegion.textContent = message;
   };
-  const coarsePointer = () => window.matchMedia?.("(pointer: coarse)").matches;
-  const isEnabled = () => shell.dataset.boardView === "grid" && (rearrangeMode || !coarsePointer());
+  const isEnabled = () => shell.dataset.boardView === "grid";
   const refreshCards = () => {
     shell.querySelectorAll(BOARD_SELECTOR).forEach((board) => {
       board.dataset.reorderEnabled = String(isEnabled());
@@ -4247,6 +4247,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
   };
   const beginPointerDrag = (state3) => {
     const { card, board, clientX, clientY, pointerId } = state3;
+    shell.dispatchEvent(new CustomEvent("notebook:drag-start", { bubbles: true, detail: { key: cardKey(card) } }));
     const rect = card.getBoundingClientRect();
     const placeholder = createPlaceholder(card);
     board.replaceChild(placeholder, card);
@@ -4293,10 +4294,12 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
       announce(`Dropped at position ${directCards(board).indexOf(card) + 1} of ${directCards(board).length}.`);
     } else {
       restoreOrder(board, originalKeys);
+      board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
       announce("Rearrangement cancelled.");
     }
     dragState = null;
     pointerState = null;
+    shell.dispatchEvent(new CustomEvent("notebook:drag-end", { bubbles: true, detail: { saved: Boolean(save) } }));
     boardController.refreshSectionVisibility();
   };
   const beginKeyboard = (handle, card) => {
@@ -4340,10 +4343,6 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     };
     pointerState = state3;
     if (event.pointerType !== "mouse") {
-      if (!rearrangeMode) {
-        pointerState = null;
-        return;
-      }
       state3.timer = window.setTimeout(() => {
         if (pointerState === state3) beginPointerDrag(state3);
       }, TOUCH_LONG_PRESS_MS);
@@ -4415,20 +4414,6 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     playFlip(cards, before);
     announce(`Moved to position ${directCards(keyboardState.board).indexOf(card) + 1} of ${cards.length}.`);
   };
-  toggle?.addEventListener("click", () => {
-    rearrangeMode = true;
-    shell.classList.add("is-rearranging");
-    toggle.hidden = true;
-    if (done) done.hidden = false;
-    refreshCards();
-  });
-  done?.addEventListener("click", () => {
-    rearrangeMode = false;
-    shell.classList.remove("is-rearranging");
-    done.hidden = true;
-    if (toggle) toggle.hidden = false;
-    refreshCards();
-  });
   shell.addEventListener("pointerdown", onPointerDown);
   shell.addEventListener("pointermove", onPointerMove, { passive: false });
   shell.addEventListener("pointerup", onPointerUp);
@@ -5064,6 +5049,16 @@ function initNotebookApp() {
   const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
   const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });
+  const syncCardFloatingState = () => {
+    shell.querySelectorAll(".notebook-card").forEach((card) => {
+      const hasOpenColour = [...card.querySelectorAll("[data-colour-picker-popover]")].some((popover) => !popover.hidden);
+      card.classList.toggle("has-open-popover", hasOpenColour);
+    });
+  };
+  const closeCardColourPickers = (except = null) => {
+    closeNotebookColourPickers(document, except);
+    syncCardFloatingState();
+  };
   const closeNotebookMenus = (except = null, { restoreFocus = false } = {}) => {
     shell.querySelectorAll(".notebook-card-more[open]").forEach((menu) => {
       if (menu === except) return;
@@ -5079,7 +5074,10 @@ function initNotebookApp() {
     const summary = menu.querySelector("summary");
     summary?.setAttribute("aria-expanded", String(menu.open));
     menu.closest(".notebook-card")?.classList.toggle("has-open-menu", menu.open);
-    if (menu.open) closeNotebookMenus(menu);
+    if (menu.open) {
+      closeNotebookMenus(menu);
+      closeCardColourPickers();
+    }
   }, true);
   document.addEventListener("pointerdown", (event) => {
     if (!event.target.closest(".notebook-card-more")) closeNotebookMenus();
@@ -5091,6 +5089,10 @@ function initNotebookApp() {
     event.preventDefault();
     closeNotebookMenus(null, { restoreFocus: true });
   });
+  shell.addEventListener("notebook:drag-start", () => {
+    closeNotebookMenus();
+    closeCardColourPickers();
+  });
   document.addEventListener("click", async (event) => {
     const cardColourToggle = event.target.closest(".notebook-card [data-colour-picker-toggle]");
     if (cardColourToggle) {
@@ -5100,9 +5102,11 @@ function initNotebookApp() {
       const popover = picker?.querySelector("[data-colour-picker-popover]");
       if (!picker || !popover) return;
       const shouldOpen = popover.hidden;
-      closeNotebookColourPickers(document, shouldOpen ? picker : null);
+      closeNotebookMenus();
+      closeCardColourPickers(shouldOpen ? picker : null);
       popover.hidden = !shouldOpen;
       cardColourToggle.setAttribute("aria-expanded", String(shouldOpen));
+      syncCardFloatingState();
       if (shouldOpen) popover.querySelector(".is-selected,[data-colour-choice]")?.focus?.();
       return;
     }
@@ -5162,11 +5166,11 @@ function initNotebookApp() {
         }
       } finally {
         cardColourChoice.disabled = false;
-        closeNotebookColourPickers(document);
+        closeCardColourPickers();
       }
       return;
     }
-    if (!event.target.closest("[data-notebook-colour-picker]")) closeNotebookColourPickers(document);
+    if (!event.target.closest("[data-notebook-colour-picker]")) closeCardColourPickers();
     const createTrigger = event.target.closest("[data-notebook-create-type]");
     if (createTrigger) {
       event.preventDefault();
@@ -5194,6 +5198,8 @@ function initNotebookApp() {
     if (action.dataset.action === "label-note" && actionCard) {
       event.preventDefault();
       action.closest("details")?.removeAttribute("open");
+      closeNotebookMenus();
+      closeCardColourPickers();
       activeLabelCard = actionCard;
       cardLabelPicker?.configure({ value: parseCardLabels(actionCard) });
       cardLabelPicker?.open(action);

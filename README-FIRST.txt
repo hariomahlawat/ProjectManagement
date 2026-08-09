@@ -1,53 +1,100 @@
-PRISM Notebook — System Card Masonry Fix
-Date: 09 Aug 2026
+PRISM ERP — Notebook Keep-Style Direct Drag & Floating-UI Hardening
+Ready-to-paste package · 09 Aug 2026
 
 PURPOSE
-Fixes the overlap seen after "Latest Conference Directions" is added to All Notes.
-The PRISM system note was a real visual card but the masonry measurement engine only
-measured normal [data-note-id] cards. With an 8px masonry row track, the system card
-therefore received no grid-row span and the next note could render on top of it.
+This phase removes the separate Rearrange workflow and makes Notebook card movement behave like Google Keep while fixing the remaining card-level floating UI issues observed during review.
 
-FILES TO REPLACE
-1. wwwroot/js/notebook/notebook-masonry-grid.js
-2. wwwroot/js/notebook/notebook-masonry-grid.test.js
+FINAL USER EXPERIENCE
+1. Direct desktop rearrangement
+   - No Rearrange / Done button.
+   - A normal click still opens the note.
+   - Mouse-down + movement beyond 6 px starts card drag immediately.
+   - The same applies to the live "Latest Conference Directions" system card.
+   - Checkboxes, pin, colour, labels, links, View all and the three-dot menu remain normal controls and do not start a drag.
 
-WHAT CHANGED
-- The masonry item selector now treats [data-notebook-system-home-card] as a first-class
-  masonry item, alongside normal Notebook notes and drag placeholders.
-- ResizeObserver observation automatically includes the PRISM system card.
-- Existing mutation, explicit refresh, board-view, image-load and window-resize refresh
-  paths now remeasure the system card without special-case CSS.
-- Added regression tests for system-card masonry span calculation and span clearing in
-  list mode.
+2. Touch behaviour
+   - A stationary 300 ms long-press arms drag.
+   - Moving more than 8 px before the long-press cancels drag arming so normal page scrolling remains available.
 
-NO CHANGES REQUIRED
-- No CSS workaround/min-height/z-index hack.
-- No Razor change.
-- No backend/service/controller change.
-- No database or EF migration.
-- No change to Conference direction query logic.
-- No change to drag/reorder persistence logic.
+3. Keyboard accessibility retained
+   - The existing drag handle remains in the DOM for keyboard reordering.
+   - It is no longer shown on ordinary card hover and cannot cover/intercept the card title.
+   - When reached by keyboard focus it becomes visible; Space/Enter picks/drops and arrow keys move the card.
 
-WHY THIS IS THE CORRECT FIX
-The system note already participates in visual drag order using
-[data-notebook-system-home-card]. The masonry engine now uses the same visual-card
-contract. Its grid span is derived from actual rendered height, so it remains correct
-when labels, responsive width, content wrapping, pinning, or future card content change.
+4. Colour palette hardening
+   - An open palette raises its parent card above masonry siblings.
+   - Card palettes use a compact 4-column layout (max 252 px) instead of a wide strip spilling across neighbouring cards.
+   - Opening a palette closes an open three-dot menu, and vice versa.
+   - Floating controls are closed before a drag preview is created.
 
-AFTER REPLACEMENT
-npm ci
-npm run build:notebook
-npm run check:notebook-assets
-npm test
+5. Three-dot menu hardening
+   - Card menus open upward/inward from the bottom action rail instead of below the card.
+   - This prevents a masonry sibling or the lower viewport edge from visually covering the menu.
+   - Parent-card stacking is raised while the menu is open.
 
-dotnet build
-dotnet test
+6. Conference Directions system note
+   - Short click continues to open the read-only Conference Directions modal.
+   - Click-and-drag now rearranges the card naturally.
+   - Its action controls remain protected from drag.
+   - Existing colour/label/pin/remove-from-My-Notebook behaviour is preserved.
 
-Then hard refresh (Ctrl+F5) and verify:
-1. Add Latest Conference Directions to My Notebook.
-2. No normal note overlaps it.
-3. Enter Rearrange and move it between ordinary notes.
-4. Refresh — position remains stable.
-5. Add/remove a label — masonry reflows without overlap.
-6. Pin/unpin — both boards reflow correctly.
-7. Switch Grid/List/Grid — no stale row span remains.
+7. Masonry overlap fix carried forward
+   - The latest notebook-masonry-grid.js is included.
+   - [data-notebook-system-home-card] remains a first-class measured masonry item, preventing card overlap after adding the live system note to All Notes.
+
+FILES TO REPLACE / ADD
+Pages/Notebook/Index.cshtml
+Pages/Notebook/_NotebookConferenceDigest.cshtml
+wwwroot/css/notebook.css
+wwwroot/js/notebook/notebook-app.js
+wwwroot/js/notebook/notebook-drag-order.js
+wwwroot/js/notebook/notebook-drag-order.test.js
+wwwroot/js/notebook/notebook-system-note-personalization-contract.test.js
+wwwroot/js/notebook/notebook-masonry-grid.js
+wwwroot/js/notebook/notebook-masonry-grid.test.js
+wwwroot/js/notebook/notebook-direct-drag-contract.test.js   (new regression test)
+
+NO BACKEND / DATABASE CHANGE IN THIS PHASE
+No controller/service/model/EF migration change is required by this direct-drag and floating-UI hardening phase. It is designed to overlay the already implemented Notebook + Conference Digest personalisation state.
+
+IMPORTANT BUILD STEPS
+Because Notebook JavaScript source changed, regenerate the committed Notebook bundle after copying the files:
+
+  npm ci
+  npm run build:notebook
+  npm run check:notebook-assets
+  npm test
+
+Then:
+
+  dotnet build
+  dotnet test
+
+If your normal Visual Studio/MSBuild flow already regenerates Notebook assets and node_modules/esbuild is installed, Build/Publish should also do this; running npm run build:notebook explicitly is still the safest verification.
+
+BROWSER
+After rebuilding, hard refresh the Notebook page (Ctrl+F5) so the previous JS/CSS bundle is not cached.
+
+ACCEPTANCE CHECK
+1. In Grid view, click a normal note -> it opens.
+2. Mouse-down on passive note content and move >6 px -> card lifts and follows the pointer.
+3. Drop between cards -> position changes and remains after refresh.
+4. Click checklist checkbox -> only checkbox changes; no drag begins.
+5. Click checklist text / passive card body -> note opens on a normal click; drag works when moved.
+6. Click Latest Conference Directions -> modal opens.
+7. Drag Latest Conference Directions from its passive card surface -> card moves; modal does not open after the drop.
+8. Open colour palette -> palette is fully visible above neighbouring cards and remains compact.
+9. Open three-dot menu -> "Remove from My Notebook" is clearly visible above the action rail.
+10. Open one floating control then another -> previous floating control closes.
+11. Pin/unpin the system note and rearrange within the relevant section -> persists after refresh.
+12. Switch to List view -> direct rearrangement is disabled.
+13. Touch device: long-press a passive card surface, then drag; a normal vertical swipe before the hold threshold scrolls instead.
+14. Keyboard: Tab to the drag handle, Space/Enter to pick up, arrows to move, Space/Enter to drop, Escape to cancel.
+
+VALIDATION PERFORMED IN THIS PACKAGE BUILD
+- JavaScript syntax checks passed for notebook-app.js, notebook-drag-order.js and notebook-masonry-grid.js.
+- 25 dependency-free Notebook contract tests passed (25/25).
+- CSS brace-balance and direct-drag structural checks passed.
+- System-card masonry contract remains present.
+- jsdom-dependent drag/masonry DOM tests were not executable in the packaging environment because jsdom is not installed there.
+- .NET SDK is not installed in the packaging environment; run dotnet build/test in the PRISM development machine after overlaying the files.

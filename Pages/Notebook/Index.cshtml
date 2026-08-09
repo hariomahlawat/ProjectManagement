@@ -114,11 +114,6 @@
                     <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
                     <button type="button" data-notebook-view="list" aria-label="List view"><i class="bi bi-list-ul"></i></button>
                 </div>
-                @if (Model.Notebook.View == "home" && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Notebook.Tag) && string.IsNullOrWhiteSpace(Model.Notebook.Filter))
-                {
-                    <button type="button" class="notebook-rearrange-toggle" data-notebook-rearrange-toggle><i class="bi bi-arrows-move"></i><span>Rearrange</span></button>
-                    <button type="button" class="notebook-rearrange-toggle is-done" data-notebook-rearrange-done hidden><i class="bi bi-check2"></i><span>Done</span></button>
-                }
             </div>
         </section>
 
