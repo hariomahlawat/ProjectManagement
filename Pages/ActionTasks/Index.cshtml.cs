@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
@@ -115,6 +116,9 @@ public class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public int? TaskId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? TaskIntent { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public int? SelectedSprintId { get; set; }
@@ -361,12 +365,17 @@ public class IndexModel : PageModel
         return _permission.CanCloseTaskDirectly(task, CurrentRole);
     }
 
+    public bool CanReturnTaskForAction(ActionTaskItem task)
+    {
+        return _workflowPolicy.CanReturnTaskForAction(task, CurrentRole);
+    }
+
     public bool CanUpdateTaskStatus(ActionTaskItem task)
     {
         return _workflowPolicy.CanUpdateTaskStatus(task, CurrentRole, CurrentUserId);
     }
 
-    public bool CanAddProgressUpdate(ActionTaskItem task)
+    public bool CanAddRemark(ActionTaskItem task)
     {
         return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && _permission.CanAddTaskUpdate(CurrentRole, CurrentUserId, task.AssignedToUserId);
@@ -378,10 +387,18 @@ public class IndexModel : PageModel
             && _permission.CanAddConferenceUpdate(CurrentRole);
     }
 
+    public string GetDefaultRemarkType(ActionTaskItem task)
+    {
+        return string.Equals(CurrentRole, ProjectManagement.Configuration.RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)
+            && CanAddConferenceUpdate(task)
+                ? ActionTaskUpdateTypes.Conference
+                : ActionTaskUpdateTypes.Comment;
+    }
+
     public static string DisplayUpdateType(string? updateType)
     {
         if (string.Equals(updateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase)) return "Conference";
-        if (string.Equals(updateType, ActionTaskUpdateTypes.Comment, StringComparison.OrdinalIgnoreCase)) return "Comment";
+        if (string.Equals(updateType, ActionTaskUpdateTypes.Comment, StringComparison.OrdinalIgnoreCase)) return "General";
         return "Progress";
     }
 
@@ -431,6 +448,7 @@ public class IndexModel : PageModel
             "TaskUpdated" => "Task updated",
             "TaskClosedByCommandAuthority" => "Closed by command authority",
             "Submitted" => "Submitted for closure",
+            "ReturnedForAction" => "Returned for action",
             "TaskSubmitted" => "Submitted for closure",
             "Closed" => "Closed",
             "TaskClosed" => "Closed",
@@ -450,6 +468,7 @@ public class IndexModel : PageModel
         {
             "StatusUpdated" or "TaskStatusChanged" => $"Status changed from {log.OldValue ?? "previous status"} to {log.NewValue ?? "new status"}.",
             "Submitted" or "TaskSubmitted" => "Task submitted for closure review.",
+            "ReturnedForAction" => "Task returned for further action.",
             "Closed" or "TaskClosed" => "Task closed after review.",
             "TaskClosedByCommandAuthority" => "Closed by command authority.",
             "DueDateChanged" or "TaskDueDateChanged" => $"Due date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
@@ -919,6 +938,7 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostSubmitAsync(int id, string rowVersion, string? remarks)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             await _service.SubmitTaskAsync(id, DecodeRowVersion(rowVersion), CurrentUserId, CurrentRole, remarks);
@@ -927,19 +947,51 @@ public class IndexModel : PageModel
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "submit";
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "submit";
         }
 
-        return RedirectToTaskPage(id, SelectedSprintId);
+        return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
+    }
+
+    // SECTION: Return a submitted task for further action. Command authority only.
+    public async Task<IActionResult> OnPostReturnForActionAsync(int id, string rowVersion, string? remarks)
+    {
+        await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
+        try
+        {
+            await _service.ReturnTaskForActionAsync(
+                id,
+                DecodeRowVersion(rowVersion),
+                remarks ?? string.Empty,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task returned for further action.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "return";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "return";
+        }
+
+        return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
     }
 
     // SECTION: Close task by command role
     public async Task<IActionResult> OnPostCloseAsync(int id, string rowVersion, string? remarks)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
@@ -948,19 +1000,22 @@ public class IndexModel : PageModel
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "close";
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "close";
         }
 
-        return RedirectToTaskPage(id, SelectedSprintId);
+        return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
     }
 
     // SECTION: Update in-flight status
     public async Task<IActionResult> OnPostUpdateStatusAsync(int id, string rowVersion, string status, string? remarks)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             // SECTION: Prevent no-op status submissions from showing a misleading success message.
@@ -992,13 +1047,15 @@ public class IndexModel : PageModel
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) ? "block" : null;
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) ? "block" : null;
         }
 
-        return RedirectToTaskPage(id, SelectedSprintId);
+        return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
     }
 
     // SECTION: Change a backlog target date or assigned task due date.
@@ -1161,13 +1218,7 @@ public class IndexModel : PageModel
         return RedirectToPage(new { ViewMode = "Planning", PlanningTab = "Close", SelectedSprintId = ClosureInput.SprintId });
     }
 
-    // SECTION: Unified progress update handler used by the rationalised task details pane.
-    public Task<IActionResult> OnPostUpdateProgressAsync()
-    {
-        return OnPostAddUpdateAsync();
-    }
-
-    // SECTION: Post a typed task update. Conference remarks are text-led directions and never mutate workflow status.
+    // SECTION: Post a human task remark. Workflow status is deliberately handled by dedicated commands.
     public async Task<IActionResult> OnPostAddUpdateAsync()
     {
         await ResolveIdentityAsync();
@@ -1177,100 +1228,56 @@ public class IndexModel : PageModel
 
         if (!ModelState.IsValid)
         {
-            TempData["ToastError"] = "Unable to save update. Please check the entered details and try again.";
+            TempData["ToastError"] = "Unable to save remark. Please check the entered details and try again.";
             return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
         var normalizedUpdateType = ActionTaskUpdateTypes.All.FirstOrDefault(type =>
             string.Equals(type, UpdateInput.UpdateType, StringComparison.OrdinalIgnoreCase));
         if (normalizedUpdateType is null
-            || string.Equals(normalizedUpdateType, ActionTaskUpdateTypes.Comment, StringComparison.Ordinal))
+            || string.Equals(normalizedUpdateType, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase))
         {
-            TempData["ToastError"] = "Invalid update type.";
+            TempData["ToastError"] = "Invalid remark type.";
             return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
         var isConferenceRemark = string.Equals(
             normalizedUpdateType,
             ActionTaskUpdateTypes.Conference,
-            StringComparison.Ordinal);
-        var requestedStatus = UpdateInput.NewStatus?.Trim();
-        var currentTask = await _service.GetTaskAsync(UpdateInput.TaskId);
-        if (currentTask is null)
-        {
-            TempData["ToastError"] = "Task not found.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
-        }
+            StringComparison.OrdinalIgnoreCase);
 
         if (isConferenceRemark && !_permission.CanAddConferenceUpdate(CurrentRole))
         {
             return Forbid();
         }
 
-        if (isConferenceRemark && !string.IsNullOrWhiteSpace(requestedStatus))
-        {
-            TempData["ToastError"] = "A conference remark cannot change task status. Post the status change as a progress update.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
-        }
-
-        var hasStatusChange = !isConferenceRemark
-            && !string.IsNullOrWhiteSpace(requestedStatus)
-            && !string.Equals(currentTask.Status, requestedStatus, StringComparison.OrdinalIgnoreCase);
-        var hasProgressNote = !string.IsNullOrWhiteSpace(UpdateInput.Body);
+        var hasBody = !string.IsNullOrWhiteSpace(UpdateInput.Body);
         var hasFiles = UpdateInput.Files?.Any(file => file.Length > 0) == true;
-
-        if (isConferenceRemark && !hasProgressNote)
+        if (isConferenceRemark && !hasBody)
         {
             TempData["ToastError"] = "Enter the conference direction or observation.";
             return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
-        if (hasStatusChange
-            && (string.Equals(requestedStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-            && !hasProgressNote)
+        if (!hasBody && !hasFiles)
         {
-            TempData["ToastError"] = "Enter a progress note when blocking a task or submitting it for closure.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
-        }
-
-        if (!hasProgressNote && !hasFiles && !hasStatusChange)
-        {
-            TempData["ToastError"] = "No update was applied.";
+            TempData["ToastError"] = "Enter a remark or attach at least one file.";
             return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
         try
         {
-            if (isConferenceRemark)
-            {
-                await _collaborationService.AddUpdateAsync(
-                    UpdateInput.TaskId,
-                    UpdateInput.Body,
-                    ActionTaskUpdateTypes.Conference,
-                    CurrentUserId,
-                    CurrentRole,
-                    UpdateInput.Files ?? new List<IFormFile>());
+            await _collaborationService.AddUpdateAsync(
+                UpdateInput.TaskId,
+                UpdateInput.Body,
+                normalizedUpdateType,
+                CurrentUserId,
+                CurrentRole,
+                UpdateInput.Files ?? new List<IFormFile>());
 
-                TempData["ToastMessage"] = "Conference remark added.";
-            }
-            else
-            {
-                await _collaborationService.AddUpdateAndMaybeChangeStatusAsync(
-                    UpdateInput.TaskId,
-                    UpdateInput.Body,
-                    requestedStatus,
-                    CurrentUserId,
-                    CurrentRole,
-                    UpdateInput.Files ?? new List<IFormFile>(),
-                    DecodeRowVersion(UpdateInput.RowVersion));
-
-                TempData["ToastMessage"] = BuildProgressUpdateToast(hasProgressNote, hasFiles, hasStatusChange);
-            }
-        }
-        catch (ActionTaskConcurrencyException ex)
-        {
-            TempData["ToastError"] = ex.Message;
+            TempData["ToastMessage"] = isConferenceRemark
+                ? "Conference direction added."
+                : "Remark added.";
         }
         catch (InvalidOperationException ex)
         {
@@ -1278,29 +1285,11 @@ public class IndexModel : PageModel
                 ex.Message,
                 "Update text is required unless at least one attachment is uploaded.",
                 StringComparison.Ordinal)
-                ? "Enter an update or attach at least one file."
+                ? "Enter a remark or attach at least one file."
                 : ex.Message;
         }
 
         return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
-    }
-
-
-    // SECTION: Progress update toast wording mirrors the actual saved changes.
-    private static string BuildProgressUpdateToast(bool hasProgressNote, bool hasFiles, bool hasStatusChange)
-    {
-        var hasUserProgress = hasProgressNote || hasFiles;
-        if (hasUserProgress && hasStatusChange)
-        {
-            return "Progress update saved and task status updated.";
-        }
-
-        if (hasStatusChange)
-        {
-            return "Task status updated.";
-        }
-
-        return "Progress update saved.";
     }
 
     // SECTION: Shared data loading
@@ -1374,7 +1363,7 @@ public class IndexModel : PageModel
         if (inspector.IsUnavailable)
         {
             TaskId = null;
-            TempData["ToastError"] = "The selected task is no longer available in the current view.";
+            TempData["ToastError"] = "The selected task is unavailable or you no longer have access to it.";
         }
 
         SelectedTask = inspector.SelectedTask;
@@ -1793,14 +1782,19 @@ public class IndexModel : PageModel
         => BuildRouteState().PlanningTab;
 
     // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
-    private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId)
+    private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId, string? taskIntent = null)
     {
         var routeValues = BuildTaskWorkspaceRouteValues(taskId, selectedSprintId);
+        if (!string.IsNullOrWhiteSpace(taskIntent))
+        {
+            routeValues[nameof(TaskIntent)] = taskIntent;
+        }
+
         return RedirectToPage(routeValues);
     }
 
     // SECTION: Canonical workspace route values are delegated to the shared route-state helper.
-    private object BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
+    private RouteValueDictionary BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
         => _routeStateHelper.BuildTaskWorkspaceRouteValues(BuildRouteState(), taskId, selectedSprintId);
 
     // SECTION: Task-list filter route preservation is centralized in the shared route-state helper.
@@ -2017,10 +2011,7 @@ public class IndexModel : PageModel
         public string Body { get; set; } = string.Empty;
 
         [Required, StringLength(32)]
-        public string UpdateType { get; set; } = ActionTaskUpdateTypes.Progress;
-
-        [Display(Name = "Change status")]
-        public string? NewStatus { get; set; }
+        public string UpdateType { get; set; } = ActionTaskUpdateTypes.Comment;
 
         public List<IFormFile> Files { get; set; } = new();
     }

@@ -52,6 +52,12 @@ public class ActionTaskPermissionService
             && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && IsPlanningAuthority(role);
 
+    // SECTION: Returning a closure submission is a command decision, not an assignee status edit.
+    public bool CanReturnTaskForAction(ActionTaskItem? task, string role)
+        => task is not null
+            && string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            && IsPlanningAuthority(role);
+
     public bool CanChangeTaskDate(string role)
         => IsPlanningAuthority(role);
 

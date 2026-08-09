@@ -17,6 +17,7 @@ namespace ProjectManagement.Services.ActionTasks;
 public sealed class ActionTaskCollaborationService : IActionTaskCollaborationService
 {
     private const int MaxAttachmentsPerUpdate = 10;
+    private const int MaxUpdateBodyLength = 4000;
     private const long MaxFileSizeBytes = 25L * 1024 * 1024;
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -82,10 +83,22 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             throw new InvalidOperationException("You are not authorized to add updates for this task.");
         }
 
-        if (string.Equals(normalizedUpdateType, ActionTaskUpdateTypes.Conference, StringComparison.Ordinal)
-            && !_permission.CanAddConferenceUpdate(role))
+        if (string.Equals(normalizedUpdateType, ActionTaskUpdateTypes.Conference, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Only Comdt or HoD may add conference remarks.");
+            if (!_permission.CanAddConferenceUpdate(role))
+            {
+                throw new InvalidOperationException("Only Comdt or HoD may add conference remarks.");
+            }
+
+            if (!hasBody)
+            {
+                throw new InvalidOperationException("Conference direction text is required.");
+            }
+        }
+
+        if (hasBody && body.Trim().Length > MaxUpdateBodyLength)
+        {
+            throw new InvalidOperationException($"Update text cannot exceed {MaxUpdateBodyLength} characters.");
         }
 
         if (hasFiles && !_permission.CanUploadTaskAttachment(role, userId, task.AssignedToUserId))

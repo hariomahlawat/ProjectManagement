@@ -1,15 +1,13 @@
-PRISM ERP - Build Fixes - 08 Aug 2026
+Action Tasks UX V2 - RowVersion compile hotfix
 
-This package fixes the two reported ProjectManagement.Tests compilation errors.
+Replace:
+  Pages/ActionTasks/Index.cshtml.cs
 
-1. ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-   CS1061: ShapeProperties.PresetGeometry does not exist with DocumentFormat.OpenXml 3.1.1.
-   Fix: query the direct A.PresetGeometry child using OpenXmlElement.Elements<T>(), then inspect its A.ShapeGuide descendant.
-   This preserves the original regression assertion for the rounded-rectangle geometry adjustment (val 6000).
+Fix:
+  Restores the missing UpdateSprintInput.RowVersion property used by:
+  - OnPostUpdateSprintAsync
+  - _PlanningCommandStrip.cshtml
+  - sprint edit read-model hydration
+  - UpdateSprintInput.FromSprint(...)
 
-2. ProjectManagement.Tests/ConferenceProjectScopeServiceTests.cs
-   CS0103: ProcurementWorkflow does not exist in the current context.
-   Fix: add using ProjectManagement.Models.Stages;, which is the namespace containing ProcurementWorkflow.
-
-Copy the two ProjectManagement.Tests files over the matching paths in the solution.
-No production/runtime files or database migrations are changed.
+No database migration is required.

@@ -72,6 +72,48 @@ public class ActionTaskCollaborationServiceTests
     }
 
     [Fact]
+    public async Task AddUpdateAsync_ConferenceRemarkRequiresTextEvenWhenFileIsAttached()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner");
+        var file = BuildFile("direction.txt", "text/plain", 16);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddUpdateAsync(
+                task.Id,
+                string.Empty,
+                ActionTaskUpdateTypes.Conference,
+                "command-user",
+                RoleNames.Comdt,
+                [file]));
+
+        Assert.Equal("Conference direction text is required.", exception.Message);
+        Assert.Empty(await db.ActionTaskUpdates.Where(update => update.TaskId == task.Id).ToListAsync());
+        Assert.Empty(await db.ActionTaskAttachments.Where(attachment => attachment.TaskId == task.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task AddUpdateAsync_RejectsBodyBeyondModelLimit()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddUpdateAsync(
+                task.Id,
+                new string('x', 4001),
+                ActionTaskUpdateTypes.Comment,
+                "owner",
+                RoleNames.Ta,
+                Array.Empty<IFormFile>()));
+
+        Assert.Equal("Update text cannot exceed 4000 characters.", exception.Message);
+        Assert.Empty(await db.ActionTaskUpdates.Where(update => update.TaskId == task.Id).ToListAsync());
+    }
+
+    [Fact]
     public async Task AddUpdateAsync_ConferenceRemarkCapturesCommandContext()
     {
         await using var db = CreateDb();

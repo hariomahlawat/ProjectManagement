@@ -103,6 +103,25 @@ public class ActionTaskPermissionServiceTests
     [InlineData(RoleNames.Mco, false)]
     [InlineData(RoleNames.Ta, false)]
     [InlineData(RoleNames.Ito, false)]
+    public void ReturnForActionPermission_IsLimitedToCommandRolesAndSubmittedTasks(string role, bool expected)
+    {
+        var service = new ActionTaskPermissionService();
+        var submitted = new ActionTaskItem { Status = ActionTaskStatuses.Submitted };
+        var inProgress = new ActionTaskItem { Status = ActionTaskStatuses.InProgress };
+
+        Assert.Equal(expected, service.CanReturnTaskForAction(submitted, role));
+        Assert.False(service.CanReturnTaskForAction(inProgress, role));
+    }
+
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    [InlineData(RoleNames.Mco, false)]
+    [InlineData(RoleNames.Ta, false)]
+    [InlineData(RoleNames.Ito, false)]
     public void ConferenceUpdatePermission_IsLimitedToCommandRoles(string role, bool expected)
     {
         var service = new ActionTaskPermissionService();

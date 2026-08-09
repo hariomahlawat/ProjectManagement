@@ -257,6 +257,7 @@ public sealed class ConferenceTaskCommandServiceTests
         public Task<ActionTaskItem> CreateBacklogItemAsync(ActionTaskItem task, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UpdateStatusAsync(int taskId, byte[] rowVersion, string status, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SubmitTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ReturnTaskForActionAsync(int taskId, byte[] rowVersion, string remarks, string userId, string role, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task CloseTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task CloseTaskDirectlyAsync(int taskId, byte[] rowVersion, string closureRemarks, string closedByUserId, string role, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UpdateTaskDateAsync(int taskId, byte[] rowVersion, DateTime newDate, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();

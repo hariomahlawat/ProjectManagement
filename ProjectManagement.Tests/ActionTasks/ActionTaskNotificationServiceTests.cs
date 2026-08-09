@@ -110,6 +110,30 @@ public sealed class ActionTaskNotificationServiceTests
     }
 
     [Fact]
+    public async Task GeneralRemark_UsesRemarkSpecificNotificationMetadata()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var service = CreateService(publisher);
+        var task = NewTask(createdBy: "creator", assignedTo: "assignee");
+        var update = new ActionTaskUpdate
+        {
+            Id = 74,
+            TaskId = task.Id,
+            UpdateType = ActionTaskUpdateTypes.Comment
+        };
+
+        await service.NotifyProgressUpdatedAsync(task, update, "creator");
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal(NotificationKind.ActionTaskProgressUpdated, evt.Kind);
+        Assert.Equal("ActionTaskRemarkAdded", evt.EventType);
+        Assert.Equal("Task remark added", evt.Title);
+        Assert.Contains("new remark", evt.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(new[] { "assignee" }, evt.Recipients);
+        Assert.Equal("action-task:12:update:74", evt.Fingerprint);
+    }
+
+    [Fact]
     public async Task StatusChanged_NotifiesCreatorAndAssignee()
     {
         // SECTION: Arrange
@@ -239,7 +263,7 @@ public sealed class ActionTaskNotificationServiceTests
     }
 
     [Fact]
-    public async Task Route_IncludesTaskIdAndUsesAllScope()
+    public async Task Route_OpensTheFullTaskWorkspace()
     {
         // SECTION: Arrange
         var publisher = new RecordingNotificationPublisher();
@@ -251,7 +275,7 @@ public sealed class ActionTaskNotificationServiceTests
 
         // SECTION: Assert
         var evt = Assert.Single(publisher.Events);
-        Assert.Equal("/ActionTasks?ViewMode=Register&TaskScope=All&TaskId=12", evt.Route);
+        Assert.Equal("/ActionTasks/Details/12", evt.Route);
     }
 
     private static ActionTaskNotificationService CreateService(

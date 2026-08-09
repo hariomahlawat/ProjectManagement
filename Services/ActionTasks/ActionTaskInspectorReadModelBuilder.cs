@@ -10,7 +10,6 @@ public sealed class ActionTaskInspectorReadModelBuilder
 {
     private readonly IActionTaskService _taskService;
     private readonly IActionTaskCollaborationService _collaborationService;
-    private readonly ActionTaskQueryService _queryService;
     private readonly ActionTaskUserLookupService _userLookup;
 
     public ActionTaskInspectorReadModelBuilder(
@@ -21,11 +20,12 @@ public sealed class ActionTaskInspectorReadModelBuilder
     {
         _taskService = taskService;
         _collaborationService = collaborationService;
-        _queryService = queryService;
+        _ = queryService; // Retained in the constructor to preserve the existing DI contract during the V2 migration.
         _userLookup = userLookup;
     }
 
-    // SECTION: Selected task inspector composition keeps drawer/deep-link preparation out of the page model.
+    // SECTION: Selected task composition is task-centric rather than list-filter-centric.
+    // A direct notification/deep link must remain usable even when the source list is filtered.
     public async Task<ActionTaskInspectorReadModel> BuildAsync(ActionTaskInspectorReadModelRequest request)
     {
         if (!request.TaskId.HasValue)
@@ -33,23 +33,37 @@ public sealed class ActionTaskInspectorReadModelBuilder
             return ActionTaskInspectorReadModel.Empty;
         }
 
-        var selectedTask = _queryService.SelectTask(request.ScopeTasks, request.TaskId);
+        return await BuildAsync(request.TaskId.Value, request.CurrentUserId, request.CurrentRole);
+    }
+
+    // SECTION: Shared task-detail composition used by both the Peek drawer and full workspace.
+    public async Task<ActionTaskInspectorReadModel> BuildAsync(int taskId, string currentUserId, string currentRole)
+    {
+        var selectedTask = await _taskService.GetTaskAsync(taskId);
         if (selectedTask is null)
         {
             return ActionTaskInspectorReadModel.Unavailable;
         }
 
-        var logs = await _taskService.GetTaskLogsAsync(selectedTask.Id, request.CurrentUserId, request.CurrentRole);
-        var updates = await _collaborationService.GetUpdatesAsync(selectedTask.Id, request.CurrentUserId, request.CurrentRole);
-        var attachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(selectedTask.Id, request.CurrentUserId, request.CurrentRole);
-        var actorNames = await _userLookup.LoadTaskActorNamesAsync(logs);
-        actorNames = await _userLookup.MergeUpdateActorNamesAsync(actorNames, updates);
-        var lastActivityUtc = ResolveLastActivityUtc(selectedTask, logs, updates);
+        try
+        {
+            // These reads enforce the authoritative task-thread/log visibility rules.
+            var logs = await _taskService.GetTaskLogsAsync(selectedTask.Id, currentUserId, currentRole);
+            var updates = await _collaborationService.GetUpdatesAsync(selectedTask.Id, currentUserId, currentRole);
+            var attachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(selectedTask.Id, currentUserId, currentRole);
+            var actorNames = await _userLookup.LoadTaskActorNamesAsync(logs);
+            actorNames = await _userLookup.MergeUpdateActorNamesAsync(actorNames, updates);
+            var lastActivityUtc = ResolveLastActivityUtc(selectedTask, logs, updates);
 
-        return new ActionTaskInspectorReadModel(selectedTask, logs, updates, attachments, actorNames, false, lastActivityUtc);
+            return new ActionTaskInspectorReadModel(selectedTask, logs, updates, attachments, actorNames, false, lastActivityUtc);
+        }
+        catch (InvalidOperationException)
+        {
+            return ActionTaskInspectorReadModel.Unavailable;
+        }
     }
 
-    // SECTION: Last activity combines human updates, system history and task lifecycle timestamps for the drawer header.
+    // SECTION: Last activity combines human updates, system history and task lifecycle timestamps.
     private static DateTime ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyList<ActionTaskAuditLog> logs, IReadOnlyList<ActionTaskUpdate> updates)
     {
         var activityCandidates = new List<DateTime> { task.AssignedOn };

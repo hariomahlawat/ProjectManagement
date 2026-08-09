@@ -66,16 +66,34 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             update?.UpdateType,
             ActionTaskUpdateTypes.Conference,
             StringComparison.OrdinalIgnoreCase);
+        var isGeneralRemark = string.Equals(
+            update?.UpdateType,
+            ActionTaskUpdateTypes.Comment,
+            StringComparison.OrdinalIgnoreCase);
+
+        var eventType = isConferenceRemark
+            ? "ActionTaskConferenceRemarkAdded"
+            : isGeneralRemark
+                ? "ActionTaskRemarkAdded"
+                : "ActionTaskProgressUpdated";
+        var title = isConferenceRemark
+            ? "Conference direction added"
+            : isGeneralRemark
+                ? "Task remark added"
+                : "Task progress updated";
+        var summary = isConferenceRemark
+            ? $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new conference direction."
+            : isGeneralRemark
+                ? $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new remark."
+                : $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new progress update.";
 
         return PublishForTaskAsync(
             NotificationKind.ActionTaskProgressUpdated,
             task,
             actorUserId,
-            isConferenceRemark ? "ActionTaskConferenceRemarkAdded" : "ActionTaskProgressUpdated",
-            isConferenceRemark ? "Conference direction added" : "Task progress updated",
-            isConferenceRemark
-                ? $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new conference direction."
-                : $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new progress update.",
+            eventType,
+            title,
+            summary,
             string.Format(CultureInfo.InvariantCulture, "action-task:{0}:update:{1}", task.Id, update?.Id.ToString(CultureInfo.InvariantCulture) ?? DateTimeOffset.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture)),
             recipients =>
             {
@@ -377,7 +395,7 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
         => string.Format(CultureInfo.InvariantCulture, "AT-{0}", task.Id);
 
     private static string BuildTaskRoute(int taskId)
-        => string.Format(CultureInfo.InvariantCulture, "/ActionTasks?ViewMode=Register&TaskScope=All&TaskId={0}", taskId);
+        => string.Format(CultureInfo.InvariantCulture, "/ActionTasks/Details/{0}", taskId);
 
     private static string BuildTitlePreview(ActionTaskItem task)
     {

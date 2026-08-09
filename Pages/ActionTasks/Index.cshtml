@@ -8,10 +8,12 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/action-tracker.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/action-task-details-redesign.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/action-task-peek.css" asp-append-version="true" />
 }
 
 @section Scripts {
     <script src="~/js/pages/action-tasks/index.js" asp-append-version="true"></script>
+    <script src="~/js/pages/action-tasks/task-interaction.js" asp-append-version="true"></script>
 }
 
 <div class="at-shell at-simple-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">

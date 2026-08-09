@@ -1,0 +1,358 @@
+/* SECTION: Task UX V2 - full task workspace */
+.at-task-workspace {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 1.15rem 1.35rem 2rem;
+}
+
+.at-task-workspace-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.25rem;
+    margin-bottom: .85rem;
+}
+
+.at-task-workspace-title-block {
+    min-width: 0;
+}
+
+.at-task-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin-bottom: .55rem;
+    color: #56708f;
+    font-size: .78rem;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.at-task-workspace-kicker {
+    color: #5f7390;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.at-task-workspace h1 {
+    margin: .1rem 0 .38rem;
+    color: #102a56;
+    font-size: clamp(1.45rem, 2vw, 2rem);
+    font-weight: 780;
+    line-height: 1.18;
+    letter-spacing: -.025em;
+}
+
+.at-task-workspace-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .65rem;
+    color: #62748d;
+    font-size: .8rem;
+}
+
+.at-task-workspace-meta > span:not(.at-badge):not(.at-date-warning) {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.at-task-workspace-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: .45rem;
+    padding-top: 1.8rem;
+}
+
+.at-task-workspace-state {
+    color: #6b7d95;
+    font-size: .82rem;
+    font-weight: 650;
+}
+
+.at-task-workspace-command-host {
+    margin: 0 0 .95rem;
+}
+
+.at-task-workspace-command-panel {
+    max-width: 760px;
+    padding: .75rem .85rem;
+}
+
+.at-task-workspace-command-panel form {
+    grid-template-columns: minmax(10rem, .7fr) minmax(16rem, 1.3fr) auto;
+    align-items: center;
+}
+
+.at-task-workspace-command-panel textarea {
+    min-height: 62px;
+}
+
+.at-task-workspace-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 340px);
+    gap: 1rem;
+    align-items: start;
+}
+
+.at-task-workspace-main,
+.at-task-workspace-rail {
+    display: grid;
+    gap: .9rem;
+    min-width: 0;
+}
+
+.at-task-section,
+.at-task-side-card {
+    border: 1px solid #dde5ef;
+    border-radius: .95rem;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, .035);
+}
+
+.at-task-section {
+    padding: 1rem 1.05rem;
+}
+
+.at-task-side-card {
+    padding: .9rem;
+}
+
+.at-task-section-label {
+    color: #64748b;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.at-task-brief-copy {
+    margin-top: .45rem;
+    color: #172b4d;
+    font-size: .93rem;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.at-task-brief-copy.is-muted {
+    color: #7b8ba1;
+}
+
+.at-task-section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .7rem;
+}
+
+.at-task-section-header h2 {
+    margin: .12rem 0 0;
+    color: #162d54;
+    font-size: 1rem;
+    font-weight: 750;
+}
+
+.at-workspace-remark-composer {
+    margin-bottom: .9rem;
+    padding: .72rem;
+}
+
+.at-workspace-remark-composer textarea {
+    min-height: 78px;
+}
+
+.at-workspace-update-stream {
+    gap: .65rem;
+}
+
+.at-workspace-update-stream .at-v2-update-card {
+    padding: .8rem .85rem;
+}
+
+.at-workspace-update-stream .at-v2-update-body {
+    font-size: .88rem;
+}
+
+.at-task-empty-state {
+    padding: 1rem;
+    border: 1px dashed #d5deea;
+    border-radius: .75rem;
+    color: #73839a;
+    font-size: .82rem;
+    text-align: center;
+}
+
+.at-task-property-list {
+    display: grid;
+    gap: 0;
+    margin: .5rem 0 0;
+}
+
+.at-task-property-list > div {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: .6rem;
+    padding: .58rem 0;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.at-task-property-list > div:last-child {
+    border-bottom: 0;
+}
+
+.at-task-property-list dt {
+    color: #718198;
+    font-size: .74rem;
+    font-weight: 650;
+}
+
+.at-task-property-list dd {
+    margin: 0;
+    color: #1d3557;
+    font-size: .78rem;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+.at-task-side-remarks {
+    margin-top: .55rem;
+    padding: .65rem;
+    border-radius: .65rem;
+    background: #f8fafc;
+    color: #334155;
+    font-size: .78rem;
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+.at-task-manage-card > summary,
+.at-task-history-card > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none;
+    color: #263f61;
+    font-size: .8rem;
+    font-weight: 750;
+}
+
+.at-task-manage-card > summary::-webkit-details-marker,
+.at-task-history-card > summary::-webkit-details-marker {
+    display: none;
+}
+
+.at-task-manage-body {
+    display: grid;
+    gap: .75rem;
+    margin-top: .75rem;
+}
+
+.at-task-manage-form {
+    display: grid;
+    gap: .4rem;
+    padding-top: .7rem;
+    border-top: 1px solid #edf1f6;
+}
+
+.at-task-manage-form:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.at-task-manage-title {
+    color: #52647b;
+    font-size: .73rem;
+    font-weight: 750;
+}
+
+.at-task-history-list {
+    display: grid;
+    gap: .55rem;
+    margin-top: .7rem;
+}
+
+.at-task-history-list article {
+    padding: .58rem .62rem;
+    border: 1px solid #edf1f6;
+    border-radius: .65rem;
+    background: #fbfcfe;
+    color: #334155;
+    font-size: .75rem;
+}
+
+.at-task-history-remarks {
+    margin-top: .3rem;
+    color: #52647b;
+    line-height: 1.4;
+    white-space: pre-line;
+}
+
+/* Shared V2 collaboration primitives are repeated here so the full page has no dependency on Peek layout CSS. */
+.at-inline-command-form { display: inline-flex; margin: 0; }
+.at-v2-command-panel[hidden] { display: none !important; }
+.at-v2-command-panel { border: 1px solid #cbd8ef; border-radius: .8rem; background: #f8fbff; }
+.at-v2-command-panel form { display: grid; gap: .55rem; margin: 0; }
+.at-v2-command-actions { display: flex; align-items: center; gap: .4rem; }
+.at-v2-remark-composer { display: grid; gap: .45rem; border: 1px solid #cbd8ef; border-radius: .85rem; background: #fff; transition: border-color .16s ease, box-shadow .16s ease; }
+.at-v2-remark-composer:focus-within { border-color: #90aee8; box-shadow: 0 0 0 3px rgba(37, 99, 235, .08); }
+.at-v2-remark-composer.is-conference { border-color: #c8c1ff; background: #fcfbff; }
+.at-v2-remark-composer textarea { resize: vertical; border: 0; padding: .35rem .25rem; box-shadow: none !important; font-size: .88rem; }
+.at-v2-remark-types { display: inline-flex; width: max-content; gap: .2rem; padding: .16rem; border-radius: .55rem; background: #f1f5f9; }
+.at-v2-remark-types button { border: 0; border-radius: .42rem; background: transparent; color: #64748b; padding: .22rem .48rem; font-size: .72rem; font-weight: 750; }
+.at-v2-remark-types button.is-active { background: #fff; color: #173f8f; box-shadow: 0 1px 3px rgba(15,23,42,.1); }
+.at-v2-remark-composer.is-conference .at-v2-remark-types button.is-active { color: #4f46b8; }
+.at-v2-composer-footer { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.at-v2-attach-button { display: inline-flex; align-items: center; gap: .3rem; margin: 0; color: #45607f; cursor: pointer; font-size: .78rem; font-weight: 650; }
+.at-v2-file-summary { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #73839a; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.at-v2-update-stream { display: grid; }
+.at-v2-update-card { border: 1px solid #dfe6ef; border-radius: .78rem; background: #fff; }
+.at-v2-update-card.is-conference { border-color: #d7d2ff; background: #fbfaff; }
+.at-v2-update-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.at-v2-update-heading > div { display: flex; align-items: center; gap: .3rem; }
+.at-v2-update-heading time { color: #7b8ba1; font-size: .69rem; white-space: nowrap; }
+.at-v2-update-body { margin-top: .38rem; color: #1f334f; line-height: 1.5; white-space: pre-line; }
+.at-v2-update-author { margin-top: .4rem; color: #64748b; font-size: .72rem; font-weight: 600; }
+.at-v2-update-files { display: grid; gap: .3rem; margin-top: .5rem; }
+.at-v2-update-file { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .35rem; padding: .38rem .48rem; border: 1px solid #e0e7f1; border-radius: .5rem; background: #f8fafc; color: #244a85; font-size: .75rem; text-decoration: none; }
+.at-v2-update-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-v2-update-file small { color: #7b8ba1; }
+
+@media (max-width: 980px) {
+    .at-task-workspace-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-task-workspace-rail {
+        grid-row: auto;
+    }
+
+    .at-task-workspace-command-panel form {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .at-task-workspace {
+        padding: .85rem .75rem 1.5rem;
+    }
+
+    .at-task-workspace-header {
+        display: grid;
+    }
+
+    .at-task-workspace-actions {
+        justify-content: flex-start;
+        padding-top: 0;
+    }
+
+    .at-task-workspace-grid {
+        gap: .75rem;
+    }
+}

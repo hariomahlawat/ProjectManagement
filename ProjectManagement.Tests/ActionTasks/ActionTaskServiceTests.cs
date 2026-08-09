@@ -33,6 +33,7 @@ public class ActionTaskServiceTests
         await service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.Assigned, "assignee", RoleNames.Ta);
         var logsAfterNoOp = await db.ActionTaskAuditLogs.CountAsync(x => x.TaskId == task.Id);
         Assert.Equal(1, logsAfterNoOp);
+        Assert.Equal(0, await db.ActionTaskUpdates.CountAsync(x => x.TaskId == task.Id));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.Closed, "assignee", RoleNames.Ta));
@@ -69,6 +70,103 @@ public class ActionTaskServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CloseTaskAsync(task.Id, submitted.RowVersion, "non-cmd", RoleNames.Ta, "close"));
+    }
+
+
+    [Fact]
+    public async Task StartWork_CreatesAutomaticProgressTimelineEntry()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+
+        await service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.InProgress, "assignee", RoleNames.Ta);
+
+        var update = await db.ActionTaskUpdates.SingleAsync(x => x.TaskId == task.Id);
+        Assert.Equal(ActionTaskUpdateTypes.Progress, update.UpdateType);
+        Assert.Equal("Work started.", update.Body);
+        Assert.Equal(ActionTaskStatuses.InProgress, update.StatusSnapshot);
+    }
+
+    [Fact]
+    public async Task SubmitTaskAsync_CreatesHumanVisibleProgressTimelineEntry()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        await service.SubmitTaskAsync(task.Id, task.RowVersion, "assignee", RoleNames.Ta, "Trial complete; ready for closure review.");
+
+        var update = await db.ActionTaskUpdates.SingleAsync(x => x.TaskId == task.Id);
+        Assert.Equal(ActionTaskUpdateTypes.Progress, update.UpdateType);
+        Assert.Equal("Trial complete; ready for closure review.", update.Body);
+        Assert.Equal(ActionTaskStatuses.Submitted, update.StatusSnapshot);
+    }
+
+    [Theory]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task ReturnTaskForActionAsync_ReopensSubmittedTaskWithDirectionAndAudit(string role)
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+        await service.SubmitTaskAsync(task.Id, task.RowVersion, "assignee", RoleNames.Ta, "Ready for closure.");
+        var submitted = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+
+        await service.ReturnTaskForActionAsync(
+            task.Id,
+            submitted.RowVersion,
+            "Complete the remaining validation and resubmit.",
+            "authority",
+            role);
+
+        var reopened = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.InProgress, reopened.Status);
+        Assert.Null(reopened.SubmittedOn);
+
+        var updates = await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, updates.Count);
+        Assert.Equal(ActionTaskUpdateTypes.Progress, updates[^1].UpdateType);
+        Assert.Equal("Complete the remaining validation and resubmit.", updates[^1].Body);
+        Assert.Equal(ActionTaskStatuses.InProgress, updates[^1].StatusSnapshot);
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "ReturnedForAction");
+        Assert.Equal(ActionTaskStatuses.Submitted, audit.OldValue);
+        Assert.Equal(ActionTaskStatuses.InProgress, audit.NewValue);
+        Assert.Equal("Complete the remaining validation and resubmit.", audit.Remarks);
+    }
+
+    [Fact]
+    public async Task ReturnTaskForActionAsync_IsCommandOnlyAndRequiresRemarks()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Submitted, "assignee");
+        task.SubmittedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ReturnTaskForActionAsync(task.Id, task.RowVersion, "More work needed.", "assignee", RoleNames.Ta));
+
+        var blank = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ReturnTaskForActionAsync(task.Id, task.RowVersion, " ", "authority", RoleNames.HoD));
+        Assert.Contains("Remarks are required", blank.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GenericStatusUpdate_CannotReturnSubmittedTask()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Submitted, "assignee");
+        task.SubmittedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.InProgress, "authority", RoleNames.HoD, "Return it."));
+
+        Assert.Contains("Invalid status transition", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
 

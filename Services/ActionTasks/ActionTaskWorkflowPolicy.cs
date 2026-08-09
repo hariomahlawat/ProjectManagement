@@ -54,6 +54,11 @@ public sealed class ActionTaskWorkflowPolicy
         return _permission.CanCloseTaskDirectly(task, currentRole);
     }
 
+    public bool CanReturnTaskForAction(ActionTaskItem task, string currentRole)
+    {
+        return _permission.CanReturnTaskForAction(task, currentRole);
+    }
+
     public bool CanUpdateTaskStatus(ActionTaskItem task, string currentRole, string currentUserId)
     {
         return !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)

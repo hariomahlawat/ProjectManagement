@@ -171,9 +171,9 @@ public class ActionTaskPageTests
 
 
     [Fact]
-    public async Task OnPostAddUpdateAsync_UsesAtomicUpdateStatusWorkflow()
+    public async Task OnPostAddUpdateAsync_GeneralRemarkUsesTypedCommentWithoutStatusMutation()
     {
-        // SECTION: Arrange
+        // SECTION: Arrange - V2 remarks are collaboration only; workflow changes use dedicated commands.
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
         var task = await setup.Db.ActionTasks.SingleAsync();
@@ -181,8 +181,8 @@ public class ActionTaskPageTests
         {
             TaskId = task.Id,
             RowVersion = Convert.ToBase64String(task.RowVersion),
-            Body = "Progress made",
-            NewStatus = ActionTaskStatuses.InProgress,
+            UpdateType = ActionTaskUpdateTypes.Comment,
+            Body = "Trial completed; observations will follow.",
             Files = new List<IFormFile>()
         };
 
@@ -192,12 +192,11 @@ public class ActionTaskPageTests
         // SECTION: Assert
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal(task.Id, redirect.RouteValues![nameof(IndexModel.TaskId)]);
-        Assert.Equal(1, setup.Collab.AtomicUpdateCallCount);
-        Assert.Equal(task.Id, setup.Collab.LastAtomicUpdateTaskId);
-        Assert.Equal("Progress made", setup.Collab.LastAtomicUpdateBody);
-        Assert.Equal(ActionTaskStatuses.InProgress, setup.Collab.LastAtomicUpdateStatus);
-        Assert.NotNull(setup.Collab.LastAtomicUpdateFiles);
-        Assert.Equal("Progress update saved and task status updated.", page.TempData["ToastMessage"]);
+        Assert.Equal(1, setup.Collab.TypedUpdateCallCount);
+        Assert.Equal(ActionTaskUpdateTypes.Comment, setup.Collab.LastTypedUpdateType);
+        Assert.Equal("Trial completed; observations will follow.", setup.Collab.LastTypedUpdateBody);
+        Assert.Equal(0, setup.Collab.AtomicUpdateCallCount);
+        Assert.Equal("Remark added.", page.TempData["ToastMessage"]);
     }
 
     [Fact]
@@ -223,7 +222,28 @@ public class ActionTaskPageTests
         Assert.Equal(ActionTaskUpdateTypes.Conference, setup.Collab.LastTypedUpdateType);
         Assert.Equal("Complete the pending action by Friday.", setup.Collab.LastTypedUpdateBody);
         Assert.Equal(0, setup.Collab.AtomicUpdateCallCount);
-        Assert.Equal("Conference remark added.", page.TempData["ToastMessage"]);
+        Assert.Equal("Conference direction added.", page.TempData["ToastMessage"]);
+    }
+
+    [Fact]
+    public async Task OnPostAddUpdateAsync_RejectsUserSelectedProgressType()
+    {
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        page.UpdateInput = new IndexModel.AddTaskUpdateInput
+        {
+            TaskId = task.Id,
+            UpdateType = ActionTaskUpdateTypes.Progress,
+            Body = "Should not be accepted from the remark composer.",
+            Files = new List<IFormFile>()
+        };
+
+        var result = await page.OnPostAddUpdateAsync();
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(0, setup.Collab.TypedUpdateCallCount);
+        Assert.Equal("Invalid remark type.", page.TempData["ToastError"]);
     }
 
     [Fact]
@@ -358,11 +378,11 @@ public class ActionTaskPageTests
         Assert.Contains(page.MyWorkSubmittedAwaitingClosureDisplays, item => item.Task.Title == "Submitted task");
         Assert.Contains(page.MyWorkAllMyTasksDisplays, item => item.Task.Title == "Assigned future");
         Assert.Equal(6, page.MyWorkActionRequiredDisplays.Count + page.MyWorkCurrentWorkDisplays.Count + page.MyWorkSubmittedAwaitingClosureDisplays.Count + page.MyWorkAllMyTasksDisplays.Count);
-        Assert.Contains("Start Work", html, StringComparison.Ordinal);
-        Assert.Contains("Submit for Closure", html, StringComparison.Ordinal);
-        Assert.Contains("Add Update", html, StringComparison.Ordinal);
-        Assert.Contains("Mark In Progress", html, StringComparison.Ordinal);
-        Assert.Contains("View Details", html, StringComparison.Ordinal);
+        Assert.Contains("Start work", html, StringComparison.Ordinal);
+        Assert.Contains("Submit for closure", html, StringComparison.Ordinal);
+        Assert.Contains("Add remark", html, StringComparison.Ordinal);
+        Assert.Contains("Resume", html, StringComparison.Ordinal);
+        Assert.Contains(">Open<", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -385,9 +405,8 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskDetailsPartial_LegacyKanbanInspectorFormsResolveToExecute()
+    public async Task TaskPeek_LegacyKanbanContextNormalizesToExecuteWithoutReintroducingDeepInspectorState()
     {
-        // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var page = setup.Page;
         var task = await setup.Db.ActionTasks.SingleAsync();
@@ -396,21 +415,17 @@ public class ActionTaskPageTests
         page.TaskId = task.Id;
         await page.OnGetAsync();
 
-        // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
-        // SECTION: Assert
-        Assert.Contains("name=\"PlanningTab\" value=\"Execute\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"PlanningView\" value=\"Default\"", html, StringComparison.Ordinal);
-        Assert.Contains("PlanningTab=Execute", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("PlanningView=Kanban", html, StringComparison.Ordinal);
+        Assert.Contains("name="PlanningTab" value="Execute"", html, StringComparison.Ordinal);
+        Assert.Contains("Open full task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Manage Task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
     }
 
-
     [Fact]
-    public async Task TaskDetailsPartial_BacklogInspector_UsesPlanningNoteLabels()
+    public async Task TaskPeek_BacklogUsesTheSameSimpleRemarkComposer()
     {
-        // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var task = await setup.Db.ActionTasks.SingleAsync();
         task.Status = ActionTaskStatuses.Backlog;
@@ -422,14 +437,12 @@ public class ActionTaskPageTests
         page.TaskId = task.Id;
         await page.OnGetAsync();
 
-        // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
-        // SECTION: Assert
-        Assert.Contains("Add Planning Note", html, StringComparison.Ordinal);
-        Assert.Contains("placeholder=\"Add planning note or clarification\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">+ Update</button>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<div class=\"at-action-title\">Add Update</div>", html, StringComparison.Ordinal);
+        Assert.Contains("placeholder="Add a remark…"", html, StringComparison.Ordinal);
+        Assert.Contains("General", html, StringComparison.Ordinal);
+        Assert.Contains("Conference", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add Planning Note", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1231,9 +1244,8 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskDetails_KeepsMovementActionsWithAppStyledConfirmationMetadataInInspector()
+    public async Task TaskPeek_PlanningAuthorityKeepsDeepPlanningActionsOutOfTheDrawer()
     {
-        // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var sprint = AddSprint(setup.Db, "Inspector Sprint", ActionSprintStatus.Active);
         var task = await setup.Db.ActionTasks.SingleAsync();
@@ -1247,111 +1259,36 @@ public class ActionTaskPageTests
         page.TaskId = task.Id;
         await page.OnGetAsync();
 
-        // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
-        // SECTION: Assert
-        Assert.Contains("Remove from Sprint, Keep Assigned", html, StringComparison.Ordinal);
-        Assert.Contains("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-confirm=""true""", html, StringComparison.Ordinal);
-        Assert.Equal(2, CountOccurrences(html, @"data-at-confirm-cancel-label=""Cancel"""));
-        Assert.Contains(@"data-at-confirm-title=""Remove task from Sprint?""", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-confirm-body=""This will keep the assignee but remove the task from the selected sprint.""", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-confirm-accept-label=""Remove from Sprint""", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-confirm-title=""Return task to Backlog?""", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-confirm-body=""This will remove the assignee and return the task to Backlog.""", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-confirm-accept-label=""Return to Backlog""", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("This will remove the responsible person and return the work to Backlog. Continue?", html, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(RoleNames.Comdt)]
-    [InlineData(RoleNames.HoD)]
-    public async Task TaskDetails_MoreMenu_PlanningAuthoritiesRenderChangeDueDate(string role)
-    {
-        // SECTION: Arrange
-        var setup = await CreateSetupAsync(role);
-        var sprint = AddSprint(setup.Db, "Date Sprint", ActionSprintStatus.Active);
-        var task = await setup.Db.ActionTasks.SingleAsync();
-        task.SprintId = sprint.Id;
-        task.Status = ActionTaskStatuses.Assigned;
-        await setup.Db.SaveChangesAsync();
-        var page = setup.Page;
-        page.ViewMode = "Planning";
-        page.PlanningTab = "Execute";
-        page.SelectedSprintId = sprint.Id;
-        page.TaskId = task.Id;
-        await page.OnGetAsync();
-
-        // SECTION: Act
-        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
-
-        // SECTION: Assert
-        Assert.Contains("Workflow Actions", html, StringComparison.Ordinal);
-        Assert.Contains("Planning Actions", html, StringComparison.Ordinal);
-        Assert.Contains("Change Due Date", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
-        Assert.Contains(@"data-at-open-action=""change-date""", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TaskDetails_MoreMenu_NormalAssigneeHidesChangeDueDate()
-    {
-        // SECTION: Arrange
-        var setup = await CreateSetupAsync(RoleNames.Ta);
-        var task = await setup.Db.ActionTasks.SingleAsync();
-        task.Status = ActionTaskStatuses.Assigned;
-        await setup.Db.SaveChangesAsync();
-        var page = setup.Page;
-        page.ViewMode = "MyWork";
-        page.TaskId = task.Id;
-        await page.OnGetAsync();
-
-        // SECTION: Act
-        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
-
-        // SECTION: Assert
-        Assert.Contains("Workflow Actions", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
+        Assert.Contains("Start work", html, StringComparison.Ordinal);
+        Assert.Contains("Add a remark", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Open full task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove from Sprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Move to Backlog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Change Due Date", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"data-at-open-action=""change-date""", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task TaskDetails_MoreMenu_ClosedTaskHidesChangeDateWorkflowAndPlanningActions()
+    public async Task TaskPeek_ClosedTaskIsReadOnlyAndDoesNotRenderMutationControls()
     {
-        // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
-        var sprint = AddSprint(setup.Db, "Closed Sprint", ActionSprintStatus.Active);
         var task = await setup.Db.ActionTasks.SingleAsync();
-        task.SprintId = sprint.Id;
         task.Status = ActionTaskStatuses.Closed;
         task.ClosedOn = DateTime.UtcNow;
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Planning";
-        page.PlanningTab = "Execute";
-        page.SelectedSprintId = sprint.Id;
         page.TaskId = task.Id;
         await page.OnGetAsync();
 
-        // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
-        // SECTION: Assert
-        Assert.Contains("Closure Details", html, StringComparison.Ordinal);
-        Assert.Contains("Closed on", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Next Action", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Workflow Actions", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Change Due Date", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Change Target Date", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Change Status", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Remove from Sprint, Keep Assigned", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"data-at-action-panel=""close""", html, StringComparison.Ordinal);
+        Assert.Contains("Open full task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-at-v2-remark-composer", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start work", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Submit for closure", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Return for action", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Accept &amp; close", html, StringComparison.Ordinal);
     }
 
     [Fact]

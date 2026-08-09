@@ -12,6 +12,7 @@ namespace ProjectManagement.Services.ActionTasks;
 public class ActionTaskService : IActionTaskService
 {
     private const int MaxClosureRemarksLength = 2000;
+    private const int MaxProgressRemarksLength = 4000;
 
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
@@ -259,6 +260,7 @@ public class ActionTaskService : IActionTaskService
 
         // SECTION: Remarks validation for key transitions
         ActionTaskStatusWorkflow.ValidateRemarksForStatusTransition(task.Status, status, remarks);
+        ValidateProgressRemarksLength(remarks);
 
         // SECTION: Concurrency token validation
         _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
@@ -266,17 +268,19 @@ public class ActionTaskService : IActionTaskService
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = status;
-        if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(oldStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
         {
-            task.SubmittedOn = _clock.UtcNow;
-        }
-        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-        {
-            task.ClosedOn = _clock.UtcNow;
+            task.SubmittedOn = null;
         }
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
-        // SECTION: Audit Enqueue
+        // SECTION: Human-visible workflow chronology and audit are persisted atomically.
+        AddProgressTimelineEntry(
+            task,
+            userId,
+            role,
+            BuildStatusProgressBody(oldStatus, task.Status, remarks));
         _context.ActionTaskAuditLogs.Add(Log(taskId, "StatusUpdated", userId, role, oldStatus, task.Status, remarks));
 
         // SECTION: Persistence
@@ -339,6 +343,7 @@ public class ActionTaskService : IActionTaskService
         {
             throw new InvalidOperationException("Remarks are required when submitting a task.");
         }
+        ValidateProgressRemarksLength(remarks);
 
         // SECTION: Concurrency token validation
         _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
@@ -349,7 +354,8 @@ public class ActionTaskService : IActionTaskService
         task.SubmittedOn = _clock.UtcNow;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
-        // SECTION: Audit Enqueue
+        // SECTION: Human-visible workflow chronology and audit are persisted atomically.
+        AddProgressTimelineEntry(task, userId, role, remarks!.Trim());
         _context.ActionTaskAuditLogs.Add(Log(taskId, "Submitted", userId, role, oldStatus, task.Status, remarks));
 
         // SECTION: Persistence
@@ -366,6 +372,57 @@ public class ActionTaskService : IActionTaskService
         if (_notifications is not null)
         {
             await _notifications.NotifySubmittedForClosureAsync(task, userId, cancellationToken);
+        }
+    }
+
+    // SECTION: Return a submitted task for further action. This command is intentionally separate from generic status edits.
+    public async Task ReturnTaskForActionAsync(
+        int taskId,
+        byte[] rowVersion,
+        string remarks,
+        string userId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (!_permission.CanReturnTaskForAction(task, role))
+        {
+            throw new InvalidOperationException("Only command authority can return a submitted task for further action.");
+        }
+
+        var trimmedRemarks = remarks?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmedRemarks))
+        {
+            throw new InvalidOperationException("Remarks are required when returning a submitted task for further action.");
+        }
+
+        if (trimmedRemarks.Length > MaxProgressRemarksLength)
+        {
+            throw new InvalidOperationException($"Remarks cannot exceed {MaxProgressRemarksLength} characters.");
+        }
+
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
+        var oldStatus = task.Status;
+        task.Status = ActionTaskStatuses.InProgress;
+        task.SubmittedOn = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+
+        AddProgressTimelineEntry(task, userId, role, trimmedRemarks);
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "ReturnedForAction", userId, role, oldStatus, task.Status, trimmedRemarks));
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyStatusChangedAsync(task, oldStatus, task.Status, userId, cancellationToken);
         }
     }
 
@@ -412,7 +469,8 @@ public class ActionTaskService : IActionTaskService
         task.ClosureRemarks = trimmedRemarks;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
-        // SECTION: Audit Enqueue
+        // SECTION: Human-visible workflow chronology and audit are persisted atomically.
+        AddProgressTimelineEntry(task, closedByUserId, role, trimmedRemarks);
         _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskClosedByCommandAuthority", closedByUserId, role, oldStatus, task.Status, trimmedRemarks));
 
         // SECTION: Persistence
@@ -487,6 +545,54 @@ public class ActionTaskService : IActionTaskService
         {
             await _notifications.NotifyDueDateChangedAsync(task, oldDate, normalizedNewDate, userId, cancellationToken);
         }
+    }
+
+    // SECTION: Workflow timeline helpers keep human history aligned with audited state changes.
+    private void AddProgressTimelineEntry(ActionTaskItem task, string userId, string role, string body)
+    {
+        _context.ActionTaskUpdates.Add(new ActionTaskUpdate
+        {
+            TaskId = task.Id,
+            CreatedByUserId = userId,
+            CreatedByRole = string.IsNullOrWhiteSpace(role) ? null : role.Trim(),
+            CreatedAtUtc = _clock.UtcNow,
+            UpdateType = ActionTaskUpdateTypes.Progress,
+            Body = body.Trim(),
+            StatusSnapshot = task.Status,
+            DueDateSnapshot = DateOnly.FromDateTime(task.DueDate),
+            IsDeleted = false
+        });
+    }
+
+    private static void ValidateProgressRemarksLength(string? remarks)
+    {
+        if ((remarks?.Trim().Length ?? 0) > MaxProgressRemarksLength)
+        {
+            throw new InvalidOperationException($"Remarks cannot exceed {MaxProgressRemarksLength} characters.");
+        }
+    }
+
+    private static string BuildStatusProgressBody(string oldStatus, string newStatus, string? remarks)
+    {
+        var trimmed = remarks?.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmed))
+        {
+            return trimmed;
+        }
+
+        if (string.Equals(oldStatus, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(newStatus, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Work started.";
+        }
+
+        if (string.Equals(oldStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(newStatus, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Task resumed.";
+        }
+
+        return $"Status changed from {oldStatus} to {newStatus}.";
     }
 
     // SECTION: Audit logging

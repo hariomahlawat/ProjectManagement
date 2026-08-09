@@ -2,9 +2,10 @@
 @{
     var pageModel = Model.Item1;
     var tasks = Model.Item2;
+    var currentCollectionUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
-@* SECTION: Compact My Work task cards keep assignee actions focused and avoid command/planning controls. *@
+@* SECTION: My Tasks optimises the common path: one-click workflow actions, one-click-to-type remarks, full workspace only when depth is needed. *@
 <div class="at-mywork-rows">
     @foreach (var item in tasks)
     {
@@ -13,7 +14,6 @@
         var isInProgress = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
         var isBlocked = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
         var isSubmitted = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
-        var detailsLabel = isSubmitted ? "Open" : "Open";
 
         <article class="at-mywork-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
             <div class="at-mywork-row-main">
@@ -38,37 +38,19 @@
                         <input type="hidden" name="id" value="@task.Id" />
                         <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
                         <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
-                        <input type="hidden" name="remarks" value="Work started from My Work quick action." />
-                        <button type="submit" class="btn btn-primary btn-sm at-mywork-primary-action">Start Work</button>
+                        <button type="submit" class="btn btn-primary btn-sm at-mywork-primary-action">Start work</button>
                     </form>
                 }
                 else if (isInProgress && pageModel.CanSubmitTask(task))
                 {
-                    <form method="post" asp-page-handler="Submit" class="at-mywork-inline-form">
-                        <input type="hidden" name="ViewMode" value="@pageModel.ResolvedViewMode" />
-                        <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
-                        <input type="hidden" name="TaskId" value="@task.Id" />
-                        <input type="hidden" name="id" value="@task.Id" />
-                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                        <button type="submit" class="btn btn-warning btn-sm at-mywork-primary-action">Submit for closure</button>
-                    </form>
-                }
-                else if (isBlocked)
-                {
                     <a class="btn btn-primary btn-sm at-mywork-primary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add update</a>
+                       asp-route-taskIntent="submit"
+                       asp-route-viewMode="@pageModel.ResolvedViewMode"
+                       asp-route-SelectedSprintId="@pageModel.SelectedSprintId">Submit for closure</a>
                 }
-                else if (isSubmitted)
-                {
-                    <a class="btn btn-primary btn-sm at-mywork-primary-action"
-                       asp-page="/ActionTasks/Index"
-                       asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Open</a>
-                }
-
-                @if (isBlocked && pageModel.CanUpdateTaskStatus(task))
+                else if (isBlocked && pageModel.CanUpdateTaskStatus(task))
                 {
                     <form method="post" asp-page-handler="UpdateStatus" class="at-mywork-inline-form">
                         <input type="hidden" name="ViewMode" value="@pageModel.ResolvedViewMode" />
@@ -77,15 +59,15 @@
                         <input type="hidden" name="id" value="@task.Id" />
                         <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
                         <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
-                        <button type="submit" class="btn btn-outline-primary btn-sm at-mywork-secondary-action">Resume</button>
+                        <button type="submit" class="btn btn-primary btn-sm at-mywork-primary-action">Resume</button>
                     </form>
                 }
-                else if (isInProgress)
+                else if (isSubmitted)
                 {
-                    <a class="btn btn-link btn-sm at-mywork-secondary-action"
-                       asp-page="/ActionTasks/Index"
-                       asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add update</a>
+                    <a class="btn btn-primary btn-sm at-mywork-primary-action"
+                       asp-page="/ActionTasks/Details"
+                       asp-route-id="@task.Id"
+                       asp-route-returnUrl="@currentCollectionUrl">Open task</a>
                 }
 
                 @if (!isSubmitted)
@@ -93,8 +75,15 @@
                     <a class="btn btn-link btn-sm at-mywork-secondary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
+                       asp-route-taskIntent="remark"
                        asp-route-viewMode="@pageModel.ResolvedViewMode"
-                       aria-label="Open task AT-@task.Id details">@detailsLabel</a>
+                       asp-route-SelectedSprintId="@pageModel.SelectedSprintId">Add remark</a>
+
+                    <a class="btn btn-link btn-sm at-mywork-secondary-action"
+                       asp-page="/ActionTasks/Details"
+                       asp-route-id="@task.Id"
+                       asp-route-returnUrl="@currentCollectionUrl"
+                       aria-label="Open task AT-@task.Id full workspace">Open</a>
                 }
             </div>
         </article>
