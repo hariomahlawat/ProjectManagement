@@ -4,63 +4,57 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const partialPath = path.join(__dirname, '../../../Pages/Notebook/_NotebookConferenceDigest.cshtml');
+const indexPath = path.join(__dirname, '../../../Pages/Notebook/Index.cshtml');
 const cssPath = path.join(__dirname, '../../css/notebook.css');
 
-function readPartial() {
-  return fs.readFileSync(partialPath, 'utf8');
-}
+const read = (file) => fs.readFileSync(file, 'utf8');
 
-function readCss() {
-  return fs.readFileSync(cssPath, 'utf8');
-}
+test('conference digest is a PRISM-shared normal-width notebook card', () => {
+  const partial = read(partialPath);
+  const index = read(indexPath);
+  const css = read(cssPath);
 
-test('conference digest preview is deliberately shallow and PO-wise', () => {
-  const partial = readPartial();
+  assert.match(partial, /class="notebook-card notebook-card-color-white notebook-conference-shared-card"/);
+  assert.match(partial, /PRISM · Read only/);
+  assert.match(index, /Model\.Notebook\.View == "shared"/);
+  assert.match(index, /<h2>From PRISM<\/h2><span>1<\/span>/);
+  assert.match(index, /<h2>From people<\/h2>/);
+  assert.match(css, /\.notebook-shell\[data-board-view="grid"\] \.notebook-board\.notebook-system-shared-board\s*\{[\s\S]*?280px\) !important;/);
+  assert.doesNotMatch(css, /\.notebook-conference-digest-card\s*\{[\s\S]*?780px/);
+});
+
+test('conference digest preview remains deliberately shallow and PO-wise', () => {
+  const partial = read(partialPath);
 
   assert.match(partial, /const int previewOfficerLimit = 2;/);
   assert.match(partial, /const int previewDirectionLimit = 3;/);
   assert.match(partial, /previewGroups = Model\.OfficerGroups\.Take\(previewOfficerLimit\)/);
-  assert.match(partial, /notebook-conference-digest-preview-group__more/);
-  assert.match(partial, /View all @Model\.TotalDirectionCount direction/);
+  assert.match(partial, /notebook-conference-shared-card__officer/);
+  assert.match(partial, /hiddenDirectionCount/);
 });
 
 test('conference digest does not repeat project idea or task type labels', () => {
-  const partial = readPartial();
+  const partial = read(partialPath);
 
   assert.doesNotMatch(partial, /@item\.KindLabel/);
   assert.doesNotMatch(partial, /notebook-conference-digest-item__kind/);
-  assert.doesNotMatch(partial, /notebook-conference-digest-preview-item__meta/);
-  assert.match(partial, /notebook-conference-digest-item__heading/);
+  assert.doesNotMatch(partial, />PROJECT</);
+  assert.doesNotMatch(partial, />IDEA</);
+  assert.doesNotMatch(partial, />TASK</);
 });
 
-test('conference digest card is wide and presents two PO previews side by side on desktop', () => {
-  const css = readCss();
-
-  assert.match(css, /\.notebook-conference-digest-card\s*\{[\s\S]*?width:\s*min\(100%,\s*780px\);/);
-  assert.match(css, /\.notebook-conference-digest-card__groups\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/);
-  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\);/);
-});
-
-test('expanded digest uses a concise register row instead of type-specific cards', () => {
-  const css = readCss();
-
-  assert.match(css, /\.notebook-conference-digest-item__heading/);
-  assert.doesNotMatch(css, /\.notebook-conference-digest-item\.is-idea/);
-  assert.doesNotMatch(css, /\.notebook-conference-digest-item\.is-task/);
-  assert.doesNotMatch(css, /\.notebook-conference-digest-item__kind/);
-});
-
-test('expanded digest uses latest terminology and omits redundant per-officer direction counts', () => {
-  const partial = readPartial();
+test('expanded digest uses latest terminology and concise PO register hierarchy', () => {
+  const partial = read(partialPath);
 
   assert.match(partial, /@Model\.TotalDirectionCount latest direction/);
   assert.doesNotMatch(partial, /@Model\.TotalDirectionCount current direction/);
   assert.doesNotMatch(partial, /<span>@group\.Directions\.Count current direction/);
+  assert.match(partial, /Command · PRISM/);
   assert.match(partial, /Source: Conference Review/);
 });
 
-test('expanded digest separates PO groups without drawing rules between every direction', () => {
-  const css = readCss();
+test('expanded digest separates PO groups without rules between every direction', () => {
+  const css = read(cssPath);
   const officerRule = css.match(/\.notebook-conference-digest-officer\s*\{([^}]*)\}/)?.[1] ?? '';
   const itemRule = css.match(/\.notebook-conference-digest-item\s*\{([^}]*)\}/)?.[1] ?? '';
 
@@ -68,4 +62,3 @@ test('expanded digest separates PO groups without drawing rules between every di
   assert.doesNotMatch(itemRule, /border-bottom/);
   assert.match(css, /\.notebook-conference-digest-officer__items\s*\{[\s\S]*?gap:\s*\.48rem;/);
 });
-

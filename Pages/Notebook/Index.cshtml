@@ -14,13 +14,14 @@
         "archive" or "archived" => "No archived items.",
         "completed" => "No completed items.",
         "trash" => "Trash is empty.",
+        "shared" => "Nothing shared with you yet.",
         _ => "No notebook items yet."
     };
     var emptyText = Model.Notebook.View switch
     {
         "labels" => "Add tags to notebook items, then browse by label here.",
         "today" or "overdue" or "reminders" => "Add a reminder to any note or checklist.",
-        "shared" => "Shared notes from other PRISM users will appear here.",
+        "shared" => "Items shared by PRISM or other users will appear here.",
         "archive" or "archived" => "Archived notes will appear here.",
         "completed" => "Completed notes will appear here.",
         "trash" => "Items moved to Trash will appear here until permanently deleted.",
@@ -49,7 +50,7 @@
         "today" => "Items due today.",
         "overdue" => "Past reminders that still need attention.",
         "reminders" => "All active reminders across your notebook.",
-        "shared" => "Notes and checklists shared with you by other PRISM users.",
+        "shared" => "Items shared with you by PRISM and other users.",
         "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => $"Items labelled {selectedLabelName}.",
         "labels" => "Browse and organise notebook labels.",
         "trash" => "Items in Trash are permanently deleted after 30 days.",
@@ -59,7 +60,7 @@
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
-<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
+<div class="notebook-shell editor-collapsed" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-system-shared-count="@Model.SystemSharedSurfaceCount" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
     @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
     <div id="notebook-antiforgery-token" hidden>
         @Html.AntiForgeryToken()
@@ -157,13 +158,6 @@
             <button type="button" data-notebook-global-error-close aria-label="Dismiss error">×</button>
         </div>
 
-        @* SECTION: Live command digest. This is a virtual read-only note and is not
-           counted, sorted, archived or persisted with user Notebook items. *@
-        @if (Model.ConferenceDigest is { TotalDirectionCount: > 0 } conferenceDigest)
-        {
-            <partial name="_NotebookConferenceDigest" model="conferenceDigest" />
-        }
-
         @* SECTION: Card-first notebook board *@
         @if (Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
         {
@@ -185,8 +179,7 @@
         {
 
             var hasAnyHomeItems = Model.Notebook.PinnedItems.Any()
-                || Model.Notebook.OtherItems.Any()
-                || Model.ConferenceDigest is { TotalDirectionCount: > 0 };
+                || Model.Notebook.OtherItems.Any();
 
             @* SECTION: Manual-order friendly home board sections *@
             <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">
@@ -211,6 +204,42 @@
                     <div class="notebook-empty notebook-empty-compact" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p></div>
                 }
             </section>
+        }
+        else if (Model.Notebook.View == "shared")
+        {
+            var showPrismShared = Model.ShowConferenceDigest
+                && Model.ConferenceDigest is { TotalDirectionCount: > 0 };
+            var hasPeopleShared = Model.Notebook.Items.Any();
+
+            @* SECTION: System-shared surfaces are intentionally separated from person-to-person
+               collaboration. They use normal Notebook card geometry but remain live/read-only. *@
+            @if (showPrismShared && Model.ConferenceDigest is { } sharedDigest)
+            {
+                <section class="notebook-board-section notebook-shared-source-section" data-notebook-shared-source="prism">
+                    <div class="notebook-section-header"><h2>From PRISM</h2><span>1</span></div>
+                    <div class="notebook-board notebook-system-shared-board" data-layout="grid" data-item-count="1">
+                        <partial name="_NotebookConferenceDigest" model="sharedDigest" />
+                    </div>
+                </section>
+            }
+
+            @if (hasPeopleShared)
+            {
+                <section class="notebook-board-section notebook-shared-source-section" data-notebook-shared-source="people">
+                    <div class="notebook-section-header"><h2>From people</h2><span>@Model.Notebook.Items.Count</span></div>
+                    <div class="notebook-board" data-notebook-board data-layout-policy="masonry-always" data-layout="masonry" data-item-count="@Model.Notebook.Items.Count">
+                        @foreach (var item in Model.Notebook.Items)
+                        {
+                            <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = null }))" />
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (!showPrismShared && !hasPeopleShared)
+            {
+                <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p></div>
+            }
         }
         else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
         {

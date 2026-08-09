@@ -50,6 +50,8 @@ public class IndexModel : PageModel
 
     public NotebookIndexVm Notebook { get; private set; } = new();
     public ConferenceDirectionDigestVm? ConferenceDigest { get; private set; }
+    public bool ShowConferenceDigest { get; private set; }
+    public int SystemSharedSurfaceCount => ConferenceDigest is { TotalDirectionCount: > 0 } ? 1 : 0;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
@@ -82,20 +84,65 @@ public class IndexModel : PageModel
         NormalizeLegacyTypeView();
         Notebook = await _notebook.GetIndexAsync(userId, View, Query, Filter, Tag, selectedId: null, ct);
 
-        if (ShouldLoadConferenceDigest())
+        if (HasCommandNotebookRole())
         {
             ConferenceDigest = await _conferenceRead.GetLatestDirectionDigestAsync(userId, ct);
+            if (ConferenceDigest is { TotalDirectionCount: > 0 })
+            {
+                AddSystemSharedSurfaceToRail();
+                ShowConferenceDigest = ShouldShowConferenceDigest(ConferenceDigest);
+            }
         }
 
         return Page();
     }
 
-    private bool ShouldLoadConferenceDigest()
-        => string.Equals(View, "home", StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrWhiteSpace(Query)
-            && string.IsNullOrWhiteSpace(Filter)
-            && string.IsNullOrWhiteSpace(Tag)
-            && (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD));
+    private bool HasCommandNotebookRole()
+        => User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD);
+
+    private void AddSystemSharedSurfaceToRail()
+    {
+        var shared = Notebook.RailItems.FirstOrDefault(item =>
+            string.Equals(item.Key, "shared", StringComparison.OrdinalIgnoreCase));
+        if (shared is not null)
+        {
+            shared.Count += 1;
+        }
+    }
+
+    private bool ShouldShowConferenceDigest(ConferenceDirectionDigestVm digest)
+    {
+        if (!string.Equals(Notebook.View, "shared", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(Filter)
+            || !string.IsNullOrWhiteSpace(Tag))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(Query))
+        {
+            return true;
+        }
+
+        var term = Query.Trim();
+        if (Contains("Latest Conference Directions", term)
+            || Contains("Conference Review", term)
+            || Contains("PRISM", term)
+            || Contains("Command", term))
+        {
+            return true;
+        }
+
+        return digest.OfficerGroups.Any(group =>
+            Contains(group.OfficerDisplayName, term)
+            || group.Directions.Any(item =>
+                Contains(item.Title, term)
+                || Contains(item.DirectionText, term)));
+    }
+
+    private static bool Contains(string? value, string term)
+        => !string.IsNullOrWhiteSpace(value)
+            && value.Contains(term, StringComparison.OrdinalIgnoreCase);
 
     private void NormalizeLegacyTypeView()
     {

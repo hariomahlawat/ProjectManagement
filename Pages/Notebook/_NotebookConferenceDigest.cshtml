@@ -8,9 +8,8 @@
     var previewTakes = new int[previewGroups.Length];
     var remainingPreviewSlots = previewDirectionLimit;
 
-    // Preserve PO-wise context in the compact card: when two officers are available,
-    // reserve at least one preview slot for the second officer instead of allowing the
-    // first officer to consume the entire preview.
+    // Preserve PO context in the compact note: when two officers are available,
+    // reserve at least one preview slot for the second officer.
     for (var index = 0; index < previewGroups.Length && remainingPreviewSlots > 0; index++)
     {
         var groupsAfter = previewGroups.Length - index - 1;
@@ -27,83 +26,62 @@
         remainingPreviewSlots -= take;
     }
 
-    var hiddenOfficerGroups = Model.OfficerGroups.Skip(previewOfficerLimit).ToArray();
-    var hiddenOfficerCount = hiddenOfficerGroups.Length;
-    var hiddenOfficerDirectionCount = hiddenOfficerGroups.Sum(group => group.Directions.Count);
+    var previewedDirectionCount = previewTakes.Sum();
+    var hiddenDirectionCount = Math.Max(0, Model.TotalDirectionCount - previewedDirectionCount);
 }
 
-<section class="notebook-board-section notebook-conference-digest" data-conference-digest aria-labelledby="notebook-command-digest-heading">
-    <div class="notebook-section-header notebook-conference-digest__section-header">
-        <h2 id="notebook-command-digest-heading"><i class="bi bi-shield-check" aria-hidden="true"></i>Command</h2>
+@* SECTION: PRISM-shared virtual note. It deliberately uses the same geometry and
+   surface treatment as a normal Notebook card while remaining live and read-only. *@
+<article class="notebook-card notebook-card-color-white notebook-conference-shared-card"
+         data-notebook-system-shared-card="conference-directions">
+    <button type="button"
+            class="notebook-conference-shared-card__open"
+            data-bs-toggle="modal"
+            data-bs-target="#notebookConferenceDigestModal"
+            aria-haspopup="dialog"
+            aria-label="Open latest conference directions"></button>
+
+    <div class="notebook-card-body notebook-conference-shared-card__body">
+        <h3 class="notebook-card-title">Latest Conference Directions</h3>
+        <p class="notebook-card-preview notebook-conference-shared-card__summary">
+            @Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s")
+            <span aria-hidden="true"> · </span>
+            @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")
+        </p>
+
+        <div class="notebook-conference-shared-card__groups">
+            @for (var groupIndex = 0; groupIndex < previewGroups.Length; groupIndex++)
+            {
+                var group = previewGroups[groupIndex];
+                var previewTake = previewTakes[groupIndex];
+
+                <div class="notebook-conference-shared-card__group">
+                    <div class="notebook-conference-shared-card__officer">
+                        <span title="@group.OfficerDisplayName">@group.OfficerDisplayName</span>
+                        <small>@group.Directions.Count</small>
+                    </div>
+                    @foreach (var item in group.Directions.Take(previewTake))
+                    {
+                        <div class="notebook-conference-shared-card__item">
+                            <strong title="@item.Title">@item.Title</strong>
+                            <span>@item.DirectionText</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (hiddenDirectionCount > 0)
+        {
+            <div class="notebook-conference-shared-card__more">+@hiddenDirectionCount more direction@(hiddenDirectionCount == 1 ? string.Empty : "s")</div>
+        }
     </div>
 
-    <article class="notebook-conference-digest-card">
-        <button type="button"
-                class="notebook-conference-digest-card__open"
-                data-bs-toggle="modal"
-                data-bs-target="#notebookConferenceDigestModal"
-                aria-haspopup="dialog"
-                aria-label="Open latest conference directions">
-            <span class="notebook-conference-digest-card__topline">
-                <span>
-                    <strong>Latest Conference Directions</strong>
-                    <small><i class="bi bi-lock" aria-hidden="true"></i> System generated · Read only</small>
-                </span>
-                <span class="notebook-conference-digest-card__count" aria-label="@Model.TotalDirectionCount latest directions">@Model.TotalDirectionCount</span>
-            </span>
-
-            <span class="notebook-conference-digest-card__groups">
-                @for (var groupIndex = 0; groupIndex < previewGroups.Length; groupIndex++)
-                {
-                    var group = previewGroups[groupIndex];
-                    var previewTake = previewTakes[groupIndex];
-                    var hiddenInGroup = Math.Max(0, group.Directions.Count - previewTake);
-
-                    <span class="notebook-conference-digest-preview-group">
-                        <span class="notebook-conference-digest-preview-group__heading">
-                            <strong>@group.OfficerDisplayName</strong>
-                            <small>@group.Directions.Count</small>
-                        </span>
-
-                        <span class="notebook-conference-digest-preview-group__items">
-                            @foreach (var item in group.Directions.Take(previewTake))
-                            {
-                                var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
-                                <span class="notebook-conference-digest-preview-item">
-                                    <span class="notebook-conference-digest-preview-item__titleline">
-                                        <strong title="@item.Title">@item.Title</strong>
-                                        <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM")</time>
-                                    </span>
-                                    <span class="notebook-conference-digest-preview-item__direction">@item.DirectionText</span>
-                                </span>
-                            }
-                        </span>
-
-                        @if (hiddenInGroup > 0)
-                        {
-                            <span class="notebook-conference-digest-preview-group__more">+@hiddenInGroup more</span>
-                        }
-                    </span>
-                }
-            </span>
-
-            <span class="notebook-conference-digest-card__footer">
-                @if (hiddenOfficerCount > 0)
-                {
-                    <span>
-                        @hiddenOfficerCount more officer@(hiddenOfficerCount == 1 ? string.Empty : "s")
-                        <span aria-hidden="true"> · </span>
-                        @hiddenOfficerDirectionCount direction@(hiddenOfficerDirectionCount == 1 ? string.Empty : "s")
-                    </span>
-                }
-                else
-                {
-                    <span>@Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</span>
-                }
-                <span>View all @Model.TotalDirectionCount direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
-            </span>
-        </button>
-    </article>
+    <div class="notebook-sharing-summary notebook-conference-shared-card__sharing" aria-label="Shared by PRISM. Read only.">
+        <i class="bi bi-shield-lock" aria-hidden="true"></i>
+        <span>PRISM · Read only</span>
+    </div>
+</article>
 
     <div class="modal fade notebook-conference-digest-modal"
          id="notebookConferenceDigestModal"
@@ -114,7 +92,7 @@
             <div class="modal-content notebook-conference-digest-modal__content">
                 <header class="notebook-conference-digest-modal__header">
                     <div>
-                        <div class="notebook-conference-digest-modal__eyebrow">Command · System generated</div>
+                        <div class="notebook-conference-digest-modal__eyebrow">Command · PRISM</div>
                         <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
                         <p>@Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
                     </div>
@@ -161,4 +139,3 @@
             </div>
         </div>
     </div>
-</section>

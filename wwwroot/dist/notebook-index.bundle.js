@@ -375,8 +375,9 @@ function createNotebookBoard(root = document) {
   const refreshEmptyState = () => {
     const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector("[data-notebook-empty-state]") || root.querySelector("[data-notebook-empty]");
     if (!empty) return;
-    const count = [...root.querySelectorAll("[data-notebook-board]")].reduce((total, board) => total + board.querySelectorAll(":scope > [data-note-id]").length, 0);
-    empty.hidden = count > 0;
+    const notebookCount = [...root.querySelectorAll("[data-notebook-board]")].reduce((total, board) => total + board.querySelectorAll(":scope > [data-note-id]").length, 0);
+    const systemSharedCount = root.querySelectorAll("[data-notebook-system-shared-card]").length;
+    empty.hidden = notebookCount + systemSharedCount > 0;
   };
   const upsertCard = (id, html, isPinned, options = {}) => {
     const current = findCard(id);
@@ -4847,14 +4848,17 @@ function initNotebookApp() {
     globalErrorText.textContent = message || "Notebook action failed.";
     globalError.hidden = false;
   };
+  const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || "0", 10) || 0);
   const applyCounts = (counts) => {
     if (!counts) return;
     Object.entries(counts).forEach(([key, value]) => {
+      const numericValue = Number(value) || 0;
+      const displayValue = key.toLowerCase() === "shared" ? numericValue + systemSharedCount : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
-        el.textContent = String(value);
+        el.textContent = String(displayValue);
         if (key.toLowerCase() === "overdue") {
           const isCurrentView = String(shell.dataset.view || "").toLowerCase() === "overdue";
-          el.closest(".notebook-rail__item")?.toggleAttribute("hidden", Number(value) <= 0 && !isCurrentView);
+          el.closest(".notebook-rail__item")?.toggleAttribute("hidden", displayValue <= 0 && !isCurrentView);
         }
       });
     });

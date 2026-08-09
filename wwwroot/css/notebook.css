@@ -4100,182 +4100,105 @@ body.notebook-confirm-open { overflow: hidden; }
     }
 }
 
-/* SECTION: Command conference digest
-   A virtual, read-only Notebook note for Comdt/HoD. It is intentionally outside the
-   sortable Notebook boards so it never affects user note counts or manual ordering. */
-.notebook-conference-digest {
-    margin-top: .28rem;
+/* SECTION: PRISM-shared Conference digest
+   The live command digest belongs in Shared with me and deliberately uses standard
+   Notebook card geometry. It is not part of the sortable/user-owned board model. */
+.notebook-shared-source-section {
+    margin-top: .5rem;
 }
 
-.notebook-conference-digest__section-header h2 {
-    display: inline-flex;
-    align-items: center;
-    gap: .38rem;
-    color: #334155;
-    font-weight: 600;
+.notebook-shared-source-section + .notebook-shared-source-section {
+    margin-top: .9rem;
 }
 
-.notebook-conference-digest__section-header h2 i {
-    color: #536ea8;
-    font-size: .8rem;
+.notebook-shell[data-board-view="grid"] .notebook-board.notebook-system-shared-board {
+    grid-template-columns: minmax(min(240px, 100%), 280px) !important;
+    grid-auto-rows: auto !important;
+    justify-content: start !important;
 }
 
-.notebook-conference-digest-card {
-    width: min(100%, 780px);
+.notebook-conference-shared-card {
+    position: relative;
+    isolation: isolate;
     overflow: hidden;
-    border: 1px solid #dce4ef;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
-    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
-.notebook-conference-digest-card:hover,
-.notebook-conference-digest-card:focus-within {
-    border-color: #bdc9db;
-    box-shadow: 0 7px 18px rgba(15, 23, 42, .08);
+.notebook-conference-shared-card:hover,
+.notebook-conference-shared-card:focus-within {
+    border-color: rgba(71, 85, 105, .27);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .10), 0 5px 14px rgba(15, 23, 42, .09);
 }
 
-.notebook-conference-digest-card__open {
-    display: block;
+.notebook-conference-shared-card__open {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
     width: 100%;
-    padding: .78rem .88rem .68rem;
     border: 0;
+    border-radius: inherit;
     background: transparent;
-    color: inherit;
-    text-align: left;
     cursor: pointer;
 }
 
-.notebook-conference-digest-card__open:focus-visible {
+.notebook-conference-shared-card__open:focus-visible {
     outline: 3px solid rgba(37, 99, 235, .18);
     outline-offset: -3px;
-    border-radius: 11px;
 }
 
-.notebook-conference-digest-card__topline,
-.notebook-conference-digest-card__footer,
-.notebook-conference-digest-preview-group__heading,
-.notebook-conference-digest-preview-item__titleline,
-.notebook-conference-digest-item__heading {
-    display: flex;
-    align-items: center;
+.notebook-conference-shared-card__body {
+    padding-bottom: 8px;
 }
 
-.notebook-conference-digest-card__topline {
-    justify-content: space-between;
-    gap: .75rem;
+.notebook-conference-shared-card__summary {
+    margin-bottom: .58rem;
+    color: #66758a;
+    font-size: .75rem;
 }
 
-.notebook-conference-digest-card__topline > span:first-child {
-    min-width: 0;
-}
-
-.notebook-conference-digest-card__topline strong {
-    display: block;
-    color: #111827;
-    font-size: .94rem;
-    font-weight: 600;
-    line-height: 1.25;
-}
-
-.notebook-conference-digest-card__topline small {
-    display: flex;
-    align-items: center;
-    gap: .3rem;
-    margin-top: .15rem;
-    color: #7c8798;
-    font-size: .69rem;
-    font-weight: 500;
-}
-
-.notebook-conference-digest-card__count {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.72rem;
-    height: 1.72rem;
-    padding: 0 .38rem;
-    border-radius: 999px;
-    background: #edf2fb;
-    color: #49649a;
-    font-size: .74rem;
-    font-weight: 700;
-}
-
-.notebook-conference-digest-card__groups {
+.notebook-conference-shared-card__groups {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: .64rem;
-    border-top: 1px solid #edf1f6;
+    gap: .52rem;
 }
 
-.notebook-conference-digest-preview-group {
+.notebook-conference-shared-card__group {
     display: grid;
-    align-content: start;
     gap: .3rem;
     min-width: 0;
-    padding: .58rem .8rem .08rem 0;
 }
 
-.notebook-conference-digest-preview-group + .notebook-conference-digest-preview-group {
-    padding-right: 0;
-    padding-left: .8rem;
-    border-left: 1px solid #edf1f6;
-}
-
-.notebook-conference-digest-preview-group:only-child {
-    grid-column: 1 / -1;
-    padding-right: 0;
-}
-
-.notebook-conference-digest-preview-group__heading {
+.notebook-conference-shared-card__officer {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: .7rem;
-    padding-bottom: .25rem;
-    border-bottom: 1px solid #f0f3f7;
-}
-
-.notebook-conference-digest-preview-group__heading strong {
-    overflow: hidden;
+    gap: .5rem;
+    min-width: 0;
     color: #344054;
     font-size: .72rem;
     font-weight: 600;
-    letter-spacing: .01em;
+}
+
+.notebook-conference-shared-card__officer > span {
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.notebook-conference-digest-preview-group__heading small {
+.notebook-conference-shared-card__officer small {
     flex: 0 0 auto;
     color: #8b96a8;
-    font-size: .67rem;
+    font-size: .66rem;
     font-weight: 500;
 }
 
-.notebook-conference-digest-preview-group__items {
+.notebook-conference-shared-card__item {
     display: grid;
-    gap: .18rem;
+    gap: .03rem;
     min-width: 0;
 }
 
-.notebook-conference-digest-preview-item {
-    display: grid;
-    min-width: 0;
-    padding: .13rem 0 .22rem;
-}
-
-.notebook-conference-digest-preview-item__titleline {
-    justify-content: space-between;
-    gap: .55rem;
-    min-width: 0;
-}
-
-.notebook-conference-digest-preview-item__titleline strong {
-    min-width: 0;
+.notebook-conference-shared-card__item strong {
     overflow: hidden;
-    color: #24324a;
+    color: #26344c;
     font-size: .78rem;
     font-weight: 500;
     line-height: 1.28;
@@ -4283,58 +4206,36 @@ body.notebook-confirm-open { overflow: hidden; }
     white-space: nowrap;
 }
 
-.notebook-conference-digest-preview-item__titleline time {
-    flex: 0 0 auto;
-    color: #8792a3;
-    font-size: .63rem;
-    font-weight: 500;
-    letter-spacing: .02em;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.notebook-conference-digest-preview-item__direction {
+.notebook-conference-shared-card__item > span {
     display: -webkit-box;
-    margin-top: .06rem;
     overflow: hidden;
     color: #5f6f84;
-    font-size: .75rem;
+    font-size: .74rem;
     font-weight: 400;
-    line-height: 1.34;
+    line-height: 1.32;
     white-space: pre-line;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
 }
 
-.notebook-conference-digest-preview-group__more {
-    margin-top: .03rem;
-    color: #7a8799;
-    font-size: .66rem;
-    font-weight: 500;
-}
-
-.notebook-conference-digest-card__footer {
-    justify-content: space-between;
-    gap: .75rem;
-    margin-top: .46rem;
-    padding-top: .5rem;
-    border-top: 1px solid #edf1f6;
-    color: #718096;
+.notebook-conference-shared-card__more {
+    margin-top: .45rem;
+    color: #758195;
     font-size: .69rem;
     font-weight: 500;
 }
 
-.notebook-conference-digest-card__footer > span:last-child {
-    display: inline-flex;
-    align-items: center;
-    gap: .18rem;
-    color: #49649a;
-    white-space: nowrap;
+.notebook-conference-shared-card__sharing {
+    position: relative;
+    z-index: 1;
+    max-width: calc(100% - 1rem);
+    margin-top: .12rem;
+    margin-bottom: 9px;
+    color: #6f7e92;
 }
 
-.notebook-shell[data-board-view="list"] .notebook-conference-digest-card {
-    width: min(100%, 840px);
-    margin-inline: auto;
+.notebook-conference-shared-card__sharing i {
+    color: #6077a5;
 }
 
 /* Expanded system note. Bootstrap supplies focus trapping/backdrop/escape semantics;
@@ -4537,25 +4438,6 @@ body.notebook-confirm-open { overflow: hidden; }
 }
 
 @media (max-width: 760px) {
-    .notebook-conference-digest-card {
-        width: 100%;
-    }
-
-    .notebook-conference-digest-card__groups {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .notebook-conference-digest-preview-group,
-    .notebook-conference-digest-preview-group + .notebook-conference-digest-preview-group {
-        padding: .55rem 0 .08rem;
-        border-left: 0;
-    }
-
-    .notebook-conference-digest-preview-group + .notebook-conference-digest-preview-group {
-        margin-top: .28rem;
-        border-top: 1px solid #edf1f6;
-    }
-
     .notebook-conference-digest-modal__dialog {
         width: calc(100vw - 1rem);
         margin: .5rem auto;

@@ -68,14 +68,19 @@ export function initNotebookApp() {
   const globalError = document.querySelector('[data-notebook-global-error]');
   const globalErrorText = document.querySelector('[data-notebook-global-error-text]');
   const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
+  const systemSharedCount = Math.max(0, Number.parseInt(shell.dataset.systemSharedCount || '0', 10) || 0);
   const applyCounts = (counts) => {
     if (!counts) return;
     Object.entries(counts).forEach(([key, value]) => {
+      const numericValue = Number(value) || 0;
+      const displayValue = key.toLowerCase() === 'shared'
+        ? numericValue + systemSharedCount
+        : numericValue;
       shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
-        el.textContent = String(value);
+        el.textContent = String(displayValue);
         if (key.toLowerCase() === 'overdue') {
           const isCurrentView = String(shell.dataset.view || '').toLowerCase() === 'overdue';
-          el.closest('.notebook-rail__item')?.toggleAttribute('hidden', Number(value) <= 0 && !isCurrentView);
+          el.closest('.notebook-rail__item')?.toggleAttribute('hidden', displayValue <= 0 && !isCurrentView);
         }
       });
     });

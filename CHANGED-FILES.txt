@@ -1,2 +1,9 @@
+Pages/Notebook/Index.cshtml
+Pages/Notebook/Index.cshtml.cs
+Pages/Notebook/_NotebookConferenceDigest.cshtml
 wwwroot/css/notebook.css
+wwwroot/js/notebook/notebook-app.js
+wwwroot/js/notebook/notebook-board.js
+wwwroot/js/notebook/notebook-conference-digest-contract.test.js
 wwwroot/js/notebook/notebook-conference-digest-typography-contract.test.js
+wwwroot/js/notebook/notebook-system-shared-contract.test.js
