@@ -1,0 +1,217 @@
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -4112,6 +4112,7 @@
+     align-items: center;
+     gap: .38rem;
+     color: #334155;
++    font-weight: 600;
+ }
+ 
+ .notebook-conference-digest__section-header h2 i {
+@@ -4174,6 +4175,7 @@
+     display: block;
+     color: #111827;
+     font-size: .94rem;
++    font-weight: 600;
+     line-height: 1.25;
+ }
+ 
+@@ -4184,7 +4186,7 @@
+     margin-top: .15rem;
+     color: #7c8798;
+     font-size: .69rem;
+-    font-weight: 600;
++    font-weight: 500;
+ }
+ 
+ .notebook-conference-digest-card__count {
+@@ -4199,7 +4201,7 @@
+     background: #edf2fb;
+     color: #49649a;
+     font-size: .74rem;
+-    font-weight: 800;
++    font-weight: 700;
+ }
+ 
+ .notebook-conference-digest-card__groups {
+@@ -4239,8 +4241,8 @@
+     overflow: hidden;
+     color: #344054;
+     font-size: .72rem;
+-    font-weight: 800;
+-    letter-spacing: .015em;
++    font-weight: 600;
++    letter-spacing: .01em;
+     text-overflow: ellipsis;
+     white-space: nowrap;
+ }
+@@ -4249,7 +4251,7 @@
+     flex: 0 0 auto;
+     color: #8b96a8;
+     font-size: .67rem;
+-    font-weight: 700;
++    font-weight: 500;
+ }
+ 
+ .notebook-conference-digest-preview-group__items {
+@@ -4275,7 +4277,7 @@
+     overflow: hidden;
+     color: #24324a;
+     font-size: .78rem;
+-    font-weight: 750;
++    font-weight: 500;
+     line-height: 1.28;
+     text-overflow: ellipsis;
+     white-space: nowrap;
+@@ -4285,8 +4287,8 @@
+     flex: 0 0 auto;
+     color: #8792a3;
+     font-size: .63rem;
+-    font-weight: 700;
+-    letter-spacing: .025em;
++    font-weight: 500;
++    letter-spacing: .02em;
+     text-transform: uppercase;
+     white-space: nowrap;
+ }
+@@ -4297,6 +4299,7 @@
+     overflow: hidden;
+     color: #5f6f84;
+     font-size: .75rem;
++    font-weight: 400;
+     line-height: 1.34;
+     white-space: pre-line;
+     -webkit-box-orient: vertical;
+@@ -4307,7 +4310,7 @@
+     margin-top: .03rem;
+     color: #7a8799;
+     font-size: .66rem;
+-    font-weight: 650;
++    font-weight: 500;
+ }
+ 
+ .notebook-conference-digest-card__footer {
+@@ -4318,7 +4321,7 @@
+     border-top: 1px solid #edf1f6;
+     color: #718096;
+     font-size: .69rem;
+-    font-weight: 650;
++    font-weight: 500;
+ }
+ 
+ .notebook-conference-digest-card__footer > span:last-child {
+@@ -4366,8 +4369,8 @@
+     margin-bottom: .16rem;
+     color: #6b7fa9;
+     font-size: .66rem;
+-    font-weight: 800;
+-    letter-spacing: .065em;
++    font-weight: 600;
++    letter-spacing: .06em;
+     text-transform: uppercase;
+ }
+ 
+@@ -4375,7 +4378,7 @@
+     margin: 0;
+     color: #111827;
+     font-size: 1.13rem;
+-    font-weight: 800;
++    font-weight: 650;
+     line-height: 1.25;
+ }
+ 
+@@ -4402,7 +4405,7 @@
+     background: #f8fafc;
+     color: #66758a;
+     font-size: .69rem;
+-    font-weight: 700;
++    font-weight: 600;
+     white-space: nowrap;
+ }
+ 
+@@ -4432,8 +4435,8 @@
+     margin: 0;
+     color: #26344c;
+     font-size: .82rem;
+-    font-weight: 800;
+-    letter-spacing: .012em;
++    font-weight: 600;
++    letter-spacing: .008em;
+ }
+ 
+ .notebook-conference-digest-officer__review-link {
+@@ -4443,7 +4446,7 @@
+     gap: .22rem;
+     color: #5872a8;
+     font-size: .7rem;
+-    font-weight: 700;
++    font-weight: 500;
+     text-decoration: none;
+ }
+ 
+@@ -4479,7 +4482,7 @@
+     gap: .3rem;
+     color: #1e2f4d;
+     font-size: .82rem;
+-    font-weight: 750;
++    font-weight: 500;
+     line-height: 1.3;
+     text-decoration: none;
+ }
+@@ -4500,7 +4503,7 @@
+     flex: 0 0 auto;
+     color: #8a96a8;
+     font-size: .65rem;
+-    font-weight: 600;
++    font-weight: 400;
+     white-space: nowrap;
+ }
+ 
+@@ -4508,6 +4511,7 @@
+     margin: .04rem 0 0;
+     color: #475569;
+     font-size: .79rem;
++    font-weight: 400;
+     line-height: 1.38;
+     white-space: pre-line;
+ }
+--- /dev/null
++++ b/wwwroot/js/notebook/notebook-conference-digest-typography-contract.test.js
+@@ -0,0 +1,37 @@
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import test from 'node:test';
++import { fileURLToPath } from 'node:url';
++
++const here = path.dirname(fileURLToPath(import.meta.url));
++const cssPath = path.resolve(here, '../../css/notebook.css');
++const css = fs.readFileSync(cssPath, 'utf8');
++
++function rule(selector) {
++    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
++    const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, 'm'));
++    assert.ok(match, `Missing CSS rule for ${selector}`);
++    return match[1];
++}
++
++test('conference digest uses restrained hierarchy for the expanded register', () => {
++    assert.match(rule('.notebook-conference-digest-modal__header h2'), /font-weight:\s*650\s*;/);
++    assert.match(rule('.notebook-conference-digest-officer__header h3'), /font-weight:\s*600\s*;/);
++    assert.match(rule('.notebook-conference-digest-item__title'), /font-weight:\s*500\s*;/);
++    assert.match(rule('.notebook-conference-digest-item p'), /font-weight:\s*400\s*;/);
++    assert.match(rule('.notebook-conference-digest-item__heading time'), /font-weight:\s*400\s*;/);
++});
++
++test('compact digest follows the same PO-to-item-to-direction hierarchy', () => {
++    assert.match(rule('.notebook-conference-digest-preview-group__heading strong'), /font-weight:\s*600\s*;/);
++    assert.match(rule('.notebook-conference-digest-preview-item__titleline strong'), /font-weight:\s*500\s*;/);
++    assert.match(rule('.notebook-conference-digest-preview-item__direction'), /font-weight:\s*400\s*;/);
++    assert.match(rule('.notebook-conference-digest-preview-item__titleline time'), /font-weight:\s*500\s*;/);
++});
++
++test('supporting actions and metadata no longer compete with content', () => {
++    assert.match(rule('.notebook-conference-digest-officer__review-link'), /font-weight:\s*500\s*;/);
++    assert.match(rule('.notebook-conference-digest-card__topline small'), /font-weight:\s*500\s*;/);
++    assert.match(rule('.notebook-conference-digest-card__footer'), /font-weight:\s*500\s*;/);
++});
