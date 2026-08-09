@@ -372,7 +372,7 @@
                                             <span class="pi-table-date-separator" aria-hidden="true">·</span>
                                             <span class="pi-table-stale" aria-label="No update for more than 30 days">
                                                 <span class="bi bi-clock-history" aria-hidden="true"></span>
-                                                No update &gt;30 days
+                                                30+ days idle
                                             </span>
                                         }
                                     </small>
@@ -444,13 +444,15 @@
                         <span class="pi-card-icon" aria-hidden="true"><span class="bi bi-lightbulb"></span></span>
                         <div class="pi-card-title-wrap">
                             <h2>@idea.Title</h2>
-                            <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
                         </div>
                     </div>
 
-                    <p class="pi-card-description @(needsDetails ? "pi-description-missing" : null)">@IndexModel.DisplayDescription(idea)</p>
+                    @if (!needsDetails)
+                    {
+                        <p class="pi-card-description">@IndexModel.DisplayDescription(idea)</p>
+                    }
 
-                    @if (needsDetails || idea.AssignedProjectOfficerUser is null || isStale)
+                    @if (needsDetails || idea.AssignedProjectOfficerUser is null)
                     {
                         <div class="pi-card-signals" aria-label="Operational indicators">
                             @if (needsDetails)
@@ -461,10 +463,6 @@
                             {
                                 <span class="pi-signal pi-signal-neutral"><span class="bi bi-person-plus" aria-hidden="true"></span>Unassigned</span>
                             }
-                            @if (isStale)
-                            {
-                                <span class="pi-signal pi-signal-danger"><span class="bi bi-clock-history" aria-hidden="true"></span>30+ days idle</span>
-                            }
                         </div>
                     }
 
@@ -473,10 +471,19 @@
                             <span class="bi bi-person" aria-hidden="true"></span>
                             <b>@Model.DisplayUser(idea.AssignedProjectOfficerUser)</b>
                         </span>
-                        <time datetime="@lastActivityIso" title="@Model.DisplayDateTime(lastActivity)">
-                            <span class="bi bi-clock" aria-hidden="true"></span>
-                            Updated @Model.DisplayRelativeDate(lastActivity)
-                        </time>
+                        <div class="pi-card-updated-row">
+                            <time datetime="@lastActivityIso" title="@Model.DisplayDateTime(lastActivity)">
+                                <span class="bi bi-clock" aria-hidden="true"></span>
+                                <span>Updated @Model.DisplayCardActivity(lastActivity)</span>
+                            </time>
+                            @if (isStale)
+                            {
+                                <span class="pi-card-stale" aria-label="No update for more than 30 days">
+                                    <span class="pi-card-stale-separator" aria-hidden="true">·</span>
+                                    <span>30+ days idle</span>
+                                </span>
+                            }
+                        </div>
                     </div>
 
                     <div class="pi-card-footer">

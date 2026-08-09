@@ -742,9 +742,9 @@
 .pi-index-page .pi-idea-card {
     position: relative;
     display: flex;
-    min-height: 250px;
+    min-height: 220px;
     flex-direction: column;
-    gap: .9rem;
+    gap: .72rem;
     padding: 1rem;
     border: 1px solid var(--pi-border);
     border-radius: 15px;
@@ -793,8 +793,6 @@
     min-width: 0;
     flex: 1 1 auto;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: .65rem;
 }
 
 .pi-index-page .pi-card-title-wrap h2 {
@@ -813,7 +811,6 @@
 
 .pi-index-page .pi-card-description {
     display: -webkit-box;
-    min-height: 2.9em;
     margin: 0;
     overflow: hidden;
     color: #617087;
@@ -825,20 +822,44 @@
 
 .pi-index-page .pi-card-metadata {
     display: grid;
-    gap: .48rem;
+    gap: .4rem;
     margin-top: auto;
-    padding-top: .78rem;
+    padding-top: .68rem;
     border-top: 1px solid var(--pi-border-soft);
     color: #68768b;
     font-size: .72rem;
 }
 
 .pi-index-page .pi-card-metadata > span,
-.pi-index-page .pi-card-metadata time {
+.pi-index-page .pi-card-metadata time,
+.pi-index-page .pi-card-updated-row {
     display: flex;
     min-width: 0;
     align-items: center;
+}
+
+.pi-index-page .pi-card-metadata > span,
+.pi-index-page .pi-card-metadata time {
     gap: .42rem;
+}
+
+.pi-index-page .pi-card-updated-row {
+    flex-wrap: wrap;
+    gap: .24rem;
+}
+
+.pi-index-page .pi-card-stale {
+    display: inline-flex;
+    align-items: center;
+    gap: .24rem;
+    color: #9a4a12;
+    font-weight: 760;
+    white-space: nowrap;
+}
+
+.pi-index-page .pi-card-stale-separator {
+    color: #a9b3c1;
+    font-weight: 500;
 }
 
 .pi-index-page .pi-card-metadata b {
@@ -855,11 +876,11 @@
 
 .pi-index-page .pi-card-footer {
     display: flex;
-    min-height: 36px;
+    min-height: 32px;
     align-items: center;
     justify-content: space-between;
     gap: .8rem;
-    padding: .68rem 0 0;
+    padding: .58rem 0 0;
     border-top: 1px solid var(--pi-border-soft);
     color: #5f6e84;
     font-size: .71rem;

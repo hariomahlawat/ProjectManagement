@@ -1,26 +1,13 @@
-IDEATION BOARD REFINEMENT - READY TO REPLACE
+IDEATION BOARD — FINAL CARD VIEW REFINEMENT
 
-Replace these existing files using the same relative paths:
+Replace these files in the project:
+
 1. Pages/ProjectIdeas/Index.cshtml
 2. Pages/ProjectIdeas/Index.cshtml.cs
 3. wwwroot/css/project-ideas-board.css
-4. wwwroot/css/project-ideas.css
+4. wwwroot/js/projects/project-ideas-board-contract.test.js
 
-Add this regression-contract test file:
-5. wwwroot/js/projects/project-ideas-board-contract.test.js
+This pass intentionally does NOT change Dashboard authorization/read-model logic.
+It preserves natural page scrolling, collective General + Conference remark counts, filters, My Ideas semantics, and Idea governance.
 
-Implemented:
-- Eliminates nested vertical table scrolling; the page owns vertical scrolling.
-- Retains horizontal overflow only for narrow layouts.
-- Removes obsolete pi-table-scrollable CSS/sticky-header implementation.
-- Moves 30+ day stale state from the Idea column to Last Updated.
-- Removes duplicate missing-summary sentence when Needs details is shown in table view.
-- Uses relative + exact timestamps for recent activity and full date + time for older activity.
-- Replaces the ambiguous arrow submit icon with an explicit search icon/accessible label.
-- Leaves collective remark/update counting, Cards/Table behaviour, filters, My Ideas, status tabs and card behaviour unchanged.
-
-Verification performed in review environment:
-- Project Ideas board contract tests: PASS (5/5).
-- Existing Project Ideas governance contract tests + new board tests: PASS (14/14).
-- Full npm suite could not be executed because node_modules/jsdom is not installed in the review environment.
-- .NET compile could not be executed because the .NET SDK is not installed in the review environment.
+After replacing, rebuild and hard-refresh the browser (Ctrl+F5).

@@ -196,6 +196,13 @@ public class IndexModel : PageModel
             : localValue.ToString("hh:mm tt");
     }
 
+    public string DisplayCardActivity(DateTime value)
+    {
+        // Cards use the same scanning rule as the table: recent activity is
+        // relative, while older activity carries the year to remain unambiguous.
+        return DisplayTableActivityPrimary(value);
+    }
+
     public int StatusCount(string status) => StatusCounts.GetValueOrDefault(status);
 
     public static string CountLabel(int count, string singular) =>

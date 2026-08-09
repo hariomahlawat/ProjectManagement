@@ -26,7 +26,7 @@ test('stale state belongs to Last Updated instead of the Idea signal stack', () 
     const ideaCell = boardView.match(/<td class="pi-table-idea-cell">([\s\S]*?)<\/td>/)?.[1] ?? '';
 
     assert.match(dateCell, /pi-table-stale/);
-    assert.match(dateCell, /No update &gt;30 days/);
+    assert.match(dateCell, /30\+ days idle/);
     assert.doesNotMatch(ideaCell, /No update for 30\+ days/);
 });
 
@@ -45,4 +45,33 @@ test('table activity formatting separates recent relative time from older absolu
 test('search submit uses an explicit search affordance', () => {
     assert.match(boardView, /class="pi-search-submit"[\s\S]*aria-label="Search ideas"[\s\S]*bi-search/);
     assert.doesNotMatch(boardView, /pi-search-submit[\s\S]{0,220}bi-arrow-right/);
+});
+
+
+test('card view suppresses redundant status and missing-summary placeholder', () => {
+    const cardSection = boardView.match(/<section class="pi-card-grid"([\s\S]*?)<\/section>/)?.[1] ?? '';
+
+    assert.doesNotMatch(cardSection, /pi-status-/);
+    assert.match(cardSection, /@if \(!needsDetails\)[\s\S]*pi-card-description/);
+    assert.match(cardSection, /pi-signal-warning[\s\S]*Needs details/);
+});
+
+test('card stale state is integrated into updated metadata', () => {
+    const cardSection = boardView.match(/<section class="pi-card-grid"([\s\S]*?)<\/section>/)?.[1] ?? '';
+
+    assert.match(cardSection, /pi-card-updated-row/);
+    assert.match(cardSection, /DisplayCardActivity\(lastActivity\)/);
+    assert.match(cardSection, /pi-card-stale[\s\S]*30\+ days idle/);
+    assert.doesNotMatch(cardSection, /pi-signal-danger[\s\S]*30\+ days idle/);
+});
+
+test('card activity uses full date for older records via shared activity rule', () => {
+    assert.match(boardModel, /DisplayCardActivity\(DateTime value\)/);
+    assert.match(boardModel, /return DisplayTableActivityPrimary\(value\);/);
+});
+
+test('card density is compact without reserving empty description height', () => {
+    assert.match(boardCss, /\.pi-index-page \.pi-idea-card \{[\s\S]*min-height:\s*220px;/);
+    const descriptionRule = boardCss.match(/\.pi-index-page \.pi-card-description \{([\s\S]*?)\}/)?.[1] ?? '';
+    assert.doesNotMatch(descriptionRule, /min-height/);
 });
