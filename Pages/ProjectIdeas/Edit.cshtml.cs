@@ -58,6 +58,7 @@ public class EditModel : PageModel
     public class InputModel
     {
         public int Id { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
 
         [MaxLength(200)]
         public string? Title { get; set; }
@@ -80,6 +81,7 @@ public class EditModel : PageModel
         Input = new InputModel
         {
             Id = idea.Id,
+            RowVersion = EncodeRowVersion(idea.RowVersion),
             Title = idea.Title,
             Description = idea.Description,
             AssignedProjectOfficerUserId = idea.AssignedProjectOfficerUserId,
@@ -129,9 +131,18 @@ public class EditModel : PageModel
             idea.Status = Input.Status!;
         }
 
-        await _commands.UpdateAsync(idea);
-        StatusMessage = CanManageCore ? "Idea updated." : "Idea description updated.";
-        return RedirectToPage("Details", new { id = idea.Id });
+        try
+        {
+            await _commands.UpdateAsync(idea, DecodeRowVersion(Input.RowVersion));
+            StatusMessage = CanManageCore ? "Idea updated." : "Idea description updated.";
+            return RedirectToPage("Details", new { id = idea.Id });
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+            await LoadUsersIfRequiredAsync();
+            return Page();
+        }
     }
 
     private void ValidateCoreFields()
@@ -186,6 +197,30 @@ public class EditModel : PageModel
 
     private static string? DisplayNameOrNull(ApplicationUser? user) =>
         user is null ? null : DisplayName(user);
+
+
+    private static string EncodeRowVersion(byte[]? value)
+        => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
+
+    private static byte[] DecodeRowVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
+        }
+
+        try
+        {
+            var decoded = Convert.FromBase64String(value);
+            return decoded.Length > 0
+                ? decoded
+                : throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage, exception);
+        }
+    }
 
     private static bool IsEditableStatus(string status) =>
         status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;

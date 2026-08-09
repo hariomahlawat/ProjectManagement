@@ -49,6 +49,7 @@ public class IndexModel : PageModel
     public IReadOnlyDictionary<string, int> StatusCounts { get; private set; } =
         ProjectIdeaStatuses.All.ToDictionary(status => status, _ => 0);
     public bool CanCreate { get; private set; }
+    public bool CanManageDeletedIdeas { get; private set; }
 
     // SECTION: Clean route values and view state
     public string? ActiveMyIdeasRouteValue => MyIdeas ? "true" : null;
@@ -92,6 +93,7 @@ public class IndexModel : PageModel
         }
 
         CanCreate = _permissions.CanCreateIdea(User);
+        CanManageDeletedIdeas = _permissions.CanViewDeletedIdeas(User);
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var canViewAll = User.IsInRole(RoleNames.Admin)

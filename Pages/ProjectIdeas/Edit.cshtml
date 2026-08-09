@@ -28,6 +28,7 @@
 
         <form method="post" class="pi-form-grid">
             <input type="hidden" asp-for="Input.Id" />
+            <input type="hidden" asp-for="Input.RowVersion" />
             <div asp-validation-summary="ModelOnly" class="text-danger pi-form-field-wide"></div>
 
             @if (Model.CanManageCore)

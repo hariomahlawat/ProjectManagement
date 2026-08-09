@@ -74,6 +74,88 @@ public class ProjectIdeaPermissionServiceTests
         Assert.False(_service.CanEditIdea(user, idea));
     }
 
+
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, ProjectIdeaCommentTypes.Conference)]
+    [InlineData(RoleNames.HoD, ProjectIdeaCommentTypes.General)]
+    [InlineData(RoleNames.Admin, ProjectIdeaCommentTypes.General)]
+    [InlineData(RoleNames.ProjectOfficer, ProjectIdeaCommentTypes.General)]
+    public void Discussion_default_is_conference_for_commandant_only(string role, string expected)
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        var userId = role == RoleNames.ProjectOfficer ? "po-1" : $"user-{role}";
+
+        Assert.Equal(expected, _service.GetDefaultCommentType(Principal(userId, role), idea));
+    }
+
+    [Fact]
+    public void Discussion_default_is_conference_when_commandant_has_multiple_roles()
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        var user = Principal("command-user", RoleNames.HoD, RoleNames.Comdt);
+
+        Assert.Equal(ProjectIdeaCommentTypes.Conference, _service.GetDefaultCommentType(user, idea));
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, true)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    public void Idea_delete_and_deleted_restore_are_command_governed(string role, bool expected)
+    {
+        var user = Principal($"user-{role}", role);
+
+        Assert.Equal(expected, _service.CanDeleteIdea(user));
+        Assert.Equal(expected, _service.CanRestoreDeletedIdea(user));
+        Assert.Equal(expected, _service.CanViewDeletedIdeas(user));
+    }
+
+    [Fact]
+    public void General_comment_author_can_edit_and_delete_within_three_hours_only()
+    {
+        var now = new DateTime(2026, 8, 9, 10, 0, 0, DateTimeKind.Utc);
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        var comment = new ProjectIdeaComment
+        {
+            ProjectIdeaId = idea.Id,
+            CommentType = ProjectIdeaCommentTypes.General,
+            CommentText = "Progress",
+            CreatedByUserId = "po-1",
+            CreatedAt = now.AddHours(-2)
+        };
+        var user = Principal("po-1", RoleNames.ProjectOfficer);
+
+        Assert.True(_service.CanEditComment(user, idea, comment, now));
+        Assert.True(_service.CanDeleteComment(user, idea, comment, now));
+        Assert.False(_service.CanEditComment(user, idea, comment, now.AddHours(2)));
+        Assert.False(_service.CanDeleteComment(user, idea, comment, now.AddHours(2)));
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    public void Conference_comment_mutation_matches_project_remark_command_governance(string role, bool expected)
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        var comment = new ProjectIdeaComment
+        {
+            ProjectIdeaId = idea.Id,
+            CommentType = ProjectIdeaCommentTypes.Conference,
+            CommentText = "Direction",
+            CreatedByUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow.AddDays(-10)
+        };
+        var userId = role == RoleNames.ProjectOfficer ? "po-1" : $"user-{role}";
+        var user = Principal(userId, role);
+
+        Assert.Equal(expected, _service.CanEditComment(user, idea, comment));
+        Assert.Equal(expected, _service.CanDeleteComment(user, idea, comment));
+    }
+
     private static ProjectIdea ActiveIdea(string assignedProjectOfficerUserId) => new()
     {
         Id = 1,
@@ -84,15 +166,11 @@ public class ProjectIdeaPermissionServiceTests
         CreatedByUserId = "creator"
     };
 
-    private static ClaimsPrincipal Principal(string userId, string role)
+    private static ClaimsPrincipal Principal(string userId, params string[] roles)
     {
-        var identity = new ClaimsIdentity(
-            new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Role, role)
-            },
-            authenticationType: "Test");
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        var identity = new ClaimsIdentity(claims, authenticationType: "Test");
 
         return new ClaimsPrincipal(identity);
     }

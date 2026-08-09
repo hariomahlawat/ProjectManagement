@@ -11,7 +11,7 @@ public class ProjectIdeaPermissionService
 
     public bool CanViewIdea(ClaimsPrincipal user, ProjectIdea idea)
     {
-        if (user?.Identity?.IsAuthenticated != true)
+        if (user?.Identity?.IsAuthenticated != true || idea.IsDeleted)
         {
             return false;
         }
@@ -32,32 +32,59 @@ public class ProjectIdeaPermissionService
             || string.Equals(idea.CreatedByUserId, userId, StringComparison.Ordinal);
     }
 
-    public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && IsPrivileged(user);
+    public bool CanViewDeletedIdeas(ClaimsPrincipal user) => CanDeleteIdea(user);
+
+    public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => IsWritable(idea) && IsPrivileged(user);
 
     public bool CanEditDescription(ClaimsPrincipal user, ProjectIdea idea)
-    {
-        return !IsArchived(idea)
+        => IsWritable(idea)
             && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
-    }
 
     public bool CanEditIdea(ClaimsPrincipal user, ProjectIdea idea) => CanEditDescription(user, idea);
     public bool CanArchiveIdea(ClaimsPrincipal user) => IsPrivileged(user);
     public bool CanRestoreIdea(ClaimsPrincipal user) => IsPrivileged(user);
+    public bool CanDeleteIdea(ClaimsPrincipal user) => IsPrivileged(user);
+    public bool CanRestoreDeletedIdea(ClaimsPrincipal user) => IsPrivileged(user);
 
     // SECTION: Collaboration permissions
-    public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && CanViewIdea(user, idea);
+    public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea)
+        => IsWritable(idea) && CanViewIdea(user, idea);
 
     public bool CanAddConferenceComment(ClaimsPrincipal user, ProjectIdea idea)
-        => !IsArchived(idea)
+        => IsWritable(idea)
             && CanViewIdea(user, idea)
             && IsConferenceAuthority(user);
 
-    public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
-    public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+    public string GetDefaultCommentType(ClaimsPrincipal user, ProjectIdea idea)
+        => user?.Identity?.IsAuthenticated == true
+           && user.IsInRole(RoleNames.Comdt)
+           && CanAddConferenceComment(user, idea)
+            ? ProjectIdeaCommentTypes.Conference
+            : ProjectIdeaCommentTypes.General;
+
+    public bool CanEditComment(
+        ClaimsPrincipal user,
+        ProjectIdea idea,
+        ProjectIdeaComment comment,
+        DateTime? nowUtc = null)
+        => CanMutateComment(user, idea, comment, nowUtc ?? DateTime.UtcNow, isDelete: false);
+
+    public bool CanDeleteComment(
+        ClaimsPrincipal user,
+        ProjectIdea idea,
+        ProjectIdeaComment comment,
+        DateTime? nowUtc = null)
+        => CanMutateComment(user, idea, comment, nowUtc ?? DateTime.UtcNow, isDelete: true);
+
+    public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea)
+        => IsWritable(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+
+    public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea)
+        => IsWritable(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
 
     public bool CanDeleteDocument(ClaimsPrincipal user, ProjectIdeaDocument document, ProjectIdea idea)
     {
-        return !IsArchived(idea)
+        return IsWritable(idea)
             && CanViewIdea(user, idea)
             && (IsPrivileged(user)
                 || IsAssignedProjectOfficer(user, idea)
@@ -65,6 +92,34 @@ public class ProjectIdeaPermissionService
     }
 
     // SECTION: Helpers
+    private bool CanMutateComment(
+        ClaimsPrincipal user,
+        ProjectIdea idea,
+        ProjectIdeaComment comment,
+        DateTime nowUtc,
+        bool isDelete)
+    {
+        if (user?.Identity?.IsAuthenticated != true || !CanViewIdea(user, idea))
+        {
+            return false;
+        }
+
+        var userId = GetUserId(user);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return false;
+        }
+
+        var decision = ProjectIdeaGovernancePolicy.EvaluateCommentMutation(
+            idea,
+            comment,
+            new ProjectIdeaActorContext(userId, UserRoles(user)),
+            ToUtc(nowUtc),
+            isDelete);
+
+        return decision.IsAllowed;
+    }
+
     private static bool IsPrivileged(ClaimsPrincipal user)
     {
         return user?.Identity?.IsAuthenticated == true
@@ -85,10 +140,25 @@ public class ProjectIdeaPermissionService
             && string.Equals(GetUserId(user), idea.AssignedProjectOfficerUserId, StringComparison.Ordinal);
     }
 
+    private static IReadOnlyCollection<string> UserRoles(ClaimsPrincipal user)
+        => user.FindAll(ClaimTypes.Role)
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
     private static string? GetUserId(ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    private static bool IsArchived(ProjectIdea idea)
+    private static bool IsWritable(ProjectIdea idea)
+        => !idea.IsDeleted && !IsArchived(idea);
+
+    private static DateTime ToUtc(DateTime value) => value.Kind switch
     {
-        return string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.Ordinal);
-    }
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static bool IsArchived(ProjectIdea idea)
+        => string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase);
 }

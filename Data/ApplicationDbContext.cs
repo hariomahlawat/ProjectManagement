@@ -343,12 +343,18 @@ namespace ProjectManagement.Data
             // SECTION: Project Ideas module
             builder.Entity<ProjectIdea>(e =>
             {
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                e.Property(x => x.DeleteReason).HasMaxLength(1000);
+                ConfigureRowVersion(e);
                 e.HasIndex(x => x.Status);
                 e.HasIndex(x => x.AssignedProjectOfficerUserId);
                 e.HasIndex(x => x.AssignedHodUserId);
                 e.HasIndex(x => x.CreatedAt);
                 e.HasIndex(x => x.UpdatedAt);
                 e.HasIndex(x => x.IsDeleted);
+                e.HasIndex(x => new { x.IsDeleted, x.DeletedAt })
+                    .HasDatabaseName("IX_ProjectIdeas_Deleted_DeletedAt")
+                    .IsDescending(false, true);
                 e.HasOne(x => x.AssignedProjectOfficerUser).WithMany().HasForeignKey(x => x.AssignedProjectOfficerUserId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.AssignedHodUser).WithMany().HasForeignKey(x => x.AssignedHodUserId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
@@ -362,6 +368,9 @@ namespace ProjectManagement.Data
                     .HasDefaultValue(ProjectIdeaCommentTypes.General);
                 e.Property(x => x.CreatedByRole).HasMaxLength(64);
                 e.Property(x => x.StatusSnapshot).HasMaxLength(32);
+                e.Property(x => x.EditedByUserId).HasMaxLength(450);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                ConfigureRowVersion(e);
                 e.HasIndex(x => x.IsDeleted);
                 e.HasIndex(x => new { x.ProjectIdeaId, x.IsDeleted, x.CommentType, x.CreatedAt })
                     .HasDatabaseName("IX_ProjectIdeaComments_IdeaId_Deleted_Type_CreatedAt")

@@ -203,6 +203,36 @@ public class ProjectIdeaReadServiceTests
         Assert.Equal("Zulu Officer", option.DisplayName);
     }
 
+
+
+    [Fact]
+    public async Task Deleted_ideas_are_excluded_from_operational_board_and_available_to_recovery_query()
+    {
+        await using var db = CreateContext();
+        var active = Idea(1, "Active", ProjectIdeaStatuses.Active, "creator");
+        var deleted = Idea(2, "Deleted", ProjectIdeaStatuses.Active, "creator");
+        deleted.IsDeleted = true;
+        deleted.DeletedAt = DateTime.UtcNow;
+        deleted.DeletedByUserId = "hod-1";
+        deleted.DeleteReason = "Duplicate";
+        db.ProjectIdeas.AddRange(active, deleted);
+        await db.SaveChangesAsync();
+
+        var service = new ProjectIdeaReadService(db);
+        var operational = await service.GetBoardIdeasAsync(
+            ProjectIdeaStatuses.Active,
+            query: null,
+            myIdeas: false,
+            userId: "creator",
+            canViewAll: true);
+        var recovery = await service.GetDeletedIdeasAsync();
+
+        Assert.Equal(new[] { "Active" }, operational.Select(idea => idea.Title));
+        var recovered = Assert.Single(recovery);
+        Assert.Equal("Deleted", recovered.Title);
+        Assert.Equal("Duplicate", recovered.DeleteReason);
+    }
+
     [Theory]
     [InlineData(null, ProjectIdeaSorts.LatestActivity)]
     [InlineData("unknown", ProjectIdeaSorts.LatestActivity)]

@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -86,6 +87,221 @@ public sealed class ProjectIdeaCommandServiceTests
         Assert.Equal(ProjectIdeaStatuses.Active, comment.StatusSnapshot);
     }
 
+
+
+    [Theory]
+    [InlineData(RoleNames.Comdt)]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Admin)]
+    public async Task SoftDeleteIdeaAsync_AllowsCommandGovernanceRolesAndRetainsChildren(string role)
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        db.ProjectIdeaComments.Add(new ProjectIdeaComment
+        {
+            ProjectIdeaId = idea.Id,
+            CommentText = "Retained comment",
+            CommentType = ProjectIdeaCommentTypes.General,
+            CreatedByUserId = "po-1",
+            StatusSnapshot = idea.Status,
+            CreatedAt = DateTime.UtcNow
+        });
+        db.ProjectIdeaNotes.Add(new ProjectIdeaNote
+        {
+            ProjectIdeaId = idea.Id,
+            Title = "Retained note",
+            Body = "Body",
+            CreatedByUserId = "po-1",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectIdeaCommandService(db);
+        var deleted = await service.SoftDeleteIdeaAsync(
+            idea.Id,
+            "Duplicate entry",
+            idea.RowVersion.ToArray(),
+            Actor($"user-{role}", role));
+
+        Assert.True(deleted);
+        var stored = await db.ProjectIdeas.SingleAsync();
+        Assert.True(stored.IsDeleted);
+        Assert.Equal("Duplicate entry", stored.DeleteReason);
+        Assert.Equal($"user-{role}", stored.DeletedByUserId);
+        Assert.NotNull(stored.DeletedAt);
+        Assert.Single(await db.ProjectIdeaComments.ToListAsync());
+        Assert.Single(await db.ProjectIdeaNotes.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SoftDeleteIdeaAsync_RejectsProjectOfficer()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SoftDeleteIdeaAsync(
+            idea.Id,
+            "Entered in error",
+            idea.RowVersion.ToArray(),
+            Actor("po-1", RoleNames.ProjectOfficer)));
+
+        Assert.False(idea.IsDeleted);
+    }
+
+    [Fact]
+    public async Task RestoreDeletedIdeaAsync_PreservesStatusAndRelatedHistory()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Archived);
+        var service = new ProjectIdeaCommandService(db);
+        await service.SoftDeleteIdeaAsync(
+            idea.Id,
+            "Cleanup",
+            idea.RowVersion.ToArray(),
+            Actor("hod-1", RoleNames.HoD));
+        var deletedVersion = idea.RowVersion.ToArray();
+
+        var restored = await service.RestoreDeletedIdeaAsync(
+            idea.Id,
+            deletedVersion,
+            Actor("admin-1", RoleNames.Admin));
+
+        Assert.True(restored);
+        Assert.False(idea.IsDeleted);
+        Assert.Equal(ProjectIdeaStatuses.Archived, idea.Status);
+        Assert.Null(idea.DeletedAt);
+        Assert.Null(idea.DeletedByUserId);
+        Assert.Null(idea.DeleteReason);
+    }
+
+    [Fact]
+    public async Task EditCommentAsync_GeneralAuthorWithinWindowUpdatesTextOnly()
+    {
+        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.General, "po-1", now.UtcDateTime.AddHours(-2));
+        var originalCreatedAt = comment.CreatedAt;
+        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
+
+        var edited = await service.EditCommentAsync(
+            idea.Id,
+            comment.Id,
+            "  Revised progress.  ",
+            comment.RowVersion.ToArray(),
+            Actor("po-1", RoleNames.ProjectOfficer));
+
+        Assert.NotNull(edited);
+        Assert.Equal("Revised progress.", edited!.CommentText);
+        Assert.Equal(originalCreatedAt, edited.CreatedAt);
+        Assert.Equal("po-1", edited.CreatedByUserId);
+        Assert.Equal(ProjectIdeaCommentTypes.General, edited.CommentType);
+        Assert.NotNull(edited.EditedAt);
+        Assert.Equal("po-1", edited.EditedByUserId);
+    }
+
+    [Fact]
+    public async Task EditCommentAsync_ConferencePreservesIssueSnapshotAndOriginalAttribution()
+    {
+        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.OnHold);
+        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.Conference, "hod-1", now.UtcDateTime.AddDays(-7), RoleNames.HoD);
+        var originalCreatedAt = comment.CreatedAt;
+        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
+
+        var edited = await service.EditCommentAsync(
+            idea.Id,
+            comment.Id,
+            "Submit the revised concept paper.",
+            comment.RowVersion.ToArray(),
+            Actor("comdt-1", RoleNames.Comdt));
+
+        Assert.NotNull(edited);
+        Assert.Equal(ProjectIdeaStatuses.OnHold, edited!.StatusSnapshot);
+        Assert.Equal(originalCreatedAt, edited.CreatedAt);
+        Assert.Equal("hod-1", edited.CreatedByUserId);
+        Assert.Equal(RoleNames.HoD, edited.CreatedByRole);
+        Assert.Equal(ProjectIdeaCommentTypes.Conference, edited.CommentType);
+    }
+
+    [Fact]
+    public async Task ConferenceCommentMutation_RejectsAdministratorToMatchProjectRemarks()
+    {
+        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.Conference, "hod-1", now.UtcDateTime.AddMinutes(-30), RoleNames.HoD);
+        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EditCommentAsync(
+            idea.Id,
+            comment.Id,
+            "Attempted edit",
+            comment.RowVersion.ToArray(),
+            Actor("admin-1", RoleNames.Admin)));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsAStaleIdeaVersionWithFriendlyConcurrencyMessage()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var firstDb = new ApplicationDbContext(options);
+        await firstDb.Database.EnsureCreatedAsync();
+        var seeded = new ProjectIdea
+        {
+            Title = "Concurrent idea",
+            Description = "Original",
+            Status = ProjectIdeaStatuses.Active,
+            CreatedByUserId = "creator"
+        };
+        firstDb.ProjectIdeas.Add(seeded);
+        await firstDb.SaveChangesAsync();
+
+        await using var secondDb = new ApplicationDbContext(options);
+        var firstCopy = await firstDb.ProjectIdeas.SingleAsync();
+        var staleCopy = await secondDb.ProjectIdeas.SingleAsync();
+
+        firstCopy.Description = "First save";
+        await new ProjectIdeaCommandService(firstDb).UpdateAsync(firstCopy);
+
+        staleCopy.Description = "Stale save";
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ProjectIdeaCommandService(secondDb).UpdateAsync(staleCopy));
+
+        Assert.Equal(ProjectIdeaCommandService.ConcurrencyConflictMessage, exception.Message);
+    }
+
+    [Fact]
+    public async Task SoftDeleteCommentAsync_LeavesAuditableRowAndHidesItOperationally()
+    {
+        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.Conference, "hod-1", now.UtcDateTime.AddDays(-2), RoleNames.HoD);
+        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
+
+        var deleted = await service.SoftDeleteCommentAsync(
+            idea.Id,
+            comment.Id,
+            comment.RowVersion.ToArray(),
+            Actor("hod-2", RoleNames.HoD));
+
+        Assert.True(deleted);
+        var stored = await db.ProjectIdeaComments.SingleAsync();
+        Assert.True(stored.IsDeleted);
+        Assert.NotNull(stored.DeletedAt);
+        Assert.Equal("hod-2", stored.DeletedByUserId);
+        Assert.Equal("Direction", stored.CommentText);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -101,11 +317,42 @@ public sealed class ProjectIdeaCommandServiceTests
             Title = "Idea",
             Description = "Description",
             Status = status,
+            AssignedProjectOfficerUserId = "po-1",
             CreatedByUserId = "creator"
         };
 
         db.ProjectIdeas.Add(idea);
         await db.SaveChangesAsync();
         return idea;
+    }
+
+    private static async Task<ProjectIdeaComment> SeedCommentAsync(
+        ApplicationDbContext db,
+        ProjectIdea idea,
+        string type,
+        string authorUserId,
+        DateTime createdAt,
+        string? authorRole = null)
+    {
+        var comment = new ProjectIdeaComment
+        {
+            ProjectIdeaId = idea.Id,
+            CommentText = type == ProjectIdeaCommentTypes.Conference ? "Direction" : "Progress",
+            CommentType = type,
+            CreatedByUserId = authorUserId,
+            CreatedByRole = authorRole,
+            StatusSnapshot = idea.Status,
+            CreatedAt = createdAt
+        };
+        db.ProjectIdeaComments.Add(comment);
+        await db.SaveChangesAsync();
+        return comment;
+    }
+
+    private static ProjectIdeaActorContext Actor(string userId, params string[] roles) => new(userId, roles);
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : ProjectManagement.Services.IClock
+    {
+        public DateTimeOffset UtcNow { get; } = utcNow;
     }
 }

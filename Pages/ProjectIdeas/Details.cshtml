@@ -14,10 +14,15 @@
         .ToList();
     var notes = Model.Idea.Notes.Where(n => !n.IsDeleted).OrderByDescending(n => n.IsPinned).ThenByDescending(n => n.UpdatedAt).ToList();
     var commentCount = comments.Count;
+    var conferenceCommentCount = comments.Count(c => string.Equals(c.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase));
     var noteCount = notes.Count;
     var documentCount = Model.Documents.Count;
+    var defaultConferenceComment = Model.CanAddConferenceComment
+        && string.Equals(Model.DefaultCommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase);
+    var defaultGeneralComment = !defaultConferenceComment;
 }
 <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
 
 <div class="pi-page pi-detail-page">
     <a asp-page="Index" class="pi-back">
@@ -94,21 +99,50 @@
                     Edit idea
                 </a>
             }
-            @if (Model.CanArchive && !Model.IsArchived)
-            {
-                <button type="button" class="pi-btn pi-btn-danger" data-bs-toggle="modal" data-bs-target="#archiveIdeaModal">
-                    <span class="bi bi-archive" aria-hidden="true"></span>
-                    Archive
-                </button>
-            }
-            @if (Model.CanRestore && Model.Idea.Status == ProjectIdeaStatuses.Archived)
+            @if (Model.CanRestore && Model.IsArchived)
             {
                 <form method="post" asp-page-handler="Restore" asp-route-id="@Model.Idea.Id">
+                    <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
                     <button class="pi-btn pi-btn-primary" type="submit">
                         <span class="bi bi-arrow-counterclockwise" aria-hidden="true"></span>
                         Restore
                     </button>
                 </form>
+            }
+            @if ((Model.CanArchive && !Model.IsArchived) || Model.CanDelete)
+            {
+                <div class="dropdown pi-lifecycle-menu">
+                    <button type="button"
+                            class="pi-btn pi-icon-only"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            aria-label="Idea lifecycle actions"
+                            title="More actions">
+                        <span class="bi bi-three-dots" aria-hidden="true"></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        @if (Model.CanArchive && !Model.IsArchived)
+                        {
+                            <li>
+                                <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#archiveIdeaModal">
+                                    <span class="bi bi-archive me-2" aria-hidden="true"></span>Archive Idea
+                                </button>
+                            </li>
+                        }
+                        @if (Model.CanDelete)
+                        {
+                            @if (Model.CanArchive && !Model.IsArchived)
+                            {
+                                <li><hr class="dropdown-divider" /></li>
+                            }
+                            <li>
+                                <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#deleteIdeaModal">
+                                    <span class="bi bi-trash3 me-2" aria-hidden="true"></span>Delete Idea
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                </div>
             }
         </div>
     </section>
@@ -159,19 +193,86 @@
                         var commentUtcIso = comment.CreatedAt.ToUniversalTime().ToString("O");
                         var isConferenceComment = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase);
                         var roleLabel = DetailsModel.DisplayRole(comment.CreatedByRole);
-                        <article class="pi-comment@(isConferenceComment ? " pi-comment-conference" : string.Empty)">
+                        var canEditComment = Model.CanEditComment(comment);
+                        var canDeleteComment = Model.CanDeleteComment(comment);
+                        var rowVersion = DetailsModel.EncodeRowVersion(comment.RowVersion);
+                        var editPanelId = $"idea-comment-edit-{comment.Id}";
+                        <article class="pi-comment@(isConferenceComment ? " pi-comment-conference" : string.Empty)" data-pi-comment-id="@comment.Id">
                             <div class="pi-avatar">@DetailsModel.Initials(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName)</div>
                             <div class="pi-comment-content">
-                                <div class="pi-comment-heading">
-                                    <b>@(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName ?? "Unknown")</b>
-                                    <span class="pi-comment-type@(isConferenceComment ? " is-conference" : string.Empty)">@DetailsModel.DisplayCommentType(comment.CommentType)</span>
-                                    @if (!string.IsNullOrWhiteSpace(roleLabel))
+                                <div class="pi-comment-topline">
+                                    <div>
+                                        <div class="pi-comment-heading">
+                                            <b>@(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName ?? "Unknown")</b>
+                                            <span class="pi-comment-type@(isConferenceComment ? " is-conference" : string.Empty)">@DetailsModel.DisplayCommentType(comment.CommentType)</span>
+                                            @if (!string.IsNullOrWhiteSpace(roleLabel))
+                                            {
+                                                <span class="pi-comment-role">@roleLabel</span>
+                                            }
+                                        </div>
+                                        <div class="pi-comment-time">
+                                            <time datetime="@commentUtcIso">@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</time>
+                                            @if (comment.EditedAt.HasValue)
+                                            {
+                                                <span aria-label="This remark has been edited">· Edited</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    @if (canEditComment || canDeleteComment)
                                     {
-                                        <span class="pi-comment-role">@roleLabel</span>
+                                        <div class="dropdown pi-comment-menu">
+                                            <button type="button" class="pi-comment-menu-button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Discussion remark actions">
+                                                <span class="bi bi-three-dots" aria-hidden="true"></span>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                @if (canEditComment)
+                                                {
+                                                    <li>
+                                                        <button type="button" class="dropdown-item" data-pi-comment-edit aria-controls="@editPanelId">
+                                                            <span class="bi bi-pencil me-2" aria-hidden="true"></span>Edit
+                                                        </button>
+                                                    </li>
+                                                }
+                                                @if (canDeleteComment)
+                                                {
+                                                    @if (canEditComment)
+                                                    {
+                                                        <li><hr class="dropdown-divider" /></li>
+                                                    }
+                                                    <li>
+                                                        <form method="post" asp-page-handler="DeleteComment" asp-route-id="@Model.Idea.Id" data-pi-delete-comment data-comment-type="@comment.CommentType">
+                                                            <input type="hidden" name="commentId" value="@comment.Id" />
+                                                            <input type="hidden" name="rowVersion" value="@rowVersion" />
+                                                            <button type="submit" class="dropdown-item text-danger">
+                                                                <span class="bi bi-trash3 me-2" aria-hidden="true"></span>Delete
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
                                     }
                                 </div>
-                                <time datetime="@commentUtcIso">@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</time>
-                                <p>@comment.CommentText</p>
+                                <p data-pi-comment-text>@comment.CommentText</p>
+                                @if (canEditComment)
+                                {
+                                    <form method="post"
+                                          asp-page-handler="EditComment"
+                                          asp-route-id="@Model.Idea.Id"
+                                          class="pi-comment-edit-form"
+                                          id="@editPanelId"
+                                          data-pi-comment-edit-panel
+                                          hidden>
+                                        <input type="hidden" name="commentId" value="@comment.Id" />
+                                        <input type="hidden" name="rowVersion" value="@rowVersion" />
+                                        <label class="visually-hidden" for="editedCommentText-@comment.Id">Edit discussion remark</label>
+                                        <textarea id="editedCommentText-@comment.Id" name="editedCommentText" maxlength="4000" required>@comment.CommentText</textarea>
+                                        <div class="pi-comment-edit-actions">
+                                            <button type="button" class="pi-btn pi-btn-subtle" data-pi-comment-edit-cancel>Cancel</button>
+                                            <button type="submit" class="pi-btn pi-btn-primary">Save</button>
+                                        </div>
+                                    </form>
+                                }
                                 @if (isConferenceComment && !string.IsNullOrWhiteSpace(comment.StatusSnapshot))
                                 {
                                     <div class="pi-comment-context">Status when issued: @ProjectIdeaStatuses.ToDisplay(comment.StatusSnapshot)</div>
@@ -185,12 +286,12 @@
             @if (Model.CanAddComment)
             {
                 <form method="post" asp-page-handler="Comment" asp-route-id="@Model.Idea.Id" class="pi-inline-form pi-comment-composer" data-pi-comment-composer>
-                    <input type="hidden" name="CommentType" value="@ProjectIdeaCommentTypes.General" data-pi-comment-type />
+                    <input type="hidden" name="CommentType" value="@(defaultConferenceComment ? ProjectIdeaCommentTypes.Conference : ProjectIdeaCommentTypes.General)" data-pi-comment-type data-pi-comment-default="@Model.DefaultCommentType" />
                     @if (Model.CanAddConferenceComment)
                     {
                         <div class="pi-comment-type-selector" role="group" aria-label="Comment type">
-                            <button type="button" class="is-active" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="true">General</button>
-                            <button type="button" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="false">Conference</button>
+                            <button type="button" class="@(defaultGeneralComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="@(defaultGeneralComment ? "true" : "false")">General</button>
+                            <button type="button" class="@(defaultConferenceComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="@(defaultConferenceComment ? "true" : "false")">Conference</button>
                         </div>
                     }
                     <label class="visually-hidden" for="CommentText">Write a comment</label>
@@ -444,6 +545,7 @@
     <div class="modal fade" id="archiveIdeaModal" tabindex="-1" aria-labelledby="archiveIdeaModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id" class="modal-content">
+                <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
                 <div class="modal-header">
                     <h5 class="modal-title" id="archiveIdeaModalLabel">Archive Idea</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -458,6 +560,38 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">Archive Idea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@* SECTION: Controlled soft-delete modal *@
+@if (Model.CanDelete)
+{
+    <div class="modal fade" id="deleteIdeaModal" tabindex="-1" aria-labelledby="deleteIdeaModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Idea.Id" class="modal-content">
+                <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteIdeaModalLabel">Delete @Model.Idea.Title?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">This Idea will be removed from operational views. Related records will be retained for audit and recovery.</p>
+                    <div class="pi-delete-impact" aria-label="Related records retained">
+                        <span><strong>@commentCount</strong> discussion</span>
+                        <span><strong>@conferenceCommentCount</strong> conference</span>
+                        <span><strong>@noteCount</strong> notes</span>
+                        <span><strong>@documentCount</strong> files</span>
+                    </div>
+                    <label class="form-label mt-3" for="DeleteReason">Reason for deletion</label>
+                    <textarea id="DeleteReason" name="deleteReason" class="form-control" required maxlength="1000" rows="4" placeholder="Duplicate, test entry, entered in error, or other reason"></textarea>
+                    <div class="form-text">Deletion is reversible by Comdt, HoD or Admin from Deleted Ideas.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Delete Idea</button>
                 </div>
             </form>
         </div>
@@ -511,6 +645,9 @@
     </div>
 }
 
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
+
 @section Scripts {
+    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true" defer></script>
     <script src="~/js/pages/project-ideas-details.js" asp-append-version="true" defer></script>
 }

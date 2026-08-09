@@ -924,3 +924,325 @@
     border-color: rgba(79, 70, 229, .34);
     background: rgba(79, 70, 229, .025);
 }
+
+/* SECTION: Project Idea governance and discussion lifecycle */
+.pi-btn-subtle {
+    background: #f8fafc;
+    border-color: #dbe3ee;
+    color: #475569;
+}
+
+.pi-btn-subtle:hover,
+.pi-btn-subtle:focus-visible {
+    background: #eef3f8;
+    border-color: #cbd5e1;
+    color: #1e3a5f;
+}
+
+.pi-icon-only {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    justify-content: center;
+}
+
+.pi-page-hero-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+
+.pi-lifecycle-menu .dropdown-menu,
+.pi-comment-menu .dropdown-menu {
+    min-width: 170px;
+    padding: .35rem;
+    border: 1px solid #dfe6f0;
+    border-radius: .7rem;
+    box-shadow: 0 14px 34px rgba(15, 34, 67, .15);
+}
+
+.pi-lifecycle-menu .dropdown-item,
+.pi-comment-menu .dropdown-item {
+    border-radius: .45rem;
+    font-size: .84rem;
+}
+
+.pi-comment-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .65rem;
+}
+
+.pi-comment-time {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .25rem;
+    margin-top: .12rem;
+    color: #7b8799;
+    font-size: .76rem;
+}
+
+.pi-comment-time time {
+    display: inline;
+}
+
+.pi-comment-menu {
+    flex: 0 0 auto;
+    margin: -.3rem -.35rem 0 0;
+}
+
+.pi-comment-menu-button {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #64748b;
+    opacity: .15;
+    transition: opacity .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.pi-comment:hover .pi-comment-menu-button,
+.pi-comment:focus-within .pi-comment-menu-button,
+.pi-comment-menu-button[aria-expanded="true"] {
+    opacity: 1;
+}
+
+.pi-comment-menu-button:hover,
+.pi-comment-menu-button:focus-visible,
+.pi-comment-menu-button[aria-expanded="true"] {
+    background: #eef3f8;
+    color: #173f90;
+    outline: none;
+}
+
+.pi-comment-edit-form {
+    display: grid;
+    gap: .55rem;
+    margin: .55rem 0 .25rem;
+}
+
+.pi-comment-edit-form textarea {
+    width: 100%;
+    min-height: 86px;
+    max-height: 260px;
+    padding: .65rem .7rem;
+    resize: none;
+    overflow-y: auto;
+    border: 1px solid #c9d6e8;
+    border-radius: .65rem;
+    background: #fff;
+    color: #15233d;
+    line-height: 1.45;
+}
+
+.pi-comment-edit-form textarea:focus {
+    border-color: #5f84ca;
+    box-shadow: 0 0 0 3px rgba(47, 94, 176, .12);
+    outline: none;
+}
+
+.pi-comment-edit-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .45rem;
+}
+
+.pi-comment-edit-actions .pi-btn {
+    padding: .45rem .75rem;
+    font-size: .8rem;
+}
+
+.pi-delete-impact {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .45rem;
+}
+
+.pi-delete-impact span {
+    display: grid;
+    gap: .08rem;
+    padding: .55rem .6rem;
+    border: 1px solid #e4e9f1;
+    border-radius: .65rem;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: .72rem;
+    text-align: center;
+}
+
+.pi-delete-impact strong {
+    color: #15233d;
+    font-size: 1rem;
+}
+
+/* SECTION: Deleted Ideas recovery workspace */
+.pi-deleted-page {
+    max-width: 1180px;
+    margin-inline: auto;
+}
+
+.pi-deleted-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: .25rem 0 1rem;
+    padding: 1.15rem 1.25rem;
+    border: 1px solid #e3e9f3;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(15, 34, 67, .055);
+}
+
+.pi-deleted-header h1 {
+    margin: .08rem 0 .2rem;
+    color: #071232;
+    font-size: 1.55rem;
+    font-weight: 850;
+    letter-spacing: -.025em;
+}
+
+.pi-deleted-header p {
+    max-width: 760px;
+    margin: 0;
+    color: #667085;
+    font-size: .88rem;
+}
+
+.pi-deleted-count {
+    display: grid;
+    min-width: 40px;
+    height: 34px;
+    padding: 0 .65rem;
+    place-items: center;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: .82rem;
+    font-weight: 800;
+}
+
+.pi-deleted-list {
+    display: grid;
+    gap: .75rem;
+}
+
+.pi-deleted-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.2rem;
+    align-items: center;
+    padding: 1rem 1.1rem;
+    border: 1px solid #e3e9f3;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 7px 20px rgba(15, 34, 67, .045);
+}
+
+.pi-deleted-card__main {
+    min-width: 0;
+}
+
+.pi-deleted-card__title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .8rem;
+}
+
+.pi-deleted-card__title-row h2 {
+    margin: .3rem 0 .2rem;
+    color: #10203d;
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.pi-deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    flex: 0 0 auto;
+    color: #9f2d27;
+    font-size: .73rem;
+    font-weight: 750;
+}
+
+.pi-deleted-description {
+    display: -webkit-box;
+    margin: 0 0 .55rem;
+    overflow: hidden;
+    color: #536179;
+    font-size: .84rem;
+    line-height: 1.4;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.pi-deleted-meta,
+.pi-deleted-retained {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem .85rem;
+    color: #748096;
+    font-size: .74rem;
+}
+
+.pi-deleted-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.pi-deleted-reason {
+    margin-top: .55rem;
+    color: #475569;
+    font-size: .8rem;
+}
+
+.pi-deleted-retained {
+    margin-top: .6rem;
+}
+
+.pi-deleted-retained span {
+    padding: .18rem .42rem;
+    border-radius: 999px;
+    background: #f3f6fa;
+    color: #64748b;
+}
+
+.pi-deleted-card__action {
+    margin: 0;
+}
+
+.pi-deleted-empty {
+    min-height: 260px;
+}
+
+@media (max-width: 768px) {
+    .pi-page-hero-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .pi-delete-impact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pi-deleted-card {
+        grid-template-columns: 1fr;
+    }
+
+    .pi-deleted-card__action .pi-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

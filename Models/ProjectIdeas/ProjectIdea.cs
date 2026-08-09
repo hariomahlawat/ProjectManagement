@@ -19,7 +19,14 @@ public class ProjectIdea
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ArchivedAt { get; set; }
     [MaxLength(1000)] public string? ArchiveReason { get; set; }
+
     public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    [MaxLength(450)] public string? DeletedByUserId { get; set; }
+    [MaxLength(1000)] public string? DeleteReason { get; set; }
+
+    [ConcurrencyCheck]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public ICollection<ProjectIdeaComment> Comments { get; set; } = new List<ProjectIdeaComment>();
     public ICollection<ProjectIdeaNote> Notes { get; set; } = new List<ProjectIdeaNote>();
     public ICollection<ProjectIdeaDocument> Documents { get; set; } = new List<ProjectIdeaDocument>();

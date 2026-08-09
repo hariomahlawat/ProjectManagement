@@ -1,0 +1,3085 @@
+--- a/Data/ApplicationDbContext.cs
++++ b/Data/ApplicationDbContext.cs
+@@ -343,12 +343,18 @@
+             // SECTION: Project Ideas module
+             builder.Entity<ProjectIdea>(e =>
+             {
++                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
++                e.Property(x => x.DeleteReason).HasMaxLength(1000);
++                ConfigureRowVersion(e);
+                 e.HasIndex(x => x.Status);
+                 e.HasIndex(x => x.AssignedProjectOfficerUserId);
+                 e.HasIndex(x => x.AssignedHodUserId);
+                 e.HasIndex(x => x.CreatedAt);
+                 e.HasIndex(x => x.UpdatedAt);
+                 e.HasIndex(x => x.IsDeleted);
++                e.HasIndex(x => new { x.IsDeleted, x.DeletedAt })
++                    .HasDatabaseName("IX_ProjectIdeas_Deleted_DeletedAt")
++                    .IsDescending(false, true);
+                 e.HasOne(x => x.AssignedProjectOfficerUser).WithMany().HasForeignKey(x => x.AssignedProjectOfficerUserId).OnDelete(DeleteBehavior.Restrict);
+                 e.HasOne(x => x.AssignedHodUser).WithMany().HasForeignKey(x => x.AssignedHodUserId).OnDelete(DeleteBehavior.Restrict);
+                 e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+@@ -362,6 +368,9 @@
+                     .HasDefaultValue(ProjectIdeaCommentTypes.General);
+                 e.Property(x => x.CreatedByRole).HasMaxLength(64);
+                 e.Property(x => x.StatusSnapshot).HasMaxLength(32);
++                e.Property(x => x.EditedByUserId).HasMaxLength(450);
++                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
++                ConfigureRowVersion(e);
+                 e.HasIndex(x => x.IsDeleted);
+                 e.HasIndex(x => new { x.ProjectIdeaId, x.IsDeleted, x.CommentType, x.CreatedAt })
+                     .HasDatabaseName("IX_ProjectIdeaComments_IdeaId_Deleted_Type_CreatedAt")
+--- a/Migrations/20261207210000_AddProjectIdeaGovernanceLifecycle.cs
++++ b/Migrations/20261207210000_AddProjectIdeaGovernanceLifecycle.cs
+@@ -0,0 +1,157 @@
++using System;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using ProjectManagement.Data;
++
++#nullable disable
++
++namespace ProjectManagement.Migrations
++{
++    [DbContext(typeof(ApplicationDbContext))]
++    [Migration("20261207210000_AddProjectIdeaGovernanceLifecycle")]
++    public partial class AddProjectIdeaGovernanceLifecycle : Migration
++    {
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.AddColumn<DateTime>(
++                name: "DeletedAt",
++                table: "ProjectIdeas",
++                type: "timestamp without time zone",
++                nullable: true);
++
++            migrationBuilder.AddColumn<string>(
++                name: "DeletedByUserId",
++                table: "ProjectIdeas",
++                type: "character varying(450)",
++                maxLength: 450,
++                nullable: true);
++
++            migrationBuilder.AddColumn<string>(
++                name: "DeleteReason",
++                table: "ProjectIdeas",
++                type: "character varying(1000)",
++                maxLength: 1000,
++                nullable: true);
++
++            migrationBuilder.AddColumn<byte[]>(
++                name: "RowVersion",
++                table: "ProjectIdeas",
++                type: "bytea",
++                nullable: true);
++
++            migrationBuilder.AddColumn<DateTime>(
++                name: "EditedAt",
++                table: "ProjectIdeaComments",
++                type: "timestamp without time zone",
++                nullable: true);
++
++            migrationBuilder.AddColumn<string>(
++                name: "EditedByUserId",
++                table: "ProjectIdeaComments",
++                type: "character varying(450)",
++                maxLength: 450,
++                nullable: true);
++
++            migrationBuilder.AddColumn<DateTime>(
++                name: "DeletedAt",
++                table: "ProjectIdeaComments",
++                type: "timestamp without time zone",
++                nullable: true);
++
++            migrationBuilder.AddColumn<string>(
++                name: "DeletedByUserId",
++                table: "ProjectIdeaComments",
++                type: "character varying(450)",
++                maxLength: 450,
++                nullable: true);
++
++            migrationBuilder.AddColumn<byte[]>(
++                name: "RowVersion",
++                table: "ProjectIdeaComments",
++                type: "bytea",
++                nullable: true);
++
++            migrationBuilder.Sql(
++                """
++                UPDATE "ProjectIdeas"
++                SET "RowVersion" = decode(
++                    md5(random()::text || clock_timestamp()::text || "Id"::text),
++                    'hex')
++                WHERE "RowVersion" IS NULL;
++
++                UPDATE "ProjectIdeaComments"
++                SET "RowVersion" = decode(
++                    md5(random()::text || clock_timestamp()::text || "Id"::text),
++                    'hex')
++                WHERE "RowVersion" IS NULL;
++                """);
++
++            migrationBuilder.AlterColumn<byte[]>(
++                name: "RowVersion",
++                table: "ProjectIdeas",
++                type: "bytea",
++                nullable: false,
++                oldClrType: typeof(byte[]),
++                oldType: "bytea",
++                oldNullable: true);
++
++            migrationBuilder.AlterColumn<byte[]>(
++                name: "RowVersion",
++                table: "ProjectIdeaComments",
++                type: "bytea",
++                nullable: false,
++                oldClrType: typeof(byte[]),
++                oldType: "bytea",
++                oldNullable: true);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_ProjectIdeas_Deleted_DeletedAt",
++                table: "ProjectIdeas",
++                columns: new[] { "IsDeleted", "DeletedAt" },
++                descending: new[] { false, true });
++        }
++
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropIndex(
++                name: "IX_ProjectIdeas_Deleted_DeletedAt",
++                table: "ProjectIdeas");
++
++            migrationBuilder.DropColumn(
++                name: "DeletedAt",
++                table: "ProjectIdeas");
++
++            migrationBuilder.DropColumn(
++                name: "DeletedByUserId",
++                table: "ProjectIdeas");
++
++            migrationBuilder.DropColumn(
++                name: "DeleteReason",
++                table: "ProjectIdeas");
++
++            migrationBuilder.DropColumn(
++                name: "RowVersion",
++                table: "ProjectIdeas");
++
++            migrationBuilder.DropColumn(
++                name: "EditedAt",
++                table: "ProjectIdeaComments");
++
++            migrationBuilder.DropColumn(
++                name: "EditedByUserId",
++                table: "ProjectIdeaComments");
++
++            migrationBuilder.DropColumn(
++                name: "DeletedAt",
++                table: "ProjectIdeaComments");
++
++            migrationBuilder.DropColumn(
++                name: "DeletedByUserId",
++                table: "ProjectIdeaComments");
++
++            migrationBuilder.DropColumn(
++                name: "RowVersion",
++                table: "ProjectIdeaComments");
++        }
++    }
++}
+--- a/Migrations/ApplicationDbContextModelSnapshot.cs
++++ b/Migrations/ApplicationDbContextModelSnapshot.cs
+@@ -189,9 +189,25 @@
+                         .HasMaxLength(2000)
+                         .HasColumnType("character varying(2000)");
+ 
++                    b.Property<DateTime?>("DeletedAt")
++                        .HasColumnType("timestamp without time zone");
++
++                    b.Property<string>("DeletedByUserId")
++                        .HasMaxLength(450)
++                        .HasColumnType("character varying(450)");
++
++                    b.Property<string>("DeleteReason")
++                        .HasMaxLength(1000)
++                        .HasColumnType("character varying(1000)");
++
+                     b.Property<bool>("IsDeleted")
+                         .HasColumnType("boolean");
+ 
++                    b.Property<byte[]>("RowVersion")
++                        .IsRequired()
++                        .IsConcurrencyToken()
++                        .HasColumnType("bytea");
++
+                     b.Property<string>("Status")
+                         .IsRequired()
+                         .HasMaxLength(30)
+@@ -216,6 +232,10 @@
+                     b.HasIndex("CreatedByUserId");
+ 
+                     b.HasIndex("IsDeleted");
++
++                    b.HasIndex("IsDeleted", "DeletedAt")
++                        .IsDescending(false, true)
++                        .HasDatabaseName("IX_ProjectIdeas_Deleted_DeletedAt");
+ 
+                     b.HasIndex("Status");
+ 
+@@ -255,11 +275,30 @@
+                         .IsRequired()
+                         .HasColumnType("text");
+ 
++                    b.Property<DateTime?>("DeletedAt")
++                        .HasColumnType("timestamp without time zone");
++
++                    b.Property<string>("DeletedByUserId")
++                        .HasMaxLength(450)
++                        .HasColumnType("character varying(450)");
++
++                    b.Property<DateTime?>("EditedAt")
++                        .HasColumnType("timestamp without time zone");
++
++                    b.Property<string>("EditedByUserId")
++                        .HasMaxLength(450)
++                        .HasColumnType("character varying(450)");
++
+                     b.Property<bool>("IsDeleted")
+                         .HasColumnType("boolean");
+ 
+                     b.Property<int>("ProjectIdeaId")
+                         .HasColumnType("integer");
++
++                    b.Property<byte[]>("RowVersion")
++                        .IsRequired()
++                        .IsConcurrencyToken()
++                        .HasColumnType("bytea");
+ 
+                     b.Property<string>("StatusSnapshot")
+                         .HasMaxLength(32)
+--- a/Migrations/immutable-migration-ids.txt
++++ b/Migrations/immutable-migration-ids.txt
+@@ -89,3 +89,4 @@
+ 20261207180000_RefineProcurementJourneyTopology
+ 20261207190000_StabilizeNotebookModule
+ 20261207200000_AddNotebookSystemItemPreferences
++20261207210000_AddProjectIdeaGovernanceLifecycle
+--- a/Models/ProjectIdeas/ProjectIdea.cs
++++ b/Models/ProjectIdeas/ProjectIdea.cs
+@@ -19,7 +19,14 @@
+     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+     public DateTime? ArchivedAt { get; set; }
+     [MaxLength(1000)] public string? ArchiveReason { get; set; }
++
+     public bool IsDeleted { get; set; }
++    public DateTime? DeletedAt { get; set; }
++    [MaxLength(450)] public string? DeletedByUserId { get; set; }
++    [MaxLength(1000)] public string? DeleteReason { get; set; }
++
++    [ConcurrencyCheck]
++    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+     public ICollection<ProjectIdeaComment> Comments { get; set; } = new List<ProjectIdeaComment>();
+     public ICollection<ProjectIdeaNote> Notes { get; set; } = new List<ProjectIdeaNote>();
+     public ICollection<ProjectIdeaDocument> Documents { get; set; } = new List<ProjectIdeaDocument>();
+--- a/Models/ProjectIdeas/ProjectIdeaComment.cs
++++ b/Models/ProjectIdeas/ProjectIdeaComment.cs
+@@ -39,5 +39,16 @@
+     public string? StatusSnapshot { get; set; }
+ 
+     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
++
++    public DateTime? EditedAt { get; set; }
++    [MaxLength(450)]
++    public string? EditedByUserId { get; set; }
++
+     public bool IsDeleted { get; set; }
++    public DateTime? DeletedAt { get; set; }
++    [MaxLength(450)]
++    public string? DeletedByUserId { get; set; }
++
++    [ConcurrencyCheck]
++    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+ }
+--- a/Pages/ProjectIdeas/Deleted.cshtml
++++ b/Pages/ProjectIdeas/Deleted.cshtml
+@@ -0,0 +1,93 @@
++@page
++@model ProjectManagement.Pages.ProjectIdeas.DeletedModel
++@using ProjectManagement.Models.ProjectIdeas
++@{
++    ViewData["UseFullWidth"] = true;
++    ViewData["Title"] = "Deleted Ideas";
++}
++<link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
++
++<div class="pi-page pi-deleted-page">
++    <a asp-page="Index" class="pi-back">
++        <span class="bi bi-arrow-left" aria-hidden="true"></span>
++        Back to Idea Workspace
++    </a>
++
++    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
++    {
++        <div class="alert alert-success alert-dismissible fade show" role="alert">
++            @Model.StatusMessage
++            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
++        </div>
++    }
++    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
++    {
++        <div class="alert alert-danger alert-dismissible fade show" role="alert">
++            @Model.ErrorMessage
++            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
++        </div>
++    }
++
++    <header class="pi-deleted-header">
++        <div>
++            <span class="pi-detail-kicker">Governance</span>
++            <h1>Deleted Ideas</h1>
++            <p>Soft-deleted Ideas are excluded from operational views. Restore a record if it was removed in error.</p>
++        </div>
++        <span class="pi-deleted-count">@Model.Ideas.Count</span>
++    </header>
++
++    @if (Model.Ideas.Count == 0)
++    {
++        <section class="pi-empty pi-deleted-empty">
++            <span class="pi-empty-icon bi bi-trash3" aria-hidden="true"></span>
++            <h2>No deleted Ideas</h2>
++            <p>There are no soft-deleted Project Ideas awaiting recovery.</p>
++        </section>
++    }
++    else
++    {
++        <section class="pi-deleted-list" aria-label="Deleted Project Ideas">
++            @foreach (var idea in Model.Ideas)
++            {
++                <article class="pi-deleted-card">
++                    <div class="pi-deleted-card__main">
++                        <div class="pi-deleted-card__title-row">
++                            <div>
++                                <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
++                                <h2>@idea.Title</h2>
++                            </div>
++                            <span class="pi-deleted-badge"><span class="bi bi-trash3" aria-hidden="true"></span> Deleted</span>
++                        </div>
++                        <p class="pi-deleted-description">@idea.Description</p>
++                        <div class="pi-deleted-meta">
++                            <span><span class="bi bi-person" aria-hidden="true"></span> Deleted by <strong>@Model.DeletedBy(idea)</strong></span>
++                            @if (idea.DeletedAt.HasValue)
++                            {
++                                <span><span class="bi bi-clock-history" aria-hidden="true"></span> @idea.DeletedAt.Value.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</span>
++                            }
++                        </div>
++                        @if (!string.IsNullOrWhiteSpace(idea.DeleteReason))
++                        {
++                            <div class="pi-deleted-reason"><strong>Reason:</strong> @idea.DeleteReason</div>
++                        }
++                        <div class="pi-deleted-retained" aria-label="Retained related records">
++                            <span>@idea.DiscussionCount discussion</span>
++                            <span>@idea.ConferenceDirectionCount conference</span>
++                            <span>@idea.NoteCount notes</span>
++                            <span>@idea.DocumentCount files</span>
++                        </div>
++                    </div>
++                    <form method="post" asp-page-handler="Restore" class="pi-deleted-card__action">
++                        <input type="hidden" name="ideaId" value="@idea.Id" />
++                        <input type="hidden" name="rowVersion" value="@DeletedModel.EncodeRowVersion(idea.RowVersion)" />
++                        <button type="submit" class="pi-btn pi-btn-primary">
++                            <span class="bi bi-arrow-counterclockwise" aria-hidden="true"></span>
++                            Restore Idea
++                        </button>
++                    </form>
++                </article>
++            }
++        </section>
++    }
++</div>
+--- a/Pages/ProjectIdeas/Deleted.cshtml.cs
++++ b/Pages/ProjectIdeas/Deleted.cshtml.cs
+@@ -0,0 +1,126 @@
++using System.Security.Claims;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Identity;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.RazorPages;
++using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Models;
++using ProjectManagement.Models.ProjectIdeas;
++using ProjectManagement.Services.ProjectIdeas;
++
++namespace ProjectManagement.Pages.ProjectIdeas;
++
++[Authorize]
++public sealed class DeletedModel : PageModel
++{
++    private readonly ProjectIdeaReadService _read;
++    private readonly ProjectIdeaCommandService _commands;
++    private readonly ProjectIdeaPermissionService _permissions;
++    private readonly UserManager<ApplicationUser> _users;
++
++    public DeletedModel(
++        ProjectIdeaReadService read,
++        ProjectIdeaCommandService commands,
++        ProjectIdeaPermissionService permissions,
++        UserManager<ApplicationUser> users)
++    {
++        _read = read;
++        _commands = commands;
++        _permissions = permissions;
++        _users = users;
++    }
++
++    public IReadOnlyList<ProjectIdeaDeletedItem> Ideas { get; private set; } = Array.Empty<ProjectIdeaDeletedItem>();
++    public IReadOnlyDictionary<string, string> DeletedByNames { get; private set; } =
++        new Dictionary<string, string>(StringComparer.Ordinal);
++
++    [TempData] public string? StatusMessage { get; set; }
++    [TempData] public string? ErrorMessage { get; set; }
++
++    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
++    {
++        if (!_permissions.CanViewDeletedIdeas(User)) return Forbid();
++
++        Ideas = await _read.GetDeletedIdeasAsync(cancellationToken);
++        var ids = Ideas
++            .Select(idea => idea.DeletedByUserId)
++            .Where(id => !string.IsNullOrWhiteSpace(id))
++            .Cast<string>()
++            .Distinct(StringComparer.Ordinal)
++            .ToArray();
++
++        if (ids.Length > 0)
++        {
++            DeletedByNames = await _users.Users
++                .AsNoTracking()
++                .Where(user => ids.Contains(user.Id))
++                .Select(user => new
++                {
++                    user.Id,
++                    Display = user.FullName != null && user.FullName != string.Empty
++                        ? user.FullName
++                        : user.UserName ?? user.Email ?? user.Id
++                })
++                .ToDictionaryAsync(item => item.Id, item => item.Display, cancellationToken);
++        }
++
++        return Page();
++    }
++
++    public async Task<IActionResult> OnPostRestoreAsync(int ideaId, string? rowVersion, CancellationToken cancellationToken)
++    {
++        if (!_permissions.CanRestoreDeletedIdea(User)) return Forbid();
++
++        try
++        {
++            var restored = await _commands.RestoreDeletedIdeaAsync(
++                ideaId,
++                DecodeRowVersion(rowVersion),
++                CurrentActor(),
++                cancellationToken);
++            if (!restored) return NotFound();
++
++            StatusMessage = "Idea restored.";
++            return RedirectToPage("Details", new { id = ideaId });
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++            return RedirectToPage();
++        }
++    }
++
++    public string DeletedBy(ProjectIdeaDeletedItem idea)
++    {
++        if (string.IsNullOrWhiteSpace(idea.DeletedByUserId)) return "Unknown user";
++        return DeletedByNames.GetValueOrDefault(idea.DeletedByUserId) ?? idea.DeletedByUserId;
++    }
++
++    public static string EncodeRowVersion(byte[]? value)
++        => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
++
++    private ProjectIdeaActorContext CurrentActor()
++        => new(
++            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
++            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value));
++
++    private static byte[] DecodeRowVersion(string? value)
++    {
++        if (string.IsNullOrWhiteSpace(value))
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
++        }
++
++        try
++        {
++            var decoded = Convert.FromBase64String(value);
++            return decoded.Length > 0
++                ? decoded
++                : throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
++        }
++        catch (FormatException exception)
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage, exception);
++        }
++    }
++}
+--- a/Pages/ProjectIdeas/Details.cshtml
++++ b/Pages/ProjectIdeas/Details.cshtml
+@@ -14,10 +14,15 @@
+         .ToList();
+     var notes = Model.Idea.Notes.Where(n => !n.IsDeleted).OrderByDescending(n => n.IsPinned).ThenByDescending(n => n.UpdatedAt).ToList();
+     var commentCount = comments.Count;
++    var conferenceCommentCount = comments.Count(c => string.Equals(c.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase));
+     var noteCount = notes.Count;
+     var documentCount = Model.Documents.Count;
++    var defaultConferenceComment = Model.CanAddConferenceComment
++        && string.Equals(Model.DefaultCommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase);
++    var defaultGeneralComment = !defaultConferenceComment;
+ }
+ <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
++<link rel="stylesheet" href="~/css/components/prism-confirm-dialog.css" asp-append-version="true" />
+ 
+ <div class="pi-page pi-detail-page">
+     <a asp-page="Index" class="pi-back">
+@@ -94,21 +99,50 @@
+                     Edit idea
+                 </a>
+             }
+-            @if (Model.CanArchive && !Model.IsArchived)
+-            {
+-                <button type="button" class="pi-btn pi-btn-danger" data-bs-toggle="modal" data-bs-target="#archiveIdeaModal">
+-                    <span class="bi bi-archive" aria-hidden="true"></span>
+-                    Archive
+-                </button>
+-            }
+-            @if (Model.CanRestore && Model.Idea.Status == ProjectIdeaStatuses.Archived)
++            @if (Model.CanRestore && Model.IsArchived)
+             {
+                 <form method="post" asp-page-handler="Restore" asp-route-id="@Model.Idea.Id">
++                    <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
+                     <button class="pi-btn pi-btn-primary" type="submit">
+                         <span class="bi bi-arrow-counterclockwise" aria-hidden="true"></span>
+                         Restore
+                     </button>
+                 </form>
++            }
++            @if ((Model.CanArchive && !Model.IsArchived) || Model.CanDelete)
++            {
++                <div class="dropdown pi-lifecycle-menu">
++                    <button type="button"
++                            class="pi-btn pi-icon-only"
++                            data-bs-toggle="dropdown"
++                            aria-expanded="false"
++                            aria-label="Idea lifecycle actions"
++                            title="More actions">
++                        <span class="bi bi-three-dots" aria-hidden="true"></span>
++                    </button>
++                    <ul class="dropdown-menu dropdown-menu-end">
++                        @if (Model.CanArchive && !Model.IsArchived)
++                        {
++                            <li>
++                                <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#archiveIdeaModal">
++                                    <span class="bi bi-archive me-2" aria-hidden="true"></span>Archive Idea
++                                </button>
++                            </li>
++                        }
++                        @if (Model.CanDelete)
++                        {
++                            @if (Model.CanArchive && !Model.IsArchived)
++                            {
++                                <li><hr class="dropdown-divider" /></li>
++                            }
++                            <li>
++                                <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#deleteIdeaModal">
++                                    <span class="bi bi-trash3 me-2" aria-hidden="true"></span>Delete Idea
++                                </button>
++                            </li>
++                        }
++                    </ul>
++                </div>
+             }
+         </div>
+     </section>
+@@ -159,19 +193,86 @@
+                         var commentUtcIso = comment.CreatedAt.ToUniversalTime().ToString("O");
+                         var isConferenceComment = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase);
+                         var roleLabel = DetailsModel.DisplayRole(comment.CreatedByRole);
+-                        <article class="pi-comment@(isConferenceComment ? " pi-comment-conference" : string.Empty)">
++                        var canEditComment = Model.CanEditComment(comment);
++                        var canDeleteComment = Model.CanDeleteComment(comment);
++                        var rowVersion = DetailsModel.EncodeRowVersion(comment.RowVersion);
++                        var editPanelId = $"idea-comment-edit-{comment.Id}";
++                        <article class="pi-comment@(isConferenceComment ? " pi-comment-conference" : string.Empty)" data-pi-comment-id="@comment.Id">
+                             <div class="pi-avatar">@DetailsModel.Initials(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName)</div>
+                             <div class="pi-comment-content">
+-                                <div class="pi-comment-heading">
+-                                    <b>@(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName ?? "Unknown")</b>
+-                                    <span class="pi-comment-type@(isConferenceComment ? " is-conference" : string.Empty)">@DetailsModel.DisplayCommentType(comment.CommentType)</span>
+-                                    @if (!string.IsNullOrWhiteSpace(roleLabel))
++                                <div class="pi-comment-topline">
++                                    <div>
++                                        <div class="pi-comment-heading">
++                                            <b>@(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName ?? "Unknown")</b>
++                                            <span class="pi-comment-type@(isConferenceComment ? " is-conference" : string.Empty)">@DetailsModel.DisplayCommentType(comment.CommentType)</span>
++                                            @if (!string.IsNullOrWhiteSpace(roleLabel))
++                                            {
++                                                <span class="pi-comment-role">@roleLabel</span>
++                                            }
++                                        </div>
++                                        <div class="pi-comment-time">
++                                            <time datetime="@commentUtcIso">@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</time>
++                                            @if (comment.EditedAt.HasValue)
++                                            {
++                                                <span aria-label="This remark has been edited">· Edited</span>
++                                            }
++                                        </div>
++                                    </div>
++                                    @if (canEditComment || canDeleteComment)
+                                     {
+-                                        <span class="pi-comment-role">@roleLabel</span>
++                                        <div class="dropdown pi-comment-menu">
++                                            <button type="button" class="pi-comment-menu-button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Discussion remark actions">
++                                                <span class="bi bi-three-dots" aria-hidden="true"></span>
++                                            </button>
++                                            <ul class="dropdown-menu dropdown-menu-end">
++                                                @if (canEditComment)
++                                                {
++                                                    <li>
++                                                        <button type="button" class="dropdown-item" data-pi-comment-edit aria-controls="@editPanelId">
++                                                            <span class="bi bi-pencil me-2" aria-hidden="true"></span>Edit
++                                                        </button>
++                                                    </li>
++                                                }
++                                                @if (canDeleteComment)
++                                                {
++                                                    @if (canEditComment)
++                                                    {
++                                                        <li><hr class="dropdown-divider" /></li>
++                                                    }
++                                                    <li>
++                                                        <form method="post" asp-page-handler="DeleteComment" asp-route-id="@Model.Idea.Id" data-pi-delete-comment data-comment-type="@comment.CommentType">
++                                                            <input type="hidden" name="commentId" value="@comment.Id" />
++                                                            <input type="hidden" name="rowVersion" value="@rowVersion" />
++                                                            <button type="submit" class="dropdown-item text-danger">
++                                                                <span class="bi bi-trash3 me-2" aria-hidden="true"></span>Delete
++                                                            </button>
++                                                        </form>
++                                                    </li>
++                                                }
++                                            </ul>
++                                        </div>
+                                     }
+                                 </div>
+-                                <time datetime="@commentUtcIso">@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</time>
+-                                <p>@comment.CommentText</p>
++                                <p data-pi-comment-text>@comment.CommentText</p>
++                                @if (canEditComment)
++                                {
++                                    <form method="post"
++                                          asp-page-handler="EditComment"
++                                          asp-route-id="@Model.Idea.Id"
++                                          class="pi-comment-edit-form"
++                                          id="@editPanelId"
++                                          data-pi-comment-edit-panel
++                                          hidden>
++                                        <input type="hidden" name="commentId" value="@comment.Id" />
++                                        <input type="hidden" name="rowVersion" value="@rowVersion" />
++                                        <label class="visually-hidden" for="editedCommentText-@comment.Id">Edit discussion remark</label>
++                                        <textarea id="editedCommentText-@comment.Id" name="editedCommentText" maxlength="4000" required>@comment.CommentText</textarea>
++                                        <div class="pi-comment-edit-actions">
++                                            <button type="button" class="pi-btn pi-btn-subtle" data-pi-comment-edit-cancel>Cancel</button>
++                                            <button type="submit" class="pi-btn pi-btn-primary">Save</button>
++                                        </div>
++                                    </form>
++                                }
+                                 @if (isConferenceComment && !string.IsNullOrWhiteSpace(comment.StatusSnapshot))
+                                 {
+                                     <div class="pi-comment-context">Status when issued: @ProjectIdeaStatuses.ToDisplay(comment.StatusSnapshot)</div>
+@@ -185,12 +286,12 @@
+             @if (Model.CanAddComment)
+             {
+                 <form method="post" asp-page-handler="Comment" asp-route-id="@Model.Idea.Id" class="pi-inline-form pi-comment-composer" data-pi-comment-composer>
+-                    <input type="hidden" name="CommentType" value="@ProjectIdeaCommentTypes.General" data-pi-comment-type />
++                    <input type="hidden" name="CommentType" value="@(defaultConferenceComment ? ProjectIdeaCommentTypes.Conference : ProjectIdeaCommentTypes.General)" data-pi-comment-type data-pi-comment-default="@Model.DefaultCommentType" />
+                     @if (Model.CanAddConferenceComment)
+                     {
+                         <div class="pi-comment-type-selector" role="group" aria-label="Comment type">
+-                            <button type="button" class="is-active" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="true">General</button>
+-                            <button type="button" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="false">Conference</button>
++                            <button type="button" class="@(defaultGeneralComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="@(defaultGeneralComment ? "true" : "false")">General</button>
++                            <button type="button" class="@(defaultConferenceComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="@(defaultConferenceComment ? "true" : "false")">Conference</button>
+                         </div>
+                     }
+                     <label class="visually-hidden" for="CommentText">Write a comment</label>
+@@ -444,6 +545,7 @@
+     <div class="modal fade" id="archiveIdeaModal" tabindex="-1" aria-labelledby="archiveIdeaModalLabel" aria-hidden="true">
+         <div class="modal-dialog">
+             <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id" class="modal-content">
++                <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
+                 <div class="modal-header">
+                     <h5 class="modal-title" id="archiveIdeaModalLabel">Archive Idea</h5>
+                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+@@ -458,6 +560,38 @@
+                 <div class="modal-footer">
+                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                     <button type="submit" class="btn btn-danger">Archive Idea</button>
++                </div>
++            </form>
++        </div>
++    </div>
++}
++
++@* SECTION: Controlled soft-delete modal *@
++@if (Model.CanDelete)
++{
++    <div class="modal fade" id="deleteIdeaModal" tabindex="-1" aria-labelledby="deleteIdeaModalLabel" aria-hidden="true">
++        <div class="modal-dialog modal-dialog-centered">
++            <form method="post" asp-page-handler="Delete" asp-route-id="@Model.Idea.Id" class="modal-content">
++                <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
++                <div class="modal-header">
++                    <h5 class="modal-title" id="deleteIdeaModalLabel">Delete @Model.Idea.Title?</h5>
++                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
++                </div>
++                <div class="modal-body">
++                    <p class="mb-3">This Idea will be removed from operational views. Related records will be retained for audit and recovery.</p>
++                    <div class="pi-delete-impact" aria-label="Related records retained">
++                        <span><strong>@commentCount</strong> discussion</span>
++                        <span><strong>@conferenceCommentCount</strong> conference</span>
++                        <span><strong>@noteCount</strong> notes</span>
++                        <span><strong>@documentCount</strong> files</span>
++                    </div>
++                    <label class="form-label mt-3" for="DeleteReason">Reason for deletion</label>
++                    <textarea id="DeleteReason" name="deleteReason" class="form-control" required maxlength="1000" rows="4" placeholder="Duplicate, test entry, entered in error, or other reason"></textarea>
++                    <div class="form-text">Deletion is reversible by Comdt, HoD or Admin from Deleted Ideas.</div>
++                </div>
++                <div class="modal-footer">
++                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
++                    <button type="submit" class="btn btn-danger">Delete Idea</button>
+                 </div>
+             </form>
+         </div>
+@@ -511,6 +645,9 @@
+     </div>
+ }
+ 
++<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
++
+ @section Scripts {
++    <script src="~/js/components/prism-confirm-dialog.js" asp-append-version="true" defer></script>
+     <script src="~/js/pages/project-ideas-details.js" asp-append-version="true" defer></script>
+ }
+--- a/Pages/ProjectIdeas/Details.cshtml.cs
++++ b/Pages/ProjectIdeas/Details.cshtml.cs
+@@ -32,10 +32,12 @@
+     public bool ShowRestrictedEditNotice => CanEdit && !CanEditCore;
+     public bool CanArchive { get; private set; }
+     public bool CanRestore { get; private set; }
++    public bool CanDelete { get; private set; }
+     public bool CanAddComment { get; private set; }
+     public bool CanAddConferenceComment { get; private set; }
+     public bool CanAddNote { get; private set; }
+     public bool CanUpload { get; private set; }
++    public string DefaultCommentType { get; private set; } = ProjectIdeaCommentTypes.General;
+     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
+     public IReadOnlyList<ProjectIdeaDocument> Documents { get; private set; } = Array.Empty<ProjectIdeaDocument>();
+ 
+@@ -85,20 +87,89 @@
+             return BadRequest("Invalid comment type.");
+         }
+ 
+-        if (string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal))
+-        {
+-            if (!_permissions.CanAddConferenceComment(User, Idea)) return Forbid();
+-
+-            var actorRole = CurrentConferenceRole();
+-            if (actorRole is null) return Forbid();
+-
+-            await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
+-            StatusMessage = "Conference remark added.";
+-        }
+-        else
+-        {
+-            await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
+-            StatusMessage = "Comment added.";
++        try
++        {
++            if (string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal))
++            {
++                if (!_permissions.CanAddConferenceComment(User, Idea)) return Forbid();
++
++                var actorRole = CurrentConferenceRole();
++                if (actorRole is null) return Forbid();
++
++                await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
++                StatusMessage = "Conference remark added.";
++            }
++            else
++            {
++                await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
++                StatusMessage = "Comment added.";
++            }
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
++
++        return RedirectToPage(new { id });
++    }
++
++    public async Task<IActionResult> OnPostEditCommentAsync(
++        int id,
++        int commentId,
++        string? editedCommentText,
++        string? rowVersion)
++    {
++        if (!await LoadAsync(id)) return NotFound();
++        var comment = Idea.Comments.FirstOrDefault(candidate => candidate.Id == commentId && !candidate.IsDeleted);
++        if (comment is null) return NotFound();
++        if (!_permissions.CanEditComment(User, Idea, comment)) return Forbid();
++
++        try
++        {
++            var updated = await _commands.EditCommentAsync(
++                id,
++                commentId,
++                editedCommentText,
++                DecodeRowVersion(rowVersion),
++                CurrentActor());
++            if (updated is null) return NotFound();
++            StatusMessage = string.Equals(updated.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
++                ? "Conference direction updated."
++                : "Discussion remark updated.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
++
++        return RedirectToPage(new { id });
++    }
++
++    public async Task<IActionResult> OnPostDeleteCommentAsync(
++        int id,
++        int commentId,
++        string? rowVersion)
++    {
++        if (!await LoadAsync(id)) return NotFound();
++        var comment = Idea.Comments.FirstOrDefault(candidate => candidate.Id == commentId && !candidate.IsDeleted);
++        if (comment is null) return NotFound();
++        if (!_permissions.CanDeleteComment(User, Idea, comment)) return Forbid();
++
++        try
++        {
++            var deleted = await _commands.SoftDeleteCommentAsync(
++                id,
++                commentId,
++                DecodeRowVersion(rowVersion),
++                CurrentActor());
++            if (!deleted) return NotFound();
++            StatusMessage = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
++                ? "Conference direction deleted."
++                : "Discussion remark deleted.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
+         }
+ 
+         return RedirectToPage(new { id });
+@@ -123,12 +194,19 @@
+             return RedirectToPage(new { id, openNoteComposer = true });
+         }
+ 
+-        await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
+-        StatusMessage = "Note added.";
+-        return RedirectToPage(new { id });
+-    }
+-
+-    public async Task<IActionResult> OnPostArchiveAsync(int id)
++        try
++        {
++            await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
++            StatusMessage = "Note added.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
++        return RedirectToPage(new { id });
++    }
++
++    public async Task<IActionResult> OnPostArchiveAsync(int id, string? rowVersion)
+     {
+         if (!await LoadAsync(id)) return NotFound();
+         if (!_permissions.CanArchiveIdea(User) || IsArchived) return Forbid();
+@@ -145,18 +223,58 @@
+             return RedirectToPage(new { id });
+         }
+ 
+-        await _commands.ArchiveAsync(Idea, archiveReason);
+-        StatusMessage = "Idea archived.";
+-        return RedirectToPage(new { id });
+-    }
+-
+-    public async Task<IActionResult> OnPostRestoreAsync(int id)
++        try
++        {
++            await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion));
++            StatusMessage = "Idea archived.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
++        return RedirectToPage(new { id });
++    }
++
++    public async Task<IActionResult> OnPostRestoreAsync(int id, string? rowVersion)
+     {
+         if (!await LoadAsync(id)) return NotFound();
+         if (!_permissions.CanRestoreIdea(User)) return Forbid();
+-        await _commands.RestoreAsync(Idea);
+-        StatusMessage = "Idea restored.";
+-        return RedirectToPage(new { id });
++        try
++        {
++            await _commands.RestoreAsync(Idea, DecodeRowVersion(rowVersion));
++            StatusMessage = "Idea restored.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
++        return RedirectToPage(new { id });
++    }
++
++    public async Task<IActionResult> OnPostDeleteAsync(
++        int id,
++        string? deleteReason,
++        string? rowVersion)
++    {
++        if (!await LoadAsync(id)) return NotFound();
++        if (!_permissions.CanDeleteIdea(User)) return Forbid();
++
++        try
++        {
++            var deleted = await _commands.SoftDeleteIdeaAsync(
++                id,
++                deleteReason,
++                DecodeRowVersion(rowVersion),
++                CurrentActor());
++            if (!deleted) return NotFound();
++            StatusMessage = "Idea deleted.";
++            return RedirectToPage("Deleted");
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++            return RedirectToPage(new { id });
++        }
+     }
+ 
+     public async Task<IActionResult> OnPostUploadAsync(int id)
+@@ -176,8 +294,15 @@
+         var doc = await _documents.GetAsync(documentId);
+         if (doc is null || doc.ProjectIdeaId != id || doc.IsDeleted) return NotFound();
+         if (!_permissions.CanDeleteDocument(User, doc, Idea)) return Forbid();
+-        await _documents.SoftDeleteAsync(doc);
+-        StatusMessage = "Document deleted.";
++        try
++        {
++            await _documents.SoftDeleteAsync(doc);
++            StatusMessage = "Document deleted.";
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++        }
+         return RedirectToPage(new { id });
+     }
+ 
+@@ -237,6 +362,9 @@
+ 
+     // SECTION: Attachment view helpers
+     public bool CanDeleteDocument(ProjectIdeaDocument document) => _permissions.CanDeleteDocument(User, document, Idea);
++    public bool CanEditComment(ProjectIdeaComment comment) => _permissions.CanEditComment(User, Idea, comment);
++    public bool CanDeleteComment(ProjectIdeaComment comment) => _permissions.CanDeleteComment(User, Idea, comment);
++    public static string EncodeRowVersion(byte[]? rowVersion) => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
+ 
+     public string DisplayUser(ProjectManagement.Models.ApplicationUser? user, string fallback = "Unknown") =>
+         user?.FullName ?? user?.UserName ?? user?.Email ?? fallback;
+@@ -341,10 +469,12 @@
+         CanEditCore = _permissions.CanEditIdeaCore(User, idea);
+         CanArchive = _permissions.CanArchiveIdea(User);
+         CanRestore = _permissions.CanRestoreIdea(User);
++        CanDelete = _permissions.CanDeleteIdea(User);
+         CanAddComment = _permissions.CanAddComment(User, idea);
+         CanAddConferenceComment = _permissions.CanAddConferenceComment(User, idea);
+         CanAddNote = _permissions.CanAddNote(User, idea);
+         CanUpload = _permissions.CanUploadDocument(User, idea);
++        DefaultCommentType = _permissions.GetDefaultCommentType(User, idea);
+         Documents = idea.Documents
+             .Where(d => !d.IsDeleted)
+             .OrderByDescending(d => d.UploadedAt)
+@@ -354,6 +484,31 @@
+ 
+     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+ 
++    private ProjectIdeaActorContext CurrentActor()
++        => new(
++            CurrentUserId(),
++            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value));
++
++    private static byte[] DecodeRowVersion(string? value)
++    {
++        if (string.IsNullOrWhiteSpace(value))
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
++        }
++
++        try
++        {
++            var decoded = Convert.FromBase64String(value);
++            return decoded.Length > 0
++                ? decoded
++                : throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
++        }
++        catch (FormatException exception)
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage, exception);
++        }
++    }
++
+     private string? CurrentConferenceRole()
+     {
+         if (User.IsInRole(RoleNames.Comdt)) return RoleNames.Comdt;
+--- a/Pages/ProjectIdeas/Edit.cshtml
++++ b/Pages/ProjectIdeas/Edit.cshtml
+@@ -28,6 +28,7 @@
+ 
+         <form method="post" class="pi-form-grid">
+             <input type="hidden" asp-for="Input.Id" />
++            <input type="hidden" asp-for="Input.RowVersion" />
+             <div asp-validation-summary="ModelOnly" class="text-danger pi-form-field-wide"></div>
+ 
+             @if (Model.CanManageCore)
+--- a/Pages/ProjectIdeas/Edit.cshtml.cs
++++ b/Pages/ProjectIdeas/Edit.cshtml.cs
+@@ -58,6 +58,7 @@
+     public class InputModel
+     {
+         public int Id { get; set; }
++        public string RowVersion { get; set; } = string.Empty;
+ 
+         [MaxLength(200)]
+         public string? Title { get; set; }
+@@ -80,6 +81,7 @@
+         Input = new InputModel
+         {
+             Id = idea.Id,
++            RowVersion = EncodeRowVersion(idea.RowVersion),
+             Title = idea.Title,
+             Description = idea.Description,
+             AssignedProjectOfficerUserId = idea.AssignedProjectOfficerUserId,
+@@ -129,9 +131,18 @@
+             idea.Status = Input.Status!;
+         }
+ 
+-        await _commands.UpdateAsync(idea);
+-        StatusMessage = CanManageCore ? "Idea updated." : "Idea description updated.";
+-        return RedirectToPage("Details", new { id = idea.Id });
++        try
++        {
++            await _commands.UpdateAsync(idea, DecodeRowVersion(Input.RowVersion));
++            StatusMessage = CanManageCore ? "Idea updated." : "Idea description updated.";
++            return RedirectToPage("Details", new { id = idea.Id });
++        }
++        catch (InvalidOperationException exception)
++        {
++            ErrorMessage = exception.Message;
++            await LoadUsersIfRequiredAsync();
++            return Page();
++        }
+     }
+ 
+     private void ValidateCoreFields()
+@@ -187,6 +198,30 @@
+     private static string? DisplayNameOrNull(ApplicationUser? user) =>
+         user is null ? null : DisplayName(user);
+ 
++
++    private static string EncodeRowVersion(byte[]? value)
++        => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
++
++    private static byte[] DecodeRowVersion(string? value)
++    {
++        if (string.IsNullOrWhiteSpace(value))
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
++        }
++
++        try
++        {
++            var decoded = Convert.FromBase64String(value);
++            return decoded.Length > 0
++                ? decoded
++                : throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
++        }
++        catch (FormatException exception)
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage, exception);
++        }
++    }
++
+     private static bool IsEditableStatus(string status) =>
+         status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;
+ }
+--- a/Pages/ProjectIdeas/Index.cshtml
++++ b/Pages/ProjectIdeas/Index.cshtml
+@@ -24,13 +24,22 @@
+             </div>
+         </div>
+ 
+-        @if (Model.CanCreate)
+-        {
+-            <a class="pi-btn pi-btn-primary pi-new-idea" asp-page="Create">
+-                <span class="bi bi-plus-lg" aria-hidden="true"></span>
+-                <span>New Idea</span>
+-            </a>
+-        }
++        <div class="pi-page-hero-actions">
++            @if (Model.CanManageDeletedIdeas)
++            {
++                <a class="pi-btn pi-btn-subtle" asp-page="Deleted">
++                    <span class="bi bi-trash3" aria-hidden="true"></span>
++                    <span>Deleted Ideas</span>
++                </a>
++            }
++            @if (Model.CanCreate)
++            {
++                <a class="pi-btn pi-btn-primary pi-new-idea" asp-page="Create">
++                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
++                    <span>New Idea</span>
++                </a>
++            }
++        </div>
+     </header>
+ 
+     @* SECTION: One coherent command surface for status, filters, sorting and view *@
+--- a/Pages/ProjectIdeas/Index.cshtml.cs
++++ b/Pages/ProjectIdeas/Index.cshtml.cs
+@@ -49,6 +49,7 @@
+     public IReadOnlyDictionary<string, int> StatusCounts { get; private set; } =
+         ProjectIdeaStatuses.All.ToDictionary(status => status, _ => 0);
+     public bool CanCreate { get; private set; }
++    public bool CanManageDeletedIdeas { get; private set; }
+ 
+     // SECTION: Clean route values and view state
+     public string? ActiveMyIdeasRouteValue => MyIdeas ? "true" : null;
+@@ -92,6 +93,7 @@
+         }
+ 
+         CanCreate = _permissions.CanCreateIdea(User);
++        CanManageDeletedIdeas = _permissions.CanViewDeletedIdeas(User);
+ 
+         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+         var canViewAll = User.IsInRole(RoleNames.Admin)
+--- a/ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
++++ b/ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
+@@ -1,3 +1,4 @@
++using Microsoft.Data.Sqlite;
+ using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Data;
+@@ -86,6 +87,221 @@
+         Assert.Equal(ProjectIdeaStatuses.Active, comment.StatusSnapshot);
+     }
+ 
++
++
++    [Theory]
++    [InlineData(RoleNames.Comdt)]
++    [InlineData(RoleNames.HoD)]
++    [InlineData(RoleNames.Admin)]
++    public async Task SoftDeleteIdeaAsync_AllowsCommandGovernanceRolesAndRetainsChildren(string role)
++    {
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
++        db.ProjectIdeaComments.Add(new ProjectIdeaComment
++        {
++            ProjectIdeaId = idea.Id,
++            CommentText = "Retained comment",
++            CommentType = ProjectIdeaCommentTypes.General,
++            CreatedByUserId = "po-1",
++            StatusSnapshot = idea.Status,
++            CreatedAt = DateTime.UtcNow
++        });
++        db.ProjectIdeaNotes.Add(new ProjectIdeaNote
++        {
++            ProjectIdeaId = idea.Id,
++            Title = "Retained note",
++            Body = "Body",
++            CreatedByUserId = "po-1",
++            CreatedAt = DateTime.UtcNow,
++            UpdatedAt = DateTime.UtcNow
++        });
++        await db.SaveChangesAsync();
++
++        var service = new ProjectIdeaCommandService(db);
++        var deleted = await service.SoftDeleteIdeaAsync(
++            idea.Id,
++            "Duplicate entry",
++            idea.RowVersion.ToArray(),
++            Actor($"user-{role}", role));
++
++        Assert.True(deleted);
++        var stored = await db.ProjectIdeas.SingleAsync();
++        Assert.True(stored.IsDeleted);
++        Assert.Equal("Duplicate entry", stored.DeleteReason);
++        Assert.Equal($"user-{role}", stored.DeletedByUserId);
++        Assert.NotNull(stored.DeletedAt);
++        Assert.Single(await db.ProjectIdeaComments.ToListAsync());
++        Assert.Single(await db.ProjectIdeaNotes.ToListAsync());
++    }
++
++    [Fact]
++    public async Task SoftDeleteIdeaAsync_RejectsProjectOfficer()
++    {
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
++        var service = new ProjectIdeaCommandService(db);
++
++        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SoftDeleteIdeaAsync(
++            idea.Id,
++            "Entered in error",
++            idea.RowVersion.ToArray(),
++            Actor("po-1", RoleNames.ProjectOfficer)));
++
++        Assert.False(idea.IsDeleted);
++    }
++
++    [Fact]
++    public async Task RestoreDeletedIdeaAsync_PreservesStatusAndRelatedHistory()
++    {
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Archived);
++        var service = new ProjectIdeaCommandService(db);
++        await service.SoftDeleteIdeaAsync(
++            idea.Id,
++            "Cleanup",
++            idea.RowVersion.ToArray(),
++            Actor("hod-1", RoleNames.HoD));
++        var deletedVersion = idea.RowVersion.ToArray();
++
++        var restored = await service.RestoreDeletedIdeaAsync(
++            idea.Id,
++            deletedVersion,
++            Actor("admin-1", RoleNames.Admin));
++
++        Assert.True(restored);
++        Assert.False(idea.IsDeleted);
++        Assert.Equal(ProjectIdeaStatuses.Archived, idea.Status);
++        Assert.Null(idea.DeletedAt);
++        Assert.Null(idea.DeletedByUserId);
++        Assert.Null(idea.DeleteReason);
++    }
++
++    [Fact]
++    public async Task EditCommentAsync_GeneralAuthorWithinWindowUpdatesTextOnly()
++    {
++        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
++        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.General, "po-1", now.UtcDateTime.AddHours(-2));
++        var originalCreatedAt = comment.CreatedAt;
++        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
++
++        var edited = await service.EditCommentAsync(
++            idea.Id,
++            comment.Id,
++            "  Revised progress.  ",
++            comment.RowVersion.ToArray(),
++            Actor("po-1", RoleNames.ProjectOfficer));
++
++        Assert.NotNull(edited);
++        Assert.Equal("Revised progress.", edited!.CommentText);
++        Assert.Equal(originalCreatedAt, edited.CreatedAt);
++        Assert.Equal("po-1", edited.CreatedByUserId);
++        Assert.Equal(ProjectIdeaCommentTypes.General, edited.CommentType);
++        Assert.NotNull(edited.EditedAt);
++        Assert.Equal("po-1", edited.EditedByUserId);
++    }
++
++    [Fact]
++    public async Task EditCommentAsync_ConferencePreservesIssueSnapshotAndOriginalAttribution()
++    {
++        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.OnHold);
++        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.Conference, "hod-1", now.UtcDateTime.AddDays(-7), RoleNames.HoD);
++        var originalCreatedAt = comment.CreatedAt;
++        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
++
++        var edited = await service.EditCommentAsync(
++            idea.Id,
++            comment.Id,
++            "Submit the revised concept paper.",
++            comment.RowVersion.ToArray(),
++            Actor("comdt-1", RoleNames.Comdt));
++
++        Assert.NotNull(edited);
++        Assert.Equal(ProjectIdeaStatuses.OnHold, edited!.StatusSnapshot);
++        Assert.Equal(originalCreatedAt, edited.CreatedAt);
++        Assert.Equal("hod-1", edited.CreatedByUserId);
++        Assert.Equal(RoleNames.HoD, edited.CreatedByRole);
++        Assert.Equal(ProjectIdeaCommentTypes.Conference, edited.CommentType);
++    }
++
++    [Fact]
++    public async Task ConferenceCommentMutation_RejectsAdministratorToMatchProjectRemarks()
++    {
++        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
++        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.Conference, "hod-1", now.UtcDateTime.AddMinutes(-30), RoleNames.HoD);
++        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
++
++        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EditCommentAsync(
++            idea.Id,
++            comment.Id,
++            "Attempted edit",
++            comment.RowVersion.ToArray(),
++            Actor("admin-1", RoleNames.Admin)));
++    }
++
++    [Fact]
++    public async Task UpdateAsync_RejectsAStaleIdeaVersionWithFriendlyConcurrencyMessage()
++    {
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++
++        await using var firstDb = new ApplicationDbContext(options);
++        await firstDb.Database.EnsureCreatedAsync();
++        var seeded = new ProjectIdea
++        {
++            Title = "Concurrent idea",
++            Description = "Original",
++            Status = ProjectIdeaStatuses.Active,
++            CreatedByUserId = "creator"
++        };
++        firstDb.ProjectIdeas.Add(seeded);
++        await firstDb.SaveChangesAsync();
++
++        await using var secondDb = new ApplicationDbContext(options);
++        var firstCopy = await firstDb.ProjectIdeas.SingleAsync();
++        var staleCopy = await secondDb.ProjectIdeas.SingleAsync();
++
++        firstCopy.Description = "First save";
++        await new ProjectIdeaCommandService(firstDb).UpdateAsync(firstCopy);
++
++        staleCopy.Description = "Stale save";
++        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
++            new ProjectIdeaCommandService(secondDb).UpdateAsync(staleCopy));
++
++        Assert.Equal(ProjectIdeaCommandService.ConcurrencyConflictMessage, exception.Message);
++    }
++
++    [Fact]
++    public async Task SoftDeleteCommentAsync_LeavesAuditableRowAndHidesItOperationally()
++    {
++        var now = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
++        var comment = await SeedCommentAsync(db, idea, ProjectIdeaCommentTypes.Conference, "hod-1", now.UtcDateTime.AddDays(-2), RoleNames.HoD);
++        var service = new ProjectIdeaCommandService(db, clock: new FixedClock(now));
++
++        var deleted = await service.SoftDeleteCommentAsync(
++            idea.Id,
++            comment.Id,
++            comment.RowVersion.ToArray(),
++            Actor("hod-2", RoleNames.HoD));
++
++        Assert.True(deleted);
++        var stored = await db.ProjectIdeaComments.SingleAsync();
++        Assert.True(stored.IsDeleted);
++        Assert.NotNull(stored.DeletedAt);
++        Assert.Equal("hod-2", stored.DeletedByUserId);
++        Assert.Equal("Direction", stored.CommentText);
++    }
++
+     private static ApplicationDbContext CreateDb()
+     {
+         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+@@ -101,6 +317,7 @@
+             Title = "Idea",
+             Description = "Description",
+             Status = status,
++            AssignedProjectOfficerUserId = "po-1",
+             CreatedByUserId = "creator"
+         };
+ 
+@@ -108,4 +325,34 @@
+         await db.SaveChangesAsync();
+         return idea;
+     }
++
++    private static async Task<ProjectIdeaComment> SeedCommentAsync(
++        ApplicationDbContext db,
++        ProjectIdea idea,
++        string type,
++        string authorUserId,
++        DateTime createdAt,
++        string? authorRole = null)
++    {
++        var comment = new ProjectIdeaComment
++        {
++            ProjectIdeaId = idea.Id,
++            CommentText = type == ProjectIdeaCommentTypes.Conference ? "Direction" : "Progress",
++            CommentType = type,
++            CreatedByUserId = authorUserId,
++            CreatedByRole = authorRole,
++            StatusSnapshot = idea.Status,
++            CreatedAt = createdAt
++        };
++        db.ProjectIdeaComments.Add(comment);
++        await db.SaveChangesAsync();
++        return comment;
++    }
++
++    private static ProjectIdeaActorContext Actor(string userId, params string[] roles) => new(userId, roles);
++
++    private sealed class FixedClock(DateTimeOffset utcNow) : ProjectManagement.Services.IClock
++    {
++        public DateTimeOffset UtcNow { get; } = utcNow;
++    }
+ }
+--- a/ProjectManagement.Tests/ProjectIdeaPermissionServiceTests.cs
++++ b/ProjectManagement.Tests/ProjectIdeaPermissionServiceTests.cs
+@@ -74,6 +74,88 @@
+         Assert.False(_service.CanEditIdea(user, idea));
+     }
+ 
++
++
++    [Theory]
++    [InlineData(RoleNames.Comdt, ProjectIdeaCommentTypes.Conference)]
++    [InlineData(RoleNames.HoD, ProjectIdeaCommentTypes.General)]
++    [InlineData(RoleNames.Admin, ProjectIdeaCommentTypes.General)]
++    [InlineData(RoleNames.ProjectOfficer, ProjectIdeaCommentTypes.General)]
++    public void Discussion_default_is_conference_for_commandant_only(string role, string expected)
++    {
++        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
++        var userId = role == RoleNames.ProjectOfficer ? "po-1" : $"user-{role}";
++
++        Assert.Equal(expected, _service.GetDefaultCommentType(Principal(userId, role), idea));
++    }
++
++    [Fact]
++    public void Discussion_default_is_conference_when_commandant_has_multiple_roles()
++    {
++        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
++        var user = Principal("command-user", RoleNames.HoD, RoleNames.Comdt);
++
++        Assert.Equal(ProjectIdeaCommentTypes.Conference, _service.GetDefaultCommentType(user, idea));
++    }
++
++    [Theory]
++    [InlineData(RoleNames.Comdt, true)]
++    [InlineData(RoleNames.HoD, true)]
++    [InlineData(RoleNames.Admin, true)]
++    [InlineData(RoleNames.ProjectOfficer, false)]
++    public void Idea_delete_and_deleted_restore_are_command_governed(string role, bool expected)
++    {
++        var user = Principal($"user-{role}", role);
++
++        Assert.Equal(expected, _service.CanDeleteIdea(user));
++        Assert.Equal(expected, _service.CanRestoreDeletedIdea(user));
++        Assert.Equal(expected, _service.CanViewDeletedIdeas(user));
++    }
++
++    [Fact]
++    public void General_comment_author_can_edit_and_delete_within_three_hours_only()
++    {
++        var now = new DateTime(2026, 8, 9, 10, 0, 0, DateTimeKind.Utc);
++        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
++        var comment = new ProjectIdeaComment
++        {
++            ProjectIdeaId = idea.Id,
++            CommentType = ProjectIdeaCommentTypes.General,
++            CommentText = "Progress",
++            CreatedByUserId = "po-1",
++            CreatedAt = now.AddHours(-2)
++        };
++        var user = Principal("po-1", RoleNames.ProjectOfficer);
++
++        Assert.True(_service.CanEditComment(user, idea, comment, now));
++        Assert.True(_service.CanDeleteComment(user, idea, comment, now));
++        Assert.False(_service.CanEditComment(user, idea, comment, now.AddHours(2)));
++        Assert.False(_service.CanDeleteComment(user, idea, comment, now.AddHours(2)));
++    }
++
++    [Theory]
++    [InlineData(RoleNames.Comdt, true)]
++    [InlineData(RoleNames.HoD, true)]
++    [InlineData(RoleNames.Admin, false)]
++    [InlineData(RoleNames.ProjectOfficer, false)]
++    public void Conference_comment_mutation_matches_project_remark_command_governance(string role, bool expected)
++    {
++        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
++        var comment = new ProjectIdeaComment
++        {
++            ProjectIdeaId = idea.Id,
++            CommentType = ProjectIdeaCommentTypes.Conference,
++            CommentText = "Direction",
++            CreatedByUserId = "hod-1",
++            CreatedAt = DateTime.UtcNow.AddDays(-10)
++        };
++        var userId = role == RoleNames.ProjectOfficer ? "po-1" : $"user-{role}";
++        var user = Principal(userId, role);
++
++        Assert.Equal(expected, _service.CanEditComment(user, idea, comment));
++        Assert.Equal(expected, _service.CanDeleteComment(user, idea, comment));
++    }
++
+     private static ProjectIdea ActiveIdea(string assignedProjectOfficerUserId) => new()
+     {
+         Id = 1,
+@@ -84,15 +166,11 @@
+         CreatedByUserId = "creator"
+     };
+ 
+-    private static ClaimsPrincipal Principal(string userId, string role)
++    private static ClaimsPrincipal Principal(string userId, params string[] roles)
+     {
+-        var identity = new ClaimsIdentity(
+-            new[]
+-            {
+-                new Claim(ClaimTypes.NameIdentifier, userId),
+-                new Claim(ClaimTypes.Role, role)
+-            },
+-            authenticationType: "Test");
++        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
++        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
++        var identity = new ClaimsIdentity(claims, authenticationType: "Test");
+ 
+         return new ClaimsPrincipal(identity);
+     }
+--- a/ProjectManagement.Tests/ProjectIdeaReadServiceTests.cs
++++ b/ProjectManagement.Tests/ProjectIdeaReadServiceTests.cs
+@@ -201,6 +201,36 @@
+         var option = Assert.Single(options);
+         Assert.Equal("po-1", option.UserId);
+         Assert.Equal("Zulu Officer", option.DisplayName);
++    }
++
++
++
++    [Fact]
++    public async Task Deleted_ideas_are_excluded_from_operational_board_and_available_to_recovery_query()
++    {
++        await using var db = CreateContext();
++        var active = Idea(1, "Active", ProjectIdeaStatuses.Active, "creator");
++        var deleted = Idea(2, "Deleted", ProjectIdeaStatuses.Active, "creator");
++        deleted.IsDeleted = true;
++        deleted.DeletedAt = DateTime.UtcNow;
++        deleted.DeletedByUserId = "hod-1";
++        deleted.DeleteReason = "Duplicate";
++        db.ProjectIdeas.AddRange(active, deleted);
++        await db.SaveChangesAsync();
++
++        var service = new ProjectIdeaReadService(db);
++        var operational = await service.GetBoardIdeasAsync(
++            ProjectIdeaStatuses.Active,
++            query: null,
++            myIdeas: false,
++            userId: "creator",
++            canViewAll: true);
++        var recovery = await service.GetDeletedIdeasAsync();
++
++        Assert.Equal(new[] { "Active" }, operational.Select(idea => idea.Title));
++        var recovered = Assert.Single(recovery);
++        Assert.Equal("Deleted", recovered.Title);
++        Assert.Equal("Duplicate", recovered.DeleteReason);
+     }
+ 
+     [Theory]
+--- a/Services/ProjectIdeas/ProjectIdeaCommandService.cs
++++ b/Services/ProjectIdeas/ProjectIdeaCommandService.cs
+@@ -1,16 +1,30 @@
+ using Microsoft.EntityFrameworkCore;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Data;
++using ProjectManagement.Infrastructure;
+ using ProjectManagement.Models.ProjectIdeas;
++using ProjectManagement.Services;
+ 
+ namespace ProjectManagement.Services.ProjectIdeas;
+ 
+ public class ProjectIdeaCommandService : IProjectIdeaCommandService
+ {
++    public const string ConcurrencyConflictMessage = "This record was changed by someone else. Refresh and review the latest version before trying again.";
++    public const string RowVersionRequiredMessage = "The record version is required for this operation.";
++
+     private readonly ApplicationDbContext _db;
+-
+-    public ProjectIdeaCommandService(ApplicationDbContext db)
+-        => _db = db ?? throw new ArgumentNullException(nameof(db));
++    private readonly IAuditService? _audit;
++    private readonly IClock _clock;
++
++    public ProjectIdeaCommandService(
++        ApplicationDbContext db,
++        IAuditService? audit = null,
++        IClock? clock = null)
++    {
++        _db = db ?? throw new ArgumentNullException(nameof(db));
++        _audit = audit;
++        _clock = clock ?? new SystemClock();
++    }
+ 
+     // SECTION: Idea lifecycle commands
+     public async Task<ProjectIdea> CreateAsync(
+@@ -19,34 +33,219 @@
+     {
+         ArgumentNullException.ThrowIfNull(idea);
+ 
+-        idea.CreatedAt = idea.UpdatedAt = DateTime.UtcNow;
++        var now = UtcNow();
++        idea.CreatedAt = idea.UpdatedAt = now;
++        idea.IsDeleted = false;
++        idea.DeletedAt = null;
++        idea.DeletedByUserId = null;
++        idea.DeleteReason = null;
++
++        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
++
+         _db.ProjectIdeas.Add(idea);
+         await _db.SaveChangesAsync(cancellationToken);
++        await AuditAsync(
++            "ProjectIdeas.IdeaCreated",
++            idea.CreatedByUserId,
++            new Dictionary<string, string?>
++            {
++                ["IdeaId"] = idea.Id.ToString(),
++                ["Title"] = idea.Title,
++                ["Status"] = idea.Status,
++                ["AssignedProjectOfficerUserId"] = idea.AssignedProjectOfficerUserId,
++                ["AssignedHodUserId"] = idea.AssignedHodUserId
++            });
++
++        await transaction.CommitAsync(cancellationToken);
+         return idea;
+     }
+ 
+-    public async Task UpdateAsync(ProjectIdea idea)
+-    {
+-        idea.UpdatedAt = DateTime.UtcNow;
+-        await _db.SaveChangesAsync();
+-    }
+-
+-    public async Task ArchiveAsync(ProjectIdea idea, string? reason)
+-    {
++    public Task UpdateAsync(ProjectIdea idea)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        return UpdateAsync(idea, idea.RowVersion);
++    }
++
++    public async Task UpdateAsync(
++        ProjectIdea idea,
++        byte[] rowVersion,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        EnsureIdeaWritable(idea);
++        ApplyRowVersion(idea, rowVersion);
++        idea.UpdatedAt = UtcNow();
++        await SaveWithFriendlyConcurrencyAsync(cancellationToken);
++    }
++
++    public Task ArchiveAsync(ProjectIdea idea, string? reason)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        return ArchiveAsync(idea, reason, idea.RowVersion);
++    }
++
++    public async Task ArchiveAsync(
++        ProjectIdea idea,
++        string? reason,
++        byte[] rowVersion,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        EnsureIdeaWritable(idea);
++        ApplyRowVersion(idea, rowVersion);
++
++        var now = UtcNow();
+         idea.Status = ProjectIdeaStatuses.Archived;
+-        idea.ArchivedAt = DateTime.UtcNow;
+-        idea.ArchiveReason = reason;
+-        idea.UpdatedAt = DateTime.UtcNow;
+-        await _db.SaveChangesAsync();
+-    }
+-
+-    public async Task RestoreAsync(ProjectIdea idea)
+-    {
++        idea.ArchivedAt = now;
++        idea.ArchiveReason = reason?.Trim();
++        idea.UpdatedAt = now;
++        await SaveWithFriendlyConcurrencyAsync(cancellationToken);
++    }
++
++    public Task RestoreAsync(ProjectIdea idea)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        return RestoreAsync(idea, idea.RowVersion);
++    }
++
++    public async Task RestoreAsync(
++        ProjectIdea idea,
++        byte[] rowVersion,
++        CancellationToken cancellationToken = default)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        if (idea.IsDeleted)
++        {
++            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.DeletedIdeaMessage);
++        }
++
++        ApplyRowVersion(idea, rowVersion);
+         idea.Status = ProjectIdeaStatuses.Active;
+         idea.ArchivedAt = null;
+         idea.ArchiveReason = null;
+-        idea.UpdatedAt = DateTime.UtcNow;
+-        await _db.SaveChangesAsync();
++        idea.UpdatedAt = UtcNow();
++        await SaveWithFriendlyConcurrencyAsync(cancellationToken);
++    }
++
++    public async Task<bool> SoftDeleteIdeaAsync(
++        int ideaId,
++        string? reason,
++        byte[] rowVersion,
++        ProjectIdeaActorContext actor,
++        CancellationToken cancellationToken = default)
++    {
++        EnsureActor(actor);
++        if (!ProjectIdeaGovernancePolicy.CanDeleteAnyIdea(actor.Roles))
++        {
++            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
++        }
++
++        var deleteReason = reason?.Trim();
++        if (string.IsNullOrWhiteSpace(deleteReason))
++        {
++            throw new InvalidOperationException("Please enter a reason for deleting the idea.");
++        }
++        if (deleteReason.Length > 1000)
++        {
++            throw new InvalidOperationException("The deletion reason cannot exceed 1,000 characters.");
++        }
++
++        var idea = await _db.ProjectIdeas
++            .FirstOrDefaultAsync(candidate => candidate.Id == ideaId, cancellationToken);
++        if (idea is null || idea.IsDeleted)
++        {
++            return false;
++        }
++
++        ApplyRowVersion(idea, rowVersion);
++        var now = UtcNow();
++        idea.IsDeleted = true;
++        idea.DeletedAt = now;
++        idea.DeletedByUserId = actor.UserId;
++        idea.DeleteReason = deleteReason;
++        idea.UpdatedAt = now;
++
++        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
++        try
++        {
++            await _db.SaveChangesAsync(cancellationToken);
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            await transaction.RollbackAsync(cancellationToken);
++            throw new InvalidOperationException(ConcurrencyConflictMessage, exception);
++        }
++
++        await AuditAsync(
++            "ProjectIdeas.IdeaDeleted",
++            actor.UserId,
++            new Dictionary<string, string?>
++            {
++                ["IdeaId"] = idea.Id.ToString(),
++                ["Title"] = idea.Title,
++                ["Status"] = idea.Status,
++                ["Reason"] = deleteReason
++            });
++        await transaction.CommitAsync(cancellationToken);
++        return true;
++    }
++
++    public async Task<bool> RestoreDeletedIdeaAsync(
++        int ideaId,
++        byte[] rowVersion,
++        ProjectIdeaActorContext actor,
++        CancellationToken cancellationToken = default)
++    {
++        EnsureActor(actor);
++        if (!ProjectIdeaGovernancePolicy.CanDeleteAnyIdea(actor.Roles))
++        {
++            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
++        }
++
++        var idea = await _db.ProjectIdeas
++            .FirstOrDefaultAsync(candidate => candidate.Id == ideaId, cancellationToken);
++        if (idea is null || !idea.IsDeleted)
++        {
++            return false;
++        }
++
++        var previousDeleteReason = idea.DeleteReason;
++        var previousDeletedAt = idea.DeletedAt;
++        var previousDeletedBy = idea.DeletedByUserId;
++
++        ApplyRowVersion(idea, rowVersion);
++        var now = UtcNow();
++        idea.IsDeleted = false;
++        idea.DeletedAt = null;
++        idea.DeletedByUserId = null;
++        idea.DeleteReason = null;
++        idea.UpdatedAt = now;
++
++        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
++        try
++        {
++            await _db.SaveChangesAsync(cancellationToken);
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            await transaction.RollbackAsync(cancellationToken);
++            throw new InvalidOperationException(ConcurrencyConflictMessage, exception);
++        }
++
++        await AuditAsync(
++            "ProjectIdeas.IdeaRestoredFromDeletion",
++            actor.UserId,
++            new Dictionary<string, string?>
++            {
++                ["IdeaId"] = idea.Id.ToString(),
++                ["Title"] = idea.Title,
++                ["Status"] = idea.Status,
++                ["PreviousDeleteReason"] = previousDeleteReason,
++                ["PreviousDeletedAt"] = previousDeletedAt?.ToString("O"),
++                ["PreviousDeletedByUserId"] = previousDeletedBy
++            });
++        await transaction.CommitAsync(cancellationToken);
++        return true;
+     }
+ 
+     // SECTION: Collaboration commands
+@@ -84,8 +283,145 @@
+             cancellationToken);
+     }
+ 
++    public async Task<ProjectIdeaComment?> EditCommentAsync(
++        int ideaId,
++        int commentId,
++        string? text,
++        byte[] rowVersion,
++        ProjectIdeaActorContext actor,
++        CancellationToken cancellationToken = default)
++    {
++        EnsureActor(actor);
++        var body = ValidateCommentText(text);
++
++        var comment = await _db.ProjectIdeaComments
++            .Include(candidate => candidate.ProjectIdea)
++            .FirstOrDefaultAsync(
++                candidate => candidate.Id == commentId && candidate.ProjectIdeaId == ideaId,
++                cancellationToken);
++        if (comment is null || comment.IsDeleted || comment.ProjectIdea is null)
++        {
++            return null;
++        }
++
++        var permission = ProjectIdeaGovernancePolicy.EvaluateCommentMutation(
++            comment.ProjectIdea,
++            comment,
++            actor,
++            UtcNow(),
++            isDelete: false);
++        if (!permission.IsAllowed)
++        {
++            throw new InvalidOperationException(permission.Message ?? ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
++        }
++
++        ApplyRowVersion(comment, rowVersion);
++        var previousText = comment.CommentText;
++        var now = UtcNow();
++        comment.CommentText = body;
++        comment.EditedAt = now;
++        comment.EditedByUserId = actor.UserId;
++        comment.ProjectIdea.UpdatedAt = now;
++
++        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
++        try
++        {
++            await _db.SaveChangesAsync(cancellationToken);
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            await transaction.RollbackAsync(cancellationToken);
++            throw new InvalidOperationException(ConcurrencyConflictMessage, exception);
++        }
++
++        await AuditAsync(
++            "ProjectIdeas.CommentEdited",
++            actor.UserId,
++            new Dictionary<string, string?>
++            {
++                ["IdeaId"] = ideaId.ToString(),
++                ["CommentId"] = comment.Id.ToString(),
++                ["CommentType"] = comment.CommentType,
++                ["OriginalAuthorUserId"] = comment.CreatedByUserId,
++                ["OriginalCreatedAt"] = comment.CreatedAt.ToUniversalTime().ToString("O"),
++                ["StatusSnapshot"] = comment.StatusSnapshot,
++                ["PreviousText"] = previousText,
++                ["NewText"] = body
++            });
++        await transaction.CommitAsync(cancellationToken);
++        return comment;
++    }
++
++    public async Task<bool> SoftDeleteCommentAsync(
++        int ideaId,
++        int commentId,
++        byte[] rowVersion,
++        ProjectIdeaActorContext actor,
++        CancellationToken cancellationToken = default)
++    {
++        EnsureActor(actor);
++
++        var comment = await _db.ProjectIdeaComments
++            .Include(candidate => candidate.ProjectIdea)
++            .FirstOrDefaultAsync(
++                candidate => candidate.Id == commentId && candidate.ProjectIdeaId == ideaId,
++                cancellationToken);
++        if (comment is null || comment.IsDeleted || comment.ProjectIdea is null)
++        {
++            return false;
++        }
++
++        var permission = ProjectIdeaGovernancePolicy.EvaluateCommentMutation(
++            comment.ProjectIdea,
++            comment,
++            actor,
++            UtcNow(),
++            isDelete: true);
++        if (!permission.IsAllowed)
++        {
++            throw new InvalidOperationException(permission.Message ?? ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
++        }
++
++        ApplyRowVersion(comment, rowVersion);
++        var now = UtcNow();
++        comment.IsDeleted = true;
++        comment.DeletedAt = now;
++        comment.DeletedByUserId = actor.UserId;
++        comment.ProjectIdea.UpdatedAt = now;
++
++        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
++        try
++        {
++            await _db.SaveChangesAsync(cancellationToken);
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            await transaction.RollbackAsync(cancellationToken);
++            throw new InvalidOperationException(ConcurrencyConflictMessage, exception);
++        }
++
++        await AuditAsync(
++            "ProjectIdeas.CommentDeleted",
++            actor.UserId,
++            new Dictionary<string, string?>
++            {
++                ["IdeaId"] = ideaId.ToString(),
++                ["CommentId"] = comment.Id.ToString(),
++                ["CommentType"] = comment.CommentType,
++                ["OriginalAuthorUserId"] = comment.CreatedByUserId,
++                ["OriginalCreatedAt"] = comment.CreatedAt.ToUniversalTime().ToString("O"),
++                ["StatusSnapshot"] = comment.StatusSnapshot,
++                ["Text"] = comment.CommentText
++            });
++        await transaction.CommitAsync(cancellationToken);
++        return true;
++    }
++
+     public async Task AddNoteAsync(ProjectIdea idea, string title, string body, bool pinned, string userId)
+     {
++        ArgumentNullException.ThrowIfNull(idea);
++        EnsureIdeaWritable(idea);
++
+         if (pinned)
+         {
+             var existingPinnedNotes = await _db.ProjectIdeaNotes
+@@ -95,7 +431,7 @@
+             foreach (var note in existingPinnedNotes)
+             {
+                 note.IsPinned = false;
+-                note.UpdatedAt = DateTime.UtcNow;
++                note.UpdatedAt = UtcNow();
+             }
+         }
+ 
+@@ -106,10 +442,10 @@
+             Body = body,
+             IsPinned = pinned,
+             CreatedByUserId = userId,
+-            UpdatedAt = DateTime.UtcNow
++            UpdatedAt = UtcNow()
+         });
+-        idea.UpdatedAt = DateTime.UtcNow;
+-        await _db.SaveChangesAsync();
++        idea.UpdatedAt = UtcNow();
++        await SaveWithFriendlyConcurrencyAsync();
+     }
+ 
+     public async Task SoftDeleteNoteAsync(int noteId)
+@@ -121,15 +457,15 @@
+         }
+ 
+         note.IsDeleted = true;
+-        note.UpdatedAt = DateTime.UtcNow;
++        note.UpdatedAt = UtcNow();
+ 
+         var idea = await _db.ProjectIdeas.FirstOrDefaultAsync(i => i.Id == note.ProjectIdeaId);
+         if (idea is not null)
+         {
+-            idea.UpdatedAt = DateTime.UtcNow;
+-        }
+-
+-        await _db.SaveChangesAsync();
++            idea.UpdatedAt = UtcNow();
++        }
++
++        await SaveWithFriendlyConcurrencyAsync();
+     }
+ 
+     private async Task<ProjectIdeaComment> AddCommentCoreAsync(
+@@ -141,32 +477,15 @@
+         CancellationToken cancellationToken)
+     {
+         ArgumentNullException.ThrowIfNull(idea);
+-
+-        if (idea.IsDeleted || string.Equals(
+-                idea.Status,
+-                ProjectIdeaStatuses.Archived,
+-                StringComparison.OrdinalIgnoreCase))
+-        {
+-            throw new InvalidOperationException("Archived ideas cannot be updated.");
+-        }
+-
+-        var body = text?.Trim();
+-        if (string.IsNullOrWhiteSpace(body))
+-        {
+-            throw new InvalidOperationException("Comment cannot be empty.");
+-        }
+-
+-        if (body.Length > 4000)
+-        {
+-            throw new InvalidOperationException("Comment cannot exceed 4,000 characters.");
+-        }
+-
++        EnsureIdeaWritable(idea);
++
++        var body = ValidateCommentText(text);
+         if (string.IsNullOrWhiteSpace(userId))
+         {
+             throw new InvalidOperationException("Comment author is required.");
+         }
+ 
+-        var now = DateTime.UtcNow;
++        var now = UtcNow();
+         var comment = new ProjectIdeaComment
+         {
+             ProjectIdeaId = idea.Id,
+@@ -179,10 +498,66 @@
+             IsDeleted = false
+         };
+ 
++        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+         _db.ProjectIdeaComments.Add(comment);
+         idea.UpdatedAt = now;
+-        await _db.SaveChangesAsync(cancellationToken);
++        try
++        {
++            await _db.SaveChangesAsync(cancellationToken);
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            await transaction.RollbackAsync(cancellationToken);
++            throw new InvalidOperationException(ConcurrencyConflictMessage, exception);
++        }
++        await AuditAsync(
++            string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal)
++                ? "ProjectIdeas.ConferenceCommentAdded"
++                : "ProjectIdeas.CommentAdded",
++            userId,
++            new Dictionary<string, string?>
++            {
++                ["IdeaId"] = idea.Id.ToString(),
++                ["CommentId"] = comment.Id.ToString(),
++                ["CommentType"] = comment.CommentType,
++                ["StatusSnapshot"] = comment.StatusSnapshot
++            });
++        await transaction.CommitAsync(cancellationToken);
+         return comment;
++    }
++
++    private void ApplyRowVersion(ProjectIdea idea, byte[]? rowVersion)
++    {
++        EnsureRowVersion(rowVersion);
++        _db.Entry(idea).Property(candidate => candidate.RowVersion).OriginalValue = rowVersion!;
++    }
++
++    private void ApplyRowVersion(ProjectIdeaComment comment, byte[]? rowVersion)
++    {
++        EnsureRowVersion(rowVersion);
++        _db.Entry(comment).Property(candidate => candidate.RowVersion).OriginalValue = rowVersion!;
++    }
++
++    private static void EnsureRowVersion(byte[]? rowVersion)
++    {
++        if (rowVersion is null || rowVersion.Length == 0)
++        {
++            throw new InvalidOperationException(RowVersionRequiredMessage);
++        }
++    }
++
++    private static string ValidateCommentText(string? text)
++    {
++        var body = text?.Trim();
++        if (string.IsNullOrWhiteSpace(body))
++        {
++            throw new InvalidOperationException("Comment cannot be empty.");
++        }
++        if (body.Length > 4000)
++        {
++            throw new InvalidOperationException("Comment cannot exceed 4,000 characters.");
++        }
++        return body;
+     }
+ 
+     private static string? NormalizeRoleSnapshot(string? role)
+@@ -190,4 +565,52 @@
+         var normalized = role?.Trim();
+         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+     }
++
++    private static void EnsureActor(ProjectIdeaActorContext actor)
++    {
++        ArgumentNullException.ThrowIfNull(actor);
++        if (string.IsNullOrWhiteSpace(actor.UserId))
++        {
++            throw new InvalidOperationException("The current user could not be resolved.");
++        }
++    }
++
++    private static void EnsureIdeaWritable(ProjectIdea idea)
++    {
++        if (idea.IsDeleted)
++        {
++            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.DeletedIdeaMessage);
++        }
++        if (string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase))
++        {
++            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.ArchivedIdeaMessage);
++        }
++    }
++
++    private async Task SaveWithFriendlyConcurrencyAsync(CancellationToken cancellationToken = default)
++    {
++        try
++        {
++            await _db.SaveChangesAsync(cancellationToken);
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            throw new InvalidOperationException(ConcurrencyConflictMessage, exception);
++        }
++    }
++
++    private async Task AuditAsync(
++        string action,
++        string userId,
++        IDictionary<string, string?> data)
++    {
++        if (_audit is null)
++        {
++            return;
++        }
++
++        await _audit.LogAsync(action, userId: userId, data: data);
++    }
++
++    private DateTime UtcNow() => _clock.UtcNow.UtcDateTime;
+ }
+--- a/Services/ProjectIdeas/ProjectIdeaDocumentService.cs
++++ b/Services/ProjectIdeas/ProjectIdeaDocumentService.cs
+@@ -156,7 +156,14 @@
+             idea.UpdatedAt = DateTime.UtcNow;
+         }
+ 
+-        await _db.SaveChangesAsync();
++        try
++        {
++            await _db.SaveChangesAsync();
++        }
++        catch (DbUpdateConcurrencyException exception)
++        {
++            throw new InvalidOperationException(ProjectIdeaCommandService.ConcurrencyConflictMessage, exception);
++        }
+     }
+ 
+     // SECTION: Protected path resolution
+--- a/Services/ProjectIdeas/ProjectIdeaGovernancePolicy.cs
++++ b/Services/ProjectIdeas/ProjectIdeaGovernancePolicy.cs
+@@ -0,0 +1,141 @@
++using ProjectManagement.Configuration;
++using ProjectManagement.Models.ProjectIdeas;
++
++namespace ProjectManagement.Services.ProjectIdeas;
++
++/// <summary>
++/// Central governance rules for Project Idea lifecycle and discussion mutations.
++/// Keeps the Details UI and command layer aligned with the established Project Remarks policy.
++/// </summary>
++public static class ProjectIdeaGovernancePolicy
++{
++    public static readonly TimeSpan AuthorMutationWindow = TimeSpan.FromHours(3);
++
++    public const string PermissionDeniedMessage = "You do not have permission for this action.";
++    public const string EditWindowMessage = "You can edit your remark within 3 hours of posting.";
++    public const string DeleteWindowMessage = "You can delete your remark within 3 hours of posting.";
++    public const string ArchivedIdeaMessage = "Archived ideas cannot be updated. Restore the idea first.";
++    public const string DeletedIdeaMessage = "Deleted ideas cannot be updated.";
++
++    public static bool CanDeleteAnyIdea(IReadOnlyCollection<string> roles)
++        => HasRole(roles, RoleNames.Comdt)
++           || HasRole(roles, RoleNames.HoD)
++           || HasRole(roles, RoleNames.Admin);
++
++    public static bool CanManageConferenceComments(IReadOnlyCollection<string> roles)
++        => HasRole(roles, RoleNames.Comdt)
++           || HasRole(roles, RoleNames.HoD);
++
++    public static bool HasGeneralCommentOverride(IReadOnlyCollection<string> roles)
++        => HasRole(roles, RoleNames.Comdt)
++           || HasRole(roles, RoleNames.HoD)
++           || HasRole(roles, RoleNames.Admin);
++
++    public static ProjectIdeaMutationDecision EvaluateCommentMutation(
++        ProjectIdea idea,
++        ProjectIdeaComment comment,
++        ProjectIdeaActorContext actor,
++        DateTime nowUtc,
++        bool isDelete)
++    {
++        ArgumentNullException.ThrowIfNull(idea);
++        ArgumentNullException.ThrowIfNull(comment);
++        ArgumentNullException.ThrowIfNull(actor);
++
++        if (idea.IsDeleted)
++        {
++            return ProjectIdeaMutationDecision.Denied(DeletedIdeaMessage, "IdeaDeleted");
++        }
++
++        if (string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase))
++        {
++            return ProjectIdeaMutationDecision.Denied(ArchivedIdeaMessage, "IdeaArchived");
++        }
++
++        if (comment.IsDeleted)
++        {
++            return ProjectIdeaMutationDecision.Denied("This discussion remark has already been deleted.", "CommentDeleted");
++        }
++
++        if (!CanActorViewIdea(idea, actor))
++        {
++            return ProjectIdeaMutationDecision.Denied(PermissionDeniedMessage, "IdeaNotVisible");
++        }
++
++        if (string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase))
++        {
++            return CanManageConferenceComments(actor.Roles)
++                ? ProjectIdeaMutationDecision.Allowed()
++                : ProjectIdeaMutationDecision.Denied(PermissionDeniedMessage, "ConferenceRequiresCommandRole");
++        }
++
++        if (HasGeneralCommentOverride(actor.Roles))
++        {
++            return ProjectIdeaMutationDecision.Allowed();
++        }
++
++        if (!string.Equals(comment.CreatedByUserId, actor.UserId, StringComparison.Ordinal))
++        {
++            return ProjectIdeaMutationDecision.Denied(PermissionDeniedMessage, "NotAuthor");
++        }
++
++        var createdUtc = ToUtc(comment.CreatedAt);
++        if (nowUtc <= createdUtc.Add(AuthorMutationWindow))
++        {
++            return ProjectIdeaMutationDecision.Allowed();
++        }
++
++        return ProjectIdeaMutationDecision.Denied(
++            isDelete ? DeleteWindowMessage : EditWindowMessage,
++            "AuthorWindowExpired");
++    }
++
++
++    private static bool CanActorViewIdea(ProjectIdea idea, ProjectIdeaActorContext actor)
++    {
++        if (HasGeneralCommentOverride(actor.Roles))
++        {
++            return true;
++        }
++
++        return string.Equals(idea.CreatedByUserId, actor.UserId, StringComparison.Ordinal)
++            || string.Equals(idea.AssignedProjectOfficerUserId, actor.UserId, StringComparison.Ordinal)
++            || string.Equals(idea.AssignedHodUserId, actor.UserId, StringComparison.Ordinal);
++    }
++
++    public static bool HasRole(IReadOnlyCollection<string> roles, string roleName)
++        => roles.Any(role => string.Equals(role, roleName, StringComparison.OrdinalIgnoreCase));
++
++    private static DateTime ToUtc(DateTime value) => value.Kind switch
++    {
++        DateTimeKind.Utc => value,
++        DateTimeKind.Local => value.ToUniversalTime(),
++        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
++    };
++}
++
++public sealed record ProjectIdeaActorContext
++{
++    public ProjectIdeaActorContext(string userId, IEnumerable<string>? roles)
++    {
++        UserId = userId?.Trim() ?? string.Empty;
++        Roles = roles?
++            .Where(role => !string.IsNullOrWhiteSpace(role))
++            .Select(role => role.Trim())
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .ToArray()
++            ?? Array.Empty<string>();
++    }
++
++    public string UserId { get; }
++    public IReadOnlyCollection<string> Roles { get; }
++}
++
++public sealed record ProjectIdeaMutationDecision(
++    bool IsAllowed,
++    string? Message,
++    string? ReasonCode)
++{
++    public static ProjectIdeaMutationDecision Allowed() => new(true, null, null);
++    public static ProjectIdeaMutationDecision Denied(string message, string reasonCode) => new(false, message, reasonCode);
++}
+--- a/Services/ProjectIdeas/ProjectIdeaPermissionService.cs
++++ b/Services/ProjectIdeas/ProjectIdeaPermissionService.cs
+@@ -11,7 +11,7 @@
+ 
+     public bool CanViewIdea(ClaimsPrincipal user, ProjectIdea idea)
+     {
+-        if (user?.Identity?.IsAuthenticated != true)
++        if (user?.Identity?.IsAuthenticated != true || idea.IsDeleted)
+         {
+             return false;
+         }
+@@ -32,32 +32,59 @@
+             || string.Equals(idea.CreatedByUserId, userId, StringComparison.Ordinal);
+     }
+ 
+-    public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && IsPrivileged(user);
++    public bool CanViewDeletedIdeas(ClaimsPrincipal user) => CanDeleteIdea(user);
++
++    public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => IsWritable(idea) && IsPrivileged(user);
+ 
+     public bool CanEditDescription(ClaimsPrincipal user, ProjectIdea idea)
+-    {
+-        return !IsArchived(idea)
++        => IsWritable(idea)
+             && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+-    }
+ 
+     public bool CanEditIdea(ClaimsPrincipal user, ProjectIdea idea) => CanEditDescription(user, idea);
+     public bool CanArchiveIdea(ClaimsPrincipal user) => IsPrivileged(user);
+     public bool CanRestoreIdea(ClaimsPrincipal user) => IsPrivileged(user);
++    public bool CanDeleteIdea(ClaimsPrincipal user) => IsPrivileged(user);
++    public bool CanRestoreDeletedIdea(ClaimsPrincipal user) => IsPrivileged(user);
+ 
+     // SECTION: Collaboration permissions
+-    public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && CanViewIdea(user, idea);
++    public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea)
++        => IsWritable(idea) && CanViewIdea(user, idea);
+ 
+     public bool CanAddConferenceComment(ClaimsPrincipal user, ProjectIdea idea)
+-        => !IsArchived(idea)
++        => IsWritable(idea)
+             && CanViewIdea(user, idea)
+             && IsConferenceAuthority(user);
+ 
+-    public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+-    public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
++    public string GetDefaultCommentType(ClaimsPrincipal user, ProjectIdea idea)
++        => user?.Identity?.IsAuthenticated == true
++           && user.IsInRole(RoleNames.Comdt)
++           && CanAddConferenceComment(user, idea)
++            ? ProjectIdeaCommentTypes.Conference
++            : ProjectIdeaCommentTypes.General;
++
++    public bool CanEditComment(
++        ClaimsPrincipal user,
++        ProjectIdea idea,
++        ProjectIdeaComment comment,
++        DateTime? nowUtc = null)
++        => CanMutateComment(user, idea, comment, nowUtc ?? DateTime.UtcNow, isDelete: false);
++
++    public bool CanDeleteComment(
++        ClaimsPrincipal user,
++        ProjectIdea idea,
++        ProjectIdeaComment comment,
++        DateTime? nowUtc = null)
++        => CanMutateComment(user, idea, comment, nowUtc ?? DateTime.UtcNow, isDelete: true);
++
++    public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea)
++        => IsWritable(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
++
++    public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea)
++        => IsWritable(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+ 
+     public bool CanDeleteDocument(ClaimsPrincipal user, ProjectIdeaDocument document, ProjectIdea idea)
+     {
+-        return !IsArchived(idea)
++        return IsWritable(idea)
+             && CanViewIdea(user, idea)
+             && (IsPrivileged(user)
+                 || IsAssignedProjectOfficer(user, idea)
+@@ -65,6 +92,34 @@
+     }
+ 
+     // SECTION: Helpers
++    private bool CanMutateComment(
++        ClaimsPrincipal user,
++        ProjectIdea idea,
++        ProjectIdeaComment comment,
++        DateTime nowUtc,
++        bool isDelete)
++    {
++        if (user?.Identity?.IsAuthenticated != true || !CanViewIdea(user, idea))
++        {
++            return false;
++        }
++
++        var userId = GetUserId(user);
++        if (string.IsNullOrWhiteSpace(userId))
++        {
++            return false;
++        }
++
++        var decision = ProjectIdeaGovernancePolicy.EvaluateCommentMutation(
++            idea,
++            comment,
++            new ProjectIdeaActorContext(userId, UserRoles(user)),
++            ToUtc(nowUtc),
++            isDelete);
++
++        return decision.IsAllowed;
++    }
++
+     private static bool IsPrivileged(ClaimsPrincipal user)
+     {
+         return user?.Identity?.IsAuthenticated == true
+@@ -85,10 +140,25 @@
+             && string.Equals(GetUserId(user), idea.AssignedProjectOfficerUserId, StringComparison.Ordinal);
+     }
+ 
++    private static IReadOnlyCollection<string> UserRoles(ClaimsPrincipal user)
++        => user.FindAll(ClaimTypes.Role)
++            .Select(claim => claim.Value)
++            .Where(value => !string.IsNullOrWhiteSpace(value))
++            .Distinct(StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++
+     private static string? GetUserId(ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.NameIdentifier);
+ 
++    private static bool IsWritable(ProjectIdea idea)
++        => !idea.IsDeleted && !IsArchived(idea);
++
++    private static DateTime ToUtc(DateTime value) => value.Kind switch
++    {
++        DateTimeKind.Utc => value,
++        DateTimeKind.Local => value.ToUniversalTime(),
++        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
++    };
++
+     private static bool IsArchived(ProjectIdea idea)
+-    {
+-        return string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.Ordinal);
+-    }
++        => string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase);
+ }
+--- a/Services/ProjectIdeas/ProjectIdeaReadService.cs
++++ b/Services/ProjectIdeas/ProjectIdeaReadService.cs
+@@ -112,6 +112,31 @@
+             .OrderBy(option => option.DisplayName, StringComparer.OrdinalIgnoreCase)
+             .ThenBy(option => option.UserId, StringComparer.Ordinal)
+             .ToList();
++    }
++
++    public async Task<IReadOnlyList<ProjectIdeaDeletedItem>> GetDeletedIdeasAsync(CancellationToken cancellationToken = default)
++    {
++        return await _db.ProjectIdeas
++            .AsNoTracking()
++            .Where(idea => idea.IsDeleted)
++            .OrderByDescending(idea => idea.DeletedAt ?? DateTime.MinValue)
++            .ThenBy(idea => idea.Title)
++            .Select(idea => new ProjectIdeaDeletedItem(
++                idea.Id,
++                idea.Title,
++                idea.Description,
++                idea.Status,
++                idea.DeletedAt,
++                idea.DeletedByUserId,
++                idea.DeleteReason,
++                idea.RowVersion,
++                idea.Comments.Count(comment => !comment.IsDeleted),
++                idea.Comments.Count(comment =>
++                    !comment.IsDeleted
++                    && comment.CommentType == ProjectIdeaCommentTypes.Conference),
++                idea.Notes.Count(note => !note.IsDeleted),
++                idea.Documents.Count(document => !document.IsDeleted)))
++            .ToListAsync(cancellationToken);
+     }
+ 
+     public Task<ProjectIdea?> GetDetailsAsync(int id)
+@@ -277,3 +302,17 @@
+         return trimmed.Length <= 450 ? trimmed : trimmed[..450];
+     }
+ }
++
++public sealed record ProjectIdeaDeletedItem(
++    int Id,
++    string Title,
++    string Description,
++    string Status,
++    DateTime? DeletedAt,
++    string? DeletedByUserId,
++    string? DeleteReason,
++    byte[] RowVersion,
++    int DiscussionCount,
++    int ConferenceDirectionCount,
++    int NoteCount,
++    int DocumentCount);
+--- a/wwwroot/css/project-ideas.css
++++ b/wwwroot/css/project-ideas.css
+@@ -924,3 +924,325 @@
+     border-color: rgba(79, 70, 229, .34);
+     background: rgba(79, 70, 229, .025);
+ }
++
++/* SECTION: Project Idea governance and discussion lifecycle */
++.pi-btn-subtle {
++    background: #f8fafc;
++    border-color: #dbe3ee;
++    color: #475569;
++}
++
++.pi-btn-subtle:hover,
++.pi-btn-subtle:focus-visible {
++    background: #eef3f8;
++    border-color: #cbd5e1;
++    color: #1e3a5f;
++}
++
++.pi-icon-only {
++    width: 42px;
++    height: 42px;
++    padding: 0;
++    justify-content: center;
++}
++
++.pi-page-hero-actions {
++    display: flex;
++    align-items: center;
++    justify-content: flex-end;
++    gap: .6rem;
++    flex-wrap: wrap;
++}
++
++.pi-lifecycle-menu .dropdown-menu,
++.pi-comment-menu .dropdown-menu {
++    min-width: 170px;
++    padding: .35rem;
++    border: 1px solid #dfe6f0;
++    border-radius: .7rem;
++    box-shadow: 0 14px 34px rgba(15, 34, 67, .15);
++}
++
++.pi-lifecycle-menu .dropdown-item,
++.pi-comment-menu .dropdown-item {
++    border-radius: .45rem;
++    font-size: .84rem;
++}
++
++.pi-comment-topline {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: .65rem;
++}
++
++.pi-comment-time {
++    display: flex;
++    align-items: center;
++    flex-wrap: wrap;
++    gap: .25rem;
++    margin-top: .12rem;
++    color: #7b8799;
++    font-size: .76rem;
++}
++
++.pi-comment-time time {
++    display: inline;
++}
++
++.pi-comment-menu {
++    flex: 0 0 auto;
++    margin: -.3rem -.35rem 0 0;
++}
++
++.pi-comment-menu-button {
++    display: grid;
++    width: 32px;
++    height: 32px;
++    place-items: center;
++    border: 0;
++    border-radius: 50%;
++    background: transparent;
++    color: #64748b;
++    opacity: .15;
++    transition: opacity .15s ease, background-color .15s ease, color .15s ease;
++}
++
++.pi-comment:hover .pi-comment-menu-button,
++.pi-comment:focus-within .pi-comment-menu-button,
++.pi-comment-menu-button[aria-expanded="true"] {
++    opacity: 1;
++}
++
++.pi-comment-menu-button:hover,
++.pi-comment-menu-button:focus-visible,
++.pi-comment-menu-button[aria-expanded="true"] {
++    background: #eef3f8;
++    color: #173f90;
++    outline: none;
++}
++
++.pi-comment-edit-form {
++    display: grid;
++    gap: .55rem;
++    margin: .55rem 0 .25rem;
++}
++
++.pi-comment-edit-form textarea {
++    width: 100%;
++    min-height: 86px;
++    max-height: 260px;
++    padding: .65rem .7rem;
++    resize: none;
++    overflow-y: auto;
++    border: 1px solid #c9d6e8;
++    border-radius: .65rem;
++    background: #fff;
++    color: #15233d;
++    line-height: 1.45;
++}
++
++.pi-comment-edit-form textarea:focus {
++    border-color: #5f84ca;
++    box-shadow: 0 0 0 3px rgba(47, 94, 176, .12);
++    outline: none;
++}
++
++.pi-comment-edit-actions {
++    display: flex;
++    align-items: center;
++    justify-content: flex-end;
++    gap: .45rem;
++}
++
++.pi-comment-edit-actions .pi-btn {
++    padding: .45rem .75rem;
++    font-size: .8rem;
++}
++
++.pi-delete-impact {
++    display: grid;
++    grid-template-columns: repeat(4, minmax(0, 1fr));
++    gap: .45rem;
++}
++
++.pi-delete-impact span {
++    display: grid;
++    gap: .08rem;
++    padding: .55rem .6rem;
++    border: 1px solid #e4e9f1;
++    border-radius: .65rem;
++    background: #f8fafc;
++    color: #64748b;
++    font-size: .72rem;
++    text-align: center;
++}
++
++.pi-delete-impact strong {
++    color: #15233d;
++    font-size: 1rem;
++}
++
++/* SECTION: Deleted Ideas recovery workspace */
++.pi-deleted-page {
++    max-width: 1180px;
++    margin-inline: auto;
++}
++
++.pi-deleted-header {
++    display: flex;
++    align-items: flex-end;
++    justify-content: space-between;
++    gap: 1rem;
++    margin: .25rem 0 1rem;
++    padding: 1.15rem 1.25rem;
++    border: 1px solid #e3e9f3;
++    border-radius: 16px;
++    background: #fff;
++    box-shadow: 0 8px 22px rgba(15, 34, 67, .055);
++}
++
++.pi-deleted-header h1 {
++    margin: .08rem 0 .2rem;
++    color: #071232;
++    font-size: 1.55rem;
++    font-weight: 850;
++    letter-spacing: -.025em;
++}
++
++.pi-deleted-header p {
++    max-width: 760px;
++    margin: 0;
++    color: #667085;
++    font-size: .88rem;
++}
++
++.pi-deleted-count {
++    display: grid;
++    min-width: 40px;
++    height: 34px;
++    padding: 0 .65rem;
++    place-items: center;
++    border-radius: 999px;
++    background: #f1f5f9;
++    color: #475569;
++    font-size: .82rem;
++    font-weight: 800;
++}
++
++.pi-deleted-list {
++    display: grid;
++    gap: .75rem;
++}
++
++.pi-deleted-card {
++    display: grid;
++    grid-template-columns: minmax(0, 1fr) auto;
++    gap: 1.2rem;
++    align-items: center;
++    padding: 1rem 1.1rem;
++    border: 1px solid #e3e9f3;
++    border-radius: 14px;
++    background: #fff;
++    box-shadow: 0 7px 20px rgba(15, 34, 67, .045);
++}
++
++.pi-deleted-card__main {
++    min-width: 0;
++}
++
++.pi-deleted-card__title-row {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: .8rem;
++}
++
++.pi-deleted-card__title-row h2 {
++    margin: .3rem 0 .2rem;
++    color: #10203d;
++    font-size: 1.05rem;
++    font-weight: 800;
++}
++
++.pi-deleted-badge {
++    display: inline-flex;
++    align-items: center;
++    gap: .3rem;
++    flex: 0 0 auto;
++    color: #9f2d27;
++    font-size: .73rem;
++    font-weight: 750;
++}
++
++.pi-deleted-description {
++    display: -webkit-box;
++    margin: 0 0 .55rem;
++    overflow: hidden;
++    color: #536179;
++    font-size: .84rem;
++    line-height: 1.4;
++    -webkit-box-orient: vertical;
++    -webkit-line-clamp: 2;
++}
++
++.pi-deleted-meta,
++.pi-deleted-retained {
++    display: flex;
++    align-items: center;
++    flex-wrap: wrap;
++    gap: .35rem .85rem;
++    color: #748096;
++    font-size: .74rem;
++}
++
++.pi-deleted-meta span {
++    display: inline-flex;
++    align-items: center;
++    gap: .3rem;
++}
++
++.pi-deleted-reason {
++    margin-top: .55rem;
++    color: #475569;
++    font-size: .8rem;
++}
++
++.pi-deleted-retained {
++    margin-top: .6rem;
++}
++
++.pi-deleted-retained span {
++    padding: .18rem .42rem;
++    border-radius: 999px;
++    background: #f3f6fa;
++    color: #64748b;
++}
++
++.pi-deleted-card__action {
++    margin: 0;
++}
++
++.pi-deleted-empty {
++    min-height: 260px;
++}
++
++@media (max-width: 768px) {
++    .pi-page-hero-actions {
++        width: 100%;
++        justify-content: flex-start;
++    }
++
++    .pi-delete-impact {
++        grid-template-columns: repeat(2, minmax(0, 1fr));
++    }
++
++    .pi-deleted-card {
++        grid-template-columns: 1fr;
++    }
++
++    .pi-deleted-card__action .pi-btn {
++        width: 100%;
++        justify-content: center;
++    }
++}
+--- a/wwwroot/js/pages/project-ideas-details.js
++++ b/wwwroot/js/pages/project-ideas-details.js
+@@ -98,7 +98,7 @@
+         textarea.style.height = `${Math.min(textarea.scrollHeight, 260)}px`;
+     };
+ 
+-    document.querySelectorAll('.pi-comment-composer textarea, .pi-note-composer textarea').forEach(textarea => {
++    document.querySelectorAll('.pi-comment-composer textarea, .pi-note-composer textarea, .pi-comment-edit-form textarea').forEach(textarea => {
+         textarea.addEventListener('input', () => autoSize(textarea));
+         autoSize(textarea);
+     });
+@@ -154,3 +154,84 @@
+ 
+     applyType(typeInput?.value || 'General');
+ })();
++
++// SECTION: Inline discussion remark editing
++(() => {
++    const closeEditor = article => {
++        const panel = article?.querySelector('[data-pi-comment-edit-panel]');
++        const text = article?.querySelector('[data-pi-comment-text]');
++        if (!panel) return;
++        panel.hidden = true;
++        if (text) text.hidden = false;
++    };
++
++    document.querySelectorAll('[data-pi-comment-edit]').forEach(button => {
++        button.addEventListener('click', () => {
++            const article = button.closest('[data-pi-comment-id]');
++            const panel = article?.querySelector('[data-pi-comment-edit-panel]');
++            const text = article?.querySelector('[data-pi-comment-text]');
++            if (!article || !panel) return;
++
++            document.querySelectorAll('[data-pi-comment-id]').forEach(candidate => {
++                if (candidate !== article) closeEditor(candidate);
++            });
++
++            panel.hidden = false;
++            if (text) text.hidden = true;
++            const textarea = panel.querySelector('textarea');
++            if (textarea) {
++                textarea.style.height = 'auto';
++                textarea.style.height = `${Math.min(textarea.scrollHeight, 260)}px`;
++                textarea.focus({ preventScroll: true });
++                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
++            }
++        });
++    });
++
++    document.querySelectorAll('[data-pi-comment-edit-cancel]').forEach(button => {
++        button.addEventListener('click', () => {
++            const article = button.closest('[data-pi-comment-id]');
++            closeEditor(article);
++            article?.querySelector('[data-pi-comment-edit]')?.focus({ preventScroll: true });
++        });
++    });
++})();
++
++// SECTION: Discussion remark delete confirmation
++(() => {
++    document.querySelectorAll('[data-pi-delete-comment]').forEach(form => {
++        let confirmed = false;
++        form.addEventListener('submit', async event => {
++            if (confirmed) return;
++            event.preventDefault();
++
++            const isConference = String(form.getAttribute('data-comment-type') || '').toLowerCase() === 'conference';
++            const options = isConference
++                ? {
++                    title: 'Delete Conference direction?',
++                    message: 'This direction will be removed from the Idea discussion and will no longer be considered in Conference Review.',
++                    detail: 'Historical audit information will be retained.',
++                    confirmText: 'Delete direction',
++                    cancelText: 'Cancel',
++                    tone: 'danger'
++                }
++                : {
++                    title: 'Delete discussion remark?',
++                    message: 'This remark will be removed from the Idea discussion.',
++                    detail: 'Historical audit information will be retained.',
++                    confirmText: 'Delete remark',
++                    cancelText: 'Cancel',
++                    tone: 'danger'
++                };
++
++            const accepted = window.PrismConfirm?.show
++                ? await window.PrismConfirm.show(options)
++                : window.confirm(`${options.title}\n\n${options.message}`);
++
++            if (!accepted) return;
++            confirmed = true;
++            form.requestSubmit();
++        });
++    });
++})();
++
+--- a/wwwroot/js/projects/project-ideas-governance-contract.test.js
++++ b/wwwroot/js/projects/project-ideas-governance-contract.test.js
+@@ -0,0 +1,64 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '..', '..', '..');
++const read = (...segments) => fs.readFileSync(path.join(root, ...segments), 'utf8');
++
++const details = read('Pages', 'ProjectIdeas', 'Details.cshtml');
++const detailsModel = read('Pages', 'ProjectIdeas', 'Details.cshtml.cs');
++const deleted = read('Pages', 'ProjectIdeas', 'Deleted.cshtml');
++const edit = read('Pages', 'ProjectIdeas', 'Edit.cshtml');
++const editModel = read('Pages', 'ProjectIdeas', 'Edit.cshtml.cs');
++const permissions = read('Services', 'ProjectIdeas', 'ProjectIdeaPermissionService.cs');
++const commands = read('Services', 'ProjectIdeas', 'ProjectIdeaCommandService.cs');
++const client = read('wwwroot', 'js', 'pages', 'project-ideas-details.js');
++const conferenceRead = read('Services', 'Workspace', 'OfficerConferenceReadService.cs');
++const officerWorkload = read('Services', 'Workspace', 'OfficerWorkloadReadService.cs');
++const poWorkspace = read('Services', 'Workspace', 'ProjectOfficerWorkspaceService.cs');
++
++ test('commandant default is resolved on server and rendered into discussion composer', () => {
++    assert.match(permissions, /user\.IsInRole\(RoleNames\.Comdt\)/);
++    assert.match(permissions, /\? ProjectIdeaCommentTypes\.Conference\s*:\s*ProjectIdeaCommentTypes\.General/);
++    assert.match(detailsModel, /DefaultCommentType = _permissions\.GetDefaultCommentType\(User, idea\)/);
++    assert.match(details, /data-pi-comment-default="@Model\.DefaultCommentType"/);
++});
++
++test('discussion remarks expose governed edit and soft-delete flows', () => {
++    assert.match(commands, /EditCommentAsync\(/);
++    assert.match(commands, /SoftDeleteCommentAsync\(/);
++    assert.match(details, /data-pi-comment-edit/);
++    assert.match(details, /data-pi-delete-comment/);
++    assert.match(client, /Delete Conference direction\?/);
++    assert.match(client, /no longer be considered in Conference Review/);
++});
++
++test('idea deletion is controlled soft-delete with a recovery workspace', () => {
++    assert.match(commands, /SoftDeleteIdeaAsync\(/);
++    assert.match(commands, /RestoreDeletedIdeaAsync\(/);
++    assert.match(commands, /idea\.IsDeleted = true/);
++    assert.match(deleted, /Deleted Ideas/);
++    assert.match(deleted, /asp-page-handler="Restore"/);
++    assert.match(details, /Reason for deletion/);
++});
++
++
++test('deleted ideas and deleted directions are excluded from operational conference surfaces', () => {
++    assert.match(officerWorkload, /!idea\.IsDeleted/);
++    assert.match(poWorkspace, /!idea\.IsDeleted/);
++    assert.match(conferenceRead, /!direction\.IsDeleted[\s\S]*ProjectIdeaCommentTypes\.Conference/);
++});
++
++
++test('governance mutations use friendly optimistic concurrency handling', () => {
++    assert.match(commands, /ConcurrencyConflictMessage/);
++    assert.match(commands, /DbUpdateConcurrencyException/);
++    assert.match(commands, /ApplyRowVersion\(idea, rowVersion\)/);
++    assert.match(commands, /ApplyRowVersion\(comment, rowVersion\)/);
++    assert.match(details, /name="rowVersion"/);
++    assert.match(detailsModel, /ArchiveAsync\(Idea, archiveReason, DecodeRowVersion\(rowVersion\)\)/);
++    assert.match(detailsModel, /RestoreAsync\(Idea, DecodeRowVersion\(rowVersion\)\)/);
++    assert.match(edit, /asp-for="Input.RowVersion"/);
++    assert.match(editModel, /UpdateAsync\(idea, DecodeRowVersion\(Input.RowVersion\)\)/);
++});

@@ -156,7 +156,14 @@ public class ProjectIdeaDocumentService
             idea.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new InvalidOperationException(ProjectIdeaCommandService.ConcurrencyConflictMessage, exception);
+        }
     }
 
     // SECTION: Protected path resolution

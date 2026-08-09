@@ -189,8 +189,24 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DeleteReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .HasColumnType("bytea");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -216,6 +232,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("IsDeleted", "DeletedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_ProjectIdeas_Deleted_DeletedAt");
 
                     b.HasIndex("Status");
 
@@ -255,11 +275,30 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("EditedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("EditedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<int>("ProjectIdeaId")
                         .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .HasColumnType("bytea");
 
                     b.Property<string>("StatusSnapshot")
                         .HasMaxLength(32)

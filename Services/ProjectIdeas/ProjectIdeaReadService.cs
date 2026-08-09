@@ -114,6 +114,31 @@ public class ProjectIdeaReadService
             .ToList();
     }
 
+    public async Task<IReadOnlyList<ProjectIdeaDeletedItem>> GetDeletedIdeasAsync(CancellationToken cancellationToken = default)
+    {
+        return await _db.ProjectIdeas
+            .AsNoTracking()
+            .Where(idea => idea.IsDeleted)
+            .OrderByDescending(idea => idea.DeletedAt ?? DateTime.MinValue)
+            .ThenBy(idea => idea.Title)
+            .Select(idea => new ProjectIdeaDeletedItem(
+                idea.Id,
+                idea.Title,
+                idea.Description,
+                idea.Status,
+                idea.DeletedAt,
+                idea.DeletedByUserId,
+                idea.DeleteReason,
+                idea.RowVersion,
+                idea.Comments.Count(comment => !comment.IsDeleted),
+                idea.Comments.Count(comment =>
+                    !comment.IsDeleted
+                    && comment.CommentType == ProjectIdeaCommentTypes.Conference),
+                idea.Notes.Count(note => !note.IsDeleted),
+                idea.Documents.Count(document => !document.IsDeleted)))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<ProjectIdea?> GetDetailsAsync(int id)
     {
         IQueryable<ProjectIdea> query = _db.ProjectIdeas
@@ -277,3 +302,17 @@ public class ProjectIdeaReadService
         return trimmed.Length <= 450 ? trimmed : trimmed[..450];
     }
 }
+
+public sealed record ProjectIdeaDeletedItem(
+    int Id,
+    string Title,
+    string Description,
+    string Status,
+    DateTime? DeletedAt,
+    string? DeletedByUserId,
+    string? DeleteReason,
+    byte[] RowVersion,
+    int DiscussionCount,
+    int ConferenceDirectionCount,
+    int NoteCount,
+    int DocumentCount);

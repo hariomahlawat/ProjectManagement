@@ -39,5 +39,16 @@ public class ProjectIdeaComment
     public string? StatusSnapshot { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime? EditedAt { get; set; }
+    [MaxLength(450)]
+    public string? EditedByUserId { get; set; }
+
     public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    [MaxLength(450)]
+    public string? DeletedByUserId { get; set; }
+
+    [ConcurrencyCheck]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

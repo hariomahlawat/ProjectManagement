@@ -1,0 +1,93 @@
+@page
+@model ProjectManagement.Pages.ProjectIdeas.DeletedModel
+@using ProjectManagement.Models.ProjectIdeas
+@{
+    ViewData["UseFullWidth"] = true;
+    ViewData["Title"] = "Deleted Ideas";
+}
+<link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
+
+<div class="pi-page pi-deleted-page">
+    <a asp-page="Index" class="pi-back">
+        <span class="bi bi-arrow-left" aria-hidden="true"></span>
+        Back to Idea Workspace
+    </a>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @Model.StatusMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @Model.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <header class="pi-deleted-header">
+        <div>
+            <span class="pi-detail-kicker">Governance</span>
+            <h1>Deleted Ideas</h1>
+            <p>Soft-deleted Ideas are excluded from operational views. Restore a record if it was removed in error.</p>
+        </div>
+        <span class="pi-deleted-count">@Model.Ideas.Count</span>
+    </header>
+
+    @if (Model.Ideas.Count == 0)
+    {
+        <section class="pi-empty pi-deleted-empty">
+            <span class="pi-empty-icon bi bi-trash3" aria-hidden="true"></span>
+            <h2>No deleted Ideas</h2>
+            <p>There are no soft-deleted Project Ideas awaiting recovery.</p>
+        </section>
+    }
+    else
+    {
+        <section class="pi-deleted-list" aria-label="Deleted Project Ideas">
+            @foreach (var idea in Model.Ideas)
+            {
+                <article class="pi-deleted-card">
+                    <div class="pi-deleted-card__main">
+                        <div class="pi-deleted-card__title-row">
+                            <div>
+                                <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
+                                <h2>@idea.Title</h2>
+                            </div>
+                            <span class="pi-deleted-badge"><span class="bi bi-trash3" aria-hidden="true"></span> Deleted</span>
+                        </div>
+                        <p class="pi-deleted-description">@idea.Description</p>
+                        <div class="pi-deleted-meta">
+                            <span><span class="bi bi-person" aria-hidden="true"></span> Deleted by <strong>@Model.DeletedBy(idea)</strong></span>
+                            @if (idea.DeletedAt.HasValue)
+                            {
+                                <span><span class="bi bi-clock-history" aria-hidden="true"></span> @idea.DeletedAt.Value.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(idea.DeleteReason))
+                        {
+                            <div class="pi-deleted-reason"><strong>Reason:</strong> @idea.DeleteReason</div>
+                        }
+                        <div class="pi-deleted-retained" aria-label="Retained related records">
+                            <span>@idea.DiscussionCount discussion</span>
+                            <span>@idea.ConferenceDirectionCount conference</span>
+                            <span>@idea.NoteCount notes</span>
+                            <span>@idea.DocumentCount files</span>
+                        </div>
+                    </div>
+                    <form method="post" asp-page-handler="Restore" class="pi-deleted-card__action">
+                        <input type="hidden" name="ideaId" value="@idea.Id" />
+                        <input type="hidden" name="rowVersion" value="@DeletedModel.EncodeRowVersion(idea.RowVersion)" />
+                        <button type="submit" class="pi-btn pi-btn-primary">
+                            <span class="bi bi-arrow-counterclockwise" aria-hidden="true"></span>
+                            Restore Idea
+                        </button>
+                    </form>
+                </article>
+            }
+        </section>
+    }
+</div>

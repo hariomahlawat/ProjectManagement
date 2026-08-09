@@ -32,10 +32,12 @@ public class DetailsModel : PageModel
     public bool ShowRestrictedEditNotice => CanEdit && !CanEditCore;
     public bool CanArchive { get; private set; }
     public bool CanRestore { get; private set; }
+    public bool CanDelete { get; private set; }
     public bool CanAddComment { get; private set; }
     public bool CanAddConferenceComment { get; private set; }
     public bool CanAddNote { get; private set; }
     public bool CanUpload { get; private set; }
+    public string DefaultCommentType { get; private set; } = ProjectIdeaCommentTypes.General;
     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
     public IReadOnlyList<ProjectIdeaDocument> Documents { get; private set; } = Array.Empty<ProjectIdeaDocument>();
 
@@ -85,20 +87,89 @@ public class DetailsModel : PageModel
             return BadRequest("Invalid comment type.");
         }
 
-        if (string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal))
+        try
         {
-            if (!_permissions.CanAddConferenceComment(User, Idea)) return Forbid();
+            if (string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal))
+            {
+                if (!_permissions.CanAddConferenceComment(User, Idea)) return Forbid();
 
-            var actorRole = CurrentConferenceRole();
-            if (actorRole is null) return Forbid();
+                var actorRole = CurrentConferenceRole();
+                if (actorRole is null) return Forbid();
 
-            await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
-            StatusMessage = "Conference remark added.";
+                await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
+                StatusMessage = "Conference remark added.";
+            }
+            else
+            {
+                await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
+                StatusMessage = "Comment added.";
+            }
         }
-        else
+        catch (InvalidOperationException exception)
         {
-            await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
-            StatusMessage = "Comment added.";
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostEditCommentAsync(
+        int id,
+        int commentId,
+        string? editedCommentText,
+        string? rowVersion)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        var comment = Idea.Comments.FirstOrDefault(candidate => candidate.Id == commentId && !candidate.IsDeleted);
+        if (comment is null) return NotFound();
+        if (!_permissions.CanEditComment(User, Idea, comment)) return Forbid();
+
+        try
+        {
+            var updated = await _commands.EditCommentAsync(
+                id,
+                commentId,
+                editedCommentText,
+                DecodeRowVersion(rowVersion),
+                CurrentActor());
+            if (updated is null) return NotFound();
+            StatusMessage = string.Equals(updated.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+                ? "Conference direction updated."
+                : "Discussion remark updated.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostDeleteCommentAsync(
+        int id,
+        int commentId,
+        string? rowVersion)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        var comment = Idea.Comments.FirstOrDefault(candidate => candidate.Id == commentId && !candidate.IsDeleted);
+        if (comment is null) return NotFound();
+        if (!_permissions.CanDeleteComment(User, Idea, comment)) return Forbid();
+
+        try
+        {
+            var deleted = await _commands.SoftDeleteCommentAsync(
+                id,
+                commentId,
+                DecodeRowVersion(rowVersion),
+                CurrentActor());
+            if (!deleted) return NotFound();
+            StatusMessage = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+                ? "Conference direction deleted."
+                : "Discussion remark deleted.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
         }
 
         return RedirectToPage(new { id });
@@ -123,12 +194,19 @@ public class DetailsModel : PageModel
             return RedirectToPage(new { id, openNoteComposer = true });
         }
 
-        await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
-        StatusMessage = "Note added.";
+        try
+        {
+            await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
+            StatusMessage = "Note added.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
         return RedirectToPage(new { id });
     }
 
-    public async Task<IActionResult> OnPostArchiveAsync(int id)
+    public async Task<IActionResult> OnPostArchiveAsync(int id, string? rowVersion)
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanArchiveIdea(User) || IsArchived) return Forbid();
@@ -145,18 +223,58 @@ public class DetailsModel : PageModel
             return RedirectToPage(new { id });
         }
 
-        await _commands.ArchiveAsync(Idea, archiveReason);
-        StatusMessage = "Idea archived.";
+        try
+        {
+            await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion));
+            StatusMessage = "Idea archived.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
         return RedirectToPage(new { id });
     }
 
-    public async Task<IActionResult> OnPostRestoreAsync(int id)
+    public async Task<IActionResult> OnPostRestoreAsync(int id, string? rowVersion)
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanRestoreIdea(User)) return Forbid();
-        await _commands.RestoreAsync(Idea);
-        StatusMessage = "Idea restored.";
+        try
+        {
+            await _commands.RestoreAsync(Idea, DecodeRowVersion(rowVersion));
+            StatusMessage = "Idea restored.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
         return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostDeleteAsync(
+        int id,
+        string? deleteReason,
+        string? rowVersion)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanDeleteIdea(User)) return Forbid();
+
+        try
+        {
+            var deleted = await _commands.SoftDeleteIdeaAsync(
+                id,
+                deleteReason,
+                DecodeRowVersion(rowVersion),
+                CurrentActor());
+            if (!deleted) return NotFound();
+            StatusMessage = "Idea deleted.";
+            return RedirectToPage("Deleted");
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+            return RedirectToPage(new { id });
+        }
     }
 
     public async Task<IActionResult> OnPostUploadAsync(int id)
@@ -176,8 +294,15 @@ public class DetailsModel : PageModel
         var doc = await _documents.GetAsync(documentId);
         if (doc is null || doc.ProjectIdeaId != id || doc.IsDeleted) return NotFound();
         if (!_permissions.CanDeleteDocument(User, doc, Idea)) return Forbid();
-        await _documents.SoftDeleteAsync(doc);
-        StatusMessage = "Document deleted.";
+        try
+        {
+            await _documents.SoftDeleteAsync(doc);
+            StatusMessage = "Document deleted.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
         return RedirectToPage(new { id });
     }
 
@@ -237,6 +362,9 @@ public class DetailsModel : PageModel
 
     // SECTION: Attachment view helpers
     public bool CanDeleteDocument(ProjectIdeaDocument document) => _permissions.CanDeleteDocument(User, document, Idea);
+    public bool CanEditComment(ProjectIdeaComment comment) => _permissions.CanEditComment(User, Idea, comment);
+    public bool CanDeleteComment(ProjectIdeaComment comment) => _permissions.CanDeleteComment(User, Idea, comment);
+    public static string EncodeRowVersion(byte[]? rowVersion) => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
 
     public string DisplayUser(ProjectManagement.Models.ApplicationUser? user, string fallback = "Unknown") =>
         user?.FullName ?? user?.UserName ?? user?.Email ?? fallback;
@@ -341,10 +469,12 @@ public class DetailsModel : PageModel
         CanEditCore = _permissions.CanEditIdeaCore(User, idea);
         CanArchive = _permissions.CanArchiveIdea(User);
         CanRestore = _permissions.CanRestoreIdea(User);
+        CanDelete = _permissions.CanDeleteIdea(User);
         CanAddComment = _permissions.CanAddComment(User, idea);
         CanAddConferenceComment = _permissions.CanAddConferenceComment(User, idea);
         CanAddNote = _permissions.CanAddNote(User, idea);
         CanUpload = _permissions.CanUploadDocument(User, idea);
+        DefaultCommentType = _permissions.GetDefaultCommentType(User, idea);
         Documents = idea.Documents
             .Where(d => !d.IsDeleted)
             .OrderByDescending(d => d.UploadedAt)
@@ -353,6 +483,31 @@ public class DetailsModel : PageModel
     }
 
     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private ProjectIdeaActorContext CurrentActor()
+        => new(
+            CurrentUserId(),
+            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value));
+
+    private static byte[] DecodeRowVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
+        }
+
+        try
+        {
+            var decoded = Convert.FromBase64String(value);
+            return decoded.Length > 0
+                ? decoded
+                : throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage);
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException(ProjectIdeaCommandService.RowVersionRequiredMessage, exception);
+        }
+    }
 
     private string? CurrentConferenceRole()
     {

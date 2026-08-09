@@ -24,13 +24,22 @@
             </div>
         </div>
 
-        @if (Model.CanCreate)
-        {
-            <a class="pi-btn pi-btn-primary pi-new-idea" asp-page="Create">
-                <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                <span>New Idea</span>
-            </a>
-        }
+        <div class="pi-page-hero-actions">
+            @if (Model.CanManageDeletedIdeas)
+            {
+                <a class="pi-btn pi-btn-subtle" asp-page="Deleted">
+                    <span class="bi bi-trash3" aria-hidden="true"></span>
+                    <span>Deleted Ideas</span>
+                </a>
+            }
+            @if (Model.CanCreate)
+            {
+                <a class="pi-btn pi-btn-primary pi-new-idea" asp-page="Create">
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                    <span>New Idea</span>
+                </a>
+            }
+        </div>
     </header>
 
     @* SECTION: One coherent command surface for status, filters, sorting and view *@

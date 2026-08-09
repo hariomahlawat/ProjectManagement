@@ -98,7 +98,7 @@
         textarea.style.height = `${Math.min(textarea.scrollHeight, 260)}px`;
     };
 
-    document.querySelectorAll('.pi-comment-composer textarea, .pi-note-composer textarea').forEach(textarea => {
+    document.querySelectorAll('.pi-comment-composer textarea, .pi-note-composer textarea, .pi-comment-edit-form textarea').forEach(textarea => {
         textarea.addEventListener('input', () => autoSize(textarea));
         autoSize(textarea);
     });
@@ -154,3 +154,84 @@
 
     applyType(typeInput?.value || 'General');
 })();
+
+// SECTION: Inline discussion remark editing
+(() => {
+    const closeEditor = article => {
+        const panel = article?.querySelector('[data-pi-comment-edit-panel]');
+        const text = article?.querySelector('[data-pi-comment-text]');
+        if (!panel) return;
+        panel.hidden = true;
+        if (text) text.hidden = false;
+    };
+
+    document.querySelectorAll('[data-pi-comment-edit]').forEach(button => {
+        button.addEventListener('click', () => {
+            const article = button.closest('[data-pi-comment-id]');
+            const panel = article?.querySelector('[data-pi-comment-edit-panel]');
+            const text = article?.querySelector('[data-pi-comment-text]');
+            if (!article || !panel) return;
+
+            document.querySelectorAll('[data-pi-comment-id]').forEach(candidate => {
+                if (candidate !== article) closeEditor(candidate);
+            });
+
+            panel.hidden = false;
+            if (text) text.hidden = true;
+            const textarea = panel.querySelector('textarea');
+            if (textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.height = `${Math.min(textarea.scrollHeight, 260)}px`;
+                textarea.focus({ preventScroll: true });
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-pi-comment-edit-cancel]').forEach(button => {
+        button.addEventListener('click', () => {
+            const article = button.closest('[data-pi-comment-id]');
+            closeEditor(article);
+            article?.querySelector('[data-pi-comment-edit]')?.focus({ preventScroll: true });
+        });
+    });
+})();
+
+// SECTION: Discussion remark delete confirmation
+(() => {
+    document.querySelectorAll('[data-pi-delete-comment]').forEach(form => {
+        let confirmed = false;
+        form.addEventListener('submit', async event => {
+            if (confirmed) return;
+            event.preventDefault();
+
+            const isConference = String(form.getAttribute('data-comment-type') || '').toLowerCase() === 'conference';
+            const options = isConference
+                ? {
+                    title: 'Delete Conference direction?',
+                    message: 'This direction will be removed from the Idea discussion and will no longer be considered in Conference Review.',
+                    detail: 'Historical audit information will be retained.',
+                    confirmText: 'Delete direction',
+                    cancelText: 'Cancel',
+                    tone: 'danger'
+                }
+                : {
+                    title: 'Delete discussion remark?',
+                    message: 'This remark will be removed from the Idea discussion.',
+                    detail: 'Historical audit information will be retained.',
+                    confirmText: 'Delete remark',
+                    cancelText: 'Cancel',
+                    tone: 'danger'
+                };
+
+            const accepted = window.PrismConfirm?.show
+                ? await window.PrismConfirm.show(options)
+                : window.confirm(`${options.title}\n\n${options.message}`);
+
+            if (!accepted) return;
+            confirmed = true;
+            form.requestSubmit();
+        });
+    });
+})();
+
