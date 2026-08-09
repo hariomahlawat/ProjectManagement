@@ -90,15 +90,18 @@
                 <i class="bi bi-file-earmark" aria-hidden="true"></i>
                 <span>No conference direction recorded</span>
             </div>
-            <button type="button"
-                    class="oc-add-direction oc-add-direction--issue"
-                    data-oc-add
-                    data-oc-direction-action
-                    aria-controls="@editorId"
-                    aria-expanded="false">
-                <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                <span>Issue direction</span>
-            </button>
+            @if (Model.CanManageConference)
+            {
+                <button type="button"
+                        class="oc-add-direction oc-add-direction--issue"
+                        data-oc-add
+                        data-oc-direction-action
+                        aria-controls="@editorId"
+                        aria-expanded="false">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <span>Issue direction</span>
+                </button>
+            }
         }
         else
         {
@@ -219,7 +222,7 @@
         </div>
 
         <div class="oc-item__actions @(direction is null ? "oc-item__actions--empty" : string.Empty)">
-            @if (direction is not null)
+            @if (Model.CanManageConference && direction is not null)
             {
                 <button type="button"
                         class="oc-add-direction"
@@ -238,33 +241,36 @@
         </div>
     </div>
 
-    <form method="post"
-          id="@editorId"
-          class="oc-inline-editor"
-          data-oc-editor
-          aria-busy="false"
-          hidden>
-        <input type="hidden" name="officerUserId" value="@Model.OfficerUserId" />
-        <input type="hidden" name="kind" value="@((int)item.Kind)" />
-        <input type="hidden" name="itemId" value="@item.ItemId" />
-        <label class="oc-inline-editor__field">
-            <span>Conference direction</span>
-            <textarea name="body"
-                      rows="2"
-                      maxlength="4000"
-                      placeholder="Record the direction or observation..."
-                      aria-describedby="@feedbackId"
-                      data-oc-input></textarea>
-        </label>
-        <div class="oc-inline-editor__footer">
-            <span id="@feedbackId" class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
-            <div>
-                <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
-                <button type="submit" class="oc-editor-save" data-oc-save disabled>
-                    <span data-oc-save-label>@directionActionLabel</span>
-                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                </button>
+    @if (Model.CanManageConference)
+    {
+        <form method="post"
+              id="@editorId"
+              class="oc-inline-editor"
+              data-oc-editor
+              aria-busy="false"
+              hidden>
+            <input type="hidden" name="officerUserId" value="@Model.OfficerUserId" />
+            <input type="hidden" name="kind" value="@((int)item.Kind)" />
+            <input type="hidden" name="itemId" value="@item.ItemId" />
+            <label class="oc-inline-editor__field">
+                <span>Conference direction</span>
+                <textarea name="body"
+                          rows="2"
+                          maxlength="4000"
+                          placeholder="Record the direction or observation..."
+                          aria-describedby="@feedbackId"
+                          data-oc-input></textarea>
+            </label>
+            <div class="oc-inline-editor__footer">
+                <span id="@feedbackId" class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
+                <div>
+                    <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
+                    <button type="submit" class="oc-editor-save" data-oc-save disabled>
+                        <span data-oc-save-label>@directionActionLabel</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
-        </div>
-    </form>
+        </form>
+    }
 </article>

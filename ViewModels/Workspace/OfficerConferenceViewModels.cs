@@ -231,6 +231,7 @@ public sealed record CreateConferenceTaskResult(OfficerConferenceItemVm Task);
 public sealed class OfficerConferenceSectionRenderVm
 {
     public string OfficerUserId { get; init; } = string.Empty;
+    public bool CanManageConference { get; init; }
     public string OfficerDisplayName { get; init; } = string.Empty;
     public DateTime MinimumTaskDueDate { get; init; }
     public DateTime DefaultTaskDueDate { get; init; }
@@ -242,5 +243,6 @@ public sealed class OfficerConferenceSectionRenderVm
 public sealed class OfficerConferenceItemRenderVm
 {
     public string OfficerUserId { get; init; } = string.Empty;
+    public bool CanManageConference { get; init; }
     public OfficerConferenceItemVm Item { get; init; } = new();
 }

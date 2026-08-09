@@ -15,11 +15,14 @@ public class IndexModel : PageModel
 {
     private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
+    private readonly IOfficerConferenceReadService _conferenceReadService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAuthorizationService _authorization;
+    private readonly ILogger<IndexModel> _logger;
 
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
+    public OfficerConferenceVm Conference { get; private set; } = new();
     public bool IsCommandMode { get; private set; }
     public bool CanSwitchWorkspace { get; private set; }
     public bool CanViewDocuments { get; private set; }
@@ -39,13 +42,17 @@ public class IndexModel : PageModel
     public IndexModel(
         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
         CommandWorkspaceService commandWorkspaceService,
+        IOfficerConferenceReadService conferenceReadService,
         UserManager<ApplicationUser> userManager,
-        IAuthorizationService authorization)
+        IAuthorizationService authorization,
+        ILogger<IndexModel> logger)
     {
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService;
         _commandWorkspaceService = commandWorkspaceService;
+        _conferenceReadService = conferenceReadService;
         _userManager = userManager;
         _authorization = authorization;
+        _logger = logger;
     }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
@@ -118,9 +125,96 @@ public class IndexModel : PageModel
                 includeDocuments: CanViewDocuments && projectOfficerView == ProjectOfficerWorkspaceView.Documents,
                 ct: ct,
                 activityPeriod: projectOfficerView == ProjectOfficerWorkspaceView.Activity ? ActivityPeriod : null);
+
+            if (projectOfficerView == ProjectOfficerWorkspaceView.Conference)
+            {
+                Conference = await _conferenceReadService.GetForProjectOfficerAsync(userId, ct)
+                    ?? new OfficerConferenceVm
+                    {
+                        OfficerUserId = userId,
+                        OfficerName = Workspace.UserDisplayName,
+                        Sections = new[]
+                        {
+                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.Project, Title = "Projects", IconClass = "bi-kanban" },
+                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ProjectIdea, Title = "Ideas", IconClass = "bi-lightbulb" },
+                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ActionTask, Title = "Other tasks", IconClass = "bi-list-check" }
+                        }
+                    };
+            }
         }
 
         return Page();
+    }
+
+    public async Task<IActionResult> OnGetDirectionHistoryAsync(
+        ConferenceItemKind kind,
+        int itemId,
+        CancellationToken ct)
+    {
+        if (!User.IsInRole(RoleNames.ProjectOfficer))
+        {
+            return Forbid();
+        }
+
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (itemId <= 0 || !Enum.IsDefined(kind))
+        {
+            return new JsonResult(new { message = "The direction-history request is invalid." })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
+
+        Response.Headers.CacheControl = "no-store, no-cache";
+        Response.Headers.Pragma = "no-cache";
+
+        try
+        {
+            var history = await _conferenceReadService.GetDirectionHistoryForProjectOfficerAsync(
+                userId,
+                kind,
+                itemId,
+                ct);
+
+            if (history is null)
+            {
+                return new JsonResult(new { message = "Direction history is unavailable for this item." })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+
+            return new JsonResult(history);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(
+                ex,
+                "Project Officer conference direction history failed. TraceId={TraceId}, UserId={UserId}, Kind={Kind}, ItemId={ItemId}",
+                traceId,
+                userId,
+                kind,
+                itemId);
+
+            return new JsonResult(new
+            {
+                message = "Direction history could not be loaded.",
+                traceId
+            })
+            {
+                StatusCode = StatusCodes.Status500InternalServerError
+            };
+        }
     }
 
     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)

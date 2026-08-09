@@ -1,2 +1,3 @@
-wwwroot/css/notebook.css
-wwwroot/js/notebook/notebook-reminder-create-refinement-contract.test.js
+Pages/Workspace/_ProjectOfficerConference.cshtml
+wwwroot/css/officer-conference.css
+wwwroot/js/pages/officer-conference.test.js

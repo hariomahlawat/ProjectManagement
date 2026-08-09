@@ -1882,3 +1882,130 @@
 [data-bs-theme="dark"] .oc-item.is-viewing-history .oc-direction-history__position {
     color: #aeb9c9;
 }
+
+/* Project Officer read-only conference surface */
+.officer-conference--project-officer {
+    margin-top: 0;
+}
+
+/*
+ * The PO conference header has two logical regions only: identity and read-only
+ * tools. Do not inherit the command header's three-column grid; that leaves the
+ * 30-day activity strip in a column that is too narrow and permits overflow.
+ */
+.oc-header--readonly {
+    grid-template-columns: minmax(0, 1fr) minmax(390px, 440px);
+    gap: 16px;
+    align-items: center;
+}
+
+.oc-header--readonly .oc-header__identity {
+    min-width: 0;
+}
+
+.oc-readonly-tools {
+    min-width: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    justify-self: stretch;
+}
+
+.oc-readonly-tools .erp-activity-strip--header {
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+    overflow: hidden;
+}
+
+/*
+ * The shared activity strip uses fixed-size header cells by default. The PO
+ * header is intentionally compact, so distribute all 30 days across the space
+ * available to the activity control instead of letting the intrinsic width
+ * escape the header card.
+ */
+.officer-conference--project-officer
+.oc-readonly-tools
+.erp-activity-strip--header.is-extended
+.erp-activity-strip__cells {
+    grid-template-columns: repeat(30, minmax(0, 1fr));
+    gap: 2px;
+    width: 100%;
+    max-width: none;
+}
+
+.officer-conference--project-officer
+.oc-readonly-tools
+.erp-activity-strip--header.is-extended
+.erp-activity-strip__cell {
+    justify-self: center;
+    width: 100%;
+    max-width: 8px;
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 2px;
+}
+
+.oc-readonly-badge {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 28px;
+    padding: 0 9px;
+    border: 1px solid #d7e0ec;
+    border-radius: 999px;
+    background: #f7f9fc;
+    color: #607088;
+    font-size: .68rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.oc-readonly-badge i {
+    font-size: .72rem;
+}
+
+/* The sticky shell already contributes the page gap; avoid a second gap after
+ * removing the explanatory strip. */
+.officer-conference--project-officer .oc-sections {
+    margin-top: 0;
+}
+
+.officer-conference--project-officer .oc-item__actions {
+    justify-content: flex-end;
+}
+
+/* At medium widths, preserve the identity row and move the status/activity row
+ * below it. This remains CSS Grid intentionally; flex-direction has no effect
+ * on the shared grid header. */
+@media (max-width: 1180px) {
+    .oc-header--readonly {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .oc-readonly-tools {
+        grid-template-columns: auto minmax(0, 1fr);
+        width: 100%;
+    }
+}
+
+@media (max-width: 680px) {
+    .oc-readonly-tools {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .oc-readonly-badge {
+        justify-self: start;
+    }
+}
+
+[data-bs-theme="dark"] .oc-readonly-badge {
+    border-color: #34445a;
+    background: #172131;
+    color: #aeb9c9;
+}

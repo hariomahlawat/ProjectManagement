@@ -1,0 +1,1216 @@
+diff --git a/Pages/Workspace/Conference.cshtml b/Pages/Workspace/Conference.cshtml
+index 8cbfa38..5161575 100644
+--- a/Pages/Workspace/Conference.cshtml
++++ b/Pages/Workspace/Conference.cshtml
+@@ -189,6 +189,7 @@
+                     new OfficerConferenceSectionRenderVm
+                     {
+                         OfficerUserId = Model.Conference.OfficerUserId,
++                        CanManageConference = true,
+                         OfficerDisplayName = Model.Conference.OfficerDisplayName,
+                         MinimumTaskDueDate = Model.MinimumTaskDueDate,
+                         DefaultTaskDueDate = Model.DefaultTaskDueDate,
+diff --git a/Pages/Workspace/Index.cshtml b/Pages/Workspace/Index.cshtml
+index 5b7d3a2..0196bd0 100644
+--- a/Pages/Workspace/Index.cshtml
++++ b/Pages/Workspace/Index.cshtml
+@@ -16,6 +16,7 @@
+             "projects" => "Assigned Projects | Project Officer Workspace",
+             "tasks" => "Assigned Tasks | Project Officer Workspace",
+             "ideas" => "My Ideas | Project Officer Workspace",
++            "conference" => "My Conference Review | Project Officer Workspace",
+             "follow-ups" => "Follow-ups | Project Officer Workspace",
+             "documents" => "My Documents | Project Officer Workspace",
+             "activity" => "My ERP Activity | Project Officer Workspace",
+@@ -28,6 +29,10 @@
+     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+     <link rel="stylesheet" href="~/css/erp-activity-strip.css" asp-append-version="true" />
+     <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
++    @if (!Model.IsCommandMode && Model.View == "conference")
++    {
++        <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
++    }
+ }
+ 
+ @if (Model.IsCommandMode)
+@@ -49,5 +54,9 @@ else
+     else
+     {
+         <script src="~/js/pages/workspace-index.js" asp-append-version="true"></script>
++        @if (Model.View == "conference")
++        {
++            <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>
++        }
+     }
+ }
+diff --git a/Pages/Workspace/Index.cshtml.cs b/Pages/Workspace/Index.cshtml.cs
+index 16206d1..5e43dd3 100644
+--- a/Pages/Workspace/Index.cshtml.cs
++++ b/Pages/Workspace/Index.cshtml.cs
+@@ -15,11 +15,14 @@ public class IndexModel : PageModel
+ {
+     private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
+     private readonly CommandWorkspaceService _commandWorkspaceService;
++    private readonly IOfficerConferenceReadService _conferenceReadService;
+     private readonly UserManager<ApplicationUser> _userManager;
+     private readonly IAuthorizationService _authorization;
++    private readonly ILogger<IndexModel> _logger;
+ 
+     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
+     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
++    public OfficerConferenceVm Conference { get; private set; } = new();
+     public bool IsCommandMode { get; private set; }
+     public bool CanSwitchWorkspace { get; private set; }
+     public bool CanViewDocuments { get; private set; }
+@@ -39,13 +42,17 @@ public class IndexModel : PageModel
+     public IndexModel(
+         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
+         CommandWorkspaceService commandWorkspaceService,
++        IOfficerConferenceReadService conferenceReadService,
+         UserManager<ApplicationUser> userManager,
+-        IAuthorizationService authorization)
++        IAuthorizationService authorization,
++        ILogger<IndexModel> logger)
+     {
+         _projectOfficerWorkspaceService = projectOfficerWorkspaceService;
+         _commandWorkspaceService = commandWorkspaceService;
++        _conferenceReadService = conferenceReadService;
+         _userManager = userManager;
+         _authorization = authorization;
++        _logger = logger;
+     }
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
+@@ -118,11 +125,98 @@ public class IndexModel : PageModel
+                 includeDocuments: CanViewDocuments && projectOfficerView == ProjectOfficerWorkspaceView.Documents,
+                 ct: ct,
+                 activityPeriod: projectOfficerView == ProjectOfficerWorkspaceView.Activity ? ActivityPeriod : null);
++
++            if (projectOfficerView == ProjectOfficerWorkspaceView.Conference)
++            {
++                Conference = await _conferenceReadService.GetForProjectOfficerAsync(userId, ct)
++                    ?? new OfficerConferenceVm
++                    {
++                        OfficerUserId = userId,
++                        OfficerName = Workspace.UserDisplayName,
++                        Sections = new[]
++                        {
++                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.Project, Title = "Projects", IconClass = "bi-kanban" },
++                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ProjectIdea, Title = "Ideas", IconClass = "bi-lightbulb" },
++                            new OfficerConferenceSectionVm { Kind = ConferenceItemKind.ActionTask, Title = "Other tasks", IconClass = "bi-list-check" }
++                        }
++                    };
++            }
+         }
+ 
+         return Page();
+     }
+ 
++    public async Task<IActionResult> OnGetDirectionHistoryAsync(
++        ConferenceItemKind kind,
++        int itemId,
++        CancellationToken ct)
++    {
++        if (!User.IsInRole(RoleNames.ProjectOfficer))
++        {
++            return Forbid();
++        }
++
++        var userId = _userManager.GetUserId(User);
++        if (string.IsNullOrWhiteSpace(userId))
++        {
++            return Unauthorized();
++        }
++
++        if (itemId <= 0 || !Enum.IsDefined(kind))
++        {
++            return new JsonResult(new { message = "The direction-history request is invalid." })
++            {
++                StatusCode = StatusCodes.Status400BadRequest
++            };
++        }
++
++        Response.Headers.CacheControl = "no-store, no-cache";
++        Response.Headers.Pragma = "no-cache";
++
++        try
++        {
++            var history = await _conferenceReadService.GetDirectionHistoryForProjectOfficerAsync(
++                userId,
++                kind,
++                itemId,
++                ct);
++
++            if (history is null)
++            {
++                return new JsonResult(new { message = "Direction history is unavailable for this item." })
++                {
++                    StatusCode = StatusCodes.Status404NotFound
++                };
++            }
++
++            return new JsonResult(history);
++        }
++        catch (OperationCanceledException) when (ct.IsCancellationRequested)
++        {
++            throw;
++        }
++        catch (Exception ex)
++        {
++            var traceId = HttpContext.TraceIdentifier;
++            _logger.LogError(
++                ex,
++                "Project Officer conference direction history failed. TraceId={TraceId}, UserId={UserId}, Kind={Kind}, ItemId={ItemId}",
++                traceId,
++                userId,
++                kind,
++                itemId);
++
++            return new JsonResult(new
++            {
++                message = "Direction history could not be loaded.",
++                traceId
++            })
++            {
++                StatusCode = StatusCodes.Status500InternalServerError
++            };
++        }
++    }
++
+     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)
+     {
+         if (!User.IsInRole(RoleNames.Comdt) && !User.IsInRole(RoleNames.HoD)) return Forbid();
+diff --git a/Pages/Workspace/_ConferenceItemRow.cshtml b/Pages/Workspace/_ConferenceItemRow.cshtml
+index 4ca49f2..c943a7b 100644
+--- a/Pages/Workspace/_ConferenceItemRow.cshtml
++++ b/Pages/Workspace/_ConferenceItemRow.cshtml
+@@ -90,15 +90,18 @@
+                 <i class="bi bi-file-earmark" aria-hidden="true"></i>
+                 <span>No conference direction recorded</span>
+             </div>
+-            <button type="button"
+-                    class="oc-add-direction oc-add-direction--issue"
+-                    data-oc-add
+-                    data-oc-direction-action
+-                    aria-controls="@editorId"
+-                    aria-expanded="false">
+-                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+-                <span>Issue direction</span>
+-            </button>
++            @if (Model.CanManageConference)
++            {
++                <button type="button"
++                        class="oc-add-direction oc-add-direction--issue"
++                        data-oc-add
++                        data-oc-direction-action
++                        aria-controls="@editorId"
++                        aria-expanded="false">
++                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
++                    <span>Issue direction</span>
++                </button>
++            }
+         }
+         else
+         {
+@@ -219,7 +222,7 @@
+         </div>
+ 
+         <div class="oc-item__actions @(direction is null ? "oc-item__actions--empty" : string.Empty)">
+-            @if (direction is not null)
++            @if (Model.CanManageConference && direction is not null)
+             {
+                 <button type="button"
+                         class="oc-add-direction"
+@@ -238,33 +241,36 @@
+         </div>
+     </div>
+ 
+-    <form method="post"
+-          id="@editorId"
+-          class="oc-inline-editor"
+-          data-oc-editor
+-          aria-busy="false"
+-          hidden>
+-        <input type="hidden" name="officerUserId" value="@Model.OfficerUserId" />
+-        <input type="hidden" name="kind" value="@((int)item.Kind)" />
+-        <input type="hidden" name="itemId" value="@item.ItemId" />
+-        <label class="oc-inline-editor__field">
+-            <span>Conference direction</span>
+-            <textarea name="body"
+-                      rows="2"
+-                      maxlength="4000"
+-                      placeholder="Record the direction or observation..."
+-                      aria-describedby="@feedbackId"
+-                      data-oc-input></textarea>
+-        </label>
+-        <div class="oc-inline-editor__footer">
+-            <span id="@feedbackId" class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
+-            <div>
+-                <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
+-                <button type="submit" class="oc-editor-save" data-oc-save disabled>
+-                    <span data-oc-save-label>@directionActionLabel</span>
+-                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+-                </button>
++    @if (Model.CanManageConference)
++    {
++        <form method="post"
++              id="@editorId"
++              class="oc-inline-editor"
++              data-oc-editor
++              aria-busy="false"
++              hidden>
++            <input type="hidden" name="officerUserId" value="@Model.OfficerUserId" />
++            <input type="hidden" name="kind" value="@((int)item.Kind)" />
++            <input type="hidden" name="itemId" value="@item.ItemId" />
++            <label class="oc-inline-editor__field">
++                <span>Conference direction</span>
++                <textarea name="body"
++                          rows="2"
++                          maxlength="4000"
++                          placeholder="Record the direction or observation..."
++                          aria-describedby="@feedbackId"
++                          data-oc-input></textarea>
++            </label>
++            <div class="oc-inline-editor__footer">
++                <span id="@feedbackId" class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
++                <div>
++                    <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
++                    <button type="submit" class="oc-editor-save" data-oc-save disabled>
++                        <span data-oc-save-label>@directionActionLabel</span>
++                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
++                    </button>
++                </div>
+             </div>
+-        </div>
+-    </form>
++        </form>
++    }
+ </article>
+diff --git a/Pages/Workspace/_ConferenceSection.cshtml b/Pages/Workspace/_ConferenceSection.cshtml
+index 8f3526f..3575d07 100644
+--- a/Pages/Workspace/_ConferenceSection.cshtml
++++ b/Pages/Workspace/_ConferenceSection.cshtml
+@@ -44,7 +44,7 @@
+         </h2>
+         <div class="oc-section__header-actions">
+             <b data-oc-section-count>@sectionModel.Items.Count</b>
+-            @if (isIdeaSection)
++            @if (Model.CanManageConference && isIdeaSection)
+             {
+                 if (Model.IdeaCreation.CanCreate)
+                 {
+@@ -68,7 +68,7 @@
+                     </button>
+                 }
+             }
+-            @if (isTaskSection)
++            @if (Model.CanManageConference && isTaskSection)
+             {
+                 <button type="button"
+                         class="oc-add-task"
+@@ -82,7 +82,7 @@
+         </div>
+     </header>
+ 
+-    @if (isIdeaSection && Model.IdeaCreation.CanCreate)
++    @if (Model.CanManageConference && isIdeaSection && Model.IdeaCreation.CanCreate)
+     {
+         <form method="post"
+               asp-page-handler="CreateIdea"
+@@ -180,7 +180,7 @@
+         </form>
+     }
+ 
+-    @if (isTaskSection)
++    @if (Model.CanManageConference && isTaskSection)
+     {
+         <form method="post"
+               asp-page-handler="CreateTask"
+@@ -299,6 +299,7 @@
+                             new OfficerConferenceItemRenderVm
+                             {
+                                 OfficerUserId = Model.OfficerUserId,
++                                CanManageConference = Model.CanManageConference,
+                                 Item = item
+                             })
+                     }
+@@ -323,6 +324,7 @@
+                         new OfficerConferenceItemRenderVm
+                         {
+                             OfficerUserId = Model.OfficerUserId,
++                            CanManageConference = Model.CanManageConference,
+                             Item = item
+                         })
+                 }
+@@ -336,6 +338,7 @@
+                         new OfficerConferenceItemRenderVm
+                         {
+                             OfficerUserId = Model.OfficerUserId,
++                            CanManageConference = Model.CanManageConference,
+                             Item = item
+                         })
+                 }
+@@ -343,7 +346,7 @@
+         </div>
+     }
+ 
+-    @if (isIdeaSection)
++    @if (Model.CanManageConference && isIdeaSection)
+     {
+         <template data-oc-idea-item-template>
+             <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ProjectIdea)" data-item-id="" data-direction-count="0" data-latest-direction-id="">
+@@ -409,7 +412,7 @@
+         </template>
+     }
+ 
+-    @if (isTaskSection)
++    @if (Model.CanManageConference && isTaskSection)
+     {
+         <template data-oc-task-item-template>
+             <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ActionTask)" data-item-id="" data-direction-count="0" data-latest-direction-id="">
+diff --git a/mnt/data/PO_Conference_ReadOnly_Patch_Current/Pages/Workspace/_ProjectOfficerConference.cshtml b/Pages/Workspace/_ProjectOfficerConference.cshtml
+new file mode 100644
+index 0000000..9f8f262
+--- /dev/null
++++ b/Pages/Workspace/_ProjectOfficerConference.cshtml
+@@ -0,0 +1,71 @@
++@using ProjectManagement.ViewModels.Workspace
++@model ProjectManagement.Pages.Workspace.IndexModel
++@{
++    var conference = Model.Conference;
++}
++
++<div class="officer-conference officer-conference--project-officer"
++     data-officer-conference
++     data-oc-readonly="true">
++    <div class="oc-sticky-shell" data-oc-sticky-shell>
++        <header class="oc-header oc-header--readonly" data-oc-sticky-header>
++            <div class="oc-header__identity">
++                <span class="oc-avatar">@conference.OfficerInitial</span>
++                <div>
++                    <span class="oc-eyebrow">My conference review</span>
++                    <h1>@conference.OfficerDisplayName</h1>
++                    <p>
++                        <span class="oc-header__metric"><strong>@conference.ActiveProjectCount</strong> active @(conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
++                        @if (conference.RecentlyCompletedProjectCount > 0)
++                        {
++                            <span class="oc-header__metric oc-header__metric--carryover"><strong>@conference.RecentlyCompletedProjectCount</strong> recently completed</span>
++                        }
++                        <span class="oc-header__metric"><strong>@conference.IdeaCount</strong> @(conference.IdeaCount == 1 ? "idea" : "ideas")</span>
++                        <span class="oc-header__metric oc-header__metric--tasks @(conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong>@conference.OtherTaskCount</strong> @(conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
++                    </p>
++                </div>
++            </div>
++
++            <div class="oc-readonly-tools" aria-label="Conference review status">
++                <span class="oc-readonly-badge">
++                    <i class="bi bi-eye" aria-hidden="true"></i>
++                    Read only
++                </span>
++                @await Html.PartialAsync(
++                    "_ErpActivityStrip",
++                    new ErpActivityStripRenderVm
++                    {
++                        Activity = conference.ActivityStrip,
++                        Title = "ERP activity",
++                        Variant = "header",
++                        ShowTitle = true,
++                        ShowSummary = false,
++                        ShowLegend = false
++                    })
++            </div>
++        </header>
++    </div>
++
++    <div class="oc-readonly-guidance" role="note">
++        <i class="bi bi-info-circle" aria-hidden="true"></i>
++        <span>
++            Conference directions are issued by Comdt / HoD. Progress shown here is drawn from the normal project, idea and task records.
++        </span>
++    </div>
++
++    <main class="oc-sections">
++        @foreach (var section in conference.Sections)
++        {
++            @await Html.PartialAsync(
++                "_ConferenceSection",
++                new OfficerConferenceSectionRenderVm
++                {
++                    OfficerUserId = conference.OfficerUserId,
++                    CanManageConference = false,
++                    OfficerDisplayName = conference.OfficerDisplayName,
++                    CompletedProjectRetentionDays = conference.CompletedProjectRetentionDays,
++                    Section = section
++                })
++        }
++    </main>
++</div>
+diff --git a/Pages/Workspace/_ProjectOfficerWorkspace.cshtml b/Pages/Workspace/_ProjectOfficerWorkspace.cshtml
+index 5258808..9a8ae63 100644
+--- a/Pages/Workspace/_ProjectOfficerWorkspace.cshtml
++++ b/Pages/Workspace/_ProjectOfficerWorkspace.cshtml
+@@ -26,6 +26,7 @@
+                 <span class="cw-local-rail__group-label">My work</span>
+                 <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="overview" class="@(Active("overview"))" aria-current="@(Current("overview"))" data-tooltip="Overview"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span></a>
+                 <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="actions" class="@(Active("actions"))" aria-current="@(Current("actions"))" data-tooltip="Action queue"><i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span>@if (vm.ActionQueueBadgeCount.HasValue) { <b>@vm.ActionQueueBadgeCount.Value</b> }</a>
++                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="conference" class="@(Active("conference"))" aria-current="@(Current("conference"))" data-tooltip="My conference review"><i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>Conference review</span></a>
+                 <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="projects" class="@(Active("projects"))" aria-current="@(Current("projects"))" data-tooltip="Assigned projects"><i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span>@if (vm.AssignedProjectCount > 0) { <b>@vm.AssignedProjectCount</b> }</a>
+                 <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="tasks" class="@(Active("tasks"))" aria-current="@(Current("tasks"))" data-tooltip="Assigned tasks"><i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span>@if (vm.OfficialTaskCount > 0) { <b>@vm.OfficialTaskCount</b> }</a>
+                 <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="ideas" class="@(Active("ideas"))" aria-current="@(Current("ideas"))" data-tooltip="My ideas"><i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span>@if (vm.AssignedIdeaCount > 0) { <b>@vm.AssignedIdeaCount</b> }</a>
+@@ -48,7 +49,7 @@
+             </div>
+         </nav>
+     </aside>
+-    <main class="cw-workspace-content po-workspace-content">
++    <main class="cw-workspace-content po-workspace-content @(activeView == "conference" ? "cw-workspace-content--conference po-workspace-content--conference" : string.Empty)">
+         @switch (activeView)
+         {
+             case "actions":
+@@ -63,6 +64,9 @@
+             case "ideas":
+                 @await Html.PartialAsync("_ProjectOfficerIdeas", Model)
+                 break;
++            case "conference":
++                @await Html.PartialAsync("_ProjectOfficerConference", Model)
++                break;
+             case "follow-ups":
+                 @await Html.PartialAsync("_ProjectOfficerFollowUps", Model)
+                 break;
+diff --git a/ProjectManagement.Tests/OfficerConferencePageTests.cs b/ProjectManagement.Tests/OfficerConferencePageTests.cs
+index 74d682a..cd9f40c 100644
+--- a/ProjectManagement.Tests/OfficerConferencePageTests.cs
++++ b/ProjectManagement.Tests/OfficerConferencePageTests.cs
+@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using ProjectManagement.Configuration;
+ using ProjectManagement.Pages.Workspace;
++using ProjectManagement.Services.Workspace;
+ 
+ namespace ProjectManagement.Tests;
+ 
+@@ -26,4 +27,23 @@ public sealed class OfficerConferencePageTests
+         Assert.NotNull(method);
+         Assert.Equal(typeof(Task<IActionResult>), method!.ReturnType);
+     }
++    [Fact]
++    public void ProjectOfficerWorkspace_ConferenceView_IsAFirstClassRoute()
++    {
++        Assert.Equal(ProjectOfficerWorkspaceView.Conference, ProjectOfficerWorkspaceViewParser.Parse("conference"));
++        Assert.Equal(ProjectOfficerWorkspaceView.Conference, ProjectOfficerWorkspaceViewParser.Parse("my-conference"));
++        Assert.Equal("conference", ProjectOfficerWorkspaceView.Conference.ToRouteValue());
++    }
++
++    [Fact]
++    public void ProjectOfficerWorkspace_DirectionHistoryHandler_DoesNotAcceptOfficerIdentity()
++    {
++        var method = typeof(IndexModel).GetMethod(nameof(IndexModel.OnGetDirectionHistoryAsync));
++
++        Assert.NotNull(method);
++        Assert.DoesNotContain(
++            method!.GetParameters(),
++            parameter => string.Equals(parameter.Name, "officerUserId", StringComparison.OrdinalIgnoreCase));
++    }
++
+ }
+diff --git a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
+index 2a3b884..501c57a 100644
+--- a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
++++ b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
+@@ -124,17 +124,35 @@ public sealed class OfficerConferenceReadServiceTests
+                 CommentType = ProjectIdeaCommentTypes.General,
+                 CreatedByUserId = officer.Id,
+                 CreatedAt = Utc(4)
++            },
++            new ProjectIdeaComment
++            {
++                ProjectIdeaId = idea.Id,
++                CommentText = "Later comment by another user",
++                CommentType = ProjectIdeaCommentTypes.General,
++                CreatedByUserId = otherOfficer.Id,
++                CreatedAt = Utc(6)
+             });
+ 
+-        db.ProjectIdeaNotes.Add(new ProjectIdeaNote
+-        {
+-            ProjectIdeaId = idea.Id,
+-            Title = "Latest working note",
+-            Body = "Note progress after direction",
+-            CreatedByUserId = officer.Id,
+-            CreatedAt = Utc(1),
+-            UpdatedAt = Utc(5)
+-        });
++        db.ProjectIdeaNotes.AddRange(
++            new ProjectIdeaNote
++            {
++                ProjectIdeaId = idea.Id,
++                Title = "Latest working note",
++                Body = "Note progress after direction",
++                CreatedByUserId = officer.Id,
++                CreatedAt = Utc(1),
++                UpdatedAt = Utc(5)
++            },
++            new ProjectIdeaNote
++            {
++                ProjectIdeaId = idea.Id,
++                Title = "Other user's later note",
++                Body = "This must not replace the responsible PO response.",
++                CreatedByUserId = otherOfficer.Id,
++                CreatedAt = Utc(6),
++                UpdatedAt = Utc(6)
++            });
+ 
+         db.ActionTaskUpdates.AddRange(
+             new ActionTaskUpdate
+@@ -301,6 +319,28 @@ public sealed class OfficerConferenceReadServiceTests
+             ConferenceItemKind.Project,
+             itemId: 999999);
+         Assert.Null(inaccessible);
++
++        var selfView = await service.GetForProjectOfficerAsync(officer.Id);
++        Assert.NotNull(selfView);
++        Assert.Null(selfView!.PreviousOfficerUserId);
++        Assert.Null(selfView.NextOfficerUserId);
++        var selfOption = Assert.Single(selfView.OfficerOptions);
++        Assert.Equal(officer.Id, selfOption.UserId);
++        Assert.True(selfOption.IsSelected);
++
++        var selfIdeaHistory = await service.GetDirectionHistoryForProjectOfficerAsync(
++            officer.Id,
++            ConferenceItemKind.ProjectIdea,
++            idea.Id);
++        var selfIdeaCycle = Assert.Single(selfIdeaHistory!.Cycles);
++        Assert.Equal("Idea progress", selfIdeaCycle.ProgressEntries[0].Body);
++        Assert.Equal("Latest working note", selfIdeaCycle.ProgressEntries[1].Title);
++
++        var crossOfficerHistory = await service.GetDirectionHistoryForProjectOfficerAsync(
++            otherOfficer.Id,
++            ConferenceItemKind.ProjectIdea,
++            idea.Id);
++        Assert.Null(crossOfficerHistory);
+     }
+ 
+     [Fact]
+@@ -712,6 +752,38 @@ public sealed class OfficerConferenceReadServiceTests
+         Assert.Equal("Complete closure documentation.", history.Cycles[0].Direction.Body);
+     }
+ 
++    [Fact]
++    public async Task GetForProjectOfficerAsync_ReturnsIntentionalEmptySelfView_WhenNoWorkIsAssigned()
++    {
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++        await using var db = new ApplicationDbContext(options);
++        await db.Database.EnsureCreatedAsync();
++
++        var officer = CreateUser("officer-empty", "Empty Workload Officer", "Major");
++        db.Users.Add(officer);
++        await db.SaveChangesAsync();
++
++        var service = new OfficerConferenceReadService(
++            db,
++            new StubOfficerWorkloadReadService(Array.Empty<CommandOfficerWorkloadVm>()),
++            new WorkflowStageMetadataProvider(),
++            new FixedClock(Utc(10)));
++
++        var result = await service.GetForProjectOfficerAsync(officer.Id);
++
++        Assert.NotNull(result);
++        Assert.Equal(officer.Id, result!.OfficerUserId);
++        Assert.Equal(officer.FullName, result.OfficerName);
++        Assert.Null(result.PreviousOfficerUserId);
++        Assert.Null(result.NextOfficerUserId);
++        Assert.Equal(3, result.Sections.Count);
++        Assert.All(result.Sections, section => Assert.Empty(section.Items));
++    }
++
+     [Fact]
+     public async Task GetAsync_ReturnsNull_WhenOfficerIsOutsideCanonicalWorkloadOrder()
+     {
+diff --git a/Services/Workspace/IOfficerConferenceReadService.cs b/Services/Workspace/IOfficerConferenceReadService.cs
+index 0d9f9e7..8ba07e5 100644
+--- a/Services/Workspace/IOfficerConferenceReadService.cs
++++ b/Services/Workspace/IOfficerConferenceReadService.cs
+@@ -14,10 +14,29 @@ public interface IOfficerConferenceReadService
+         string officerUserId,
+         CancellationToken cancellationToken = default);
+ 
++    /// <summary>
++    /// Returns the conference view for the authenticated Project Officer only. The
++    /// officer identity is the same value used for both requester and subject so a
++    /// Project Officer can never use this surface to inspect another officer.
++    /// </summary>
++    Task<OfficerConferenceVm?> GetForProjectOfficerAsync(
++        string projectOfficerUserId,
++        CancellationToken cancellationToken = default);
++
+     Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryAsync(
+         string requestingUserId,
+         string officerUserId,
+         ConferenceItemKind kind,
+         int itemId,
+         CancellationToken cancellationToken = default);
++
++    /// <summary>
++    /// Returns direction history only for work assigned to the authenticated Project
++    /// Officer. No caller-supplied officer identifier is accepted.
++    /// </summary>
++    Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryForProjectOfficerAsync(
++        string projectOfficerUserId,
++        ConferenceItemKind kind,
++        int itemId,
++        CancellationToken cancellationToken = default);
+ }
+diff --git a/Services/Workspace/OfficerConferenceReadService.cs b/Services/Workspace/OfficerConferenceReadService.cs
+index cdd2009..efd222f 100644
+--- a/Services/Workspace/OfficerConferenceReadService.cs
++++ b/Services/Workspace/OfficerConferenceReadService.cs
+@@ -16,9 +16,11 @@ using ProjectManagement.ViewModels.Workspace;
+ namespace ProjectManagement.Services.Workspace;
+ 
+ /// <summary>
+-/// Builds the compact command conference view from the same project, idea and action-task
+-/// records used by the operational modules. All source data is loaded in bounded batch
+-/// queries; conference remarks remain native records in their respective modules.
++/// Builds the canonical conference review from the same project, idea and action-task
++/// records used by the operational modules. Command and Project Officer surfaces consume
++/// the same read model; the self-service PO entry point fixes the subject to the requester.
++/// All source data is loaded in bounded batch queries and conference directions remain
++/// native records in their respective modules.
+ /// </summary>
+ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+ {
+@@ -122,7 +124,47 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             return null;
+         }
+ 
+-        var selected = selectedIndex.officer;
++        return await BuildConferenceAsync(
++            selectedIndex.officer,
++            orderedOfficers,
++            selectedIndex.index,
++            includeOfficerNavigation: true,
++            cancellationToken);
++    }
++
++    public async Task<OfficerConferenceVm?> GetForProjectOfficerAsync(
++        string projectOfficerUserId,
++        CancellationToken cancellationToken = default)
++    {
++        if (string.IsNullOrWhiteSpace(projectOfficerUserId))
++        {
++            return null;
++        }
++
++        var selected = await LoadProjectOfficerContextAsync(
++            projectOfficerUserId,
++            cancellationToken);
++        if (selected is null)
++        {
++            return null;
++        }
++
++        var selfOnly = new[] { selected };
++        return await BuildConferenceAsync(
++            selected,
++            selfOnly,
++            selectedIndex: 0,
++            includeOfficerNavigation: false,
++            cancellationToken);
++    }
++
++    private async Task<OfficerConferenceVm> BuildConferenceAsync(
++        ConferenceOfficerContext selected,
++        IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
++        int selectedIndex,
++        bool includeOfficerNavigation,
++        CancellationToken cancellationToken)
++    {
+         var projectIds = selected.ActiveProjects
+             .Select(item => item.ProjectId)
+             .Concat(selected.RecentlyCompletedProjects.Select(item => item.ProjectId))
+@@ -179,8 +221,14 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             assignedProjectOfficerUserIds,
+             mcoUserIds,
+             cancellationToken);
+-        var ideaComments = await LoadIdeaProgressCommentsAsync(latestIdeaDirections, cancellationToken);
+-        var ideaNotes = await LoadIdeaProgressNotesAsync(latestIdeaDirections, cancellationToken);
++        var ideaComments = await LoadIdeaProgressCommentsAsync(
++            latestIdeaDirections,
++            selected.UserId,
++            cancellationToken);
++        var ideaNotes = await LoadIdeaProgressNotesAsync(
++            latestIdeaDirections,
++            selected.UserId,
++            cancellationToken);
+         var assignedTaskUserIds = taskRows
+             .Select(task => string.IsNullOrWhiteSpace(task.AssignedToUserId)
+                 ? selected.UserId
+@@ -271,11 +319,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             IdeaCount = ideaItems.Count,
+             OtherTaskCount = taskItems.Count,
+             CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
+-            PreviousOfficerUserId = selectedIndex.index > 0
+-                ? orderedOfficers[selectedIndex.index - 1].UserId
++            PreviousOfficerUserId = includeOfficerNavigation && selectedIndex > 0
++                ? orderedOfficers[selectedIndex - 1].UserId
+                 : null,
+-            NextOfficerUserId = selectedIndex.index + 1 < orderedOfficers.Count
+-                ? orderedOfficers[selectedIndex.index + 1].UserId
++            NextOfficerUserId = includeOfficerNavigation && selectedIndex + 1 < orderedOfficers.Count
++                ? orderedOfficers[selectedIndex + 1].UserId
+                 : null,
+             OfficerOptions = officerOptions,
+             ActivityStrip = activityStrip,
+@@ -342,7 +390,45 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             ConferenceItemKind.Project when projectInScope
+                 => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+             ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
+-                => await BuildIdeaDirectionHistoryAsync(itemId, cancellationToken),
++                => await BuildIdeaDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
++            ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
++                => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
++            _ => null
++        };
++    }
++
++    public async Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryForProjectOfficerAsync(
++        string projectOfficerUserId,
++        ConferenceItemKind kind,
++        int itemId,
++        CancellationToken cancellationToken = default)
++    {
++        if (string.IsNullOrWhiteSpace(projectOfficerUserId)
++            || itemId <= 0
++            || !Enum.IsDefined(kind))
++        {
++            return null;
++        }
++
++        var selected = await LoadProjectOfficerContextAsync(
++            projectOfficerUserId,
++            cancellationToken);
++        if (selected is null)
++        {
++            return null;
++        }
++
++        var projectInScope = kind != ConferenceItemKind.Project
++            || (_projectScope is not null
++                ? await _projectScope.IsProjectInScopeAsync(projectOfficerUserId, itemId, cancellationToken)
++                : selected.ActiveProjects.Any(item => item.ProjectId == itemId));
++
++        return kind switch
++        {
++            ConferenceItemKind.Project when projectInScope
++                => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
++            ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
++                => await BuildIdeaDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
+                 => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+             _ => null
+@@ -482,6 +568,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+     }
+ 
+     private async Task<ConferenceDirectionHistoryVm> BuildIdeaDirectionHistoryAsync(
++        string officerUserId,
+         int ideaId,
+         CancellationToken cancellationToken)
+     {
+@@ -510,6 +597,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             .Where(comment => comment.ProjectIdeaId == ideaId
+                 && !comment.IsDeleted
+                 && comment.CommentType != ProjectIdeaCommentTypes.Conference
++                && comment.CreatedByUserId == officerUserId
+                 && comment.CreatedAt >= firstDirection.CreatedAt)
+             .OrderBy(comment => comment.CreatedAt)
+             .ThenBy(comment => comment.Id)
+@@ -518,6 +606,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             .AsNoTracking()
+             .Where(note => note.ProjectIdeaId == ideaId
+                 && !note.IsDeleted
++                && note.CreatedByUserId == officerUserId
+                 && (note.CreatedAt >= firstDirection.CreatedAt
+                     || note.UpdatedAt >= firstDirection.CreatedAt))
+             .Select(note => new IdeaNoteRow(
+@@ -600,8 +689,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                 ProgressEntries = progressEntries,
+                 EmptyProgressText = progressEntries.Count == 0
+                     ? nextDirection is null
+-                        ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
+-                        : "No comment or note was recorded before the next conference direction."
++                        ? "Progress update awaited. No Project Officer comment or note has been recorded since the direction was issued."
++                        : "No Project Officer comment or note was recorded before the next conference direction."
+                     : null,
+                 SequenceNumber = index + 1,
+                 TotalDirections = directions.Count,
+@@ -763,6 +852,77 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+         };
+ 
+ 
++    private async Task<ConferenceOfficerContext?> LoadProjectOfficerContextAsync(
++        string projectOfficerUserId,
++        CancellationToken cancellationToken)
++    {
++        var workload = await _workload.GetOfficerAsync(projectOfficerUserId, cancellationToken);
++        IReadOnlyList<ConferenceProjectCarryover> carryovers = _projectScope is null
++            ? Array.Empty<ConferenceProjectCarryover>()
++            : (await _projectScope.GetRecentlyCompletedProjectsAsync(cancellationToken))
++                .Where(item => string.Equals(
++                    item.OfficerUserId,
++                    projectOfficerUserId,
++                    StringComparison.Ordinal))
++                .OrderByDescending(item => item.CompletionSortDate)
++                .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
++                .ToArray();
++
++        if (workload is not null)
++        {
++            return new ConferenceOfficerContext(
++                workload.UserId,
++                workload.OfficerName,
++                workload.Rank,
++                workload.Projects,
++                workload.Ideas,
++                workload.OtherTasks,
++                carryovers);
++        }
++
++        if (carryovers.Count > 0)
++        {
++            var identity = carryovers[0];
++            return new ConferenceOfficerContext(
++                identity.OfficerUserId,
++                identity.OfficerName,
++                identity.OfficerRank,
++                Array.Empty<CommandOfficerProjectVm>(),
++                Array.Empty<CommandOfficerIdeaVm>(),
++                Array.Empty<CommandOfficerTaskVm>(),
++                carryovers);
++        }
++
++        // Keep the self-service conference surface available even when the officer has
++        // no current workload. The page can then show an intentional empty state rather
++        // than turning a valid Project Officer workspace route into a 404.
++        var identityRow = await _db.Users
++            .AsNoTracking()
++            .Where(user => user.Id == projectOfficerUserId
++                && !user.IsDisabled
++                && !user.PendingDeletion)
++            .Select(user => new
++            {
++                user.Id,
++                Name = string.IsNullOrWhiteSpace(user.FullName)
++                    ? user.UserName ?? "Project Officer"
++                    : user.FullName,
++                user.Rank
++            })
++            .SingleOrDefaultAsync(cancellationToken);
++
++        return identityRow is null
++            ? null
++            : new ConferenceOfficerContext(
++                identityRow.Id,
++                identityRow.Name,
++                identityRow.Rank ?? string.Empty,
++                Array.Empty<CommandOfficerProjectVm>(),
++                Array.Empty<CommandOfficerIdeaVm>(),
++                Array.Empty<CommandOfficerTaskVm>(),
++                Array.Empty<ConferenceProjectCarryover>());
++    }
++
+     private async Task<IReadOnlyList<ConferenceOfficerContext>> LoadConferenceOfficersAsync(
+         string requestingUserId,
+         CancellationToken cancellationToken)
+@@ -1091,6 +1251,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+ 
+     private Task<List<ProjectIdeaComment>> LoadIdeaProgressCommentsAsync(
+         IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
++        string projectOfficerUserId,
+         CancellationToken cancellationToken)
+     {
+         if (latestDirections.Count == 0)
+@@ -1105,6 +1266,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             .Where(comment => ideaIds.Contains(comment.ProjectIdeaId)
+                 && !comment.IsDeleted
+                 && comment.CommentType != ProjectIdeaCommentTypes.Conference
++                && comment.CreatedByUserId == projectOfficerUserId
+                 && comment.CreatedAt >= earliestDirection)
+             .OrderBy(comment => comment.CreatedAt)
+             .ThenBy(comment => comment.Id)
+@@ -1113,6 +1275,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+ 
+     private Task<List<IdeaNoteRow>> LoadIdeaProgressNotesAsync(
+         IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
++        string projectOfficerUserId,
+         CancellationToken cancellationToken)
+     {
+         if (latestDirections.Count == 0)
+@@ -1126,6 +1289,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+             .AsNoTracking()
+             .Where(note => ideaIds.Contains(note.ProjectIdeaId)
+                 && !note.IsDeleted
++                && note.CreatedByUserId == projectOfficerUserId
+                 && (note.CreatedAt >= earliestDirection || note.UpdatedAt >= earliestDirection))
+             .Select(note => new IdeaNoteRow(
+                 note.Id,
+@@ -1409,13 +1573,15 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                             comment.CommentType,
+                             ProjectIdeaCommentTypes.Conference,
+                             StringComparison.OrdinalIgnoreCase)
++                        && string.Equals(comment.CreatedByUserId, officer.UserId, StringComparison.Ordinal)
+                         && IsAfter(comment.CreatedAt, comment.Id, direction.CreatedAt, direction.Id))
+                     .OrderByDescending(comment => comment.CreatedAt)
+                     .ThenByDescending(comment => comment.Id)
+                     .FirstOrDefault();
+ 
+                 latestNote = itemNotes
+-                    .Where(note => NoteActivityAt(note) > direction.CreatedAt)
++                    .Where(note => string.Equals(note.CreatedByUserId, officer.UserId, StringComparison.Ordinal)
++                        && NoteActivityAt(note) > direction.CreatedAt)
+                     .OrderByDescending(NoteActivityAt)
+                     .ThenByDescending(note => note.Id)
+                     .FirstOrDefault();
+@@ -1469,7 +1635,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+                 DirectionCount = directionCounts.GetValueOrDefault(row.Id),
+                 ProgressEntries = progressEntries,
+                 EmptyProgressText = direction is not null && progressEntries.Count == 0
+-                    ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
++                    ? "Progress update awaited. No Project Officer comment or note has been recorded since the direction was issued."
+                     : null,
+                 ProgressSummary = string.Empty,
+                 LatestProgressText = null
+diff --git a/Services/Workspace/ProjectOfficerWorkspaceService.cs b/Services/Workspace/ProjectOfficerWorkspaceService.cs
+index b39c1ed..ac8541f 100644
+--- a/Services/Workspace/ProjectOfficerWorkspaceService.cs
++++ b/Services/Workspace/ProjectOfficerWorkspaceService.cs
+@@ -115,6 +115,10 @@ public sealed class ProjectOfficerWorkspaceService
+             case ProjectOfficerWorkspaceView.Ideas:
+                 await PopulateIdeasAsync(vm, userId, today, ct);
+                 break;
++            case ProjectOfficerWorkspaceView.Conference:
++                // Conference content is composed by OfficerConferenceReadService. This
++                // service still provides the lightweight PO workspace navigation shell.
++                break;
+             case ProjectOfficerWorkspaceView.FollowUps:
+                 await PopulateFollowUpsAsync(vm, userId, ct);
+                 break;
+diff --git a/Services/Workspace/ProjectOfficerWorkspaceView.cs b/Services/Workspace/ProjectOfficerWorkspaceView.cs
+index 6366668..e38e41e 100644
+--- a/Services/Workspace/ProjectOfficerWorkspaceView.cs
++++ b/Services/Workspace/ProjectOfficerWorkspaceView.cs
+@@ -12,6 +12,7 @@ public enum ProjectOfficerWorkspaceView
+     Projects,
+     Tasks,
+     Ideas,
++    Conference,
+     FollowUps,
+     Documents,
+     Activity
+@@ -25,6 +26,7 @@ public static class ProjectOfficerWorkspaceViewParser
+         "projects" or "assigned-projects" => ProjectOfficerWorkspaceView.Projects,
+         "tasks" or "assigned-tasks" => ProjectOfficerWorkspaceView.Tasks,
+         "ideas" or "my-ideas" => ProjectOfficerWorkspaceView.Ideas,
++        "conference" or "conference-review" or "my-conference" => ProjectOfficerWorkspaceView.Conference,
+         "follow-ups" or "followups" or "reminders" => ProjectOfficerWorkspaceView.FollowUps,
+         "documents" or "my-documents" => ProjectOfficerWorkspaceView.Documents,
+         "activity" or "erp-activity" or "my-erp-activity" => ProjectOfficerWorkspaceView.Activity,
+@@ -37,6 +39,7 @@ public static class ProjectOfficerWorkspaceViewParser
+         ProjectOfficerWorkspaceView.Projects => "projects",
+         ProjectOfficerWorkspaceView.Tasks => "tasks",
+         ProjectOfficerWorkspaceView.Ideas => "ideas",
++        ProjectOfficerWorkspaceView.Conference => "conference",
+         ProjectOfficerWorkspaceView.FollowUps => "follow-ups",
+         ProjectOfficerWorkspaceView.Documents => "documents",
+         ProjectOfficerWorkspaceView.Activity => "activity",
+diff --git a/ViewModels/Workspace/OfficerConferenceViewModels.cs b/ViewModels/Workspace/OfficerConferenceViewModels.cs
+index a48892c..62d24f5 100644
+--- a/ViewModels/Workspace/OfficerConferenceViewModels.cs
++++ b/ViewModels/Workspace/OfficerConferenceViewModels.cs
+@@ -231,6 +231,7 @@ public sealed record CreateConferenceTaskResult(OfficerConferenceItemVm Task);
+ public sealed class OfficerConferenceSectionRenderVm
+ {
+     public string OfficerUserId { get; init; } = string.Empty;
++    public bool CanManageConference { get; init; }
+     public string OfficerDisplayName { get; init; } = string.Empty;
+     public DateTime MinimumTaskDueDate { get; init; }
+     public DateTime DefaultTaskDueDate { get; init; }
+@@ -242,5 +243,6 @@ public sealed class OfficerConferenceSectionRenderVm
+ public sealed class OfficerConferenceItemRenderVm
+ {
+     public string OfficerUserId { get; init; } = string.Empty;
++    public bool CanManageConference { get; init; }
+     public OfficerConferenceItemVm Item { get; init; } = new();
+ }
+diff --git a/wwwroot/css/officer-conference.css b/wwwroot/css/officer-conference.css
+index c82fe7c..da276d4 100644
+--- a/wwwroot/css/officer-conference.css
++++ b/wwwroot/css/officer-conference.css
+@@ -1882,3 +1882,106 @@
+ [data-bs-theme="dark"] .oc-item.is-viewing-history .oc-direction-history__position {
+     color: #aeb9c9;
+ }
++
++/* Project Officer read-only conference surface */
++.officer-conference--project-officer {
++    margin-top: 0;
++}
++
++.oc-header--readonly {
++    gap: 20px;
++}
++
++.oc-readonly-tools {
++    flex: 0 1 420px;
++    min-width: 280px;
++    display: flex;
++    align-items: center;
++    justify-content: flex-end;
++    gap: 10px;
++}
++
++.oc-readonly-tools .erp-activity-strip--header {
++    flex: 1 1 320px;
++    max-width: 340px;
++}
++
++.oc-readonly-badge {
++    flex: 0 0 auto;
++    display: inline-flex;
++    align-items: center;
++    gap: 5px;
++    min-height: 28px;
++    padding: 0 9px;
++    border: 1px solid #d7e0ec;
++    border-radius: 999px;
++    background: #f7f9fc;
++    color: #607088;
++    font-size: .68rem;
++    font-weight: 800;
++    white-space: nowrap;
++}
++
++.oc-readonly-badge i {
++    font-size: .72rem;
++}
++
++.oc-readonly-guidance {
++    display: flex;
++    align-items: flex-start;
++    gap: 7px;
++    margin-top: 8px;
++    padding: 7px 10px;
++    border: 1px solid #e1e7f0;
++    border-radius: 8px;
++    background: #fbfcfe;
++    color: #66758a;
++    font-size: .69rem;
++    line-height: 1.45;
++}
++
++.oc-readonly-guidance i {
++    flex: 0 0 auto;
++    margin-top: 1px;
++    color: #5f75a4;
++}
++
++.officer-conference--project-officer .oc-item__actions {
++    justify-content: flex-end;
++}
++
++@media (max-width: 980px) {
++    .oc-header--readonly {
++        align-items: flex-start;
++        flex-direction: column;
++    }
++
++    .oc-readonly-tools {
++        width: 100%;
++        min-width: 0;
++        flex: 0 0 auto;
++        justify-content: space-between;
++    }
++
++    .oc-readonly-tools .erp-activity-strip--header {
++        max-width: none;
++    }
++}
++
++@media (max-width: 680px) {
++    .oc-readonly-tools {
++        align-items: stretch;
++        flex-direction: column;
++    }
++
++    .oc-readonly-badge {
++        align-self: flex-start;
++    }
++}
++
++[data-bs-theme="dark"] .oc-readonly-badge,
++[data-bs-theme="dark"] .oc-readonly-guidance {
++    border-color: #34445a;
++    background: #172131;
++    color: #aeb9c9;
++}
+diff --git a/wwwroot/js/pages/officer-conference.js b/wwwroot/js/pages/officer-conference.js
+index b82ae8a..b82fdba 100644
+--- a/wwwroot/js/pages/officer-conference.js
++++ b/wwwroot/js/pages/officer-conference.js
+@@ -897,7 +897,9 @@ if (root) {
+         state.promise = (async () => {
+             const url = new URL(window.location.pathname, window.location.origin);
+             url.searchParams.set('handler', 'DirectionHistory');
+-            url.searchParams.set('officerUserId', item.dataset.officerId ?? '');
++            if (root.dataset.ocReadonly !== 'true') {
++                url.searchParams.set('officerUserId', item.dataset.officerId ?? '');
++            }
+             url.searchParams.set('kind', item.dataset.itemKind ?? '');
+             url.searchParams.set('itemId', item.dataset.itemId ?? '');
+ 
+diff --git a/wwwroot/js/pages/officer-conference.test.js b/wwwroot/js/pages/officer-conference.test.js
+index fad3701..2bbcf53 100644
+--- a/wwwroot/js/pages/officer-conference.test.js
++++ b/wwwroot/js/pages/officer-conference.test.js
+@@ -8,6 +8,9 @@ const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer
+ const conferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Conference.cshtml'), 'utf8');
+ const conferenceSection = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceSection.cshtml'), 'utf8');
+ const conferenceItemRow = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceItemRow.cshtml'), 'utf8');
++const projectOfficerConferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ProjectOfficerConference.cshtml'), 'utf8');
++const projectOfficerWorkspace = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ProjectOfficerWorkspace.cshtml'), 'utf8');
++const workspaceIndex = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Index.cshtml'), 'utf8');
+ 
+ test('conference editor supports keyboard save and cancel', () => {
+     assert.match(source, /event\.key === 'Escape'/);
+@@ -243,3 +246,29 @@ test('recently completed project rows carry semantic state and restrained visual
+     assert.match(conferenceCss, /\.oc-project-group-heading--completed/);
+     assert.match(conferenceCss, /\.oc-item--completed-carryover::before/);
+ });
++
++
++test('project officer workspace exposes conference review as a first-class read-only view', () => {
++    assert.match(projectOfficerWorkspace, /asp-route-view="conference"/);
++    assert.match(projectOfficerWorkspace, /_ProjectOfficerConference/);
++    assert.match(projectOfficerConferenceView, /data-oc-readonly="true"/);
++    assert.match(projectOfficerConferenceView, /CanManageConference = false/);
++    assert.match(projectOfficerConferenceView, /Read only/);
++});
++
++test('conference partials gate command mutations behind explicit manage capability', () => {
++    assert.match(conferenceView, /CanManageConference = true/);
++    assert.match(conferenceSection, /Model\.CanManageConference && isIdeaSection/);
++    assert.match(conferenceSection, /Model\.CanManageConference && isTaskSection/);
++    assert.match(conferenceItemRow, /Model\.CanManageConference/);
++    assert.match(conferenceItemRow, /Issue further direction/);
++});
++
++test('project officer conference view loads shared conference styling and history behavior', () => {
++    assert.match(workspaceIndex, /Model\.View == "conference"/);
++    assert.match(source, /root\.dataset\.ocReadonly !== 'true'/);
++    assert.match(workspaceIndex, /officer-conference\.css/);
++    assert.match(workspaceIndex, /officer-conference\.js/);
++    assert.match(conferenceCss, /oc-readonly-badge/);
++    assert.match(conferenceCss, /oc-readonly-guidance/);
++});

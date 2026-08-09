@@ -16,9 +16,11 @@ using ProjectManagement.ViewModels.Workspace;
 namespace ProjectManagement.Services.Workspace;
 
 /// <summary>
-/// Builds the compact command conference view from the same project, idea and action-task
-/// records used by the operational modules. All source data is loaded in bounded batch
-/// queries; conference remarks remain native records in their respective modules.
+/// Builds the canonical conference review from the same project, idea and action-task
+/// records used by the operational modules. Command and Project Officer surfaces consume
+/// the same read model; the self-service PO entry point fixes the subject to the requester.
+/// All source data is loaded in bounded batch queries and conference directions remain
+/// native records in their respective modules.
 /// </summary>
 public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 {
@@ -122,7 +124,47 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             return null;
         }
 
-        var selected = selectedIndex.officer;
+        return await BuildConferenceAsync(
+            selectedIndex.officer,
+            orderedOfficers,
+            selectedIndex.index,
+            includeOfficerNavigation: true,
+            cancellationToken);
+    }
+
+    public async Task<OfficerConferenceVm?> GetForProjectOfficerAsync(
+        string projectOfficerUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectOfficerUserId))
+        {
+            return null;
+        }
+
+        var selected = await LoadProjectOfficerContextAsync(
+            projectOfficerUserId,
+            cancellationToken);
+        if (selected is null)
+        {
+            return null;
+        }
+
+        var selfOnly = new[] { selected };
+        return await BuildConferenceAsync(
+            selected,
+            selfOnly,
+            selectedIndex: 0,
+            includeOfficerNavigation: false,
+            cancellationToken);
+    }
+
+    private async Task<OfficerConferenceVm> BuildConferenceAsync(
+        ConferenceOfficerContext selected,
+        IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
+        int selectedIndex,
+        bool includeOfficerNavigation,
+        CancellationToken cancellationToken)
+    {
         var projectIds = selected.ActiveProjects
             .Select(item => item.ProjectId)
             .Concat(selected.RecentlyCompletedProjects.Select(item => item.ProjectId))
@@ -179,8 +221,14 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             assignedProjectOfficerUserIds,
             mcoUserIds,
             cancellationToken);
-        var ideaComments = await LoadIdeaProgressCommentsAsync(latestIdeaDirections, cancellationToken);
-        var ideaNotes = await LoadIdeaProgressNotesAsync(latestIdeaDirections, cancellationToken);
+        var ideaComments = await LoadIdeaProgressCommentsAsync(
+            latestIdeaDirections,
+            selected.UserId,
+            cancellationToken);
+        var ideaNotes = await LoadIdeaProgressNotesAsync(
+            latestIdeaDirections,
+            selected.UserId,
+            cancellationToken);
         var assignedTaskUserIds = taskRows
             .Select(task => string.IsNullOrWhiteSpace(task.AssignedToUserId)
                 ? selected.UserId
@@ -271,11 +319,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             IdeaCount = ideaItems.Count,
             OtherTaskCount = taskItems.Count,
             CompletedProjectRetentionDays = _projectScope?.CompletedProjectRetentionDays ?? 0,
-            PreviousOfficerUserId = selectedIndex.index > 0
-                ? orderedOfficers[selectedIndex.index - 1].UserId
+            PreviousOfficerUserId = includeOfficerNavigation && selectedIndex > 0
+                ? orderedOfficers[selectedIndex - 1].UserId
                 : null,
-            NextOfficerUserId = selectedIndex.index + 1 < orderedOfficers.Count
-                ? orderedOfficers[selectedIndex.index + 1].UserId
+            NextOfficerUserId = includeOfficerNavigation && selectedIndex + 1 < orderedOfficers.Count
+                ? orderedOfficers[selectedIndex + 1].UserId
                 : null,
             OfficerOptions = officerOptions,
             ActivityStrip = activityStrip,
@@ -342,7 +390,45 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             ConferenceItemKind.Project when projectInScope
                 => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
-                => await BuildIdeaDirectionHistoryAsync(itemId, cancellationToken),
+                => await BuildIdeaDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+            ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
+                => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+            _ => null
+        };
+    }
+
+    public async Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryForProjectOfficerAsync(
+        string projectOfficerUserId,
+        ConferenceItemKind kind,
+        int itemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectOfficerUserId)
+            || itemId <= 0
+            || !Enum.IsDefined(kind))
+        {
+            return null;
+        }
+
+        var selected = await LoadProjectOfficerContextAsync(
+            projectOfficerUserId,
+            cancellationToken);
+        if (selected is null)
+        {
+            return null;
+        }
+
+        var projectInScope = kind != ConferenceItemKind.Project
+            || (_projectScope is not null
+                ? await _projectScope.IsProjectInScopeAsync(projectOfficerUserId, itemId, cancellationToken)
+                : selected.ActiveProjects.Any(item => item.ProjectId == itemId));
+
+        return kind switch
+        {
+            ConferenceItemKind.Project when projectInScope
+                => await BuildProjectDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
+            ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
+                => await BuildIdeaDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
                 => await BuildTaskDirectionHistoryAsync(selected.UserId, itemId, cancellationToken),
             _ => null
@@ -482,6 +568,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     }
 
     private async Task<ConferenceDirectionHistoryVm> BuildIdeaDirectionHistoryAsync(
+        string officerUserId,
         int ideaId,
         CancellationToken cancellationToken)
     {
@@ -510,6 +597,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .Where(comment => comment.ProjectIdeaId == ideaId
                 && !comment.IsDeleted
                 && comment.CommentType != ProjectIdeaCommentTypes.Conference
+                && comment.CreatedByUserId == officerUserId
                 && comment.CreatedAt >= firstDirection.CreatedAt)
             .OrderBy(comment => comment.CreatedAt)
             .ThenBy(comment => comment.Id)
@@ -518,6 +606,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .AsNoTracking()
             .Where(note => note.ProjectIdeaId == ideaId
                 && !note.IsDeleted
+                && note.CreatedByUserId == officerUserId
                 && (note.CreatedAt >= firstDirection.CreatedAt
                     || note.UpdatedAt >= firstDirection.CreatedAt))
             .Select(note => new IdeaNoteRow(
@@ -600,8 +689,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 ProgressEntries = progressEntries,
                 EmptyProgressText = progressEntries.Count == 0
                     ? nextDirection is null
-                        ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
-                        : "No comment or note was recorded before the next conference direction."
+                        ? "Progress update awaited. No Project Officer comment or note has been recorded since the direction was issued."
+                        : "No Project Officer comment or note was recorded before the next conference direction."
                     : null,
                 SequenceNumber = index + 1,
                 TotalDirections = directions.Count,
@@ -762,6 +851,77 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             Cycles = Array.Empty<ConferenceDirectionCycleVm>()
         };
 
+
+    private async Task<ConferenceOfficerContext?> LoadProjectOfficerContextAsync(
+        string projectOfficerUserId,
+        CancellationToken cancellationToken)
+    {
+        var workload = await _workload.GetOfficerAsync(projectOfficerUserId, cancellationToken);
+        IReadOnlyList<ConferenceProjectCarryover> carryovers = _projectScope is null
+            ? Array.Empty<ConferenceProjectCarryover>()
+            : (await _projectScope.GetRecentlyCompletedProjectsAsync(cancellationToken))
+                .Where(item => string.Equals(
+                    item.OfficerUserId,
+                    projectOfficerUserId,
+                    StringComparison.Ordinal))
+                .OrderByDescending(item => item.CompletionSortDate)
+                .ThenBy(item => item.ProjectName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        if (workload is not null)
+        {
+            return new ConferenceOfficerContext(
+                workload.UserId,
+                workload.OfficerName,
+                workload.Rank,
+                workload.Projects,
+                workload.Ideas,
+                workload.OtherTasks,
+                carryovers);
+        }
+
+        if (carryovers.Count > 0)
+        {
+            var identity = carryovers[0];
+            return new ConferenceOfficerContext(
+                identity.OfficerUserId,
+                identity.OfficerName,
+                identity.OfficerRank,
+                Array.Empty<CommandOfficerProjectVm>(),
+                Array.Empty<CommandOfficerIdeaVm>(),
+                Array.Empty<CommandOfficerTaskVm>(),
+                carryovers);
+        }
+
+        // Keep the self-service conference surface available even when the officer has
+        // no current workload. The page can then show an intentional empty state rather
+        // than turning a valid Project Officer workspace route into a 404.
+        var identityRow = await _db.Users
+            .AsNoTracking()
+            .Where(user => user.Id == projectOfficerUserId
+                && !user.IsDisabled
+                && !user.PendingDeletion)
+            .Select(user => new
+            {
+                user.Id,
+                Name = string.IsNullOrWhiteSpace(user.FullName)
+                    ? user.UserName ?? "Project Officer"
+                    : user.FullName,
+                user.Rank
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return identityRow is null
+            ? null
+            : new ConferenceOfficerContext(
+                identityRow.Id,
+                identityRow.Name,
+                identityRow.Rank ?? string.Empty,
+                Array.Empty<CommandOfficerProjectVm>(),
+                Array.Empty<CommandOfficerIdeaVm>(),
+                Array.Empty<CommandOfficerTaskVm>(),
+                Array.Empty<ConferenceProjectCarryover>());
+    }
 
     private async Task<IReadOnlyList<ConferenceOfficerContext>> LoadConferenceOfficersAsync(
         string requestingUserId,
@@ -1091,6 +1251,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
     private Task<List<ProjectIdeaComment>> LoadIdeaProgressCommentsAsync(
         IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
+        string projectOfficerUserId,
         CancellationToken cancellationToken)
     {
         if (latestDirections.Count == 0)
@@ -1105,6 +1266,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .Where(comment => ideaIds.Contains(comment.ProjectIdeaId)
                 && !comment.IsDeleted
                 && comment.CommentType != ProjectIdeaCommentTypes.Conference
+                && comment.CreatedByUserId == projectOfficerUserId
                 && comment.CreatedAt >= earliestDirection)
             .OrderBy(comment => comment.CreatedAt)
             .ThenBy(comment => comment.Id)
@@ -1113,6 +1275,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
     private Task<List<IdeaNoteRow>> LoadIdeaProgressNotesAsync(
         IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
+        string projectOfficerUserId,
         CancellationToken cancellationToken)
     {
         if (latestDirections.Count == 0)
@@ -1126,6 +1289,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .AsNoTracking()
             .Where(note => ideaIds.Contains(note.ProjectIdeaId)
                 && !note.IsDeleted
+                && note.CreatedByUserId == projectOfficerUserId
                 && (note.CreatedAt >= earliestDirection || note.UpdatedAt >= earliestDirection))
             .Select(note => new IdeaNoteRow(
                 note.Id,
@@ -1409,13 +1573,15 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                             comment.CommentType,
                             ProjectIdeaCommentTypes.Conference,
                             StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(comment.CreatedByUserId, officer.UserId, StringComparison.Ordinal)
                         && IsAfter(comment.CreatedAt, comment.Id, direction.CreatedAt, direction.Id))
                     .OrderByDescending(comment => comment.CreatedAt)
                     .ThenByDescending(comment => comment.Id)
                     .FirstOrDefault();
 
                 latestNote = itemNotes
-                    .Where(note => NoteActivityAt(note) > direction.CreatedAt)
+                    .Where(note => string.Equals(note.CreatedByUserId, officer.UserId, StringComparison.Ordinal)
+                        && NoteActivityAt(note) > direction.CreatedAt)
                     .OrderByDescending(NoteActivityAt)
                     .ThenByDescending(note => note.Id)
                     .FirstOrDefault();
@@ -1469,7 +1635,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 DirectionCount = directionCounts.GetValueOrDefault(row.Id),
                 ProgressEntries = progressEntries,
                 EmptyProgressText = direction is not null && progressEntries.Count == 0
-                    ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
+                    ? "Progress update awaited. No Project Officer comment or note has been recorded since the direction was issued."
                     : null,
                 ProgressSummary = string.Empty,
                 LatestProgressText = null

@@ -1,0 +1,238 @@
+TAP version 13
+# Subtest: conference editor supports keyboard save and cancel
+ok 1 - conference editor supports keyboard save and cancel
+  ---
+  duration_ms: 1.821916
+  type: 'test'
+  ...
+# Subtest: conference save uses antiforgery and same-origin credentials
+ok 2 - conference save uses antiforgery and same-origin credentials
+  ---
+  duration_ms: 0.296461
+  type: 'test'
+  ...
+# Subtest: conference direction rendering uses textContent rather than user HTML
+ok 3 - conference direction rendering uses textContent rather than user HTML
+  ---
+  duration_ms: 1.503864
+  type: 'test'
+  ...
+# Subtest: officer navigation uses server-generated route values
+ok 4 - officer navigation uses server-generated route values
+  ---
+  duration_ms: 0.123623
+  type: 'test'
+  ...
+# Subtest: conference editor restores focus and exposes busy and invalid states
+ok 5 - conference editor restores focus and exposes busy and invalid states
+  ---
+  duration_ms: 0.204654
+  type: 'test'
+  ...
+# Subtest: conference save surfaces server trace references and row-local feedback
+ok 6 - conference save surfaces server trace references and row-local feedback
+  ---
+  duration_ms: 0.125466
+  type: 'test'
+  ...
+# Subtest: conference direction uses a semantic label and simplified metadata
+ok 7 - conference direction uses a semantic label and simplified metadata
+  ---
+  duration_ms: 0.171315
+  type: 'test'
+  ...
+# Subtest: conference direction metadata retains a subdued timestamp
+ok 8 - conference direction metadata retains a subdued timestamp
+  ---
+  duration_ms: 0.086439
+  type: 'test'
+  ...
+# Subtest: conference directions expose accessible more and less controls
+ok 9 - conference directions expose accessible more and less controls
+  ---
+  duration_ms: 0.46413
+  type: 'test'
+  ...
+# Subtest: structured progress renders project, idea and task activity safely
+ok 10 - structured progress renders project, idea and task activity safely
+  ---
+  duration_ms: 0.529426
+  type: 'test'
+  ...
+# Subtest: task progress no longer renders generic status or due-date movement summaries
+ok 11 - task progress no longer renders generic status or due-date movement summaries
+  ---
+  duration_ms: 0.310962
+  type: 'test'
+  ...
+# Subtest: saving a direction clears the neutral empty-direction state
+ok 12 - saving a direction clears the neutral empty-direction state
+  ---
+  duration_ms: 0.109963
+  type: 'test'
+  ...
+# Subtest: structured progress supports accessible more and less controls
+ok 13 - structured progress supports accessible more and less controls
+  ---
+  duration_ms: 0.08753
+  type: 'test'
+  ...
+# Subtest: conference save uses only row-local success feedback
+ok 14 - conference save uses only row-local success feedback
+  ---
+  duration_ms: 0.083374
+  type: 'test'
+  ...
+# Subtest: conference page creates Action Tracker tasks without navigation
+ok 15 - conference page creates Action Tracker tasks without navigation
+  ---
+  duration_ms: 0.124435
+  type: 'test'
+  ...
+# Subtest: conference task creation uses antiforgery, same-origin credentials and double-submit protection
+ok 16 - conference task creation uses antiforgery, same-origin credentials and double-submit protection
+  ---
+  duration_ms: 0.070184
+  type: 'test'
+  ...
+# Subtest: conference task form supports keyboard create, cancel and field-level validation
+ok 17 - conference task form supports keyboard create, cancel and field-level validation
+  ---
+  duration_ms: 0.089443
+  type: 'test'
+  ...
+# Subtest: new task rendering uses textContent for server-returned values
+ok 18 - new task rendering uses textContent for server-returned values
+  ---
+  duration_ms: 0.106688
+  type: 'test'
+  ...
+# Subtest: conference page creates Project Ideas without leaving the officer review
+ok 19 - conference page creates Project Ideas without leaving the officer review
+  ---
+  duration_ms: 0.110073
+  type: 'test'
+  ...
+# Subtest: conference idea creation uses antiforgery and same-origin credentials
+ok 20 - conference idea creation uses antiforgery and same-origin credentials
+  ---
+  duration_ms: 0.065307
+  type: 'test'
+  ...
+# Subtest: conference idea form supports keyboard create, cancel and field-level validation
+ok 21 - conference idea form supports keyboard create, cancel and field-level validation
+  ---
+  duration_ms: 0.08083
+  type: 'test'
+  ...
+# Subtest: new idea rendering uses textContent and updates idea counts
+ok 22 - new idea rendering uses textContent and updates idea counts
+  ---
+  duration_ms: 0.150543
+  type: 'test'
+  ...
+# Subtest: first direction transitions from issue action to issue-further-direction action
+ok 23 - first direction transitions from issue action to issue-further-direction action
+  ---
+  duration_ms: 0.093298
+  type: 'test'
+  ...
+# Subtest: conference sticky toolbar measures the actual application header and avoids fixed offsets
+ok 24 - conference sticky toolbar measures the actual application header and avoids fixed offsets
+  ---
+  duration_ms: 0.054971
+  type: 'test'
+  ...
+# Subtest: conference sticky toolbar uses hysteresis and avoids threshold oscillation
+ok 25 - conference sticky toolbar uses hysteresis and avoids threshold oscillation
+  ---
+  duration_ms: 0.122953
+  type: 'test'
+  ...
+# Subtest: conference sticky state preserves header geometry
+ok 26 - conference sticky state preserves header geometry
+  ---
+  duration_ms: 0.365232
+  type: 'test'
+  ...
+# Subtest: conference rows create column headings when the first idea or task is added
+ok 27 - conference rows create column headings when the first idea or task is added
+  ---
+  duration_ms: 0.078757
+  type: 'test'
+  ...
+# Subtest: conference direction history is loaded lazily and cached per row
+ok 28 - conference direction history is loaded lazily and cached per row
+  ---
+  duration_ms: 0.103344
+  type: 'test'
+  ...
+# Subtest: conference history navigation updates direction and progress as one cycle
+ok 29 - conference history navigation updates direction and progress as one cycle
+  ---
+  duration_ms: 0.101691
+  type: 'test'
+  ...
+# Subtest: issuing a further direction returns the row to latest and invalidates cached history
+ok 30 - issuing a further direction returns the row to latest and invalidates cached history
+  ---
+  duration_ms: 0.245805
+  type: 'test'
+  ...
+# Subtest: conference history failures remain row-local and retain a retry path
+ok 31 - conference history failures remain row-local and retain a retry path
+  ---
+  duration_ms: 0.123533
+  type: 'test'
+  ...
+# Subtest: conference column terminology supports historical direction browsing
+ok 32 - conference column terminology supports historical direction browsing
+  ---
+  duration_ms: 0.080619
+  type: 'test'
+  ...
+# Subtest: conference history navigation restores keyboard focus after replacing row controls
+ok 33 - conference history navigation restores keyboard focus after replacing row controls
+  ---
+  duration_ms: 0.071476
+  type: 'test'
+  ...
+# Subtest: conference view distinguishes active and recently completed project scope
+ok 34 - conference view distinguishes active and recently completed project scope
+  ---
+  duration_ms: 0.052007
+  type: 'test'
+  ...
+# Subtest: recently completed project rows carry semantic state and restrained visual treatment
+ok 35 - recently completed project rows carry semantic state and restrained visual treatment
+  ---
+  duration_ms: 0.049333
+  type: 'test'
+  ...
+# Subtest: project officer workspace exposes conference review as a first-class read-only view
+ok 36 - project officer workspace exposes conference review as a first-class read-only view
+  ---
+  duration_ms: 0.083905
+  type: 'test'
+  ...
+# Subtest: conference partials gate command mutations behind explicit manage capability
+ok 37 - conference partials gate command mutations behind explicit manage capability
+  ---
+  duration_ms: 0.059037
+  type: 'test'
+  ...
+# Subtest: project officer conference view loads shared conference styling and history behavior
+ok 38 - project officer conference view loads shared conference styling and history behavior
+  ---
+  duration_ms: 1.061296
+  type: 'test'
+  ...
+1..38
+# tests 38
+# suites 0
+# pass 38
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 80.948243

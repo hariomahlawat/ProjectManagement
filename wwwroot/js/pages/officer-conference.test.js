@@ -8,6 +8,9 @@ const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer
 const conferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Conference.cshtml'), 'utf8');
 const conferenceSection = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceSection.cshtml'), 'utf8');
 const conferenceItemRow = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ConferenceItemRow.cshtml'), 'utf8');
+const projectOfficerConferenceView = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ProjectOfficerConference.cshtml'), 'utf8');
+const projectOfficerWorkspace = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/_ProjectOfficerWorkspace.cshtml'), 'utf8');
+const workspaceIndex = fs.readFileSync(path.resolve(__dirname, '../../../Pages/Workspace/Index.cshtml'), 'utf8');
 
 test('conference editor supports keyboard save and cancel', () => {
     assert.match(source, /event\.key === 'Escape'/);
@@ -242,4 +245,33 @@ test('recently completed project rows carry semantic state and restrained visual
     assert.match(conferenceItemRow, /data-project-carryover/);
     assert.match(conferenceCss, /\.oc-project-group-heading--completed/);
     assert.match(conferenceCss, /\.oc-item--completed-carryover::before/);
+});
+
+
+test('project officer workspace exposes conference review as a first-class read-only view', () => {
+    assert.match(projectOfficerWorkspace, /asp-route-view="conference"/);
+    assert.match(projectOfficerWorkspace, /_ProjectOfficerConference/);
+    assert.match(projectOfficerConferenceView, /data-oc-readonly="true"/);
+    assert.match(projectOfficerConferenceView, /CanManageConference = false/);
+    assert.match(projectOfficerConferenceView, /Read only/);
+});
+
+test('conference partials gate command mutations behind explicit manage capability', () => {
+    assert.match(conferenceView, /CanManageConference = true/);
+    assert.match(conferenceSection, /Model\.CanManageConference && isIdeaSection/);
+    assert.match(conferenceSection, /Model\.CanManageConference && isTaskSection/);
+    assert.match(conferenceItemRow, /Model\.CanManageConference/);
+    assert.match(conferenceItemRow, /Issue further direction/);
+});
+
+test('project officer conference view loads shared conference styling and history behavior', () => {
+    assert.match(workspaceIndex, /Model\.View == "conference"/);
+    assert.match(source, /root\.dataset\.ocReadonly !== 'true'/);
+    assert.match(workspaceIndex, /officer-conference\.css/);
+    assert.match(workspaceIndex, /officer-conference\.js/);
+    assert.match(conferenceCss, /oc-readonly-badge/);
+    assert.doesNotMatch(projectOfficerConferenceView, /oc-readonly-guidance/);
+    assert.doesNotMatch(conferenceCss, /\.oc-readonly-guidance/);
+    assert.match(conferenceCss, /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(390px, 440px\)/);
+    assert.match(conferenceCss, /erp-activity-strip--header\.is-extended[\s\S]*repeat\(30, minmax\(0, 1fr\)\)/);
 });

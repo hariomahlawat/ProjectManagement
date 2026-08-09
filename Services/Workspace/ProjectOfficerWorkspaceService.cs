@@ -115,6 +115,10 @@ public sealed class ProjectOfficerWorkspaceService
             case ProjectOfficerWorkspaceView.Ideas:
                 await PopulateIdeasAsync(vm, userId, today, ct);
                 break;
+            case ProjectOfficerWorkspaceView.Conference:
+                // Conference content is composed by OfficerConferenceReadService. This
+                // service still provides the lightweight PO workspace navigation shell.
+                break;
             case ProjectOfficerWorkspaceView.FollowUps:
                 await PopulateFollowUpsAsync(vm, userId, ct);
                 break;

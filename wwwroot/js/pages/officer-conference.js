@@ -897,7 +897,9 @@ if (root) {
         state.promise = (async () => {
             const url = new URL(window.location.pathname, window.location.origin);
             url.searchParams.set('handler', 'DirectionHistory');
-            url.searchParams.set('officerUserId', item.dataset.officerId ?? '');
+            if (root.dataset.ocReadonly !== 'true') {
+                url.searchParams.set('officerUserId', item.dataset.officerId ?? '');
+            }
             url.searchParams.set('kind', item.dataset.itemKind ?? '');
             url.searchParams.set('itemId', item.dataset.itemId ?? '');
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.Configuration;
 using ProjectManagement.Pages.Workspace;
+using ProjectManagement.Services.Workspace;
 
 namespace ProjectManagement.Tests;
 
@@ -26,4 +27,23 @@ public sealed class OfficerConferencePageTests
         Assert.NotNull(method);
         Assert.Equal(typeof(Task<IActionResult>), method!.ReturnType);
     }
+    [Fact]
+    public void ProjectOfficerWorkspace_ConferenceView_IsAFirstClassRoute()
+    {
+        Assert.Equal(ProjectOfficerWorkspaceView.Conference, ProjectOfficerWorkspaceViewParser.Parse("conference"));
+        Assert.Equal(ProjectOfficerWorkspaceView.Conference, ProjectOfficerWorkspaceViewParser.Parse("my-conference"));
+        Assert.Equal("conference", ProjectOfficerWorkspaceView.Conference.ToRouteValue());
+    }
+
+    [Fact]
+    public void ProjectOfficerWorkspace_DirectionHistoryHandler_DoesNotAcceptOfficerIdentity()
+    {
+        var method = typeof(IndexModel).GetMethod(nameof(IndexModel.OnGetDirectionHistoryAsync));
+
+        Assert.NotNull(method);
+        Assert.DoesNotContain(
+            method!.GetParameters(),
+            parameter => string.Equals(parameter.Name, "officerUserId", StringComparison.OrdinalIgnoreCase));
+    }
+
 }

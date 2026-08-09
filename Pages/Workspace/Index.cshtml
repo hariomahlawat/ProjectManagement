@@ -16,6 +16,7 @@
             "projects" => "Assigned Projects | Project Officer Workspace",
             "tasks" => "Assigned Tasks | Project Officer Workspace",
             "ideas" => "My Ideas | Project Officer Workspace",
+            "conference" => "My Conference Review | Project Officer Workspace",
             "follow-ups" => "Follow-ups | Project Officer Workspace",
             "documents" => "My Documents | Project Officer Workspace",
             "activity" => "My ERP Activity | Project Officer Workspace",
@@ -28,6 +29,10 @@
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/erp-activity-strip.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
+    @if (!Model.IsCommandMode && Model.View == "conference")
+    {
+        <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
+    }
 }
 
 @if (Model.IsCommandMode)
@@ -49,5 +54,9 @@ else
     else
     {
         <script src="~/js/pages/workspace-index.js" asp-append-version="true"></script>
+        @if (Model.View == "conference")
+        {
+            <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>
+        }
     }
 }

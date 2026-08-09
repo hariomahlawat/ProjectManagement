@@ -44,7 +44,7 @@
         </h2>
         <div class="oc-section__header-actions">
             <b data-oc-section-count>@sectionModel.Items.Count</b>
-            @if (isIdeaSection)
+            @if (Model.CanManageConference && isIdeaSection)
             {
                 if (Model.IdeaCreation.CanCreate)
                 {
@@ -68,7 +68,7 @@
                     </button>
                 }
             }
-            @if (isTaskSection)
+            @if (Model.CanManageConference && isTaskSection)
             {
                 <button type="button"
                         class="oc-add-task"
@@ -82,7 +82,7 @@
         </div>
     </header>
 
-    @if (isIdeaSection && Model.IdeaCreation.CanCreate)
+    @if (Model.CanManageConference && isIdeaSection && Model.IdeaCreation.CanCreate)
     {
         <form method="post"
               asp-page-handler="CreateIdea"
@@ -180,7 +180,7 @@
         </form>
     }
 
-    @if (isTaskSection)
+    @if (Model.CanManageConference && isTaskSection)
     {
         <form method="post"
               asp-page-handler="CreateTask"
@@ -299,6 +299,7 @@
                             new OfficerConferenceItemRenderVm
                             {
                                 OfficerUserId = Model.OfficerUserId,
+                                CanManageConference = Model.CanManageConference,
                                 Item = item
                             })
                     }
@@ -323,6 +324,7 @@
                         new OfficerConferenceItemRenderVm
                         {
                             OfficerUserId = Model.OfficerUserId,
+                            CanManageConference = Model.CanManageConference,
                             Item = item
                         })
                 }
@@ -336,6 +338,7 @@
                         new OfficerConferenceItemRenderVm
                         {
                             OfficerUserId = Model.OfficerUserId,
+                            CanManageConference = Model.CanManageConference,
                             Item = item
                         })
                 }
@@ -343,7 +346,7 @@
         </div>
     }
 
-    @if (isIdeaSection)
+    @if (Model.CanManageConference && isIdeaSection)
     {
         <template data-oc-idea-item-template>
             <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ProjectIdea)" data-item-id="" data-direction-count="0" data-latest-direction-id="">
@@ -409,7 +412,7 @@
         </template>
     }
 
-    @if (isTaskSection)
+    @if (Model.CanManageConference && isTaskSection)
     {
         <template data-oc-task-item-template>
             <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ActionTask)" data-item-id="" data-direction-count="0" data-latest-direction-id="">

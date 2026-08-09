@@ -1,0 +1,65 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var conference = Model.Conference;
+}
+
+<div class="officer-conference officer-conference--project-officer"
+     data-officer-conference
+     data-oc-readonly="true">
+    <div class="oc-sticky-shell" data-oc-sticky-shell>
+        <header class="oc-header oc-header--readonly" data-oc-sticky-header>
+            <div class="oc-header__identity">
+                <span class="oc-avatar">@conference.OfficerInitial</span>
+                <div>
+                    <span class="oc-eyebrow">My conference review</span>
+                    <h1>@conference.OfficerDisplayName</h1>
+                    <p>
+                        <span class="oc-header__metric"><strong>@conference.ActiveProjectCount</strong> active @(conference.ActiveProjectCount == 1 ? "project" : "projects")</span>
+                        @if (conference.RecentlyCompletedProjectCount > 0)
+                        {
+                            <span class="oc-header__metric oc-header__metric--carryover"><strong>@conference.RecentlyCompletedProjectCount</strong> recently completed</span>
+                        }
+                        <span class="oc-header__metric"><strong>@conference.IdeaCount</strong> @(conference.IdeaCount == 1 ? "idea" : "ideas")</span>
+                        <span class="oc-header__metric oc-header__metric--tasks @(conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong>@conference.OtherTaskCount</strong> @(conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="oc-readonly-tools" aria-label="Conference review status">
+                <span class="oc-readonly-badge">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                    Read only
+                </span>
+                @await Html.PartialAsync(
+                    "_ErpActivityStrip",
+                    new ErpActivityStripRenderVm
+                    {
+                        Activity = conference.ActivityStrip,
+                        Title = "ERP activity",
+                        Variant = "header",
+                        ShowTitle = true,
+                        ShowSummary = false,
+                        ShowLegend = false
+                    })
+            </div>
+        </header>
+    </div>
+
+
+    <main class="oc-sections">
+        @foreach (var section in conference.Sections)
+        {
+            @await Html.PartialAsync(
+                "_ConferenceSection",
+                new OfficerConferenceSectionRenderVm
+                {
+                    OfficerUserId = conference.OfficerUserId,
+                    CanManageConference = false,
+                    OfficerDisplayName = conference.OfficerDisplayName,
+                    CompletedProjectRetentionDays = conference.CompletedProjectRetentionDays,
+                    Section = section
+                })
+        }
+    </main>
+</div>

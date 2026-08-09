@@ -124,17 +124,35 @@ public sealed class OfficerConferenceReadServiceTests
                 CommentType = ProjectIdeaCommentTypes.General,
                 CreatedByUserId = officer.Id,
                 CreatedAt = Utc(4)
+            },
+            new ProjectIdeaComment
+            {
+                ProjectIdeaId = idea.Id,
+                CommentText = "Later comment by another user",
+                CommentType = ProjectIdeaCommentTypes.General,
+                CreatedByUserId = otherOfficer.Id,
+                CreatedAt = Utc(6)
             });
 
-        db.ProjectIdeaNotes.Add(new ProjectIdeaNote
-        {
-            ProjectIdeaId = idea.Id,
-            Title = "Latest working note",
-            Body = "Note progress after direction",
-            CreatedByUserId = officer.Id,
-            CreatedAt = Utc(1),
-            UpdatedAt = Utc(5)
-        });
+        db.ProjectIdeaNotes.AddRange(
+            new ProjectIdeaNote
+            {
+                ProjectIdeaId = idea.Id,
+                Title = "Latest working note",
+                Body = "Note progress after direction",
+                CreatedByUserId = officer.Id,
+                CreatedAt = Utc(1),
+                UpdatedAt = Utc(5)
+            },
+            new ProjectIdeaNote
+            {
+                ProjectIdeaId = idea.Id,
+                Title = "Other user's later note",
+                Body = "This must not replace the responsible PO response.",
+                CreatedByUserId = otherOfficer.Id,
+                CreatedAt = Utc(6),
+                UpdatedAt = Utc(6)
+            });
 
         db.ActionTaskUpdates.AddRange(
             new ActionTaskUpdate
@@ -301,6 +319,28 @@ public sealed class OfficerConferenceReadServiceTests
             ConferenceItemKind.Project,
             itemId: 999999);
         Assert.Null(inaccessible);
+
+        var selfView = await service.GetForProjectOfficerAsync(officer.Id);
+        Assert.NotNull(selfView);
+        Assert.Null(selfView!.PreviousOfficerUserId);
+        Assert.Null(selfView.NextOfficerUserId);
+        var selfOption = Assert.Single(selfView.OfficerOptions);
+        Assert.Equal(officer.Id, selfOption.UserId);
+        Assert.True(selfOption.IsSelected);
+
+        var selfIdeaHistory = await service.GetDirectionHistoryForProjectOfficerAsync(
+            officer.Id,
+            ConferenceItemKind.ProjectIdea,
+            idea.Id);
+        var selfIdeaCycle = Assert.Single(selfIdeaHistory!.Cycles);
+        Assert.Equal("Idea progress", selfIdeaCycle.ProgressEntries[0].Body);
+        Assert.Equal("Latest working note", selfIdeaCycle.ProgressEntries[1].Title);
+
+        var crossOfficerHistory = await service.GetDirectionHistoryForProjectOfficerAsync(
+            otherOfficer.Id,
+            ConferenceItemKind.ProjectIdea,
+            idea.Id);
+        Assert.Null(crossOfficerHistory);
     }
 
     [Fact]
@@ -710,6 +750,38 @@ public sealed class OfficerConferenceReadServiceTests
         Assert.NotNull(history);
         Assert.Single(history!.Cycles);
         Assert.Equal("Complete closure documentation.", history.Cycles[0].Direction.Body);
+    }
+
+    [Fact]
+    public async Task GetForProjectOfficerAsync_ReturnsIntentionalEmptySelfView_WhenNoWorkIsAssigned()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var officer = CreateUser("officer-empty", "Empty Workload Officer", "Major");
+        db.Users.Add(officer);
+        await db.SaveChangesAsync();
+
+        var service = new OfficerConferenceReadService(
+            db,
+            new StubOfficerWorkloadReadService(Array.Empty<CommandOfficerWorkloadVm>()),
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(10)));
+
+        var result = await service.GetForProjectOfficerAsync(officer.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(officer.Id, result!.OfficerUserId);
+        Assert.Equal(officer.FullName, result.OfficerName);
+        Assert.Null(result.PreviousOfficerUserId);
+        Assert.Null(result.NextOfficerUserId);
+        Assert.Equal(3, result.Sections.Count);
+        Assert.All(result.Sections, section => Assert.Empty(section.Items));
     }
 
     [Fact]
