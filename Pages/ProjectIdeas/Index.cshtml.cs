@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Services.ProjectIdeas;
@@ -96,9 +95,6 @@ public class IndexModel : PageModel
         CanManageDeletedIdeas = _permissions.CanViewDeletedIdeas(User);
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var canViewAll = User.IsInRole(RoleNames.Admin)
-            || User.IsInRole(RoleNames.HoD)
-            || User.IsInRole(RoleNames.Comdt);
 
         // ApplicationDbContext is scoped and does not support concurrent operations.
         // Keep these reads sequential to avoid intermittent production failures.
@@ -107,7 +103,6 @@ public class IndexModel : PageModel
             Query,
             MyIdeas,
             userId,
-            canViewAll,
             Sort,
             ProjectOfficerUserId,
             Assignment);
@@ -116,11 +111,10 @@ public class IndexModel : PageModel
             Query,
             MyIdeas,
             userId,
-            canViewAll,
             ProjectOfficerUserId,
             Assignment);
 
-        ProjectOfficerOptions = await _read.GetBoardProjectOfficersAsync(userId, canViewAll);
+        ProjectOfficerOptions = await _read.GetBoardProjectOfficersAsync();
     }
 
     // SECTION: Display helpers

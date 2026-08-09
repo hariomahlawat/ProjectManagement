@@ -28,8 +28,6 @@ public class DetailsModel : PageModel
     // SECTION: Page state
     public ProjectIdea Idea { get; private set; } = default!;
     public bool CanEdit { get; private set; }
-    public bool CanEditCore { get; private set; }
-    public bool ShowRestrictedEditNotice => CanEdit && !CanEditCore;
     public bool CanArchive { get; private set; }
     public bool CanRestore { get; private set; }
     public bool CanDelete { get; private set; }
@@ -222,7 +220,7 @@ public class DetailsModel : PageModel
 
         try
         {
-            await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion));
+            await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion), CurrentActor());
             SetToastSuccess("Idea archived.");
         }
         catch (InvalidOperationException exception)
@@ -238,7 +236,7 @@ public class DetailsModel : PageModel
         if (!_permissions.CanRestoreIdea(User)) return Forbid();
         try
         {
-            await _commands.RestoreAsync(Idea, DecodeRowVersion(rowVersion));
+            await _commands.RestoreAsync(Idea, DecodeRowVersion(rowVersion), CurrentActor());
             SetToastSuccess("Idea restored.");
         }
         catch (InvalidOperationException exception)
@@ -463,7 +461,6 @@ public class DetailsModel : PageModel
         if (idea is null) return false;
         Idea = idea;
         CanEdit = _permissions.CanEditIdea(User, idea);
-        CanEditCore = _permissions.CanEditIdeaCore(User, idea);
         CanArchive = _permissions.CanArchiveIdea(User);
         CanRestore = _permissions.CanRestoreIdea(User);
         CanDelete = _permissions.CanDeleteIdea(User);

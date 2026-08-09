@@ -60,37 +60,50 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         return idea;
     }
 
-    public Task UpdateAsync(ProjectIdea idea)
-    {
-        ArgumentNullException.ThrowIfNull(idea);
-        return UpdateAsync(idea, idea.RowVersion);
-    }
-
     public async Task UpdateAsync(
         ProjectIdea idea,
         byte[] rowVersion,
+        ProjectIdeaActorContext actor,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(idea);
+        EnsureActor(actor);
+
+        // Authorise against the persisted assignment/status, not posted values.
+        // This allows an assigned PO to complete a legitimate edit even when the
+        // same save changes ownership, while preventing an unassigned user from
+        // manufacturing edit rights in the request.
+        var access = await GetIdeaAuthorizationSnapshotAsync(idea, cancellationToken);
+        if (access is null)
+        {
+            throw new InvalidOperationException("The idea could not be found.");
+        }
+
+        if (!ProjectIdeaGovernancePolicy.CanEditIdeaRecord(
+                access.AssignedProjectOfficerUserId,
+                access.Status,
+                access.IsDeleted,
+                actor))
+        {
+            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
+        }
+
         EnsureIdeaWritable(idea);
         ApplyRowVersion(idea, rowVersion);
         idea.UpdatedAt = UtcNow();
         await SaveWithFriendlyConcurrencyAsync(cancellationToken);
     }
 
-    public Task ArchiveAsync(ProjectIdea idea, string? reason)
-    {
-        ArgumentNullException.ThrowIfNull(idea);
-        return ArchiveAsync(idea, reason, idea.RowVersion);
-    }
-
     public async Task ArchiveAsync(
         ProjectIdea idea,
         string? reason,
         byte[] rowVersion,
+        ProjectIdeaActorContext actor,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(idea);
+        EnsureActor(actor);
+        EnsureLifecycleAuthority(actor);
         EnsureIdeaWritable(idea);
         ApplyRowVersion(idea, rowVersion);
 
@@ -102,18 +115,16 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         await SaveWithFriendlyConcurrencyAsync(cancellationToken);
     }
 
-    public Task RestoreAsync(ProjectIdea idea)
-    {
-        ArgumentNullException.ThrowIfNull(idea);
-        return RestoreAsync(idea, idea.RowVersion);
-    }
-
     public async Task RestoreAsync(
         ProjectIdea idea,
         byte[] rowVersion,
+        ProjectIdeaActorContext actor,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(idea);
+        EnsureActor(actor);
+        EnsureLifecycleAuthority(actor);
+
         if (idea.IsDeleted)
         {
             throw new InvalidOperationException(ProjectIdeaGovernancePolicy.DeletedIdeaMessage);
@@ -140,7 +151,7 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
-        if (!ProjectIdeaGovernancePolicy.CanDeleteAnyIdea(actor.Roles))
+        if (!ProjectIdeaGovernancePolicy.CanManageIdeaLifecycle(actor.Roles))
         {
             throw new InvalidOperationException(ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
         }
@@ -202,7 +213,7 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         CancellationToken cancellationToken = default)
     {
         EnsureActor(actor);
-        if (!ProjectIdeaGovernancePolicy.CanDeleteAnyIdea(actor.Roles))
+        if (!ProjectIdeaGovernancePolicy.CanManageIdeaLifecycle(actor.Roles))
         {
             throw new InvalidOperationException(ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
         }
@@ -571,6 +582,37 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
+    private async Task<ProjectIdeaAuthorizationSnapshot?> GetIdeaAuthorizationSnapshotAsync(
+        ProjectIdea idea,
+        CancellationToken cancellationToken)
+    {
+        var entry = _db.Entry(idea);
+        if (entry.State != EntityState.Detached)
+        {
+            return new ProjectIdeaAuthorizationSnapshot(
+                entry.Property(candidate => candidate.AssignedProjectOfficerUserId).OriginalValue,
+                entry.Property(candidate => candidate.Status).OriginalValue,
+                entry.Property(candidate => candidate.IsDeleted).OriginalValue);
+        }
+
+        return await _db.ProjectIdeas
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == idea.Id)
+            .Select(candidate => new ProjectIdeaAuthorizationSnapshot(
+                candidate.AssignedProjectOfficerUserId,
+                candidate.Status,
+                candidate.IsDeleted))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static void EnsureLifecycleAuthority(ProjectIdeaActorContext actor)
+    {
+        if (!ProjectIdeaGovernancePolicy.CanManageIdeaLifecycle(actor.Roles))
+        {
+            throw new InvalidOperationException(ProjectIdeaGovernancePolicy.PermissionDeniedMessage);
+        }
+    }
+
     private static void EnsureActor(ProjectIdeaActorContext actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
@@ -616,6 +658,11 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
 
         await _audit.LogAsync(action, userId: userId, data: data);
     }
+
+    private sealed record ProjectIdeaAuthorizationSnapshot(
+        string? AssignedProjectOfficerUserId,
+        string Status,
+        bool IsDeleted);
 
     private DateTime UtcNow() => _clock.UtcNow.UtcDateTime;
 }

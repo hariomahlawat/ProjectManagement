@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -34,12 +35,6 @@ public class EditModel : PageModel
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public bool CanManageCore { get; private set; }
-    public string CurrentTitle { get; private set; } = string.Empty;
-    public string CurrentStatus { get; private set; } = string.Empty;
-    public string? CurrentProjectOfficerName { get; private set; }
-    public string? CurrentHodName { get; private set; }
-
     public SelectList ProjectOfficerOptions { get; private set; } = default!;
     public SelectList HodOptions { get; private set; } = default!;
 
@@ -60,24 +55,23 @@ public class EditModel : PageModel
         public int Id { get; set; }
         public string RowVersion { get; set; } = string.Empty;
 
-        [MaxLength(200)]
-        public string? Title { get; set; }
+        [Required, MaxLength(200)]
+        public string Title { get; set; } = string.Empty;
 
         [Required, MaxLength(2000)]
         public string Description { get; set; } = string.Empty;
 
         public string? AssignedProjectOfficerUserId { get; set; }
         public string? AssignedHodUserId { get; set; }
-        public string? Status { get; set; }
+        public string Status { get; set; } = ProjectIdeaStatuses.Active;
     }
 
     public async Task<IActionResult> OnGetAsync(int id)
     {
         var idea = await _read.GetDetailsAsync(id);
         if (idea is null) return NotFound();
-        if (!_permissions.CanEditDescription(User, idea)) return Forbid();
+        if (!_permissions.CanEditIdea(User, idea)) return Forbid();
 
-        SetPageState(idea);
         Input = new InputModel
         {
             Id = idea.Id,
@@ -89,7 +83,7 @@ public class EditModel : PageModel
             Status = idea.Status
         };
 
-        await LoadUsersIfRequiredAsync();
+        await LoadUsersAsync();
         return Page();
     }
 
@@ -97,50 +91,35 @@ public class EditModel : PageModel
     {
         var idea = await _read.GetDetailsAsync(Input.Id);
         if (idea is null) return NotFound();
-        if (!_permissions.CanEditDescription(User, idea)) return Forbid();
+        if (!_permissions.CanEditIdea(User, idea)) return Forbid();
 
-        SetPageState(idea);
-
-        if (CanManageCore)
-        {
-            ValidateCoreFields();
-        }
-        else
-        {
-            // Project Officers may update only the description. Never trust posted
-            // values for title, ownership or status from a restricted editor.
-            ModelState.Remove("Input.Title");
-            ModelState.Remove("Input.AssignedProjectOfficerUserId");
-            ModelState.Remove("Input.AssignedHodUserId");
-            ModelState.Remove("Input.Status");
-        }
-
+        ValidateCoreFields();
         if (!ModelState.IsValid)
         {
-            await LoadUsersIfRequiredAsync();
+            await LoadUsersAsync();
             return Page();
         }
 
+        idea.Title = Input.Title.Trim();
         idea.Description = Input.Description.Trim();
-
-        if (CanManageCore)
-        {
-            idea.Title = Input.Title!.Trim();
-            idea.AssignedProjectOfficerUserId = Input.AssignedProjectOfficerUserId;
-            idea.AssignedHodUserId = Input.AssignedHodUserId;
-            idea.Status = Input.Status!;
-        }
+        idea.AssignedProjectOfficerUserId = Input.AssignedProjectOfficerUserId;
+        idea.AssignedHodUserId = Input.AssignedHodUserId;
+        idea.Status = Input.Status;
 
         try
         {
-            await _commands.UpdateAsync(idea, DecodeRowVersion(Input.RowVersion));
-            StatusMessage = CanManageCore ? "Idea updated." : "Idea description updated.";
+            await _commands.UpdateAsync(
+                idea,
+                DecodeRowVersion(Input.RowVersion),
+                CurrentActor());
+
+            StatusMessage = "Idea updated.";
             return RedirectToPage("Details", new { id = idea.Id });
         }
         catch (InvalidOperationException exception)
         {
             ErrorMessage = exception.Message;
-            await LoadUsersIfRequiredAsync();
+            await LoadUsersAsync();
             return Page();
         }
     }
@@ -156,28 +135,12 @@ public class EditModel : PageModel
         {
             ModelState.AddModelError(
                 "Input.Status",
-                "Select Active or On Hold. Use the archive action to archive an idea.");
+                "Select Active or On Hold. Archive is controlled separately by Comdt, HoD or Admin.");
         }
     }
 
-    private void SetPageState(ProjectIdea idea)
+    private async Task LoadUsersAsync()
     {
-        CanManageCore = _permissions.CanEditIdeaCore(User, idea);
-        CurrentTitle = idea.Title;
-        CurrentStatus = ProjectIdeaStatuses.ToDisplay(idea.Status);
-        CurrentProjectOfficerName = DisplayNameOrNull(idea.AssignedProjectOfficerUser);
-        CurrentHodName = DisplayNameOrNull(idea.AssignedHodUser);
-    }
-
-    private async Task LoadUsersIfRequiredAsync()
-    {
-        if (!CanManageCore)
-        {
-            ProjectOfficerOptions = new SelectList(Array.Empty<object>());
-            HodOptions = new SelectList(Array.Empty<object>());
-            return;
-        }
-
         ProjectOfficerOptions = BuildSelectList(await _users.GetUsersInRoleAsync(RoleNames.ProjectOfficer));
         HodOptions = BuildSelectList(await _users.GetUsersInRoleAsync(RoleNames.HoD));
     }
@@ -185,7 +148,7 @@ public class EditModel : PageModel
     private static SelectList BuildSelectList(IEnumerable<ApplicationUser> users)
     {
         return new SelectList(
-            users.OrderBy(DisplayName).Select(u => new { u.Id, Name = DisplayName(u) }),
+            users.OrderBy(DisplayName).Select(user => new { user.Id, Name = DisplayName(user) }),
             "Id",
             "Name");
     }
@@ -195,9 +158,10 @@ public class EditModel : PageModel
             ? user.UserName ?? user.Email ?? user.Id
             : user.FullName;
 
-    private static string? DisplayNameOrNull(ApplicationUser? user) =>
-        user is null ? null : DisplayName(user);
-
+    private ProjectIdeaActorContext CurrentActor()
+        => new(
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
+            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value));
 
     private static string EncodeRowVersion(byte[]? value)
         => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
@@ -222,6 +186,6 @@ public class EditModel : PageModel
         }
     }
 
-    private static bool IsEditableStatus(string status) =>
-        status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;
+    private static bool IsEditableStatus(string status)
+        => status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;
 }

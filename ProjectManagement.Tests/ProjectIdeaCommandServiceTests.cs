@@ -151,6 +151,84 @@ public sealed class ProjectIdeaCommandServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_AllowsAssignedProjectOfficerToUpdateFullOperationalRecord()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+
+        idea.Title = "Updated title";
+        idea.Description = "Updated description";
+        idea.Status = ProjectIdeaStatuses.OnHold;
+        idea.AssignedProjectOfficerUserId = "po-2";
+        idea.AssignedHodUserId = "hod-2";
+
+        await service.UpdateAsync(
+            idea,
+            idea.RowVersion.ToArray(),
+            Actor("po-1", RoleNames.ProjectOfficer));
+
+        var stored = await db.ProjectIdeas.SingleAsync();
+        Assert.Equal("Updated title", stored.Title);
+        Assert.Equal("Updated description", stored.Description);
+        Assert.Equal(ProjectIdeaStatuses.OnHold, stored.Status);
+        Assert.Equal("po-2", stored.AssignedProjectOfficerUserId);
+        Assert.Equal("hod-2", stored.AssignedHodUserId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsUnassignedProjectOfficerAndAdministrator()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateAsync(
+            idea,
+            idea.RowVersion.ToArray(),
+            Actor("po-2", RoleNames.ProjectOfficer)));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateAsync(
+            idea,
+            idea.RowVersion.ToArray(),
+            Actor("admin-1", RoleNames.Admin)));
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_RejectsAssignedProjectOfficer()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ArchiveAsync(
+            idea,
+            "Completed",
+            idea.RowVersion.ToArray(),
+            Actor("po-1", RoleNames.ProjectOfficer)));
+
+        Assert.Equal(ProjectIdeaStatuses.Active, idea.Status);
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Comdt)]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Admin)]
+    public async Task ArchiveAndRestoreAsync_AllowLifecycleAuthorities(string role)
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+        var actor = Actor($"user-{role}", role);
+
+        await service.ArchiveAsync(idea, "Closing note", idea.RowVersion.ToArray(), actor);
+        Assert.Equal(ProjectIdeaStatuses.Archived, idea.Status);
+
+        await service.RestoreAsync(idea, idea.RowVersion.ToArray(), actor);
+        Assert.Equal(ProjectIdeaStatuses.Active, idea.Status);
+    }
+
+    [Fact]
     public async Task RestoreAsync_RejectsAnIdeaThatIsNotArchived()
     {
         await using var db = CreateDb();
@@ -158,7 +236,7 @@ public sealed class ProjectIdeaCommandServiceTests
         var service = new ProjectIdeaCommandService(db);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.RestoreAsync(idea, idea.RowVersion.ToArray()));
+            service.RestoreAsync(idea, idea.RowVersion.ToArray(), Actor("hod-1", RoleNames.HoD)));
 
         Assert.Equal("Only an archived idea can be restored.", exception.Message);
         Assert.Equal(ProjectIdeaStatuses.Active, idea.Status);
@@ -284,11 +362,11 @@ public sealed class ProjectIdeaCommandServiceTests
         var staleCopy = await secondDb.ProjectIdeas.SingleAsync();
 
         firstCopy.Description = "First save";
-        await new ProjectIdeaCommandService(firstDb).UpdateAsync(firstCopy);
+        await new ProjectIdeaCommandService(firstDb).UpdateAsync(firstCopy, firstCopy.RowVersion.ToArray(), Actor("hod-1", RoleNames.HoD));
 
         staleCopy.Description = "Stale save";
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ProjectIdeaCommandService(secondDb).UpdateAsync(staleCopy));
+            new ProjectIdeaCommandService(secondDb).UpdateAsync(staleCopy, staleCopy.RowVersion.ToArray(), Actor("hod-1", RoleNames.HoD)));
 
         Assert.Equal(ProjectIdeaCommandService.ConcurrencyConflictMessage, exception.Message);
     }

@@ -16,7 +16,6 @@ public class ProjectIdeaReadService
         string? query,
         bool myIdeas,
         string? userId,
-        bool canViewAll,
         string? sort = null,
         string? projectOfficerUserId = null,
         string? assignment = null)
@@ -30,7 +29,6 @@ public class ProjectIdeaReadService
                 query,
                 myIdeas,
                 userId,
-                canViewAll,
                 projectOfficerUserId,
                 assignment)
             .Where(x => x.Status == status)
@@ -54,7 +52,6 @@ public class ProjectIdeaReadService
         string? query,
         bool myIdeas,
         string? userId,
-        bool canViewAll,
         string? projectOfficerUserId = null,
         string? assignment = null)
     {
@@ -63,7 +60,6 @@ public class ProjectIdeaReadService
             query,
             myIdeas,
             userId,
-            canViewAll,
             projectOfficerUserId,
             assignment);
 
@@ -78,14 +74,11 @@ public class ProjectIdeaReadService
             status => groupedCounts.GetValueOrDefault(status));
     }
 
-    public async Task<IReadOnlyList<ProjectIdeaOfficerOption>> GetBoardProjectOfficersAsync(
-        string? userId,
-        bool canViewAll)
+    public async Task<IReadOnlyList<ProjectIdeaOfficerOption>> GetBoardProjectOfficersAsync()
     {
-        var candidates = await ApplyBoardVisibility(
-                _db.ProjectIdeas.AsNoTracking(),
-                userId,
-                canViewAll)
+        var candidates = await _db.ProjectIdeas
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted)
             .Where(x => x.AssignedProjectOfficerUserId != null && x.AssignedProjectOfficerUser != null)
             .Select(x => new
             {
@@ -173,11 +166,12 @@ public class ProjectIdeaReadService
         string? query,
         bool myIdeas,
         string? userId,
-        bool canViewAll,
         string? projectOfficerUserId,
         string? assignment)
     {
-        ideas = ApplyBoardVisibility(ideas, userId, canViewAll);
+        // Every authorised PRISM user sees the same operational Idea population.
+        // "My Ideas" remains an explicit assignment shortcut, not a visibility rule.
+        ideas = ideas.Where(x => !x.IsDeleted);
 
         if (myIdeas)
         {
@@ -233,29 +227,6 @@ public class ProjectIdeaReadService
         }
 
         return ideas;
-    }
-
-    private static IQueryable<ProjectIdea> ApplyBoardVisibility(
-        IQueryable<ProjectIdea> ideas,
-        string? userId,
-        bool canViewAll)
-    {
-        ideas = ideas.Where(x => !x.IsDeleted);
-
-        if (canViewAll)
-        {
-            return ideas;
-        }
-
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return ideas.Where(_ => false);
-        }
-
-        return ideas.Where(x =>
-            x.CreatedByUserId == userId ||
-            x.AssignedProjectOfficerUserId == userId ||
-            x.AssignedHodUserId == userId);
     }
 
     private static IEnumerable<ProjectIdea> SortIdeas(IEnumerable<ProjectIdea> ideas, string sort)

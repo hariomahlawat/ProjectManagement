@@ -5,7 +5,7 @@ namespace ProjectManagement.Services.ProjectIdeas;
 
 /// <summary>
 /// Central governance rules for Project Idea lifecycle and discussion mutations.
-/// Keeps the Details UI and command layer aligned with the established Project Remarks policy.
+/// Keeps UI permission checks and command-side enforcement aligned.
 /// </summary>
 public static class ProjectIdeaGovernancePolicy
 {
@@ -17,10 +17,44 @@ public static class ProjectIdeaGovernancePolicy
     public const string ArchivedIdeaMessage = "Archived ideas cannot be updated. Restore the idea first.";
     public const string DeletedIdeaMessage = "Deleted ideas cannot be updated.";
 
-    public static bool CanDeleteAnyIdea(IReadOnlyCollection<string> roles)
+    /// <summary>
+    /// Lifecycle authority is deliberately separate from operational editing.
+    /// Comdt/HoD/Admin may archive, restore and soft-delete Ideas.
+    /// </summary>
+    public static bool CanManageIdeaLifecycle(IReadOnlyCollection<string> roles)
         => HasRole(roles, RoleNames.Comdt)
            || HasRole(roles, RoleNames.HoD)
            || HasRole(roles, RoleNames.Admin);
+
+    // Retained as a compatibility alias for existing deletion command semantics.
+    public static bool CanDeleteAnyIdea(IReadOnlyCollection<string> roles)
+        => CanManageIdeaLifecycle(roles);
+
+    /// <summary>
+    /// Operational editing is allowed to the currently assigned Project Officer,
+    /// any HoD and Comdt. Admin alone does not grant Idea-edit authority.
+    /// </summary>
+    public static bool CanEditIdeaRecord(
+        string? assignedProjectOfficerUserId,
+        string status,
+        bool isDeleted,
+        ProjectIdeaActorContext actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        if (isDeleted || string.Equals(status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (HasRole(actor.Roles, RoleNames.Comdt) || HasRole(actor.Roles, RoleNames.HoD))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(actor.UserId)
+            && string.Equals(assignedProjectOfficerUserId, actor.UserId, StringComparison.Ordinal);
+    }
 
     public static bool CanManageConferenceComments(IReadOnlyCollection<string> roles)
         => HasRole(roles, RoleNames.Comdt)
@@ -57,7 +91,9 @@ public static class ProjectIdeaGovernancePolicy
             return ProjectIdeaMutationDecision.Denied("This discussion remark has already been deleted.", "CommentDeleted");
         }
 
-        if (!CanActorViewIdea(idea, actor))
+        // All authenticated/authorised PRISM users may view operational Ideas.
+        // Command actors are represented by a resolved user id.
+        if (string.IsNullOrWhiteSpace(actor.UserId))
         {
             return ProjectIdeaMutationDecision.Denied(PermissionDeniedMessage, "IdeaNotVisible");
         }
@@ -88,19 +124,6 @@ public static class ProjectIdeaGovernancePolicy
         return ProjectIdeaMutationDecision.Denied(
             isDelete ? DeleteWindowMessage : EditWindowMessage,
             "AuthorWindowExpired");
-    }
-
-
-    private static bool CanActorViewIdea(ProjectIdea idea, ProjectIdeaActorContext actor)
-    {
-        if (HasGeneralCommentOverride(actor.Roles))
-        {
-            return true;
-        }
-
-        return string.Equals(idea.CreatedByUserId, actor.UserId, StringComparison.Ordinal)
-            || string.Equals(idea.AssignedProjectOfficerUserId, actor.UserId, StringComparison.Ordinal)
-            || string.Equals(idea.AssignedHodUserId, actor.UserId, StringComparison.Ordinal);
     }
 
     public static bool HasRole(IReadOnlyCollection<string> roles, string roleName)

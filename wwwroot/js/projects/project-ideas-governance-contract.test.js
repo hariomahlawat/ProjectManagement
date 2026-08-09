@@ -44,6 +44,20 @@ test('idea deletion is controlled soft-delete with a recovery workspace', () => 
 });
 
 
+
+test('idea visibility and lifecycle permissions follow the organisation-wide governance matrix', () => {
+    const readService = read('Services', 'ProjectIdeas', 'ProjectIdeaReadService.cs');
+    const boardModel = read('Pages', 'ProjectIdeas', 'Index.cshtml.cs');
+
+    assert.match(permissions, /CanViewIdea\(ClaimsPrincipal user, ProjectIdea idea\)[\s\S]*IsAuthenticated == true && !idea\.IsDeleted/);
+    assert.match(permissions, /CanEditIdeaCore\(ClaimsPrincipal user, ProjectIdea idea\)[\s\S]*IsOperationalEditor/);
+    assert.match(permissions, /CanArchiveIdea\(ClaimsPrincipal user\) => IsLifecycleAuthority\(user\)/);
+    assert.match(permissions, /CanDeleteIdea\(ClaimsPrincipal user\) => IsLifecycleAuthority\(user\)/);
+    assert.match(permissions, /CanRestoreDeletedIdea\(ClaimsPrincipal user\) => IsLifecycleAuthority\(user\)/);
+    assert.doesNotMatch(readService, /canViewAll/);
+    assert.doesNotMatch(boardModel, /canViewAll/);
+});
+
 test('deleted ideas and deleted directions are excluded from operational conference surfaces', () => {
     assert.match(officerWorkload, /!idea\.IsDeleted/);
     assert.match(poWorkspace, /!idea\.IsDeleted/);
@@ -57,10 +71,10 @@ test('governance mutations use friendly optimistic concurrency handling', () => 
     assert.match(commands, /ApplyRowVersion\(idea, rowVersion\)/);
     assert.match(commands, /ApplyRowVersion\(comment, rowVersion\)/);
     assert.match(details, /name="rowVersion"/);
-    assert.match(detailsModel, /ArchiveAsync\(Idea, archiveReason, DecodeRowVersion\(rowVersion\)\)/);
-    assert.match(detailsModel, /RestoreAsync\(Idea, DecodeRowVersion\(rowVersion\)\)/);
+    assert.match(detailsModel, /ArchiveAsync\(Idea, archiveReason, DecodeRowVersion\(rowVersion\), CurrentActor\(\)\)/);
+    assert.match(detailsModel, /RestoreAsync\(Idea, DecodeRowVersion\(rowVersion\), CurrentActor\(\)\)/);
     assert.match(edit, /asp-for="Input.RowVersion"/);
-    assert.match(editModel, /UpdateAsync\(idea, DecodeRowVersion\(Input.RowVersion\)\)/);
+    assert.match(editModel, /UpdateAsync\([\s\S]*idea,[\s\S]*DecodeRowVersion\(Input.RowVersion\),[\s\S]*CurrentActor\(\)/);
 });
 
 test('idea remark counts remain collective across general and conference subtypes', () => {

@@ -9,7 +9,7 @@ namespace ProjectManagement.Tests;
 public class ProjectIdeaReadServiceTests
 {
     [Fact]
-    public async Task Status_counts_respect_idea_visibility()
+    public async Task Status_counts_include_all_non_deleted_ideas_for_authorised_users()
     {
         await using var db = CreateContext();
         db.ProjectIdeas.AddRange(
@@ -22,12 +22,31 @@ public class ProjectIdeaReadServiceTests
         var counts = await service.GetBoardStatusCountsAsync(
             query: null,
             myIdeas: false,
-            userId: "user-1",
-            canViewAll: false);
+            userId: "user-1");
 
         Assert.Equal(1, counts[ProjectIdeaStatuses.Active]);
         Assert.Equal(1, counts[ProjectIdeaStatuses.OnHold]);
-        Assert.Equal(0, counts[ProjectIdeaStatuses.Archived]);
+        Assert.Equal(1, counts[ProjectIdeaStatuses.Archived]);
+    }
+
+    [Fact]
+    public async Task Board_returns_unrelated_non_deleted_ideas_to_authorised_users()
+    {
+        await using var db = CreateContext();
+        db.ProjectIdeas.AddRange(
+            Idea(1, "Mine", ProjectIdeaStatuses.Active, createdBy: "user-1", assignedOfficer: "user-1"),
+            Idea(2, "Unrelated", ProjectIdeaStatuses.Active, createdBy: "other", assignedOfficer: "po-2", assignedHod: "hod-2"));
+        await db.SaveChangesAsync();
+
+        var service = new ProjectIdeaReadService(db);
+        var ideas = await service.GetBoardIdeasAsync(
+            ProjectIdeaStatuses.Active,
+            query: null,
+            myIdeas: false,
+            userId: "user-1",
+            sort: ProjectIdeaSorts.Title);
+
+        Assert.Equal(new[] { "Mine", "Unrelated" }, ideas.Select(idea => idea.Title));
     }
 
     [Fact]
@@ -47,7 +66,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: true,
             userId: "user-1",
-            canViewAll: true,
             projectOfficerUserId: "other-user",
             assignment: ProjectIdeaAssignmentFilters.Unassigned);
 
@@ -70,7 +88,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: true,
             userId: "user-1",
-            canViewAll: true,
             projectOfficerUserId: "other-user",
             assignment: ProjectIdeaAssignmentFilters.Unassigned);
 
@@ -103,7 +120,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: false,
             userId: "user-1",
-            canViewAll: true,
             sort: ProjectIdeaSorts.Title);
 
         var latest = await service.GetBoardIdeasAsync(
@@ -111,7 +127,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: false,
             userId: "user-1",
-            canViewAll: true,
             sort: ProjectIdeaSorts.LatestActivity);
 
         Assert.Equal(new[] { "Alpha", "Zulu" }, alphabetical.Select(x => x.Title));
@@ -135,7 +150,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: false,
             userId: "creator",
-            canViewAll: true,
             projectOfficerUserId: "po-1");
 
         var assignedIdeas = await service.GetBoardIdeasAsync(
@@ -143,7 +157,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: false,
             userId: "creator",
-            canViewAll: true,
             assignment: ProjectIdeaAssignmentFilters.Assigned);
 
         var unassignedIdeas = await service.GetBoardIdeasAsync(
@@ -151,7 +164,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: false,
             userId: "creator",
-            canViewAll: true,
             assignment: ProjectIdeaAssignmentFilters.Unassigned);
 
         Assert.Equal(new[] { "Officer one" }, officerIdeas.Select(x => x.Title));
@@ -174,7 +186,6 @@ public class ProjectIdeaReadServiceTests
             query: null,
             myIdeas: false,
             userId: "creator",
-            canViewAll: true,
             projectOfficerUserId: "po-1");
 
         Assert.Equal(1, counts[ProjectIdeaStatuses.Active]);
@@ -183,24 +194,26 @@ public class ProjectIdeaReadServiceTests
     }
 
     [Fact]
-    public async Task Officer_options_are_distinct_sorted_and_visibility_scoped()
+    public async Task Officer_options_are_distinct_sorted_across_the_authorised_board()
     {
         await using var db = CreateContext();
         db.Users.AddRange(
             new ApplicationUser { Id = "po-1", UserName = "zulu", FullName = "Zulu Officer" },
             new ApplicationUser { Id = "po-2", UserName = "alpha", FullName = "Alpha Officer" });
         db.ProjectIdeas.AddRange(
-            Idea(1, "Visible one", ProjectIdeaStatuses.Active, "user-1", assignedOfficer: "po-1"),
-            Idea(2, "Visible duplicate", ProjectIdeaStatuses.OnHold, "user-1", assignedOfficer: "po-1"),
-            Idea(3, "Hidden", ProjectIdeaStatuses.Active, "other", assignedOfficer: "po-2"));
+            Idea(1, "Officer one", ProjectIdeaStatuses.Active, "user-1", assignedOfficer: "po-1"),
+            Idea(2, "Officer one duplicate", ProjectIdeaStatuses.OnHold, "user-1", assignedOfficer: "po-1"),
+            Idea(3, "Officer two", ProjectIdeaStatuses.Active, "other", assignedOfficer: "po-2"));
         await db.SaveChangesAsync();
 
         var service = new ProjectIdeaReadService(db);
-        var options = await service.GetBoardProjectOfficersAsync("user-1", canViewAll: false);
+        var options = await service.GetBoardProjectOfficersAsync();
 
-        var option = Assert.Single(options);
-        Assert.Equal("po-1", option.UserId);
-        Assert.Equal("Zulu Officer", option.DisplayName);
+        Assert.Equal(2, options.Count);
+        Assert.Equal("po-2", options[0].UserId);
+        Assert.Equal("Alpha Officer", options[0].DisplayName);
+        Assert.Equal("po-1", options[1].UserId);
+        Assert.Equal("Zulu Officer", options[1].DisplayName);
     }
 
 
@@ -223,8 +236,7 @@ public class ProjectIdeaReadServiceTests
             ProjectIdeaStatuses.Active,
             query: null,
             myIdeas: false,
-            userId: "creator",
-            canViewAll: true);
+            userId: "creator");
         var recovery = await service.GetDeletedIdeasAsync();
 
         Assert.Equal(new[] { "Active" }, operational.Select(idea => idea.Title));

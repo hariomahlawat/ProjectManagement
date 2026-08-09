@@ -50,14 +50,6 @@
                 <strong>@Model.DisplayUser(Model.Idea.AssignedProjectOfficerUser, "Unassigned")</strong>
             </div>
 
-            @if (Model.ShowRestrictedEditNotice)
-            {
-                <div class="pi-permission-note" role="note">
-                    <span class="bi bi-info-circle" aria-hidden="true"></span>
-                    You may update the description. Ownership and status remain controlled by HoD, Admin and Comdt.
-                </div>
-            }
-
             <div class="pi-detail-secondary-meta" aria-label="Idea record information">
                 <span title="Assigned HoD">
                     <span class="bi bi-person-badge" aria-hidden="true"></span>

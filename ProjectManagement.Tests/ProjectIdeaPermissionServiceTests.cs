@@ -10,34 +10,105 @@ public class ProjectIdeaPermissionServiceTests
     private readonly ProjectIdeaPermissionService _service = new();
 
     [Fact]
-    public void Assigned_project_officer_can_edit_description_but_not_core_fields()
+    public void Any_authenticated_user_can_view_any_non_deleted_idea()
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-2");
+        idea.CreatedByUserId = "creator-2";
+        idea.AssignedHodUserId = "hod-2";
+
+        var unrelatedUser = Principal("user-1", "User");
+
+        Assert.True(_service.CanViewIdea(unrelatedUser, idea));
+    }
+
+    [Fact]
+    public void Unauthenticated_user_cannot_view_idea()
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        Assert.False(_service.CanViewIdea(new ClaimsPrincipal(new ClaimsIdentity()), idea));
+    }
+
+    [Fact]
+    public void Deleted_idea_is_not_visible_through_operational_details()
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        idea.IsDeleted = true;
+
+        Assert.False(_service.CanViewIdea(Principal("user-1", "User"), idea));
+    }
+
+    [Fact]
+    public void Assigned_project_officer_can_edit_the_full_operational_idea_record()
     {
         var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
         var user = Principal("po-1", RoleNames.ProjectOfficer);
 
         Assert.True(_service.CanEditDescription(user, idea));
         Assert.True(_service.CanEditIdea(user, idea));
-        Assert.False(_service.CanEditIdeaCore(user, idea));
+        Assert.True(_service.CanEditIdeaCore(user, idea));
     }
 
     [Fact]
-    public void Unassigned_project_officer_cannot_edit_description()
+    public void Unassigned_project_officer_cannot_edit_idea()
     {
         var idea = ActiveIdea(assignedProjectOfficerUserId: "po-2");
         var user = Principal("po-1", RoleNames.ProjectOfficer);
 
         Assert.False(_service.CanEditDescription(user, idea));
         Assert.False(_service.CanEditIdea(user, idea));
+        Assert.False(_service.CanEditIdeaCore(user, idea));
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    public void Idea_operational_editing_uses_assigned_po_or_command_roles(string role, bool expected)
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "different-po");
+        var user = Principal($"user-{role}", role);
+
+        Assert.Equal(expected, _service.CanEditIdea(user, idea));
+        Assert.Equal(expected, _service.CanEditIdeaCore(user, idea));
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, true)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    public void Idea_lifecycle_actions_are_command_admin_governed(string role, bool expected)
+    {
+        var user = Principal($"user-{role}", role);
+
+        Assert.Equal(expected, _service.CanArchiveIdea(user));
+        Assert.Equal(expected, _service.CanRestoreIdea(user));
+        Assert.Equal(expected, _service.CanDeleteIdea(user));
+        Assert.Equal(expected, _service.CanRestoreDeletedIdea(user));
+        Assert.Equal(expected, _service.CanViewDeletedIdeas(user));
     }
 
     [Fact]
-    public void Privileged_user_can_edit_description_and_core_fields()
+    public void Assigned_project_officer_does_not_gain_lifecycle_authority_from_assignment()
+    {
+        var user = Principal("po-1", RoleNames.ProjectOfficer);
+
+        Assert.False(_service.CanArchiveIdea(user));
+        Assert.False(_service.CanRestoreIdea(user));
+        Assert.False(_service.CanDeleteIdea(user));
+        Assert.False(_service.CanRestoreDeletedIdea(user));
+    }
+
+    [Fact]
+    public void Archived_idea_is_read_only_even_for_an_operational_editor()
     {
         var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
-        var user = Principal("hod-1", RoleNames.HoD);
+        idea.Status = ProjectIdeaStatuses.Archived;
 
-        Assert.True(_service.CanEditDescription(user, idea));
-        Assert.True(_service.CanEditIdeaCore(user, idea));
+        Assert.False(_service.CanEditIdea(Principal("po-1", RoleNames.ProjectOfficer), idea));
+        Assert.False(_service.CanEditIdea(Principal("hod-1", RoleNames.HoD), idea));
+        Assert.False(_service.CanEditIdea(Principal("comdt-1", RoleNames.Comdt), idea));
     }
 
     [Theory]
@@ -63,19 +134,6 @@ public class ProjectIdeaPermissionServiceTests
         Assert.False(_service.CanAddConferenceComment(Principal("hod-1", RoleNames.HoD), idea));
     }
 
-    [Fact]
-    public void Archived_idea_is_read_only_for_assigned_project_officer()
-    {
-        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
-        idea.Status = ProjectIdeaStatuses.Archived;
-        var user = Principal("po-1", RoleNames.ProjectOfficer);
-
-        Assert.False(_service.CanEditDescription(user, idea));
-        Assert.False(_service.CanEditIdea(user, idea));
-    }
-
-
-
     [Theory]
     [InlineData(RoleNames.Comdt, ProjectIdeaCommentTypes.Conference)]
     [InlineData(RoleNames.HoD, ProjectIdeaCommentTypes.General)]
@@ -98,20 +156,6 @@ public class ProjectIdeaPermissionServiceTests
         Assert.Equal(ProjectIdeaCommentTypes.Conference, _service.GetDefaultCommentType(user, idea));
     }
 
-    [Theory]
-    [InlineData(RoleNames.Comdt, true)]
-    [InlineData(RoleNames.HoD, true)]
-    [InlineData(RoleNames.Admin, true)]
-    [InlineData(RoleNames.ProjectOfficer, false)]
-    public void Idea_delete_and_deleted_restore_are_command_governed(string role, bool expected)
-    {
-        var user = Principal($"user-{role}", role);
-
-        Assert.Equal(expected, _service.CanDeleteIdea(user));
-        Assert.Equal(expected, _service.CanRestoreDeletedIdea(user));
-        Assert.Equal(expected, _service.CanViewDeletedIdeas(user));
-    }
-
     [Fact]
     public void General_comment_author_can_edit_and_delete_within_three_hours_only()
     {
@@ -122,10 +166,10 @@ public class ProjectIdeaPermissionServiceTests
             ProjectIdeaId = idea.Id,
             CommentType = ProjectIdeaCommentTypes.General,
             CommentText = "Progress",
-            CreatedByUserId = "po-1",
+            CreatedByUserId = "user-1",
             CreatedAt = now.AddHours(-2)
         };
-        var user = Principal("po-1", RoleNames.ProjectOfficer);
+        var user = Principal("user-1", "User");
 
         Assert.True(_service.CanEditComment(user, idea, comment, now));
         Assert.True(_service.CanDeleteComment(user, idea, comment, now));
