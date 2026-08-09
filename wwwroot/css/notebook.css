@@ -3936,3 +3936,166 @@ body.notebook-confirm-open { overflow: hidden; }
         padding-bottom: 4px;
     }
 }
+
+/* SECTION: Direct reminder creation — expanded-card refinement
+   The reminder creator keeps the established scheduler controls, but removes
+   nested panel chrome and shares the compact action-bar language used elsewhere. */
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-modal__dialog {
+    width: min(590px, calc(100vw - 32px));
+    max-height: min(700px, calc(100vh - 48px));
+    border: 1px solid rgba(71, 85, 105, .18);
+    border-radius: 12px;
+    box-shadow: 0 20px 54px rgba(15, 23, 42, .22), 0 2px 8px rgba(15, 23, 42, .08);
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-modal__header,
+.notebook-modal.is-create-mode[data-direct-reminder="true"] > .notebook-modal__dialog > header {
+    padding: 14px 16px 4px;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-modal__body {
+    min-height: 54px;
+    max-height: 110px;
+    padding: 6px 16px 10px;
+    resize: none;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details {
+    margin: 0 16px 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-reminder-scheduler {
+    gap: .65rem;
+    margin: 0;
+    padding: 8px 0 12px;
+    border: 0;
+    border-top: 1px solid rgba(100, 116, 139, .14);
+    border-bottom: 1px solid rgba(100, 116, 139, .14);
+    border-radius: 0;
+    background: transparent;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-reminder-presets {
+    gap: .36rem;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-reminder-presets button {
+    min-height: 30px;
+    padding: .28rem .56rem;
+    background: #fff;
+    font-size: .71rem;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-reminder-date-time {
+    gap: .58rem;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details input,
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details select {
+    height: 38px;
+    min-height: 38px;
+    border-radius: 8px;
+    font-size: .79rem;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details__grid {
+    grid-template-columns: minmax(150px, 190px);
+    max-width: none;
+    padding: 10px 0 2px;
+}
+
+/* Colour, labels, draft state and explicit create/close actions now read as one
+   footer rather than two independent form toolbars. */
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-bottom-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .45rem;
+    min-height: 48px;
+    margin-top: 2px;
+    padding: 5px 12px 7px;
+    border-top: 1px solid rgba(100, 116, 139, .14);
+    background: #fff;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-toolbar {
+    min-height: 36px;
+    padding: 0;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-save-feedback {
+    display: none;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-bottom-bar > footer {
+    grid-column: 2;
+    position: static;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    backdrop-filter: none;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-draft-status {
+    min-width: 0;
+    margin-right: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-submit {
+    min-width: 0;
+    min-height: 34px;
+    padding: .34rem .72rem;
+    border-radius: 7px;
+    font-size: .78rem;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-close-button,
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-discard {
+    min-height: 34px;
+    padding: .32rem .62rem;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    font-size: .76rem;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-close-button:hover,
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-close-button:focus-visible {
+    background: rgba(60, 64, 67, .07);
+    outline: none;
+}
+
+@media (max-width: 640px) {
+    .notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-modal__dialog {
+        width: 100%;
+        max-width: none;
+        max-height: 100vh;
+        min-height: 100vh;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-editor-bottom-bar > footer {
+        grid-column: 1 / -1;
+    }
+
+    .notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-submit {
+        margin-left: auto;
+    }
+}

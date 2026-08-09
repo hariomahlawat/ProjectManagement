@@ -1,70 +1,67 @@
-PRISM ERP — Notebook Card Click Consistency Fix
+PRISM ERP — Notebook Direct Reminder UI Refinement
 Date: 09 Aug 2026
 
-Purpose
+PURPOSE
 -------
-This focused refinement makes Note and Checklist cards follow one interaction model:
+This is a focused visual refinement of the dedicated "Create reminder" workflow.
+It is based on the latest Keep-inspired Notebook + card-click-consistency implementation.
 
-  • Click passive card content -> open the note/checklist editor.
-  • Click a checklist checkbox -> toggle only that checklist item.
-  • Click checklist item text -> open the checklist editor.
-  • Click labels/actions/buttons -> keep their own action; do not open the card.
-  • Rearrange mode -> passive card opening is suppressed so drag/reorder remains predictable.
+WHAT CHANGES
+------------
+1. Removes the nested-card/form-panel appearance from the reminder scheduler.
+2. Makes the reminder modal narrower and more like an expanded Notebook card.
+3. Keeps title/notes compact while preserving all existing reminder functionality.
+4. Keeps Later today / Tomorrow 09:00 / Next Monday 09:00 presets unchanged.
+5. Keeps precise Date, Time, IST summary and Low/Normal/High priority unchanged.
+6. Makes Priority a compact metadata control rather than a second large panel.
+7. Combines Colour, Labels, draft state, Create reminder and Close into one bottom bar.
+8. Retains a clear primary Create reminder action.
+9. Includes responsive full-screen behavior on small screens.
 
-Implementation details
-----------------------
-1. Checklist preview markup now separates the checkbox control from the item text.
-   The previous implementation placed both icon and text inside the toggle button, causing a
-   click anywhere on the row text to complete/uncomplete the item.
+NO BEHAVIOURAL / DATA CHANGES
+-----------------------------
+- No API changes.
+- No service changes.
+- No model/entity changes.
+- No EF migration.
+- No reminder scheduling logic changes.
+- No Note/Checklist/card interaction changes.
 
-2. notebook-app.js now uses a single passive card-opening contract for ordinary card content.
-   Interactive descendants are explicitly excluded.
-
-3. notebook-utils.js contains getPassiveNotebookCardOpenTarget(), centralising the interaction
-   rule rather than duplicating selector logic in the application bootstrap.
-
-4. CSS now lays checklist rows out as a dedicated checkbox column + content column, preserving
-   compact PRISM styling and multiline wrapping.
-
-5. Accessibility is retained/improved: checkbox controls have item-specific aria-labels, while
-   keyboard users can still open the record via the card title link.
-
-6. Regression tests cover passive content, interactive descendants, rearrange mode, checklist
-   rendering, and drag-target semantics.
-
-Files to replace/add
+READY-TO-PASTE FILES
 --------------------
-See CHANGED-FILES.txt. Copy the package contents over the project root, preserving folders.
+wwwroot/css/notebook.css
+wwwroot/js/notebook/notebook-reminder-create-refinement-contract.test.js
 
-Build
------
-No database migration or C# production/service change is required.
+APPLICATION
+-----------
+Copy the two paths above over the same paths in the ProjectManagement project.
+The CSS file is the COMPLETE latest notebook.css, not a fragment.
 
-After replacing the files, rebuild the Notebook assets and solution:
+VALIDATION PERFORMED
+--------------------
+Focused Node test run: 22/22 passed, covering:
+- Create editor type/payload contracts
+- Direct reminder creation contracts
+- IST scheduler serialization/presets/summary
+- Card opening regression tests
+- New reminder visual contract tests
 
-  npm run build:notebook
-  npm run check:notebook-assets
-  dotnet build
-  dotnet test
-
-If node_modules are not present, run npm ci first.
-
-Then hard-refresh Notebook (Ctrl+F5).
-
-Acceptance checks
+AFTER REPLACEMENT
 -----------------
-1. Click a normal Note title/body -> editor opens.
-2. Click a Checklist title -> editor opens.
-3. Click checklist ITEM TEXT -> editor opens; item state does not change.
-4. Click checklist CHECKBOX -> item toggles; editor does not open.
-5. Click a label chip -> label view opens; editor does not open.
-6. Click Pin/Colour/Labels/Share/More -> only that command executes.
-7. Click passive blank content inside a checklist card -> editor opens.
-8. Enter Rearrange mode -> clicking/dragging passive content does not open the editor.
+1. Rebuild the solution normally.
+2. Optional but recommended:
+      npm test
+      npm run check:notebook-assets
+      dotnet build
+      dotnet test
+3. Hard refresh Notebook (Ctrl+F5).
+4. Open the bell quick-create action and verify:
+   - compact Reminder title + notes area
+   - borderless When section
+   - quick time chips
+   - Date + Time controls
+   - compact Priority selector
+   - Colour / Labels + Create reminder / Close in one bottom bar
 
-Validation performed here
--------------------------
-• Modified ES-module sources passed Node syntax checks using module input mode.
-• New dependency-free interaction tests: 4/4 passed.
-• Existing dependency-free Notebook refinement/contract tests included in the check: 11/11 passed total.
-• Full .NET compilation cannot be executed in this runtime because the .NET SDK is unavailable.
+The runtime JavaScript bundle does not require regeneration solely for this change,
+because runtime JS was not modified. A normal project build remains recommended.

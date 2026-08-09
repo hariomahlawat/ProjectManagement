@@ -1,7 +1,2 @@
-Pages/Notebook/_NotebookCard.cshtml
-wwwroot/js/notebook/notebook-app.js
-wwwroot/js/notebook/notebook-utils.js
 wwwroot/css/notebook.css
-wwwroot/js/notebook/notebook-drag-order.test.js
-wwwroot/js/notebook/notebook-card-open.test.js
-ProjectManagement.Tests/NotebookCardRendererTests.cs
+wwwroot/js/notebook/notebook-reminder-create-refinement-contract.test.js
