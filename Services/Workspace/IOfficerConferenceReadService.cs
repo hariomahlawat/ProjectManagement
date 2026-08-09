@@ -23,6 +23,15 @@ public interface IOfficerConferenceReadService
         string projectOfficerUserId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Builds the live command digest used by Notebook. Only the latest conference
+    /// direction for each in-scope project, idea or task is included. Items without a
+    /// conference direction, and officers with no directed items, are omitted.
+    /// </summary>
+    Task<ConferenceDirectionDigestVm?> GetLatestDirectionDigestAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default);
+
     Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryAsync(
         string requestingUserId,
         string officerUserId,

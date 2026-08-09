@@ -1,37 +1,33 @@
-PRISM ERP — Project Officer Conference Review header refinement
+PRISM ERP — Notebook Conference Digest Final Polish
 Date: 09 Aug 2026
 
-Purpose
--------
-This focused patch applies two final refinements to the Project Officer read-only
-Conference Review:
+PURPOSE
+This is a focused presentation refinement for the Command > Latest Conference Directions system note.
+It applies on top of the previously supplied PRISM-Notebook-Conference-Digest-Compact package.
 
-1. Removes the explanatory information strip below the header.
-2. Corrects ERP activity strip overflow in the read-only header.
+IMPLEMENTED
+1. Replaced ambiguous "current directions" terminology with the precise "latest directions" wording.
+2. Removed redundant per-Project-Officer direction-count text from the expanded register.
+3. Removed horizontal dividers between every individual project/idea/task direction.
+4. Retained one subtle divider only between Project Officer sections.
+5. Tightened vertical spacing between direction entries so the register reads as a compact command note rather than a table.
+6. Kept Project Officer name and Conference review link on one clean heading row.
+7. Changed footer wording from "Live from Conference Review" to the restrained "Source: Conference Review".
+8. No query, authorization, service, database, EF migration, or JavaScript runtime behavior changes.
 
-Implementation notes
---------------------
-- The PO header now uses an explicit two-region CSS Grid instead of inheriting
-  the Command Conference three-column header geometry.
-- The Read only badge and ERP activity strip share the right-hand region.
-- The 30-day activity cells are distributed responsively inside the available
-  activity-strip width; all 30 days remain visible.
-- At medium widths the tools move to a second row. At narrow widths the badge
-  and activity strip stack cleanly.
-- No server logic, authorization, conference semantics, database schema, or EF
-  migration is changed.
+FILES TO REPLACE
+Pages/Notebook/_NotebookConferenceDigest.cshtml
+wwwroot/css/notebook.css
+wwwroot/js/notebook/notebook-conference-digest-contract.test.js
 
-Files to replace
-----------------
-Pages/Workspace/_ProjectOfficerConference.cshtml
-wwwroot/css/officer-conference.css
-wwwroot/js/pages/officer-conference.test.js
+APPLICATION
+Copy the package contents over the ProjectManagement project root and replace the matching files.
+Then rebuild and run the normal tests.
 
-After replacement
------------------
-Run:
-  dotnet build
-  dotnet test
+VALIDATION PERFORMED HERE
+- Focused Node contract tests: 6/6 passed.
+- Verified the expanded partial contains no "current direction" wording.
+- Verified per-item divider CSS was removed.
+- Verified PO-section divider CSS remains.
 
-If your normal frontend build/test pipeline includes Node tests, run that as
-usual. Then hard-refresh the PO Conference Review (Ctrl+F5).
+No EF migration is required.

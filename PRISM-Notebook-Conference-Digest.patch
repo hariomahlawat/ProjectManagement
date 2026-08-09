@@ -1,0 +1,1181 @@
+--- a/Pages/Notebook/Index.cshtml
++++ b/Pages/Notebook/Index.cshtml
+@@ -157,6 +157,13 @@
+             <button type="button" data-notebook-global-error-close aria-label="Dismiss error">×</button>
+         </div>
+ 
++        @* SECTION: Live command digest. This is a virtual read-only note and is not
++           counted, sorted, archived or persisted with user Notebook items. *@
++        @if (Model.ConferenceDigest is { TotalDirectionCount: > 0 } conferenceDigest)
++        {
++            <partial name="_NotebookConferenceDigest" model="conferenceDigest" />
++        }
++
+         @* SECTION: Card-first notebook board *@
+         @if (Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
+         {
+@@ -177,7 +184,9 @@
+         @if (Model.Notebook.View == "home")
+         {
+ 
+-            var hasAnyHomeItems = Model.Notebook.PinnedItems.Any() || Model.Notebook.OtherItems.Any();
++            var hasAnyHomeItems = Model.Notebook.PinnedItems.Any()
++                || Model.Notebook.OtherItems.Any()
++                || Model.ConferenceDigest is { TotalDirectionCount: > 0 };
+ 
+             @* SECTION: Manual-order friendly home board sections *@
+             <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">
+--- a/Pages/Notebook/Index.cshtml.cs
++++ b/Pages/Notebook/Index.cshtml.cs
+@@ -2,9 +2,12 @@
+ using Microsoft.AspNetCore.Identity;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.AspNetCore.Mvc.RazorPages;
++using ProjectManagement.Configuration;
+ using ProjectManagement.Models;
+ using ProjectManagement.Services.Notebook;
++using ProjectManagement.Services.Workspace;
+ using ProjectManagement.ViewModels.Notebook;
++using ProjectManagement.ViewModels.Workspace;
+ 
+ namespace ProjectManagement.Pages.Notebook;
+ 
+@@ -12,11 +15,16 @@
+ public class IndexModel : PageModel
+ {
+     private readonly INotebookService _notebook;
++    private readonly IOfficerConferenceReadService _conferenceRead;
+     private readonly UserManager<ApplicationUser> _users;
+ 
+-    public IndexModel(INotebookService notebook, UserManager<ApplicationUser> users)
++    public IndexModel(
++        INotebookService notebook,
++        IOfficerConferenceReadService conferenceRead,
++        UserManager<ApplicationUser> users)
+     {
+         _notebook = notebook ?? throw new ArgumentNullException(nameof(notebook));
++        _conferenceRead = conferenceRead ?? throw new ArgumentNullException(nameof(conferenceRead));
+         _users = users ?? throw new ArgumentNullException(nameof(users));
+     }
+ 
+@@ -41,6 +49,7 @@
+     public bool EditLabels { get; set; }
+ 
+     public NotebookIndexVm Notebook { get; private set; } = new();
++    public ConferenceDirectionDigestVm? ConferenceDigest { get; private set; }
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
+     {
+@@ -72,8 +81,21 @@
+ 
+         NormalizeLegacyTypeView();
+         Notebook = await _notebook.GetIndexAsync(userId, View, Query, Filter, Tag, selectedId: null, ct);
++
++        if (ShouldLoadConferenceDigest())
++        {
++            ConferenceDigest = await _conferenceRead.GetLatestDirectionDigestAsync(userId, ct);
++        }
++
+         return Page();
+     }
++
++    private bool ShouldLoadConferenceDigest()
++        => string.Equals(View, "home", StringComparison.OrdinalIgnoreCase)
++            && string.IsNullOrWhiteSpace(Query)
++            && string.IsNullOrWhiteSpace(Filter)
++            && string.IsNullOrWhiteSpace(Tag)
++            && (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD));
+ 
+     private void NormalizeLegacyTypeView()
+     {
+--- a/Pages/Notebook/_NotebookConferenceDigest.cshtml
++++ b/Pages/Notebook/_NotebookConferenceDigest.cshtml
+@@ -0,0 +1,138 @@
++@model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
++@using ProjectManagement.Infrastructure
++@using ProjectManagement.ViewModels.Workspace
++@{
++    const int previewOfficerLimit = 2;
++    const int previewDirectionsPerOfficer = 2;
++    var previewGroups = Model.OfficerGroups.Take(previewOfficerLimit).ToArray();
++    var previewDirectionCount = previewGroups.Sum(group => Math.Min(group.Directions.Count, previewDirectionsPerOfficer));
++    var remainingDirectionCount = Math.Max(0, Model.TotalDirectionCount - previewDirectionCount);
++}
++
++<section class="notebook-board-section notebook-conference-digest" data-conference-digest aria-labelledby="notebook-command-digest-heading">
++    <div class="notebook-section-header notebook-conference-digest__section-header">
++        <h2 id="notebook-command-digest-heading"><i class="bi bi-shield-check" aria-hidden="true"></i>Command</h2>
++        <span>@Model.TotalDirectionCount direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s")</span>
++    </div>
++
++    <article class="notebook-conference-digest-card">
++        <button type="button"
++                class="notebook-conference-digest-card__open"
++                data-bs-toggle="modal"
++                data-bs-target="#notebookConferenceDigestModal"
++                aria-haspopup="dialog"
++                aria-label="Open latest conference directions">
++            <span class="notebook-conference-digest-card__topline">
++                <span>
++                    <strong>Latest Conference Directions</strong>
++                    <small><i class="bi bi-lock" aria-hidden="true"></i> System generated · Read only</small>
++                </span>
++                <span class="notebook-conference-digest-card__count">@Model.TotalDirectionCount</span>
++            </span>
++
++            <span class="notebook-conference-digest-card__groups">
++                @foreach (var group in previewGroups)
++                {
++                    <span class="notebook-conference-digest-preview-group">
++                        <span class="notebook-conference-digest-preview-group__heading">
++                            <strong>@group.OfficerDisplayName</strong>
++                            <small>@group.Directions.Count</small>
++                        </span>
++                        @foreach (var item in group.Directions.Take(previewDirectionsPerOfficer))
++                        {
++                            var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
++                            <span class="notebook-conference-digest-preview-item">
++                                <span class="notebook-conference-digest-preview-item__meta">
++                                    <span>@item.KindLabel</span>
++                                    <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM")</time>
++                                </span>
++                                <strong>@item.Title</strong>
++                                <span class="notebook-conference-digest-preview-item__direction">@item.DirectionText</span>
++                            </span>
++                        }
++                    </span>
++                }
++            </span>
++
++            <span class="notebook-conference-digest-card__footer">
++                @if (remainingDirectionCount > 0)
++                {
++                    <span>+@remainingDirectionCount more direction@(remainingDirectionCount == 1 ? string.Empty : "s")</span>
++                }
++                else
++                {
++                    <span>@Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</span>
++                }
++                <span>View all <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
++            </span>
++        </button>
++    </article>
++
++    <div class="modal fade notebook-conference-digest-modal"
++         id="notebookConferenceDigestModal"
++         tabindex="-1"
++         aria-labelledby="notebookConferenceDigestModalLabel"
++         aria-hidden="true">
++        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable notebook-conference-digest-modal__dialog">
++            <div class="modal-content notebook-conference-digest-modal__content">
++                <header class="notebook-conference-digest-modal__header">
++                    <div>
++                        <div class="notebook-conference-digest-modal__eyebrow">Command · System generated</div>
++                        <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
++                        <p>@Model.TotalDirectionCount current direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
++                    </div>
++                    <div class="notebook-conference-digest-modal__header-actions">
++                        <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
++                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
++                    </div>
++                </header>
++
++                <div class="modal-body notebook-conference-digest-modal__body">
++                    @foreach (var group in Model.OfficerGroups)
++                    {
++                        <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
++                            <header class="notebook-conference-digest-officer__header">
++                                <div>
++                                    <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
++                                    <span>@group.Directions.Count current direction@(group.Directions.Count == 1 ? string.Empty : "s")</span>
++                                </div>
++                                <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
++                                    Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                                </a>
++                            </header>
++
++                            <div class="notebook-conference-digest-officer__items">
++                                @foreach (var item in group.Directions)
++                                {
++                                    var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
++                                    var kindClass = item.Kind switch
++                                    {
++                                        ConferenceItemKind.Project => "is-project",
++                                        ConferenceItemKind.ProjectIdea => "is-idea",
++                                        ConferenceItemKind.ActionTask => "is-task",
++                                        _ => string.Empty
++                                    };
++                                    <article class="notebook-conference-digest-item @kindClass">
++                                        <div class="notebook-conference-digest-item__meta">
++                                            <span class="notebook-conference-digest-item__kind">@item.KindLabel</span>
++                                            <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
++                                        </div>
++                                        <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
++                                            @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                                        </a>
++                                        <p>@item.DirectionText</p>
++                                    </article>
++                                }
++                            </div>
++                        </section>
++                    }
++                </div>
++
++                <footer class="modal-footer notebook-conference-digest-modal__footer">
++                    <span><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Live from Conference Review</span>
++                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
++                </footer>
++            </div>
++        </div>
++    </div>
++</section>
+--- a/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
++++ b/ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs
+@@ -785,6 +785,216 @@
+     }
+ 
+     [Fact]
++    public async Task GetLatestDirectionDigestAsync_GroupsByOfficer_UsesLatestDirection_AndOmitsUndirectedItems()
++    {
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++        await using var db = new ApplicationDbContext(options);
++        await db.Database.EnsureCreatedAsync();
++
++        var command = CreateUser("command-digest", "Command User", "Colonel");
++        var officerA = CreateUser("officer-a", "Alpha Officer", "Lt Col");
++        var officerB = CreateUser("officer-b", "Bravo Officer", "Major");
++        var officerC = CreateUser("officer-c", "Charlie Officer", "Major");
++        db.Users.AddRange(command, officerA, officerB, officerC);
++
++        var hodRole = new IdentityRole
++        {
++            Id = "role-hod-digest",
++            Name = RoleNames.HoD,
++            NormalizedName = RoleNames.HoD.ToUpperInvariant()
++        };
++        db.Roles.Add(hodRole);
++        db.UserRoles.Add(new IdentityUserRole<string>
++        {
++            UserId = command.Id,
++            RoleId = hodRole.Id
++        });
++
++        var activeProject = new Project
++        {
++            Name = "Directed active project",
++            CreatedByUserId = command.Id,
++            LeadPoUserId = officerA.Id,
++            WorkflowVersion = ProcurementWorkflow.VersionV2,
++            LifecycleStatus = ProjectLifecycleStatus.Active
++        };
++        var undirectedProject = new Project
++        {
++            Name = "Undirected project",
++            CreatedByUserId = command.Id,
++            LeadPoUserId = officerC.Id,
++            WorkflowVersion = ProcurementWorkflow.VersionV2,
++            LifecycleStatus = ProjectLifecycleStatus.Active
++        };
++        var completedProject = new Project
++        {
++            Name = "Directed completed project",
++            CreatedByUserId = command.Id,
++            LeadPoUserId = officerA.Id,
++            WorkflowVersion = ProcurementWorkflow.VersionV2,
++            LifecycleStatus = ProjectLifecycleStatus.Completed,
++            CompletedOn = new DateOnly(2026, 7, 25),
++            CompletedYear = 2026,
++            CompletedMonth = 7
++        };
++        var idea = new ProjectIdea
++        {
++            Title = "Directed idea",
++            Description = "Digest test idea",
++            Status = ProjectIdeaStatuses.Active,
++            AssignedProjectOfficerUserId = officerB.Id,
++            CreatedByUserId = command.Id,
++            CreatedAt = Utc(1),
++            UpdatedAt = Utc(9)
++        };
++        var task = new ActionTaskItem
++        {
++            Title = "Directed task",
++            Description = "Digest test task",
++            CreatedByUserId = command.Id,
++            AssignedToUserId = officerA.Id,
++            CreatedByRole = RoleNames.HoD,
++            AssignedToRole = RoleNames.ProjectOfficer,
++            AssignedOn = Utc(1),
++            DueDate = new DateTime(2026, 12, 31),
++            Priority = "Normal",
++            Status = ActionTaskStatuses.InProgress
++        };
++        db.Projects.AddRange(activeProject, undirectedProject, completedProject);
++        db.ProjectIdeas.Add(idea);
++        db.ActionTasks.Add(task);
++        await db.SaveChangesAsync();
++
++        db.Remarks.AddRange(
++            ProjectRemark(activeProject.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Older project direction", Utc(2), StageCodes.BID),
++            ProjectRemark(activeProject.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Latest project direction", Utc(7), StageCodes.TEC),
++            ProjectRemark(completedProject.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Latest closure direction", Utc(10), StageCodes.DEVP));
++        db.ProjectIdeaComments.Add(new ProjectIdeaComment
++        {
++            ProjectIdeaId = idea.Id,
++            CommentText = "Latest idea direction",
++            CommentType = ProjectIdeaCommentTypes.Conference,
++            CreatedByUserId = command.Id,
++            CreatedByRole = RoleNames.HoD,
++            StatusSnapshot = ProjectIdeaStatuses.Active,
++            CreatedAt = Utc(9)
++        });
++        db.ActionTaskUpdates.Add(new ActionTaskUpdate
++        {
++            TaskId = task.Id,
++            Body = "Latest task direction",
++            UpdateType = ActionTaskUpdateTypes.Conference,
++            CreatedByUserId = command.Id,
++            CreatedByRole = RoleNames.HoD,
++            StatusSnapshot = ActionTaskStatuses.InProgress,
++            DueDateSnapshot = new DateOnly(2026, 12, 31),
++            CreatedAtUtc = Utc(8)
++        });
++        await db.SaveChangesAsync();
++
++        var workload = new StubOfficerWorkloadReadService(new[]
++        {
++            new CommandOfficerWorkloadVm
++            {
++                UserId = officerA.Id,
++                OfficerName = officerA.FullName!,
++                Rank = officerA.Rank!,
++                Projects = new[]
++                {
++                    new CommandOfficerProjectVm(activeProject.Id, activeProject.Name, StageCodes.TEC, "Technical Evaluation", $"/Projects/Overview/{activeProject.Id}")
++                },
++                OtherTasks = new[]
++                {
++                    new CommandOfficerTaskVm(task.Id, task.Title, task.Status, task.DueDate, $"/ActionTasks/Index?taskId={task.Id}")
++                }
++            },
++            new CommandOfficerWorkloadVm
++            {
++                UserId = officerB.Id,
++                OfficerName = officerB.FullName!,
++                Rank = officerB.Rank!,
++                Ideas = new[]
++                {
++                    new CommandOfficerIdeaVm(idea.Id, idea.Title, idea.Status, $"/ProjectIdeas/Details/{idea.Id}")
++                }
++            },
++            new CommandOfficerWorkloadVm
++            {
++                UserId = officerC.Id,
++                OfficerName = officerC.FullName!,
++                Rank = officerC.Rank!,
++                Projects = new[]
++                {
++                    new CommandOfficerProjectVm(undirectedProject.Id, undirectedProject.Name, StageCodes.IPA, "IPA", $"/Projects/Overview/{undirectedProject.Id}")
++                }
++            }
++        });
++        var carryover = new ConferenceProjectCarryover(
++            completedProject.Id,
++            completedProject.Name,
++            officerA.Id,
++            officerA.FullName!,
++            officerA.Rank!,
++            completedProject.CompletedOn,
++            completedProject.CompletedYear,
++            completedProject.CompletedMonth,
++            null,
++            completedProject.CompletedOn!.Value,
++            "Completed on 25 Jul 2026");
++        var service = new OfficerConferenceReadService(
++            db,
++            workload,
++            new WorkflowStageMetadataProvider(),
++            new FixedClock(Utc(12)),
++            new StubConferenceProjectScopeService(new[] { carryover }));
++
++        var result = await service.GetLatestDirectionDigestAsync(command.Id);
++
++        Assert.NotNull(result);
++        Assert.Equal(4, result!.TotalDirectionCount);
++        Assert.Equal(2, result.OfficerCount);
++        Assert.Equal(officerA.Id, result.OfficerGroups[0].OfficerUserId);
++
++        var alpha = Assert.Single(result.OfficerGroups.Where(group => group.OfficerUserId == officerA.Id));
++        Assert.Equal(3, alpha.Directions.Count);
++        Assert.Collection(
++            alpha.Directions,
++            direction =>
++            {
++                Assert.Equal(completedProject.Name, direction.Title);
++                Assert.Equal("Latest closure direction", direction.DirectionText);
++            },
++            direction =>
++            {
++                Assert.Equal(task.Title, direction.Title);
++                Assert.Equal("Latest task direction", direction.DirectionText);
++            },
++            direction =>
++            {
++                Assert.Equal(activeProject.Name, direction.Title);
++                Assert.Equal("Latest project direction", direction.DirectionText);
++                Assert.DoesNotContain("Older project direction", direction.DirectionText);
++            });
++
++        var bravo = Assert.Single(result.OfficerGroups.Where(group => group.OfficerUserId == officerB.Id));
++        var ideaDirection = Assert.Single(bravo.Directions);
++        Assert.Equal(ConferenceItemKind.ProjectIdea, ideaDirection.Kind);
++        Assert.Equal("Latest idea direction", ideaDirection.DirectionText);
++        Assert.DoesNotContain(result.OfficerGroups, group => group.OfficerUserId == officerC.Id);
++        Assert.DoesNotContain(
++            result.OfficerGroups.SelectMany(group => group.Directions),
++            direction => direction.Title == undirectedProject.Name);
++
++        // The digest is command-only even though the underlying conference read service
++        // also exposes a separate self-scoped Project Officer view.
++        Assert.Null(await service.GetLatestDirectionDigestAsync(officerA.Id));
++    }
++
++    [Fact]
+     public async Task GetAsync_ReturnsNull_WhenOfficerIsOutsideCanonicalWorkloadOrder()
+     {
+         await using var connection = new SqliteConnection("DataSource=:memory:");
+--- a/Services/Workspace/IOfficerConferenceReadService.cs
++++ b/Services/Workspace/IOfficerConferenceReadService.cs
+@@ -23,6 +23,15 @@
+         string projectOfficerUserId,
+         CancellationToken cancellationToken = default);
+ 
++    /// <summary>
++    /// Builds the live command digest used by Notebook. Only the latest conference
++    /// direction for each in-scope project, idea or task is included. Items without a
++    /// conference direction, and officers with no directed items, are omitted.
++    /// </summary>
++    Task<ConferenceDirectionDigestVm?> GetLatestDirectionDigestAsync(
++        string requestingUserId,
++        CancellationToken cancellationToken = default);
++
+     Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryAsync(
+         string requestingUserId,
+         string officerUserId,
+--- a/Services/Workspace/OfficerConferenceReadService.cs
++++ b/Services/Workspace/OfficerConferenceReadService.cs
+@@ -156,6 +156,152 @@
+             selectedIndex: 0,
+             includeOfficerNavigation: false,
+             cancellationToken);
++    }
++
++    public async Task<ConferenceDirectionDigestVm?> GetLatestDirectionDigestAsync(
++        string requestingUserId,
++        CancellationToken cancellationToken = default)
++    {
++        if (string.IsNullOrWhiteSpace(requestingUserId)
++            || !await HasCommandConferenceRoleAsync(requestingUserId, cancellationToken))
++        {
++            return null;
++        }
++
++        var officers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
++        if (officers.Count == 0)
++        {
++            return new ConferenceDirectionDigestVm();
++        }
++
++        var projectIds = officers
++            .SelectMany(officer => officer.ActiveProjects.Select(project => project.ProjectId)
++                .Concat(officer.RecentlyCompletedProjects.Select(project => project.ProjectId)))
++            .Distinct()
++            .ToArray();
++        var ideaIds = officers
++            .SelectMany(officer => officer.Ideas.Select(idea => idea.IdeaId))
++            .Distinct()
++            .ToArray();
++        var taskIds = officers
++            .SelectMany(officer => officer.OtherTasks.Select(task => task.TaskId))
++            .Distinct()
++            .ToArray();
++
++        // The scoped DbContext must not execute concurrent operations. These three
++        // bounded queries deliberately run sequentially.
++        var latestProjectDirections = (await LoadLatestProjectDirectionsAsync(projectIds, cancellationToken))
++            .ToDictionary(direction => direction.ProjectId);
++        var latestIdeaDirections = (await LoadLatestIdeaDirectionsAsync(ideaIds, cancellationToken))
++            .ToDictionary(direction => direction.ProjectIdeaId);
++        var latestTaskDirections = (await LoadLatestTaskDirectionsAsync(taskIds, cancellationToken))
++            .ToDictionary(direction => direction.TaskId);
++
++        var groups = new List<ConferenceDirectionDigestOfficerVm>();
++        foreach (var officer in officers)
++        {
++            var items = new List<ConferenceDirectionDigestItemVm>();
++
++            var projectSources = officer.ActiveProjects
++                .Select(project => new
++                {
++                    project.ProjectId,
++                    project.Name,
++                    project.OpenUrl
++                })
++                .Concat(officer.RecentlyCompletedProjects.Select(project => new
++                {
++                    project.ProjectId,
++                    Name = project.ProjectName,
++                    OpenUrl = $"/Projects/Overview/{project.ProjectId}"
++                }))
++                .GroupBy(project => project.ProjectId)
++                .Select(group => group.First());
++
++            foreach (var project in projectSources)
++            {
++                if (!latestProjectDirections.TryGetValue(project.ProjectId, out var direction))
++                {
++                    continue;
++                }
++
++                items.Add(new ConferenceDirectionDigestItemVm
++                {
++                    Kind = ConferenceItemKind.Project,
++                    ItemId = project.ProjectId,
++                    Title = project.Name,
++                    DirectionText = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
++                    IssuedAtUtc = AsUtc(direction.CreatedAtUtc),
++                    OpenUrl = project.OpenUrl
++                });
++            }
++
++            foreach (var idea in officer.Ideas)
++            {
++                if (!latestIdeaDirections.TryGetValue(idea.IdeaId, out var direction))
++                {
++                    continue;
++                }
++
++                items.Add(new ConferenceDirectionDigestItemVm
++                {
++                    Kind = ConferenceItemKind.ProjectIdea,
++                    ItemId = idea.IdeaId,
++                    Title = idea.Title,
++                    DirectionText = ConferenceDirectionTextFormatter.ToDisplayText(direction.CommentText),
++                    IssuedAtUtc = AsUtc(direction.CreatedAt),
++                    OpenUrl = idea.OpenUrl
++                });
++            }
++
++            foreach (var task in officer.OtherTasks)
++            {
++                if (!latestTaskDirections.TryGetValue(task.TaskId, out var direction))
++                {
++                    continue;
++                }
++
++                items.Add(new ConferenceDirectionDigestItemVm
++                {
++                    Kind = ConferenceItemKind.ActionTask,
++                    ItemId = task.TaskId,
++                    Title = task.Title,
++                    DirectionText = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
++                    IssuedAtUtc = AsUtc(direction.CreatedAtUtc),
++                    OpenUrl = task.OpenUrl
++                });
++            }
++
++            var orderedItems = items
++                .OrderByDescending(item => item.IssuedAtUtc)
++                .ThenBy(item => item.Kind)
++                .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
++                .ToArray();
++            if (orderedItems.Length == 0)
++            {
++                continue;
++            }
++
++            groups.Add(new ConferenceDirectionDigestOfficerVm
++            {
++                OfficerUserId = officer.UserId,
++                OfficerDisplayName = DisplayOfficerName(officer),
++                ConferenceReviewUrl = $"/Workspace/Conference/{officer.UserId}",
++                LatestDirectionAtUtc = orderedItems[0].IssuedAtUtc,
++                Directions = orderedItems
++            });
++        }
++
++        var orderedGroups = groups
++            .OrderByDescending(group => group.LatestDirectionAtUtc)
++            .ThenBy(group => group.OfficerDisplayName, StringComparer.OrdinalIgnoreCase)
++            .ToArray();
++
++        return new ConferenceDirectionDigestVm
++        {
++            TotalDirectionCount = orderedGroups.Sum(group => group.Directions.Count),
++            OfficerGroups = orderedGroups
++        };
+     }
+ 
+     private async Task<OfficerConferenceVm> BuildConferenceAsync(
+@@ -1218,6 +1364,26 @@
+             .ToListAsync(cancellationToken);
+     }
+ 
++    private async Task<bool> HasCommandConferenceRoleAsync(
++        string userId,
++        CancellationToken cancellationToken)
++    {
++        var normalizedRoles = new[]
++        {
++            RoleNames.Comdt.ToUpperInvariant(),
++            RoleNames.HoD.ToUpperInvariant()
++        };
++
++        return await (
++                from userRole in _db.UserRoles.AsNoTracking()
++                join role in _db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
++                where userRole.UserId == userId
++                    && role.NormalizedName != null
++                    && normalizedRoles.Contains(role.NormalizedName)
++                select userRole.UserId)
++            .AnyAsync(cancellationToken);
++    }
++
+     private async Task<IReadOnlySet<string>> LoadUserIdsInRoleAsync(
+         string roleName,
+         CancellationToken cancellationToken)
+--- a/ViewModels/Workspace/OfficerConferenceViewModels.cs
++++ b/ViewModels/Workspace/OfficerConferenceViewModels.cs
+@@ -103,6 +103,47 @@
+     public string SnapshotValue { get; init; } = string.Empty;
+ }
+ 
++/// <summary>
++/// Live, command-only digest of the latest conference direction for each in-scope
++/// project, idea and task. The digest is derived from conference source records and is
++/// never persisted as a Notebook item.
++/// </summary>
++public sealed class ConferenceDirectionDigestVm
++{
++    public int TotalDirectionCount { get; init; }
++    public int OfficerCount => OfficerGroups.Count;
++    public IReadOnlyList<ConferenceDirectionDigestOfficerVm> OfficerGroups { get; init; }
++        = Array.Empty<ConferenceDirectionDigestOfficerVm>();
++}
++
++public sealed class ConferenceDirectionDigestOfficerVm
++{
++    public string OfficerUserId { get; init; } = string.Empty;
++    public string OfficerDisplayName { get; init; } = string.Empty;
++    public string ConferenceReviewUrl { get; init; } = string.Empty;
++    public DateTime LatestDirectionAtUtc { get; init; }
++    public IReadOnlyList<ConferenceDirectionDigestItemVm> Directions { get; init; }
++        = Array.Empty<ConferenceDirectionDigestItemVm>();
++}
++
++public sealed class ConferenceDirectionDigestItemVm
++{
++    public ConferenceItemKind Kind { get; init; }
++    public int ItemId { get; init; }
++    public string Title { get; init; } = string.Empty;
++    public string DirectionText { get; init; } = string.Empty;
++    public DateTime IssuedAtUtc { get; init; }
++    public string OpenUrl { get; init; } = string.Empty;
++
++    public string KindLabel => Kind switch
++    {
++        ConferenceItemKind.Project => "Project",
++        ConferenceItemKind.ProjectIdea => "Idea",
++        ConferenceItemKind.ActionTask => "Task",
++        _ => "Item"
++    };
++}
++
+ 
+ public sealed class ConferenceDirectionCycleVm
+ {
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -4099,3 +4099,478 @@
+         margin-left: auto;
+     }
+ }
++
++/* SECTION: Command conference digest
++   A virtual, read-only Notebook note for Comdt/HoD. It is intentionally outside the
++   sortable Notebook boards so it never affects user note counts or manual ordering. */
++.notebook-conference-digest {
++    margin-top: .3rem;
++}
++
++.notebook-conference-digest__section-header h2 {
++    display: inline-flex;
++    align-items: center;
++    gap: .38rem;
++    color: #334155;
++}
++
++.notebook-conference-digest__section-header h2 i {
++    color: #536ea8;
++    font-size: .8rem;
++}
++
++.notebook-conference-digest__section-header > span {
++    font-size: .7rem;
++}
++
++.notebook-conference-digest-card {
++    width: min(100%, 500px);
++    overflow: hidden;
++    border: 1px solid #dce4ef;
++    border-radius: 12px;
++    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
++    box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
++    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
++}
++
++.notebook-conference-digest-card:hover,
++.notebook-conference-digest-card:focus-within {
++    border-color: #bdc9db;
++    box-shadow: 0 7px 18px rgba(15, 23, 42, .08);
++}
++
++.notebook-conference-digest-card__open {
++    display: block;
++    width: 100%;
++    padding: .82rem .88rem .72rem;
++    border: 0;
++    background: transparent;
++    color: inherit;
++    text-align: left;
++    cursor: pointer;
++}
++
++.notebook-conference-digest-card__open:focus-visible {
++    outline: 3px solid rgba(37, 99, 235, .18);
++    outline-offset: -3px;
++    border-radius: 11px;
++}
++
++.notebook-conference-digest-card__topline,
++.notebook-conference-digest-card__footer,
++.notebook-conference-digest-preview-group__heading,
++.notebook-conference-digest-preview-item__meta {
++    display: flex;
++    align-items: center;
++}
++
++.notebook-conference-digest-card__topline {
++    justify-content: space-between;
++    gap: .75rem;
++}
++
++.notebook-conference-digest-card__topline > span:first-child {
++    min-width: 0;
++}
++
++.notebook-conference-digest-card__topline strong {
++    display: block;
++    color: #111827;
++    font-size: .94rem;
++    line-height: 1.25;
++}
++
++.notebook-conference-digest-card__topline small {
++    display: flex;
++    align-items: center;
++    gap: .3rem;
++    margin-top: .16rem;
++    color: #7c8798;
++    font-size: .69rem;
++    font-weight: 600;
++}
++
++.notebook-conference-digest-card__count {
++    display: inline-flex;
++    flex: 0 0 auto;
++    align-items: center;
++    justify-content: center;
++    min-width: 1.72rem;
++    height: 1.72rem;
++    padding: 0 .38rem;
++    border-radius: 999px;
++    background: #edf2fb;
++    color: #49649a;
++    font-size: .74rem;
++    font-weight: 800;
++}
++
++.notebook-conference-digest-card__groups {
++    display: grid;
++    gap: .58rem;
++    margin-top: .72rem;
++}
++
++.notebook-conference-digest-preview-group {
++    display: grid;
++    gap: .32rem;
++    padding-top: .58rem;
++    border-top: 1px solid #edf1f6;
++}
++
++.notebook-conference-digest-preview-group__heading {
++    justify-content: space-between;
++    gap: .7rem;
++}
++
++.notebook-conference-digest-preview-group__heading strong {
++    overflow: hidden;
++    color: #344054;
++    font-size: .72rem;
++    font-weight: 800;
++    letter-spacing: .015em;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.notebook-conference-digest-preview-group__heading small {
++    flex: 0 0 auto;
++    color: #8b96a8;
++    font-size: .67rem;
++    font-weight: 700;
++}
++
++.notebook-conference-digest-preview-item {
++    display: grid;
++    min-width: 0;
++    padding: .2rem 0 .28rem;
++}
++
++.notebook-conference-digest-preview-item__meta {
++    justify-content: space-between;
++    gap: .5rem;
++    margin-bottom: .08rem;
++    color: #8792a3;
++    font-size: .62rem;
++    font-weight: 700;
++    letter-spacing: .035em;
++    text-transform: uppercase;
++}
++
++.notebook-conference-digest-preview-item > strong {
++    overflow: hidden;
++    color: #24324a;
++    font-size: .78rem;
++    font-weight: 750;
++    line-height: 1.28;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.notebook-conference-digest-preview-item__direction {
++    display: -webkit-box;
++    margin-top: .08rem;
++    overflow: hidden;
++    color: #5f6f84;
++    font-size: .76rem;
++    line-height: 1.35;
++    white-space: pre-line;
++    -webkit-box-orient: vertical;
++    -webkit-line-clamp: 2;
++}
++
++.notebook-conference-digest-card__footer {
++    justify-content: space-between;
++    gap: .75rem;
++    margin-top: .58rem;
++    padding-top: .55rem;
++    border-top: 1px solid #edf1f6;
++    color: #718096;
++    font-size: .69rem;
++    font-weight: 650;
++}
++
++.notebook-conference-digest-card__footer > span:last-child {
++    display: inline-flex;
++    align-items: center;
++    gap: .18rem;
++    color: #49649a;
++    white-space: nowrap;
++}
++
++.notebook-shell[data-board-view="list"] .notebook-conference-digest-card {
++    width: min(100%, 720px);
++    margin-inline: auto;
++}
++
++/* Expanded system note. Bootstrap supplies focus trapping/backdrop/escape semantics;
++   these rules make it read like an enlarged Notebook card rather than a form dialog. */
++.notebook-conference-digest-modal__dialog {
++    width: min(92vw, 820px);
++    max-width: 820px;
++}
++
++.notebook-conference-digest-modal__content {
++    overflow: hidden;
++    border: 1px solid rgba(148, 163, 184, .28);
++    border-radius: 16px;
++    box-shadow: 0 22px 60px rgba(15, 23, 42, .19);
++}
++
++.notebook-conference-digest-modal__header {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: 1rem;
++    padding: 1rem 1.15rem .82rem;
++    border-bottom: 1px solid #e8edf4;
++    background: #fff;
++}
++
++.notebook-conference-digest-modal__header > div:first-child {
++    min-width: 0;
++}
++
++.notebook-conference-digest-modal__eyebrow {
++    margin-bottom: .16rem;
++    color: #6b7fa9;
++    font-size: .66rem;
++    font-weight: 800;
++    letter-spacing: .065em;
++    text-transform: uppercase;
++}
++
++.notebook-conference-digest-modal__header h2 {
++    margin: 0;
++    color: #111827;
++    font-size: 1.13rem;
++    font-weight: 800;
++    line-height: 1.25;
++}
++
++.notebook-conference-digest-modal__header p {
++    margin: .22rem 0 0;
++    color: #758195;
++    font-size: .75rem;
++}
++
++.notebook-conference-digest-modal__header-actions {
++    display: flex;
++    flex: 0 0 auto;
++    align-items: center;
++    gap: .7rem;
++}
++
++.notebook-conference-digest-modal__readonly {
++    display: inline-flex;
++    align-items: center;
++    gap: .28rem;
++    padding: .28rem .5rem;
++    border: 1px solid #dfe6ef;
++    border-radius: 999px;
++    background: #f8fafc;
++    color: #66758a;
++    font-size: .69rem;
++    font-weight: 700;
++    white-space: nowrap;
++}
++
++.notebook-conference-digest-modal__body {
++    padding: 0 1.15rem;
++    background: #fff;
++}
++
++.notebook-conference-digest-officer {
++    padding: 1rem 0 1.05rem;
++    border-bottom: 1px solid #e8edf4;
++}
++
++.notebook-conference-digest-officer:last-child {
++    border-bottom: 0;
++}
++
++.notebook-conference-digest-officer__header {
++    display: flex;
++    align-items: flex-start;
++    justify-content: space-between;
++    gap: .9rem;
++    margin-bottom: .62rem;
++}
++
++.notebook-conference-digest-officer__header h3 {
++    margin: 0;
++    color: #26344c;
++    font-size: .82rem;
++    font-weight: 800;
++    letter-spacing: .012em;
++}
++
++.notebook-conference-digest-officer__header span {
++    display: block;
++    margin-top: .08rem;
++    color: #8a96a8;
++    font-size: .67rem;
++    font-weight: 600;
++}
++
++.notebook-conference-digest-officer__review-link {
++    display: inline-flex;
++    flex: 0 0 auto;
++    align-items: center;
++    gap: .22rem;
++    color: #5872a8;
++    font-size: .7rem;
++    font-weight: 700;
++    text-decoration: none;
++}
++
++.notebook-conference-digest-officer__review-link:hover {
++    color: #315fba;
++    text-decoration: underline;
++    text-underline-offset: 2px;
++}
++
++.notebook-conference-digest-officer__items {
++    display: grid;
++    gap: .32rem;
++}
++
++.notebook-conference-digest-item {
++    position: relative;
++    display: grid;
++    gap: .12rem;
++    padding: .58rem .68rem .62rem .76rem;
++    border-radius: 8px;
++    background: #fbfcfe;
++}
++
++.notebook-conference-digest-item::before {
++    position: absolute;
++    top: .62rem;
++    bottom: .62rem;
++    left: 0;
++    width: 2px;
++    border-radius: 999px;
++    background: #8aa0c7;
++    content: "";
++}
++
++.notebook-conference-digest-item.is-idea::before {
++    background: #9a82b8;
++}
++
++.notebook-conference-digest-item.is-task::before {
++    background: #a78c61;
++}
++
++.notebook-conference-digest-item__meta {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .65rem;
++    color: #8a96a8;
++    font-size: .65rem;
++}
++
++.notebook-conference-digest-item__kind {
++    color: #687b9f;
++    font-weight: 800;
++    letter-spacing: .055em;
++    text-transform: uppercase;
++}
++
++.notebook-conference-digest-item__title {
++    display: inline-flex;
++    width: fit-content;
++    max-width: 100%;
++    align-items: baseline;
++    gap: .3rem;
++    color: #1e2f4d;
++    font-size: .82rem;
++    font-weight: 750;
++    line-height: 1.3;
++    text-decoration: none;
++}
++
++.notebook-conference-digest-item__title:hover {
++    color: #315fba;
++    text-decoration: underline;
++    text-underline-offset: 2px;
++}
++
++.notebook-conference-digest-item__title i {
++    flex: 0 0 auto;
++    color: #8b98aa;
++    font-size: .67rem;
++}
++
++.notebook-conference-digest-item p {
++    margin: .12rem 0 0;
++    color: #475569;
++    font-size: .79rem;
++    line-height: 1.42;
++    white-space: pre-line;
++}
++
++.notebook-conference-digest-modal__footer {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: .8rem;
++    min-height: 48px;
++    padding: .5rem 1.15rem;
++    border-top: 1px solid #e8edf4;
++    background: #fff;
++}
++
++.notebook-conference-digest-modal__footer > span {
++    display: inline-flex;
++    align-items: center;
++    gap: .32rem;
++    color: #8995a6;
++    font-size: .68rem;
++    font-weight: 600;
++}
++
++@media (max-width: 720px) {
++    .notebook-conference-digest-card {
++        width: 100%;
++    }
++
++    .notebook-conference-digest-modal__dialog {
++        width: calc(100vw - 1rem);
++        margin: .5rem auto;
++    }
++
++    .notebook-conference-digest-modal__header,
++    .notebook-conference-digest-officer__header,
++    .notebook-conference-digest-item__meta {
++        align-items: flex-start;
++    }
++
++    .notebook-conference-digest-modal__header {
++        padding-inline: .9rem;
++    }
++
++    .notebook-conference-digest-modal__body {
++        padding-inline: .9rem;
++    }
++
++    .notebook-conference-digest-officer__header {
++        flex-direction: column;
++        gap: .32rem;
++    }
++
++    .notebook-conference-digest-modal__readonly {
++        display: none;
++    }
++
++    .notebook-conference-digest-item__meta {
++        flex-direction: column;
++        gap: .06rem;
++    }
++
++    .notebook-conference-digest-modal__footer {
++        padding-inline: .9rem;
++    }
++}

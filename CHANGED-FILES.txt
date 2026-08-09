@@ -1,3 +1,3 @@
-Pages/Workspace/_ProjectOfficerConference.cshtml
-wwwroot/css/officer-conference.css
-wwwroot/js/pages/officer-conference.test.js
+Pages/Notebook/_NotebookConferenceDigest.cshtml
+wwwroot/css/notebook.css
+wwwroot/js/notebook/notebook-conference-digest-contract.test.js

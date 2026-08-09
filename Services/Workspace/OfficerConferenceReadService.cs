@@ -158,6 +158,152 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             cancellationToken);
     }
 
+    public async Task<ConferenceDirectionDigestVm?> GetLatestDirectionDigestAsync(
+        string requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestingUserId)
+            || !await HasCommandConferenceRoleAsync(requestingUserId, cancellationToken))
+        {
+            return null;
+        }
+
+        var officers = await LoadConferenceOfficersAsync(requestingUserId, cancellationToken);
+        if (officers.Count == 0)
+        {
+            return new ConferenceDirectionDigestVm();
+        }
+
+        var projectIds = officers
+            .SelectMany(officer => officer.ActiveProjects.Select(project => project.ProjectId)
+                .Concat(officer.RecentlyCompletedProjects.Select(project => project.ProjectId)))
+            .Distinct()
+            .ToArray();
+        var ideaIds = officers
+            .SelectMany(officer => officer.Ideas.Select(idea => idea.IdeaId))
+            .Distinct()
+            .ToArray();
+        var taskIds = officers
+            .SelectMany(officer => officer.OtherTasks.Select(task => task.TaskId))
+            .Distinct()
+            .ToArray();
+
+        // The scoped DbContext must not execute concurrent operations. These three
+        // bounded queries deliberately run sequentially.
+        var latestProjectDirections = (await LoadLatestProjectDirectionsAsync(projectIds, cancellationToken))
+            .ToDictionary(direction => direction.ProjectId);
+        var latestIdeaDirections = (await LoadLatestIdeaDirectionsAsync(ideaIds, cancellationToken))
+            .ToDictionary(direction => direction.ProjectIdeaId);
+        var latestTaskDirections = (await LoadLatestTaskDirectionsAsync(taskIds, cancellationToken))
+            .ToDictionary(direction => direction.TaskId);
+
+        var groups = new List<ConferenceDirectionDigestOfficerVm>();
+        foreach (var officer in officers)
+        {
+            var items = new List<ConferenceDirectionDigestItemVm>();
+
+            var projectSources = officer.ActiveProjects
+                .Select(project => new
+                {
+                    project.ProjectId,
+                    project.Name,
+                    project.OpenUrl
+                })
+                .Concat(officer.RecentlyCompletedProjects.Select(project => new
+                {
+                    project.ProjectId,
+                    Name = project.ProjectName,
+                    OpenUrl = $"/Projects/Overview/{project.ProjectId}"
+                }))
+                .GroupBy(project => project.ProjectId)
+                .Select(group => group.First());
+
+            foreach (var project in projectSources)
+            {
+                if (!latestProjectDirections.TryGetValue(project.ProjectId, out var direction))
+                {
+                    continue;
+                }
+
+                items.Add(new ConferenceDirectionDigestItemVm
+                {
+                    Kind = ConferenceItemKind.Project,
+                    ItemId = project.ProjectId,
+                    Title = project.Name,
+                    DirectionText = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
+                    IssuedAtUtc = AsUtc(direction.CreatedAtUtc),
+                    OpenUrl = project.OpenUrl
+                });
+            }
+
+            foreach (var idea in officer.Ideas)
+            {
+                if (!latestIdeaDirections.TryGetValue(idea.IdeaId, out var direction))
+                {
+                    continue;
+                }
+
+                items.Add(new ConferenceDirectionDigestItemVm
+                {
+                    Kind = ConferenceItemKind.ProjectIdea,
+                    ItemId = idea.IdeaId,
+                    Title = idea.Title,
+                    DirectionText = ConferenceDirectionTextFormatter.ToDisplayText(direction.CommentText),
+                    IssuedAtUtc = AsUtc(direction.CreatedAt),
+                    OpenUrl = idea.OpenUrl
+                });
+            }
+
+            foreach (var task in officer.OtherTasks)
+            {
+                if (!latestTaskDirections.TryGetValue(task.TaskId, out var direction))
+                {
+                    continue;
+                }
+
+                items.Add(new ConferenceDirectionDigestItemVm
+                {
+                    Kind = ConferenceItemKind.ActionTask,
+                    ItemId = task.TaskId,
+                    Title = task.Title,
+                    DirectionText = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
+                    IssuedAtUtc = AsUtc(direction.CreatedAtUtc),
+                    OpenUrl = task.OpenUrl
+                });
+            }
+
+            var orderedItems = items
+                .OrderByDescending(item => item.IssuedAtUtc)
+                .ThenBy(item => item.Kind)
+                .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (orderedItems.Length == 0)
+            {
+                continue;
+            }
+
+            groups.Add(new ConferenceDirectionDigestOfficerVm
+            {
+                OfficerUserId = officer.UserId,
+                OfficerDisplayName = DisplayOfficerName(officer),
+                ConferenceReviewUrl = $"/Workspace/Conference/{officer.UserId}",
+                LatestDirectionAtUtc = orderedItems[0].IssuedAtUtc,
+                Directions = orderedItems
+            });
+        }
+
+        var orderedGroups = groups
+            .OrderByDescending(group => group.LatestDirectionAtUtc)
+            .ThenBy(group => group.OfficerDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new ConferenceDirectionDigestVm
+        {
+            TotalDirectionCount = orderedGroups.Sum(group => group.Directions.Count),
+            OfficerGroups = orderedGroups
+        };
+    }
+
     private async Task<OfficerConferenceVm> BuildConferenceAsync(
         ConferenceOfficerContext selected,
         IReadOnlyList<ConferenceOfficerContext> orderedOfficers,
@@ -1216,6 +1362,26 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .OrderBy(remark => remark.CreatedAtUtc)
             .ThenBy(remark => remark.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task<bool> HasCommandConferenceRoleAsync(
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        var normalizedRoles = new[]
+        {
+            RoleNames.Comdt.ToUpperInvariant(),
+            RoleNames.HoD.ToUpperInvariant()
+        };
+
+        return await (
+                from userRole in _db.UserRoles.AsNoTracking()
+                join role in _db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                where userRole.UserId == userId
+                    && role.NormalizedName != null
+                    && normalizedRoles.Contains(role.NormalizedName)
+                select userRole.UserId)
+            .AnyAsync(cancellationToken);
     }
 
     private async Task<IReadOnlySet<string>> LoadUserIdsInRoleAsync(

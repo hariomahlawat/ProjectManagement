@@ -157,6 +157,13 @@
             <button type="button" data-notebook-global-error-close aria-label="Dismiss error">×</button>
         </div>
 
+        @* SECTION: Live command digest. This is a virtual read-only note and is not
+           counted, sorted, archived or persisted with user Notebook items. *@
+        @if (Model.ConferenceDigest is { TotalDirectionCount: > 0 } conferenceDigest)
+        {
+            <partial name="_NotebookConferenceDigest" model="conferenceDigest" />
+        }
+
         @* SECTION: Card-first notebook board *@
         @if (Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
         {
@@ -177,7 +184,9 @@
         @if (Model.Notebook.View == "home")
         {
 
-            var hasAnyHomeItems = Model.Notebook.PinnedItems.Any() || Model.Notebook.OtherItems.Any();
+            var hasAnyHomeItems = Model.Notebook.PinnedItems.Any()
+                || Model.Notebook.OtherItems.Any()
+                || Model.ConferenceDigest is { TotalDirectionCount: > 0 };
 
             @* SECTION: Manual-order friendly home board sections *@
             <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">

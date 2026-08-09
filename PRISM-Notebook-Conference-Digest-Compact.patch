@@ -1,0 +1,539 @@
+--- a/Pages/Notebook/_NotebookConferenceDigest.cshtml
++++ b/Pages/Notebook/_NotebookConferenceDigest.cshtml
+@@ -1,18 +1,40 @@
+ @model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
+ @using ProjectManagement.Infrastructure
+-@using ProjectManagement.ViewModels.Workspace
+ @{
+     const int previewOfficerLimit = 2;
+-    const int previewDirectionsPerOfficer = 2;
++    const int previewDirectionLimit = 3;
++
+     var previewGroups = Model.OfficerGroups.Take(previewOfficerLimit).ToArray();
+-    var previewDirectionCount = previewGroups.Sum(group => Math.Min(group.Directions.Count, previewDirectionsPerOfficer));
+-    var remainingDirectionCount = Math.Max(0, Model.TotalDirectionCount - previewDirectionCount);
++    var previewTakes = new int[previewGroups.Length];
++    var remainingPreviewSlots = previewDirectionLimit;
++
++    // Preserve PO-wise context in the compact card: when two officers are available,
++    // reserve at least one preview slot for the second officer instead of allowing the
++    // first officer to consume the entire preview.
++    for (var index = 0; index < previewGroups.Length && remainingPreviewSlots > 0; index++)
++    {
++        var groupsAfter = previewGroups.Length - index - 1;
++        var reservedForLaterGroups = Math.Min(groupsAfter, remainingPreviewSlots);
++        var availableForCurrentGroup = Math.Max(0, remainingPreviewSlots - reservedForLaterGroups);
++        var take = Math.Min(previewGroups[index].Directions.Count, availableForCurrentGroup);
++
++        if (take == 0 && previewGroups[index].Directions.Count > 0)
++        {
++            take = 1;
++        }
++
++        previewTakes[index] = take;
++        remainingPreviewSlots -= take;
++    }
++
++    var hiddenOfficerGroups = Model.OfficerGroups.Skip(previewOfficerLimit).ToArray();
++    var hiddenOfficerCount = hiddenOfficerGroups.Length;
++    var hiddenOfficerDirectionCount = hiddenOfficerGroups.Sum(group => group.Directions.Count);
+ }
+ 
+ <section class="notebook-board-section notebook-conference-digest" data-conference-digest aria-labelledby="notebook-command-digest-heading">
+     <div class="notebook-section-header notebook-conference-digest__section-header">
+         <h2 id="notebook-command-digest-heading"><i class="bi bi-shield-check" aria-hidden="true"></i>Command</h2>
+-        <span>@Model.TotalDirectionCount direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s")</span>
+     </div>
+ 
+     <article class="notebook-conference-digest-card">
+@@ -27,43 +49,58 @@
+                     <strong>Latest Conference Directions</strong>
+                     <small><i class="bi bi-lock" aria-hidden="true"></i> System generated · Read only</small>
+                 </span>
+-                <span class="notebook-conference-digest-card__count">@Model.TotalDirectionCount</span>
++                <span class="notebook-conference-digest-card__count" aria-label="@Model.TotalDirectionCount current directions">@Model.TotalDirectionCount</span>
+             </span>
+ 
+             <span class="notebook-conference-digest-card__groups">
+-                @foreach (var group in previewGroups)
++                @for (var groupIndex = 0; groupIndex < previewGroups.Length; groupIndex++)
+                 {
++                    var group = previewGroups[groupIndex];
++                    var previewTake = previewTakes[groupIndex];
++                    var hiddenInGroup = Math.Max(0, group.Directions.Count - previewTake);
++
+                     <span class="notebook-conference-digest-preview-group">
+                         <span class="notebook-conference-digest-preview-group__heading">
+                             <strong>@group.OfficerDisplayName</strong>
+                             <small>@group.Directions.Count</small>
+                         </span>
+-                        @foreach (var item in group.Directions.Take(previewDirectionsPerOfficer))
+-                        {
+-                            var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+-                            <span class="notebook-conference-digest-preview-item">
+-                                <span class="notebook-conference-digest-preview-item__meta">
+-                                    <span>@item.KindLabel</span>
+-                                    <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM")</time>
++
++                        <span class="notebook-conference-digest-preview-group__items">
++                            @foreach (var item in group.Directions.Take(previewTake))
++                            {
++                                var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
++                                <span class="notebook-conference-digest-preview-item">
++                                    <span class="notebook-conference-digest-preview-item__titleline">
++                                        <strong title="@item.Title">@item.Title</strong>
++                                        <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM")</time>
++                                    </span>
++                                    <span class="notebook-conference-digest-preview-item__direction">@item.DirectionText</span>
+                                 </span>
+-                                <strong>@item.Title</strong>
+-                                <span class="notebook-conference-digest-preview-item__direction">@item.DirectionText</span>
+-                            </span>
++                            }
++                        </span>
++
++                        @if (hiddenInGroup > 0)
++                        {
++                            <span class="notebook-conference-digest-preview-group__more">+@hiddenInGroup more</span>
+                         }
+                     </span>
+                 }
+             </span>
+ 
+             <span class="notebook-conference-digest-card__footer">
+-                @if (remainingDirectionCount > 0)
++                @if (hiddenOfficerCount > 0)
+                 {
+-                    <span>+@remainingDirectionCount more direction@(remainingDirectionCount == 1 ? string.Empty : "s")</span>
++                    <span>
++                        @hiddenOfficerCount more officer@(hiddenOfficerCount == 1 ? string.Empty : "s")
++                        <span aria-hidden="true"> · </span>
++                        @hiddenOfficerDirectionCount direction@(hiddenOfficerDirectionCount == 1 ? string.Empty : "s")
++                    </span>
+                 }
+                 else
+                 {
+                     <span>@Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</span>
+                 }
+-                <span>View all <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
++                <span>View all @Model.TotalDirectionCount direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
+             </span>
+         </button>
+     </article>
+@@ -105,21 +142,13 @@
+                                 @foreach (var item in group.Directions)
+                                 {
+                                     var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+-                                    var kindClass = item.Kind switch
+-                                    {
+-                                        ConferenceItemKind.Project => "is-project",
+-                                        ConferenceItemKind.ProjectIdea => "is-idea",
+-                                        ConferenceItemKind.ActionTask => "is-task",
+-                                        _ => string.Empty
+-                                    };
+-                                    <article class="notebook-conference-digest-item @kindClass">
+-                                        <div class="notebook-conference-digest-item__meta">
+-                                            <span class="notebook-conference-digest-item__kind">@item.KindLabel</span>
++                                    <article class="notebook-conference-digest-item">
++                                        <div class="notebook-conference-digest-item__heading">
++                                            <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
++                                                @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
++                                            </a>
+                                             <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
+                                         </div>
+-                                        <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
+-                                            @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+-                                        </a>
+                                         <p>@item.DirectionText</p>
+                                     </article>
+                                 }
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -4104,7 +4104,7 @@
+    A virtual, read-only Notebook note for Comdt/HoD. It is intentionally outside the
+    sortable Notebook boards so it never affects user note counts or manual ordering. */
+ .notebook-conference-digest {
+-    margin-top: .3rem;
++    margin-top: .28rem;
+ }
+ 
+ .notebook-conference-digest__section-header h2 {
+@@ -4119,12 +4119,8 @@
+     font-size: .8rem;
+ }
+ 
+-.notebook-conference-digest__section-header > span {
+-    font-size: .7rem;
+-}
+-
+ .notebook-conference-digest-card {
+-    width: min(100%, 500px);
++    width: min(100%, 780px);
+     overflow: hidden;
+     border: 1px solid #dce4ef;
+     border-radius: 12px;
+@@ -4142,7 +4138,7 @@
+ .notebook-conference-digest-card__open {
+     display: block;
+     width: 100%;
+-    padding: .82rem .88rem .72rem;
++    padding: .78rem .88rem .68rem;
+     border: 0;
+     background: transparent;
+     color: inherit;
+@@ -4159,7 +4155,8 @@
+ .notebook-conference-digest-card__topline,
+ .notebook-conference-digest-card__footer,
+ .notebook-conference-digest-preview-group__heading,
+-.notebook-conference-digest-preview-item__meta {
++.notebook-conference-digest-preview-item__titleline,
++.notebook-conference-digest-item__heading {
+     display: flex;
+     align-items: center;
+ }
+@@ -4184,7 +4181,7 @@
+     display: flex;
+     align-items: center;
+     gap: .3rem;
+-    margin-top: .16rem;
++    margin-top: .15rem;
+     color: #7c8798;
+     font-size: .69rem;
+     font-weight: 600;
+@@ -4207,20 +4204,35 @@
+ 
+ .notebook-conference-digest-card__groups {
+     display: grid;
+-    gap: .58rem;
+-    margin-top: .72rem;
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++    margin-top: .64rem;
++    border-top: 1px solid #edf1f6;
+ }
+ 
+ .notebook-conference-digest-preview-group {
+     display: grid;
+-    gap: .32rem;
+-    padding-top: .58rem;
+-    border-top: 1px solid #edf1f6;
++    align-content: start;
++    gap: .3rem;
++    min-width: 0;
++    padding: .58rem .8rem .08rem 0;
++}
++
++.notebook-conference-digest-preview-group + .notebook-conference-digest-preview-group {
++    padding-right: 0;
++    padding-left: .8rem;
++    border-left: 1px solid #edf1f6;
++}
++
++.notebook-conference-digest-preview-group:only-child {
++    grid-column: 1 / -1;
++    padding-right: 0;
+ }
+ 
+ .notebook-conference-digest-preview-group__heading {
+     justify-content: space-between;
+     gap: .7rem;
++    padding-bottom: .25rem;
++    border-bottom: 1px solid #f0f3f7;
+ }
+ 
+ .notebook-conference-digest-preview-group__heading strong {
+@@ -4240,24 +4252,26 @@
+     font-weight: 700;
+ }
+ 
++.notebook-conference-digest-preview-group__items {
++    display: grid;
++    gap: .18rem;
++    min-width: 0;
++}
++
+ .notebook-conference-digest-preview-item {
+     display: grid;
+     min-width: 0;
+-    padding: .2rem 0 .28rem;
++    padding: .13rem 0 .22rem;
+ }
+ 
+-.notebook-conference-digest-preview-item__meta {
++.notebook-conference-digest-preview-item__titleline {
+     justify-content: space-between;
+-    gap: .5rem;
+-    margin-bottom: .08rem;
+-    color: #8792a3;
+-    font-size: .62rem;
+-    font-weight: 700;
+-    letter-spacing: .035em;
+-    text-transform: uppercase;
++    gap: .55rem;
++    min-width: 0;
+ }
+ 
+-.notebook-conference-digest-preview-item > strong {
++.notebook-conference-digest-preview-item__titleline strong {
++    min-width: 0;
+     overflow: hidden;
+     color: #24324a;
+     font-size: .78rem;
+@@ -4267,23 +4281,40 @@
+     white-space: nowrap;
+ }
+ 
++.notebook-conference-digest-preview-item__titleline time {
++    flex: 0 0 auto;
++    color: #8792a3;
++    font-size: .63rem;
++    font-weight: 700;
++    letter-spacing: .025em;
++    text-transform: uppercase;
++    white-space: nowrap;
++}
++
+ .notebook-conference-digest-preview-item__direction {
+     display: -webkit-box;
+-    margin-top: .08rem;
++    margin-top: .06rem;
+     overflow: hidden;
+     color: #5f6f84;
+-    font-size: .76rem;
+-    line-height: 1.35;
++    font-size: .75rem;
++    line-height: 1.34;
+     white-space: pre-line;
+     -webkit-box-orient: vertical;
+     -webkit-line-clamp: 2;
+ }
+ 
++.notebook-conference-digest-preview-group__more {
++    margin-top: .03rem;
++    color: #7a8799;
++    font-size: .66rem;
++    font-weight: 650;
++}
++
+ .notebook-conference-digest-card__footer {
+     justify-content: space-between;
+     gap: .75rem;
+-    margin-top: .58rem;
+-    padding-top: .55rem;
++    margin-top: .46rem;
++    padding-top: .5rem;
+     border-top: 1px solid #edf1f6;
+     color: #718096;
+     font-size: .69rem;
+@@ -4299,7 +4330,7 @@
+ }
+ 
+ .notebook-shell[data-board-view="list"] .notebook-conference-digest-card {
+-    width: min(100%, 720px);
++    width: min(100%, 840px);
+     margin-inline: auto;
+ }
+ 
+@@ -4382,7 +4413,7 @@
+ 
+ .notebook-conference-digest-officer {
+     padding: 1rem 0 1.05rem;
+-    border-bottom: 1px solid #e8edf4;
++    border-bottom: 1px solid #e4e9f0;
+ }
+ 
+ .notebook-conference-digest-officer:last-child {
+@@ -4394,7 +4425,7 @@
+     align-items: flex-start;
+     justify-content: space-between;
+     gap: .9rem;
+-    margin-bottom: .62rem;
++    margin-bottom: .48rem;
+ }
+ 
+ .notebook-conference-digest-officer__header h3 {
+@@ -4432,55 +4463,28 @@
+ 
+ .notebook-conference-digest-officer__items {
+     display: grid;
+-    gap: .32rem;
+ }
+ 
+ .notebook-conference-digest-item {
+-    position: relative;
+     display: grid;
+-    gap: .12rem;
+-    padding: .58rem .68rem .62rem .76rem;
+-    border-radius: 8px;
+-    background: #fbfcfe;
+-}
+-
+-.notebook-conference-digest-item::before {
+-    position: absolute;
+-    top: .62rem;
+-    bottom: .62rem;
+-    left: 0;
+-    width: 2px;
+-    border-radius: 999px;
+-    background: #8aa0c7;
+-    content: "";
+-}
+-
+-.notebook-conference-digest-item.is-idea::before {
+-    background: #9a82b8;
++    gap: .1rem;
++    padding: .52rem 0 .56rem;
++    border-bottom: 1px solid #f0f3f7;
+ }
+ 
+-.notebook-conference-digest-item.is-task::before {
+-    background: #a78c61;
++.notebook-conference-digest-item:last-child {
++    border-bottom: 0;
+ }
+ 
+-.notebook-conference-digest-item__meta {
+-    display: flex;
+-    align-items: center;
++.notebook-conference-digest-item__heading {
+     justify-content: space-between;
+-    gap: .65rem;
+-    color: #8a96a8;
+-    font-size: .65rem;
+-}
+-
+-.notebook-conference-digest-item__kind {
+-    color: #687b9f;
+-    font-weight: 800;
+-    letter-spacing: .055em;
+-    text-transform: uppercase;
++    gap: .85rem;
++    min-width: 0;
+ }
+ 
+ .notebook-conference-digest-item__title {
+     display: inline-flex;
++    min-width: 0;
+     width: fit-content;
+     max-width: 100%;
+     align-items: baseline;
+@@ -4504,8 +4508,16 @@
+     font-size: .67rem;
+ }
+ 
++.notebook-conference-digest-item__heading time {
++    flex: 0 0 auto;
++    color: #8a96a8;
++    font-size: .65rem;
++    font-weight: 600;
++    white-space: nowrap;
++}
++
+ .notebook-conference-digest-item p {
+-    margin: .12rem 0 0;
++    margin: .08rem 0 0;
+     color: #475569;
+     font-size: .79rem;
+     line-height: 1.42;
+@@ -4532,11 +4544,26 @@
+     font-weight: 600;
+ }
+ 
+-@media (max-width: 720px) {
++@media (max-width: 760px) {
+     .notebook-conference-digest-card {
+         width: 100%;
+     }
+ 
++    .notebook-conference-digest-card__groups {
++        grid-template-columns: minmax(0, 1fr);
++    }
++
++    .notebook-conference-digest-preview-group,
++    .notebook-conference-digest-preview-group + .notebook-conference-digest-preview-group {
++        padding: .55rem 0 .08rem;
++        border-left: 0;
++    }
++
++    .notebook-conference-digest-preview-group + .notebook-conference-digest-preview-group {
++        margin-top: .28rem;
++        border-top: 1px solid #edf1f6;
++    }
++
+     .notebook-conference-digest-modal__dialog {
+         width: calc(100vw - 1rem);
+         margin: .5rem auto;
+@@ -4544,7 +4571,7 @@
+ 
+     .notebook-conference-digest-modal__header,
+     .notebook-conference-digest-officer__header,
+-    .notebook-conference-digest-item__meta {
++    .notebook-conference-digest-item__heading {
+         align-items: flex-start;
+     }
+ 
+@@ -4565,9 +4592,9 @@
+         display: none;
+     }
+ 
+-    .notebook-conference-digest-item__meta {
++    .notebook-conference-digest-item__heading {
+         flex-direction: column;
+-        gap: .06rem;
++        gap: .08rem;
+     }
+ 
+     .notebook-conference-digest-modal__footer {
+--- /dev/null
++++ b/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
+@@ -0,0 +1,51 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const partialPath = path.join(__dirname, '../../../Pages/Notebook/_NotebookConferenceDigest.cshtml');
++const cssPath = path.join(__dirname, '../../css/notebook.css');
++
++function readPartial() {
++  return fs.readFileSync(partialPath, 'utf8');
++}
++
++function readCss() {
++  return fs.readFileSync(cssPath, 'utf8');
++}
++
++test('conference digest preview is deliberately shallow and PO-wise', () => {
++  const partial = readPartial();
++
++  assert.match(partial, /const int previewOfficerLimit = 2;/);
++  assert.match(partial, /const int previewDirectionLimit = 3;/);
++  assert.match(partial, /previewGroups = Model\.OfficerGroups\.Take\(previewOfficerLimit\)/);
++  assert.match(partial, /notebook-conference-digest-preview-group__more/);
++  assert.match(partial, /View all @Model\.TotalDirectionCount direction/);
++});
++
++test('conference digest does not repeat project idea or task type labels', () => {
++  const partial = readPartial();
++
++  assert.doesNotMatch(partial, /@item\.KindLabel/);
++  assert.doesNotMatch(partial, /notebook-conference-digest-item__kind/);
++  assert.doesNotMatch(partial, /notebook-conference-digest-preview-item__meta/);
++  assert.match(partial, /notebook-conference-digest-item__heading/);
++});
++
++test('conference digest card is wide and presents two PO previews side by side on desktop', () => {
++  const css = readCss();
++
++  assert.match(css, /\.notebook-conference-digest-card\s*\{[\s\S]*?width:\s*min\(100%,\s*780px\);/);
++  assert.match(css, /\.notebook-conference-digest-card__groups\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/);
++  assert.match(css, /@media \(max-width: 760px\)[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\);/);
++});
++
++test('expanded digest uses a concise register row instead of type-specific cards', () => {
++  const css = readCss();
++
++  assert.match(css, /\.notebook-conference-digest-item__heading/);
++  assert.doesNotMatch(css, /\.notebook-conference-digest-item\.is-idea/);
++  assert.doesNotMatch(css, /\.notebook-conference-digest-item\.is-task/);
++  assert.doesNotMatch(css, /\.notebook-conference-digest-item__kind/);
++});

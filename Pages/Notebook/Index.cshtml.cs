@@ -2,9 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Notebook;
+using ProjectManagement.Services.Workspace;
 using ProjectManagement.ViewModels.Notebook;
+using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Pages.Notebook;
 
@@ -12,11 +15,16 @@ namespace ProjectManagement.Pages.Notebook;
 public class IndexModel : PageModel
 {
     private readonly INotebookService _notebook;
+    private readonly IOfficerConferenceReadService _conferenceRead;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(INotebookService notebook, UserManager<ApplicationUser> users)
+    public IndexModel(
+        INotebookService notebook,
+        IOfficerConferenceReadService conferenceRead,
+        UserManager<ApplicationUser> users)
     {
         _notebook = notebook ?? throw new ArgumentNullException(nameof(notebook));
+        _conferenceRead = conferenceRead ?? throw new ArgumentNullException(nameof(conferenceRead));
         _users = users ?? throw new ArgumentNullException(nameof(users));
     }
 
@@ -41,6 +49,7 @@ public class IndexModel : PageModel
     public bool EditLabels { get; set; }
 
     public NotebookIndexVm Notebook { get; private set; } = new();
+    public ConferenceDirectionDigestVm? ConferenceDigest { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
@@ -72,8 +81,21 @@ public class IndexModel : PageModel
 
         NormalizeLegacyTypeView();
         Notebook = await _notebook.GetIndexAsync(userId, View, Query, Filter, Tag, selectedId: null, ct);
+
+        if (ShouldLoadConferenceDigest())
+        {
+            ConferenceDigest = await _conferenceRead.GetLatestDirectionDigestAsync(userId, ct);
+        }
+
         return Page();
     }
+
+    private bool ShouldLoadConferenceDigest()
+        => string.Equals(View, "home", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(Query)
+            && string.IsNullOrWhiteSpace(Filter)
+            && string.IsNullOrWhiteSpace(Tag)
+            && (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD));
 
     private void NormalizeLegacyTypeView()
     {

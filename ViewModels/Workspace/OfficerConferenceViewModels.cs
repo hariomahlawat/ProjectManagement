@@ -103,6 +103,47 @@ public sealed class ConferenceDirectionVm
     public string SnapshotValue { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Live, command-only digest of the latest conference direction for each in-scope
+/// project, idea and task. The digest is derived from conference source records and is
+/// never persisted as a Notebook item.
+/// </summary>
+public sealed class ConferenceDirectionDigestVm
+{
+    public int TotalDirectionCount { get; init; }
+    public int OfficerCount => OfficerGroups.Count;
+    public IReadOnlyList<ConferenceDirectionDigestOfficerVm> OfficerGroups { get; init; }
+        = Array.Empty<ConferenceDirectionDigestOfficerVm>();
+}
+
+public sealed class ConferenceDirectionDigestOfficerVm
+{
+    public string OfficerUserId { get; init; } = string.Empty;
+    public string OfficerDisplayName { get; init; } = string.Empty;
+    public string ConferenceReviewUrl { get; init; } = string.Empty;
+    public DateTime LatestDirectionAtUtc { get; init; }
+    public IReadOnlyList<ConferenceDirectionDigestItemVm> Directions { get; init; }
+        = Array.Empty<ConferenceDirectionDigestItemVm>();
+}
+
+public sealed class ConferenceDirectionDigestItemVm
+{
+    public ConferenceItemKind Kind { get; init; }
+    public int ItemId { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string DirectionText { get; init; } = string.Empty;
+    public DateTime IssuedAtUtc { get; init; }
+    public string OpenUrl { get; init; } = string.Empty;
+
+    public string KindLabel => Kind switch
+    {
+        ConferenceItemKind.Project => "Project",
+        ConferenceItemKind.ProjectIdea => "Idea",
+        ConferenceItemKind.ActionTask => "Task",
+        _ => "Item"
+    };
+}
+
 
 public sealed class ConferenceDirectionCycleVm
 {

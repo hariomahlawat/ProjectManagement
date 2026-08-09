@@ -785,6 +785,216 @@ public sealed class OfficerConferenceReadServiceTests
     }
 
     [Fact]
+    public async Task GetLatestDirectionDigestAsync_GroupsByOfficer_UsesLatestDirection_AndOmitsUndirectedItems()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var command = CreateUser("command-digest", "Command User", "Colonel");
+        var officerA = CreateUser("officer-a", "Alpha Officer", "Lt Col");
+        var officerB = CreateUser("officer-b", "Bravo Officer", "Major");
+        var officerC = CreateUser("officer-c", "Charlie Officer", "Major");
+        db.Users.AddRange(command, officerA, officerB, officerC);
+
+        var hodRole = new IdentityRole
+        {
+            Id = "role-hod-digest",
+            Name = RoleNames.HoD,
+            NormalizedName = RoleNames.HoD.ToUpperInvariant()
+        };
+        db.Roles.Add(hodRole);
+        db.UserRoles.Add(new IdentityUserRole<string>
+        {
+            UserId = command.Id,
+            RoleId = hodRole.Id
+        });
+
+        var activeProject = new Project
+        {
+            Name = "Directed active project",
+            CreatedByUserId = command.Id,
+            LeadPoUserId = officerA.Id,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        var undirectedProject = new Project
+        {
+            Name = "Undirected project",
+            CreatedByUserId = command.Id,
+            LeadPoUserId = officerC.Id,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        var completedProject = new Project
+        {
+            Name = "Directed completed project",
+            CreatedByUserId = command.Id,
+            LeadPoUserId = officerA.Id,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CompletedOn = new DateOnly(2026, 7, 25),
+            CompletedYear = 2026,
+            CompletedMonth = 7
+        };
+        var idea = new ProjectIdea
+        {
+            Title = "Directed idea",
+            Description = "Digest test idea",
+            Status = ProjectIdeaStatuses.Active,
+            AssignedProjectOfficerUserId = officerB.Id,
+            CreatedByUserId = command.Id,
+            CreatedAt = Utc(1),
+            UpdatedAt = Utc(9)
+        };
+        var task = new ActionTaskItem
+        {
+            Title = "Directed task",
+            Description = "Digest test task",
+            CreatedByUserId = command.Id,
+            AssignedToUserId = officerA.Id,
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.ProjectOfficer,
+            AssignedOn = Utc(1),
+            DueDate = new DateTime(2026, 12, 31),
+            Priority = "Normal",
+            Status = ActionTaskStatuses.InProgress
+        };
+        db.Projects.AddRange(activeProject, undirectedProject, completedProject);
+        db.ProjectIdeas.Add(idea);
+        db.ActionTasks.Add(task);
+        await db.SaveChangesAsync();
+
+        db.Remarks.AddRange(
+            ProjectRemark(activeProject.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Older project direction", Utc(2), StageCodes.BID),
+            ProjectRemark(activeProject.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Latest project direction", Utc(7), StageCodes.TEC),
+            ProjectRemark(completedProject.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Latest closure direction", Utc(10), StageCodes.DEVP));
+        db.ProjectIdeaComments.Add(new ProjectIdeaComment
+        {
+            ProjectIdeaId = idea.Id,
+            CommentText = "Latest idea direction",
+            CommentType = ProjectIdeaCommentTypes.Conference,
+            CreatedByUserId = command.Id,
+            CreatedByRole = RoleNames.HoD,
+            StatusSnapshot = ProjectIdeaStatuses.Active,
+            CreatedAt = Utc(9)
+        });
+        db.ActionTaskUpdates.Add(new ActionTaskUpdate
+        {
+            TaskId = task.Id,
+            Body = "Latest task direction",
+            UpdateType = ActionTaskUpdateTypes.Conference,
+            CreatedByUserId = command.Id,
+            CreatedByRole = RoleNames.HoD,
+            StatusSnapshot = ActionTaskStatuses.InProgress,
+            DueDateSnapshot = new DateOnly(2026, 12, 31),
+            CreatedAtUtc = Utc(8)
+        });
+        await db.SaveChangesAsync();
+
+        var workload = new StubOfficerWorkloadReadService(new[]
+        {
+            new CommandOfficerWorkloadVm
+            {
+                UserId = officerA.Id,
+                OfficerName = officerA.FullName!,
+                Rank = officerA.Rank!,
+                Projects = new[]
+                {
+                    new CommandOfficerProjectVm(activeProject.Id, activeProject.Name, StageCodes.TEC, "Technical Evaluation", $"/Projects/Overview/{activeProject.Id}")
+                },
+                OtherTasks = new[]
+                {
+                    new CommandOfficerTaskVm(task.Id, task.Title, task.Status, task.DueDate, $"/ActionTasks/Index?taskId={task.Id}")
+                }
+            },
+            new CommandOfficerWorkloadVm
+            {
+                UserId = officerB.Id,
+                OfficerName = officerB.FullName!,
+                Rank = officerB.Rank!,
+                Ideas = new[]
+                {
+                    new CommandOfficerIdeaVm(idea.Id, idea.Title, idea.Status, $"/ProjectIdeas/Details/{idea.Id}")
+                }
+            },
+            new CommandOfficerWorkloadVm
+            {
+                UserId = officerC.Id,
+                OfficerName = officerC.FullName!,
+                Rank = officerC.Rank!,
+                Projects = new[]
+                {
+                    new CommandOfficerProjectVm(undirectedProject.Id, undirectedProject.Name, StageCodes.IPA, "IPA", $"/Projects/Overview/{undirectedProject.Id}")
+                }
+            }
+        });
+        var carryover = new ConferenceProjectCarryover(
+            completedProject.Id,
+            completedProject.Name,
+            officerA.Id,
+            officerA.FullName!,
+            officerA.Rank!,
+            completedProject.CompletedOn,
+            completedProject.CompletedYear,
+            completedProject.CompletedMonth,
+            null,
+            completedProject.CompletedOn!.Value,
+            "Completed on 25 Jul 2026");
+        var service = new OfficerConferenceReadService(
+            db,
+            workload,
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(12)),
+            new StubConferenceProjectScopeService(new[] { carryover }));
+
+        var result = await service.GetLatestDirectionDigestAsync(command.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(4, result!.TotalDirectionCount);
+        Assert.Equal(2, result.OfficerCount);
+        Assert.Equal(officerA.Id, result.OfficerGroups[0].OfficerUserId);
+
+        var alpha = Assert.Single(result.OfficerGroups.Where(group => group.OfficerUserId == officerA.Id));
+        Assert.Equal(3, alpha.Directions.Count);
+        Assert.Collection(
+            alpha.Directions,
+            direction =>
+            {
+                Assert.Equal(completedProject.Name, direction.Title);
+                Assert.Equal("Latest closure direction", direction.DirectionText);
+            },
+            direction =>
+            {
+                Assert.Equal(task.Title, direction.Title);
+                Assert.Equal("Latest task direction", direction.DirectionText);
+            },
+            direction =>
+            {
+                Assert.Equal(activeProject.Name, direction.Title);
+                Assert.Equal("Latest project direction", direction.DirectionText);
+                Assert.DoesNotContain("Older project direction", direction.DirectionText);
+            });
+
+        var bravo = Assert.Single(result.OfficerGroups.Where(group => group.OfficerUserId == officerB.Id));
+        var ideaDirection = Assert.Single(bravo.Directions);
+        Assert.Equal(ConferenceItemKind.ProjectIdea, ideaDirection.Kind);
+        Assert.Equal("Latest idea direction", ideaDirection.DirectionText);
+        Assert.DoesNotContain(result.OfficerGroups, group => group.OfficerUserId == officerC.Id);
+        Assert.DoesNotContain(
+            result.OfficerGroups.SelectMany(group => group.Directions),
+            direction => direction.Title == undirectedProject.Name);
+
+        // The digest is command-only even though the underlying conference read service
+        // also exposes a separate self-scoped Project Officer view.
+        Assert.Null(await service.GetLatestDirectionDigestAsync(officerA.Id));
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNull_WhenOfficerIsOutsideCanonicalWorkloadOrder()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");

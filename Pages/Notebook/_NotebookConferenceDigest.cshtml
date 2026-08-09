@@ -1,0 +1,164 @@
+@model ProjectManagement.ViewModels.Workspace.ConferenceDirectionDigestVm
+@using ProjectManagement.Infrastructure
+@{
+    const int previewOfficerLimit = 2;
+    const int previewDirectionLimit = 3;
+
+    var previewGroups = Model.OfficerGroups.Take(previewOfficerLimit).ToArray();
+    var previewTakes = new int[previewGroups.Length];
+    var remainingPreviewSlots = previewDirectionLimit;
+
+    // Preserve PO-wise context in the compact card: when two officers are available,
+    // reserve at least one preview slot for the second officer instead of allowing the
+    // first officer to consume the entire preview.
+    for (var index = 0; index < previewGroups.Length && remainingPreviewSlots > 0; index++)
+    {
+        var groupsAfter = previewGroups.Length - index - 1;
+        var reservedForLaterGroups = Math.Min(groupsAfter, remainingPreviewSlots);
+        var availableForCurrentGroup = Math.Max(0, remainingPreviewSlots - reservedForLaterGroups);
+        var take = Math.Min(previewGroups[index].Directions.Count, availableForCurrentGroup);
+
+        if (take == 0 && previewGroups[index].Directions.Count > 0)
+        {
+            take = 1;
+        }
+
+        previewTakes[index] = take;
+        remainingPreviewSlots -= take;
+    }
+
+    var hiddenOfficerGroups = Model.OfficerGroups.Skip(previewOfficerLimit).ToArray();
+    var hiddenOfficerCount = hiddenOfficerGroups.Length;
+    var hiddenOfficerDirectionCount = hiddenOfficerGroups.Sum(group => group.Directions.Count);
+}
+
+<section class="notebook-board-section notebook-conference-digest" data-conference-digest aria-labelledby="notebook-command-digest-heading">
+    <div class="notebook-section-header notebook-conference-digest__section-header">
+        <h2 id="notebook-command-digest-heading"><i class="bi bi-shield-check" aria-hidden="true"></i>Command</h2>
+    </div>
+
+    <article class="notebook-conference-digest-card">
+        <button type="button"
+                class="notebook-conference-digest-card__open"
+                data-bs-toggle="modal"
+                data-bs-target="#notebookConferenceDigestModal"
+                aria-haspopup="dialog"
+                aria-label="Open latest conference directions">
+            <span class="notebook-conference-digest-card__topline">
+                <span>
+                    <strong>Latest Conference Directions</strong>
+                    <small><i class="bi bi-lock" aria-hidden="true"></i> System generated · Read only</small>
+                </span>
+                <span class="notebook-conference-digest-card__count" aria-label="@Model.TotalDirectionCount latest directions">@Model.TotalDirectionCount</span>
+            </span>
+
+            <span class="notebook-conference-digest-card__groups">
+                @for (var groupIndex = 0; groupIndex < previewGroups.Length; groupIndex++)
+                {
+                    var group = previewGroups[groupIndex];
+                    var previewTake = previewTakes[groupIndex];
+                    var hiddenInGroup = Math.Max(0, group.Directions.Count - previewTake);
+
+                    <span class="notebook-conference-digest-preview-group">
+                        <span class="notebook-conference-digest-preview-group__heading">
+                            <strong>@group.OfficerDisplayName</strong>
+                            <small>@group.Directions.Count</small>
+                        </span>
+
+                        <span class="notebook-conference-digest-preview-group__items">
+                            @foreach (var item in group.Directions.Take(previewTake))
+                            {
+                                var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+                                <span class="notebook-conference-digest-preview-item">
+                                    <span class="notebook-conference-digest-preview-item__titleline">
+                                        <strong title="@item.Title">@item.Title</strong>
+                                        <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM")</time>
+                                    </span>
+                                    <span class="notebook-conference-digest-preview-item__direction">@item.DirectionText</span>
+                                </span>
+                            }
+                        </span>
+
+                        @if (hiddenInGroup > 0)
+                        {
+                            <span class="notebook-conference-digest-preview-group__more">+@hiddenInGroup more</span>
+                        }
+                    </span>
+                }
+            </span>
+
+            <span class="notebook-conference-digest-card__footer">
+                @if (hiddenOfficerCount > 0)
+                {
+                    <span>
+                        @hiddenOfficerCount more officer@(hiddenOfficerCount == 1 ? string.Empty : "s")
+                        <span aria-hidden="true"> · </span>
+                        @hiddenOfficerDirectionCount direction@(hiddenOfficerDirectionCount == 1 ? string.Empty : "s")
+                    </span>
+                }
+                else
+                {
+                    <span>@Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</span>
+                }
+                <span>View all @Model.TotalDirectionCount direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
+            </span>
+        </button>
+    </article>
+
+    <div class="modal fade notebook-conference-digest-modal"
+         id="notebookConferenceDigestModal"
+         tabindex="-1"
+         aria-labelledby="notebookConferenceDigestModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable notebook-conference-digest-modal__dialog">
+            <div class="modal-content notebook-conference-digest-modal__content">
+                <header class="notebook-conference-digest-modal__header">
+                    <div>
+                        <div class="notebook-conference-digest-modal__eyebrow">Command · System generated</div>
+                        <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
+                        <p>@Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
+                    </div>
+                    <div class="notebook-conference-digest-modal__header-actions">
+                        <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </header>
+
+                <div class="modal-body notebook-conference-digest-modal__body">
+                    @foreach (var group in Model.OfficerGroups)
+                    {
+                        <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
+                            <header class="notebook-conference-digest-officer__header">
+                                <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
+                                <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
+                                    Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                </a>
+                            </header>
+
+                            <div class="notebook-conference-digest-officer__items">
+                                @foreach (var item in group.Directions)
+                                {
+                                    var issuedAtIst = IstClock.ToIst(item.IssuedAtUtc);
+                                    <article class="notebook-conference-digest-item">
+                                        <div class="notebook-conference-digest-item__heading">
+                                            <a href="@item.OpenUrl" class="notebook-conference-digest-item__title">
+                                                @item.Title <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                            </a>
+                                            <time datetime="@item.IssuedAtUtc.ToString("O")">@issuedAtIst.ToString("dd MMM yyyy · hh:mm tt")</time>
+                                        </div>
+                                        <p>@item.DirectionText</p>
+                                    </article>
+                                }
+                            </div>
+                        </section>
+                    }
+                </div>
+
+                <footer class="modal-footer notebook-conference-digest-modal__footer">
+                    <span>Source: Conference Review</span>
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+                </footer>
+            </div>
+        </div>
+    </div>
+</section>

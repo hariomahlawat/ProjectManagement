@@ -1,0 +1,146 @@
+diff --git a/Pages/Notebook/_NotebookConferenceDigest.cshtml b/Pages/Notebook/_NotebookConferenceDigest.cshtml
+index 62ecff6..bc688ae 100644
+--- a/Pages/Notebook/_NotebookConferenceDigest.cshtml
++++ b/Pages/Notebook/_NotebookConferenceDigest.cshtml
+@@ -49,7 +49,7 @@
+                     <strong>Latest Conference Directions</strong>
+                     <small><i class="bi bi-lock" aria-hidden="true"></i> System generated · Read only</small>
+                 </span>
+-                <span class="notebook-conference-digest-card__count" aria-label="@Model.TotalDirectionCount current directions">@Model.TotalDirectionCount</span>
++                <span class="notebook-conference-digest-card__count" aria-label="@Model.TotalDirectionCount latest directions">@Model.TotalDirectionCount</span>
+             </span>
+ 
+             <span class="notebook-conference-digest-card__groups">
+@@ -116,7 +116,7 @@
+                     <div>
+                         <div class="notebook-conference-digest-modal__eyebrow">Command · System generated</div>
+                         <h2 id="notebookConferenceDigestModalLabel">Latest Conference Directions</h2>
+-                        <p>@Model.TotalDirectionCount current direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
++                        <p>@Model.TotalDirectionCount latest direction@(Model.TotalDirectionCount == 1 ? string.Empty : "s") · @Model.OfficerCount Project Officer@(Model.OfficerCount == 1 ? string.Empty : "s")</p>
+                     </div>
+                     <div class="notebook-conference-digest-modal__header-actions">
+                         <span class="notebook-conference-digest-modal__readonly"><i class="bi bi-lock" aria-hidden="true"></i> Read only</span>
+@@ -129,10 +129,7 @@
+                     {
+                         <section class="notebook-conference-digest-officer" aria-labelledby="conference-digest-officer-@group.OfficerUserId">
+                             <header class="notebook-conference-digest-officer__header">
+-                                <div>
+-                                    <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
+-                                    <span>@group.Directions.Count current direction@(group.Directions.Count == 1 ? string.Empty : "s")</span>
+-                                </div>
++                                <h3 id="conference-digest-officer-@group.OfficerUserId">@group.OfficerDisplayName</h3>
+                                 <a href="@group.ConferenceReviewUrl" class="notebook-conference-digest-officer__review-link">
+                                     Conference review <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                 </a>
+@@ -158,7 +155,7 @@
+                 </div>
+ 
+                 <footer class="modal-footer notebook-conference-digest-modal__footer">
+-                    <span><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Live from Conference Review</span>
++                    <span>Source: Conference Review</span>
+                     <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+                 </footer>
+             </div>
+diff --git a/wwwroot/css/notebook.css b/wwwroot/css/notebook.css
+index 5cd53c4..6046bf7 100644
+--- a/wwwroot/css/notebook.css
++++ b/wwwroot/css/notebook.css
+@@ -4412,7 +4412,7 @@ body.notebook-confirm-open { overflow: hidden; }
+ }
+ 
+ .notebook-conference-digest-officer {
+-    padding: 1rem 0 1.05rem;
++    padding: .88rem 0 .92rem;
+     border-bottom: 1px solid #e4e9f0;
+ }
+ 
+@@ -4422,10 +4422,10 @@ body.notebook-confirm-open { overflow: hidden; }
+ 
+ .notebook-conference-digest-officer__header {
+     display: flex;
+-    align-items: flex-start;
++    align-items: center;
+     justify-content: space-between;
+     gap: .9rem;
+-    margin-bottom: .48rem;
++    margin-bottom: .42rem;
+ }
+ 
+ .notebook-conference-digest-officer__header h3 {
+@@ -4436,14 +4436,6 @@ body.notebook-confirm-open { overflow: hidden; }
+     letter-spacing: .012em;
+ }
+ 
+-.notebook-conference-digest-officer__header span {
+-    display: block;
+-    margin-top: .08rem;
+-    color: #8a96a8;
+-    font-size: .67rem;
+-    font-weight: 600;
+-}
+-
+ .notebook-conference-digest-officer__review-link {
+     display: inline-flex;
+     flex: 0 0 auto;
+@@ -4463,17 +4455,13 @@ body.notebook-confirm-open { overflow: hidden; }
+ 
+ .notebook-conference-digest-officer__items {
+     display: grid;
++    gap: .48rem;
+ }
+ 
+ .notebook-conference-digest-item {
+     display: grid;
+-    gap: .1rem;
+-    padding: .52rem 0 .56rem;
+-    border-bottom: 1px solid #f0f3f7;
+-}
+-
+-.notebook-conference-digest-item:last-child {
+-    border-bottom: 0;
++    gap: .06rem;
++    padding: .06rem 0;
+ }
+ 
+ .notebook-conference-digest-item__heading {
+@@ -4517,10 +4505,10 @@ body.notebook-confirm-open { overflow: hidden; }
+ }
+ 
+ .notebook-conference-digest-item p {
+-    margin: .08rem 0 0;
++    margin: .04rem 0 0;
+     color: #475569;
+     font-size: .79rem;
+-    line-height: 1.42;
++    line-height: 1.38;
+     white-space: pre-line;
+ }
+ 
+diff --git a/wwwroot/js/notebook/notebook-conference-digest-contract.test.js b/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
+index fe53941..6a254c1 100644
+--- a/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
++++ b/wwwroot/js/notebook/notebook-conference-digest-contract.test.js
+@@ -49,3 +49,23 @@ test('expanded digest uses a concise register row instead of type-specific cards
+   assert.doesNotMatch(css, /\.notebook-conference-digest-item\.is-task/);
+   assert.doesNotMatch(css, /\.notebook-conference-digest-item__kind/);
+ });
++
++test('expanded digest uses latest terminology and omits redundant per-officer direction counts', () => {
++  const partial = readPartial();
++
++  assert.match(partial, /@Model\.TotalDirectionCount latest direction/);
++  assert.doesNotMatch(partial, /@Model\.TotalDirectionCount current direction/);
++  assert.doesNotMatch(partial, /<span>@group\.Directions\.Count current direction/);
++  assert.match(partial, /Source: Conference Review/);
++});
++
++test('expanded digest separates PO groups without drawing rules between every direction', () => {
++  const css = readCss();
++  const officerRule = css.match(/\.notebook-conference-digest-officer\s*\{([^}]*)\}/)?.[1] ?? '';
++  const itemRule = css.match(/\.notebook-conference-digest-item\s*\{([^}]*)\}/)?.[1] ?? '';
++
++  assert.match(officerRule, /border-bottom:\s*1px solid/);
++  assert.doesNotMatch(itemRule, /border-bottom/);
++  assert.match(css, /\.notebook-conference-digest-officer__items\s*\{[\s\S]*?gap:\s*\.48rem;/);
++});
++
