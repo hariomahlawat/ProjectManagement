@@ -86,6 +86,10 @@ public sealed class DetailsModel : PageModel
     public bool IsAssigned => IsStatus(ActionTaskStatuses.Assigned);
     public bool IsInProgress => IsStatus(ActionTaskStatuses.InProgress);
     public bool IsBlocked => IsStatus(ActionTaskStatuses.Blocked);
+    public ActionTaskInteractionCapabilities Capabilities =>
+        TaskItem is null
+            ? ActionTaskInteractionCapabilities.None
+            : _workflow.GetInteractionCapabilities(TaskItem, CurrentRole, CurrentUserId);
     public bool CanAddRemark => !IsClosed && _permission.CanAddTaskUpdate(CurrentRole, CurrentUserId, TaskItem.AssignedToUserId);
     public bool CanAddConference => !IsClosed && _permission.CanAddConferenceUpdate(CurrentRole);
     public bool CanUpdateStatus => _workflow.CanUpdateTaskStatus(TaskItem, CurrentRole, CurrentUserId);

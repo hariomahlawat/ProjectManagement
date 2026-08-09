@@ -1,0 +1,37 @@
+namespace ProjectManagement.Services.ActionTasks;
+
+/// <summary>
+/// Role- and state-aware interaction capabilities for a single task.
+/// The UI consumes this projection so that valid actions stay visible without
+/// exposing irrelevant workflow choices.
+/// </summary>
+public sealed record ActionTaskInteractionCapabilities(
+    bool IsAssignedUser,
+    bool IsPlanningAuthority,
+    bool CanAddRemark,
+    bool CanAddConferenceRemark,
+    bool CanStartWork,
+    bool CanResumeWork,
+    bool CanSubmitForClosure,
+    bool CanBlockAsOwner,
+    bool CanBlockAsCommandControl,
+    bool CanResumeAsCommandControl,
+    bool CanAcceptAndClose,
+    bool CanReturnForAction,
+    bool CanChangeDate,
+    bool CanManagePlanning,
+    bool CanCloseDirectly,
+    bool CanViewSystemHistory)
+{
+    public static ActionTaskInteractionCapabilities None { get; } = new(
+        false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false);
+
+    public bool HasPrimaryWorkflowAction =>
+        CanStartWork || CanResumeWork || CanSubmitForClosure || CanBlockAsOwner ||
+        CanAcceptAndClose || CanReturnForAction;
+
+    public bool HasCommandControls =>
+        CanBlockAsCommandControl || CanResumeAsCommandControl || CanChangeDate ||
+        CanManagePlanning || CanCloseDirectly;
+}

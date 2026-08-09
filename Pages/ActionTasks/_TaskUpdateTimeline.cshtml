@@ -1,0 +1,87 @@
+@model ProjectManagement.Pages.ActionTasks.TaskUpdateTimelineViewModel
+@using ProjectManagement.Models
+@using ProjectManagement.Services.ActionTasks
+@{
+    var ordered = Model.Updates
+        .OrderByDescending(update => update.CreatedAtUtc)
+        .ThenByDescending(update => update.Id);
+    var visibleUpdates = Model.Take.HasValue ? ordered.Take(Model.Take.Value).ToList() : ordered.ToList();
+}
+
+@if (!visibleUpdates.Any())
+{
+    <div class="at-task-empty-state">No updates yet.</div>
+}
+else
+{
+    <div class="at-v2-update-stream @(Model.Compact ? "is-compact" : "at-workspace-update-stream")">
+        @foreach (var update in visibleUpdates)
+        {
+            var isConference = string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase);
+            var isProgress = string.Equals(update.UpdateType, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase);
+            var roleLabel = ActionTaskPresentation.RoleLabel(update.CreatedByRole);
+            Model.Attachments.TryGetValue(update.Id, out var files);
+            var progressHeading = isProgress ? ActionTaskPresentation.ProgressHeading(update) : null;
+            var progressContext = isProgress ? ActionTaskPresentation.ProgressContext(update) : null;
+
+            <article class="at-v2-update-card @(isConference ? "is-conference" : string.Empty) @(isProgress ? "is-progress" : string.Empty)">
+                <div class="at-v2-update-heading">
+                    <div>
+                        @if (isProgress)
+                        {
+                            <span class="at-progress-event-title">@progressHeading</span>
+                        }
+                        else
+                        {
+                            <span class="at-update-type @(isConference ? "is-conference" : string.Empty)">@ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)</span>
+                            @if (isConference && !string.IsNullOrWhiteSpace(roleLabel))
+                            {
+                                <span class="at-update-role">@roleLabel</span>
+                            }
+                        }
+                    </div>
+                    <time>@TimeFmt.ToIst(update.CreatedAtUtc)</time>
+                </div>
+
+                @if (!isProgress || ActionTaskPresentation.ShouldShowProgressBody(update))
+                {
+                    <div class="at-v2-update-body">@update.Body</div>
+                }
+
+                @if (files is { Count: > 0 })
+                {
+                    <div class="at-v2-update-files">
+                        @foreach (var file in files)
+                        {
+                            <a href="@file.DownloadUrl" class="at-v2-update-file">
+                                <i class="bi bi-paperclip" aria-hidden="true"></i>
+                                <span>@file.FileName</span>
+                                <small>@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</small>
+                            </a>
+                        }
+                    </div>
+                }
+
+                @if (isConference && (!string.IsNullOrWhiteSpace(update.StatusSnapshot) || update.DueDateSnapshot.HasValue))
+                {
+                    <div class="at-update-context">
+                        @if (!string.IsNullOrWhiteSpace(update.StatusSnapshot))
+                        {
+                            <span>Status when issued: @ActionTaskPresentation.StatusLabel(update.StatusSnapshot)</span>
+                        }
+                        @if (update.DueDateSnapshot.HasValue)
+                        {
+                            <span>Due: @update.DueDateSnapshot.Value.ToString("dd MMM yyyy")</span>
+                        }
+                    </div>
+                }
+                else if (isProgress && !string.IsNullOrWhiteSpace(progressContext))
+                {
+                    <div class="at-update-context"><span>@progressContext</span></div>
+                }
+
+                <div class="at-v2-update-author">@Model.ResolveActorName(update.CreatedByUserId)</div>
+            </article>
+        }
+    </div>
+}

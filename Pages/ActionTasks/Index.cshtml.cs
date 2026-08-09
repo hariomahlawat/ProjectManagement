@@ -350,6 +350,11 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Per-task action visibility helpers
+    public ActionTaskInteractionCapabilities GetInteractionCapabilities(ActionTaskItem task)
+    {
+        return _workflowPolicy.GetInteractionCapabilities(task, CurrentRole, CurrentUserId);
+    }
+
     public bool CanSubmitTask(ActionTaskItem task)
     {
         return _workflowPolicy.CanSubmitTask(task, CurrentUserId);

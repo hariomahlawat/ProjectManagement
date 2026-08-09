@@ -417,7 +417,7 @@ public class ActionTaskPageTests
 
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
-        Assert.Contains("name="PlanningTab" value="Execute"", html, StringComparison.Ordinal);
+        Assert.Contains(@"name=""PlanningTab"" value=""Execute""", html, StringComparison.Ordinal);
         Assert.Contains("Open full task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Manage Task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
@@ -439,7 +439,7 @@ public class ActionTaskPageTests
 
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
-        Assert.Contains("placeholder="Add a remark…"", html, StringComparison.Ordinal);
+        Assert.Contains(@"placeholder=""Add a remark…""", html, StringComparison.Ordinal);
         Assert.Contains("General", html, StringComparison.Ordinal);
         Assert.Contains("Conference", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add Planning Note", html, StringComparison.Ordinal);
@@ -1266,7 +1266,8 @@ public class ActionTaskPageTests
         Assert.Contains("Open full task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Remove from Sprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Move to Backlog", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Change Due Date", html, StringComparison.Ordinal);
+        Assert.Contains("Change", html, StringComparison.Ordinal);
+        Assert.Contains("Planning controls", html, StringComparison.Ordinal);
     }
 
     [Fact]

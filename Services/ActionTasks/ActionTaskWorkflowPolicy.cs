@@ -40,6 +40,41 @@ public sealed class ActionTaskWorkflowPolicy
         "Critical"
     };
 
+    // SECTION: Role/state interaction projection shared by Peek and full task workspace.
+    public ActionTaskInteractionCapabilities GetInteractionCapabilities(
+        ActionTaskItem task,
+        string currentRole,
+        string currentUserId)
+    {
+        var isClosed = string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+        var isAssigned = string.Equals(task.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase);
+        var isInProgress = string.Equals(task.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
+        var isBlocked = string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+        var isSubmitted = string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+        var isAssignedUser = !string.IsNullOrWhiteSpace(currentUserId)
+            && string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal);
+        var isPlanningAuthority = _permission.CanViewAll(currentRole);
+        var canUpdateStatus = CanUpdateTaskStatus(task, currentRole, currentUserId);
+
+        return new ActionTaskInteractionCapabilities(
+            IsAssignedUser: isAssignedUser,
+            IsPlanningAuthority: isPlanningAuthority,
+            CanAddRemark: !isClosed && _permission.CanAddTaskUpdate(currentRole, currentUserId, task.AssignedToUserId),
+            CanAddConferenceRemark: !isClosed && _permission.CanAddConferenceUpdate(currentRole),
+            CanStartWork: isAssigned && isAssignedUser && canUpdateStatus,
+            CanResumeWork: isBlocked && isAssignedUser && canUpdateStatus,
+            CanSubmitForClosure: isInProgress && CanSubmitTask(task, currentUserId),
+            CanBlockAsOwner: (isAssigned || isInProgress) && isAssignedUser && canUpdateStatus,
+            CanBlockAsCommandControl: (isAssigned || isInProgress) && !isAssignedUser && isPlanningAuthority && canUpdateStatus,
+            CanResumeAsCommandControl: isBlocked && !isAssignedUser && isPlanningAuthority && canUpdateStatus,
+            CanAcceptAndClose: isSubmitted && _permission.CanCloseTaskDirectly(task, currentRole),
+            CanReturnForAction: isSubmitted && CanReturnTaskForAction(task, currentRole),
+            CanChangeDate: CanChangeTaskDate(task, currentRole),
+            CanManagePlanning: !isClosed && _permission.CanManageSprints(currentRole),
+            CanCloseDirectly: !isSubmitted && _permission.CanCloseTaskDirectly(task, currentRole),
+            CanViewSystemHistory: CanViewSystemHistory(currentRole));
+    }
+
     // SECTION: Action availability guards.
     public bool CanSubmitTask(ActionTaskItem task, string currentUserId)
     {

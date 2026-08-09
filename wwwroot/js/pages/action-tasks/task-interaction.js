@@ -16,8 +16,8 @@
         closeCommandPanels(root);
         panel.hidden = false;
         const target = panel.querySelector('textarea, select, input:not([type="hidden"]), button');
-        target?.focus({ preventScroll: false });
         panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        window.setTimeout(() => target?.focus({ preventScroll: true }), 120);
     }
 
     function initCommandPanels() {
@@ -42,6 +42,44 @@
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') return;
             roots().forEach(closeCommandPanels);
+        });
+    }
+
+    function closeInlineEditors(root, exceptName) {
+        root.querySelectorAll('[data-at-v2-inline-panel]').forEach((panel) => {
+            if (panel.getAttribute('data-at-v2-inline-panel') !== exceptName) {
+                panel.hidden = true;
+            }
+        });
+    }
+
+    function openInlineEditor(root, name) {
+        const panel = root.querySelector(`[data-at-v2-inline-panel="${name}"]`);
+        if (!panel) return;
+        closeInlineEditors(root, name);
+        panel.hidden = false;
+        const target = panel.querySelector('input:not([type="hidden"]), select, textarea, button');
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        window.setTimeout(() => target?.focus({ preventScroll: true }), 100);
+    }
+
+    function initInlineEditors() {
+        document.addEventListener('click', (event) => {
+            const opener = event.target.closest('[data-at-v2-inline-toggle]');
+            if (opener) {
+                const root = opener.closest('[data-at-v2-task-root]');
+                if (!root) return;
+                event.preventDefault();
+                openInlineEditor(root, opener.getAttribute('data-at-v2-inline-toggle'));
+                return;
+            }
+
+            const cancel = event.target.closest('[data-at-v2-inline-cancel]');
+            if (!cancel) return;
+            const panel = cancel.closest('[data-at-v2-inline-panel]');
+            if (!panel) return;
+            event.preventDefault();
+            panel.hidden = true;
         });
     }
 
@@ -135,6 +173,18 @@
         });
     }
 
+    function initStickyTaskHeader() {
+        const header = document.querySelector('[data-at-v2-sticky-header]');
+        if (!header) return;
+
+        const update = () => {
+            header.classList.toggle('is-compact', window.scrollY > 110);
+        };
+
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+    }
+
     function initTaskIntent() {
         roots().forEach((root) => {
             const intent = (root.getAttribute('data-at-task-intent') || '').trim().toLowerCase();
@@ -148,7 +198,7 @@
                 return;
             }
 
-            if (['submit', 'block', 'return', 'close'].includes(intent)) {
+            if (['submit', 'block', 'return', 'close', 'change-date'].includes(intent)) {
                 window.setTimeout(() => openCommandPanel(root, intent), 50);
             }
         });
@@ -156,7 +206,9 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         initCommandPanels();
+        initInlineEditors();
         initRemarkComposers();
+        initStickyTaskHeader();
         initTaskIntent();
     });
 })();

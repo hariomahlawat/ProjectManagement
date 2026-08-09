@@ -1,7 +1,10 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@using ProjectManagement.Models
+@using ProjectManagement.Pages.ActionTasks
+@using ProjectManagement.Services.ActionTasks
 
 @{
-    // SECTION: Task Peek keeps high-frequency collaboration and workflow actions inside the current collection context.
+    // SECTION: Task Peek is a low-friction operating surface inside the current collection context.
     var planningTabRouteValue = Model.IsPlanningView ? Model.ResolvedPlanningTab : null;
     var planningViewRouteValue = Model.IsPlanningView && !string.Equals(Model.ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
         ? Model.ResolvedPlanningView
@@ -10,29 +13,19 @@
 
     var task = Model.SelectedTask;
     var isBacklog = task is not null && Model.IsBacklogTask(task);
-    var isClosed = string.Equals(task?.Status, ProjectManagement.Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
-    var isSubmitted = string.Equals(task?.Status, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
-    var isAssigned = string.Equals(task?.Status, ProjectManagement.Models.ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase);
-    var isInProgress = string.Equals(task?.Status, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
-    var isBlocked = string.Equals(task?.Status, ProjectManagement.Models.ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+    var isClosed = string.Equals(task?.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    var isSubmitted = string.Equals(task?.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
     var isCritical = string.Equals(task?.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
     var isOverdue = task is not null && !isClosed && task.DueDate.Date < Model.IstToday;
     var overdueDays = isOverdue && task is not null ? Math.Max(1, (Model.IstToday - task.DueDate.Date).Days) : 0;
     var statusLabel = isSubmitted ? "Awaiting Closure" : task?.Status ?? string.Empty;
-    var canAddRemark = task is not null && Model.CanAddRemark(task);
-    var canAddConference = task is not null && Model.CanAddConferenceUpdate(task);
-    var defaultRemarkType = task is not null ? Model.GetDefaultRemarkType(task) : ProjectManagement.Models.ActionTaskUpdateTypes.Comment;
-    var canUpdateStatus = task is not null && Model.CanUpdateTaskStatus(task);
-    var canSubmit = isInProgress && task is not null && Model.CanSubmitTask(task);
-    var canCommandClose = task is not null && Model.CanCloseTaskDirectly(task);
-    var canReturn = task is not null && Model.CanReturnTaskForAction(task);
-    var latestUpdates = Model.SelectedTaskUpdates
-        .OrderByDescending(update => update.CreatedAtUtc)
-        .ThenByDescending(update => update.Id)
-        .Take(3)
-        .ToList();
+    var capabilities = task is null ? ActionTaskInteractionCapabilities.None : Model.GetInteractionCapabilities(task);
+    var defaultRemarkType = task is not null ? Model.GetDefaultRemarkType(task) : ActionTaskUpdateTypes.Comment;
     var taskBrief = string.IsNullOrWhiteSpace(task?.Description) ? "No task brief recorded." : task.Description;
     var currentCollectionUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var fullTaskUrl = task is null
+        ? string.Empty
+        : Url.Page("/ActionTasks/Details", new { id = task.Id, returnUrl = currentCollectionUrl }) ?? string.Empty;
 }
 
 <section id="task-details"
@@ -66,15 +59,26 @@
                     </div>
                 }
             </div>
-            <a asp-page="/ActionTasks/Index"
-               asp-route-viewMode="@Model.ResolvedViewMode"
-               asp-route-SelectedSprintId="@selectedSprintRouteValue"
-               asp-route-PlanningTab="@planningTabRouteValue"
-               asp-route-PlanningView="@planningViewRouteValue"
-               class="btn btn-light btn-sm at-inspector-close"
-               aria-label="Close task peek">
-                <i class="bi bi-x-lg" aria-hidden="true"></i>
-            </a>
+            <div class="at-task-peek-header-actions">
+                @if (task is not null)
+                {
+                    <a href="@fullTaskUrl"
+                       class="btn btn-light btn-sm at-task-peek-full-icon"
+                       title="Open full task"
+                       aria-label="Open full task">
+                        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+                    </a>
+                }
+                <a asp-page="/ActionTasks/Index"
+                   asp-route-viewMode="@Model.ResolvedViewMode"
+                   asp-route-SelectedSprintId="@selectedSprintRouteValue"
+                   asp-route-PlanningTab="@planningTabRouteValue"
+                   asp-route-PlanningView="@planningViewRouteValue"
+                   class="btn btn-light btn-sm at-inspector-close"
+                   aria-label="Close task peek">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
+            </div>
         </header>
 
         @if (task is not null)
@@ -85,11 +89,12 @@
                     <div class="at-task-peek-brief-text @(string.IsNullOrWhiteSpace(task.Description) ? "is-muted" : string.Empty)">@taskBrief</div>
                 </section>
 
-                @if (!isClosed)
+                @if (!isClosed && capabilities.HasPrimaryWorkflowAction)
                 {
-                    <section class="at-task-peek-workflow" aria-label="Task workflow actions">
+                    <section class="at-task-peek-workflow" aria-label="Current task actions">
+                        <div class="at-task-peek-label">Task actions</div>
                         <div class="at-task-peek-action-row">
-                            @if (isAssigned && canUpdateStatus)
+                            @if (capabilities.CanStartWork)
                             {
                                 <form method="post" asp-page-handler="UpdateStatus" class="at-inline-command-form">
                                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
@@ -99,11 +104,11 @@
                                     <input type="hidden" name="TaskId" value="@task.Id" />
                                     <input type="hidden" name="id" value="@task.Id" />
                                     <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                                    <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
+                                    <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
                                     <button type="submit" class="btn btn-primary btn-sm">Start work</button>
                                 </form>
                             }
-                            @if (isBlocked && canUpdateStatus)
+                            @if (capabilities.CanResumeWork)
                             {
                                 <form method="post" asp-page-handler="UpdateStatus" class="at-inline-command-form">
                                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
@@ -113,101 +118,164 @@
                                     <input type="hidden" name="TaskId" value="@task.Id" />
                                     <input type="hidden" name="id" value="@task.Id" />
                                     <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                                    <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
+                                    <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
                                     <button type="submit" class="btn btn-primary btn-sm">Resume</button>
                                 </form>
                             }
-                            @if (canSubmit)
+                            @if (capabilities.CanSubmitForClosure)
                             {
                                 <button type="button" class="btn btn-primary btn-sm" data-at-v2-open="submit">Submit for closure</button>
                             }
-                            @if ((isAssigned || isInProgress) && canUpdateStatus)
+                            @if (capabilities.CanBlockAsOwner)
                             {
                                 <button type="button" class="btn btn-outline-secondary btn-sm" data-at-v2-open="block">Block</button>
                             }
-                            @if (isSubmitted && !canCommandClose)
-                            {
-                                <span class="at-task-peek-state-note">Awaiting closure review</span>
-                            }
-                            @if (isSubmitted && canCommandClose)
+                            @if (capabilities.CanAcceptAndClose)
                             {
                                 <button type="button" class="btn btn-primary btn-sm" data-at-v2-open="close">Accept &amp; close</button>
+                            }
+                            @if (capabilities.CanReturnForAction)
+                            {
                                 <button type="button" class="btn btn-outline-secondary btn-sm" data-at-v2-open="return">Return for action</button>
                             }
                         </div>
+                    </section>
+                }
+                else if (!isClosed && isSubmitted && !capabilities.CanAcceptAndClose)
+                {
+                    <div class="at-task-peek-state-note">Awaiting closure review</div>
+                }
 
-                        <div class="at-task-peek-command-panels">
-                            @if ((isAssigned || isInProgress) && canUpdateStatus)
+                @if (!isClosed && capabilities.HasCommandControls)
+                {
+                    <section class="at-task-peek-controls" aria-label="Task controls">
+                        <div class="at-task-peek-label">Task controls</div>
+                        <div class="at-task-control-row">
+                            @if (capabilities.CanBlockAsCommandControl)
                             {
-                                <div class="at-v2-command-panel" data-at-v2-panel="block" hidden>
-                                    <form method="post" asp-page-handler="UpdateStatus">
-                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                        <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                        <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                        <input type="hidden" name="TaskId" value="@task.Id" />
-                                        <input type="hidden" name="id" value="@task.Id" />
-                                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                                        <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.Blocked" />
-                                        <label class="form-label at-small">Blocker / reason</label>
-                                        <textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="What is blocking progress?"></textarea>
-                                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-warning btn-sm">Mark blocked</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                                    </form>
-                                </div>
+                                <button type="button" class="at-task-control-link" data-at-v2-open="block">Block task</button>
                             }
-                            @if (canSubmit)
+                            @if (capabilities.CanResumeAsCommandControl)
                             {
-                                <div class="at-v2-command-panel" data-at-v2-panel="submit" hidden>
-                                    <form method="post" asp-page-handler="Submit">
-                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                        <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                        <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                        <input type="hidden" name="TaskId" value="@task.Id" />
-                                        <input type="hidden" name="id" value="@task.Id" />
-                                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                                        <label class="form-label at-small">Completion remarks</label>
-                                        <textarea name="remarks" class="form-control form-control-sm" rows="3" maxlength="4000" required placeholder="Summarise completion and any points for closure review"></textarea>
-                                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Submit for closure</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                                    </form>
-                                </div>
+                                <form method="post" asp-page-handler="UpdateStatus" class="at-inline-command-form">
+                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
+                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
+                                    <input type="hidden" name="TaskId" value="@task.Id" />
+                                    <input type="hidden" name="id" value="@task.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                                    <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
+                                    <button type="submit" class="at-task-control-link">Resume task</button>
+                                </form>
                             }
-                            @if (canReturn)
+                            @if (capabilities.CanChangeDate)
                             {
-                                <div class="at-v2-command-panel" data-at-v2-panel="return" hidden>
-                                    <form method="post" asp-page-handler="ReturnForAction">
-                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                        <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                        <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                        <input type="hidden" name="TaskId" value="@task.Id" />
-                                        <input type="hidden" name="id" value="@task.Id" />
-                                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                                        <label class="form-label at-small">Further direction</label>
-                                        <textarea name="remarks" class="form-control form-control-sm" rows="3" maxlength="4000" required placeholder="State what remains to be done"></textarea>
-                                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Return for action</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                                    </form>
-                                </div>
+                                <button type="button" class="at-task-control-link" data-at-v2-open="change-date">Change @(isBacklog ? "target" : "due") date</button>
                             }
-                            @if (isSubmitted && canCommandClose)
+                            @if (capabilities.CanCloseDirectly)
                             {
-                                <div class="at-v2-command-panel" data-at-v2-panel="close" hidden>
-                                    <form method="post" asp-page-handler="Close" data-at-v2-required-form>
-                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                        <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                        <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                        <input type="hidden" name="TaskId" value="@task.Id" />
-                                        <input type="hidden" name="id" value="@task.Id" />
-                                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                                        <label class="form-label at-small">Closure remarks</label>
-                                        <textarea name="remarks" class="form-control form-control-sm" rows="3" maxlength="2000" required placeholder="Record the closure decision"></textarea>
-                                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Accept &amp; close</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                                    </form>
-                                </div>
+                                <button type="button" class="at-task-control-link is-danger" data-at-v2-open="close">Close directly</button>
+                            }
+                            @if (capabilities.CanManagePlanning)
+                            {
+                                <a href="@fullTaskUrl#task-controls" class="at-task-control-link">Planning controls</a>
                             }
                         </div>
                     </section>
+                }
+
+                @if (!isClosed)
+                {
+                    <div class="at-task-peek-command-panels">
+                        @if (capabilities.CanBlockAsOwner || capabilities.CanBlockAsCommandControl)
+                        {
+                            <div class="at-v2-command-panel" data-at-v2-panel="block" hidden>
+                                <form method="post" asp-page-handler="UpdateStatus">
+                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
+                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
+                                    <input type="hidden" name="TaskId" value="@task.Id" />
+                                    <input type="hidden" name="id" value="@task.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                                    <input type="hidden" name="status" value="@ActionTaskStatuses.Blocked" />
+                                    <label class="form-label at-small">Blocker / reason</label>
+                                    <textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="What is blocking progress?"></textarea>
+                                    <div class="at-v2-command-actions"><button type="submit" class="btn btn-warning btn-sm">Mark blocked</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
+                                </form>
+                            </div>
+                        }
+                        @if (capabilities.CanSubmitForClosure)
+                        {
+                            <div class="at-v2-command-panel" data-at-v2-panel="submit" hidden>
+                                <form method="post" asp-page-handler="Submit">
+                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
+                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
+                                    <input type="hidden" name="TaskId" value="@task.Id" />
+                                    <input type="hidden" name="id" value="@task.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                                    <label class="form-label at-small">Completion remarks</label>
+                                    <textarea name="remarks" class="form-control form-control-sm" rows="3" maxlength="4000" required placeholder="Summarise completion and any points for closure review"></textarea>
+                                    <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Submit for closure</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
+                                </form>
+                            </div>
+                        }
+                        @if (capabilities.CanReturnForAction)
+                        {
+                            <div class="at-v2-command-panel" data-at-v2-panel="return" hidden>
+                                <form method="post" asp-page-handler="ReturnForAction">
+                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
+                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
+                                    <input type="hidden" name="TaskId" value="@task.Id" />
+                                    <input type="hidden" name="id" value="@task.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                                    <label class="form-label at-small">Further direction</label>
+                                    <textarea name="remarks" class="form-control form-control-sm" rows="3" maxlength="4000" required placeholder="State what remains to be done"></textarea>
+                                    <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Return for action</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
+                                </form>
+                            </div>
+                        }
+                        @if (capabilities.CanAcceptAndClose || capabilities.CanCloseDirectly)
+                        {
+                            <div class="at-v2-command-panel" data-at-v2-panel="close" hidden>
+                                <form method="post" asp-page-handler="Close" data-at-v2-required-form>
+                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
+                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
+                                    <input type="hidden" name="TaskId" value="@task.Id" />
+                                    <input type="hidden" name="id" value="@task.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                                    <label class="form-label at-small">Closure remarks</label>
+                                    <textarea name="remarks" class="form-control form-control-sm" rows="3" maxlength="2000" required placeholder="Record the closure decision"></textarea>
+                                    <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">@(capabilities.CanAcceptAndClose ? "Accept & close" : "Close directly")</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
+                                </form>
+                            </div>
+                        }
+                        @if (capabilities.CanChangeDate)
+                        {
+                            <div class="at-v2-command-panel" data-at-v2-panel="change-date" hidden>
+                                <form method="post" asp-page-handler="ChangeTaskDate">
+                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
+                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
+                                    <input type="hidden" name="TaskId" value="@task.Id" />
+                                    <input type="hidden" name="ChangeDateInput.TaskId" value="@task.Id" />
+                                    <input type="hidden" name="ChangeDateInput.RowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                                    <label class="form-label at-small">New @(isBacklog ? "target" : "due") date</label>
+                                    <input name="ChangeDateInput.NewDate" type="date" class="form-control form-control-sm" min="@Model.IstToday.ToString("yyyy-MM-dd")" value="@(task.DueDate.Date >= Model.IstToday ? task.DueDate.ToString("yyyy-MM-dd") : Model.IstToday.ToString("yyyy-MM-dd"))" required />
+                                    <textarea name="ChangeDateInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for date change"></textarea>
+                                    <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Save date</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
+                                </form>
+                            </div>
+                        }
+                    </div>
                 }
 
                 <section class="at-task-peek-updates" aria-label="Updates">
@@ -216,7 +284,7 @@
                         <span class="at-count-chip">@Model.SelectedTaskUpdates.Count</span>
                     </div>
 
-                    @if (canAddRemark)
+                    @if (capabilities.CanAddRemark)
                     {
                         <form method="post" asp-page-handler="AddUpdate" enctype="multipart/form-data" class="at-v2-remark-composer" data-at-v2-remark-composer>
                             <input type="hidden" asp-for="UpdateInput.TaskId" value="@task.Id" />
@@ -226,11 +294,11 @@
                             <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                             <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
 
-                            @if (canAddConference)
+                            @if (capabilities.CanAddConferenceRemark)
                             {
                                 <div class="at-v2-remark-types" role="group" aria-label="Remark type">
-                                    <button type="button" data-at-v2-remark-option="@ProjectManagement.Models.ActionTaskUpdateTypes.Comment">General</button>
-                                    <button type="button" data-at-v2-remark-option="@ProjectManagement.Models.ActionTaskUpdateTypes.Conference">Conference</button>
+                                    <button type="button" data-at-v2-remark-option="@ActionTaskUpdateTypes.Comment">General</button>
+                                    <button type="button" data-at-v2-remark-option="@ActionTaskUpdateTypes.Conference">Conference</button>
                                 </div>
                             }
                             <textarea asp-for="UpdateInput.Body" rows="2" maxlength="4000" class="form-control" placeholder="Add a remark…" data-at-v2-remark-body></textarea>
@@ -245,65 +313,22 @@
                         </form>
                     }
 
-                    @if (!latestUpdates.Any())
+                    <partial name="_TaskUpdateTimeline" model="@(new TaskUpdateTimelineViewModel
                     {
-                        <div class="at-empty-inline">No updates yet.</div>
-                    }
-                    else
-                    {
-                        <div class="at-v2-update-stream">
-                            @foreach (var update in latestUpdates)
-                            {
-                                var isConference = string.Equals(update.UpdateType, ProjectManagement.Models.ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase);
-                                var isProgress = string.Equals(update.UpdateType, ProjectManagement.Models.ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase);
-                                var updateRole = ProjectManagement.Pages.ActionTasks.IndexModel.DisplayUpdateRole(update.CreatedByRole);
-                                Model.UpdateAttachments.TryGetValue(update.Id, out var files);
-                                <article class="at-v2-update-card @(isConference ? "is-conference" : string.Empty)">
-                                    <div class="at-v2-update-heading">
-                                        <div>
-                                            <span class="at-update-type @(isConference ? "is-conference" : string.Empty)">@ProjectManagement.Pages.ActionTasks.IndexModel.DisplayUpdateType(update.UpdateType)</span>
-                                            @if (isConference && !string.IsNullOrWhiteSpace(updateRole))
-                                            {
-                                                <span class="at-update-role">@updateRole</span>
-                                            }
-                                        </div>
-                                        <time>@TimeFmt.ToIst(update.CreatedAtUtc)</time>
-                                    </div>
-                                    <div class="at-v2-update-body">@update.Body</div>
-                                    @if (files is { Count: > 0 })
-                                    {
-                                        <div class="at-v2-update-files">
-                                            @foreach (var file in files)
-                                            {
-                                                <a href="@file.DownloadUrl" class="at-v2-update-file"><i class="bi bi-paperclip" aria-hidden="true"></i><span>@file.FileName</span><small>@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</small></a>
-                                            }
-                                        </div>
-                                    }
-                                    @if (isConference && (!string.IsNullOrWhiteSpace(update.StatusSnapshot) || update.DueDateSnapshot.HasValue))
-                                    {
-                                        <div class="at-update-context">
-                                            @if (!string.IsNullOrWhiteSpace(update.StatusSnapshot)) { <span>Status when issued: @update.StatusSnapshot</span> }
-                                            @if (update.DueDateSnapshot.HasValue) { <span>Due: @update.DueDateSnapshot.Value.ToString("dd MMM yyyy")</span> }
-                                        </div>
-                                    }
-                                    @if (isProgress && !string.IsNullOrWhiteSpace(update.StatusSnapshot))
-                                    {
-                                        <div class="at-update-context"><span>Status: @(string.Equals(update.StatusSnapshot, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) ? "Awaiting Closure" : update.StatusSnapshot)</span></div>
-                                    }
-                                    <div class="at-v2-update-author">@Model.ResolveActorName(update.CreatedByUserId)</div>
-                                </article>
-                            }
-                        </div>
-                    }
+                        Updates = Model.SelectedTaskUpdates,
+                        Attachments = Model.UpdateAttachments,
+                        ResolveActorName = Model.ResolveActorName,
+                        Take = 3,
+                        Compact = true
+                    })" />
                 </section>
+            </div>
 
-                <a asp-page="/ActionTasks/Details"
-                   asp-route-id="@task.Id"
-                   asp-route-returnUrl="@currentCollectionUrl"
-                   class="at-task-peek-open-full">
+            <footer class="at-task-peek-footer">
+                <a href="@fullTaskUrl" class="at-task-peek-open-full">
                     Open full task <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>
-            </div>
+            </footer>
         }
     </div>
 </section>

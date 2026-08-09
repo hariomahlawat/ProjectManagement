@@ -23,7 +23,7 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("data-at-v2-remark-composer", html, StringComparison.Ordinal);
         Assert.Contains("ActionTaskUpdateTypes.Comment", html, StringComparison.Ordinal);
         Assert.Contains("ActionTaskUpdateTypes.Conference", html, StringComparison.Ordinal);
-        Assert.Contains("Take(3)", html, StringComparison.Ordinal);
+        Assert.Contains("Take = 3", html, StringComparison.Ordinal);
         Assert.Contains("Open full task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Change status", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Manage Task", html, StringComparison.Ordinal);
@@ -50,10 +50,12 @@ public class ActionTaskProductionReadinessTests
     public void TaskPeek_RendersAttachmentsInsideOriginatingUpdates()
     {
         var html = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
+        var timeline = ReadRepoFile("Pages", "ActionTasks", "_TaskUpdateTimeline.cshtml");
 
-        Assert.Contains("UpdateAttachments.TryGetValue(update.Id", html, StringComparison.Ordinal);
-        Assert.Contains("at-v2-update-files", html, StringComparison.Ordinal);
-        Assert.Contains("at-v2-update-file", html, StringComparison.Ordinal);
+        Assert.Contains("_TaskUpdateTimeline", html, StringComparison.Ordinal);
+        Assert.Contains("Attachments.TryGetValue(update.Id", timeline, StringComparison.Ordinal);
+        Assert.Contains("at-v2-update-files", timeline, StringComparison.Ordinal);
+        Assert.Contains("at-v2-update-file", timeline, StringComparison.Ordinal);
         Assert.DoesNotContain("<h3>Attachments</h3>", html, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -85,11 +87,12 @@ public class ActionTaskProductionReadinessTests
 
         Assert.Contains("at-task-workspace-grid", html, StringComparison.Ordinal);
         Assert.Contains("Discussion &amp; progress", html, StringComparison.Ordinal);
-        Assert.Contains("at-workspace-update-stream", html, StringComparison.Ordinal);
-        Assert.Contains("Manage task", html, StringComparison.Ordinal);
+        Assert.Contains("_TaskUpdateTimeline", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Manage task", html, StringComparison.Ordinal);
+        Assert.Contains("Task controls", html, StringComparison.Ordinal);
         Assert.Contains("Activity history", html, StringComparison.Ordinal);
         Assert.Contains("<details", html, StringComparison.Ordinal);
-        Assert.Contains("Attachments.TryGetValue(update.Id", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-v2-inline-toggle=\"date\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"ChangeDate\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"AssignBacklogToSprint\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"AssignOutsideToSprint\"", html, StringComparison.Ordinal);
@@ -105,8 +108,8 @@ public class ActionTaskProductionReadinessTests
         var model = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml.cs");
         var peek = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
 
-        Assert.Contains("href="@Model.BackUrl"", page, StringComparison.Ordinal);
-        Assert.Contains("asp-route-returnUrl="@Model.ReturnUrl"", page, StringComparison.Ordinal);
+        Assert.Contains(@"href=""@Model.BackUrl""", page, StringComparison.Ordinal);
+        Assert.Contains(@"asp-route-returnUrl=""@Model.ReturnUrl""", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-returnUrl", peek, StringComparison.Ordinal);
         Assert.Contains("Url.IsLocalUrl(ReturnUrl)", model, StringComparison.Ordinal);
     }
