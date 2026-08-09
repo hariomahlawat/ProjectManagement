@@ -91,6 +91,34 @@ function renderSystemCardTags(card, labels = []) {
   root.hidden = values.length === 0;
 }
 
+function renderSystemHomeControl(card, showInHome) {
+  const host = card?.querySelector?.('[data-system-home-control]');
+  if (!host || card.dataset.notebookSystemHomeCard) return;
+
+  host.innerHTML = '';
+  if (!showInHome) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'notebook-system-home-toggle';
+    button.dataset.action = 'system-add-home';
+    button.title = 'Add this live PRISM note to All Notes';
+    button.innerHTML = '<i class="bi bi-journal-plus" aria-hidden="true"></i><span>Add to My Notebook</span>';
+    host.appendChild(button);
+    return;
+  }
+
+  const details = document.createElement('details');
+  details.className = 'notebook-card-more';
+  details.innerHTML = `
+    <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
+    <div class="notebook-card-more__menu" role="menu">
+      <button type="button" role="menuitem" data-action="system-remove-home">
+        <i class="bi bi-journal-minus" aria-hidden="true"></i> Remove from My Notebook
+      </button>
+    </div>`;
+  host.appendChild(details);
+}
+
 function applySystemPreference(card, preference) {
   if (!card || !preference) return;
   card.dataset.systemShowHome = String(Boolean(preference.showInHome));
@@ -100,6 +128,11 @@ function applySystemPreference(card, preference) {
   card.dataset.labels = JSON.stringify(Array.isArray(preference.labels) ? preference.labels : []);
   applySystemCardColour(card, preference.colorKey || 'white');
   renderSystemCardTags(card, preference.labels || []);
+
+  const showInHome = Boolean(preference.showInHome);
+  const homeState = card.querySelector('[data-system-home-state]');
+  if (homeState) homeState.hidden = !showInHome;
+  renderSystemHomeControl(card, showInHome);
 
   card.classList.toggle('is-system-pinned', Boolean(preference.isPinned));
   const pinState = card.querySelector('[data-system-pin-state]');
@@ -260,6 +293,81 @@ export function initNotebookApp() {
   const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });
 
   // SECTION: Accessible, single-open card action menus / popovers
+  const resetSystemColourPopoverPosition = (picker) => {
+    if (!picker?.closest?.('[data-notebook-system-card]')) return;
+    const popover = picker.querySelector('[data-colour-picker-popover]');
+    if (!popover) return;
+    ['left', 'right', 'top', 'bottom'].forEach((property) => popover.style.removeProperty(property));
+    delete popover.dataset.floatingPlacement;
+  };
+
+  const positionSystemColourPopover = (picker) => {
+    const card = picker?.closest?.('[data-notebook-system-card]');
+    const popover = picker?.querySelector?.('[data-colour-picker-popover]');
+    const toggle = picker?.querySelector?.('[data-colour-picker-toggle]');
+    if (!card || !popover || !toggle || popover.hidden) return;
+
+    // The mobile picker is intentionally viewport-fixed by CSS. Do not override it.
+    if (window.matchMedia?.('(max-width: 700px)').matches) {
+      resetSystemColourPopoverPosition(picker);
+      return;
+    }
+
+    resetSystemColourPopoverPosition(picker);
+    const pickerRect = picker.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+    const mainRect = shell.querySelector('.notebook-main')?.getBoundingClientRect();
+    const viewportGutter = 12;
+    const contentGutter = 8;
+    const gap = 8;
+    const leftBound = Math.max(viewportGutter, (mainRect?.left ?? 0) + contentGutter);
+    const rightBound = Math.min(window.innerWidth - viewportGutter, (mainRect?.right ?? window.innerWidth) - contentGutter);
+    const topBound = viewportGutter;
+    const bottomBound = window.innerHeight - viewportGutter;
+    const maxLeft = Math.max(leftBound, rightBound - popoverRect.width);
+    const clamp = (value, minimum, maximum) => Math.min(Math.max(value, minimum), maximum);
+
+    // Prefer right-alignment with the colour button, then clamp into the actual Notebook
+    // content viewport so the Shared surface never projects over the left navigation rail.
+    const preferredLeft = pickerRect.right - popoverRect.width;
+    const globalLeft = clamp(preferredLeft, leftBound, maxLeft);
+
+    const aboveTop = pickerRect.top - popoverRect.height - gap;
+    const belowTop = pickerRect.bottom + gap;
+    const canOpenAbove = aboveTop >= topBound;
+    const canOpenBelow = belowTop + popoverRect.height <= bottomBound;
+    let globalTop;
+    let placement;
+    if (canOpenAbove || !canOpenBelow) {
+      globalTop = clamp(aboveTop, topBound, Math.max(topBound, bottomBound - popoverRect.height));
+      placement = 'above';
+    } else {
+      globalTop = clamp(belowTop, topBound, Math.max(topBound, bottomBound - popoverRect.height));
+      placement = 'below';
+    }
+
+    popover.style.left = `${Math.round(globalLeft - pickerRect.left)}px`;
+    popover.style.right = 'auto';
+    popover.style.top = `${Math.round(globalTop - pickerRect.top)}px`;
+    popover.style.bottom = 'auto';
+    popover.dataset.floatingPlacement = placement;
+  };
+
+  let systemColourRepositionFrame = 0;
+  const scheduleOpenSystemColourReposition = () => {
+    if (systemColourRepositionFrame) cancelAnimationFrame(systemColourRepositionFrame);
+    systemColourRepositionFrame = requestAnimationFrame(() => {
+      systemColourRepositionFrame = 0;
+      shell.querySelectorAll('[data-notebook-system-card] [data-notebook-colour-picker]').forEach((picker) => {
+        const popover = picker.querySelector('[data-colour-picker-popover]');
+        if (popover && !popover.hidden) positionSystemColourPopover(picker);
+      });
+    });
+  };
+
+  window.addEventListener('resize', scheduleOpenSystemColourReposition, { passive: true });
+  document.addEventListener('scroll', scheduleOpenSystemColourReposition, { passive: true, capture: true });
+
   const syncCardFloatingState = () => {
     shell.querySelectorAll('.notebook-card').forEach((card) => {
       const hasOpenColour = [...card.querySelectorAll('[data-colour-picker-popover]')].some((popover) => !popover.hidden);
@@ -269,6 +377,9 @@ export function initNotebookApp() {
 
   const closeCardColourPickers = (except = null) => {
     closeNotebookColourPickers(document, except);
+    shell.querySelectorAll('[data-notebook-system-card] [data-notebook-colour-picker]').forEach((picker) => {
+      if (picker !== except) resetSystemColourPopoverPosition(picker);
+    });
     syncCardFloatingState();
   };
 
@@ -326,6 +437,8 @@ export function initNotebookApp() {
       closeCardColourPickers(shouldOpen ? picker : null);
       popover.hidden = !shouldOpen;
       cardColourToggle.setAttribute('aria-expanded', String(shouldOpen));
+      if (shouldOpen) positionSystemColourPopover(picker);
+      else resetSystemColourPopoverPosition(picker);
       syncCardFloatingState();
       if (shouldOpen) popover.querySelector('.is-selected,[data-colour-choice]')?.focus?.();
       return;

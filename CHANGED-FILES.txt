@@ -1,13 +1,4 @@
-CHANGED IN THIS PHASE
-Pages/Notebook/Index.cshtml
 Pages/Notebook/_NotebookConferenceDigest.cshtml
 wwwroot/css/notebook.css
 wwwroot/js/notebook/notebook-app.js
-wwwroot/js/notebook/notebook-drag-order.js
-wwwroot/js/notebook/notebook-drag-order.test.js
-wwwroot/js/notebook/notebook-system-note-personalization-contract.test.js
-wwwroot/js/notebook/notebook-direct-drag-contract.test.js (new)
-
-CARRIED FORWARD — LATEST MASONRY FIX
-wwwroot/js/notebook/notebook-masonry-grid.js
-wwwroot/js/notebook/notebook-masonry-grid.test.js
+wwwroot/js/notebook/notebook-system-floating-surfaces-contract.test.js

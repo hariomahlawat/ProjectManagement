@@ -4570,6 +4570,35 @@ body.notebook-confirm-open { overflow: hidden; }
     z-index: 1400;
 }
 
+/* The PRISM system note normally clips its own body, but floating controls must be
+   allowed to leave the card. The application then collision-positions the colour
+   palette inside the Notebook content viewport. */
+.notebook-conference-shared-card.has-open-popover,
+.notebook-conference-shared-card.has-open-menu,
+.notebook-conference-shared-card:has(.notebook-colour-picker__popover:not([hidden])),
+.notebook-conference-shared-card:has(.notebook-card-more[open]) {
+    overflow: visible;
+}
+
+.notebook-conference-shared-card .notebook-card-more__menu {
+    min-width: 224px;
+}
+
+.notebook-conference-shared-card .notebook-card-more__menu button {
+    white-space: nowrap;
+}
+
+.notebook-system-home-control {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.notebook-system-home-state {
+    color: #6077a5;
+    font-weight: 600;
+}
+
 /* System-card modal overlay is intentionally a passive pointer surface so a short
    click opens the register while click-and-move rearranges the card. */
 .notebook-conference-shared-card__open[data-card-passive-open] {

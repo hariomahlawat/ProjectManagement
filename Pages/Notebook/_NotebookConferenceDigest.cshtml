@@ -127,7 +127,15 @@
          title="Shared by PRISM. Available to authorised Comdt / HoD users. Content is read only."
          aria-label="Shared by PRISM. Read only.">
         <i class="bi bi-shield-lock" aria-hidden="true"></i>
-        <span>PRISM · Read only</span>
+        <span>
+            PRISM · Read only
+            @if (!Model.IsHomePlacement)
+            {
+                <span class="notebook-system-home-state"
+                      data-system-home-state
+                      hidden="@(!preference.ShowInHome)"> · In My Notebook</span>
+            }
+        </span>
     </div>
 
     <div class="notebook-card-actions notebook-conference-shared-card__actions" data-no-card-drag>
@@ -153,27 +161,29 @@
                 <i class="bi bi-tags"></i>
             </button>
 
-            @if (!preference.ShowInHome)
-            {
-                <button type="button"
-                        class="notebook-system-home-toggle"
-                        data-action="system-add-home"
-                        title="Add this live PRISM note to All Notes">
-                    <i class="bi bi-journal-plus" aria-hidden="true"></i>
-                    <span>Add to My Notebook</span>
-                </button>
-            }
-            else
-            {
-                <details class="notebook-card-more">
-                    <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
-                    <div class="notebook-card-more__menu" role="menu">
-                        <button type="button" role="menuitem" data-action="system-remove-home">
-                            <i class="bi bi-journal-minus" aria-hidden="true"></i> Remove from My Notebook
-                        </button>
-                    </div>
-                </details>
-            }
+            <span class="notebook-system-home-control" data-system-home-control>
+                @if (!preference.ShowInHome)
+                {
+                    <button type="button"
+                            class="notebook-system-home-toggle"
+                            data-action="system-add-home"
+                            title="Add this live PRISM note to All Notes">
+                        <i class="bi bi-journal-plus" aria-hidden="true"></i>
+                        <span>Add to My Notebook</span>
+                    </button>
+                }
+                else
+                {
+                    <details class="notebook-card-more">
+                        <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
+                        <div class="notebook-card-more__menu" role="menu">
+                            <button type="button" role="menuitem" data-action="system-remove-home">
+                                <i class="bi bi-journal-minus" aria-hidden="true"></i> Remove from My Notebook
+                            </button>
+                        </div>
+                    </details>
+                }
+            </span>
         </div>
     </div>
 </article>
