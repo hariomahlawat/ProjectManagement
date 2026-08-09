@@ -1,0 +1,614 @@
+--- a/Pages/ProjectIdeas/Details.cshtml
++++ b/Pages/ProjectIdeas/Details.cshtml
+@@ -14,7 +14,6 @@
+         .ToList();
+     var notes = Model.Idea.Notes.Where(n => !n.IsDeleted).OrderByDescending(n => n.IsPinned).ThenByDescending(n => n.UpdatedAt).ToList();
+     var commentCount = comments.Count;
+-    var conferenceCommentCount = comments.Count(c => string.Equals(c.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase));
+     var noteCount = notes.Count;
+     var documentCount = Model.Documents.Count;
+     var defaultConferenceComment = Model.CanAddConferenceComment
+@@ -29,22 +28,6 @@
+         <span class="bi bi-arrow-left" aria-hidden="true"></span>
+         Back to Idea Workspace
+     </a>
+-
+-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+-    {
+-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+-            @Model.StatusMessage
+-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+-        </div>
+-    }
+-
+-    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+-    {
+-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+-            @Model.ErrorMessage
+-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+-        </div>
+-    }
+ 
+     <section class="pi-detail-hero pi-detail-hero-compact">
+         <div class="pi-icon big" aria-hidden="true"><span class="bi bi-lightbulb"></span></div>
+@@ -182,8 +165,8 @@
+                 {
+                     <div class="pi-section-empty">
+                         <span class="bi bi-chat-square-text" aria-hidden="true"></span>
+-                        <strong>No comments yet</strong>
+-                        <span>Start the discussion with the first comment.</span>
++                        <strong>No remarks yet</strong>
++                        <span>Start the discussion with the first remark.</span>
+                     </div>
+                 }
+                 else
+@@ -289,13 +272,13 @@
+                     <input type="hidden" name="CommentType" value="@(defaultConferenceComment ? ProjectIdeaCommentTypes.Conference : ProjectIdeaCommentTypes.General)" data-pi-comment-type data-pi-comment-default="@Model.DefaultCommentType" />
+                     @if (Model.CanAddConferenceComment)
+                     {
+-                        <div class="pi-comment-type-selector" role="group" aria-label="Comment type">
++                        <div class="pi-comment-type-selector" role="group" aria-label="Remark type">
+                             <button type="button" class="@(defaultGeneralComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="@(defaultGeneralComment ? "true" : "false")">General</button>
+                             <button type="button" class="@(defaultConferenceComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="@(defaultConferenceComment ? "true" : "false")">Conference</button>
+                         </div>
+                     }
+-                    <label class="visually-hidden" for="CommentText">Write a comment</label>
+-                    <textarea id="CommentText" name="CommentText" placeholder="Write a comment..." maxlength="4000" required data-pi-comment-body></textarea>
++                    <label class="visually-hidden" for="CommentText">Write a remark</label>
++                    <textarea id="CommentText" name="CommentText" placeholder="Write a remark..." maxlength="4000" required data-pi-comment-body></textarea>
+                     <div class="pi-composer-actions">
+                         <span data-pi-comment-guidance>Share a concise update or question.</span>
+                         <button class="pi-btn pi-btn-primary" type="submit" data-pi-comment-submit>
+@@ -313,7 +296,7 @@
+                 <div>
+                     <h2>
+                         <span class="bi bi-journal-text" aria-hidden="true"></span>
+-                        Notes
++                        Idea notes
+                         <span class="pi-section-count">@noteCount</span>
+                     </h2>
+                     <p>Long-form working notes and important reference points.</p>
+@@ -547,7 +530,7 @@
+             <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id" class="modal-content">
+                 <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
+                 <div class="modal-header">
+-                    <h5 class="modal-title" id="archiveIdeaModalLabel">Archive Idea</h5>
++                    <h5 class="modal-title" id="archiveIdeaModalLabel">Archive idea</h5>
+                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                 </div>
+                 <div class="modal-body">
+@@ -559,7 +542,7 @@
+                 </div>
+                 <div class="modal-footer">
+                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+-                    <button type="submit" class="btn btn-danger">Archive Idea</button>
++                    <button type="submit" class="btn btn-danger">Archive idea</button>
+                 </div>
+             </form>
+         </div>
+@@ -580,10 +563,9 @@
+                 <div class="modal-body">
+                     <p class="mb-3">This Idea will be removed from operational views. Related records will be retained for audit and recovery.</p>
+                     <div class="pi-delete-impact" aria-label="Related records retained">
+-                        <span><strong>@commentCount</strong> discussion</span>
+-                        <span><strong>@conferenceCommentCount</strong> conference</span>
+-                        <span><strong>@noteCount</strong> notes</span>
+-                        <span><strong>@documentCount</strong> files</span>
++                        <span><strong>@commentCount</strong> @(commentCount == 1 ? "remark" : "remarks")</span>
++                        <span><strong>@noteCount</strong> @(noteCount == 1 ? "idea note" : "idea notes")</span>
++                        <span><strong>@documentCount</strong> @(documentCount == 1 ? "file" : "files")</span>
+                     </div>
+                     <label class="form-label mt-3" for="DeleteReason">Reason for deletion</label>
+                     <textarea id="DeleteReason" name="deleteReason" class="form-control" required maxlength="1000" rows="4" placeholder="Duplicate, test entry, entered in error, or other reason"></textarea>
+@@ -591,7 +573,7 @@
+                 </div>
+                 <div class="modal-footer">
+                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+-                    <button type="submit" class="btn btn-danger">Delete Idea</button>
++                    <button type="submit" class="btn btn-danger">Delete idea</button>
+                 </div>
+             </form>
+         </div>
+--- a/Pages/ProjectIdeas/Details.cshtml.cs
++++ b/Pages/ProjectIdeas/Details.cshtml.cs
+@@ -41,9 +41,6 @@
+     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
+     public IReadOnlyList<ProjectIdeaDocument> Documents { get; private set; } = Array.Empty<ProjectIdeaDocument>();
+ 
+-    [TempData] public string? StatusMessage { get; set; }
+-    [TempData] public string? ErrorMessage { get; set; }
+-
+     // SECTION: Bound form state
+     [BindProperty, Required, MaxLength(4000)] public string CommentText { get; set; } = string.Empty;
+     [BindProperty, MaxLength(32)] public string CommentType { get; set; } = ProjectIdeaCommentTypes.General;
+@@ -70,14 +67,14 @@
+         var comment = CommentText?.Trim();
+         if (string.IsNullOrWhiteSpace(comment))
+         {
+-            ErrorMessage = "Comment cannot be empty.";
+-            return RedirectToPage(new { id });
++            SetToastError("Remark cannot be empty.");
++            return RedirectToDetails(id, "discussion");
+         }
+ 
+         if (comment.Length > 4000)
+         {
+-            ErrorMessage = "Comment cannot exceed 4,000 characters.";
+-            return RedirectToPage(new { id });
++            SetToastError("Remark cannot exceed 4,000 characters.");
++            return RedirectToDetails(id, "discussion");
+         }
+ 
+         var commentType = ProjectIdeaCommentTypes.All.FirstOrDefault(type =>
+@@ -97,20 +94,20 @@
+                 if (actorRole is null) return Forbid();
+ 
+                 await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
+-                StatusMessage = "Conference remark added.";
++                SetToastSuccess("Conference direction added.");
+             }
+             else
+             {
+                 await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
+-                StatusMessage = "Comment added.";
++                SetToastSuccess("Remark added.");
+             }
+         }
+         catch (InvalidOperationException exception)
+         {
+-            ErrorMessage = exception.Message;
+-        }
+-
+-        return RedirectToPage(new { id });
++            SetToastError(exception.Message);
++        }
++
++        return RedirectToDetails(id, "discussion");
+     }
+ 
+     public async Task<IActionResult> OnPostEditCommentAsync(
+@@ -133,16 +130,16 @@
+                 DecodeRowVersion(rowVersion),
+                 CurrentActor());
+             if (updated is null) return NotFound();
+-            StatusMessage = string.Equals(updated.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
++            SetToastSuccess(string.Equals(updated.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+                 ? "Conference direction updated."
+-                : "Discussion remark updated.";
+-        }
+-        catch (InvalidOperationException exception)
+-        {
+-            ErrorMessage = exception.Message;
+-        }
+-
+-        return RedirectToPage(new { id });
++                : "Remark updated.");
++        }
++        catch (InvalidOperationException exception)
++        {
++            SetToastError(exception.Message);
++        }
++
++        return RedirectToDetails(id, "discussion");
+     }
+ 
+     public async Task<IActionResult> OnPostDeleteCommentAsync(
+@@ -163,16 +160,16 @@
+                 DecodeRowVersion(rowVersion),
+                 CurrentActor());
+             if (!deleted) return NotFound();
+-            StatusMessage = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
++            SetToastSuccess(string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+                 ? "Conference direction deleted."
+-                : "Discussion remark deleted.";
+-        }
+-        catch (InvalidOperationException exception)
+-        {
+-            ErrorMessage = exception.Message;
+-        }
+-
+-        return RedirectToPage(new { id });
++                : "Remark deleted.");
++        }
++        catch (InvalidOperationException exception)
++        {
++            SetToastError(exception.Message);
++        }
++
++        return RedirectToDetails(id, "discussion");
+     }
+ 
+     public async Task<IActionResult> OnPostNoteAsync(int id)
+@@ -184,26 +181,26 @@
+         var body = NoteBody?.Trim();
+         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body))
+         {
+-            ErrorMessage = "Note title and body are required.";
+-            return RedirectToPage(new { id, openNoteComposer = true });
++            SetToastError("Note title and body are required.");
++            return RedirectToDetails(id, "notes", openNoteComposer: true);
+         }
+ 
+         if (title.Length > 200)
+         {
+-            ErrorMessage = "Note title cannot exceed 200 characters.";
+-            return RedirectToPage(new { id, openNoteComposer = true });
++            SetToastError("Note title cannot exceed 200 characters.");
++            return RedirectToDetails(id, "notes", openNoteComposer: true);
+         }
+ 
+         try
+         {
+             await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
+-            StatusMessage = "Note added.";
+-        }
+-        catch (InvalidOperationException exception)
+-        {
+-            ErrorMessage = exception.Message;
+-        }
+-        return RedirectToPage(new { id });
++            SetToastSuccess("Idea note added.");
++        }
++        catch (InvalidOperationException exception)
++        {
++            SetToastError(exception.Message);
++        }
++        return RedirectToDetails(id, "notes");
+     }
+ 
+     public async Task<IActionResult> OnPostArchiveAsync(int id, string? rowVersion)
+@@ -213,26 +210,26 @@
+         var archiveReason = ArchiveReason?.Trim();
+         if (string.IsNullOrWhiteSpace(archiveReason))
+         {
+-            ErrorMessage = "Please enter a closing note or reason before archiving the idea.";
+-            return RedirectToPage(new { id });
++            SetToastError("Please enter a closing note or reason before archiving the idea.");
++            return RedirectToDetails(id);
+         }
+ 
+         if (archiveReason.Length > 1000)
+         {
+-            ErrorMessage = "The closing note cannot exceed 1,000 characters.";
+-            return RedirectToPage(new { id });
++            SetToastError("The closing note cannot exceed 1,000 characters.");
++            return RedirectToDetails(id);
+         }
+ 
+         try
+         {
+             await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion));
+-            StatusMessage = "Idea archived.";
+-        }
+-        catch (InvalidOperationException exception)
+-        {
+-            ErrorMessage = exception.Message;
+-        }
+-        return RedirectToPage(new { id });
++            SetToastSuccess("Idea archived.");
++        }
++        catch (InvalidOperationException exception)
++        {
++            SetToastError(exception.Message);
++        }
++        return RedirectToDetails(id);
+     }
+ 
+     public async Task<IActionResult> OnPostRestoreAsync(int id, string? rowVersion)
+@@ -242,13 +239,13 @@
+         try
+         {
+             await _commands.RestoreAsync(Idea, DecodeRowVersion(rowVersion));
+-            StatusMessage = "Idea restored.";
+-        }
+-        catch (InvalidOperationException exception)
+-        {
+-            ErrorMessage = exception.Message;
+-        }
+-        return RedirectToPage(new { id });
++            SetToastSuccess("Idea restored.");
++        }
++        catch (InvalidOperationException exception)
++        {
++            SetToastError(exception.Message);
++        }
++        return RedirectToDetails(id);
+     }
+ 
+     public async Task<IActionResult> OnPostDeleteAsync(
+@@ -267,13 +264,13 @@
+                 DecodeRowVersion(rowVersion),
+                 CurrentActor());
+             if (!deleted) return NotFound();
+-            StatusMessage = "Idea deleted.";
++            SetToastSuccess("Idea deleted.");
+             return RedirectToPage("Deleted");
+         }
+         catch (InvalidOperationException exception)
+         {
+-            ErrorMessage = exception.Message;
+-            return RedirectToPage(new { id });
++            SetToastError(exception.Message);
++            return RedirectToDetails(id);
+         }
+     }
+ 
+@@ -281,11 +278,11 @@
+     {
+         if (!await LoadAsync(id)) return NotFound();
+         if (!_permissions.CanUploadDocument(User, Idea)) return Forbid();
+-        if (DocumentUpload is null) { ErrorMessage = "Please select a document to upload."; return RedirectToPage(new { id }); }
++        if (DocumentUpload is null) { SetToastError("Please select a document to upload."); return RedirectToDetails(id, "documents"); }
+         var result = await _documents.UploadAsync(Idea, DocumentUpload, CurrentUserId());
+-        if (!result.Success) { ErrorMessage = result.Error ?? "Document upload failed."; return RedirectToPage(new { id }); }
+-        StatusMessage = "Document uploaded successfully.";
+-        return RedirectToPage(new { id });
++        if (!result.Success) { SetToastError(result.Error ?? "Document upload failed."); return RedirectToDetails(id, "documents"); }
++        SetToastSuccess("Document uploaded successfully.");
++        return RedirectToDetails(id, "documents");
+     }
+ 
+     public async Task<IActionResult> OnPostDeleteDocumentAsync(int id, int documentId)
+@@ -297,13 +294,13 @@
+         try
+         {
+             await _documents.SoftDeleteAsync(doc);
+-            StatusMessage = "Document deleted.";
+-        }
+-        catch (InvalidOperationException exception)
+-        {
+-            ErrorMessage = exception.Message;
+-        }
+-        return RedirectToPage(new { id });
++            SetToastSuccess("Document deleted.");
++        }
++        catch (InvalidOperationException exception)
++        {
++            SetToastError(exception.Message);
++        }
++        return RedirectToDetails(id, "documents");
+     }
+ 
+     public async Task<IActionResult> OnGetPreviewAsync(int id, int documentId)
+@@ -482,6 +479,22 @@
+         return true;
+     }
+ 
++    private void SetToastSuccess(string message) => TempData["ToastSuccess"] = message;
++
++    private void SetToastError(string message) => TempData["ToastError"] = message;
++
++    private IActionResult RedirectToDetails(int id, string? fragment = null, bool openNoteComposer = false)
++    {
++        var url = openNoteComposer
++            ? Url.Page("Details", new { id, openNoteComposer = true })
++            : Url.Page("Details", new { id });
++
++        url ??= $"/ProjectIdeas/Details/{id}";
++        return string.IsNullOrWhiteSpace(fragment)
++            ? Redirect(url)
++            : Redirect($"{url}#{fragment}");
++    }
++
+     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+ 
+     private ProjectIdeaActorContext CurrentActor()
+--- a/Pages/ProjectIdeas/Deleted.cshtml
++++ b/Pages/ProjectIdeas/Deleted.cshtml
+@@ -12,21 +12,6 @@
+         <span class="bi bi-arrow-left" aria-hidden="true"></span>
+         Back to Idea Workspace
+     </a>
+-
+-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+-    {
+-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+-            @Model.StatusMessage
+-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+-        </div>
+-    }
+-    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+-    {
+-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+-            @Model.ErrorMessage
+-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+-        </div>
+-    }
+ 
+     <header class="pi-deleted-header">
+         <div>
+@@ -72,10 +57,9 @@
+                             <div class="pi-deleted-reason"><strong>Reason:</strong> @idea.DeleteReason</div>
+                         }
+                         <div class="pi-deleted-retained" aria-label="Retained related records">
+-                            <span>@idea.DiscussionCount discussion</span>
+-                            <span>@idea.ConferenceDirectionCount conference</span>
+-                            <span>@idea.NoteCount notes</span>
+-                            <span>@idea.DocumentCount files</span>
++                            <span>@idea.RemarkCount @(idea.RemarkCount == 1 ? "remark" : "remarks")</span>
++                            <span>@idea.NoteCount @(idea.NoteCount == 1 ? "idea note" : "idea notes")</span>
++                            <span>@idea.DocumentCount @(idea.DocumentCount == 1 ? "file" : "files")</span>
+                         </div>
+                     </div>
+                     <form method="post" asp-page-handler="Restore" class="pi-deleted-card__action">
+--- a/Pages/ProjectIdeas/Deleted.cshtml.cs
++++ b/Pages/ProjectIdeas/Deleted.cshtml.cs
+@@ -33,9 +33,6 @@
+     public IReadOnlyList<ProjectIdeaDeletedItem> Ideas { get; private set; } = Array.Empty<ProjectIdeaDeletedItem>();
+     public IReadOnlyDictionary<string, string> DeletedByNames { get; private set; } =
+         new Dictionary<string, string>(StringComparer.Ordinal);
+-
+-    [TempData] public string? StatusMessage { get; set; }
+-    [TempData] public string? ErrorMessage { get; set; }
+ 
+     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+     {
+@@ -80,12 +77,12 @@
+                 cancellationToken);
+             if (!restored) return NotFound();
+ 
+-            StatusMessage = "Idea restored.";
++            TempData["ToastSuccess"] = "Idea restored.";
+             return RedirectToPage("Details", new { id = ideaId });
+         }
+         catch (InvalidOperationException exception)
+         {
+-            ErrorMessage = exception.Message;
++            TempData["ToastError"] = exception.Message;
+             return RedirectToPage();
+         }
+     }
+--- a/Services/ProjectIdeas/ProjectIdeaReadService.cs
++++ b/Services/ProjectIdeas/ProjectIdeaReadService.cs
+@@ -131,9 +131,6 @@
+                 idea.DeleteReason,
+                 idea.RowVersion,
+                 idea.Comments.Count(comment => !comment.IsDeleted),
+-                idea.Comments.Count(comment =>
+-                    !comment.IsDeleted
+-                    && comment.CommentType == ProjectIdeaCommentTypes.Conference),
+                 idea.Notes.Count(note => !note.IsDeleted),
+                 idea.Documents.Count(document => !document.IsDeleted)))
+             .ToListAsync(cancellationToken);
+@@ -312,7 +309,6 @@
+     string? DeletedByUserId,
+     string? DeleteReason,
+     byte[] RowVersion,
+-    int DiscussionCount,
+-    int ConferenceDirectionCount,
++    int RemarkCount,
+     int NoteCount,
+     int DocumentCount);
+--- a/Services/ProjectIdeas/ProjectIdeaCommandService.cs
++++ b/Services/ProjectIdeas/ProjectIdeaCommandService.cs
+@@ -117,6 +117,11 @@
+         if (idea.IsDeleted)
+         {
+             throw new InvalidOperationException(ProjectIdeaGovernancePolicy.DeletedIdeaMessage);
++        }
++
++        if (!string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase))
++        {
++            throw new InvalidOperationException("Only an archived idea can be restored.");
+         }
+ 
+         ApplyRowVersion(idea, rowVersion);
+--- a/wwwroot/css/project-ideas.css
++++ b/wwwroot/css/project-ideas.css
+@@ -11,7 +11,7 @@
+ .pi-idea-card{display:flex;flex-direction:column;gap:1rem;min-height:235px;padding:1.25rem;border-radius:1.25rem;background:#fff;border:1px solid rgba(15,23,42,.08);box-shadow:0 16px 38px rgba(15,23,42,.055);color:#071232;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.pi-idea-card:hover{transform:translateY(-2px);box-shadow:0 20px 45px rgba(15,23,42,.09);border-color:rgba(30,64,175,.22)}.pi-card-top{display:flex;align-items:flex-start;gap:1rem}.pi-card-main{display:flex;align-items:flex-start;gap:1rem}.pi-card-icon,.pi-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border-radius:.95rem;background:#eaf1ff;color:#173f90;font-size:1.35rem}.pi-icon.big{width:86px;height:86px;border-radius:50%;font-size:2rem}.pi-card-content{flex:1;min-width:0}.pi-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem}.pi-card-title-wrap{min-width:0}.pi-card-heading h2{margin:0;color:#071232;font-size:1.08rem;line-height:1.25;font-weight:800;letter-spacing:-.01em}.pi-clamp{margin:.45rem 0 0;color:#475569;font-size:.9rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pi-status{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:auto;height:auto;min-width:unset;padding:.32rem .65rem;border-radius:999px;font-size:.75rem;font-weight:800;line-height:1;white-space:nowrap}.pi-status-active{background:#dcfce7;color:#166534}.pi-status-onhold{background:#fef3c7;color:#92400e}.pi-status-archived{background:#e5e7eb;color:#475569}.pi-card-submeta{margin-top:auto;padding-top:.9rem;border-top:1px solid rgba(15,23,42,.08);display:flex;flex-wrap:wrap;gap:.45rem 1rem;color:#64748b;font-size:.82rem;line-height:1.35}.pi-card-submeta span{display:inline-flex;align-items:center;gap:.35rem;min-width:0}.pi-card-submeta .bi{color:#173f90}.pi-card-footer{display:flex;align-items:center;justify-content:center;gap:2.25rem;padding-top:.8rem;border-top:1px solid rgba(15,23,42,.08);color:#071232;font-size:.9rem}.pi-card-footer span{display:inline-flex;align-items:center;gap:.4rem;font-weight:700}.pi-sep{border-left:1px solid #d9e0eb;margin:0 2rem}
+ 
+ /* SECTION: Details, forms, and workspace */
+-.pi-back{display:inline-block;margin-bottom:1rem;color:#0b3b89;text-decoration:none}.pi-form-page{display:grid;place-items:start stretch}.pi-form-card{width:100%;padding:1.5rem}.pi-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1rem}.pi-form-field{min-width:0}.pi-form-field-wide{grid-column:1/-1}.pi-form-actions{grid-column:1/-1;margin-top:.5rem}.pi-form-card label{font-weight:700;margin-top:1rem}.pi-form-card .form-control,.pi-form-card .form-select{margin:.35rem 0 .5rem}.pi-detail-hero{display:grid;grid-template-columns:auto 1fr auto auto;gap:1.5rem;align-items:center;padding:1.5rem;margin-bottom:1.25rem}.pi-notice{display:inline-flex;gap:.4rem;color:#0b54b8;background:#eef5ff;border:1px solid #bfd4f7;border-radius:8px;padding:.45rem .75rem}.pi-detail-meta{display:grid;grid-template-columns:auto auto;gap:.4rem 1rem}.pi-detail-meta span{color:#66728a}.pi-actions form{display:flex;gap:.5rem;margin-bottom:.5rem}.pi-actions input{border:1px solid #d5deec;border-radius:9px;padding:.55rem}.pi-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(340px,.95fr);gap:1rem;align-items:start}.pi-panel{padding:1rem}.pi-comment{display:grid;grid-template-columns:42px 1fr;gap:.75rem;border-bottom:1px solid #edf1f7;padding:1rem 0}.pi-avatar{height:36px;width:36px;border-radius:50%;background:#dff7e8;display:grid;place-items:center;font-weight:800}.pi-comment time,.pi-note small,.pi-doc small{display:block;color:#718096}.pi-inline-form{display:grid;gap:.5rem;margin-top:1rem}.pi-inline-form textarea,.pi-inline-form input{border:1px solid #d5deec;border-radius:10px;padding:.65rem}.pi-note{background:#fffaf0;border:1px solid #f5d28c;border-radius:12px;padding:1rem;margin:1rem 0}.pi-featured{float:right;background:#ffe8ad;color:#725100;border-radius:999px;padding:.2rem .55rem;font-size:.75rem;font-weight:800}.pi-doc{display:grid;grid-template-columns:28px 1fr auto auto;gap:.75rem;align-items:center;border:1px solid #e5ebf4;border-radius:12px;padding:.85rem;margin:.7rem 0}.pi-link-button{border:0;background:transparent;color:#b42318}
++.pi-back{display:inline-block;margin-bottom:1rem;color:#0b3b89;text-decoration:none}.pi-form-page{display:grid;place-items:start stretch}.pi-form-card{width:100%;padding:1.5rem}.pi-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1rem}.pi-form-field{min-width:0}.pi-form-field-wide{grid-column:1/-1}.pi-form-actions{grid-column:1/-1;margin-top:.5rem}.pi-form-card label{font-weight:700;margin-top:1rem}.pi-form-card .form-control,.pi-form-card .form-select{margin:.35rem 0 .5rem}.pi-detail-hero{display:grid;grid-template-columns:auto 1fr auto auto;gap:1.5rem;align-items:center;padding:1.5rem;margin-bottom:1.25rem}.pi-notice{display:inline-flex;gap:.4rem;color:#0b54b8;background:#eef5ff;border:1px solid #bfd4f7;border-radius:8px;padding:.45rem .75rem}.pi-detail-meta{display:grid;grid-template-columns:auto auto;gap:.4rem 1rem}.pi-detail-meta span{color:#66728a}.pi-actions form{display:flex;gap:.5rem;margin-bottom:.5rem}.pi-actions input{border:1px solid #d5deec;border-radius:9px;padding:.55rem}.pi-workspace{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(340px,1fr);gap:1rem;align-items:start}.pi-panel{padding:1rem}.pi-comment{display:grid;grid-template-columns:42px 1fr;gap:.75rem;border-bottom:1px solid #edf1f7;padding:1rem 0}.pi-avatar{height:36px;width:36px;border-radius:50%;background:#dff7e8;display:grid;place-items:center;font-weight:800}.pi-comment time,.pi-note small,.pi-doc small{display:block;color:#718096}.pi-inline-form{display:grid;gap:.5rem;margin-top:1rem}.pi-inline-form textarea,.pi-inline-form input{border:1px solid #d5deec;border-radius:10px;padding:.65rem}.pi-note{background:#fffaf0;border:1px solid #f5d28c;border-radius:12px;padding:1rem;margin:1rem 0}.pi-featured{float:right;background:#ffe8ad;color:#725100;border-radius:999px;padding:.2rem .55rem;font-size:.75rem;font-weight:800}.pi-doc{display:grid;grid-template-columns:28px 1fr auto auto;gap:.75rem;align-items:center;border:1px solid #e5ebf4;border-radius:12px;padding:.85rem;margin:.7rem 0}.pi-link-button{border:0;background:transparent;color:#b42318}
+ 
+ /* SECTION: Responsive adjustments */
+ @media (max-width:1200px){.pi-board-shell,.pi-detail-hero,.pi-workspace{grid-template-columns:1fr}.pi-create-block{justify-content:flex-start}.pi-side-panel{order:-1}}@media (max-width:992px){.pi-board-header{grid-template-columns:1fr}}@media (max-width:640px){.pi-page{padding:.75rem}.pi-form-grid{grid-template-columns:1fr}.pi-tabs{overflow:auto;flex-wrap:nowrap}.pi-card-grid{grid-template-columns:1fr}.pi-card-top,.pi-card-main{display:grid}.pi-card-heading{display:grid}.pi-create-block{display:grid}.pi-active-filter{display:grid}}
+@@ -466,6 +466,12 @@
+     border-top: 1px solid #edf1f7;
+ }
+ 
++#discussion,
++#notes,
++#documents {
++    scroll-margin-top: 92px;
++}
++
+ .pi-comment-composer textarea {
+     min-height: 74px;
+     resize: none;
+@@ -484,9 +490,10 @@
+ }
+ 
+ .pi-comment-composer .pi-btn {
+-    min-width: 92px;
++    min-width: 122px;
+     justify-content: center;
+     padding: .52rem .85rem;
++    white-space: nowrap;
+ }
+ 
+ .pi-note-list {
+@@ -1004,7 +1011,7 @@
+     border-radius: 50%;
+     background: transparent;
+     color: #64748b;
+-    opacity: .15;
++    opacity: .38;
+     transition: opacity .15s ease, background-color .15s ease, color .15s ease;
+ }
+ 
+--- a/wwwroot/js/pages/project-ideas-details.js
++++ b/wwwroot/js/pages/project-ideas-details.js
+@@ -133,7 +133,7 @@
+         if (body) {
+             body.placeholder = isConference
+                 ? 'Record the direction or observation issued during the conference...'
+-                : 'Write a comment...';
++                : 'Write a remark...';
+         }
+         if (guidance) {
+             guidance.textContent = isConference
+--- a/ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
++++ b/ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
+@@ -148,6 +148,20 @@
+             Actor("po-1", RoleNames.ProjectOfficer)));
+ 
+         Assert.False(idea.IsDeleted);
++    }
++
++    [Fact]
++    public async Task RestoreAsync_RejectsAnIdeaThatIsNotArchived()
++    {
++        await using var db = CreateDb();
++        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
++        var service = new ProjectIdeaCommandService(db);
++
++        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
++            service.RestoreAsync(idea, idea.RowVersion.ToArray()));
++
++        Assert.Equal("Only an archived idea can be restored.", exception.Message);
++        Assert.Equal(ProjectIdeaStatuses.Active, idea.Status);
+     }
+ 
+     [Fact]
+--- a/wwwroot/js/projects/project-ideas-governance-contract.test.js
++++ b/wwwroot/js/projects/project-ideas-governance-contract.test.js
+@@ -62,3 +62,37 @@
+     assert.match(edit, /asp-for="Input.RowVersion"/);
+     assert.match(editModel, /UpdateAsync\(idea, DecodeRowVersion\(Input.RowVersion\)\)/);
+ });
++
++test('idea remark counts remain collective across general and conference subtypes', () => {
++    const readService = read('Services', 'ProjectIdeas', 'ProjectIdeaReadService.cs');
++
++    assert.match(details, /<strong>@commentCount<\/strong>[\s\S]*\? \"remark\" : \"remarks\"/);
++    assert.doesNotMatch(details, /conferenceCommentCount/);
++    assert.match(deleted, /@idea\.RemarkCount[\s\S]*\? \"remark\" : \"remarks\"/);
++    assert.doesNotMatch(deleted, /ConferenceDirectionCount/);
++    assert.match(readService, /int RemarkCount/);
++    assert.doesNotMatch(readService, /int ConferenceDirectionCount/);
++});
++
++test('discussion mutations return to context and use the shared PRISM toast surface', () => {
++    assert.match(detailsModel, /TempData\["ToastSuccess"\]/);
++    assert.match(detailsModel, /TempData\["ToastError"\]/);
++    assert.match(detailsModel, /RedirectToDetails\(id, "discussion"\)/);
++    assert.match(detailsModel, /Conference direction added\./);
++    assert.doesNotMatch(details, /Model\.StatusMessage/);
++    assert.doesNotMatch(details, /Model\.ErrorMessage/);
++});
++
++test('idea details polish keeps the conference action compact and the workspace discussion-led', () => {
++    const css = read('wwwroot', 'css', 'project-ideas.css');
++
++    assert.match(details, /Idea notes/);
++    assert.match(css, /grid-template-columns:minmax\(0,1\.35fr\) minmax\(0,1fr\) minmax\(340px,1fr\)/);
++    assert.match(css, /\.pi-comment-composer \.pi-btn \{[\s\S]*min-width: 122px;[\s\S]*white-space: nowrap;/);
++    assert.match(css, /\.pi-comment-menu-button \{[\s\S]*opacity: \.38;/);
++});
++
++test('archived restore is an explicit lifecycle transition', () => {
++    assert.match(commands, /Only an archived idea can be restored\./);
++    assert.match(commands, /idea\.Status, ProjectIdeaStatuses\.Archived/);
++});

@@ -62,3 +62,37 @@ test('governance mutations use friendly optimistic concurrency handling', () => 
     assert.match(edit, /asp-for="Input.RowVersion"/);
     assert.match(editModel, /UpdateAsync\(idea, DecodeRowVersion\(Input.RowVersion\)\)/);
 });
+
+test('idea remark counts remain collective across general and conference subtypes', () => {
+    const readService = read('Services', 'ProjectIdeas', 'ProjectIdeaReadService.cs');
+
+    assert.match(details, /<strong>@commentCount<\/strong>[\s\S]*\? \"remark\" : \"remarks\"/);
+    assert.doesNotMatch(details, /conferenceCommentCount/);
+    assert.match(deleted, /@idea\.RemarkCount[\s\S]*\? \"remark\" : \"remarks\"/);
+    assert.doesNotMatch(deleted, /ConferenceDirectionCount/);
+    assert.match(readService, /int RemarkCount/);
+    assert.doesNotMatch(readService, /int ConferenceDirectionCount/);
+});
+
+test('discussion mutations return to context and use the shared PRISM toast surface', () => {
+    assert.match(detailsModel, /TempData\["ToastSuccess"\]/);
+    assert.match(detailsModel, /TempData\["ToastError"\]/);
+    assert.match(detailsModel, /RedirectToDetails\(id, "discussion"\)/);
+    assert.match(detailsModel, /Conference direction added\./);
+    assert.doesNotMatch(details, /Model\.StatusMessage/);
+    assert.doesNotMatch(details, /Model\.ErrorMessage/);
+});
+
+test('idea details polish keeps the conference action compact and the workspace discussion-led', () => {
+    const css = read('wwwroot', 'css', 'project-ideas.css');
+
+    assert.match(details, /Idea notes/);
+    assert.match(css, /grid-template-columns:minmax\(0,1\.35fr\) minmax\(0,1fr\) minmax\(340px,1fr\)/);
+    assert.match(css, /\.pi-comment-composer \.pi-btn \{[\s\S]*min-width: 122px;[\s\S]*white-space: nowrap;/);
+    assert.match(css, /\.pi-comment-menu-button \{[\s\S]*opacity: \.38;/);
+});
+
+test('archived restore is an explicit lifecycle transition', () => {
+    assert.match(commands, /Only an archived idea can be restored\./);
+    assert.match(commands, /idea\.Status, ProjectIdeaStatuses\.Archived/);
+});

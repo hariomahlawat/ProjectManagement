@@ -119,6 +119,11 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
             throw new InvalidOperationException(ProjectIdeaGovernancePolicy.DeletedIdeaMessage);
         }
 
+        if (!string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only an archived idea can be restored.");
+        }
+
         ApplyRowVersion(idea, rowVersion);
         idea.Status = ProjectIdeaStatuses.Active;
         idea.ArchivedAt = null;

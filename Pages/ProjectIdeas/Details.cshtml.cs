@@ -41,9 +41,6 @@ public class DetailsModel : PageModel
     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
     public IReadOnlyList<ProjectIdeaDocument> Documents { get; private set; } = Array.Empty<ProjectIdeaDocument>();
 
-    [TempData] public string? StatusMessage { get; set; }
-    [TempData] public string? ErrorMessage { get; set; }
-
     // SECTION: Bound form state
     [BindProperty, Required, MaxLength(4000)] public string CommentText { get; set; } = string.Empty;
     [BindProperty, MaxLength(32)] public string CommentType { get; set; } = ProjectIdeaCommentTypes.General;
@@ -70,14 +67,14 @@ public class DetailsModel : PageModel
         var comment = CommentText?.Trim();
         if (string.IsNullOrWhiteSpace(comment))
         {
-            ErrorMessage = "Comment cannot be empty.";
-            return RedirectToPage(new { id });
+            SetToastError("Remark cannot be empty.");
+            return RedirectToDetails(id, "discussion");
         }
 
         if (comment.Length > 4000)
         {
-            ErrorMessage = "Comment cannot exceed 4,000 characters.";
-            return RedirectToPage(new { id });
+            SetToastError("Remark cannot exceed 4,000 characters.");
+            return RedirectToDetails(id, "discussion");
         }
 
         var commentType = ProjectIdeaCommentTypes.All.FirstOrDefault(type =>
@@ -97,20 +94,20 @@ public class DetailsModel : PageModel
                 if (actorRole is null) return Forbid();
 
                 await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
-                StatusMessage = "Conference remark added.";
+                SetToastSuccess("Conference direction added.");
             }
             else
             {
                 await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
-                StatusMessage = "Comment added.";
+                SetToastSuccess("Remark added.");
             }
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
 
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id, "discussion");
     }
 
     public async Task<IActionResult> OnPostEditCommentAsync(
@@ -133,16 +130,16 @@ public class DetailsModel : PageModel
                 DecodeRowVersion(rowVersion),
                 CurrentActor());
             if (updated is null) return NotFound();
-            StatusMessage = string.Equals(updated.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+            SetToastSuccess(string.Equals(updated.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
                 ? "Conference direction updated."
-                : "Discussion remark updated.";
+                : "Remark updated.");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
 
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id, "discussion");
     }
 
     public async Task<IActionResult> OnPostDeleteCommentAsync(
@@ -163,16 +160,16 @@ public class DetailsModel : PageModel
                 DecodeRowVersion(rowVersion),
                 CurrentActor());
             if (!deleted) return NotFound();
-            StatusMessage = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+            SetToastSuccess(string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
                 ? "Conference direction deleted."
-                : "Discussion remark deleted.";
+                : "Remark deleted.");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
 
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id, "discussion");
     }
 
     public async Task<IActionResult> OnPostNoteAsync(int id)
@@ -184,26 +181,26 @@ public class DetailsModel : PageModel
         var body = NoteBody?.Trim();
         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body))
         {
-            ErrorMessage = "Note title and body are required.";
-            return RedirectToPage(new { id, openNoteComposer = true });
+            SetToastError("Note title and body are required.");
+            return RedirectToDetails(id, "notes", openNoteComposer: true);
         }
 
         if (title.Length > 200)
         {
-            ErrorMessage = "Note title cannot exceed 200 characters.";
-            return RedirectToPage(new { id, openNoteComposer = true });
+            SetToastError("Note title cannot exceed 200 characters.");
+            return RedirectToDetails(id, "notes", openNoteComposer: true);
         }
 
         try
         {
             await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
-            StatusMessage = "Note added.";
+            SetToastSuccess("Idea note added.");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id, "notes");
     }
 
     public async Task<IActionResult> OnPostArchiveAsync(int id, string? rowVersion)
@@ -213,26 +210,26 @@ public class DetailsModel : PageModel
         var archiveReason = ArchiveReason?.Trim();
         if (string.IsNullOrWhiteSpace(archiveReason))
         {
-            ErrorMessage = "Please enter a closing note or reason before archiving the idea.";
-            return RedirectToPage(new { id });
+            SetToastError("Please enter a closing note or reason before archiving the idea.");
+            return RedirectToDetails(id);
         }
 
         if (archiveReason.Length > 1000)
         {
-            ErrorMessage = "The closing note cannot exceed 1,000 characters.";
-            return RedirectToPage(new { id });
+            SetToastError("The closing note cannot exceed 1,000 characters.");
+            return RedirectToDetails(id);
         }
 
         try
         {
             await _commands.ArchiveAsync(Idea, archiveReason, DecodeRowVersion(rowVersion));
-            StatusMessage = "Idea archived.";
+            SetToastSuccess("Idea archived.");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id);
     }
 
     public async Task<IActionResult> OnPostRestoreAsync(int id, string? rowVersion)
@@ -242,13 +239,13 @@ public class DetailsModel : PageModel
         try
         {
             await _commands.RestoreAsync(Idea, DecodeRowVersion(rowVersion));
-            StatusMessage = "Idea restored.";
+            SetToastSuccess("Idea restored.");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id);
     }
 
     public async Task<IActionResult> OnPostDeleteAsync(
@@ -267,13 +264,13 @@ public class DetailsModel : PageModel
                 DecodeRowVersion(rowVersion),
                 CurrentActor());
             if (!deleted) return NotFound();
-            StatusMessage = "Idea deleted.";
+            SetToastSuccess("Idea deleted.");
             return RedirectToPage("Deleted");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
-            return RedirectToPage(new { id });
+            SetToastError(exception.Message);
+            return RedirectToDetails(id);
         }
     }
 
@@ -281,11 +278,11 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanUploadDocument(User, Idea)) return Forbid();
-        if (DocumentUpload is null) { ErrorMessage = "Please select a document to upload."; return RedirectToPage(new { id }); }
+        if (DocumentUpload is null) { SetToastError("Please select a document to upload."); return RedirectToDetails(id, "documents"); }
         var result = await _documents.UploadAsync(Idea, DocumentUpload, CurrentUserId());
-        if (!result.Success) { ErrorMessage = result.Error ?? "Document upload failed."; return RedirectToPage(new { id }); }
-        StatusMessage = "Document uploaded successfully.";
-        return RedirectToPage(new { id });
+        if (!result.Success) { SetToastError(result.Error ?? "Document upload failed."); return RedirectToDetails(id, "documents"); }
+        SetToastSuccess("Document uploaded successfully.");
+        return RedirectToDetails(id, "documents");
     }
 
     public async Task<IActionResult> OnPostDeleteDocumentAsync(int id, int documentId)
@@ -297,13 +294,13 @@ public class DetailsModel : PageModel
         try
         {
             await _documents.SoftDeleteAsync(doc);
-            StatusMessage = "Document deleted.";
+            SetToastSuccess("Document deleted.");
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            SetToastError(exception.Message);
         }
-        return RedirectToPage(new { id });
+        return RedirectToDetails(id, "documents");
     }
 
     public async Task<IActionResult> OnGetPreviewAsync(int id, int documentId)
@@ -480,6 +477,22 @@ public class DetailsModel : PageModel
             .OrderByDescending(d => d.UploadedAt)
             .ToList();
         return true;
+    }
+
+    private void SetToastSuccess(string message) => TempData["ToastSuccess"] = message;
+
+    private void SetToastError(string message) => TempData["ToastError"] = message;
+
+    private IActionResult RedirectToDetails(int id, string? fragment = null, bool openNoteComposer = false)
+    {
+        var url = openNoteComposer
+            ? Url.Page("Details", new { id, openNoteComposer = true })
+            : Url.Page("Details", new { id });
+
+        url ??= $"/ProjectIdeas/Details/{id}";
+        return string.IsNullOrWhiteSpace(fragment)
+            ? Redirect(url)
+            : Redirect($"{url}#{fragment}");
     }
 
     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;

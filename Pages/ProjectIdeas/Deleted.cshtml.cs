@@ -34,9 +34,6 @@ public sealed class DeletedModel : PageModel
     public IReadOnlyDictionary<string, string> DeletedByNames { get; private set; } =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
-    [TempData] public string? StatusMessage { get; set; }
-    [TempData] public string? ErrorMessage { get; set; }
-
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!_permissions.CanViewDeletedIdeas(User)) return Forbid();
@@ -80,12 +77,12 @@ public sealed class DeletedModel : PageModel
                 cancellationToken);
             if (!restored) return NotFound();
 
-            StatusMessage = "Idea restored.";
+            TempData["ToastSuccess"] = "Idea restored.";
             return RedirectToPage("Details", new { id = ideaId });
         }
         catch (InvalidOperationException exception)
         {
-            ErrorMessage = exception.Message;
+            TempData["ToastError"] = exception.Message;
             return RedirectToPage();
         }
     }

@@ -1,59 +1,91 @@
-PRISM Project Ideas Governance & Discussion Lifecycle — validation
+PRISM Project Ideas — Remarks & UX Hardening validation
 Date: 09 Aug 2026
 
-[PASS] node --check wwwroot/js/pages/project-ideas-details.js
-[PASS] node --check wwwroot/js/projects/project-ideas-governance-contract.test.js
+1) JavaScript syntax
+PASS
 
-Dependency-free governance contract test:
+2) Project Ideas governance contract tests
 TAP version 13
 # Subtest: commandant default is resolved on server and rendered into discussion composer
 ok 1 - commandant default is resolved on server and rendered into discussion composer
   ---
-  duration_ms: 0.737797
+  duration_ms: 1.198741
   type: 'test'
   ...
 # Subtest: discussion remarks expose governed edit and soft-delete flows
 ok 2 - discussion remarks expose governed edit and soft-delete flows
   ---
-  duration_ms: 0.171405
+  duration_ms: 0.270232
   type: 'test'
   ...
 # Subtest: idea deletion is controlled soft-delete with a recovery workspace
 ok 3 - idea deletion is controlled soft-delete with a recovery workspace
   ---
-  duration_ms: 0.106809
+  duration_ms: 0.11474
   type: 'test'
   ...
 # Subtest: deleted ideas and deleted directions are excluded from operational conference surfaces
 ok 4 - deleted ideas and deleted directions are excluded from operational conference surfaces
   ---
-  duration_ms: 0.170023
+  duration_ms: 0.17501
   type: 'test'
   ...
 # Subtest: governance mutations use friendly optimistic concurrency handling
 ok 5 - governance mutations use friendly optimistic concurrency handling
   ---
-  duration_ms: 0.277302
+  duration_ms: 0.1745
   type: 'test'
   ...
-1..5
-# tests 5
+# Subtest: idea remark counts remain collective across general and conference subtypes
+ok 6 - idea remark counts remain collective across general and conference subtypes
+  ---
+  duration_ms: 0.85461
+  type: 'test'
+  ...
+# Subtest: discussion mutations return to context and use the shared PRISM toast surface
+ok 7 - discussion mutations return to context and use the shared PRISM toast surface
+  ---
+  duration_ms: 0.177053
+  type: 'test'
+  ...
+# Subtest: idea details polish keeps the conference action compact and the workspace discussion-led
+ok 8 - idea details polish keeps the conference action compact and the workspace discussion-led
+  ---
+  duration_ms: 0.264893
+  type: 'test'
+  ...
+# Subtest: archived restore is an explicit lifecycle transition
+ok 9 - archived restore is an explicit lifecycle transition
+  ---
+  duration_ms: 0.259196
+  type: 'test'
+  ...
+1..9
+# tests 9
 # suites 0
-# pass 5
+# pass 9
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 43.90717
+# duration_ms 46.418782
 
-Static C#/CSS/migration validation: PASS
-- C# lexical delimiter validation: 17 changed C# files
-- CSS braces balanced: 382/382
-- migration ID present exactly once in immutable manifest
-- migration attribute, model snapshot fields/index and Razor governance contracts verified
+3) Static C#/semantic validation
+PASS: changed C# delimiters balanced
+PASS: no Idea-level parallel ConferenceDirectionCount remains in Details/Deleted/read model
+PASS: shared PRISM ToastSuccess/ToastError keys used on Details
+PASS: discussion POSTs return to #discussion
+PASS: RestoreAsync requires Archived state
 
-Not executed in this environment:
-- dotnet build / dotnet test: .NET SDK is not installed in the packaging container.
-- existing jsdom Project Ideas DOM test: node_modules/jsdom is not installed. Running it here fails at dependency loading before assertions.
-
-Required local verification: npm ci && npm test; dotnet build; dotnet test.
+4) .NET compilation
+NOT RUN: .NET SDK is not installed in this execution environment. Run dotnet build/test on the development machine.
+checking file Pages/ProjectIdeas/Details.cshtml
+checking file Pages/ProjectIdeas/Details.cshtml.cs
+checking file Pages/ProjectIdeas/Deleted.cshtml
+checking file Pages/ProjectIdeas/Deleted.cshtml.cs
+checking file Services/ProjectIdeas/ProjectIdeaReadService.cs
+checking file Services/ProjectIdeas/ProjectIdeaCommandService.cs
+checking file wwwroot/css/project-ideas.css
+checking file wwwroot/js/pages/project-ideas-details.js
+checking file ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
+checking file wwwroot/js/projects/project-ideas-governance-contract.test.js

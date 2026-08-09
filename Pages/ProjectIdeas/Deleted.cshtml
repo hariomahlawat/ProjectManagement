@@ -13,21 +13,6 @@
         Back to Idea Workspace
     </a>
 
-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @Model.StatusMessage
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
-    {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @Model.ErrorMessage
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <header class="pi-deleted-header">
         <div>
             <span class="pi-detail-kicker">Governance</span>
@@ -72,10 +57,9 @@
                             <div class="pi-deleted-reason"><strong>Reason:</strong> @idea.DeleteReason</div>
                         }
                         <div class="pi-deleted-retained" aria-label="Retained related records">
-                            <span>@idea.DiscussionCount discussion</span>
-                            <span>@idea.ConferenceDirectionCount conference</span>
-                            <span>@idea.NoteCount notes</span>
-                            <span>@idea.DocumentCount files</span>
+                            <span>@idea.RemarkCount @(idea.RemarkCount == 1 ? "remark" : "remarks")</span>
+                            <span>@idea.NoteCount @(idea.NoteCount == 1 ? "idea note" : "idea notes")</span>
+                            <span>@idea.DocumentCount @(idea.DocumentCount == 1 ? "file" : "files")</span>
                         </div>
                     </div>
                     <form method="post" asp-page-handler="Restore" class="pi-deleted-card__action">

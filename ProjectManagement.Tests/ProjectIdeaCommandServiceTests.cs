@@ -151,6 +151,20 @@ public sealed class ProjectIdeaCommandServiceTests
     }
 
     [Fact]
+    public async Task RestoreAsync_RejectsAnIdeaThatIsNotArchived()
+    {
+        await using var db = CreateDb();
+        var idea = await SeedIdeaAsync(db, ProjectIdeaStatuses.Active);
+        var service = new ProjectIdeaCommandService(db);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RestoreAsync(idea, idea.RowVersion.ToArray()));
+
+        Assert.Equal("Only an archived idea can be restored.", exception.Message);
+        Assert.Equal(ProjectIdeaStatuses.Active, idea.Status);
+    }
+
+    [Fact]
     public async Task RestoreDeletedIdeaAsync_PreservesStatusAndRelatedHistory()
     {
         await using var db = CreateDb();

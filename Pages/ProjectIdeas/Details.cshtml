@@ -14,7 +14,6 @@
         .ToList();
     var notes = Model.Idea.Notes.Where(n => !n.IsDeleted).OrderByDescending(n => n.IsPinned).ThenByDescending(n => n.UpdatedAt).ToList();
     var commentCount = comments.Count;
-    var conferenceCommentCount = comments.Count(c => string.Equals(c.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase));
     var noteCount = notes.Count;
     var documentCount = Model.Documents.Count;
     var defaultConferenceComment = Model.CanAddConferenceComment
@@ -29,22 +28,6 @@
         <span class="bi bi-arrow-left" aria-hidden="true"></span>
         Back to Idea Workspace
     </a>
-
-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @Model.StatusMessage
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
-    {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @Model.ErrorMessage
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
 
     <section class="pi-detail-hero pi-detail-hero-compact">
         <div class="pi-icon big" aria-hidden="true"><span class="bi bi-lightbulb"></span></div>
@@ -182,8 +165,8 @@
                 {
                     <div class="pi-section-empty">
                         <span class="bi bi-chat-square-text" aria-hidden="true"></span>
-                        <strong>No comments yet</strong>
-                        <span>Start the discussion with the first comment.</span>
+                        <strong>No remarks yet</strong>
+                        <span>Start the discussion with the first remark.</span>
                     </div>
                 }
                 else
@@ -289,13 +272,13 @@
                     <input type="hidden" name="CommentType" value="@(defaultConferenceComment ? ProjectIdeaCommentTypes.Conference : ProjectIdeaCommentTypes.General)" data-pi-comment-type data-pi-comment-default="@Model.DefaultCommentType" />
                     @if (Model.CanAddConferenceComment)
                     {
-                        <div class="pi-comment-type-selector" role="group" aria-label="Comment type">
+                        <div class="pi-comment-type-selector" role="group" aria-label="Remark type">
                             <button type="button" class="@(defaultGeneralComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="@(defaultGeneralComment ? "true" : "false")">General</button>
                             <button type="button" class="@(defaultConferenceComment ? "is-active" : null)" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="@(defaultConferenceComment ? "true" : "false")">Conference</button>
                         </div>
                     }
-                    <label class="visually-hidden" for="CommentText">Write a comment</label>
-                    <textarea id="CommentText" name="CommentText" placeholder="Write a comment..." maxlength="4000" required data-pi-comment-body></textarea>
+                    <label class="visually-hidden" for="CommentText">Write a remark</label>
+                    <textarea id="CommentText" name="CommentText" placeholder="Write a remark..." maxlength="4000" required data-pi-comment-body></textarea>
                     <div class="pi-composer-actions">
                         <span data-pi-comment-guidance>Share a concise update or question.</span>
                         <button class="pi-btn pi-btn-primary" type="submit" data-pi-comment-submit>
@@ -313,7 +296,7 @@
                 <div>
                     <h2>
                         <span class="bi bi-journal-text" aria-hidden="true"></span>
-                        Notes
+                        Idea notes
                         <span class="pi-section-count">@noteCount</span>
                     </h2>
                     <p>Long-form working notes and important reference points.</p>
@@ -547,7 +530,7 @@
             <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id" class="modal-content">
                 <input type="hidden" name="rowVersion" value="@DetailsModel.EncodeRowVersion(Model.Idea.RowVersion)" />
                 <div class="modal-header">
-                    <h5 class="modal-title" id="archiveIdeaModalLabel">Archive Idea</h5>
+                    <h5 class="modal-title" id="archiveIdeaModalLabel">Archive idea</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -559,7 +542,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger">Archive Idea</button>
+                    <button type="submit" class="btn btn-danger">Archive idea</button>
                 </div>
             </form>
         </div>
@@ -580,10 +563,9 @@
                 <div class="modal-body">
                     <p class="mb-3">This Idea will be removed from operational views. Related records will be retained for audit and recovery.</p>
                     <div class="pi-delete-impact" aria-label="Related records retained">
-                        <span><strong>@commentCount</strong> discussion</span>
-                        <span><strong>@conferenceCommentCount</strong> conference</span>
-                        <span><strong>@noteCount</strong> notes</span>
-                        <span><strong>@documentCount</strong> files</span>
+                        <span><strong>@commentCount</strong> @(commentCount == 1 ? "remark" : "remarks")</span>
+                        <span><strong>@noteCount</strong> @(noteCount == 1 ? "idea note" : "idea notes")</span>
+                        <span><strong>@documentCount</strong> @(documentCount == 1 ? "file" : "files")</span>
                     </div>
                     <label class="form-label mt-3" for="DeleteReason">Reason for deletion</label>
                     <textarea id="DeleteReason" name="deleteReason" class="form-control" required maxlength="1000" rows="4" placeholder="Duplicate, test entry, entered in error, or other reason"></textarea>
@@ -591,7 +573,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger">Delete Idea</button>
+                    <button type="submit" class="btn btn-danger">Delete idea</button>
                 </div>
             </form>
         </div>

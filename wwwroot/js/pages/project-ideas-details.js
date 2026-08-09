@@ -133,7 +133,7 @@
         if (body) {
             body.placeholder = isConference
                 ? 'Record the direction or observation issued during the conference...'
-                : 'Write a comment...';
+                : 'Write a remark...';
         }
         if (guidance) {
             guidance.textContent = isConference

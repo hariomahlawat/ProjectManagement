@@ -131,9 +131,6 @@ public class ProjectIdeaReadService
                 idea.DeleteReason,
                 idea.RowVersion,
                 idea.Comments.Count(comment => !comment.IsDeleted),
-                idea.Comments.Count(comment =>
-                    !comment.IsDeleted
-                    && comment.CommentType == ProjectIdeaCommentTypes.Conference),
                 idea.Notes.Count(note => !note.IsDeleted),
                 idea.Documents.Count(document => !document.IsDeleted)))
             .ToListAsync(cancellationToken);
@@ -312,7 +309,6 @@ public sealed record ProjectIdeaDeletedItem(
     string? DeletedByUserId,
     string? DeleteReason,
     byte[] RowVersion,
-    int DiscussionCount,
-    int ConferenceDirectionCount,
+    int RemarkCount,
     int NoteCount,
     int DocumentCount);

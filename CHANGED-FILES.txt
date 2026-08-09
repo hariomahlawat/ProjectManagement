@@ -1,25 +1,17 @@
-Data/ApplicationDbContext.cs
-Migrations/20261207210000_AddProjectIdeaGovernanceLifecycle.cs
-Migrations/ApplicationDbContextModelSnapshot.cs
-Migrations/immutable-migration-ids.txt
-Models/ProjectIdeas/ProjectIdea.cs
-Models/ProjectIdeas/ProjectIdeaComment.cs
-Pages/ProjectIdeas/Deleted.cshtml
-Pages/ProjectIdeas/Deleted.cshtml.cs
-Pages/ProjectIdeas/Details.cshtml
-Pages/ProjectIdeas/Details.cshtml.cs
-Pages/ProjectIdeas/Edit.cshtml
-Pages/ProjectIdeas/Edit.cshtml.cs
-Pages/ProjectIdeas/Index.cshtml
-Pages/ProjectIdeas/Index.cshtml.cs
-ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
-ProjectManagement.Tests/ProjectIdeaPermissionServiceTests.cs
-ProjectManagement.Tests/ProjectIdeaReadServiceTests.cs
-Services/ProjectIdeas/ProjectIdeaCommandService.cs
-Services/ProjectIdeas/ProjectIdeaDocumentService.cs
-Services/ProjectIdeas/ProjectIdeaGovernancePolicy.cs
-Services/ProjectIdeas/ProjectIdeaPermissionService.cs
-Services/ProjectIdeas/ProjectIdeaReadService.cs
-wwwroot/css/project-ideas.css
-wwwroot/js/pages/project-ideas-details.js
-wwwroot/js/projects/project-ideas-governance-contract.test.js
+PRISM Project Ideas — Remarks & UX Hardening
+
+Production files
+- Pages/ProjectIdeas/Details.cshtml
+- Pages/ProjectIdeas/Details.cshtml.cs
+- Pages/ProjectIdeas/Deleted.cshtml
+- Pages/ProjectIdeas/Deleted.cshtml.cs
+- Services/ProjectIdeas/ProjectIdeaReadService.cs
+- Services/ProjectIdeas/ProjectIdeaCommandService.cs
+- wwwroot/css/project-ideas.css
+- wwwroot/js/pages/project-ideas-details.js
+
+Regression tests
+- ProjectManagement.Tests/ProjectIdeaCommandServiceTests.cs
+- wwwroot/js/projects/project-ideas-governance-contract.test.js
+
+No EF migration, database schema, Program.cs, configuration, or package dependency change is included.
