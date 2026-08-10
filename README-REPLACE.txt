@@ -1,122 +1,89 @@
-PRISM ERP — Action Tasks UX V2.2
-Unified Command Surface & Density
-=================================
+PRISM ERP — Action Tasks UX V2.2.1 Hardening
+============================================
 
-PURPOSE
+Purpose
 -------
-V2.2 keeps the proven Peek + Full Task architecture but removes the remaining
-spatial friction. The user should never have to click a control at one location
-and then be moved elsewhere on the page to complete it.
+This is a focused hardening pass on top of Task UX V2.2. It does not redesign
+the task workspace. It fixes the Peek remark-posting defect and removes the
+remaining UX inconsistencies identified during live review.
 
-CORE UX RULE
-------------
-Every action that is currently valid for the user's role and the task's state is
-visible at the top. Selecting an action opens its required fields immediately
-under the same action bar. No Manage accordion, no generic Planning controls,
-no remote forms, and no automatic page jumping.
+Production changes
+------------------
+1. Fix Peek remark posting
+   - The legacy task RowVersion requirement has been removed from the remark
+     request contract.
+   - A task remark is an append-only collaboration record and no longer carries
+     the optimistic-concurrency token used for task workflow mutations.
+   - General, Conference, and attachment-only General remarks now use the same
+     request contract in Peek and Full Task.
 
-WHAT CHANGED
-------------
-1. One shared task action bar
-   - New shared partial: Pages/ActionTasks/_TaskActionBar.cshtml
-   - New shared model:   Pages/ActionTasks/TaskActionBarViewModel.cs
-   - Used by both Task Peek and Full Task Workspace.
-   - Same ordering, labels and role/state visibility in both surfaces.
+2. Shared remark input contract
+   - NEW: Pages/ActionTasks/TaskRemarkInput.cs
+   - Both IndexModel (Peek) and DetailsModel (Full Task) bind this same contract,
+     preventing validation drift between the two surfaces.
 
-2. All applicable controls are at the top
-   - Start work / Resume
-   - Submit for closure
-   - Block task
-   - Accept & close / Return for action
-   - Change due/target date
-   - Assign/Add/Remove sprint when applicable
-   - Return to backlog when applicable
-   - Close directly when the normal closure path is not available
-   - Generic "Planning controls" link removed.
+3. Failure recovery
+   - Rare server-side remark failures reopen/focus the remark composer.
+   - Typed text and remark type are retained across the redirect using task-
+     scoped TempData. Browser file handles cannot and should not be retained.
 
-3. One action tray directly under the action bar
-   - Required remarks, dates and sprint selectors open in one fixed location.
-   - No scroll-to-form behaviour.
-   - Escape or Cancel closes the active tray.
-   - Validation failures reopen the exact action that failed.
+4. Compact Peek action trays
+   - At the normal 40rem desktop Peek width, action forms use the same compact
+     horizontal layout as the Full Task workspace.
+   - Medium/mobile layouts still stack vertically.
 
-4. Close semantics are explicit
-   - "Accept & close" and "Close directly" are separate UI intents.
-   - Submitted tasks use the normal acceptance path.
-   - Direct closure remains an exceptional command override.
+5. Activity-history cleanup
+   - Redundant raw status text (for example, an extra "in progress" line after
+     "Assigned -> In Progress") is suppressed.
 
-5. Full Task page is substantially denser
-   - Removed the large hero treatment.
-   - Back, task number and title now share one compact identity line.
-   - Metadata is directly below it.
-   - The compact operational header is sticky from the start; it does not
-     transform into a second visual mode while scrolling.
-   - Task Brief padding is reduced so Discussion appears earlier.
+6. Heading consistency
+   - Full Task uses the single heading "Updates", matching the Peek.
 
-6. Right rail is information-only
-   - Task Details remains visible.
-   - Activity History remains visible/collapsed.
-   - Due-date edit and the Task Controls card are removed from the rail because
-     those operations now live in the top action surface.
-
-7. Task Peek is wider and more useful
-   - Desktop width increased from 32rem to a maximum of 40rem.
-   - At medium widths it uses a 36rem cap; mobile remains full width.
-   - The action bar and its action tray are outside the Peek's scrolling body,
-     so task operations remain visible while reading updates.
-   - Composer is slightly larger and recent updates retain the shared timeline.
-
-8. JavaScript no longer moves the page for task commands
-   - task-interaction.js opens/focuses the local action tray only.
-   - No automatic scroll-to-command-form behaviour.
-   - Existing remark composer validation and Ctrl/Cmd+Enter remain intact.
-
-FILES ADDED IN V2.2
--------------------
-Pages/ActionTasks/_TaskActionBar.cshtml
-Pages/ActionTasks/TaskActionBarViewModel.cs
-wwwroot/css/action-task-actions.css
-
-KEY FILES UPDATED IN V2.2
--------------------------
-Pages/ActionTasks/Index.cshtml
+Files to replace/add
+--------------------
 Pages/ActionTasks/Index.cshtml.cs
-Pages/ActionTasks/_TaskDetails.cshtml
-Pages/ActionTasks/Details.cshtml
 Pages/ActionTasks/Details.cshtml.cs
+Pages/ActionTasks/Details.cshtml
+Pages/ActionTasks/_TaskDetails.cshtml
+Pages/ActionTasks/TaskRemarkInput.cs                 [NEW]
+Services/ActionTasks/ActionTaskPresentation.cs
 wwwroot/css/action-task-peek.css
-wwwroot/css/action-task-workspace.css
-wwwroot/js/pages/action-tasks/task-interaction.js
-ProjectManagement.Tests/ActionTasks/ActionTaskProductionReadinessTests.cs
-ProjectManagement.Tests/ActionTasks/ActionTaskPageTests.cs
 
-PACKAGE NOTE
-------------
-The ZIP is a full superseding Task UX package. It also includes the V2/V2.1
-service, timeline, notification and RowVersion changes, so it can safely replace
-the previous ActionTasks-UX-V2.1 package as a unit.
+No database migration is required.
 
-DATABASE
---------
-No EF Core migration is required.
+Replacement order
+-----------------
+1. Stop/rebuild the local application if it is running under IIS Express.
+2. Replace the files above, preserving their project paths.
+3. Clean Solution.
+4. Rebuild Solution.
+5. Run ProjectManagement.Tests.
+6. Start PRISM and use Ctrl+F5 to avoid stale CSS.
 
-VALIDATION AFTER REPLACEMENT
-----------------------------
-1. Clean Solution
-2. Rebuild Solution
-3. Run ProjectManagement.Tests
-4. Ctrl+F5 in browser
-5. Verify at least these scenarios:
-   - Assigned task as assignee: Start/Submit/Block
-   - Blocked task as assignee and command: Resume
-   - Submitted task as HoD/Comdt: Accept & close / Return for action
-   - In-progress task as HoD/Comdt: Change date / backlog / direct close where allowed
-   - Sprint task and outside-sprint task planning actions
-   - Peek and Full Task show the same applicable actions
-   - Opening any action does not move the page vertically
+Functional smoke test
+---------------------
+Peek:
+- As Comdt, Conference should be selected by default.
+- Post a Conference text remark: succeeds and count increments.
+- Switch to General and post a text remark: succeeds.
+- Post General with attachment only: succeeds if service upload rules allow it.
+- Open Block / Change date / Return to backlog / Close directly: desktop forms
+  should remain compact and horizontal without page movement.
 
-GENERATION-ENVIRONMENT LIMITATION
----------------------------------
-The .NET SDK is not installed in the generation environment, so the actual
-solution build/xUnit suite could not be executed here. JavaScript syntax and
-focused source-contract checks were run before packaging.
+Full Task:
+- General and Conference posting both succeed.
+- Activity history shows "Assigned -> In Progress" without a redundant
+  standalone "in progress" line.
+- Heading reads "Updates".
+
+Validation performed in this environment
+----------------------------------------
+- TaskRemarkInput has no RowVersion field.
+- No AddTaskUpdateInput or RemarkInputModel legacy type remains in the package.
+- Both PageModels use TaskRemarkInput.
+- Peek desktop action tray uses horizontal grid and medium/mobile stacking.
+- task-interaction.js passes Node syntax validation.
+- Coarse C# brace-balance checks pass for all modified C# files.
+
+The .NET SDK is not available in this execution environment, therefore a real
+C# build/xUnit run must be completed in Visual Studio after replacement.

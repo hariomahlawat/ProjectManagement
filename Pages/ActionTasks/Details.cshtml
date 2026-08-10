@@ -12,7 +12,6 @@
     var isOverdue = !Model.IsClosed && Model.TaskItem.DueDate.Date < Model.IstToday;
     var overdueDays = isOverdue ? Math.Max(1, (Model.IstToday - Model.TaskItem.DueDate.Date).Days) : 0;
     var statusLabel = Model.IsSubmitted ? "Awaiting Closure" : Model.TaskItem.Status;
-    var defaultRemarkType = Model.DefaultRemarkType;
     var updateCount = Model.Updates.Count;
     var attachmentCount = Model.Attachments.Sum(entry => entry.Value.Count);
     var capabilities = Model.Capabilities;
@@ -210,8 +209,7 @@
             <section class="at-task-section at-task-updates-section" id="updates">
                 <div class="at-task-section-header">
                     <div>
-                        <div class="at-task-section-label">Updates</div>
-                        <h2>Discussion &amp; progress</h2>
+                        <h2>Updates</h2>
                     </div>
                     <span class="at-count-chip">@updateCount</span>
                 </div>
@@ -219,8 +217,8 @@
                 @if (capabilities.CanAddRemark)
                 {
                     <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="AddRemark" enctype="multipart/form-data" class="at-v2-remark-composer at-workspace-remark-composer" data-at-v2-remark-composer>
-                        <input type="hidden" asp-for="RemarkInput.TaskId" value="@Model.TaskItem.Id" />
-                        <input type="hidden" asp-for="RemarkInput.UpdateType" value="@defaultRemarkType" data-at-v2-remark-type />
+                        <input type="hidden" asp-for="RemarkInput.TaskId" />
+                        <input type="hidden" asp-for="RemarkInput.UpdateType" data-at-v2-remark-type />
                         @if (capabilities.CanAddConferenceRemark)
                         {
                             <div class="at-v2-remark-types" role="group" aria-label="Remark type">
@@ -294,7 +292,7 @@
                                     <div class="at-task-history-summary">@auditSummary</div>
                                 }
                                 <div class="text-muted small">@Model.ResolveActorName(log.PerformedByUserId) · @TimeFmt.ToIst(log.PerformedAt)</div>
-                                @if (!string.IsNullOrWhiteSpace(log.Remarks) && !string.Equals(log.Remarks.Trim(), auditSummary, StringComparison.Ordinal))
+                                @if (ActionTaskPresentation.ShouldShowAuditRemarks(log, auditSummary))
                                 {
                                     <div class="at-task-history-remarks">@log.Remarks</div>
                                 }

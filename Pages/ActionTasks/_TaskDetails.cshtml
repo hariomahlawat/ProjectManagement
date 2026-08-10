@@ -20,7 +20,6 @@
     var overdueDays = isOverdue && task is not null ? Math.Max(1, (Model.IstToday - task.DueDate.Date).Days) : 0;
     var statusLabel = isSubmitted ? "Awaiting Closure" : task?.Status ?? string.Empty;
     var capabilities = task is null ? ActionTaskInteractionCapabilities.None : Model.GetInteractionCapabilities(task);
-    var defaultRemarkType = task is not null ? Model.GetDefaultRemarkType(task) : ActionTaskUpdateTypes.Comment;
     var taskBrief = string.IsNullOrWhiteSpace(task?.Description) ? "No task brief recorded." : task.Description;
     var currentCollectionUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var fullTaskUrl = task is null
@@ -313,8 +312,8 @@
                     @if (capabilities.CanAddRemark)
                     {
                         <form method="post" asp-page-handler="AddUpdate" enctype="multipart/form-data" class="at-v2-remark-composer" data-at-v2-remark-composer>
-                            <input type="hidden" asp-for="UpdateInput.TaskId" value="@task.Id" />
-                            <input type="hidden" asp-for="UpdateInput.UpdateType" value="@defaultRemarkType" data-at-v2-remark-type />
+                            <input type="hidden" asp-for="UpdateInput.TaskId" />
+                            <input type="hidden" asp-for="UpdateInput.UpdateType" data-at-v2-remark-type />
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                             <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                             <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />

@@ -193,7 +193,7 @@ public class IndexModel : PageModel
     [BindProperty]
     public CreateBacklogItemInput BacklogItemInput { get; set; } = new();
     [BindProperty]
-    public AddTaskUpdateInput UpdateInput { get; set; } = new();
+    public TaskRemarkInput UpdateInput { get; set; } = new();
 
     [BindProperty]
     public ChangeTaskDateInput ChangeDateInput { get; set; } = new();
@@ -607,6 +607,7 @@ public class IndexModel : PageModel
         }
 
         await LoadDataAsync();
+        RestoreRemarkDraftForSelectedTask();
     }
 
     // SECTION: Backward-compatible direct-task handler preserves existing Create posts.
@@ -1244,8 +1245,9 @@ public class IndexModel : PageModel
 
         if (!ModelState.IsValid)
         {
+            PreserveRemarkDraft(UpdateInput);
             TempData["ToastError"] = "Unable to save remark. Please check the entered details and try again.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId, "remark");
         }
 
         var normalizedUpdateType = ActionTaskUpdateTypes.All.FirstOrDefault(type =>
@@ -1254,7 +1256,7 @@ public class IndexModel : PageModel
             || string.Equals(normalizedUpdateType, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase))
         {
             TempData["ToastError"] = "Invalid remark type.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId, "remark");
         }
 
         var isConferenceRemark = string.Equals(
@@ -1271,14 +1273,16 @@ public class IndexModel : PageModel
         var hasFiles = UpdateInput.Files?.Any(file => file.Length > 0) == true;
         if (isConferenceRemark && !hasBody)
         {
+            PreserveRemarkDraft(UpdateInput);
             TempData["ToastError"] = "Enter the conference direction or observation.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId, "remark");
         }
 
         if (!hasBody && !hasFiles)
         {
+            PreserveRemarkDraft(UpdateInput);
             TempData["ToastError"] = "Enter a remark or attach at least one file.";
-            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId, "remark");
         }
 
         try
@@ -1297,12 +1301,14 @@ public class IndexModel : PageModel
         }
         catch (InvalidOperationException ex)
         {
+            PreserveRemarkDraft(UpdateInput);
             TempData["ToastError"] = string.Equals(
                 ex.Message,
                 "Update text is required unless at least one attachment is uploaded.",
                 StringComparison.Ordinal)
                 ? "Enter a remark or attach at least one file."
                 : ex.Message;
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId, "remark");
         }
 
         return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
@@ -1797,6 +1803,50 @@ public class IndexModel : PageModel
     private string ResolvePlanningTab()
         => BuildRouteState().PlanningTab;
 
+    // SECTION: Preserve a text remark across the rare server-side failure without
+    // retaining uploaded file handles. TempData is task-scoped so parallel task
+    // tabs do not overwrite one another.
+    private static string RemarkDraftKey(int taskId, string field)
+        => $"ActionTasks.RemarkDraft.{taskId}.{field}";
+
+    private void PreserveRemarkDraft(TaskRemarkInput input)
+    {
+        if (input.TaskId <= 0)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.Body))
+        {
+            TempData[RemarkDraftKey(input.TaskId, "Body")] = input.Body;
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.UpdateType))
+        {
+            TempData[RemarkDraftKey(input.TaskId, "Type")] = input.UpdateType;
+        }
+    }
+
+    private void RestoreRemarkDraftForSelectedTask()
+    {
+        if (SelectedTask is null)
+        {
+            return;
+        }
+
+        var taskId = SelectedTask.Id;
+        UpdateInput.TaskId = taskId;
+
+        var draftBody = TempData[RemarkDraftKey(taskId, "Body")] as string;
+        var draftType = TempData[RemarkDraftKey(taskId, "Type")] as string;
+        var normalizedType = ActionTaskUpdateTypes.All.FirstOrDefault(type =>
+            !string.Equals(type, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(type, draftType, StringComparison.OrdinalIgnoreCase));
+
+        UpdateInput.Body = draftBody ?? string.Empty;
+        UpdateInput.UpdateType = normalizedType ?? GetDefaultRemarkType(SelectedTask);
+    }
+
     // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
     private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId, string? taskIntent = null)
     {
@@ -2013,23 +2063,6 @@ public class IndexModel : PageModel
 
         [Required, StringLength(1000)]
         public string Remarks { get; set; } = string.Empty;
-    }
-
-    public sealed class AddTaskUpdateInput
-    {
-        [Required]
-        public int TaskId { get; set; }
-
-        [Required]
-        public string RowVersion { get; set; } = string.Empty;
-
-        [StringLength(4000)]
-        public string Body { get; set; } = string.Empty;
-
-        [Required, StringLength(32)]
-        public string UpdateType { get; set; } = ActionTaskUpdateTypes.Comment;
-
-        public List<IFormFile> Files { get; set; } = new();
     }
 
     public sealed record CountSummary(string Name, int Count);

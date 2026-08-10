@@ -116,6 +116,35 @@ public static class ActionTaskPresentation
             _ => log.Remarks?.Trim() ?? string.Empty
         };
 
+
+    public static bool ShouldShowAuditRemarks(ActionTaskAuditLog log, string? auditSummary)
+    {
+        var remarks = Normalize(log.Remarks);
+        if (string.IsNullOrWhiteSpace(remarks))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(auditSummary)
+            && string.Equals(remarks, Normalize(auditSummary), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (log.ActionType is "StatusUpdated" or "TaskStatusChanged")
+        {
+            var newValue = Normalize(log.NewValue);
+            var newLabel = Normalize(StatusLabel(log.NewValue));
+            if (string.Equals(remarks, newValue, StringComparison.Ordinal)
+                || string.Equals(remarks, newLabel, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static string Normalize(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
 
     private static string FormatDate(string? value)

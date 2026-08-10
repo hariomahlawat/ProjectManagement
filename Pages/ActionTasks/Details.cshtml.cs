@@ -61,7 +61,7 @@ public sealed class DetailsModel : PageModel
     public string BackUrl { get; private set; } = string.Empty;
 
     [BindProperty]
-    public RemarkInputModel RemarkInput { get; set; } = new();
+    public TaskRemarkInput RemarkInput { get; set; } = new();
 
     [BindProperty]
     public ChangeDateInputModel ChangeDateInput { get; set; } = new();
@@ -121,7 +121,7 @@ public sealed class DetailsModel : PageModel
         }
 
         RemarkInput.TaskId = id;
-        RemarkInput.UpdateType = DefaultRemarkType;
+        RestoreRemarkDraft(id);
         ChangeDateInput.TaskId = id;
         ChangeDateInput.RowVersion = Convert.ToBase64String(TaskItem.RowVersion);
         ChangeDateInput.NewDate = TaskItem.DueDate.Date >= IstToday ? TaskItem.DueDate.Date : IstToday;
@@ -139,11 +139,25 @@ public sealed class DetailsModel : PageModel
             return NotFound();
         }
 
+        if (!_permission.CanAddTaskUpdate(CurrentRole, CurrentUserId, task.AssignedToUserId))
+        {
+            return Forbid();
+        }
+
+        ModelState.Clear();
+        TryValidateModel(RemarkInput, nameof(RemarkInput));
+        if (!ModelState.IsValid)
+        {
+            PreserveRemarkDraft(RemarkInput);
+            TempData["ToastError"] = "Unable to save remark. Please check the entered details and try again.";
+            return RedirectToPage(new { id = Id, intent = "remark", returnUrl = SafeReturnUrl() });
+        }
+
         var normalizedType = ActionTaskUpdateTypes.All.FirstOrDefault(type => string.Equals(type, RemarkInput.UpdateType, StringComparison.OrdinalIgnoreCase));
         if (normalizedType is null || string.Equals(normalizedType, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase))
         {
             TempData["ToastError"] = "Invalid remark type.";
-            return RedirectToPage(new { id = Id, returnUrl = SafeReturnUrl() });
+            return RedirectToPage(new { id = Id, intent = "remark", returnUrl = SafeReturnUrl() });
         }
 
         if (string.Equals(normalizedType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase)
@@ -156,12 +170,14 @@ public sealed class DetailsModel : PageModel
         var hasFiles = RemarkInput.Files?.Any(file => file.Length > 0) == true;
         if (string.Equals(normalizedType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase) && !hasBody)
         {
+            PreserveRemarkDraft(RemarkInput);
             TempData["ToastError"] = "Enter the conference direction or observation.";
             return RedirectToPage(new { id = Id, intent = "remark", returnUrl = SafeReturnUrl() });
         }
 
         if (!hasBody && !hasFiles)
         {
+            PreserveRemarkDraft(RemarkInput);
             TempData["ToastError"] = "Enter a remark or attach at least one file.";
             return RedirectToPage(new { id = Id, intent = "remark", returnUrl = SafeReturnUrl() });
         }
@@ -175,7 +191,9 @@ public sealed class DetailsModel : PageModel
         }
         catch (InvalidOperationException ex)
         {
+            PreserveRemarkDraft(RemarkInput);
             TempData["ToastError"] = ex.Message;
+            return RedirectToPage(new { id = Id, intent = "remark", returnUrl = SafeReturnUrl() });
         }
 
         return RedirectToPage(new { id = Id, returnUrl = SafeReturnUrl() });
@@ -497,6 +515,39 @@ public sealed class DetailsModel : PageModel
 
     private bool IsStatus(string status) => string.Equals(TaskItem.Status, status, StringComparison.OrdinalIgnoreCase);
 
+    private static string RemarkDraftKey(int taskId, string field)
+        => $"ActionTasks.RemarkDraft.{taskId}.{field}";
+
+    private void PreserveRemarkDraft(TaskRemarkInput input)
+    {
+        if (input.TaskId <= 0)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.Body))
+        {
+            TempData[RemarkDraftKey(input.TaskId, "Body")] = input.Body;
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.UpdateType))
+        {
+            TempData[RemarkDraftKey(input.TaskId, "Type")] = input.UpdateType;
+        }
+    }
+
+    private void RestoreRemarkDraft(int taskId)
+    {
+        var draftBody = TempData[RemarkDraftKey(taskId, "Body")] as string;
+        var draftType = TempData[RemarkDraftKey(taskId, "Type")] as string;
+        var normalizedType = ActionTaskUpdateTypes.All.FirstOrDefault(type =>
+            !string.Equals(type, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(type, draftType, StringComparison.OrdinalIgnoreCase));
+
+        RemarkInput.Body = draftBody ?? string.Empty;
+        RemarkInput.UpdateType = normalizedType ?? DefaultRemarkType;
+    }
+
     private static byte[] DecodeRowVersion(string rowVersion)
     {
         if (string.IsNullOrWhiteSpace(rowVersion))
@@ -512,20 +563,6 @@ public sealed class DetailsModel : PageModel
         {
             throw new InvalidOperationException("Task version is invalid. Please reload and try again.");
         }
-    }
-
-    public sealed class RemarkInputModel
-    {
-        [Required]
-        public int TaskId { get; set; }
-
-        [StringLength(4000)]
-        public string Body { get; set; } = string.Empty;
-
-        [Required, StringLength(32)]
-        public string UpdateType { get; set; } = ActionTaskUpdateTypes.Comment;
-
-        public List<IFormFile> Files { get; set; } = new();
     }
 
     public sealed class ChangeDateInputModel
