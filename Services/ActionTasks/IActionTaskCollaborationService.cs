@@ -12,4 +12,6 @@ public interface IActionTaskCollaborationService
     Task<ActionTaskUpdate?> AddUpdateAndMaybeChangeStatusAsync(int taskId, string body, string? newStatus, string userId, string role, IReadOnlyList<IFormFile> files, byte[] rowVersion, CancellationToken cancellationToken = default);
     Task<List<ActionTaskUpdate>> GetUpdatesAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>> GetAttachmentMetadataByUpdateAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default);
+    Task EditRemarkAsync(int taskId, int updateId, string body, string userId, string role, CancellationToken cancellationToken = default);
+    Task DeleteRemarkAsync(int taskId, int updateId, string userId, string role, CancellationToken cancellationToken = default);
 }

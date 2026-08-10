@@ -11,6 +11,11 @@ public sealed class TaskUpdateTimelineViewModel
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> Attachments { get; init; }
         = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public Func<string?, string> ResolveActorName { get; init; } = _ => "System";
+    public Func<ActionTaskUpdate, bool> CanEditUpdate { get; init; } = _ => false;
+    public Func<ActionTaskUpdate, bool> CanDeleteUpdate { get; init; } = _ => false;
+    public int TaskId { get; init; }
+    public string EditPostUrl { get; init; } = string.Empty;
+    public string DeletePostUrl { get; init; } = string.Empty;
     public int? Take { get; init; }
     public bool Compact { get; init; }
 }

@@ -474,5 +474,9 @@ public sealed class ConferenceRemarkCommandServiceTests
             => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>> GetAttachmentMetadataByUpdateAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
+        public Task EditRemarkAsync(int taskId, int updateId, string body, string userId, string role, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+        public Task DeleteRemarkAsync(int taskId, int updateId, string userId, string role, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 }

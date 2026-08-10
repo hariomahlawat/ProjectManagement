@@ -680,6 +680,99 @@ public class ActionTaskServiceTests
     }
 
 
+
+    [Theory]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task PlanningAuthority_CanEditTaskDetails_WithoutCreatingWorkflowProgress(string role)
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        await service.UpdateTaskDetailsAsync(
+            task.Id,
+            task.RowVersion,
+            "Revised task title",
+            "Revised task brief with corrected operational detail.",
+            "authority",
+            role);
+
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal("Revised task title", updated.Title);
+        Assert.Equal("Revised task brief with corrected operational detail.", updated.Description);
+        Assert.Empty(await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).ToListAsync());
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "TaskDetailsUpdated");
+        Assert.Equal("Task", audit.OldValue);
+        Assert.Equal("Revised task title", audit.NewValue);
+    }
+
+    [Theory]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task PlanningAuthority_ReassignsTask_PreservingStateAndSprint(string role)
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+        task.SprintId = 77;
+        await db.SaveChangesAsync();
+
+        await service.ReassignTaskAsync(
+            task.Id,
+            task.RowVersion,
+            "new-assignee",
+            RoleNames.Ta,
+            "Responsibility transferred for continuation of the same work.",
+            "authority",
+            role);
+
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal("new-assignee", updated.AssignedToUserId);
+        Assert.Equal(RoleNames.Ta, updated.AssignedToRole);
+        Assert.Equal(ActionTaskStatuses.InProgress, updated.Status);
+        Assert.Equal(77, updated.SprintId);
+
+        var progress = await db.ActionTaskUpdates.SingleAsync(x => x.TaskId == task.Id && x.UpdateType == ActionTaskUpdateTypes.Progress);
+        Assert.StartsWith("Responsibility reassigned.", progress.Body, StringComparison.Ordinal);
+        Assert.Equal(ActionTaskStatuses.InProgress, progress.StatusSnapshot);
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "TaskReassigned");
+        Assert.Equal("assignee", audit.OldValue);
+        Assert.Equal("new-assignee", audit.NewValue);
+    }
+
+    [Theory]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task PlanningAuthority_ChangesPriority_WithProgressAndAudit(string role)
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        await service.UpdateTaskPriorityAsync(
+            task.Id,
+            task.RowVersion,
+            "High",
+            "Operational urgency has increased.",
+            "authority",
+            role);
+
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal("High", updated.Priority);
+
+        var progress = await db.ActionTaskUpdates.SingleAsync(x => x.TaskId == task.Id && x.UpdateType == ActionTaskUpdateTypes.Progress);
+        Assert.StartsWith("Priority changed from Normal to High.", progress.Body, StringComparison.Ordinal);
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "PriorityChanged");
+        Assert.Equal("Normal", audit.OldValue);
+        Assert.Equal("High", audit.NewValue);
+        Assert.Equal("Operational urgency has increased.", audit.Remarks);
+    }
+
+
     // SECTION: Test service helpers
     private static ActionTaskService CreateService(ApplicationDbContext db, IActionTrackerClock? clock = null)
         => new(db, new ActionTaskPermissionService(), clock ?? new TestActionTrackerClock());

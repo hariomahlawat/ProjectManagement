@@ -30,6 +30,9 @@ public sealed class TaskActionBarViewModel
         || CanBlock
         || Capabilities.CanAcceptAndClose
         || Capabilities.CanReturnForAction
+        || Capabilities.CanEditTaskDetails
+        || Capabilities.CanReassignTask
+        || Capabilities.CanChangePriority
         || Capabilities.CanChangeDate
         || HasBacklogAssign
         || HasSprintAdd

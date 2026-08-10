@@ -13,6 +13,7 @@ public class ActionTaskService : IActionTaskService
 {
     private const int MaxClosureRemarksLength = 2000;
     private const int MaxProgressRemarksLength = 4000;
+    private static readonly string[] AllowedPriorities = { "Low", "Normal", "High", "Critical" };
 
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
@@ -490,6 +491,139 @@ public class ActionTaskService : IActionTaskService
         }
     }
 
+    // SECTION: Lightweight task-detail correction. This is command-managed metadata, not workflow progress.
+    public async Task UpdateTaskDetailsAsync(int taskId, byte[] rowVersion, string title, string description, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (!_permission.CanEditTaskDetails(role) || string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("You are not authorized to edit this task.");
+        }
+
+        var normalizedTitle = title?.Trim() ?? string.Empty;
+        var normalizedDescription = description?.Trim() ?? string.Empty;
+        if (normalizedTitle.Length is < 1 or > 200)
+        {
+            throw new InvalidOperationException("Task title is required and cannot exceed 200 characters.");
+        }
+        if (normalizedDescription.Length is < 1 or > 4000)
+        {
+            throw new InvalidOperationException("Task brief is required and cannot exceed 4000 characters.");
+        }
+        if (string.Equals(task.Title, normalizedTitle, StringComparison.Ordinal)
+            && string.Equals(task.Description, normalizedDescription, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("No task detail changes were detected.");
+        }
+
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+        var oldTitle = task.Title;
+        var briefChanged = !string.Equals(task.Description, normalizedDescription, StringComparison.Ordinal);
+        task.Title = normalizedTitle;
+        task.Description = normalizedDescription;
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskDetailsUpdated", userId, role, oldTitle, normalizedTitle, briefChanged ? "Task brief updated." : null));
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+    }
+
+    // SECTION: Direct responsibility transfer preserves workflow state and sprint membership.
+    public async Task ReassignTaskAsync(int taskId, byte[] rowVersion, string assignedToUserId, string assignedToRole, string remarks, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (!_permission.CanReassignTask(task, role))
+        {
+            throw new InvalidOperationException("You are not authorized to reassign this task in its current state.");
+        }
+        if (string.IsNullOrWhiteSpace(assignedToUserId) || string.IsNullOrWhiteSpace(assignedToRole) || !_permission.CanAssign(role, assignedToRole))
+        {
+            throw new InvalidOperationException("Select an authorised responsible person.");
+        }
+        if (string.Equals(task.AssignedToUserId, assignedToUserId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The selected person is already responsible for this task.");
+        }
+        var normalizedRemarks = remarks?.Trim() ?? string.Empty;
+        if (normalizedRemarks.Length is < 1 or > 1000)
+        {
+            throw new InvalidOperationException("Enter a reassignment reason of up to 1000 characters.");
+        }
+
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+        var oldAssignee = task.AssignedToUserId;
+        task.AssignedToUserId = assignedToUserId.Trim();
+        task.AssignedToRole = assignedToRole.Trim();
+        task.AssignedOn = _clock.UtcNow;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+        AddProgressTimelineEntry(task, userId, role, $"Responsibility reassigned. {normalizedRemarks}");
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskReassigned", userId, role, oldAssignee, task.AssignedToUserId, normalizedRemarks));
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyTaskReassignedAsync(task, oldAssignee, userId, cancellationToken);
+        }
+    }
+
+    // SECTION: Priority changes are command-managed but remain visible in the human task chronology.
+    public async Task UpdateTaskPriorityAsync(int taskId, byte[] rowVersion, string priority, string remarks, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (!_permission.CanChangeTaskPriority(task, role))
+        {
+            throw new InvalidOperationException("You are not authorized to change task priority.");
+        }
+
+        var normalizedPriority = AllowedPriorities.FirstOrDefault(candidate => string.Equals(candidate, priority?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (normalizedPriority is null)
+        {
+            throw new InvalidOperationException("Select a valid priority.");
+        }
+        if (string.Equals(task.Priority, normalizedPriority, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The selected priority is already current.");
+        }
+        var normalizedRemarks = remarks?.Trim() ?? string.Empty;
+        if (normalizedRemarks.Length is < 1 or > 1000)
+        {
+            throw new InvalidOperationException("Enter a priority-change reason of up to 1000 characters.");
+        }
+
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+        var oldPriority = task.Priority;
+        task.Priority = normalizedPriority;
+        var update = AddProgressTimelineEntry(task, userId, role, $"Priority changed from {oldPriority} to {normalizedPriority}. {normalizedRemarks}");
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "PriorityChanged", userId, role, oldPriority, normalizedPriority, normalizedRemarks));
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyProgressUpdatedAsync(task, update, userId, cancellationToken);
+        }
+    }
+
     public async Task UpdateTaskDateAsync(int taskId, byte[] rowVersion, DateTime newDate, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         // SECTION: Date-change authorization and task validation
@@ -548,9 +682,9 @@ public class ActionTaskService : IActionTaskService
     }
 
     // SECTION: Workflow timeline helpers keep human history aligned with audited state changes.
-    private void AddProgressTimelineEntry(ActionTaskItem task, string userId, string role, string body)
+    private ActionTaskUpdate AddProgressTimelineEntry(ActionTaskItem task, string userId, string role, string body)
     {
-        _context.ActionTaskUpdates.Add(new ActionTaskUpdate
+        var update = new ActionTaskUpdate
         {
             TaskId = task.Id,
             CreatedByUserId = userId,
@@ -561,7 +695,9 @@ public class ActionTaskService : IActionTaskService
             StatusSnapshot = task.Status,
             DueDateSnapshot = DateOnly.FromDateTime(task.DueDate),
             IsDeleted = false
-        });
+        };
+        _context.ActionTaskUpdates.Add(update);
+        return update;
     }
 
     private static void ValidateProgressRemarksLength(string? remarks)

@@ -3,6 +3,7 @@
 @using ProjectManagement.Services.ActionTasks
 @{
     var ordered = Model.Updates
+        .Where(update => !update.IsDeleted)
         .OrderByDescending(update => update.CreatedAtUtc)
         .ThenByDescending(update => update.Id);
     var visibleUpdates = Model.Take.HasValue ? ordered.Take(Model.Take.Value).ToList() : ordered.ToList();
@@ -23,8 +24,13 @@ else
             Model.Attachments.TryGetValue(update.Id, out var files);
             var progressHeading = isProgress ? ActionTaskPresentation.ProgressHeading(update) : null;
             var progressContext = isProgress ? ActionTaskPresentation.ProgressContext(update) : null;
+            var canEdit = !isProgress && Model.CanEditUpdate(update) && !string.IsNullOrWhiteSpace(Model.EditPostUrl);
+            var canDelete = !isProgress && Model.CanDeleteUpdate(update) && !string.IsNullOrWhiteSpace(Model.DeletePostUrl);
+            var deleteConfirmation = isConference
+                ? "Delete this conference direction? It will be removed from the task discussion while the audit record is retained."
+                : "Delete this remark? The audit record will be retained.";
 
-            <article class="at-v2-update-card @(isConference ? "is-conference" : string.Empty) @(isProgress ? "is-progress" : string.Empty)">
+            <article class="at-v2-update-card @(isConference ? "is-conference" : string.Empty) @(isProgress ? "is-progress" : string.Empty)" data-at-update-card>
                 <div class="at-v2-update-heading">
                     <div>
                         @if (isProgress)
@@ -40,12 +46,53 @@ else
                             }
                         }
                     </div>
-                    <time>@TimeFmt.ToIst(update.CreatedAtUtc)</time>
+                    <div class="at-v2-update-heading-side">
+                        <time>@TimeFmt.ToIst(update.CreatedAtUtc)</time>
+                        @if (canEdit || canDelete)
+                        {
+                            <div class="at-update-inline-actions" aria-label="Remark actions">
+                                @if (canEdit)
+                                {
+                                    <button type="button" class="at-update-action" data-at-update-edit-toggle aria-label="Edit remark" title="Edit remark">
+                                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                                    </button>
+                                }
+                                @if (canDelete)
+                                {
+                                    <form method="post" action="@Model.DeletePostUrl" class="at-update-delete-form" data-at-update-delete-form data-confirm="@deleteConfirmation">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@Model.TaskId" />
+                                        <input type="hidden" name="updateId" value="@update.Id" />
+                                        <button type="submit" class="at-update-action is-danger" aria-label="Delete remark" title="Delete remark">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        }
+                    </div>
                 </div>
 
                 @if (!isProgress || ActionTaskPresentation.ShouldShowProgressBody(update))
                 {
                     <div class="at-v2-update-body">@update.Body</div>
+                }
+
+                @if (canEdit)
+                {
+                    <div class="at-update-edit-panel" data-at-update-edit-panel hidden>
+                        <form method="post" action="@Model.EditPostUrl">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@Model.TaskId" />
+                            <input type="hidden" name="updateId" value="@update.Id" />
+                            <label class="visually-hidden" for="at-update-edit-@update.Id">Edit remark</label>
+                            <textarea id="at-update-edit-@update.Id" name="body" class="form-control form-control-sm" rows="2" maxlength="4000" required>@update.Body</textarea>
+                            <div class="at-update-edit-controls">
+                                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                <button type="button" class="btn btn-link btn-sm" data-at-update-edit-cancel>Cancel</button>
+                            </div>
+                        </form>
+                    </div>
                 }
 
                 @if (files is { Count: > 0 })

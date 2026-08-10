@@ -34,6 +34,8 @@ public static class ActionTaskPresentation
         if (body is "task submitted for closure." or "task submitted for closure") return "Submitted for closure";
         if (body is "task moved back to assigned status." or "task moved back to assigned status") return "Returned to assigned";
         if (body is "supporting file uploaded." or "supporting file uploaded") return "File added";
+        if (body.StartsWith("responsibility reassigned.", StringComparison.Ordinal)) return "Task reassigned";
+        if (body.StartsWith("priority changed from ", StringComparison.Ordinal)) return "Priority changed";
 
         if (string.Equals(update.StatusSnapshot, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return "Submitted for closure";
         if (string.Equals(update.StatusSnapshot, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)) return "Task closed";
@@ -70,10 +72,27 @@ public static class ActionTaskPresentation
             return "Assigned → In Progress";
         }
 
-        if (body is "work started." or "work started") return "Status: In Progress";
-        if (body is "task resumed." or "task resumed" or "work resumed." or "work resumed") return "Status: In Progress";
-        if (body is "task submitted for closure." or "task submitted for closure") return "Status: Awaiting Closure";
-        if (body is "task marked as blocked." or "task marked as blocked") return "Status: Blocked";
+        // Specific workflow headings already communicate the resulting state; repeating
+        // "Status: Blocked/In Progress" adds noise rather than context.
+        var isNamedWorkflowEvent = body is "work started." or "work started"
+            or "task resumed." or "task resumed"
+            or "work resumed." or "work resumed"
+            or "task submitted for closure." or "task submitted for closure"
+            or "task marked as blocked." or "task marked as blocked";
+
+        if (isNamedWorkflowEvent
+            || body.StartsWith("responsibility reassigned.", StringComparison.Ordinal)
+            || body.StartsWith("priority changed from ", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (string.Equals(update.StatusSnapshot, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(update.StatusSnapshot, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(update.StatusSnapshot, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
 
         if (!string.IsNullOrWhiteSpace(update.StatusSnapshot))
         {
@@ -102,6 +121,11 @@ public static class ActionTaskPresentation
             "TaskAssignedToSprint" or "OutsideSprintTaskAssignedToSprint" => "Added to sprint",
             "TaskRemovedFromSprintKeepAssigned" => "Removed from sprint",
             "TaskMovedToBacklogRemoveAssignee" => "Moved to backlog",
+            "TaskDetailsUpdated" => "Task details updated",
+            "TaskReassigned" => "Task reassigned",
+            "PriorityChanged" => "Priority changed",
+            "RemarkEdited" => "Remark edited",
+            "RemarkDeleted" => "Remark deleted",
             _ => actionType
         };
 
@@ -113,6 +137,11 @@ public static class ActionTaskPresentation
             "ReturnedForAction" => "Awaiting Closure → In Progress",
             "TaskClosedByCommandAuthority" or "TaskClosed" or "Closed" => $"{StatusLabel(log.OldValue)} → Closed",
             "DueDateChanged" or "TaskDueDateChanged" or "TargetDateChanged" => $"{FormatDate(log.OldValue)} → {FormatDate(log.NewValue)}",
+            "TaskDetailsUpdated" => string.Equals(log.OldValue, log.NewValue, StringComparison.Ordinal) ? "Task brief updated" : $"{log.OldValue} → {log.NewValue}",
+            "TaskReassigned" => "Responsible person changed",
+            "PriorityChanged" => $"{log.OldValue} → {log.NewValue}",
+            "RemarkEdited" => "Human remark corrected",
+            "RemarkDeleted" => "Human remark removed",
             _ => log.Remarks?.Trim() ?? string.Empty
         };
 

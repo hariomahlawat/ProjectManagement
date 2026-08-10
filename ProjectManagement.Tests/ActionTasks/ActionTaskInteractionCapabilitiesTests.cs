@@ -41,6 +41,9 @@ public class ActionTaskInteractionCapabilitiesTests
         Assert.False(capabilities.CanBlockAsOwner);
         Assert.True(capabilities.CanBlockAsCommandControl);
         Assert.True(capabilities.CanChangeDate);
+        Assert.True(capabilities.CanEditTaskDetails);
+        Assert.True(capabilities.CanReassignTask);
+        Assert.True(capabilities.CanChangePriority);
         Assert.True(capabilities.CanCloseDirectly);
         Assert.True(capabilities.CanAddConferenceRemark);
     }
@@ -61,4 +64,27 @@ public class ActionTaskInteractionCapabilitiesTests
         Assert.True(capabilities.CanReturnForAction);
         Assert.False(capabilities.CanCloseDirectly);
     }
+
+    [Fact]
+    public void Admin_DoesNotReceiveCommandMutationActions()
+    {
+        var workflow = new ActionTaskWorkflowPolicy(new ActionTaskPermissionService());
+        var task = new ActionTaskItem
+        {
+            Status = ActionTaskStatuses.InProgress,
+            AssignedToUserId = "owner"
+        };
+
+        var capabilities = workflow.GetInteractionCapabilities(task, RoleNames.Admin, "admin");
+
+        Assert.False(capabilities.IsPlanningAuthority);
+        Assert.False(capabilities.CanEditTaskDetails);
+        Assert.False(capabilities.CanReassignTask);
+        Assert.False(capabilities.CanChangePriority);
+        Assert.False(capabilities.CanChangeDate);
+        Assert.False(capabilities.CanCloseDirectly);
+        Assert.True(capabilities.CanViewSystemHistory);
+    }
+
+
 }

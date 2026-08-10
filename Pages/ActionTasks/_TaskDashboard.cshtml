@@ -21,7 +21,12 @@
     AddItems(Model.CommandOverdueTaskDisplays.OrderBy(x => x.Task.DueDate), "Overdue", "danger", 3);
     AddItems(Model.CommandCriticalOpenTaskDisplays, "Critical", "neutral", 4);
     var orderedAttention = attention.OrderBy(x => x.Rank).ThenBy(x => x.Item.Task.DueDate).ToList();
-    var recentCount = Model.RecentlySubmittedTaskDisplays.Count + Model.RecentlyUpdatedTaskDisplays.Count;
+    // SECTION: Recent activity is a task list, so count distinct tasks rather than update records.
+    var recentCount = Model.RecentlySubmittedTaskDisplays
+        .Concat(Model.RecentlyUpdatedTaskDisplays)
+        .Select(item => item.Task.Id)
+        .Distinct()
+        .Count();
 }
 
 <section class="at-overview-headline" aria-label="Task summary">
@@ -106,7 +111,7 @@ else if (Model.CanPlanSprints)
 @if (Model.HasRecentActivityItems)
 {
     <details class="at-panel at-quiet-details">
-        <summary><span>Recent activity <span class="at-count-chip">@recentCount updates</span></span><i class="bi bi-chevron-down at-disclosure-chevron" aria-hidden="true"></i></summary>
+        <summary><span>Recent activity <span class="at-count-chip">@recentCount @(recentCount == 1 ? "task" : "tasks")</span></span><i class="bi bi-chevron-down at-disclosure-chevron" aria-hidden="true"></i></summary>
         <div class="at-card-grid mt-3">
             @if (Model.RecentlySubmittedTaskDisplays.Any())
             {

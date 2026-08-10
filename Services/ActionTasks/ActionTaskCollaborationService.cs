@@ -285,6 +285,101 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         }
     }
 
+    // SECTION: Human remark correction. Workflow-generated progress entries remain immutable.
+    public async Task EditRemarkAsync(int taskId, int updateId, string body, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken)
+            ?? throw new InvalidOperationException("Task not found.");
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed task remarks cannot be changed.");
+        }
+        if (!_permission.CanViewTaskThread(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to modify remarks for this task.");
+        }
+
+        var update = await _context.ActionTaskUpdates.FirstOrDefaultAsync(x => x.Id == updateId && x.TaskId == taskId && !x.IsDeleted, cancellationToken)
+            ?? throw new InvalidOperationException("Remark not found.");
+        if (!_permission.CanMutateTaskRemark(update, role, userId, _clock.UtcNow))
+        {
+            throw new InvalidOperationException("You are not authorized to edit this remark.");
+        }
+
+        var normalizedBody = body?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedBody))
+        {
+            throw new InvalidOperationException("Remark text is required when editing an existing remark.");
+        }
+        if (normalizedBody.Length > MaxUpdateBodyLength)
+        {
+            throw new InvalidOperationException($"Update text cannot exceed {MaxUpdateBodyLength} characters.");
+        }
+        if (string.Equals(update.Body, normalizedBody, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("No remark changes were detected.");
+        }
+
+        var oldBody = update.Body;
+        update.Body = normalizedBody;
+        _context.ActionTaskAuditLogs.Add(new ActionTaskAuditLog
+        {
+            TaskId = taskId,
+            ActionType = "RemarkEdited",
+            PerformedByUserId = userId,
+            PerformedByRole = role,
+            PerformedAt = _clock.UtcNow,
+            OldValue = oldBody,
+            NewValue = normalizedBody,
+            Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark edited."
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    // SECTION: Human remark deletion is soft-delete and also retires attached files from the active thread.
+    public async Task DeleteRemarkAsync(int taskId, int updateId, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken)
+            ?? throw new InvalidOperationException("Task not found.");
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed task remarks cannot be deleted.");
+        }
+        if (!_permission.CanViewTaskThread(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to modify remarks for this task.");
+        }
+
+        var update = await _context.ActionTaskUpdates.FirstOrDefaultAsync(x => x.Id == updateId && x.TaskId == taskId && !x.IsDeleted, cancellationToken)
+            ?? throw new InvalidOperationException("Remark not found.");
+        if (!_permission.CanMutateTaskRemark(update, role, userId, _clock.UtcNow))
+        {
+            throw new InvalidOperationException("You are not authorized to delete this remark.");
+        }
+
+        update.IsDeleted = true;
+        var attachments = await _context.ActionTaskAttachments
+            .Where(x => x.TaskId == taskId && x.UpdateId == updateId && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+        foreach (var attachment in attachments)
+        {
+            attachment.IsDeleted = true;
+        }
+
+        _context.ActionTaskAuditLogs.Add(new ActionTaskAuditLog
+        {
+            TaskId = taskId,
+            ActionType = "RemarkDeleted",
+            PerformedByUserId = userId,
+            PerformedByRole = role,
+            PerformedAt = _clock.UtcNow,
+            OldValue = update.Body,
+            NewValue = null,
+            Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark deleted."
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     // SECTION: Read updates for inspector thread
     public async Task<List<ActionTaskUpdate>> GetUpdatesAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
     {

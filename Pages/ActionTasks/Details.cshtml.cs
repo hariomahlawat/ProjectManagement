@@ -66,6 +66,15 @@ public sealed class DetailsModel : PageModel
     [BindProperty]
     public ChangeDateInputModel ChangeDateInput { get; set; } = new();
 
+    [BindProperty]
+    public TaskEditInput EditTaskInput { get; set; } = new();
+
+    [BindProperty]
+    public TaskReassignInput ReassignInput { get; set; } = new();
+
+    [BindProperty]
+    public TaskPriorityInput PriorityInput { get; set; } = new();
+
     public ActionTaskItem TaskItem { get; private set; } = default!;
     public IReadOnlyList<ActionTaskUpdate> Updates { get; private set; } = Array.Empty<ActionTaskUpdate>();
     public IReadOnlyList<ActionTaskAuditLog> Logs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
@@ -92,6 +101,10 @@ public sealed class DetailsModel : PageModel
             : _workflow.GetInteractionCapabilities(TaskItem, CurrentRole, CurrentUserId);
     public bool CanAddRemark => !IsClosed && _permission.CanAddTaskUpdate(CurrentRole, CurrentUserId, TaskItem.AssignedToUserId);
     public bool CanAddConference => !IsClosed && _permission.CanAddConferenceUpdate(CurrentRole);
+    public bool CanEditRemark(ActionTaskUpdate update)
+        => !IsClosed && _permission.CanMutateTaskRemark(update, CurrentRole, CurrentUserId, _clock.UtcNow);
+    public bool CanDeleteRemark(ActionTaskUpdate update)
+        => CanEditRemark(update);
     public bool CanUpdateStatus => _workflow.CanUpdateTaskStatus(TaskItem, CurrentRole, CurrentUserId);
     public bool CanSubmit => IsInProgress && _workflow.CanSubmitTask(TaskItem, CurrentUserId);
     public bool CanCommandClose => _permission.CanCloseTaskDirectly(TaskItem, CurrentRole);
@@ -122,9 +135,24 @@ public sealed class DetailsModel : PageModel
 
         RemarkInput.TaskId = id;
         RestoreRemarkDraft(id);
+        var rowVersion = Convert.ToBase64String(TaskItem.RowVersion);
         ChangeDateInput.TaskId = id;
-        ChangeDateInput.RowVersion = Convert.ToBase64String(TaskItem.RowVersion);
+        ChangeDateInput.RowVersion = rowVersion;
         ChangeDateInput.NewDate = TaskItem.DueDate.Date >= IstToday ? TaskItem.DueDate.Date : IstToday;
+
+        EditTaskInput.TaskId = id;
+        EditTaskInput.RowVersion = rowVersion;
+        EditTaskInput.Title = TaskItem.Title;
+        EditTaskInput.Description = TaskItem.Description;
+
+        ReassignInput.TaskId = id;
+        ReassignInput.RowVersion = rowVersion;
+        ReassignInput.AssignedToUserId = TaskItem.AssignedToUserId;
+
+        PriorityInput.TaskId = id;
+        PriorityInput.RowVersion = rowVersion;
+        PriorityInput.Priority = TaskItem.Priority;
+
         BackUrl = ResolveBackUrl();
         return Page();
     }
@@ -325,6 +353,163 @@ public sealed class DetailsModel : PageModel
         return RedirectToPage(new { id = ChangeDateInput.TaskId, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
+    // SECTION: Correct task title/brief without mixing metadata maintenance into workflow state.
+    public async Task<IActionResult> OnPostEditTaskAsync()
+    {
+        await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
+
+        ModelState.Clear();
+        TryValidateModel(EditTaskInput, nameof(EditTaskInput));
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Enter a task title and brief within the allowed limits.";
+            return RedirectToPage(new { id = EditTaskInput.TaskId, intent = "edit-task", returnUrl = SafeReturnUrl() });
+        }
+
+        try
+        {
+            await _service.UpdateTaskDetailsAsync(
+                EditTaskInput.TaskId,
+                DecodeRowVersion(EditTaskInput.RowVersion),
+                EditTaskInput.Title,
+                EditTaskInput.Description,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task details updated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "edit-task";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "edit-task";
+        }
+
+        return RedirectToPage(new { id = EditTaskInput.TaskId, intent = reopenIntent, returnUrl = SafeReturnUrl() });
+    }
+
+    // SECTION: Reassign responsibility directly while preserving the task's workflow state.
+    public async Task<IActionResult> OnPostReassignAsync()
+    {
+        await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
+
+        ModelState.Clear();
+        TryValidateModel(ReassignInput, nameof(ReassignInput));
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Select a responsible person and enter a reassignment reason.";
+            return RedirectToPage(new { id = ReassignInput.TaskId, intent = "reassign", returnUrl = SafeReturnUrl() });
+        }
+
+        try
+        {
+            var assignedRole = await ResolveAssignableRoleForUserAsync(ReassignInput.AssignedToUserId);
+            if (assignedRole is null)
+            {
+                throw new InvalidOperationException("Select an active responsible person who you are authorised to assign.");
+            }
+
+            await _service.ReassignTaskAsync(
+                ReassignInput.TaskId,
+                DecodeRowVersion(ReassignInput.RowVersion),
+                ReassignInput.AssignedToUserId,
+                assignedRole,
+                ReassignInput.Remarks,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task reassigned.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "reassign";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "reassign";
+        }
+
+        return RedirectToPage(new { id = ReassignInput.TaskId, intent = reopenIntent, returnUrl = SafeReturnUrl() });
+    }
+
+    // SECTION: Change operational priority without forcing task replanning.
+    public async Task<IActionResult> OnPostChangePriorityAsync()
+    {
+        await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
+
+        ModelState.Clear();
+        TryValidateModel(PriorityInput, nameof(PriorityInput));
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Select a priority and enter a short reason.";
+            return RedirectToPage(new { id = PriorityInput.TaskId, intent = "priority", returnUrl = SafeReturnUrl() });
+        }
+
+        try
+        {
+            await _service.UpdateTaskPriorityAsync(
+                PriorityInput.TaskId,
+                DecodeRowVersion(PriorityInput.RowVersion),
+                PriorityInput.Priority,
+                PriorityInput.Remarks,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task priority updated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "priority";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            reopenIntent = "priority";
+        }
+
+        return RedirectToPage(new { id = PriorityInput.TaskId, intent = reopenIntent, returnUrl = SafeReturnUrl() });
+    }
+
+    // SECTION: Human remarks may be corrected under governance; workflow-generated progress remains immutable.
+    public async Task<IActionResult> OnPostEditRemarkAsync(int id, int updateId, string body)
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _collaboration.EditRemarkAsync(id, updateId, body, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Remark updated.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { id, returnUrl = SafeReturnUrl() });
+    }
+
+    public async Task<IActionResult> OnPostDeleteRemarkAsync(int id, int updateId)
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _collaboration.DeleteRemarkAsync(id, updateId, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Remark deleted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { id, returnUrl = SafeReturnUrl() });
+    }
+
     public async Task<IActionResult> OnPostAssignBacklogToSprintAsync(int id, int sprintId, string responsibleUserId)
     {
         await ResolveIdentityAsync();
@@ -483,12 +668,37 @@ public sealed class DetailsModel : PageModel
         LastActivityAtUtc = model.LastActivityAtUtc;
         AssigneeNames = await _userLookup.LoadTaskAssigneeNamesAsync(new[] { TaskItem });
         Sprints = await _sprintService.GetSprintsAsync();
-        if (CanManagePlanning)
+        if (CanManagePlanning || Capabilities.CanReassignTask)
         {
             AssignableUsers = await _userLookup.LoadAssignableUsersAsync(CurrentRole);
         }
 
         return true;
+    }
+
+    private async Task<string?> ResolveAssignableRoleForUserAsync(string assignedToUserId)
+    {
+        if (string.IsNullOrWhiteSpace(assignedToUserId))
+        {
+            return null;
+        }
+
+        var assignedUser = await _users.FindByIdAsync(assignedToUserId);
+        if (assignedUser is null || assignedUser.IsDisabled || assignedUser.PendingDeletion)
+        {
+            return null;
+        }
+
+        if (assignedUser.LockoutEnd.HasValue && assignedUser.LockoutEnd > new DateTimeOffset(_clock.UtcNow, TimeSpan.Zero))
+        {
+            return null;
+        }
+
+        var assignedRoles = await _users.GetRolesAsync(assignedUser);
+        var assignedRole = ActionTaskRoleResolver.ResolveAssignableRoleFromRoles(assignedRoles);
+        return assignedRole is not null && _permission.CanAssign(CurrentRole, assignedRole)
+            ? assignedRole
+            : null;
     }
 
     private async Task ResolveIdentityAsync()

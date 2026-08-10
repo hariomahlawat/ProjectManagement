@@ -60,6 +60,32 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             dueDate: null,
             cancellationToken: cancellationToken);
 
+    public Task NotifyTaskReassignedAsync(ActionTaskItem task, string? previousAssigneeUserId, string actorUserId, CancellationToken cancellationToken = default)
+        => PublishForTaskAsync(
+            NotificationKind.ActionTaskAssigned,
+            task,
+            actorUserId,
+            "ActionTaskReassigned",
+            "Task reassigned",
+            $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has been reassigned.",
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "action-task:{0}:reassigned:{1}:{2}",
+                task.Id,
+                NormalizeFingerprintPart(task.AssignedToUserId),
+                ResolveMutationVersion(task, _clock.UtcNow.UtcDateTime)),
+            recipients =>
+            {
+                AddRecipient(recipients, previousAssigneeUserId);
+                AddRecipient(recipients, task.AssignedToUserId);
+                AddRecipient(recipients, task.CreatedByUserId);
+                return Task.CompletedTask;
+            },
+            previousStatus: null,
+            currentStatus: task.Status,
+            dueDate: null,
+            cancellationToken: cancellationToken);
+
     public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default)
     {
         var isConferenceRemark = string.Equals(

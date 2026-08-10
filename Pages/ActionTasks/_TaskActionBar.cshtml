@@ -38,6 +38,18 @@
         {
             <button type="button" class="btn btn-outline-secondary at-task-action" data-at-v22-open="return">Return for action</button>
         }
+        @if (Model.Capabilities.CanEditTaskDetails)
+        {
+            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="edit-task">Edit task</button>
+        }
+        @if (Model.Capabilities.CanReassignTask)
+        {
+            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="reassign">Reassign</button>
+        }
+        @if (Model.Capabilities.CanChangePriority)
+        {
+            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="priority">Change priority</button>
+        }
         @if (Model.Capabilities.CanChangeDate)
         {
             <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="change-date">Change @(Model.IsBacklog ? "target" : "due") date</button>

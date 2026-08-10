@@ -1940,6 +1940,8 @@ public class ActionTaskPageTests
 
         public Task<IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>> GetAttachmentMetadataByUpdateAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default) => Task.FromResult((IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>)new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>());
         public Task<List<ActionTaskUpdate>> GetUpdatesAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default) => Task.FromResult(new List<ActionTaskUpdate>());
+        public Task EditRemarkAsync(int taskId, int updateId, string body, string userId, string role, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteRemarkAsync(int taskId, int updateId, string userId, string role, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class DictionaryTempDataProvider : ITempDataProvider

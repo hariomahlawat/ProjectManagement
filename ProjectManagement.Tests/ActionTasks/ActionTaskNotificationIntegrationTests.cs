@@ -80,6 +80,32 @@ public sealed class ActionTaskNotificationIntegrationTests
         Assert.Contains(notifications.Calls, call => call.Name == "MovedToBacklog" && call.TaskId == task.Id && call.PreviousAssigneeUserId == "assignee");
     }
 
+
+    [Fact]
+    public async Task ReassignTaskAsync_CallsSingleReassignmentNotificationWithPreviousAssignee()
+    {
+        await using var db = CreateDb();
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress);
+        var notifications = new RecordingActionTaskNotificationService();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService(), new TestActionTrackerClock(), notifications);
+
+        await service.ReassignTaskAsync(
+            task.Id,
+            task.RowVersion,
+            "replacement",
+            RoleNames.Ta,
+            "Responsibility transferred.",
+            "planner",
+            RoleNames.HoD);
+
+        var reassigned = Assert.Single(notifications.Calls.Where(call => call.Name == "Reassigned"));
+        Assert.Equal(task.Id, reassigned.TaskId);
+        Assert.Equal("planner", reassigned.ActorUserId);
+        Assert.Equal("assignee", reassigned.PreviousAssigneeUserId);
+        Assert.DoesNotContain(notifications.Calls, call => call.Name == "Assigned" || call.Name == "ProgressUpdated");
+    }
+
+
     [Fact]
     public async Task UpdateTaskDateAndCloseTask_CallDueDateAndClosedNotifications()
     {
@@ -140,6 +166,9 @@ public sealed class ActionTaskNotificationIntegrationTests
 
         public Task NotifyTaskAssignedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default)
             => Record("Assigned", task, actorUserId);
+
+        public Task NotifyTaskReassignedAsync(ActionTaskItem task, string? previousAssigneeUserId, string actorUserId, CancellationToken cancellationToken = default)
+            => Record("Reassigned", task, actorUserId, previousAssigneeUserId: previousAssigneeUserId);
 
         public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default)
             => Record("ProgressUpdated", task, actorUserId);

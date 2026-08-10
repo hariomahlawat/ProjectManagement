@@ -58,6 +58,7 @@ public class ActionTaskPermissionServiceTests
     [Theory]
     [InlineData(RoleNames.Comdt, true)]
     [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
     [InlineData(RoleNames.ProjectOfficer, false)]
     [InlineData(RoleNames.Mco, false)]
     [InlineData(RoleNames.Ta, false)]
@@ -129,5 +130,66 @@ public class ActionTaskPermissionServiceTests
         Assert.Equal(expected, service.CanAddConferenceUpdate(role));
     }
 
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    [InlineData(RoleNames.Mco, false)]
+    [InlineData(RoleNames.Ta, false)]
+    [InlineData(RoleNames.Ito, false)]
+    public void OperationalMetadataManagement_IsLimitedToPlanningAuthorities(string role, bool expected)
+    {
+        var service = new ActionTaskPermissionService();
+        var active = new ActionTaskItem { Status = ActionTaskStatuses.InProgress };
+
+        Assert.Equal(expected, service.CanEditTaskDetails(role));
+        Assert.Equal(expected, service.CanReassignTask(active, role));
+        Assert.Equal(expected, service.CanChangeTaskPriority(active, role));
+    }
+
+    [Fact]
+    public void GeneralRemark_AuthorMayMutateWithinThreeHours_ButNotAfterWindow()
+    {
+        var service = new ActionTaskPermissionService();
+        var createdAt = new DateTime(2026, 8, 10, 0, 0, 0, DateTimeKind.Utc);
+        var update = new ActionTaskUpdate
+        {
+            UpdateType = ActionTaskUpdateTypes.Comment,
+            CreatedByUserId = "owner",
+            CreatedAtUtc = createdAt,
+            IsDeleted = false
+        };
+
+        Assert.True(service.CanMutateTaskRemark(update, RoleNames.ProjectOfficer, "owner", createdAt.AddHours(2)));
+        Assert.False(service.CanMutateTaskRemark(update, RoleNames.ProjectOfficer, "owner", createdAt.AddHours(4)));
+        Assert.False(service.CanMutateTaskRemark(update, RoleNames.ProjectOfficer, "other", createdAt.AddHours(1)));
+        Assert.True(service.CanMutateTaskRemark(update, RoleNames.HoD, "other", createdAt.AddDays(2)));
+    }
+
+    [Fact]
+    public void ConferenceRemark_IsCommandGoverned_AndProgressIsImmutable()
+    {
+        var service = new ActionTaskPermissionService();
+        var now = new DateTime(2026, 8, 10, 0, 0, 0, DateTimeKind.Utc);
+        var conference = new ActionTaskUpdate
+        {
+            UpdateType = ActionTaskUpdateTypes.Conference,
+            CreatedByUserId = "owner",
+            CreatedAtUtc = now.AddDays(-2)
+        };
+        var progress = new ActionTaskUpdate
+        {
+            UpdateType = ActionTaskUpdateTypes.Progress,
+            CreatedByUserId = "owner",
+            CreatedAtUtc = now
+        };
+
+        Assert.True(service.CanMutateTaskRemark(conference, RoleNames.Comdt, "command", now));
+        Assert.True(service.CanMutateTaskRemark(conference, RoleNames.HoD, "hod", now));
+        Assert.False(service.CanMutateTaskRemark(conference, RoleNames.ProjectOfficer, "owner", now));
+        Assert.False(service.CanMutateTaskRemark(progress, RoleNames.Comdt, "command", now));
+    }
 
 }

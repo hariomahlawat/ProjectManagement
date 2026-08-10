@@ -61,6 +61,51 @@ public class ActionTaskPermissionService
     public bool CanChangeTaskDate(string role)
         => IsPlanningAuthority(role);
 
+    // SECTION: Operational task-management permissions
+    // Comdt/HoD are the task planning authorities. Admin retains system/audit responsibilities
+    // but does not implicitly receive command task mutation rights.
+    public bool CanEditTaskDetails(string role)
+        => IsPlanningAuthority(role);
+
+    public bool CanReassignTask(ActionTaskItem? task, string role)
+        => task is not null
+            && !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && IsPlanningAuthority(role);
+
+    public bool CanChangeTaskPriority(ActionTaskItem? task, string role)
+        => task is not null
+            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && IsPlanningAuthority(role);
+
+    public bool CanMutateTaskRemark(ActionTaskUpdate? update, string role, string currentUserId, DateTime nowUtc)
+    {
+        if (update is null || update.IsDeleted
+            || string.Equals(update.UpdateType, ActionTaskUpdateTypes.Progress, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
+        {
+            return CanAddConferenceUpdate(role);
+        }
+
+        if (IsPlanningAuthority(role))
+        {
+            return true;
+        }
+
+        if (!string.Equals(update.CreatedByUserId, currentUserId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var age = nowUtc - update.CreatedAtUtc;
+        return age >= TimeSpan.Zero && age <= TimeSpan.FromHours(3);
+    }
+
     // SECTION: Sprint lifecycle permission checks
     public bool CanCreateSprint(string role)
         => IsPlanningAuthority(role);

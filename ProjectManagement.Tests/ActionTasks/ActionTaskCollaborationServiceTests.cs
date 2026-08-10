@@ -333,6 +333,143 @@ public class ActionTaskCollaborationServiceTests
         Assert.DoesNotContain("Task marked as in progress.", await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).Select(x => x.Body).ToListAsync());
     }
 
+
+    [Fact]
+    public async Task GeneralRemark_AuthorCanEditWithinMutationWindow_AndAuditIsRetained()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.InProgress);
+        var update = await service.AddUpdateAsync(
+            task.Id,
+            "Initial remark",
+            ActionTaskUpdateTypes.Comment,
+            "owner",
+            RoleNames.Ta,
+            Array.Empty<IFormFile>());
+
+        await service.EditRemarkAsync(task.Id, update.Id, "Corrected remark", "owner", RoleNames.Ta);
+
+        var edited = await db.ActionTaskUpdates.SingleAsync(x => x.Id == update.Id);
+        Assert.Equal("Corrected remark", edited.Body);
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "RemarkEdited");
+        Assert.Equal("Initial remark", audit.OldValue);
+        Assert.Equal("Corrected remark", audit.NewValue);
+    }
+
+    [Fact]
+    public async Task GeneralRemark_AuthorCannotEditAfterMutationWindow_ButCommandCan()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.InProgress);
+        var update = new ActionTaskUpdate
+        {
+            TaskId = task.Id,
+            CreatedByUserId = "owner",
+            CreatedByRole = RoleNames.Ta,
+            CreatedAtUtc = TestActionTrackerClock.FixedUtcNow.AddHours(-4),
+            UpdateType = ActionTaskUpdateTypes.Comment,
+            Body = "Old remark",
+            StatusSnapshot = task.Status
+        };
+        db.ActionTaskUpdates.Add(update);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.EditRemarkAsync(task.Id, update.Id, "Late author edit", "owner", RoleNames.Ta));
+
+        await service.EditRemarkAsync(task.Id, update.Id, "Command correction", "authority", RoleNames.HoD);
+        Assert.Equal("Command correction", (await db.ActionTaskUpdates.SingleAsync(x => x.Id == update.Id)).Body);
+    }
+
+
+    [Fact]
+    public async Task FormerAssignee_CannotMutateOldRemarkAfterLosingTaskVisibility()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "new-owner", ActionTaskStatuses.InProgress);
+        var update = new ActionTaskUpdate
+        {
+            TaskId = task.Id,
+            CreatedByUserId = "former-owner",
+            CreatedByRole = RoleNames.Ta,
+            CreatedAtUtc = TestActionTrackerClock.FixedUtcNow.AddMinutes(-15),
+            UpdateType = ActionTaskUpdateTypes.Comment,
+            Body = "Historic remark",
+            StatusSnapshot = task.Status
+        };
+        db.ActionTaskUpdates.Add(update);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.EditRemarkAsync(task.Id, update.Id, "Should not be allowed", "former-owner", RoleNames.Ta));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeleteRemarkAsync(task.Id, update.Id, "former-owner", RoleNames.Ta));
+    }
+
+    [Fact]
+    public async Task ConferenceRemark_IsCommandGoverned_AndProgressEntryIsImmutable()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.InProgress);
+        var conference = await service.AddUpdateAsync(
+            task.Id,
+            "Conference direction",
+            ActionTaskUpdateTypes.Conference,
+            "authority",
+            RoleNames.HoD,
+            Array.Empty<IFormFile>());
+        var progress = new ActionTaskUpdate
+        {
+            TaskId = task.Id,
+            CreatedByUserId = "owner",
+            CreatedByRole = RoleNames.Ta,
+            CreatedAtUtc = TestActionTrackerClock.FixedUtcNow,
+            UpdateType = ActionTaskUpdateTypes.Progress,
+            Body = "Work started.",
+            StatusSnapshot = task.Status
+        };
+        db.ActionTaskUpdates.Add(progress);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.EditRemarkAsync(task.Id, conference.Id, "Unauthorized", "owner", RoleNames.Ta));
+        await service.EditRemarkAsync(task.Id, conference.Id, "Revised direction", "command", RoleNames.Comdt);
+        Assert.Equal("Revised direction", (await db.ActionTaskUpdates.SingleAsync(x => x.Id == conference.Id)).Body);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.EditRemarkAsync(task.Id, progress.Id, "Rewrite history", "command", RoleNames.Comdt));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeleteRemarkAsync(task.Id, progress.Id, "command", RoleNames.Comdt));
+    }
+
+    [Fact]
+    public async Task DeleteRemark_SoftDeletesHumanRemark_AndRetainsAudit()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.InProgress);
+        var update = await service.AddUpdateAsync(
+            task.Id,
+            "Remove this remark",
+            ActionTaskUpdateTypes.Comment,
+            "owner",
+            RoleNames.Ta,
+            Array.Empty<IFormFile>());
+
+        await service.DeleteRemarkAsync(task.Id, update.Id, "owner", RoleNames.Ta);
+
+        var deleted = await db.ActionTaskUpdates.IgnoreQueryFilters().SingleAsync(x => x.Id == update.Id);
+        Assert.True(deleted.IsDeleted);
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "RemarkDeleted");
+        Assert.Equal("Remove this remark", audit.OldValue);
+        Assert.Null(audit.NewValue);
+    }
+
+
     private static ActionTaskCollaborationService CreateService(ApplicationDbContext db)
         => new(db, new ActionTaskPermissionService(), new TestUploadRootProvider(), new PassFileSecurityValidator(), new StubUrlBuilder(), new TestActionTrackerClock());
 

@@ -116,3 +116,67 @@
     .at-task-action-panel-fields.is-two-selects { grid-template-columns: 1fr; }
     .at-task-action-panel-controls { justify-content: flex-start; }
 }
+
+/* Task UX V2.3 — operational completeness: metadata commands + governed remarks. */
+.at-task-action-panel-fields.is-edit-task {
+    grid-template-columns: minmax(11rem, .75fr) minmax(16rem, 1.25fr);
+}
+.at-task-action-panel-fields.is-reassign,
+.at-task-action-panel-fields.is-priority {
+    grid-template-columns: minmax(11rem, .7fr) minmax(15rem, 1.3fr);
+}
+
+.at-v2-update-heading-side {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .36rem !important;
+    flex: 0 0 auto;
+}
+.at-update-inline-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: .14rem;
+}
+.at-update-delete-form { display: inline-flex; margin: 0; }
+.at-update-action {
+    display: inline-grid;
+    place-items: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: .42rem;
+    background: transparent;
+    color: #667892;
+    font-size: .72rem;
+}
+.at-update-action:hover,
+.at-update-action:focus-visible {
+    border-color: #d7e0ec;
+    background: #f6f9fd;
+    color: #244f8f;
+}
+.at-update-action.is-danger:hover,
+.at-update-action.is-danger:focus-visible {
+    border-color: #f1c0bc;
+    background: #fff7f6;
+    color: #b42318;
+}
+.at-update-edit-panel {
+    margin-top: .48rem;
+    padding-top: .48rem;
+    border-top: 1px solid #e7edf5;
+}
+.at-update-edit-panel[hidden] { display: none !important; }
+.at-update-edit-panel form { display: grid; gap: .42rem; }
+.at-update-edit-panel textarea { min-height: 68px; resize: vertical; }
+.at-update-edit-controls { display: flex; align-items: center; gap: .3rem; }
+
+@media (max-width: 900px) {
+    .at-task-action-panel-fields.is-edit-task,
+    .at-task-action-panel-fields.is-reassign,
+    .at-task-action-panel-fields.is-priority {
+        grid-template-columns: 1fr;
+    }
+}

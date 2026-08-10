@@ -19,13 +19,16 @@ public sealed record ActionTaskInteractionCapabilities(
     bool CanAcceptAndClose,
     bool CanReturnForAction,
     bool CanChangeDate,
+    bool CanEditTaskDetails,
+    bool CanReassignTask,
+    bool CanChangePriority,
     bool CanManagePlanning,
     bool CanCloseDirectly,
     bool CanViewSystemHistory)
 {
     public static ActionTaskInteractionCapabilities None { get; } = new(
         false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false);
+        false, false, false, false, false, false, false, false, false);
 
     public bool HasPrimaryWorkflowAction =>
         CanStartWork || CanResumeWork || CanSubmitForClosure || CanBlockAsOwner ||
@@ -33,5 +36,5 @@ public sealed record ActionTaskInteractionCapabilities(
 
     public bool HasCommandControls =>
         CanBlockAsCommandControl || CanResumeAsCommandControl || CanChangeDate ||
-        CanManagePlanning || CanCloseDirectly;
+        CanEditTaskDetails || CanReassignTask || CanChangePriority || CanManagePlanning || CanCloseDirectly;
 }

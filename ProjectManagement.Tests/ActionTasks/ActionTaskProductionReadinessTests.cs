@@ -86,7 +86,7 @@ public class ActionTaskProductionReadinessTests
         var html = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml");
 
         Assert.Contains("at-task-workspace-grid", html, StringComparison.Ordinal);
-        Assert.Contains("Discussion &amp; progress", html, StringComparison.Ordinal);
+        Assert.Contains(">Updates<", html, StringComparison.Ordinal);
         Assert.Contains("_TaskUpdateTimeline", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Manage task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Task controls", html, StringComparison.Ordinal);
@@ -120,6 +120,50 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("data-at-v22-open", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("scrollIntoView", script, StringComparison.Ordinal);
     }
+
+
+    [Fact]
+    public void TaskActionSurface_ExposesOperationalMetadataCommandsDirectly()
+    {
+        var bar = ReadRepoFile("Pages", "ActionTasks", "_TaskActionBar.cshtml");
+        var peek = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
+        var page = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml");
+
+        Assert.Contains("Edit task", bar, StringComparison.Ordinal);
+        Assert.Contains("Reassign", bar, StringComparison.Ordinal);
+        Assert.Contains("Change priority", bar, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"edit-task\"", peek, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"reassign\"", peek, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"priority\"", peek, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"edit-task\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"reassign\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"priority\"", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TaskTimeline_KeepsHumanRemarkCorrectionVisibleAndProgressImmutable()
+    {
+        var timeline = ReadRepoFile("Pages", "ActionTasks", "_TaskUpdateTimeline.cshtml");
+        var model = ReadRepoFile("Pages", "ActionTasks", "TaskUpdateTimelineViewModel.cs");
+
+        Assert.Contains("data-at-update-edit-toggle", timeline, StringComparison.Ordinal);
+        Assert.Contains("data-at-update-delete-form", timeline, StringComparison.Ordinal);
+        Assert.Contains("!isProgress && Model.CanEditUpdate(update)", timeline, StringComparison.Ordinal);
+        Assert.Contains("!isProgress && Model.CanDeleteUpdate(update)", timeline, StringComparison.Ordinal);
+        Assert.Contains("CanEditUpdate", model, StringComparison.Ordinal);
+        Assert.Contains("CanDeleteUpdate", model, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Overview_RecentActivity_CountsDistinctTasksRatherThanCallingThemUpdates()
+    {
+        var dashboard = ReadRepoFile("Pages", "ActionTasks", "_TaskDashboard.cshtml");
+
+        Assert.Contains(".Distinct()", dashboard, StringComparison.Ordinal);
+        Assert.Contains("recentCount == 1 ? \"task\" : \"tasks\"", dashboard, StringComparison.Ordinal);
+        Assert.DoesNotContain("@recentCount updates", dashboard, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public void FullTaskWorkspace_PreservesOnlyLocalCollectionReturnContext()

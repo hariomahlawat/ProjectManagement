@@ -179,10 +179,47 @@
         });
     }
 
+    function initRemarkActions() {
+        document.addEventListener('click', (event) => {
+            const editToggle = event.target.closest('[data-at-update-edit-toggle]');
+            if (editToggle) {
+                event.preventDefault();
+                const card = editToggle.closest('[data-at-update-card]');
+                const panel = card?.querySelector('[data-at-update-edit-panel]');
+                if (!panel) return;
+                const willOpen = panel.hidden;
+                document.querySelectorAll('[data-at-update-edit-panel]').forEach((candidate) => {
+                    candidate.hidden = true;
+                });
+                panel.hidden = !willOpen;
+                if (willOpen) {
+                    window.setTimeout(() => panel.querySelector('textarea')?.focus({ preventScroll: true }), 40);
+                }
+                return;
+            }
+
+            const editCancel = event.target.closest('[data-at-update-edit-cancel]');
+            if (editCancel) {
+                event.preventDefault();
+                const panel = editCancel.closest('[data-at-update-edit-panel]');
+                if (panel) panel.hidden = true;
+            }
+        });
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target.closest('[data-at-update-delete-form]');
+            if (!form) return;
+            const message = form.getAttribute('data-confirm') || 'Delete this remark?';
+            if (!window.confirm(message)) {
+                event.preventDefault();
+            }
+        });
+    }
+
     function initTaskIntent() {
         const panelIntents = new Set([
             'submit', 'block', 'return', 'accept-close', 'close-direct', 'change-date',
-            'assign-sprint', 'add-sprint', 'remove-sprint', 'backlog'
+            'edit-task', 'reassign', 'priority', 'assign-sprint', 'add-sprint', 'remove-sprint', 'backlog'
         ]);
 
         roots().forEach((root) => {
@@ -206,6 +243,7 @@
         initActionPanels();
         initInlineEditors();
         initRemarkComposers();
+        initRemarkActions();
         initTaskIntent();
     });
 })();

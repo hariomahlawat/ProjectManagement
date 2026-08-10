@@ -199,6 +199,15 @@ public class IndexModel : PageModel
     public ChangeTaskDateInput ChangeDateInput { get; set; } = new();
 
     [BindProperty]
+    public TaskEditInput EditTaskInput { get; set; } = new();
+
+    [BindProperty]
+    public TaskReassignInput ReassignInput { get; set; } = new();
+
+    [BindProperty]
+    public TaskPriorityInput PriorityInput { get; set; } = new();
+
+    [BindProperty]
     public CreateSprintInput SprintInput { get; set; } = new();
 
     [BindProperty]
@@ -391,6 +400,14 @@ public class IndexModel : PageModel
         return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && _permission.CanAddConferenceUpdate(CurrentRole);
     }
+
+    public bool CanEditRemark(ActionTaskUpdate update)
+        => SelectedTask is not null
+            && !string.Equals(SelectedTask.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && _permission.CanMutateTaskRemark(update, CurrentRole, CurrentUserId, _clock.UtcNow);
+
+    public bool CanDeleteRemark(ActionTaskUpdate update)
+        => CanEditRemark(update);
 
     public string GetDefaultRemarkType(ActionTaskItem task)
     {
@@ -1069,6 +1086,160 @@ public class IndexModel : PageModel
         return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
     }
 
+    // SECTION: Correct task metadata directly from the Peek without changing workflow state.
+    public async Task<IActionResult> OnPostEditTaskAsync()
+    {
+        await ResolveIdentityAsync();
+
+        ModelState.Clear();
+        TryValidateModel(EditTaskInput, nameof(EditTaskInput));
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Enter a task title and brief within the allowed limits.";
+            return RedirectToTaskPage(EditTaskInput.TaskId, SelectedSprintId, "edit-task");
+        }
+
+        try
+        {
+            await _service.UpdateTaskDetailsAsync(
+                EditTaskInput.TaskId,
+                DecodeRowVersion(EditTaskInput.RowVersion),
+                EditTaskInput.Title,
+                EditTaskInput.Description,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task details updated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(EditTaskInput.TaskId, SelectedSprintId, "edit-task");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(EditTaskInput.TaskId, SelectedSprintId, "edit-task");
+        }
+
+        return RedirectToTaskPage(EditTaskInput.TaskId, SelectedSprintId);
+    }
+
+    // SECTION: Reassign an active task while preserving its current workflow state and sprint.
+    public async Task<IActionResult> OnPostReassignAsync()
+    {
+        await ResolveIdentityAsync();
+
+        ModelState.Clear();
+        TryValidateModel(ReassignInput, nameof(ReassignInput));
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Select a responsible person and enter a reassignment reason.";
+            return RedirectToTaskPage(ReassignInput.TaskId, SelectedSprintId, "reassign");
+        }
+
+        try
+        {
+            var assignedRole = await ResolveAssignableRoleForUserAsync(ReassignInput.AssignedToUserId);
+            if (assignedRole is null)
+            {
+                throw new InvalidOperationException("Select an active responsible person who you are authorised to assign.");
+            }
+
+            await _service.ReassignTaskAsync(
+                ReassignInput.TaskId,
+                DecodeRowVersion(ReassignInput.RowVersion),
+                ReassignInput.AssignedToUserId,
+                assignedRole,
+                ReassignInput.Remarks,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task reassigned.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(ReassignInput.TaskId, SelectedSprintId, "reassign");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(ReassignInput.TaskId, SelectedSprintId, "reassign");
+        }
+
+        return RedirectToTaskPage(ReassignInput.TaskId, SelectedSprintId);
+    }
+
+    // SECTION: Change task priority as a first-class command rather than forcing task recreation.
+    public async Task<IActionResult> OnPostChangePriorityAsync()
+    {
+        await ResolveIdentityAsync();
+
+        ModelState.Clear();
+        TryValidateModel(PriorityInput, nameof(PriorityInput));
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Select a priority and enter a short reason.";
+            return RedirectToTaskPage(PriorityInput.TaskId, SelectedSprintId, "priority");
+        }
+
+        try
+        {
+            await _service.UpdateTaskPriorityAsync(
+                PriorityInput.TaskId,
+                DecodeRowVersion(PriorityInput.RowVersion),
+                PriorityInput.Priority,
+                PriorityInput.Remarks,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Task priority updated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(PriorityInput.TaskId, SelectedSprintId, "priority");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(PriorityInput.TaskId, SelectedSprintId, "priority");
+        }
+
+        return RedirectToTaskPage(PriorityInput.TaskId, SelectedSprintId);
+    }
+
+    // SECTION: Human discussion may be corrected under governance; progress events are immutable.
+    public async Task<IActionResult> OnPostEditRemarkAsync(int id, int updateId, string body)
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _collaborationService.EditRemarkAsync(id, updateId, body, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Remark updated.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToTaskPage(id, SelectedSprintId);
+    }
+
+    public async Task<IActionResult> OnPostDeleteRemarkAsync(int id, int updateId)
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _collaborationService.DeleteRemarkAsync(id, updateId, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Remark deleted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToTaskPage(id, SelectedSprintId);
+    }
+
     // SECTION: Change a backlog target date or assigned task due date.
     public async Task<IActionResult> OnPostChangeTaskDateAsync()
     {
@@ -1389,6 +1560,29 @@ public class IndexModel : PageModel
         }
 
         SelectedTask = inspector.SelectedTask;
+        if (SelectedTask is not null)
+        {
+            var rowVersion = Convert.ToBase64String(SelectedTask.RowVersion);
+            EditTaskInput = new TaskEditInput
+            {
+                TaskId = SelectedTask.Id,
+                RowVersion = rowVersion,
+                Title = SelectedTask.Title,
+                Description = SelectedTask.Description
+            };
+            ReassignInput = new TaskReassignInput
+            {
+                TaskId = SelectedTask.Id,
+                RowVersion = rowVersion,
+                AssignedToUserId = SelectedTask.AssignedToUserId
+            };
+            PriorityInput = new TaskPriorityInput
+            {
+                TaskId = SelectedTask.Id,
+                RowVersion = rowVersion,
+                Priority = SelectedTask.Priority
+            };
+        }
         SelectedTaskLogs = inspector.Logs;
         SelectedTaskUpdates = inspector.Updates;
         SelectedTaskLastActivityAtUtc = inspector.LastActivityAtUtc;

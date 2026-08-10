@@ -70,6 +70,9 @@ public sealed class ActionTaskWorkflowPolicy
             CanAcceptAndClose: isSubmitted && _permission.CanCloseTaskDirectly(task, currentRole),
             CanReturnForAction: isSubmitted && CanReturnTaskForAction(task, currentRole),
             CanChangeDate: CanChangeTaskDate(task, currentRole),
+            CanEditTaskDetails: !isClosed && _permission.CanEditTaskDetails(currentRole),
+            CanReassignTask: _permission.CanReassignTask(task, currentRole),
+            CanChangePriority: _permission.CanChangeTaskPriority(task, currentRole),
             CanManagePlanning: !isClosed && _permission.CanManageSprints(currentRole),
             CanCloseDirectly: !isSubmitted && _permission.CanCloseTaskDirectly(task, currentRole),
             CanViewSystemHistory: CanViewSystemHistory(currentRole));
