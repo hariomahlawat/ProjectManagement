@@ -1,139 +1,56 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Logging;
-using ProjectManagement.Configuration;
 using ProjectManagement.Services.Compendiums;
 
 namespace ProjectManagement.Pages.Projects.Compendium;
 
+/// <summary>
+/// Compatibility endpoint for existing Compendium bookmarks and legacy POSTs.
+/// GET requests move users to the canonical Publications workspace; an existing
+/// Generate POST remains functional so old links/forms are not broken abruptly.
+/// </summary>
 [Authorize]
 public sealed class IndexModel : PageModel
 {
-    private readonly ICompendiumReadService _readService;
     private readonly ICompendiumExportService _exportService;
-    private readonly ILogger<IndexModel> _logger;
 
-    public IndexModel(
-        ICompendiumReadService readService,
-        ICompendiumExportService exportService,
-        ILogger<IndexModel> logger)
+    public IndexModel(ICompendiumExportService exportService)
     {
-        _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [BindProperty]
-    public GenerateCompendiumInput Input { get; set; } = new();
+    public GenerateInput Input { get; set; } = new();
 
-    public CompendiumPreflightDto Preflight { get; private set; } = CompendiumPreflightDto.Empty;
-
-    public IReadOnlyList<CompendiumProjectReadinessDto> WarningProjects { get; private set; }
-        = Array.Empty<CompendiumProjectReadinessDto>();
-
-    public bool CanMaintainProjectData { get; private set; }
-    public bool CanManageProjectPhotos { get; private set; }
-
-    public async Task OnGetAsync(CancellationToken cancellationToken)
-        => await LoadAsync(cancellationToken);
+    public IActionResult OnGet()
+        => RedirectToPage("/Projects/Publications/Compendium/Index");
 
     public async Task<IActionResult> OnPostGenerateAsync(CancellationToken cancellationToken)
     {
-        Input.HandlingMarking = NormalizeHandlingMarking(Input.HandlingMarking);
-
+        Input.HandlingMarking = NormalizeOptional(Input.HandlingMarking);
         if (!ModelState.IsValid)
         {
-            await LoadAsync(cancellationToken);
-            return Page();
+            return RedirectToPage("/Projects/Publications/Compendium/Index");
         }
 
-        try
-        {
-            var result = await _exportService.GenerateAsync(
-                new CompendiumExportRequest(Input.HandlingMarking),
-                cancellationToken);
-
-            return File(result.Bytes, "application/pdf", result.FileName);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Simulators Compendium PDF generation failed.");
-            ModelState.AddModelError(
-                string.Empty,
-                "The compendium could not be generated. Review the project data and try again.");
-
-            await LoadAsync(cancellationToken);
-            return Page();
-        }
+        var result = await _exportService.GenerateAsync(
+            new CompendiumExportRequest(Input.HandlingMarking),
+            cancellationToken);
+        return File(result.Bytes, "application/pdf", result.FileName);
     }
 
-    public static string GetIssueLabel(CompendiumPublicationIssue issue)
-        => issue switch
-        {
-            CompendiumPublicationIssue.MissingPhoto => "Photograph missing",
-            CompendiumPublicationIssue.MissingArmService => "Arm/Service missing",
-            CompendiumPublicationIssue.MissingProliferationCost => "Cost missing",
-            CompendiumPublicationIssue.ZeroProliferationCost => "Zero cost—verify basis",
-            CompendiumPublicationIssue.MissingDescription => "Description missing",
-            CompendiumPublicationIssue.MissingCompletionYear => "Completion year missing",
-            CompendiumPublicationIssue.PossibleTitleTypo => "Possible AI/Al title typo",
-            _ => "Review required"
-        };
-
-    public static string GetIssueCssClass(CompendiumPublicationIssue issue)
-        => issue switch
-        {
-            CompendiumPublicationIssue.MissingPhoto => "compendium-issue--photo",
-            CompendiumPublicationIssue.MissingProliferationCost => "compendium-issue--cost",
-            CompendiumPublicationIssue.ZeroProliferationCost => "compendium-issue--cost",
-            _ => ""
-        };
-
-    private async Task LoadAsync(CancellationToken cancellationToken)
+    private static string? NormalizeOptional(string? value)
     {
-        var data = await _readService.GetProliferationCompendiumAsync(cancellationToken);
-        Preflight = data.Preflight;
-        WarningProjects = data.Preflight.Projects
-            .Where(project => project.HasWarnings)
-            .ToArray();
-
-        CanMaintainProjectData =
-            User.IsInRole(RoleNames.Admin)
-            || User.IsInRole(RoleNames.HoD)
-            || User.IsInRole(RoleNames.ProjectOffice);
-
-        CanManageProjectPhotos =
-            CanMaintainProjectData
-            || User.IsInRole(RoleNames.ProjectOfficer);
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 80 ? normalized : normalized[..80].TrimEnd();
     }
 
-    private static string? NormalizeHandlingMarking(string? value)
+    public sealed class GenerateInput
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return string.Join(
-            " ",
-            value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-    }
-
-    public sealed class GenerateCompendiumInput
-    {
-        [Display(Name = "Handling/classification marking")]
-        [StringLength(80, ErrorMessage = "The marking cannot exceed 80 characters.")]
+        [StringLength(80)]
         public string? HandlingMarking { get; set; }
     }
 }

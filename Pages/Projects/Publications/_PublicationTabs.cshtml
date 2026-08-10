@@ -1,0 +1,22 @@
+@{
+    var currentPath = Context.Request.Path.Value ?? string.Empty;
+    var overviewActive = string.Equals(currentPath, "/Projects/Publications", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(currentPath, "/Projects/Publications/Index", StringComparison.OrdinalIgnoreCase);
+    var brochureActive = currentPath.StartsWith("/Projects/Publications/Brochure", StringComparison.OrdinalIgnoreCase);
+    var compendiumActive = currentPath.StartsWith("/Projects/Compendium", StringComparison.OrdinalIgnoreCase)
+                           || currentPath.StartsWith("/Projects/Publications/Compendium", StringComparison.OrdinalIgnoreCase);
+}
+<nav class="publication-tabs" aria-label="Project publications">
+    <a asp-page="/Projects/Publications/Index" class="publication-tabs__item @(overviewActive ? "is-active" : string.Empty)" aria-current="@(overviewActive ? "page" : null)">
+        <i class="bi bi-grid" aria-hidden="true"></i>
+        <span>Overview</span>
+    </a>
+    <a asp-page="/Projects/Publications/Brochure/Index" class="publication-tabs__item @(brochureActive ? "is-active" : string.Empty)" aria-current="@(brochureActive ? "page" : null)">
+        <i class="bi bi-layout-text-window-reverse" aria-hidden="true"></i>
+        <span>Brochure</span>
+    </a>
+    <a asp-page="/Projects/Publications/Compendium/Index" class="publication-tabs__item @(compendiumActive ? "is-active" : string.Empty)" aria-current="@(compendiumActive ? "page" : null)">
+        <i class="bi bi-journal-bookmark" aria-hidden="true"></i>
+        <span>Compendium</span>
+    </a>
+</nav>

@@ -1,0 +1,113 @@
+@page "/Projects/Publications/Compendium"
+@model ProjectManagement.Pages.Projects.Publications.Compendium.IndexModel
+@using ProjectManagement.Services.Compendiums
+@{
+    ViewData["Title"] = "Simulators Compendium";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-publications.css" asp-append-version="true" />
+}
+
+<div class="publications-page compendium-publication-page">
+    <nav class="publications-breadcrumb" aria-label="Breadcrumb">
+        <a asp-page="/Projects/Index">Projects</a>
+        <span aria-hidden="true">/</span>
+        <a asp-page="/Projects/Publications/Index">Publications</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Compendium</span>
+    </nav>
+
+    <header class="publications-header">
+        <div>
+            <p class="publications-eyebrow">REFERENCE CATALOGUE</p>
+            <h1>Simulators Compendium</h1>
+            <p>Generate the existing detailed proliferation catalogue from completed projects recorded as available for proliferation.</p>
+        </div>
+    </header>
+
+    <partial name="/Pages/Projects/Publications/_PublicationTabs.cshtml" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger brochure-validation" role="alert"></div>
+
+    <section class="compendium-workspace-card">
+        <div class="compendium-workspace-status @(Model.Preflight.IsPublicationReady ? "is-ready" : Model.Preflight.CanGenerate ? "is-warning" : "is-neutral")">
+            <i class="bi @(Model.Preflight.IsPublicationReady ? "bi-check-circle" : Model.Preflight.CanGenerate ? "bi-exclamation-triangle" : "bi-info-circle")" aria-hidden="true"></i>
+            <div>
+                <strong>@(Model.Preflight.IsPublicationReady ? "Publication preflight passed" : Model.Preflight.CanGenerate ? "Ready to generate with warnings" : "No simulator is currently eligible")</strong>
+                <span>@(Model.Preflight.IsPublicationReady ? "All eligible projects have the core compendium data recorded." : Model.Preflight.CanGenerate ? "Generation remains available; review the warnings below for a cleaner publication." : "Projects must be completed, active records and available for proliferation.")</span>
+            </div>
+        </div>
+
+        <div class="compendium-workspace-metrics">
+            <div><span>Eligible simulators</span><strong>@Model.Preflight.EligibleProjectCount</strong><small>of @Model.Preflight.CompletedProjectCount completed</small></div>
+            <div><span>Technical categories</span><strong>@Model.Preflight.CategoryCount</strong><small>grouped in the index</small></div>
+            <div><span>Photographs selected</span><strong>@Model.Preflight.PhotoSelectedCount/@Model.Preflight.EligibleProjectCount</strong><small>cover or best available</small></div>
+            <div class="@(Model.Preflight.TotalWarningCount > 0 ? "has-warning" : string.Empty)"><span>Publication warnings</span><strong>@Model.Preflight.TotalWarningCount</strong><small>across @Model.Preflight.ProjectsWithWarnings project(s)</small></div>
+        </div>
+
+        <form method="post" asp-page-handler="Generate" class="compendium-workspace-generate" data-compendium-publication-form>
+            <label class="form-label">
+                <span>Handling/classification marking</span>
+                <input asp-for="Input.HandlingMarking" class="form-control" maxlength="80" placeholder="Optional, e.g. RESTRICTED" />
+                <small>PRISM does not assign a classification automatically.</small>
+            </label>
+            <button type="submit" class="btn btn-primary" disabled="@(!Model.Preflight.CanGenerate)" data-compendium-publication-generate>
+                <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+                <span data-compendium-publication-label>Generate compendium PDF</span>
+            </button>
+        </form>
+    </section>
+
+    @if (Model.WarningProjects.Count > 0)
+    {
+        <section class="publication-panel compendium-warning-panel">
+            <header class="publication-panel__header">
+                <div>
+                    <span class="publication-step"><i class="bi bi-clipboard-check" aria-hidden="true"></i></span>
+                    <div><h2>Publication review</h2><p>@Model.WarningProjects.Count project(s) require attention. The authoritative eligibility rules are unchanged.</p></div>
+                </div>
+            </header>
+            <div class="compendium-warning-list">
+                @for (var warningIndex = 0; warningIndex < Model.WarningProjects.Count; warningIndex++)
+                {
+                    var project = Model.WarningProjects[warningIndex];
+                    <article data-compendium-warning-row hidden="@(warningIndex >= 8)">
+                        <div><strong>@project.ProjectName</strong><span>@project.TechnicalCategoryName · @project.CompletionYearDisplay</span></div>
+                        <div class="compendium-warning-tags">
+                            @foreach (var issue in project.Issues)
+                            {
+                                <span>@IndexModel.IssueLabel(issue)</span>
+                            }
+                        </div>
+                        <div class="compendium-warning-actions">
+                            @if (project.Issues.Contains(CompendiumPublicationIssue.MissingPhoto) && Model.CanManageProjectPhotos)
+                            {
+                                <a asp-page="/Projects/Photos/Index" asp-route-id="@project.ProjectId" class="btn btn-sm btn-outline-primary">Add photo</a>
+                            }
+                            @if (Model.CanMaintainProjectData)
+                            {
+                                <a asp-page="/Projects/CompletedSummary/Edit" asp-route-id="@project.ProjectId" class="btn btn-sm btn-outline-secondary">Edit record</a>
+                            }
+                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="btn btn-sm btn-link">Open project</a>
+                        </div>
+                    </article>
+                }
+            </div>
+            @if (Model.WarningProjects.Count > 8)
+            {
+                <footer class="compendium-warning-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-compendium-show-all-warnings>Show all @Model.WarningProjects.Count projects</button>
+                </footer>
+            }
+        </section>
+    }
+
+    <p class="compendium-legacy-note">The legacy <code>/Projects/Compendium</code> route remains valid for existing bookmarks. Publications is now the normal navigation entry point.</p>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/projects-publications.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,32 @@
+diff --git a/Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs b/Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
+--- a/Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
++++ b/Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
+@@ -40,7 +40,14 @@ public static class ProjectModuleNavDefinition
+         },
+         new()
+         {
++            Text = "Publications",
++            Page = "/Projects/Publications/Index",
++            ActivePagePrefix = "/Projects/Publications/",
++            Icon = "bi-journals"
++        },
++        new()
++        {
+             Text = "Industry directory",
+             Page = "/IndustryPartners/Index",
+             Icon = "bi-buildings",
+             AuthorizationPolicy = Policies.IndustryPartners.View
+diff --git a/ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs b/ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs
+--- a/ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs
++++ b/ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs
+@@ -31,6 +31,11 @@
+                     && item.Page == "/Projects/Arpp/Index"
+                     && item.ActivePagePrefix == "/Projects/Arpp/");
++        Assert.Contains(
++            tabs,
++            item => item.Text == "Publications"
++                    && item.Page == "/Projects/Publications/Index"
++                    && item.ActivePagePrefix == "/Projects/Publications/");
+         Assert.Contains(tabs, item => item.Text == "Pending approvals");
+         Assert.DoesNotContain(tabs, item => item.Page == "/Projects/Create");
+     }

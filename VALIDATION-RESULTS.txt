@@ -1,0 +1,21 @@
+PRISM PROJECT PUBLICATIONS — PREPARATION VALIDATION
+==================================================
+
+PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js
+PASS  JavaScript syntax: wwwroot/js/pages/projects-publications.js
+PASS  CSS brace/parenthesis structural balance
+PASS  C# brace/parenthesis/bracket structural balance for all supplied .cs files
+PASS  No .ttf/.otf/.woff/.woff2 binary is present in the package
+PASS  No migration is included
+PASS  No Program.cs replacement is included
+PASS  No existing Compendium read/export/PDF-builder replacement is included
+PASS  Existing ProjectBriefingPhotoLoader contract checked: LoadAsync(projectId, photoId, cancellationToken)
+PASS  Existing ProjectBriefingPhotoContent contract checked: Content byte[] + SourceVariant
+PASS  Existing Project capability-statement fields checked: ProjectId, Statement, DisplayOrder
+PASS  Existing project photo ordering fields checked: IsCover, IsLowResolution, Ordinal
+PASS  Existing Compendium preflight/generation contracts checked against supplied source
+
+NOT RUN
+-------
+.NET compilation and xUnit execution could not be run because the preparation environment has no .NET SDK.
+Run the normal PRISM Release build/test sequence after copying the files.

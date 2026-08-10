@@ -1,0 +1,80 @@
+@page "/Projects/Publications"
+@{
+    ViewData["Title"] = "Project Publications";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-publications.css" asp-append-version="true" />
+}
+
+<div class="publications-page publications-page--overview">
+    <nav class="publications-breadcrumb" aria-label="Breadcrumb">
+        <a asp-page="/Projects/Index">Projects</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Publications</span>
+    </nav>
+
+    <header class="publications-header">
+        <div>
+            <p class="publications-eyebrow">PROJECT PUBLICATIONS</p>
+            <h1>Publications</h1>
+            <p>Create formal capability publications from the authoritative project records maintained in PRISM.</p>
+        </div>
+    </header>
+
+    <partial name="_PublicationTabs" />
+
+    <section class="publication-choice-grid" aria-label="Available publication types">
+        <article class="publication-choice publication-choice--brochure">
+            <div class="publication-choice__visual" aria-hidden="true">
+                <div class="publication-choice__mock publication-choice__mock--brochure">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="publication-choice__body">
+                <div class="publication-choice__kicker"><i class="bi bi-layout-text-window-reverse"></i> Capability publication</div>
+                <h2>Capability Brochure</h2>
+                <p>Visual, editorial publication for communicating project capabilities. Uses adaptive multi-project pages, project photographs and selectable brochure copy.</p>
+                <ul>
+                    <li>Project Brief is the recommended default</li>
+                    <li>Institutional and Contemporary cover options</li>
+                    <li>2–4 project cards per page, automatically composed</li>
+                    <li>Publication preflight for narrative and photographs</li>
+                </ul>
+                <a class="btn btn-primary" asp-page="/Projects/Publications/Brochure/Index">
+                    Create brochure <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            </div>
+        </article>
+
+        <article class="publication-choice publication-choice--compendium">
+            <div class="publication-choice__visual" aria-hidden="true">
+                <div class="publication-choice__mock publication-choice__mock--compendium">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+            <div class="publication-choice__body">
+                <div class="publication-choice__kicker"><i class="bi bi-journal-bookmark"></i> Reference catalogue</div>
+                <h2>Simulators Compendium</h2>
+                <p>The existing detailed catalogue for completed projects recorded as available for proliferation. Its eligibility and preflight rules remain unchanged.</p>
+                <ul>
+                    <li>Institutional cover and technical-category index</li>
+                    <li>One detailed project section per simulator</li>
+                    <li>Proliferation cost and completion information</li>
+                    <li>Existing publication-readiness checks retained</li>
+                </ul>
+                <a class="btn btn-outline-primary" asp-page="/Projects/Publications/Compendium/Index">
+                    Open compendium <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            </div>
+        </article>
+    </section>
+
+    <section class="publication-principle">
+        <div class="publication-principle__icon"><i class="bi bi-database-check" aria-hidden="true"></i></div>
+        <div>
+            <strong>One project record, different publication purposes.</strong>
+            <p>The brochure is optimised for capability communication. The Compendium remains the detailed proliferation reference. Neither creates a second factual project record.</p>
+        </div>
+    </section>
+</div>

@@ -1,0 +1,34 @@
+PRISM Project module navigation — one required merge
+====================================================
+
+Application file:
+  Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
+
+Insert the following NavigationItem immediately BEFORE the existing
+"Industry directory" item (recommended placement: after Analytics):
+
+        new()
+        {
+            Text = "Publications",
+            Page = "/Projects/Publications/Index",
+            ActivePagePrefix = "/Projects/Publications/",
+            Icon = "bi-journals"
+        },
+
+The existing "Industry directory" item must remain unchanged after it.
+
+Recommended regression-test addition:
+  ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs
+
+        Assert.Contains(
+            tabs,
+            item => item.Text == "Publications"
+                    && item.Page == "/Projects/Publications/Index"
+                    && item.ActivePagePrefix == "/Projects/Publications/");
+
+Why this is a merge rather than a replacement file:
+The Project navigation definition has been changed by several independent PRISM phases
+(ARPP route-family matching, Industry Directory naming/authorisation and command-action
+separation). Replacing the entire definition from an older snapshot risks regressing those
+changes. The supplied PRISM-Publications-Navigation.patch performs only the narrow insertion
+and corresponding regression assertion.
