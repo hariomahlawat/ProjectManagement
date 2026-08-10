@@ -1,4 +1,4 @@
-/* Task UX V2.2.1 — hardened low-friction Peek with compact desktop action trays. */
+/* Task UX V2.4.2 — hardened low-friction Peek with readable temporary command forms. */
 .at-shell.has-selection .at-drawer-host,
 .at-shell.is-planning-board.has-selection .at-drawer-host {
     width: min(40rem, calc(100vw - 2rem));
@@ -164,4 +164,56 @@
 }
 .at-task-peek [data-at-v22-panel="edit-task"] .at-task-action-panel-controls {
     justify-content: flex-start;
+}
+
+
+/* Task UX V2.4.2 — Reassign and Priority are the two commands whose inputs
+   need more horizontal room than the generic three-column Peek form.
+   On the 40rem desktop Peek, keep the explanatory copy on the left and use
+   two deliberate rows on the right:
+       row 1: person search / segmented priority
+       row 2: reason + submit/cancel
+   Medium and mobile layouts continue to use the existing stacked form. */
+@media (min-width: 1101px) {
+    .at-task-peek [data-at-v22-panel="reassign"] form,
+    .at-task-peek [data-at-v22-panel="priority"] form {
+        grid-template-columns: minmax(8.5rem, .62fr) minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        align-items: start;
+    }
+
+    .at-task-peek [data-at-v22-panel="reassign"] .at-task-action-copy,
+    .at-task-peek [data-at-v22-panel="priority"] .at-task-action-copy {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+        align-self: start;
+    }
+
+    .at-task-peek [data-at-v22-panel="reassign"] .at-task-action-panel-fields,
+    .at-task-peek [data-at-v22-panel="priority"] .at-task-action-panel-fields {
+        display: contents;
+    }
+
+    .at-task-peek [data-at-v22-panel="reassign"] .at-person-picker,
+    .at-task-peek [data-at-v22-panel="priority"] .at-priority-fieldset {
+        grid-column: 2 / 4;
+        grid-row: 1;
+        min-width: 0;
+    }
+
+    .at-task-peek [data-at-v22-panel="reassign"] .at-task-action-panel-fields > textarea,
+    .at-task-peek [data-at-v22-panel="priority"] .at-task-action-panel-fields > textarea {
+        grid-column: 2;
+        grid-row: 2;
+        min-width: 0;
+        min-height: 52px;
+    }
+
+    .at-task-peek [data-at-v22-panel="reassign"] .at-task-action-panel-controls,
+    .at-task-peek [data-at-v22-panel="priority"] .at-task-action-panel-controls {
+        grid-column: 3;
+        grid-row: 2;
+        align-self: center;
+        justify-content: flex-end;
+    }
 }

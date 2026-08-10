@@ -383,6 +383,71 @@
         });
     }
 
+
+    function initWorkspaceStickyGeometry() {
+        const workspaces = Array.from(document.querySelectorAll('.at-task-workspace[data-at-v2-task-root]'));
+        if (workspaces.length === 0) return;
+
+        const chromeSelector = '.pm-topbar, .pm-module-subnav-wrap';
+        const chromeElements = Array.from(document.querySelectorAll(chromeSelector));
+        let frameId = 0;
+
+        const isRendered = (element) => {
+            const style = window.getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+                return false;
+            }
+
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0.5 && rect.height > 0.5;
+        };
+
+        const getStickyChromeBottom = () => {
+            let bottom = 0;
+
+            chromeElements.forEach((element) => {
+                if (!isRendered(element)) return;
+
+                const style = window.getComputedStyle(element);
+                if (style.position !== 'sticky' && style.position !== 'fixed') return;
+
+                const rect = element.getBoundingClientRect();
+                if (rect.bottom <= 0 || rect.top >= window.innerHeight) return;
+
+                bottom = Math.max(bottom, rect.bottom);
+            });
+
+            // PRISM's desktop global navigation is 52px. Use that only as
+            // a fallback; the rendered shell is authoritative so mobile (50px)
+            // and pages with a visible module sub-navigation remain exact.
+            return bottom > 0 ? Math.ceil(bottom) : 52;
+        };
+
+        const sync = () => {
+            frameId = 0;
+            const stickyTop = getStickyChromeBottom();
+            workspaces.forEach((workspace) => {
+                workspace.style.setProperty('--at-task-sticky-top', `${stickyTop}px`);
+            });
+        };
+
+        const scheduleSync = () => {
+            if (frameId) return;
+            frameId = window.requestAnimationFrame(sync);
+        };
+
+        scheduleSync();
+
+        if ('ResizeObserver' in window) {
+            const resizeObserver = new ResizeObserver(scheduleSync);
+            chromeElements.forEach((element) => resizeObserver.observe(element));
+        }
+
+        window.addEventListener('resize', scheduleSync, { passive: true });
+        window.addEventListener('pageshow', scheduleSync, { passive: true });
+        window.addEventListener('load', scheduleSync, { passive: true, once: true });
+    }
+
     function initTaskIntent() {
         const panelIntents = new Set([
             'submit', 'block', 'return', 'accept-close', 'close-direct', 'change-date',
@@ -412,6 +477,7 @@
         initRemarkComposers();
         initRemarkActions();
         initPersonPickers();
+        initWorkspaceStickyGeometry();
         initTaskIntent();
     });
 })();

@@ -1,4 +1,4 @@
-/* Task UX V2.4.1 — refined shared command surface.
+/* Task UX V2.4.2 — refined shared command surface.
    Keeps every valid task action one click away while adding intentional
    workflow / management / command-override grouping and denser editors. */
 
@@ -153,6 +153,105 @@
     font-weight: 760;
     line-height: 1.15;
     letter-spacing: .025em;
+}
+
+
+/* --- Governed human-remark controls ----------------------------------------
+   These styles are intentionally shared by Peek and Full Task. V2.4.1
+   replaced this stylesheet and accidentally dropped them, causing native
+   browser button chrome to reappear on edit/delete actions. */
+.at-v2-update-heading-side {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .36rem !important;
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.at-update-inline-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: .14rem;
+    flex: 0 0 auto;
+}
+
+.at-update-delete-form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.at-update-action {
+    display: inline-grid;
+    width: 1.7rem;
+    height: 1.7rem;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: .42rem;
+    appearance: none;
+    background: transparent;
+    color: #667892;
+    cursor: pointer;
+    font: inherit;
+    font-size: .72rem;
+    line-height: 1;
+    transition:
+        border-color .12s ease,
+        background-color .12s ease,
+        color .12s ease;
+}
+
+.at-update-action:hover {
+    border-color: #d7e0ec;
+    background: #f6f9fd;
+    color: #244f8f;
+}
+
+.at-update-action:focus-visible {
+    border-color: #bfcfe4;
+    outline: 2px solid #8fb1ef;
+    outline-offset: 1px;
+    background: #f6f9fd;
+    color: #244f8f;
+}
+
+.at-update-action.is-danger:hover,
+.at-update-action.is-danger:focus-visible {
+    border-color: #f1c0bc;
+    background: #fff7f6;
+    color: #b42318;
+}
+
+.at-update-edit-panel {
+    margin-top: .48rem;
+    padding-top: .48rem;
+    border-top: 1px solid #e7edf5;
+}
+
+.at-update-edit-panel[hidden] {
+    display: none !important;
+}
+
+.at-update-edit-panel form {
+    display: grid;
+    gap: .42rem;
+}
+
+.at-update-edit-panel textarea {
+    min-height: 68px;
+    resize: vertical;
+}
+
+.at-update-edit-controls {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.at-update-edited {
+    color: #8593a6;
+    font-style: italic;
 }
 
 /* --- Searchable responsible-person picker -------------------------------- */
