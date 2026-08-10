@@ -1,27 +1,36 @@
 // SECTION: Notebook board drag-and-drop and keyboard reordering
 const BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
-const OWNED_CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
-const SYSTEM_CARD_SELECTOR = ':scope > [data-notebook-system-home-card][data-reorderable="true"]';
+const OWNED_CARD_SELECTOR = '[data-note-id][data-reorderable="true"]';
+const SYSTEM_CARD_SELECTOR = '[data-notebook-system-home-card][data-reorderable="true"]';
 const CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
-const ALL_CARD_SELECTOR = ':scope > [data-note-id], :scope > [data-notebook-system-home-card]';
+const ALL_CARD_SELECTOR = '[data-note-id], [data-notebook-system-home-card]';
+// These selectors are intentionally element-matchable: movePlaceholder() uses
+// Element.matches() to calculate the placeholder's true sibling index.
 const DRAG_THRESHOLD_PX = 6;
 const TOUCH_LONG_PRESS_MS = 300;
 const TOUCH_CANCEL_DISTANCE_PX = 8;
 const INSERTION_HYSTERESIS_PX = 10;
+const VISUAL_ROW_SORT_TOLERANCE_PX = 8;
+const VISUAL_ROW_MATCH_TOLERANCE_PX = 12;
 const EDGE_SCROLL_ZONE_PX = 72;
 const MAX_EDGE_SCROLL_PX = 18;
 const FLIP_DURATION_MS = 150;
 
+function directChildrenMatching(board, selector) {
+  if (!board) return [];
+  return [...board.children].filter((child) => child.matches?.(selector));
+}
+
 function directCards(board) {
-  return [...board.querySelectorAll(CARD_SELECTOR)];
+  return directChildrenMatching(board, CARD_SELECTOR);
 }
 
 function allCards(board) {
-  return [...board.querySelectorAll(ALL_CARD_SELECTOR)];
+  return directChildrenMatching(board, ALL_CARD_SELECTOR);
 }
 
 function ownedCards(board) {
-  return [...board.querySelectorAll(OWNED_CARD_SELECTOR)];
+  return directChildrenMatching(board, OWNED_CARD_SELECTOR);
 }
 
 function cardKey(card) {
@@ -90,10 +99,10 @@ function playFlip(elements, beforeRects, windowRef = window) {
 
 function groupVisualRows(cards) {
   const entries = cards.map((card) => ({ card, rect: card.getBoundingClientRect() }))
-    .sort((a, b) => Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left);
+    .sort((a, b) => Math.abs(a.rect.top - b.rect.top) > VISUAL_ROW_SORT_TOLERANCE_PX ? a.rect.top - b.rect.top : a.rect.left - b.rect.left);
   const rows = [];
   for (const entry of entries) {
-    const row = rows.find((candidate) => Math.abs(candidate.top - entry.rect.top) <= 12);
+    const row = rows.find((candidate) => Math.abs(candidate.top - entry.rect.top) <= VISUAL_ROW_MATCH_TOLERANCE_PX);
     if (row) {
       row.items.push(entry);
       row.bottom = Math.max(row.bottom, entry.rect.bottom);
@@ -137,27 +146,115 @@ function findInsertionTarget(board, x, y) {
   return { target: cards[index] || null, after: false, index };
 }
 
+function findVisualRowIndex(rows, card) {
+  return rows.findIndex((row) => row.items.some((entry) => entry.card === card));
+}
+
+function sameVisualRow(firstRect, secondRect) {
+  return Math.abs(firstRect.top - secondRect.top) <= VISUAL_ROW_MATCH_TOLERANCE_PX;
+}
+
+function resolveAdjacentTransition(placeholder, cards, currentIndex, normalizedIndex) {
+  const direction = normalizedIndex > currentIndex ? 1 : -1;
+  const crossedIndex = direction > 0 ? currentIndex : currentIndex - 1;
+  const boundaryCard = cards[crossedIndex];
+  if (!boundaryCard) return null;
+
+  const boundaryRect = boundaryCard.getBoundingClientRect();
+  const placeholderRect = placeholder.getBoundingClientRect();
+
+  // Within one visual masonry row, preserve Keep-style left/right swapping.
+  if (sameVisualRow(placeholderRect, boundaryRect)) {
+    return {
+      axis: 'x',
+      boundary: boundaryRect.left + boundaryRect.width / 2,
+      direction,
+      boundaryCard
+    };
+  }
+
+  // Between masonry rows, use the same vertical row boundary model as the hit-test.
+  // This prevents a vertical move from being gated by an unrelated X coordinate.
+  const rows = groupVisualRows(cards);
+  const rowIndex = findVisualRowIndex(rows, boundaryCard);
+  const row = rows[rowIndex];
+
+  if (row) {
+    if (direction > 0) {
+      const previousRow = rows[rowIndex - 1];
+      const boundary = previousRow
+        ? (previousRow.bottom + row.top) / 2
+        : (placeholderRect.bottom + row.top) / 2;
+      return { axis: 'y', boundary, direction, boundaryCard };
+    }
+
+    const nextRow = rows[rowIndex + 1];
+    const boundary = nextRow
+      ? (row.bottom + nextRow.top) / 2
+      : (row.bottom + placeholderRect.top) / 2;
+    return { axis: 'y', boundary, direction, boundaryCard };
+  }
+
+  return {
+    axis: 'y',
+    boundary: (placeholderRect.top + boundaryRect.top) / 2,
+    direction,
+    boundaryCard
+  };
+}
+
+function passesInsertionHysteresis(transition, pointer) {
+  if (!transition) return true;
+  const coordinate = transition.axis === 'y' ? pointer.y : pointer.x;
+  const signedDistance = transition.direction * (coordinate - transition.boundary);
+  return signedDistance >= INSERTION_HYSTERESIS_PX;
+}
+
+function insertPlaceholderAtIndex(board, placeholder, cards, normalizedIndex) {
+  const target = cards[normalizedIndex] || null;
+  if (target) {
+    board.insertBefore(placeholder, target);
+    return;
+  }
+
+  // Shared/read-only cards are deliberately rendered after the user's reorderable
+  // region. Keep that boundary intact when the user drops at the visual end.
+  const children = [...board.children];
+  const lastReorderablePosition = cards.reduce(
+    (maximum, card) => Math.max(maximum, children.indexOf(card)),
+    -1
+  );
+  const trailingFixedCard = children
+    .slice(lastReorderablePosition + 1)
+    .find((card) => card !== placeholder && card.matches?.(ALL_CARD_SELECTOR) && !card.matches(CARD_SELECTOR));
+
+  if (trailingFixedCard) board.insertBefore(placeholder, trailingFixedCard);
+  else board.append(placeholder);
+}
+
 function movePlaceholder(board, placeholder, desiredIndex, lastMove, pointer) {
   const cards = directCards(board);
-  const currentChildren = [...board.children].filter((child) => child === placeholder || child.matches?.(CARD_SELECTOR));
+  const currentChildren = [...board.children]
+    .filter((child) => child === placeholder || child.matches?.(CARD_SELECTOR));
   const currentIndex = currentChildren.indexOf(placeholder);
+  if (currentIndex < 0) return false;
+
   const normalizedIndex = Math.max(0, Math.min(cards.length, desiredIndex));
   if (normalizedIndex === currentIndex) return false;
 
   if (lastMove && Math.abs(normalizedIndex - currentIndex) === 1) {
-    const boundaryCard = normalizedIndex > currentIndex ? cards[Math.min(normalizedIndex, cards.length - 1)] : cards[Math.max(0, normalizedIndex)];
-    const rect = boundaryCard?.getBoundingClientRect();
-    if (rect) {
-      const boundary = rect.left + rect.width / 2;
-      if (normalizedIndex > currentIndex && pointer.x < boundary + INSERTION_HYSTERESIS_PX) return false;
-      if (normalizedIndex < currentIndex && pointer.x > boundary - INSERTION_HYSTERESIS_PX) return false;
-    }
+    const transition = resolveAdjacentTransition(
+      placeholder,
+      cards,
+      currentIndex,
+      normalizedIndex
+    );
+    if (!passesInsertionHysteresis(transition, pointer)) return false;
   }
 
   const animatedCards = directCards(board);
   const before = captureRects(animatedCards);
-  const target = cards[normalizedIndex] || null;
-  if (target) board.insertBefore(placeholder, target); else board.append(placeholder);
+  insertPlaceholderAtIndex(board, placeholder, cards, normalizedIndex);
   board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
   playFlip(animatedCards, before);
   return true;
@@ -515,7 +612,9 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
 }
 
 export const notebookDragOrderTestHelpers = {
+  directChildrenMatching,
   directCards,
+  allCards,
   ownedCards,
   cardKey,
   serialiseBoard,
@@ -523,5 +622,10 @@ export const notebookDragOrderTestHelpers = {
   findInsertionTarget,
   calculateInsertionIndex,
   isInteractiveDragTarget,
-  groupVisualRows
+  groupVisualRows,
+  sameVisualRow,
+  resolveAdjacentTransition,
+  passesInsertionHysteresis,
+  insertPlaceholderAtIndex,
+  movePlaceholder
 };

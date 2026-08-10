@@ -4000,14 +4000,18 @@ var init_notebook_label_manager = __esm({
 });
 
 // wwwroot/js/notebook/notebook-drag-order.js
+function directChildrenMatching(board, selector) {
+  if (!board) return [];
+  return [...board.children].filter((child) => child.matches?.(selector));
+}
 function directCards(board) {
-  return [...board.querySelectorAll(CARD_SELECTOR)];
+  return directChildrenMatching(board, CARD_SELECTOR);
 }
 function allCards(board) {
-  return [...board.querySelectorAll(ALL_CARD_SELECTOR)];
+  return directChildrenMatching(board, ALL_CARD_SELECTOR);
 }
 function ownedCards(board) {
-  return [...board.querySelectorAll(OWNED_CARD_SELECTOR)];
+  return directChildrenMatching(board, OWNED_CARD_SELECTOR);
 }
 function cardKey(card) {
   if (card?.dataset?.noteId) return `note:${card.dataset.noteId}`;
@@ -4058,10 +4062,10 @@ function playFlip(elements, beforeRects, windowRef = window) {
   });
 }
 function groupVisualRows(cards) {
-  const entries = cards.map((card) => ({ card, rect: card.getBoundingClientRect() })).sort((a, b) => Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left);
+  const entries = cards.map((card) => ({ card, rect: card.getBoundingClientRect() })).sort((a, b) => Math.abs(a.rect.top - b.rect.top) > VISUAL_ROW_SORT_TOLERANCE_PX ? a.rect.top - b.rect.top : a.rect.left - b.rect.left);
   const rows = [];
   for (const entry of entries) {
-    const row = rows.find((candidate) => Math.abs(candidate.top - entry.rect.top) <= 12);
+    const row = rows.find((candidate) => Math.abs(candidate.top - entry.rect.top) <= VISUAL_ROW_MATCH_TOLERANCE_PX);
     if (row) {
       row.items.push(entry);
       row.bottom = Math.max(row.bottom, entry.rect.bottom);
@@ -4096,26 +4100,87 @@ function calculateInsertionIndex(board, x, y) {
   }
   return rowStart + selectedRow.items.length;
 }
+function findVisualRowIndex(rows, card) {
+  return rows.findIndex((row) => row.items.some((entry) => entry.card === card));
+}
+function sameVisualRow(firstRect, secondRect) {
+  return Math.abs(firstRect.top - secondRect.top) <= VISUAL_ROW_MATCH_TOLERANCE_PX;
+}
+function resolveAdjacentTransition(placeholder, cards, currentIndex, normalizedIndex) {
+  const direction = normalizedIndex > currentIndex ? 1 : -1;
+  const crossedIndex = direction > 0 ? currentIndex : currentIndex - 1;
+  const boundaryCard = cards[crossedIndex];
+  if (!boundaryCard) return null;
+  const boundaryRect = boundaryCard.getBoundingClientRect();
+  const placeholderRect = placeholder.getBoundingClientRect();
+  if (sameVisualRow(placeholderRect, boundaryRect)) {
+    return {
+      axis: "x",
+      boundary: boundaryRect.left + boundaryRect.width / 2,
+      direction,
+      boundaryCard
+    };
+  }
+  const rows = groupVisualRows(cards);
+  const rowIndex = findVisualRowIndex(rows, boundaryCard);
+  const row = rows[rowIndex];
+  if (row) {
+    if (direction > 0) {
+      const previousRow = rows[rowIndex - 1];
+      const boundary2 = previousRow ? (previousRow.bottom + row.top) / 2 : (placeholderRect.bottom + row.top) / 2;
+      return { axis: "y", boundary: boundary2, direction, boundaryCard };
+    }
+    const nextRow = rows[rowIndex + 1];
+    const boundary = nextRow ? (row.bottom + nextRow.top) / 2 : (row.bottom + placeholderRect.top) / 2;
+    return { axis: "y", boundary, direction, boundaryCard };
+  }
+  return {
+    axis: "y",
+    boundary: (placeholderRect.top + boundaryRect.top) / 2,
+    direction,
+    boundaryCard
+  };
+}
+function passesInsertionHysteresis(transition, pointer) {
+  if (!transition) return true;
+  const coordinate = transition.axis === "y" ? pointer.y : pointer.x;
+  const signedDistance = transition.direction * (coordinate - transition.boundary);
+  return signedDistance >= INSERTION_HYSTERESIS_PX;
+}
+function insertPlaceholderAtIndex(board, placeholder, cards, normalizedIndex) {
+  const target = cards[normalizedIndex] || null;
+  if (target) {
+    board.insertBefore(placeholder, target);
+    return;
+  }
+  const children = [...board.children];
+  const lastReorderablePosition = cards.reduce(
+    (maximum, card) => Math.max(maximum, children.indexOf(card)),
+    -1
+  );
+  const trailingFixedCard = children.slice(lastReorderablePosition + 1).find((card) => card !== placeholder && card.matches?.(ALL_CARD_SELECTOR) && !card.matches(CARD_SELECTOR));
+  if (trailingFixedCard) board.insertBefore(placeholder, trailingFixedCard);
+  else board.append(placeholder);
+}
 function movePlaceholder(board, placeholder, desiredIndex, lastMove, pointer) {
   const cards = directCards(board);
   const currentChildren = [...board.children].filter((child) => child === placeholder || child.matches?.(CARD_SELECTOR));
   const currentIndex = currentChildren.indexOf(placeholder);
+  if (currentIndex < 0) return false;
   const normalizedIndex = Math.max(0, Math.min(cards.length, desiredIndex));
   if (normalizedIndex === currentIndex) return false;
   if (lastMove && Math.abs(normalizedIndex - currentIndex) === 1) {
-    const boundaryCard = normalizedIndex > currentIndex ? cards[Math.min(normalizedIndex, cards.length - 1)] : cards[Math.max(0, normalizedIndex)];
-    const rect = boundaryCard?.getBoundingClientRect();
-    if (rect) {
-      const boundary = rect.left + rect.width / 2;
-      if (normalizedIndex > currentIndex && pointer.x < boundary + INSERTION_HYSTERESIS_PX) return false;
-      if (normalizedIndex < currentIndex && pointer.x > boundary - INSERTION_HYSTERESIS_PX) return false;
-    }
+    const transition = resolveAdjacentTransition(
+      placeholder,
+      cards,
+      currentIndex,
+      normalizedIndex
+    );
+    if (!passesInsertionHysteresis(transition, pointer)) return false;
   }
   const animatedCards = directCards(board);
   const before = captureRects(animatedCards);
-  const target = cards[normalizedIndex] || null;
-  if (target) board.insertBefore(placeholder, target);
-  else board.append(placeholder);
+  insertPlaceholderAtIndex(board, placeholder, cards, normalizedIndex);
   board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
   playFlip(animatedCards, before);
   return true;
@@ -4439,18 +4504,20 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     }
   };
 }
-var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
+var BOARD_SELECTOR, OWNED_CARD_SELECTOR, SYSTEM_CARD_SELECTOR, CARD_SELECTOR, ALL_CARD_SELECTOR, DRAG_THRESHOLD_PX, TOUCH_LONG_PRESS_MS, TOUCH_CANCEL_DISTANCE_PX, INSERTION_HYSTERESIS_PX, VISUAL_ROW_SORT_TOLERANCE_PX, VISUAL_ROW_MATCH_TOLERANCE_PX, EDGE_SCROLL_ZONE_PX, MAX_EDGE_SCROLL_PX, FLIP_DURATION_MS;
 var init_notebook_drag_order = __esm({
   "wwwroot/js/notebook/notebook-drag-order.js"() {
     BOARD_SELECTOR = '[data-notebook-board="pinned"], [data-notebook-board="others"]';
-    OWNED_CARD_SELECTOR = ':scope > [data-note-id][data-reorderable="true"]';
-    SYSTEM_CARD_SELECTOR = ':scope > [data-notebook-system-home-card][data-reorderable="true"]';
+    OWNED_CARD_SELECTOR = '[data-note-id][data-reorderable="true"]';
+    SYSTEM_CARD_SELECTOR = '[data-notebook-system-home-card][data-reorderable="true"]';
     CARD_SELECTOR = `${OWNED_CARD_SELECTOR}, ${SYSTEM_CARD_SELECTOR}`;
-    ALL_CARD_SELECTOR = ":scope > [data-note-id], :scope > [data-notebook-system-home-card]";
+    ALL_CARD_SELECTOR = "[data-note-id], [data-notebook-system-home-card]";
     DRAG_THRESHOLD_PX = 6;
     TOUCH_LONG_PRESS_MS = 300;
     TOUCH_CANCEL_DISTANCE_PX = 8;
     INSERTION_HYSTERESIS_PX = 10;
+    VISUAL_ROW_SORT_TOLERANCE_PX = 8;
+    VISUAL_ROW_MATCH_TOLERANCE_PX = 12;
     EDGE_SCROLL_ZONE_PX = 72;
     MAX_EDGE_SCROLL_PX = 18;
     FLIP_DURATION_MS = 150;

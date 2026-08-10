@@ -21,6 +21,13 @@ test('desktop rearrangement is direct and does not expose a mode button', () => 
   assert.match(drag, /const isEnabled = \(\) => shell\.dataset\.boardView === 'grid'/);
 });
 
+test('direct child matching and adjacent transitions remain bidirectional', () => {
+  assert.match(drag, /function directChildrenMatching/);
+  assert.doesNotMatch(drag, /const OWNED_CARD_SELECTOR = ':scope/);
+  assert.match(drag, /const crossedIndex = direction > 0 \? currentIndex : currentIndex - 1/);
+  assert.match(drag, /axis: 'y'/);
+});
+
 test('touch drag keeps a deliberate long-press threshold', () => {
   assert.match(drag, /TOUCH_LONG_PRESS_MS = 300/);
   assert.match(drag, /TOUCH_CANCEL_DISTANCE_PX = 8/);

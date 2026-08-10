@@ -9,7 +9,15 @@ function loadHelpers(document) {
   source = source.replace(/export function initNotebookDragOrder/, 'function initNotebookDragOrder')
     .replace(/export const notebookDragOrderTestHelpers =/, 'const notebookDragOrderTestHelpers =');
   source += '\nmodule.exports = notebookDragOrderTestHelpers;';
-  const context = { module: { exports: {} }, exports: {}, document, window: document.defaultView, Element: document.defaultView.Element, MutationObserver: document.defaultView.MutationObserver };
+  const context = {
+    module: { exports: {} },
+    exports: {},
+    document,
+    window: document.defaultView,
+    Element: document.defaultView.Element,
+    MutationObserver: document.defaultView.MutationObserver,
+    CustomEvent: document.defaultView.CustomEvent
+  };
   vm.createContext(context);
   vm.runInContext(source, context);
   return context.module.exports;
@@ -23,6 +31,18 @@ test('serialiseBoard preserves DOM order and versions', () => {
   ]);
 });
 
+
+test('directCards only includes direct board children while keeping selectors element-matchable', () => {
+  const dom = new JSDOM(`
+    <div id="b">
+      <article id="direct" data-note-id="direct" data-reorderable="true"></article>
+      <div><article id="nested" data-note-id="nested" data-reorderable="true"></article></div>
+    </div>`);
+  const helpers = loadHelpers(dom.window.document);
+  const board = dom.window.document.querySelector('#b');
+
+  assert.deepEqual(helpers.directCards(board).map((card) => card.id), ['direct']);
+});
 
 test('serialiseBoard excludes shared read-only cards from an owner reorder payload', () => {
   const dom = new JSDOM('<div id="b"><article data-note-id="owned-a" data-version="v1" data-reorderable="true"></article><article data-note-id="shared" data-version="v2" data-reorderable="false"></article><article data-note-id="owned-b" data-version="v3" data-reorderable="true"></article></div>');
@@ -131,6 +151,149 @@ test('insertion index follows row midpoint boundaries', () => {
   assert.equal(helpers.calculateInsertionIndex(board, 20, 20), 0);
   assert.equal(helpers.calculateInsertionIndex(board, 180, 20), 2);
   assert.equal(helpers.calculateInsertionIndex(board, 20, 140), 2);
+});
+
+
+test('adjacent forward movement crosses the immediate next card, not the card after it', () => {
+  const dom = new JSDOM(`
+    <div id="board">
+      <article id="a" data-note-id="a" data-reorderable="true"></article>
+      <div id="placeholder"></div>
+      <article id="b" data-note-id="b" data-reorderable="true"></article>
+      <article id="c" data-note-id="c" data-reorderable="true"></article>
+    </div>`);
+  const document = dom.window.document;
+  const rects = {
+    a: { top: 0, left: 0, right: 100, bottom: 80, width: 100, height: 80 },
+    placeholder: { top: 0, left: 120, right: 220, bottom: 80, width: 100, height: 80 },
+    b: { top: 0, left: 240, right: 340, bottom: 80, width: 100, height: 80 },
+    c: { top: 0, left: 360, right: 460, bottom: 80, width: 100, height: 80 }
+  };
+  Object.entries(rects).forEach(([id, rect]) => {
+    document.querySelector(`#${id}`).getBoundingClientRect = () => rect;
+  });
+
+  const helpers = loadHelpers(document);
+  const board = document.querySelector('#board');
+  const placeholder = document.querySelector('#placeholder');
+  const cards = helpers.directCards(board);
+  const transition = helpers.resolveAdjacentTransition(placeholder, cards, 1, 2);
+
+  assert.equal(transition.boundaryCard.id, 'b');
+  assert.equal(transition.axis, 'x');
+  assert.equal(helpers.movePlaceholder(board, placeholder, 2, { index: 1 }, { x: 305, y: 40 }), true);
+  assert.deepEqual([...board.children].map((node) => node.id), ['a', 'b', 'placeholder', 'c']);
+});
+
+test('adjacent reverse movement uses the real placeholder index and is symmetric', () => {
+  const dom = new JSDOM(`
+    <div id="board">
+      <article id="a" data-note-id="a" data-reorderable="true"></article>
+      <article id="b" data-note-id="b" data-reorderable="true"></article>
+      <div id="placeholder"></div>
+      <article id="c" data-note-id="c" data-reorderable="true"></article>
+    </div>`);
+  const document = dom.window.document;
+  const rects = {
+    a: { top: 0, left: 0, right: 100, bottom: 80, width: 100, height: 80 },
+    b: { top: 0, left: 120, right: 220, bottom: 80, width: 100, height: 80 },
+    placeholder: { top: 0, left: 240, right: 340, bottom: 80, width: 100, height: 80 },
+    c: { top: 0, left: 360, right: 460, bottom: 80, width: 100, height: 80 }
+  };
+  Object.entries(rects).forEach(([id, rect]) => {
+    document.querySelector(`#${id}`).getBoundingClientRect = () => rect;
+  });
+
+  const helpers = loadHelpers(document);
+  const board = document.querySelector('#board');
+  const placeholder = document.querySelector('#placeholder');
+  const cards = helpers.directCards(board);
+  const transition = helpers.resolveAdjacentTransition(placeholder, cards, 2, 1);
+
+  assert.equal(transition.boundaryCard.id, 'b');
+  assert.equal(transition.axis, 'x');
+  assert.equal(helpers.movePlaceholder(board, placeholder, 1, { index: 2 }, { x: 155, y: 40 }), true);
+  assert.deepEqual([...board.children].map((node) => node.id), ['a', 'placeholder', 'b', 'c']);
+});
+
+test('masonry row transitions use vertical hysteresis instead of an unrelated x coordinate', () => {
+  const dom = new JSDOM(`
+    <div id="board">
+      <article id="a" data-note-id="a" data-reorderable="true"></article>
+      <div id="placeholder"></div>
+      <article id="b" data-note-id="b" data-reorderable="true"></article>
+      <article id="c" data-note-id="c" data-reorderable="true"></article>
+    </div>`);
+  const document = dom.window.document;
+  const rects = {
+    a: { top: 0, left: 0, right: 100, bottom: 80, width: 100, height: 80 },
+    placeholder: { top: 0, left: 120, right: 220, bottom: 80, width: 100, height: 80 },
+    b: { top: 120, left: 0, right: 100, bottom: 200, width: 100, height: 80 },
+    c: { top: 120, left: 120, right: 220, bottom: 200, width: 100, height: 80 }
+  };
+  Object.entries(rects).forEach(([id, rect]) => {
+    document.querySelector(`#${id}`).getBoundingClientRect = () => rect;
+  });
+
+  const helpers = loadHelpers(document);
+  const board = document.querySelector('#board');
+  const placeholder = document.querySelector('#placeholder');
+  const transition = helpers.resolveAdjacentTransition(placeholder, helpers.directCards(board), 1, 2);
+
+  assert.equal(transition.boundaryCard.id, 'b');
+  assert.equal(transition.axis, 'y');
+  assert.equal(transition.boundary, 100);
+  assert.equal(helpers.movePlaceholder(board, placeholder, 2, { index: 1 }, { x: 0, y: 115 }), true);
+  assert.deepEqual([...board.children].map((node) => node.id), ['a', 'b', 'placeholder', 'c']);
+});
+
+test('reverse masonry row transitions use the same vertical boundary symmetrically', () => {
+  const dom = new JSDOM(`
+    <div id="board">
+      <article id="a" data-note-id="a" data-reorderable="true"></article>
+      <div id="placeholder"></div>
+      <article id="b" data-note-id="b" data-reorderable="true"></article>
+      <article id="c" data-note-id="c" data-reorderable="true"></article>
+    </div>`);
+  const document = dom.window.document;
+  const rects = {
+    a: { top: 0, left: 0, right: 100, bottom: 80, width: 100, height: 80 },
+    placeholder: { top: 120, left: 0, right: 100, bottom: 200, width: 100, height: 80 },
+    b: { top: 120, left: 120, right: 220, bottom: 200, width: 100, height: 80 },
+    c: { top: 120, left: 240, right: 340, bottom: 200, width: 100, height: 80 }
+  };
+  Object.entries(rects).forEach(([id, rect]) => {
+    document.querySelector(`#${id}`).getBoundingClientRect = () => rect;
+  });
+
+  const helpers = loadHelpers(document);
+  const board = document.querySelector('#board');
+  const placeholder = document.querySelector('#placeholder');
+  const transition = helpers.resolveAdjacentTransition(placeholder, helpers.directCards(board), 1, 0);
+
+  assert.equal(transition.boundaryCard.id, 'a');
+  assert.equal(transition.axis, 'y');
+  assert.equal(transition.boundary, 100);
+  assert.equal(helpers.movePlaceholder(board, placeholder, 0, { index: 1 }, { x: 999, y: 85 }), true);
+  assert.deepEqual([...board.children].map((node) => node.id), ['placeholder', 'a', 'b', 'c']);
+});
+
+test('dropping at the reorderable end keeps shared read-only cards outside the owned order region', () => {
+  const dom = new JSDOM(`
+    <div id="board">
+      <article id="a" data-note-id="a" data-reorderable="true"></article>
+      <div id="placeholder"></div>
+      <article id="b" data-note-id="b" data-reorderable="true"></article>
+      <article id="shared" data-note-id="shared" data-reorderable="false"></article>
+    </div>`);
+  const document = dom.window.document;
+  const helpers = loadHelpers(document);
+  const board = document.querySelector('#board');
+  const placeholder = document.querySelector('#placeholder');
+
+  assert.equal(helpers.movePlaceholder(board, placeholder, 2, null, { x: 0, y: 0 }), true);
+  assert.deepEqual([...board.children].map((node) => node.id), ['a', 'b', 'placeholder', 'shared']);
+  assert.deepEqual(helpers.directCards(board).map((card) => card.id), ['a', 'b']);
 });
 
 test('drag engine no longer depends on native HTML drag events', () => {
