@@ -46,17 +46,37 @@
             <div class="@(Model.Preflight.TotalWarningCount > 0 ? "has-warning" : string.Empty)"><span>Publication warnings</span><strong>@Model.Preflight.TotalWarningCount</strong><small>across @Model.Preflight.ProjectsWithWarnings project(s)</small></div>
         </div>
 
-        <form method="post" asp-page-handler="Generate" class="compendium-workspace-generate" data-compendium-publication-form>
+        <div class="compendium-eligibility-note">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <span><strong>Eligibility:</strong> completed, active project records marked available for proliferation.</span>
+        </div>
+
+        <form method="post" class="compendium-workspace-generate" data-compendium-publication-form>
             <label class="form-label">
                 <span>Handling/classification marking</span>
                 <input asp-for="Input.HandlingMarking" class="form-control" maxlength="80" placeholder="Optional, e.g. RESTRICTED" />
                 <small>PRISM does not assign a classification automatically.</small>
             </label>
-            <button type="submit" class="btn btn-primary" disabled="@(!Model.Preflight.CanGenerate)" data-compendium-publication-generate>
-                <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-                <span data-compendium-publication-label>Generate compendium PDF</span>
-            </button>
+            <div class="compendium-workspace-actions">
+                <button type="submit"
+                        asp-page-handler="Preview"
+                        formtarget="_blank"
+                        class="btn btn-outline-primary"
+                        disabled="@(!Model.Preflight.CanGenerate)"
+                        data-compendium-publication-preview>
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                    <span>Preview PDF</span>
+                </button>
+                <button type="submit"
+                        asp-page-handler="Generate"
+                        class="btn btn-primary"
+                        disabled="@(!Model.Preflight.CanGenerate)"
+                        data-compendium-publication-generate>
+                    <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                    <span data-compendium-publication-label>Download PDF</span>
+                </button>
+            </div>
         </form>
     </section>
 

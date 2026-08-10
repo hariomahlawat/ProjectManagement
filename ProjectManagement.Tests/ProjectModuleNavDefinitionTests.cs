@@ -31,6 +31,11 @@ public sealed class ProjectModuleNavDefinitionTests
             item => item.Text == "ARPP / PPP"
                     && item.Page == "/Projects/Arpp/Index"
                     && item.ActivePagePrefix == "/Projects/Arpp/");
+        Assert.Contains(
+            tabs,
+            item => item.Text == "Publications"
+                    && item.Page == "/Projects/Publications/Index"
+                    && item.ActivePagePrefix == "/Projects/Publications/");
         Assert.Contains(tabs, item => item.Text == "Pending approvals");
         Assert.DoesNotContain(tabs, item => item.Page == "/Projects/Create");
     }
@@ -49,5 +54,34 @@ public sealed class ProjectModuleNavDefinitionTests
         Assert.True(processIndex >= 0);
         Assert.Equal(processIndex + 1, arppIndex);
         Assert.Equal(arppIndex + 1, analyticsIndex);
+    }
+
+    [Fact]
+    public void Build_PlacesPublicationsAfterAnalyticsAndBeforeIndustryDirectory()
+    {
+        var tabs = ProjectModuleNavDefinition.Build()
+            .Where(item => !item.IsAction)
+            .ToList();
+
+        var analyticsIndex = tabs.FindIndex(item => item.Page == "/Analytics/Index");
+        var publicationsIndex = tabs.FindIndex(item => item.Page == "/Projects/Publications/Index");
+        var industryIndex = tabs.FindIndex(item => item.Page == "/IndustryPartners/Index");
+
+        Assert.True(analyticsIndex >= 0);
+        Assert.Equal(analyticsIndex + 1, publicationsIndex);
+        Assert.Equal(publicationsIndex + 1, industryIndex);
+    }
+
+    [Fact]
+    public void Build_ContainsExactlyOnePublicationsDestination()
+    {
+        var publications = ProjectModuleNavDefinition.Build()
+            .Where(item => item.Text == "Publications")
+            .ToArray();
+
+        var item = Assert.Single(publications);
+        Assert.False(item.IsAction);
+        Assert.Equal("/Projects/Publications/Index", item.Page);
+        Assert.Equal("/Projects/Publications/", item.ActivePagePrefix);
     }
 }

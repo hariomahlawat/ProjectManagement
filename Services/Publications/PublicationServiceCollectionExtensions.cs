@@ -10,10 +10,15 @@ public static class PublicationServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<IPublicationFontService, PublicationFontService>();
-        services.AddHostedService<PublicationFontWarmupHostedService>();
         services.AddScoped<IBrochurePhotoService, BrochurePhotoService>();
         services.AddScoped<IBrochurePublicationService, BrochurePublicationService>();
         services.AddScoped<IBrochurePdfReportBuilder, BrochurePdfReportBuilder>();
+
+        // Fail early if the publication graph or font stack is broken rather than
+        // surfacing a DI exception only when the first user opens the Brochure page.
+        services.AddHostedService<PublicationFontWarmupHostedService>();
+        services.AddHostedService<PublicationRuntimeValidationHostedService>();
+
         return services;
     }
 }

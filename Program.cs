@@ -80,6 +80,7 @@ using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Arpp;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
+using ProjectManagement.Services.Publications;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Reports.ProgressReview;
 using ProjectManagement.Services.Scheduling;
@@ -653,6 +654,9 @@ builder.Services.AddSingleton<IProjectBriefingSlideComposer, ProjectBriefingSlid
 builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
 builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
 builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
+
+// SECTION: Project publications and capability brochure
+builder.Services.AddProjectPublications();
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
 // SECTION: Proliferation reports services
@@ -905,6 +909,8 @@ builder.Services.AddScoped<EnforcePasswordChangeFilter>();
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/Dashboard");
+    // SECTION: Protect the complete Projects/Publications route family.
+    options.Conventions.AuthorizeFolder("/Projects/Publications");
     options.Conventions.AuthorizeAreaFolder("Admin", "/");
     options.Conventions.AuthorizeAreaFolder(
         "ProjectOfficeReports",

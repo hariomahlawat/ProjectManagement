@@ -315,6 +315,18 @@
 .compendium-workspace-metrics strong { display: block; margin: .18rem 0 .08rem; color: #18392e; font-size: 1.28rem; line-height: 1; }
 .compendium-workspace-metrics small { color: #84918c; font-size: .64rem; }
 
+.compendium-eligibility-note {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin: -.1rem 0 .9rem;
+    color: #667a73;
+    font-size: .67rem;
+    line-height: 1.4;
+}
+.compendium-eligibility-note i { color: #2d765b; font-size: .82rem; }
+.compendium-eligibility-note strong { color: #3e574e; font-weight: 750; }
+
 .compendium-workspace-generate {
     display: flex;
     align-items: flex-end;
@@ -326,6 +338,14 @@
 .compendium-workspace-generate label { flex: 1 1 320px; max-width: 520px; }
 .compendium-workspace-generate label > span { display: block; margin-bottom: .32rem; color: #314b42; font-size: .72rem; font-weight: 700; }
 .compendium-workspace-generate label > small { display: block; margin-top: .28rem; color: #7b8984; font-size: .64rem; line-height: 1.35; }
+.compendium-workspace-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .55rem;
+}
+.compendium-workspace-actions .btn { white-space: nowrap; }
 
 .compendium-warning-panel { margin-top: 1rem; }
 .compendium-warning-panel > header {
@@ -362,12 +382,15 @@
     .compendium-workspace-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .compendium-workspace-generate { align-items: stretch; flex-direction: column; }
     .compendium-workspace-generate label { max-width: none; }
+    .compendium-workspace-actions { justify-content: flex-start; }
     .compendium-warning-list > article { grid-template-columns: 1fr; }
     .compendium-warning-tags { justify-content: flex-start; }
 }
 
 @media (max-width: 560px) {
     .compendium-workspace-metrics { grid-template-columns: 1fr; }
+    .compendium-workspace-actions { align-items: stretch; flex-direction: column; }
+    .compendium-workspace-actions .btn { width: 100%; }
 }
 
 .compendium-warning-list > article {

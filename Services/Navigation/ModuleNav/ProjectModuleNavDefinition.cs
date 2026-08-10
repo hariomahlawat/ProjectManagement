@@ -50,6 +50,13 @@ public static class ProjectModuleNavDefinition
         },
         new()
         {
+            Text = "Publications",
+            Page = "/Projects/Publications/Index",
+            ActivePagePrefix = "/Projects/Publications/",
+            Icon = "bi-journals"
+        },
+        new()
+        {
             Text = "Industry directory",
             Page = "/IndustryPartners/Index",
             Icon = "bi-buildings",

@@ -1,42 +1,24 @@
-PRISM PROJECT PUBLICATIONS — PHASE 2 QUALITY HARDENING
-======================================================
+PRISM PUBLICATIONS PHASE 3 — CHANGED FILES
+==========================================
 
 REPLACE
 -------
-Pages/Projects/Publications/Brochure/Index.cshtml
-Pages/Projects/Publications/Brochure/Index.cshtml.cs
-Services/Publications/BrochureContracts.cs
-Services/Publications/BrochureLayoutPlanner.cs
-Services/Publications/BrochurePublicationService.cs
-Utilities/Reporting/BrochurePdfReportBuilder.cs
-Utilities/Reporting/PublicationFontRegistry.cs
+Program.cs
+Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
+ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs
+Services/Publications/PublicationServiceCollectionExtensions.cs
+Pages/Projects/Publications/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml
+Pages/Projects/Publications/Compendium/Index.cshtml.cs
 wwwroot/css/pages/projects-publications.css
-wwwroot/js/pages/projects-brochure.js
-wwwroot/fonts/publications/README-PUBLICATION-FONTS.txt
-ProjectManagement.Tests/Publications/BrochureLayoutPlannerTests.cs
+wwwroot/js/pages/projects-publications.js
 
 NEW
 ---
-Services/Publications/BrochurePhotoService.cs
-Services/Publications/PublicationServiceCollectionExtensions.cs
-wwwroot/img/publications/README-COVER-A.txt
-ProjectManagement.Tests/Publications/BrochurePhotoCropTests.cs
-ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+Services/Publications/PublicationRuntimeValidationHostedService.cs
+ProjectManagement.Tests/Publications/PublicationsRuntimeIntegrationTests.cs
+tools/Test-PrismPublicationsIntegration.ps1
 
-MERGE — DO NOT BLINDLY REPLACE PROGRAM.CS
-----------------------------------------
-Program.cs
-  Use PRISM-Publications-Phase2-Program.patch or PROGRAM-MERGE.txt.
-
-UNCHANGED
----------
-Project Publications navigation
-Pages/Projects/Publications/Index.cshtml
-Pages/Projects/Publications/_PublicationTabs.cshtml
-Pages/Projects/Publications/Compendium/**
-Pages/Projects/Compendium compatibility wrapper
-Services/Compendiums/**
-Utilities/Reporting/CompendiumPdfReportBuilder.cs
-ApplicationDbContext / migrations
-Project entities / ProjectPhoto entities
-Existing Project Photos UI and storage format
+NO DATABASE MIGRATION
+---------------------
+ApplicationDbContext, entities and migrations are unchanged.

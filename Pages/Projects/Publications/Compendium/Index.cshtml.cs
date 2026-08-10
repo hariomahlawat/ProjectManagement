@@ -36,7 +36,15 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
         => await LoadAsync(cancellationToken);
 
-    public async Task<IActionResult> OnPostGenerateAsync(CancellationToken cancellationToken)
+    public Task<IActionResult> OnPostPreviewAsync(CancellationToken cancellationToken)
+        => GenerateInternalAsync(preview: true, cancellationToken);
+
+    public Task<IActionResult> OnPostGenerateAsync(CancellationToken cancellationToken)
+        => GenerateInternalAsync(preview: false, cancellationToken);
+
+    private async Task<IActionResult> GenerateInternalAsync(
+        bool preview,
+        CancellationToken cancellationToken)
     {
         Input.HandlingMarking = NormalizeOptional(Input.HandlingMarking);
         if (!ModelState.IsValid)
@@ -50,6 +58,13 @@ public sealed class IndexModel : PageModel
             var result = await _exportService.GenerateAsync(
                 new CompendiumExportRequest(Input.HandlingMarking),
                 cancellationToken);
+
+            if (preview)
+            {
+                Response.Headers["Content-Disposition"] = $"inline; filename=\"{result.FileName}\"";
+                return File(result.Bytes, "application/pdf");
+            }
+
             return File(result.Bytes, "application/pdf", result.FileName);
         }
         catch (OperationCanceledException)
@@ -58,8 +73,15 @@ public sealed class IndexModel : PageModel
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Simulators Compendium PDF generation failed from Publications workspace.");
-            ModelState.AddModelError(string.Empty, "The compendium could not be generated. Review publication readiness and try again.");
+            _logger.LogError(
+                exception,
+                "Simulators Compendium PDF {Operation} failed from Publications workspace.",
+                preview ? "preview" : "generation");
+            ModelState.AddModelError(
+                string.Empty,
+                preview
+                    ? "The compendium preview could not be generated. Review publication readiness and try again."
+                    : "The compendium could not be generated. Review publication readiness and try again.");
             await LoadAsync(cancellationToken);
             return Page();
         }

@@ -1,58 +1,29 @@
-PRISM PROJECT PUBLICATIONS — PHASE 2 VALIDATION
-================================================
+PRISM PUBLICATIONS PHASE 3 — PREPARATION VALIDATION
+==================================================
 
-STATIC / SOURCE VALIDATION
---------------------------
-PASS  Node.js syntax check: wwwroot/js/pages/projects-brochure.js
-PASS  C# delimiter lexer check across all supplied Phase 2 .cs files
-PASS  CSS brace/parenthesis structural balance
-PASS  Razor page gross brace balance
-PASS  Every data-* selector queried by projects-brochure.js exists in Brochure/Index.cshtml
-PASS  Brochure Razor Page no longer directly constructs BrochurePublicationService or BrochurePdfReportBuilder
-PASS  Central AddProjectPublications() DI registration exists
-PASS  Publication font warm-up service exists for startup registration
-PASS  Publication photo pipeline uses preserved master / derivative fallback and focal crop helper
-PASS  Secondary brochure imagery is explicit/opt-in unless Gallery 2 is deliberately selected
-PASS  Dynamic planner contains orphan avoidance and balanced continuation logic
-PASS  Renderer regression test supplied for both cover types
-PASS  Focal crop regression tests supplied
-PASS  No database migration is included
-PASS  No font binary is included in this source package
-PASS  Existing Compendium services and renderer are not replaced by Phase 2
-PASS  Project Publications navigation is not modified by Phase 2
+PASS  Program.cs replacement is based on the exact uploaded ProjectManagement-master (2)(4).zip Program.cs.
+PASS  Program.cs diff is limited to Publications namespace import, AddProjectPublications(), and Publications route-family authorization.
+PASS  ProjectModuleNavDefinition.cs replacement is based on the exact uploaded current navigation definition.
+PASS  Navigation diff adds only Publications after Analytics and before Industry directory.
+PASS  Brochure DI registration contract is present.
+PASS  Publication runtime-startup validator is registered.
+PASS  Publications route-family authorization convention is present.
+PASS  Publications landing page has explicit Authorize attribute.
+PASS  Compendium Preview handler and inline Content-Disposition path are present.
+PASS  Compendium Preview / Download UI contract is present.
+PASS  Compendium eligibility explanation is present.
+PASS  Publications runtime integration test covers service resolution and Overview/Brochure/Compendium routes.
+PASS  Navigation regression test covers presence, order, uniqueness and active prefix.
+PASS  Deployment integration checker script contains all critical registration/navigation contracts.
+PASS  JavaScript syntax: projects-publications.js.
+PASS  JavaScript syntax: projects-brochure.js (full package validation tree).
+PASS  CSS brace/parenthesis structural balance.
+PASS  C# brace/parenthesis structural checks for all Phase 3 supplied C# files.
+PASS  Full package overlays cleanly onto the uploaded source tree for static validation.
+PASS  No migration or ApplicationDbContext/entity change is included.
 
-INTEGRATION PATCH VALIDATION
-----------------------------
-PASS  Phase 1 Publications source was overlaid onto the supplied PRISM source archive
-PASS  Phase 1 navigation patch applied successfully to that combined source
-PASS  Phase 2 Program.cs patch applied successfully to the combined source
-PASS  Combined Program.cs contains exactly one AddProjectPublications() registration
-PASS  Combined Project navigation contains exactly one Publications item
-PASS  Full Phase 2 unified patch passes `git apply --check` against the Phase 1 baseline
-
-TESTS SUPPLIED
---------------
-- BrochureLayoutPlannerTests
-  * exact four-card layout
-  * 5-project 3+2 orphan avoidance
-  * three-card and two-card density layouts
-  * Gallery 2 layout restrictions
-  * long-copy continuation/order
-  * 211-word balanced continuation (106+105)
-  * project nomenclature word counting
-- BrochurePhotoCropTests
-  * centred landscape crop
-  * right focal crop
-  * portrait top/bottom focal crops
-  * invalid focal clamping
-- BrochurePdfReportBuilderTests
-  * Cover A PDF generation without external assets
-  * Cover B PDF generation without external assets
-
-NOT RUN IN THIS EXECUTION ENVIRONMENT
--------------------------------------
-The container does not contain the .NET SDK, so `dotnet build` and xUnit execution could not
-be run here. Run the normal PRISM Release build/test sequence after copying the files.
-
-This package therefore does NOT claim a successful .NET compilation in the preparation
-environment. JavaScript syntax and the source/integration checks above were actually run.
+NOT RUN
+-------
+.NET compilation and xUnit execution could not be run because the preparation environment has no .NET SDK.
+PowerShell deployment checker could not be executed because PowerShell is not installed in the preparation container.
+Run the supplied checker plus the normal PRISM dotnet build/test sequence on the Windows development machine.
