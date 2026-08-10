@@ -9,6 +9,10 @@ public static class PublicationServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Brochure photo probing uses a small in-memory cache keyed by the resolved
+        // source file version/timestamp. Registering it here keeps this feature's DI
+        // graph self-contained even if the application-level cache registration moves.
+        services.AddMemoryCache();
         services.AddSingleton<IPublicationFontService, PublicationFontService>();
         services.AddScoped<IBrochurePhotoService, BrochurePhotoService>();
         services.AddScoped<IBrochurePublicationService, BrochurePublicationService>();

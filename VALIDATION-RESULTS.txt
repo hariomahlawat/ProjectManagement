@@ -1,29 +1,32 @@
-PRISM PUBLICATIONS PHASE 3 — PREPARATION VALIDATION
-==================================================
+PRISM PUBLICATIONS — PHASE 4 PREPARATION VALIDATION
+===================================================
 
-PASS  Program.cs replacement is based on the exact uploaded ProjectManagement-master (2)(4).zip Program.cs.
-PASS  Program.cs diff is limited to Publications namespace import, AddProjectPublications(), and Publications route-family authorization.
-PASS  ProjectModuleNavDefinition.cs replacement is based on the exact uploaded current navigation definition.
-PASS  Navigation diff adds only Publications after Analytics and before Industry directory.
-PASS  Brochure DI registration contract is present.
-PASS  Publication runtime-startup validator is registered.
-PASS  Publications route-family authorization convention is present.
-PASS  Publications landing page has explicit Authorize attribute.
-PASS  Compendium Preview handler and inline Content-Disposition path are present.
-PASS  Compendium Preview / Download UI contract is present.
-PASS  Compendium eligibility explanation is present.
-PASS  Publications runtime integration test covers service resolution and Overview/Brochure/Compendium routes.
-PASS  Navigation regression test covers presence, order, uniqueness and active prefix.
-PASS  Deployment integration checker script contains all critical registration/navigation contracts.
-PASS  JavaScript syntax: projects-publications.js.
-PASS  JavaScript syntax: projects-brochure.js (full package validation tree).
-PASS  CSS brace/parenthesis structural balance.
-PASS  C# brace/parenthesis structural checks for all Phase 3 supplied C# files.
-PASS  Full package overlays cleanly onto the uploaded source tree for static validation.
-PASS  No migration or ApplicationDbContext/entity change is included.
+PASS  Phase 4 full tree overlaid onto the exact ProjectManagement source archive supplied in this conversation.
+PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js (node --check).
+PASS  Brochure UI contract tests: 5/5 passed with Node's built-in test runner.
+PASS  Current Razor/JavaScript critical brochure classes have explicit Phase 4 stylesheet coverage.
+PASS  Dedicated publication-photo handler is used for both thumbnail and source-preview modes.
+PASS  Brochure Builder no longer references /Projects/Photos/View for publication imagery.
+PASS  Source photo resolver prefers preserved master and falls back through configured derivatives.
+PASS  Publication photo source probes use IMemoryCache and AddProjectPublications() self-registers AddMemoryCache().
+PASS  CSS brace/parenthesis balance and malformed duplicate photograph-rule check.
+PASS  C# delimiter structural checks for all modified Phase 4 .cs files.
+PASS  Existing Phase 3 Program.cs still contains AddProjectPublications().
+PASS  Existing Phase 3 Project navigation still contains Publications.
+PASS  Phase 4 patch applies cleanly to the Phase 3 full package (git apply --check).
+PASS  No EF migration is introduced by Phase 4.
+PASS  No font binary is included or changed by Phase 4.
 
-NOT RUN
--------
-.NET compilation and xUnit execution could not be run because the preparation environment has no .NET SDK.
-PowerShell deployment checker could not be executed because PowerShell is not installed in the preparation container.
-Run the supplied checker plus the normal PRISM dotnet build/test sequence on the Windows development machine.
+ADDED TEST COVERAGE (NOT EXECUTED HERE WITHOUT .NET SDK)
+--------------------------------------------------------
+- Effective 16:9 publication-photo quality classification.
+- Portrait-source quality classification.
+- Introduction pagination / word preservation.
+- Existing Cover A and Cover B PDF smoke tests remain in the suite.
+
+NOT AVAILABLE IN PREPARATION ENVIRONMENT
+----------------------------------------
+.NET SDK / csc / msbuild are not installed, so dotnet build and xUnit execution could not be run here.
+PowerShell Core is not installed, so tools/Test-PrismPublicationsPhase4.ps1 was source-reviewed but not executed here.
+
+Run the normal PRISM build/test sequence on the development machine after replacement.

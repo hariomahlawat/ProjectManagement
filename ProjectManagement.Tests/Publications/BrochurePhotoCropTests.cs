@@ -61,4 +61,27 @@ public sealed class BrochurePhotoCropTests
         Assert.Equal(1600, crop.Width);
         Assert.Equal(900, crop.Height);
     }
+    [Theory]
+    [InlineData(2400, 1350, BrochurePhotoQuality.Excellent)]
+    [InlineData(1600, 900, BrochurePhotoQuality.PrintReady)]
+    [InlineData(1200, 675, BrochurePhotoQuality.Acceptable)]
+    [InlineData(800, 450, BrochurePhotoQuality.Low)]
+    public void DetermineQuality_UsesEffectiveSixteenByNinePublicationCrop(
+        int width,
+        int height,
+        BrochurePhotoQuality expected)
+    {
+        Assert.Equal(expected, BrochurePhotoService.DetermineQuality(width, height));
+    }
+
+    [Fact]
+    public void DetermineQuality_DowngradesTallSourceWhenWideCropHasTooFewPixels()
+    {
+        // A 1600x2400 portrait image contains many pixels overall, but its 16:9
+        // publication crop can only use 1600x900 pixels. That is PrintReady, not Excellent.
+        Assert.Equal(
+            BrochurePhotoQuality.PrintReady,
+            BrochurePhotoService.DetermineQuality(1600, 2400));
+    }
+
 }

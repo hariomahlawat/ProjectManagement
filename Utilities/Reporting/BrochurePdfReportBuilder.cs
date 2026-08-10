@@ -82,7 +82,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
             if (!string.IsNullOrWhiteSpace(data.Options.IntroductionText))
             {
-                ComposeIntroductionPage(container, data, fontStatus, sddLogo);
+                ComposeIntroductionPages(container, data, fontStatus, sddLogo);
             }
 
             for (var index = 0; index < pagePlans.Count; index++)
@@ -342,49 +342,123 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         });
     }
 
-    private static void ComposeIntroductionPage(
+    private static void ComposeIntroductionPages(
         IDocumentContainer container,
         BrochurePublicationData data,
         PublicationFontStatus fonts,
         byte[]? sddLogo)
     {
-        container.Page(page =>
+        var chunks = SplitIntroduction(data.Options.IntroductionText!, 330);
+        for (var index = 0; index < chunks.Count; index++)
         {
-            ConfigureInnerPage(page, data.Options, fonts, sddLogo, "ABOUT SDD");
-            page.Content().PaddingTop(12).Column(column =>
-            {
-                column.Spacing(18);
-                column.Item().Text(string.IsNullOrWhiteSpace(data.Options.IntroductionTitle)
-                        ? "Simulator Development Division"
-                        : data.Options.IntroductionTitle!)
-                    .FontSize(25)
-                    .Bold()
-                    .FontColor(Forest950);
-                column.Item().Width(92).Height(3).Background(Gold);
-                column.Item().Text(data.Options.IntroductionText!)
-                    .FontSize(11)
-                    .LineHeight(1.34f)
-                    .FontColor(Ink);
+            var chunk = chunks[index];
+            var wordCount = BrochureLayoutPlanner.CountWords(chunk);
+            var firstPage = index == 0;
+            var photoCount = firstPage
+                ? wordCount <= 170 ? 2 : wordCount <= 250 ? 1 : 0
+                : 0;
 
-                var photos = data.Projects
-                    .Where(project => project.PrimaryPhoto is not null)
-                    .Take(2)
-                    .Select(project => project.PrimaryPhoto!.Content)
-                    .ToArray();
-                if (photos.Length > 0)
+            container.Page(page =>
+            {
+                ConfigureInnerPage(page, data.Options, fonts, sddLogo, "ABOUT SDD");
+                page.Content().PaddingTop(12).Column(column =>
                 {
-                    column.Item().PaddingTop(12).Height(210).Row(row =>
+                    column.Spacing(18);
+                    column.Item().Text(firstPage
+                            ? string.IsNullOrWhiteSpace(data.Options.IntroductionTitle)
+                                ? "Simulator Development Division"
+                                : data.Options.IntroductionTitle!
+                            : "Introduction · continued")
+                        .FontSize(firstPage ? 25 : 19)
+                        .Bold()
+                        .FontColor(Forest950);
+                    column.Item().Width(92).Height(3).Background(Gold);
+                    column.Item().Text(chunk)
+                        .FontSize(11)
+                        .LineHeight(1.34f)
+                        .FontColor(Ink);
+
+                    if (photoCount > 0)
                     {
-                        row.Spacing(10);
-                        foreach (var photo in photos)
+                        var photos = data.Projects
+                            .Where(project => project.PrimaryPhoto is not null)
+                            .Take(photoCount)
+                            .Select(project => project.PrimaryPhoto!.Content)
+                            .ToArray();
+                        if (photos.Length > 0)
                         {
-                            row.RelativeItem().Border(1).BorderColor(Border).Background(Forest50)
-                                .Image(photo).FitArea();
+                            column.Item().PaddingTop(10).Height(photoCount == 1 ? 205 : 190).Row(row =>
+                            {
+                                row.Spacing(10);
+                                foreach (var photo in photos)
+                                {
+                                    row.RelativeItem()
+                                        .Border(1)
+                                        .BorderColor(Border)
+                                        .Background(Forest50)
+                                        .Image(photo)
+                                        .FitArea();
+                                }
+                            });
                         }
-                    });
-                }
+                    }
+                });
             });
-        });
+        }
+    }
+
+    internal static IReadOnlyList<string> SplitIntroduction(string text, int maximumWords)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return Array.Empty<string>();
+        }
+        maximumWords = Math.Max(80, maximumWords);
+        if (BrochureLayoutPlanner.CountWords(text) <= maximumWords)
+        {
+            return new[] { text.Trim() };
+        }
+
+        var paragraphs = text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var pieces = new List<string>();
+        foreach (var paragraph in paragraphs)
+        {
+            if (BrochureLayoutPlanner.CountWords(paragraph) <= maximumWords)
+            {
+                pieces.Add(paragraph.Trim());
+                continue;
+            }
+
+            var words = paragraph.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            for (var offset = 0; offset < words.Length; offset += maximumWords)
+            {
+                pieces.Add(string.Join(" ", words.Skip(offset).Take(maximumWords)));
+            }
+        }
+
+        var pages = new List<string>();
+        var current = new List<string>();
+        var currentWords = 0;
+        foreach (var piece in pieces)
+        {
+            var pieceWords = BrochureLayoutPlanner.CountWords(piece);
+            if (current.Count > 0 && currentWords + pieceWords > maximumWords)
+            {
+                pages.Add(string.Join("\n\n", current));
+                current.Clear();
+                currentWords = 0;
+            }
+            current.Add(piece);
+            currentWords += pieceWords;
+        }
+        if (current.Count > 0)
+        {
+            pages.Add(string.Join("\n\n", current));
+        }
+        return pages;
     }
 
     private static void ComposeProjectPage(

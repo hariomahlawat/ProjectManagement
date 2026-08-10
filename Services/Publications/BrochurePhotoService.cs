@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 
@@ -19,35 +21,58 @@ public interface IBrochurePhotoService
     Task<IReadOnlyDictionary<int, BrochurePublicationImage>> RenderAsync(
         IReadOnlyCollection<BrochurePhotoRenderRequest> requests,
         CancellationToken cancellationToken = default);
+
+    Task<BrochurePhotoPreview?> GetPreviewAsync(
+        int projectId,
+        int photoId,
+        BrochurePhotoPreviewKind kind,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Publication-specific image pipeline. Unlike the PowerPoint photo loader, this service
-/// starts from the preserved master (or the largest usable derivative), honours a user
-/// selected focal point and creates a deterministic 16:9 publication crop.
+/// Publication-specific image pipeline. The master image is preferred, with the largest
+/// available project derivative used only as a fallback. Browser previews, preflight and
+/// final PDF rendering all resolve through this same source-selection path so focal points
+/// are interpreted against the same image geometry the publication renderer uses.
 /// </summary>
 public sealed class BrochurePhotoService : IBrochurePhotoService
 {
     private const int PrintReadyWidth = 1600;
     private const int PrintReadyHeight = 900;
+    private const int ExcellentWidth = 2400;
+    private const int ExcellentHeight = 1350;
+    private const int AcceptableWidth = 1100;
+    private const int AcceptableHeight = 619;
+    private const int ThumbnailWidth = 360;
+    private const int ThumbnailHeight = 216;
+    private const int SourcePreviewMaxWidth = 1500;
+    private const int SourcePreviewMaxHeight = 1100;
 
     private static readonly string[] MasterExtensions = [".jpg", ".jpeg", ".png", ".webp"];
     private static readonly string[] PreferredDerivativeKeys = ["xl", "lg", "md", "sm", "xs"];
+    private static readonly MemoryCacheEntryOptions ProbeCacheOptions = new()
+    {
+        SlidingExpiration = TimeSpan.FromMinutes(15),
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
+    };
 
     private readonly ApplicationDbContext _db;
     private readonly IUploadRootProvider _uploadRoots;
     private readonly ProjectPhotoOptions _options;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<BrochurePhotoService> _logger;
 
     public BrochurePhotoService(
         ApplicationDbContext db,
         IUploadRootProvider uploadRoots,
         IOptions<ProjectPhotoOptions> options,
+        IMemoryCache cache,
         ILogger<BrochurePhotoService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _uploadRoots = uploadRoots ?? throw new ArgumentNullException(nameof(uploadRoots));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -86,7 +111,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 continue;
             }
 
-            result[reference.PhotoId] = ProbePhoto(photo);
+            result[reference.PhotoId] = ProbePhoto(photo, cancellationToken);
         }
 
         return result;
@@ -132,65 +157,108 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         return result;
     }
 
-    private BrochurePhotoProbe ProbePhoto(ProjectPhoto photo)
+    public async Task<BrochurePhotoPreview?> GetPreviewAsync(
+        int projectId,
+        int photoId,
+        BrochurePhotoPreviewKind kind,
+        CancellationToken cancellationToken = default)
     {
-        var foundFile = false;
-        foreach (var candidate in EnumerateCandidates(photo))
+        if (projectId <= 0 || photoId <= 0 || !Enum.IsDefined(kind))
         {
-            if (!File.Exists(candidate.Path))
+            return null;
+        }
+
+        var photo = await _db.ProjectPhotos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                row => row.Id == photoId && row.ProjectId == projectId,
+                cancellationToken);
+        if (photo is null)
+        {
+            return null;
+        }
+
+        var source = ResolveUsableSource(photo, cancellationToken);
+        if (source is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(source.Path, cancellationToken);
+            using var image = Image.Load(bytes);
+            image.Mutate(context => context.AutoOrient());
+
+            var sourceWidth = image.Width;
+            var sourceHeight = image.Height;
+            if (kind == BrochurePhotoPreviewKind.Thumbnail)
             {
-                continue;
+                var crop = CalculateCropRectangle(
+                    sourceWidth,
+                    sourceHeight,
+                    ThumbnailWidth,
+                    ThumbnailHeight,
+                    .5d,
+                    .5d);
+                image.Mutate(context => context
+                    .Crop(crop)
+                    .Resize(ThumbnailWidth, ThumbnailHeight));
+            }
+            else
+            {
+                ResizeWithinBounds(image, SourcePreviewMaxWidth, SourcePreviewMaxHeight);
             }
 
-            foundFile = true;
-            try
-            {
-                using var stream = new FileStream(
-                    candidate.Path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete);
-                var info = Image.Identify(stream);
-                if (info is null)
-                {
-                    continue;
-                }
+            using var output = new MemoryStream();
+            image.Save(output, new JpegEncoder { Quality = kind == BrochurePhotoPreviewKind.Thumbnail ? 82 : 88 });
 
-                var printReady = !photo.IsLowResolution && IsPrintReadyForWideCrop(info.Width, info.Height);
-                return new BrochurePhotoProbe(
-                    photo.ProjectId,
-                    photo.Id,
-                    true,
-                    printReady,
-                    info.Width,
-                    info.Height,
-                    candidate.Variant);
-            }
-            catch (Exception exception) when (exception is IOException
-                                               or UnauthorizedAccessException
-                                               or UnknownImageFormatException
-                                               or InvalidImageContentException)
-            {
-                _logger.LogDebug(
-                    exception,
-                    "Brochure photo probe rejected candidate. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
-                    photo.ProjectId,
-                    photo.Id,
-                    candidate.Variant);
-            }
+            return new BrochurePhotoPreview(
+                output.ToArray(),
+                "image/jpeg",
+                sourceWidth,
+                sourceHeight,
+                source.Variant,
+                DetermineQuality(sourceWidth, sourceHeight));
+        }
+        catch (Exception exception) when (IsImageReadException(exception))
+        {
+            _logger.LogWarning(
+                exception,
+                "Publication photo preview could not be generated. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
+                projectId,
+                photoId,
+                source.Variant);
+            return null;
+        }
+    }
+
+    private BrochurePhotoProbe ProbePhoto(ProjectPhoto photo, CancellationToken cancellationToken)
+    {
+        var source = ResolveUsableSource(photo, cancellationToken);
+        if (source is null)
+        {
+            return new BrochurePhotoProbe(
+                photo.ProjectId,
+                photo.Id,
+                false,
+                false,
+                0,
+                0,
+                null,
+                "No usable master image or photograph derivative was found.");
         }
 
         return new BrochurePhotoProbe(
             photo.ProjectId,
             photo.Id,
-            false,
-            false,
-            photo.Width,
-            photo.Height,
+            true,
+            source.Quality >= BrochurePhotoQuality.PrintReady,
+            source.Width,
+            source.Height,
+            source.Variant,
             null,
-            foundFile
-                ? "The selected photograph exists but cannot be decoded for publication."
-                : "No usable master image or photograph derivative was found.");
+            source.Quality);
     }
 
     private async Task<BrochurePublicationImage?> RenderPhotoAsync(
@@ -198,6 +266,65 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         BrochurePhotoRenderRequest request,
         CancellationToken cancellationToken)
     {
+        var source = ResolveUsableSource(photo, cancellationToken);
+        if (source is null)
+        {
+            _logger.LogWarning(
+                "No brochure-ready photograph was found. ProjectId={ProjectId}, PhotoId={PhotoId}",
+                photo.ProjectId,
+                photo.Id);
+            return null;
+        }
+
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(source.Path, cancellationToken);
+            using var image = Image.Load(bytes);
+            image.Mutate(context => context.AutoOrient());
+
+            var sourceWidth = image.Width;
+            var sourceHeight = image.Height;
+            var crop = CalculateCropRectangle(
+                sourceWidth,
+                sourceHeight,
+                request.TargetWidth,
+                request.TargetHeight,
+                ClampFocal(request.FocalX),
+                ClampFocal(request.FocalY));
+
+            image.Mutate(context => context
+                .Crop(crop)
+                .Resize(request.TargetWidth, request.TargetHeight)
+                .BackgroundColor(Color.White));
+
+            using var output = new MemoryStream();
+            image.Save(output, new JpegEncoder { Quality = 91 });
+
+            var quality = DetermineQuality(sourceWidth, sourceHeight);
+            return new BrochurePublicationImage(
+                photo.Id,
+                output.ToArray(),
+                sourceWidth,
+                sourceHeight,
+                quality >= BrochurePhotoQuality.PrintReady,
+                source.Variant,
+                quality);
+        }
+        catch (Exception exception) when (IsImageReadException(exception))
+        {
+            _logger.LogWarning(
+                exception,
+                "Brochure photograph could not be rendered. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
+                photo.ProjectId,
+                photo.Id,
+                source.Variant);
+            return null;
+        }
+    }
+
+    private ResolvedPhotoSource? ResolveUsableSource(ProjectPhoto photo, CancellationToken cancellationToken)
+    {
+        var foundFile = false;
         foreach (var candidate in EnumerateCandidates(photo))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -206,56 +333,68 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 continue;
             }
 
+            foundFile = true;
+            var file = new FileInfo(candidate.Path);
+            var cacheKey = $"pub-photo-probe:{photo.Id}:{photo.Version}:{candidate.Path}:{file.Length}:{file.LastWriteTimeUtc.Ticks}";
+            if (_cache.TryGetValue<CandidateProbe>(cacheKey, out var cached) && cached is not null)
+            {
+                if (cached.IsReady)
+                {
+                    return new ResolvedPhotoSource(
+                        candidate.Path,
+                        candidate.Variant,
+                        cached.Width,
+                        cached.Height,
+                        cached.Quality);
+                }
+
+                continue;
+            }
+
+            CandidateProbe probe;
             try
             {
-                var bytes = await File.ReadAllBytesAsync(candidate.Path, cancellationToken);
-                using var image = Image.Load(bytes);
+                using var stream = new FileStream(
+                    candidate.Path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var image = Image.Load(stream);
                 image.Mutate(context => context.AutoOrient());
-
-                var sourceWidth = image.Width;
-                var sourceHeight = image.Height;
-                var crop = CalculateCropRectangle(
-                    sourceWidth,
-                    sourceHeight,
-                    request.TargetWidth,
-                    request.TargetHeight,
-                    ClampFocal(request.FocalX),
-                    ClampFocal(request.FocalY));
-
-                image.Mutate(context => context
-                    .Crop(crop)
-                    .Resize(request.TargetWidth, request.TargetHeight)
-                    .BackgroundColor(Color.White));
-
-                using var output = new MemoryStream();
-                image.Save(output, new JpegEncoder { Quality = 91 });
-
-                return new BrochurePublicationImage(
-                    photo.Id,
-                    output.ToArray(),
-                    sourceWidth,
-                    sourceHeight,
-                    !photo.IsLowResolution && IsPrintReadyForWideCrop(sourceWidth, sourceHeight),
-                    candidate.Variant);
+                var quality = DetermineQuality(image.Width, image.Height);
+                probe = new CandidateProbe(true, image.Width, image.Height, quality);
             }
-            catch (Exception exception) when (exception is IOException
-                                               or UnauthorizedAccessException
-                                               or UnknownImageFormatException
-                                               or InvalidImageContentException)
+            catch (Exception exception) when (IsImageReadException(exception))
             {
-                _logger.LogWarning(
+                _logger.LogDebug(
                     exception,
-                    "Brochure photo candidate could not be rendered. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
+                    "Brochure photo source candidate rejected. ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
                     photo.ProjectId,
                     photo.Id,
                     candidate.Variant);
+                probe = new CandidateProbe(false, 0, 0, BrochurePhotoQuality.Low);
+            }
+
+            _cache.Set(cacheKey, probe, ProbeCacheOptions);
+            if (probe.IsReady)
+            {
+                return new ResolvedPhotoSource(
+                    candidate.Path,
+                    candidate.Variant,
+                    probe.Width,
+                    probe.Height,
+                    probe.Quality);
             }
         }
 
-        _logger.LogWarning(
-            "No brochure-ready photograph was found. ProjectId={ProjectId}, PhotoId={PhotoId}",
-            photo.ProjectId,
-            photo.Id);
+        if (foundFile)
+        {
+            _logger.LogDebug(
+                "Brochure photograph files were present but none could be decoded. ProjectId={ProjectId}, PhotoId={PhotoId}",
+                photo.ProjectId,
+                photo.Id);
+        }
+
         return null;
     }
 
@@ -304,23 +443,36 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         return new Rectangle(x, y, cropWidth, cropHeight);
     }
 
-    private static bool IsPrintReadyForWideCrop(int width, int height)
+    internal static BrochurePhotoQuality DetermineQuality(int width, int height)
+    {
+        var (effectiveWidth, effectiveHeight) = EffectiveWideCropDimensions(width, height);
+        if (effectiveWidth >= ExcellentWidth && effectiveHeight >= ExcellentHeight)
+        {
+            return BrochurePhotoQuality.Excellent;
+        }
+        if (effectiveWidth >= PrintReadyWidth && effectiveHeight >= PrintReadyHeight)
+        {
+            return BrochurePhotoQuality.PrintReady;
+        }
+        if (effectiveWidth >= AcceptableWidth && effectiveHeight >= AcceptableHeight)
+        {
+            return BrochurePhotoQuality.Acceptable;
+        }
+        return BrochurePhotoQuality.Low;
+    }
+
+    internal static (double Width, double Height) EffectiveWideCropDimensions(int width, int height)
     {
         if (width <= 0 || height <= 0)
         {
-            return false;
+            return (0d, 0d);
         }
 
         const double targetAspect = 16d / 9d;
         var sourceAspect = width / (double)height;
-        var effectiveWidth = sourceAspect > targetAspect
-            ? height * targetAspect
-            : width;
-        var effectiveHeight = sourceAspect > targetAspect
-            ? height
-            : width / targetAspect;
-
-        return effectiveWidth >= PrintReadyWidth && effectiveHeight >= PrintReadyHeight;
+        return sourceAspect > targetAspect
+            ? (height * targetAspect, height)
+            : (width, width / targetAspect);
     }
 
     private IEnumerable<PhotoCandidate> EnumerateCandidates(ProjectPhoto photo)
@@ -375,8 +527,29 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
             .Select(group => group.First())
             .ToArray() ?? Array.Empty<BrochurePhotoReference>();
 
+    private static void ResizeWithinBounds(Image image, int maxWidth, int maxHeight)
+    {
+        if (image.Width <= maxWidth && image.Height <= maxHeight)
+        {
+            return;
+        }
+
+        var ratio = Math.Min(maxWidth / (double)image.Width, maxHeight / (double)image.Height);
+        var width = Math.Max(1, (int)Math.Round(image.Width * ratio));
+        var height = Math.Max(1, (int)Math.Round(image.Height * ratio));
+        image.Mutate(context => context.Resize(width, height));
+    }
+
+    private static bool IsImageReadException(Exception exception)
+        => exception is IOException
+            or UnauthorizedAccessException
+            or UnknownImageFormatException
+            or InvalidImageContentException;
+
     private static double ClampFocal(double value)
         => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
 
     private sealed record PhotoCandidate(string Path, string Variant);
+    private sealed record CandidateProbe(bool IsReady, int Width, int Height, BrochurePhotoQuality Quality);
+    private sealed record ResolvedPhotoSource(string Path, string Variant, int Width, int Height, BrochurePhotoQuality Quality);
 }

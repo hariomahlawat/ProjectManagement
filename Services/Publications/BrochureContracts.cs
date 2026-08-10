@@ -37,6 +37,20 @@ public enum PublicationIssueSeverity
     Information = 3
 }
 
+public enum BrochurePhotoQuality
+{
+    Low = 1,
+    Acceptable = 2,
+    PrintReady = 3,
+    Excellent = 4
+}
+
+public enum BrochurePhotoPreviewKind
+{
+    Thumbnail = 1,
+    Source = 2
+}
+
 public enum BrochurePreflightIssueCode
 {
     ProjectUnavailable = 1,
@@ -105,7 +119,16 @@ public sealed record BrochurePhotoProbe(
     int Width,
     int Height,
     string? SourceVariant,
-    string? FailureReason = null);
+    string? FailureReason = null,
+    BrochurePhotoQuality Quality = BrochurePhotoQuality.Low);
+
+public sealed record BrochurePhotoPreview(
+    byte[] Content,
+    string ContentType,
+    int SourceWidth,
+    int SourceHeight,
+    string SourceVariant,
+    BrochurePhotoQuality Quality);
 
 public sealed record BrochurePhotoRenderRequest(
     int ProjectId,
@@ -121,7 +144,8 @@ public sealed record BrochurePublicationImage(
     int SourceWidth,
     int SourceHeight,
     bool IsPrintReady,
-    string SourceVariant);
+    string SourceVariant,
+    BrochurePhotoQuality Quality = BrochurePhotoQuality.Low);
 
 public sealed record BrochurePublicationProject(
     int ProjectId,

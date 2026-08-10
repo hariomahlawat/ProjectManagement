@@ -13,6 +13,7 @@ public interface IBrochurePublicationService
     Task<BrochurePreflight> PreflightAsync(
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
+        BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
         CancellationToken cancellationToken = default);
 
@@ -134,12 +135,14 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
     public async Task<BrochurePreflight> PreflightAsync(
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
+        BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
         CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareAsync(
             selections,
             narrativeSource,
+            coverStyle,
             allowTextOnlyProjects,
             cancellationToken);
         return prepared.Preflight;
@@ -155,6 +158,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         var prepared = await PrepareAsync(
             selections,
             options.NarrativeSource,
+            options.CoverStyle,
             options.AllowTextOnlyProjects,
             cancellationToken);
         if (!prepared.Preflight.CanGenerate)
@@ -231,6 +235,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
     private async Task<PreparedPublication> PrepareAsync(
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
+        BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
         CancellationToken cancellationToken)
     {
@@ -238,6 +243,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         if (!Enum.IsDefined(narrativeSource))
         {
             throw new InvalidOperationException("The selected brochure narrative source is invalid.");
+        }
+        if (!Enum.IsDefined(coverStyle))
+        {
+            throw new InvalidOperationException("The selected brochure cover style is invalid.");
         }
 
         var normalizedSelections = NormalizeSelections(selections);
@@ -437,6 +446,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             })
             .ToArray();
         var probes = await _photoService.ProbeAsync(references, cancellationToken);
+        var coverHeroProjectId = coverStyle == BrochureCoverStyle.Contemporary
+            ? prepared.FirstOrDefault(project =>
+                project.PrimaryPhotoId.HasValue
+                && probes.TryGetValue(project.PrimaryPhotoId.Value, out var probe)
+                && probe.IsReady)?.Row.ProjectId
+            : null;
 
         foreach (var project in prepared)
         {
@@ -452,14 +467,15 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                         project.Row.ProjectName,
                         primaryProbe?.FailureReason ?? "The selected primary photograph cannot be loaded from storage."));
                 }
-                else if (!primaryProbe.IsPrintReady)
+                else
                 {
-                    issues.Add(new BrochurePreflightIssue(
-                        BrochurePreflightIssueCode.LowResolutionPhoto,
-                        PublicationIssueSeverity.Warning,
-                        project.Row.ProjectId,
-                        project.Row.ProjectName,
-                        $"Primary photograph is {primaryProbe.Width}×{primaryProbe.Height}px; it may look soft in a large brochure frame."));
+                    var placement = coverHeroProjectId == project.Row.ProjectId
+                        ? PhotoPlacement.CoverHero
+                        : project.ImageMode == BrochureImageMode.GalleryTwo
+                          || project.NarrativeWordCount > BrochureLayoutPlanner.ThreeProjectMaximumWords
+                            ? PhotoPlacement.Feature
+                            : PhotoPlacement.Card;
+                    AddQualityFinding(issues, project, primaryProbe, placement, "Primary");
                 }
             }
 
@@ -477,14 +493,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                         project.Row.ProjectName,
                         secondaryProbe?.FailureReason ?? "The selected second photograph cannot be loaded from storage."));
                 }
-                else if (!secondaryProbe.IsPrintReady)
+                else
                 {
-                    issues.Add(new BrochurePreflightIssue(
-                        BrochurePreflightIssueCode.LowResolutionPhoto,
-                        PublicationIssueSeverity.Warning,
-                        project.Row.ProjectId,
-                        project.Row.ProjectName,
-                        $"Second photograph is {secondaryProbe.Width}×{secondaryProbe.Height}px; it may look soft in print."));
+                    AddQualityFinding(issues, project, secondaryProbe, PhotoPlacement.Card, "Second");
                 }
             }
         }
@@ -492,6 +503,44 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         return new PreparedPublication(
             prepared,
             new BrochurePreflight(normalizedSelections.Length, issues));
+    }
+
+
+    private static void AddQualityFinding(
+        ICollection<BrochurePreflightIssue> issues,
+        PreparedProject project,
+        BrochurePhotoProbe probe,
+        PhotoPlacement placement,
+        string label)
+    {
+        var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveWideCropDimensions(
+            probe.Width,
+            probe.Height);
+        var (minimumWidth, minimumHeight, placementLabel) = placement switch
+        {
+            PhotoPlacement.CoverHero => (1800d, 1013d, "Cover B hero"),
+            PhotoPlacement.Feature => (1400d, 788d, "large feature frame"),
+            _ => (1100d, 619d, "standard project frame")
+        };
+
+        if (effectiveWidth >= minimumWidth && effectiveHeight >= minimumHeight)
+        {
+            return;
+        }
+
+        issues.Add(new BrochurePreflightIssue(
+            BrochurePreflightIssueCode.LowResolutionPhoto,
+            PublicationIssueSeverity.Warning,
+            project.Row.ProjectId,
+            project.Row.ProjectName,
+            $"{label} photograph resolves to {probe.Width}×{probe.Height}px and may look soft in the {placementLabel}. A higher-resolution source is recommended."));
+    }
+
+    private enum PhotoPlacement
+    {
+        Card = 1,
+        Feature = 2,
+        CoverHero = 3
     }
 
     private static IEnumerable<BrochurePhotoRenderRequest> BuildRenderRequests(PreparedProject project)

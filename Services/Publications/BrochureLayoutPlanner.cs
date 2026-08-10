@@ -9,6 +9,8 @@ namespace ProjectManagement.Services.Publications;
 /// </summary>
 public static partial class BrochureLayoutPlanner
 {
+    public const int FourProjectMaximumWords = 85;
+    public const int ThreeProjectMaximumWords = 125;
     public const int LongNarrativeChunkWords = 210;
 
     public static IReadOnlyList<BrochurePagePlan> Plan(IReadOnlyList<BrochurePublicationProject> projects)
@@ -170,14 +172,14 @@ public static partial class BrochureLayoutPlanner
     private static bool CanUseFour(IReadOnlyList<BrochureProjectFragment> fragments, int index)
         => fragments.Skip(index).Take(4).All(fragment =>
             !fragment.IsContinuation
-            && fragment.NarrativeWordCount <= 85
+            && fragment.NarrativeWordCount <= FourProjectMaximumWords
             && fragment.Project.ProjectName.Length <= 105
             && fragment.Project.ImageMode != BrochureImageMode.GalleryTwo);
 
     private static bool CanUseThree(IReadOnlyList<BrochureProjectFragment> fragments, int index)
         => fragments.Skip(index).Take(3).All(fragment =>
             !fragment.IsContinuation
-            && fragment.NarrativeWordCount <= 125
+            && fragment.NarrativeWordCount <= ThreeProjectMaximumWords
             && fragment.Project.ProjectName.Length <= 130
             && fragment.Project.ImageMode != BrochureImageMode.GalleryTwo);
 

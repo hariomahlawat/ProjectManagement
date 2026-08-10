@@ -14,6 +14,7 @@ public sealed class IndexModel : PageModel
     private const int MaximumSelectedProjects = 100;
 
     private readonly IBrochurePublicationService _publicationService;
+    private readonly IBrochurePhotoService _photoService;
     private readonly IBrochurePdfReportBuilder _pdfBuilder;
     private readonly IPublicationFontService _fontService;
     private readonly IClock _clock;
@@ -21,12 +22,14 @@ public sealed class IndexModel : PageModel
 
     public IndexModel(
         IBrochurePublicationService publicationService,
+        IBrochurePhotoService photoService,
         IBrochurePdfReportBuilder pdfBuilder,
         IPublicationFontService fontService,
         IClock clock,
         ILogger<IndexModel> logger)
     {
         _publicationService = publicationService ?? throw new ArgumentNullException(nameof(publicationService));
+        _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _pdfBuilder = pdfBuilder ?? throw new ArgumentNullException(nameof(pdfBuilder));
         _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -56,13 +59,47 @@ public sealed class IndexModel : PageModel
         await LoadAsync(cancellationToken);
     }
 
+    public async Task<IActionResult> OnGetPhotoAsync(
+        int projectId,
+        int photoId,
+        string? mode,
+        int v,
+        CancellationToken cancellationToken)
+    {
+        var kind = string.Equals(mode, "source", StringComparison.OrdinalIgnoreCase)
+            ? BrochurePhotoPreviewKind.Source
+            : BrochurePhotoPreviewKind.Thumbnail;
+        var preview = await _photoService.GetPreviewAsync(
+            projectId,
+            photoId,
+            kind,
+            cancellationToken);
+        if (preview is null)
+        {
+            return NotFound();
+        }
+
+        Response.Headers.CacheControl = "private,max-age=86400";
+        Response.Headers["X-PRISM-Publication-Photo-Source"] = preview.SourceVariant;
+        Response.Headers["X-PRISM-Publication-Photo-Size"] = $"{preview.SourceWidth}x{preview.SourceHeight}";
+        Response.Headers["X-PRISM-Publication-Photo-Quality"] = preview.Quality.ToString();
+        return File(preview.Content, preview.ContentType);
+    }
+
     public async Task<IActionResult> OnPostPreflightAsync(CancellationToken cancellationToken)
     {
         ApplyDefaults();
         NormalizeInput();
 
-        if (!Enum.IsDefined(Input.NarrativeSource))
+        if (!Enum.IsDefined(Input.NarrativeSource) || !Enum.IsDefined(Input.CoverStyle))
         {
+            var message = !Enum.IsDefined(Input.NarrativeSource)
+                ? "Select a valid project narrative source."
+                : "Select a valid brochure cover style.";
+            var code = !Enum.IsDefined(Input.NarrativeSource)
+                ? "invalidNarrativeSource"
+                : "invalidCoverStyle";
+
             return new JsonResult(new
             {
                 selectedProjectCount = Input.Selections.Count,
@@ -75,10 +112,10 @@ public sealed class IndexModel : PageModel
                     new
                     {
                         severity = "blocker",
-                        code = "invalidNarrativeSource",
+                        code,
                         projectId = (int?)null,
                         projectName = (string?)null,
-                        message = "Select a valid project narrative source."
+                        message
                     }
                 }
             });
@@ -87,6 +124,7 @@ public sealed class IndexModel : PageModel
         var preflight = await _publicationService.PreflightAsync(
             ToSelections(),
             Input.NarrativeSource,
+            Input.CoverStyle,
             Input.AllowTextOnlyProjects,
             cancellationToken);
         return new JsonResult(ToClientPreflight(preflight));

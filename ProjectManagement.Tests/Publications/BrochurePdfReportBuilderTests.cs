@@ -34,6 +34,34 @@ public sealed class BrochurePdfReportBuilderTests
         }
     }
 
+    [Fact]
+    public void SplitIntroduction_KeepsShortCopyOnOnePage()
+    {
+        const string text = "A concise institutional introduction for the capability publication.";
+
+        var pages = BrochurePdfReportBuilder.SplitIntroduction(text, maximumWords: 330);
+
+        var page = Assert.Single(pages);
+        Assert.Equal(text, page);
+    }
+
+    [Fact]
+    public void SplitIntroduction_BalancesLongCopyWithoutLosingWords()
+    {
+        var words = Enumerable.Range(1, 700).Select(index => $"word{index}").ToArray();
+        var text = string.Join(" ", words);
+
+        var pages = BrochurePdfReportBuilder.SplitIntroduction(text, maximumWords: 330);
+
+        Assert.Equal(3, pages.Count);
+        Assert.All(pages, page => Assert.InRange(BrochureLayoutPlanner.CountWords(page), 1, 330));
+
+        var rebuilt = pages
+            .SelectMany(page => page.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToArray();
+        Assert.Equal(words, rebuilt);
+    }
+
     private static BrochurePublicationData BuildData(BrochureCoverStyle coverStyle)
     {
         var projects = Enumerable.Range(1, 5)
