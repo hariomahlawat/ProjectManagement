@@ -253,6 +253,7 @@
                         data-current-status="@s.Status"
                         data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
                         data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                        data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                         data-start-source="@s.SuggestedStartSourceName"
                         data-stage-sort-order="@s.SortOrder"
                         data-pending-status="@s.PendingStatus"
@@ -309,6 +310,7 @@
                                 data-stage-name="@s.Name"
                                 data-status="InProgress"
                                 data-default-date="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                                 data-start-source="@s.SuggestedStartSourceName">
                           Start stage
                         </button>
@@ -322,6 +324,7 @@
                                 data-status="Completed"
                                 data-direct-completion="true"
                                 data-default-start-date="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                                 data-start-source="@s.SuggestedStartSourceName">
                           Complete stage directly
                         </button>
@@ -358,6 +361,7 @@
                                 data-status="Completed"
                                 data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")"
                                 data-default-start-date="@((s.ActualStart ?? s.SuggestedStartDate)?.ToString("yyyy-MM-dd"))"
+                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                                 data-start-source="@s.SuggestedStartSourceName">
                           Complete stage
                         </button>
@@ -437,6 +441,7 @@
                               data-current-status="@s.Status"
                               data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
                               data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                              data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
                               data-start-source="@s.SuggestedStartSourceName"
                               data-stage-sort-order="@s.SortOrder"
                               data-pending-status="@s.PendingStatus"
@@ -569,7 +574,7 @@
                   <span class="pm-date-label">Time taken</span>
                   <strong data-stage-duration>
                     @(s.ActualDurationDays.HasValue
-                      ? $"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}"
+                      ? $"{s.ActualDurationDays.Value} calendar day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}"
                       : "Unavailable")
                   </strong>
                 </div>

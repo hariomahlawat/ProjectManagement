@@ -1,0 +1,33 @@
+IMPLEMENTED POLICY
+==================
+
+Chronology
+- Earliest permitted successor start = predecessor completion date.
+- Normal suggested successor start = predecessor completion + 1 day.
+- Equality is allowed; dates before the boundary are rejected.
+- Skipped-stage traversal behaviour is preserved.
+
+Actual duration
+- Inclusive calendar-day semantics are centralized in StageDurationCalculator.
+- Same-day start/completion = 1 day.
+- Timeline, ongoing-project history, tracker presentation and analytics use aligned semantics.
+
+Planned duration
+- Exact planned-date saves use WorkingCalendar.CountWorkingDaysInclusive.
+- Existing ProjectScheduleSettings (weekends/holidays) are respected.
+- Direct HoD/Admin exact saves also synchronize ProjectPlanDuration.DurationDays.
+
+Bulk actual-date editor
+- Client recalculates chronology boundaries from current form values.
+- Server validates against projected predecessor completion values in the same submission.
+- This permits coordinated correction of adjacent stage dates without stale min-date blocking.
+
+Regression coverage
+- suggestion vs earliest-boundary separation
+- same-day valid / previous-day invalid
+- direct completion on boundary
+- projected PO request sequence
+- actual-date editor chronology
+- inclusive analytics duration
+- working-day exact plan duration
+- same-day timeline presentation

@@ -443,7 +443,7 @@ public sealed class StageApprovalSequenceService
                         ApprovalCheckState.Blocked,
                         "Lifecycle chronology",
                         $"The {chronologyLabel} must be on or after {startBoundary.EarliestStartDate:dd MMM yyyy}, " +
-                        $"the day after {StageCodes.DisplayNameOf(workflow.WorkflowVersion, startBoundary.SourceStageCode!)} completion."));
+                        $"when {StageCodes.DisplayNameOf(workflow.WorkflowVersion, startBoundary.SourceStageCode!)} was completed. Same-day commencement is permitted."));
                 }
                 else
                 {
@@ -537,7 +537,7 @@ public sealed class StageApprovalSequenceService
             }
 
             return effectiveStatus == StageStatus.Completed && effectiveCompletion.HasValue
-                ? new StartBoundary(effectiveCompletion.Value.AddDays(1), predecessorCode)
+                ? new StartBoundary(effectiveCompletion.Value, predecessorCode)
                 : StartBoundary.None;
         }
 

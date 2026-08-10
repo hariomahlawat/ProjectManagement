@@ -196,6 +196,77 @@ public class EditPlanPncOptionalityTests
     }
 
     [Fact]
+    public async Task ExactFlow_RecalculatesDurationAsWorkingDays_NotCalendarDays()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedStageTemplates(db);
+
+        db.Projects.Add(new Project
+        {
+            Id = 20,
+            Name = "Working-day exact plan",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 20,
+            IncludeWeekends = false,
+            SkipHolidays = true,
+            NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay
+        });
+        db.Holidays.Add(new Holiday
+        {
+            Date = new DateOnly(2024, 3, 5),
+            Name = "Test office holiday",
+            Type = HolidayType.Gazetted
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 3, 10, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var planGeneration = new PlanGenerationService(db);
+
+        var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            Input = new PlanEditInput
+            {
+                ProjectId = 20,
+                Mode = PlanEditorModes.Exact,
+                Action = PlanEditActions.SaveDraft,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new()
+                    {
+                        Code = StageCodes.PNC,
+                        Name = "PNC",
+                        PlannedStart = new DateOnly(2024, 3, 1), // Friday
+                        PlannedDue = new DateOnly(2024, 3, 7)    // Thursday
+                    }
+                }
+            }
+        };
+
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(20, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var stagePlan = await db.StagePlans.SingleAsync(stage => stage.StageCode == StageCodes.PNC);
+
+        // 01, 04, 06 and 07 Mar are working days. Weekend 02-03 Mar and
+        // the gazetted holiday on 05 Mar are excluded.
+        Assert.Equal(4, stagePlan.DurationDays);
+    }
+
+    [Fact]
     public async Task DurationsFlow_WorkflowVersionWithoutOptionalStageRequiresDuration()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

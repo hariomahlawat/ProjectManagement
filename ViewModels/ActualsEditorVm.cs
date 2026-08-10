@@ -33,6 +33,10 @@ public sealed class ActualsEditorRowVm
 
     public DateOnly? CompletedOn { get; init; }
 
+    public DateOnly? EarliestAllowedStartDate { get; init; }
+
+    public string? StartBoundarySourceName { get; init; }
+
     public bool IsAutoCompleted { get; init; }
 
     public bool RequiresBackfill { get; init; }

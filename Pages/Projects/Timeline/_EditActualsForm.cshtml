@@ -30,11 +30,19 @@
                 var completedId = $"actual-completed-{row.StageCode}";
                 var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
                 var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
+                var earliestStartValue = row.EarliestAllowedStartDate?.ToString("yyyy-MM-dd");
+                var startBoundarySourceName = row.StartBoundarySourceName ?? "predecessor";
                 var canEditStart = row.IsEditable && !row.HasPendingDecision;
                 var canEditCompletion = canEditStart && !row.IsArppManaged;
                 var startDisabledAttr = canEditStart ? null : "disabled";
                 var completionDisabledAttr = canEditCompletion ? null : "disabled";
-                <section class="actuals-editor__stage border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
+                <section class="actuals-editor__stage border rounded p-3"
+                         data-actuals-row
+                         data-stage-code="@row.StageCode"
+                         data-stage-name="@row.StageName"
+                         data-stage-status="@row.Status"
+                         data-earliest-start="@earliestStartValue"
+                         data-start-source="@row.StartBoundarySourceName">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div class="d-flex flex-column">
                             <div class="fw-semibold">@row.StageName</div>
@@ -80,7 +88,14 @@
                                 }
                                 else
                                 {
-                                    <text>@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration may be inferred from the preceding completion date." : "Enter when work began for the current stage.")</text>
+                                    @if (row.EarliestAllowedStartDate.HasValue)
+                                    {
+                                        <text>Earliest permitted: @row.EarliestAllowedStartDate.Value.ToString("dd MMM yyyy") (@startBoundarySourceName completion). Same-day commencement is permitted. @(row.Status == StageStatus.Completed ? "If omitted, duration may be inferred from the following day." : string.Empty)</text>
+                                    }
+                                    else
+                                    {
+                                        <text>@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration may be inferred from the preceding completion date." : "Enter when work began for the current stage.")</text>
+                                    }
                                 }
                             </div>
                         </div>

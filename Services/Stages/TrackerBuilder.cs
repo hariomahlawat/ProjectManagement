@@ -4,6 +4,8 @@ using System.Linq;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 
+using ProjectManagement.Utilities;
+
 namespace ProjectManagement.Services.Stages;
 
 public sealed class TrackerBuilder
@@ -188,7 +190,9 @@ public sealed class TrackerBuilder
 
         if (from != null && from.Status == StageStatus.Completed && from.CompletedOn.HasValue && from.ActualStart.HasValue)
         {
-            var days = Math.Max(1, DaysBetween(from.ActualStart.Value, from.CompletedOn.Value));
+            var days = StageDurationCalculator.InclusiveCalendarDays(
+                from.ActualStart.Value,
+                from.CompletedOn.Value);
             if (from.PlannedDue.HasValue)
             {
                 var slip = DaysBetween(from.PlannedDue.Value, from.CompletedOn.Value);
@@ -212,7 +216,9 @@ public sealed class TrackerBuilder
         {
             if (to.ActualStart.HasValue)
             {
-                var duration = Math.Max(1, DaysBetween(to.ActualStart.Value, today));
+                var duration = StageDurationCalculator.InclusiveCalendarDays(
+                    to.ActualStart.Value,
+                    today);
                 label = $"in progress {duration}d";
                 variant = "progress";
             }

@@ -7,9 +7,12 @@ using ProjectManagement.Models.Stages;
 namespace ProjectManagement.Services.Stages;
 
 /// <summary>
-/// Resolves the suggested start date for a stage from the immediately preceding
-/// stage in the project's configured workflow. Consecutive skipped stages are
-/// traversed backwards until the first non-skipped predecessor is found.
+/// Resolves both the normal suggested start date and the earliest permissible
+/// start boundary from the effective predecessor in the project's configured
+/// workflow. The conventional suggestion remains the following day, while the
+/// predecessor completion date itself is a valid same-day commencement boundary.
+/// Consecutive skipped stages are traversed backwards until the first non-skipped
+/// predecessor is found.
 /// </summary>
 public static class StageDateSuggestionResolver
 {
@@ -69,16 +72,19 @@ public static class StageDateSuggestionResolver
 
             if (predecessor?.Status == StageStatus.Completed && predecessor.CompletedOn.HasValue)
             {
+                var completionDate = predecessor.CompletedOn.Value;
                 return new StageDateSuggestion(
-                    predecessor.CompletedOn.Value.AddDays(1),
-                    predecessorDefinition.Code,
-                    predecessorDefinition.Name,
-                    predecessor.CompletedOn.Value,
+                    SuggestedStartDate: completionDate.AddDays(1),
+                    EarliestAllowedStartDate: completionDate,
+                    SourceStageCode: predecessorDefinition.Code,
+                    SourceStageName: predecessorDefinition.Name,
+                    SourceCompletionDate: completionDate,
                     SkippedStageCount: targetIndex - index - 1);
             }
 
             return new StageDateSuggestion(
                 SuggestedStartDate: null,
+                EarliestAllowedStartDate: null,
                 SourceStageCode: predecessorDefinition.Code,
                 SourceStageName: predecessorDefinition.Name,
                 SourceCompletionDate: predecessor?.CompletedOn,
@@ -91,12 +97,15 @@ public static class StageDateSuggestionResolver
 
 public sealed record StageDateSuggestion(
     DateOnly? SuggestedStartDate,
+    DateOnly? EarliestAllowedStartDate,
     string? SourceStageCode,
     string? SourceStageName,
     DateOnly? SourceCompletionDate,
     int SkippedStageCount)
 {
-    public static StageDateSuggestion None { get; } = new(null, null, null, null, 0);
+    public static StageDateSuggestion None { get; } = new(null, null, null, null, null, 0);
 
     public bool HasSuggestion => SuggestedStartDate.HasValue;
+
+    public bool HasStartBoundary => EarliestAllowedStartDate.HasValue;
 }

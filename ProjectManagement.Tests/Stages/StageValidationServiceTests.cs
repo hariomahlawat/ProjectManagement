@@ -139,6 +139,89 @@ public class StageValidationServiceTests
     }
 
     [Fact]
+    public async Task ValidateAsync_StartingStageOnPredecessorCompletionDate_IsAllowedAndKeepsNextDaySuggestion()
+    {
+        var today = new DateOnly(2025, 9, 15);
+        var predecessorCompleted = new DateOnly(2025, 9, 10);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), predecessorCompleted),
+            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.IPA,
+            StageStatus.InProgress.ToString(),
+            predecessorCompleted,
+            requestedStartDate: null,
+            isHoD: false);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+        Assert.Equal(predecessorCompleted.AddDays(1), result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_StartingStageBeforePredecessorCompletionDate_IsRejected()
+    {
+        var today = new DateOnly(2025, 9, 15);
+        var predecessorCompleted = new DateOnly(2025, 9, 10);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), predecessorCompleted),
+            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.IPA,
+            StageStatus.InProgress.ToString(),
+            predecessorCompleted.AddDays(-1),
+            requestedStartDate: null,
+            isHoD: false);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+            error.Contains("2025-09-10", StringComparison.Ordinal)
+            && error.Contains("Same-day commencement is permitted", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(predecessorCompleted.AddDays(1), result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_DirectCompletion_AllowsSameDayStartAndCompletionAtPredecessorBoundary()
+    {
+        var today = new DateOnly(2025, 9, 15);
+        var predecessorCompleted = new DateOnly(2025, 9, 10);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), predecessorCompleted),
+            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.IPA,
+            StageStatus.Completed.ToString(),
+            predecessorCompleted,
+            requestedStartDate: predecessorCompleted,
+            isHoD: true);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+        Assert.Equal(predecessorCompleted.AddDays(1), result.SuggestedAutoStart);
+    }
+
+    [Fact]
     public async Task ValidateAsync_DirectCompletion_AllowsBlankStartWhenCompletionIsChronologicallyValid()
     {
         var today = new DateOnly(2025, 9, 15);

@@ -847,12 +847,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     }
 
     private static double CalculateStageDurationDays(DateOnly start, DateOnly end)
-    {
-        var startDate = start.ToDateTime(TimeOnly.MinValue);
-        var endDate = end.ToDateTime(TimeOnly.MinValue);
-        var duration = (endDate - startDate).TotalDays;
-        return duration < 0 ? 0 : duration;
-    }
+        => StageDurationCalculator.InclusiveCalendarDays(start, end);
 
     private static double CalculateMedian(double[] orderedValues)
     {

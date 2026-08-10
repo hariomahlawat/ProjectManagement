@@ -578,7 +578,7 @@
       updateSubmitButton(status);
     }
 
-    function configureStartDate(status, defaultStartDate, sourceName, isDirectCompletion) {
+    function configureStartDate(status, defaultStartDate, earliestStartDate, sourceName, isDirectCompletion) {
       if (!startDateInput || !startDateGroup) return;
 
       const showStartDate = status === 'Completed';
@@ -586,6 +586,7 @@
       startDateInput.disabled = !showStartDate;
       startDateInput.required = false;
       startDateInput.value = showStartDate ? (defaultStartDate || '') : '';
+      startDateInput.min = showStartDate ? (earliestStartDate || '') : '';
 
       if (completionNote) {
         completionNote.classList.toggle('d-none', !(showStartDate && isDirectCompletion));
@@ -594,6 +595,8 @@
       if (!startDateHint) return;
       if (!showStartDate) {
         startDateHint.textContent = '';
+      } else if (defaultStartDate && earliestStartDate && sourceName) {
+        startDateHint.textContent = `Suggested: ${formatDate(defaultStartDate)}. Same-day start on ${formatDate(earliestStartDate)}, when ${sourceName} was completed, is permitted.`;
       } else if (defaultStartDate && sourceName) {
         startDateHint.textContent = `Suggested as the day after ${sourceName} was completed. You may edit this date.`;
       } else if (defaultStartDate) {
@@ -669,6 +672,7 @@
       const stageName = trigger.getAttribute('data-stage-name') || '';
       const defaultDate = trigger.getAttribute('data-default-date') || '';
       const defaultStartDate = trigger.getAttribute('data-default-start-date') || '';
+      const earliestStartDate = trigger.getAttribute('data-earliest-start') || '';
       const startSource = trigger.getAttribute('data-start-source') || '';
       activeStatus = status;
       activeDirectCompletion = trigger.getAttribute('data-direct-completion') === 'true';
@@ -708,8 +712,9 @@
       const requiresDate = applyDateState(status, { resetValue: true });
       if (dateInput) {
         dateInput.value = defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
+        dateInput.min = status === 'InProgress' || status === 'Completed' ? earliestStartDate : '';
       }
-      configureStartDate(status, defaultStartDate, startSource, activeDirectCompletion);
+      configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion);
       updateNoDateWarning(status);
 
       if (submitButton) {
@@ -924,6 +929,7 @@
         currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
         actualStart: button.getAttribute('data-actual-start') || '',
         suggestedStart: button.getAttribute('data-suggested-start') || '',
+        earliestStart: button.getAttribute('data-earliest-start') || '',
         startSource: button.getAttribute('data-start-source') || '',
         pendingStatus: button.getAttribute('data-pending-status') || '',
         pendingDate: button.getAttribute('data-pending-date') || '',
@@ -1024,15 +1030,18 @@
       if (label) label.textContent = config.label;
       if (hint) {
         if (status === 'InProgress' && stage?.suggestedStart && !preferredValue) {
-          hint.textContent = stage.startSource
-            ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
-            : 'Suggested from the preceding workflow stage. You may edit it.';
+          hint.textContent = stage.startSource && stage.earliestStart
+            ? `Suggested: ${formatDate(stage.suggestedStart)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
+            : stage.startSource
+              ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
+              : 'Suggested from the preceding workflow stage. You may edit it.';
         } else {
           hint.textContent = config.hint;
         }
       }
       if (dateInput) {
         dateInput.required = config.required;
+        dateInput.min = status === 'InProgress' || status === 'Completed' ? (stage?.earliestStart || '') : '';
         if (preferredValue) {
           dateInput.value = preferredValue;
         } else if (resetValue) {
@@ -1063,6 +1072,7 @@
       if (input) {
         input.disabled = !visible;
         input.required = false;
+        input.min = visible ? (stage?.earliestStart || '') : '';
         if (!visible) {
           input.value = '';
         } else if (preferredValue) {
@@ -1077,6 +1087,8 @@
         hint.textContent = '';
       } else if (stage?.actualStart) {
         hint.textContent = 'Existing stage start. Edit it only when the recorded date needs correction.';
+      } else if (stage?.startSource && stage?.suggestedStart && stage?.earliestStart) {
+        hint.textContent = `Suggested: ${formatDate(stage.suggestedStart)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`;
       } else if (stage?.startSource && stage?.suggestedStart) {
         hint.textContent = `Suggested as the day after ${stage.startSource} was completed. You may edit it.`;
       } else if (stage?.suggestedStart) {

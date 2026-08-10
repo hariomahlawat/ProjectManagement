@@ -231,6 +231,151 @@ public sealed class StageActualsUpdateServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_AllowsSuccessorToStartOnPredecessorCompletionDate()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Same-day chronology",
+            CreatedByUserId = "user-1",
+            WorkflowVersion = ProcurementWorkflow.VersionV1
+        });
+
+        var predecessorCompletion = new DateOnly(2024, 1, 10);
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.FS,
+                SortOrder = 0,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2024, 1, 1),
+                CompletedOn = predecessorCompletion
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 1,
+                Status = StageStatus.InProgress,
+                ActualStart = predecessorCompletion.AddDays(1)
+            });
+
+        await db.SaveChangesAsync();
+
+        var service = new StageActualsUpdateService(
+            db,
+            new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)),
+            new FakeAudit(),
+            NullLogger<StageActualsUpdateService>.Instance,
+            workflowPolicy: StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.UpdateAsync(
+            new ActualsEditInput
+            {
+                ProjectId = 1,
+                Rows = new List<ActualsEditRowInput>
+                {
+                    new()
+                    {
+                        StageCode = StageCodes.IPA,
+                        ActualStart = predecessorCompletion
+                    }
+                }
+            },
+            userId: "user-1",
+            userName: "Tester");
+
+        Assert.Equal(1, result.UpdatedCount);
+        var successor = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        Assert.Equal(predecessorCompletion, successor.ActualStart);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsSuccessorStartBeforePredecessorCompletionDate()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Chronology guard",
+            CreatedByUserId = "user-1",
+            WorkflowVersion = ProcurementWorkflow.VersionV1
+        });
+
+        var predecessorCompletion = new DateOnly(2024, 1, 10);
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.FS,
+                SortOrder = 0,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2024, 1, 1),
+                CompletedOn = predecessorCompletion
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 1,
+                Status = StageStatus.InProgress,
+                ActualStart = predecessorCompletion.AddDays(1)
+            });
+
+        await db.SaveChangesAsync();
+
+        var service = new StageActualsUpdateService(
+            db,
+            new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)),
+            new FakeAudit(),
+            NullLogger<StageActualsUpdateService>.Instance,
+            workflowPolicy: StageWorkflowTestFactory.CreatePolicy(db));
+
+        var exception = await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(
+            new ActualsEditInput
+            {
+                ProjectId = 1,
+                Rows = new List<ActualsEditRowInput>
+                {
+                    new()
+                    {
+                        StageCode = StageCodes.IPA,
+                        ActualStart = predecessorCompletion.AddDays(-1)
+                    }
+                }
+            },
+            userId: "user-1",
+            userName: "Tester"));
+
+        Assert.Contains(exception.Errors, error =>
+            error.Contains("10 Jan 2024", StringComparison.OrdinalIgnoreCase)
+            && error.Contains("Same-day commencement is permitted", StringComparison.OrdinalIgnoreCase));
+
+        var successor = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        Assert.Equal(predecessorCompletion.AddDays(1), successor.ActualStart);
+    }
+
+    [Fact]
     public async Task UpdateAsync_ArppManagedIpa_AllowsClearingActualStart_AndPreservesCompletion()
     {
         var (connection, db, _) = await CreateServiceWithSingleStageAsync(

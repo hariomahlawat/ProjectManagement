@@ -56,4 +56,27 @@ public sealed class WorkingCalendar
 
         return cursor;
     }
+
+    /// <summary>
+    /// Counts working days inclusively between two dates using the same weekend
+    /// and holiday policy used by plan generation. A reversed range returns zero.
+    /// </summary>
+    public int CountWorkingDaysInclusive(DateOnly start, DateOnly end)
+    {
+        if (end < start)
+        {
+            return 0;
+        }
+
+        var count = 0;
+        for (var cursor = start; cursor <= end; cursor = cursor.AddDays(1))
+        {
+            if (IsWorkingDay(cursor))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 }

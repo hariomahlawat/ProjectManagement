@@ -606,8 +606,8 @@ public class StageRequestService
             var dateLabel = proposedStartDate.HasValue ? "start date" : "completion date";
             errors.Add(
                 $"{DisplayName(stageNames, item.StageCode)} {dateLabel} must be on or after " +
-                $"{boundary.EarliestStartDate.Value:dd MMM yyyy}, the day after " +
-                $"{DisplayName(stageNames, boundary.SourceStageCode!)} completion.");
+                $"{boundary.EarliestStartDate.Value:dd MMM yyyy}, when " +
+                $"{DisplayName(stageNames, boundary.SourceStageCode!)} was completed. Same-day commencement is permitted.");
         }
     }
 
@@ -686,7 +686,7 @@ public class StageRequestService
                 errors.Add(
                     $"The pending {DisplayName(stageNames, pending.StageCode)} {dateLabel} {chronologyDate.Value:dd MMM yyyy} " +
                     $"conflicts with this revised sequence. It must be on or after {boundary.EarliestStartDate.Value:dd MMM yyyy}, " +
-                    $"the day after {DisplayName(stageNames, boundary.SourceStageCode!)} completion. " +
+                    $"when {DisplayName(stageNames, boundary.SourceStageCode!)} was completed. Same-day commencement is permitted. " +
                     $"Include {DisplayName(stageNames, pending.StageCode)} in this submission to revise it.");
             }
         }
@@ -726,7 +726,7 @@ public class StageRequestService
             return predecessor.ProjectedStatus == StageStatus.Completed
                    && predecessor.ProjectedCompletionDate.HasValue
                 ? new ProjectedStartBoundary(
-                    predecessor.ProjectedCompletionDate.Value.AddDays(1),
+                    predecessor.ProjectedCompletionDate.Value,
                     predecessorCode)
                 : ProjectedStartBoundary.None;
         }

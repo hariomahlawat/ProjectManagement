@@ -15,6 +15,8 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 
+using ProjectManagement.Utilities;
+
 namespace ProjectManagement.Pages.Analytics
 {
     [Authorize]
@@ -1182,10 +1184,8 @@ namespace ProjectManagement.Pages.Analytics
                 return 0;
             }
 
-            var startDate = start.Value.ToDateTime(TimeOnly.MinValue);
-            var effectiveEnd = (end ?? DateOnly.FromDateTime(DateTime.UtcNow)).ToDateTime(TimeOnly.MinValue);
-            var duration = (effectiveEnd - startDate).TotalDays;
-            return duration < 0 ? 0 : duration;
+            var effectiveEnd = end ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            return StageDurationCalculator.InclusiveCalendarDays(start.Value, effectiveEnd);
         }
 
         private static double CalculateMedian(IReadOnlyList<double> values)

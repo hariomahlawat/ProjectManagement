@@ -27,19 +27,22 @@ public sealed class StageActualsUpdateService
     private readonly IAuditService _audit;
     private readonly ILogger<StageActualsUpdateService> _logger;
     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
 
     public StageActualsUpdateService(
         ApplicationDbContext db,
         IClock clock,
         IAuditService audit,
         ILogger<StageActualsUpdateService> logger,
-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
+        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
+        IProjectStageWorkflowPolicy? workflowPolicy = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
+        _workflowPolicy = workflowPolicy ?? new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider());
     }
 
     public async Task<StageActualsUpdateResult> UpdateAsync(
@@ -81,9 +84,13 @@ public sealed class StageActualsUpdateService
 
         var codes = normalized.Select(r => r.StageCode).ToArray();
 
-        var stageLookup = await _db.ProjectStages
-            .Where(s => s.ProjectId == input.ProjectId && codes.Contains(s.StageCode))
-            .ToDictionaryAsync(s => s.StageCode!, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var allProjectStages = await _db.ProjectStages
+            .Where(s => s.ProjectId == input.ProjectId)
+            .ToListAsync(cancellationToken);
+
+        var stageLookup = allProjectStages
+            .Where(s => codes.Contains(s.StageCode))
+            .ToDictionary(s => s.StageCode!, StringComparer.OrdinalIgnoreCase);
 
         if (stageLookup.Count != codes.Length)
         {
@@ -95,6 +102,31 @@ public sealed class StageActualsUpdateService
                 string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase))
             ? await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken)
             : null;
+
+        var workflow = await _workflowPolicy.GetAsync(input.ProjectId, cancellationToken);
+        var submittedByCode = normalized.ToDictionary(row => row.StageCode, StringComparer.OrdinalIgnoreCase);
+        var projectedStages = allProjectStages
+            .Select(stage =>
+            {
+                var projectedCompletion = stage.CompletedOn;
+                if (submittedByCode.TryGetValue(stage.StageCode, out var submittedRow))
+                {
+                    var isArppManaged = ipaAuthority is not null
+                        && string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
+                    if (!isArppManaged && submittedRow.CompletedOn.HasValue)
+                    {
+                        projectedCompletion = submittedRow.CompletedOn;
+                    }
+                }
+
+                return new ProjectStage
+                {
+                    StageCode = stage.StageCode,
+                    Status = stage.Status,
+                    CompletedOn = projectedCompletion
+                };
+            })
+            .ToArray();
 
         var lockedStages = await _db.StageChangeRequests
             .AsNoTracking()
@@ -156,6 +188,22 @@ public sealed class StageActualsUpdateService
             if (proposedStart is not null && proposedCompleted is not null && proposedStart > proposedCompleted)
             {
                 validationErrors.Add($"{row.StageCode}: Completion date must be on or after the start date.");
+            }
+
+            var chronologyDate = proposedStart ?? proposedCompleted;
+            var chronologyLabel = proposedStart.HasValue ? "Start date" : "Completion date";
+            var startBoundary = StageDateSuggestionResolver.Resolve(workflow, projectedStages, row.StageCode);
+            if (chronologyDate.HasValue
+                && startBoundary.EarliestAllowedStartDate.HasValue
+                && chronologyDate.Value < startBoundary.EarliestAllowedStartDate.Value)
+            {
+                var predecessorName = string.IsNullOrWhiteSpace(startBoundary.SourceStageName)
+                    ? "the effective predecessor"
+                    : startBoundary.SourceStageName;
+                validationErrors.Add(
+                    $"{row.StageCode}: {chronologyLabel} must be on or after " +
+                    $"{startBoundary.EarliestAllowedStartDate.Value:dd MMM yyyy}, when {predecessorName} was completed. " +
+                    "Same-day commencement is permitted.");
             }
 
             var updatedStart = proposedStart;

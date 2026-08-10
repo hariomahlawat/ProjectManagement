@@ -30,6 +30,8 @@ public sealed class StageDateSuggestionResolverTests
         var result = StageDateSuggestionResolver.Resolve(Workflow, stages, "BID");
 
         Assert.Equal(new DateOnly(2026, 6, 11), result.SuggestedStartDate);
+        Assert.Equal(new DateOnly(2026, 6, 10), result.EarliestAllowedStartDate);
+        Assert.Equal(new DateOnly(2026, 6, 10), result.SourceCompletionDate);
         Assert.Equal("AON", result.SourceStageCode);
         Assert.Equal(0, result.SkippedStageCount);
     }
@@ -48,6 +50,7 @@ public sealed class StageDateSuggestionResolverTests
         var result = StageDateSuggestionResolver.Resolve(Workflow, stages, "BID");
 
         Assert.Equal(new DateOnly(2026, 5, 21), result.SuggestedStartDate);
+        Assert.Equal(new DateOnly(2026, 5, 20), result.EarliestAllowedStartDate);
         Assert.Equal("SOW", result.SourceStageCode);
         Assert.Equal(2, result.SkippedStageCount);
     }
@@ -65,6 +68,7 @@ public sealed class StageDateSuggestionResolverTests
         var result = StageDateSuggestionResolver.Resolve(Workflow, stages, "BID");
 
         Assert.Null(result.SuggestedStartDate);
+        Assert.Null(result.EarliestAllowedStartDate);
         Assert.Equal("AON", result.SourceStageCode);
     }
 
@@ -77,6 +81,7 @@ public sealed class StageDateSuggestionResolverTests
             "FS");
 
         Assert.Null(result.SuggestedStartDate);
+        Assert.Null(result.EarliestAllowedStartDate);
         Assert.Null(result.SourceStageCode);
     }
 

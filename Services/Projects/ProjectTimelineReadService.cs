@@ -82,6 +82,7 @@ public sealed class ProjectTimelineReadService
                 var hasPending = pendingLookup.ContainsKey(stage.Code);
                 var status = projectStage?.Status ?? StageStatus.NotStarted;
                 var isEditable = status is StageStatus.InProgress or StageStatus.Completed;
+                var startBoundary = StageDateSuggestionResolver.Resolve(workflowStages, stages, stage.Code);
 
                 return new ActualsEditorRowVm
                 {
@@ -91,6 +92,8 @@ public sealed class ProjectTimelineReadService
                     IsEditable = isEditable,
                     ActualStart = projectStage?.ActualStart,
                     CompletedOn = projectStage?.CompletedOn,
+                    EarliestAllowedStartDate = startBoundary.EarliestAllowedStartDate,
+                    StartBoundarySourceName = startBoundary.SourceStageName,
                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
                     RequiresBackfill = projectStage is not null &&
                         status == StageStatus.Completed &&
@@ -302,6 +305,7 @@ public sealed class ProjectTimelineReadService
                 IsActualStartInferred = isActualStartInferred,
                 CompletedOn = actualEnd,
                 SuggestedStartDate = startSuggestion.SuggestedStartDate,
+                EarliestAllowedStartDate = startSuggestion.EarliestAllowedStartDate,
                 SuggestedStartSourceCode = startSuggestion.SourceStageCode,
                 SuggestedStartSourceName = startSuggestion.SourceStageName,
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,

@@ -20,6 +20,7 @@ using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
 
@@ -36,6 +37,7 @@ public class EditPlanModel : PageModel
     private readonly PlanApprovalService _planApproval;
     private readonly ILogger<EditPlanModel> _logger;
     private readonly IUserContext _userContext;
+    private readonly IOfficeCalendarService? _officeCalendar;
 
     public EditPlanModel(
         ApplicationDbContext db,
@@ -44,7 +46,8 @@ public class EditPlanModel : PageModel
         PlanDraftService planDraft,
         PlanApprovalService planApproval,
         ILogger<EditPlanModel> logger,
-        IUserContext userContext)
+        IUserContext userContext,
+        IOfficeCalendarService? officeCalendar = null)
     {
         _db = db;
         _audit = audit;
@@ -53,6 +56,7 @@ public class EditPlanModel : PageModel
         _planApproval = planApproval;
         _logger = logger;
         _userContext = userContext;
+        _officeCalendar = officeCalendar;
     }
 
     [BindProperty]
@@ -217,10 +221,12 @@ public class EditPlanModel : PageModel
             return RedirectWithValidationErrors(id);
         }
 
+        var workingCalendar = await BuildWorkingCalendarAsync(id, rows, cancellationToken);
+
         var action = NormalizeAction(Input.Action);
         if (canDirectApply)
         {
-            return await HandleExactDirectSaveAsync(id, userId, principal, rows, cancellationToken);
+            return await HandleExactDirectSaveAsync(id, userId, principal, rows, workingCalendar, cancellationToken);
         }
 
         var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
@@ -273,7 +279,7 @@ public class EditPlanModel : PageModel
 
             stagePlan.PlannedStart = row.PlannedStart;
             stagePlan.PlannedDue = row.PlannedDue;
-            stagePlan.DurationDays = CalculateDuration(row.PlannedStart, row.PlannedDue);
+            stagePlan.DurationDays = CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue);
 
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
@@ -636,14 +642,59 @@ public class EditPlanModel : PageModel
         ? string.Empty
         : action.Trim();
 
-    private static int CalculateDuration(DateOnly? start, DateOnly? due)
+    private static int CalculateWorkingDuration(WorkingCalendar calendar, DateOnly? start, DateOnly? due)
     {
-        if (start.HasValue && due.HasValue && due.Value >= start.Value)
+        if (!start.HasValue || !due.HasValue || due.Value < start.Value)
         {
-            return due.Value.DayNumber - start.Value.DayNumber + 1;
+            return 0;
         }
 
-        return 0;
+        return calendar.CountWorkingDaysInclusive(start.Value, due.Value);
+    }
+
+    private async Task<WorkingCalendar> BuildWorkingCalendarAsync(
+        int projectId,
+        IReadOnlyCollection<PlanEditInputRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var settings = await _db.ProjectScheduleSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken);
+
+        var includeWeekends = settings?.IncludeWeekends ?? false;
+        var skipHolidays = settings?.SkipHolidays ?? true;
+
+        var dates = rows
+            .SelectMany(row => new[] { row.PlannedStart, row.PlannedDue })
+            .Where(date => date.HasValue)
+            .Select(date => date!.Value)
+            .ToArray();
+
+        var rangeStart = dates.Length > 0 ? dates.Min().AddDays(-7) : DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
+        var rangeEndExclusive = dates.Length > 0 ? dates.Max().AddDays(8) : DateOnly.FromDateTime(DateTime.UtcNow).AddYears(2);
+
+        IReadOnlyCollection<DateOnly> holidays;
+        if (_officeCalendar is not null)
+        {
+            holidays = (await _officeCalendar.GetNonWorkingDatesAsync(
+                rangeStart,
+                rangeEndExclusive,
+                cancellationToken)).ToArray();
+        }
+        else
+        {
+            holidays = await _db.Holidays
+                .AsNoTracking()
+                .Where(holiday =>
+                    holiday.Date >= rangeStart
+                    && holiday.Date < rangeEndExclusive
+                    && (holiday.Type == HolidayType.Gazetted || holiday.IsObservedAsOfficeHoliday))
+                .Select(holiday => holiday.Date)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+        }
+
+        return new WorkingCalendar(holidays, includeWeekends, skipHolidays);
     }
 
     private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -654,6 +705,7 @@ public class EditPlanModel : PageModel
         string userId,
         ClaimsPrincipal principal,
         IReadOnlyCollection<PlanEditInputRow> rows,
+        WorkingCalendar workingCalendar,
         CancellationToken cancellationToken)
     {
         var stageRows = await _db.ProjectStages
@@ -663,6 +715,13 @@ public class EditPlanModel : PageModel
         var stageLookup = stageRows
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
             .ToDictionary(stage => stage.StageCode!, StringComparer.OrdinalIgnoreCase);
+
+        var durationRows = await _db.ProjectPlanDurations
+            .Where(item => item.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        var durationLookup = durationRows
+            .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
+            .ToDictionary(item => item.StageCode!, StringComparer.OrdinalIgnoreCase);
 
         var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(await _db.Projects
             .AsNoTracking()
@@ -705,6 +764,24 @@ public class EditPlanModel : PageModel
 
             stage.PlannedStart = row.PlannedStart;
             stage.PlannedDue = row.PlannedDue;
+
+            if (!durationLookup.TryGetValue(row.Code, out var duration))
+            {
+                duration = new ProjectPlanDuration
+                {
+                    ProjectId = projectId,
+                    StageCode = row.Code,
+                    SortOrder = stage.SortOrder
+                };
+                _db.ProjectPlanDurations.Add(duration);
+                durationLookup[row.Code] = duration;
+            }
+
+            duration.SortOrder = stage.SortOrder;
+            duration.DurationDays = row.PlannedStart.HasValue && row.PlannedDue.HasValue
+                ? CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue)
+                : null;
+
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
 

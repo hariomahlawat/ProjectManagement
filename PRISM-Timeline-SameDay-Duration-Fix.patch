@@ -1,0 +1,1499 @@
+--- a/Pages/Analytics/Index.cshtml.cs
++++ b/Pages/Analytics/Index.cshtml.cs
+@@ -14,6 +14,8 @@
+ using ProjectManagement.Models.Stages;
+ using ProjectManagement.Services.Analytics;
+ using ProjectManagement.Services.Projects;
++
++using ProjectManagement.Utilities;
+ 
+ namespace ProjectManagement.Pages.Analytics
+ {
+@@ -1182,10 +1184,8 @@
+                 return 0;
+             }
+ 
+-            var startDate = start.Value.ToDateTime(TimeOnly.MinValue);
+-            var effectiveEnd = (end ?? DateOnly.FromDateTime(DateTime.UtcNow)).ToDateTime(TimeOnly.MinValue);
+-            var duration = (effectiveEnd - startDate).TotalDays;
+-            return duration < 0 ? 0 : duration;
++            var effectiveEnd = end ?? DateOnly.FromDateTime(DateTime.UtcNow);
++            return StageDurationCalculator.InclusiveCalendarDays(start.Value, effectiveEnd);
+         }
+ 
+         private static double CalculateMedian(IReadOnlyList<double> values)
+--- a/Pages/Projects/Timeline/EditPlan.cshtml.cs
++++ b/Pages/Projects/Timeline/EditPlan.cshtml.cs
+@@ -20,6 +20,7 @@
+ using ProjectManagement.Models.Stages;
+ using ProjectManagement.Services;
+ using ProjectManagement.Services.Plans;
++using ProjectManagement.Services.Scheduling;
+ using ProjectManagement.Services.Stages;
+ using ProjectManagement.ViewModels;
+ 
+@@ -36,6 +37,7 @@
+     private readonly PlanApprovalService _planApproval;
+     private readonly ILogger<EditPlanModel> _logger;
+     private readonly IUserContext _userContext;
++    private readonly IOfficeCalendarService? _officeCalendar;
+ 
+     public EditPlanModel(
+         ApplicationDbContext db,
+@@ -44,7 +46,8 @@
+         PlanDraftService planDraft,
+         PlanApprovalService planApproval,
+         ILogger<EditPlanModel> logger,
+-        IUserContext userContext)
++        IUserContext userContext,
++        IOfficeCalendarService? officeCalendar = null)
+     {
+         _db = db;
+         _audit = audit;
+@@ -53,6 +56,7 @@
+         _planApproval = planApproval;
+         _logger = logger;
+         _userContext = userContext;
++        _officeCalendar = officeCalendar;
+     }
+ 
+     [BindProperty]
+@@ -217,10 +221,12 @@
+             return RedirectWithValidationErrors(id);
+         }
+ 
++        var workingCalendar = await BuildWorkingCalendarAsync(id, rows, cancellationToken);
++
+         var action = NormalizeAction(Input.Action);
+         if (canDirectApply)
+         {
+-            return await HandleExactDirectSaveAsync(id, userId, principal, rows, cancellationToken);
++            return await HandleExactDirectSaveAsync(id, userId, principal, rows, workingCalendar, cancellationToken);
+         }
+ 
+         var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
+@@ -273,7 +279,7 @@
+ 
+             stagePlan.PlannedStart = row.PlannedStart;
+             stagePlan.PlannedDue = row.PlannedDue;
+-            stagePlan.DurationDays = CalculateDuration(row.PlannedStart, row.PlannedDue);
++            stagePlan.DurationDays = CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue);
+ 
+             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
+         }
+@@ -636,14 +642,59 @@
+         ? string.Empty
+         : action.Trim();
+ 
+-    private static int CalculateDuration(DateOnly? start, DateOnly? due)
+-    {
+-        if (start.HasValue && due.HasValue && due.Value >= start.Value)
+-        {
+-            return due.Value.DayNumber - start.Value.DayNumber + 1;
+-        }
+-
+-        return 0;
++    private static int CalculateWorkingDuration(WorkingCalendar calendar, DateOnly? start, DateOnly? due)
++    {
++        if (!start.HasValue || !due.HasValue || due.Value < start.Value)
++        {
++            return 0;
++        }
++
++        return calendar.CountWorkingDaysInclusive(start.Value, due.Value);
++    }
++
++    private async Task<WorkingCalendar> BuildWorkingCalendarAsync(
++        int projectId,
++        IReadOnlyCollection<PlanEditInputRow> rows,
++        CancellationToken cancellationToken)
++    {
++        var settings = await _db.ProjectScheduleSettings
++            .AsNoTracking()
++            .SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken);
++
++        var includeWeekends = settings?.IncludeWeekends ?? false;
++        var skipHolidays = settings?.SkipHolidays ?? true;
++
++        var dates = rows
++            .SelectMany(row => new[] { row.PlannedStart, row.PlannedDue })
++            .Where(date => date.HasValue)
++            .Select(date => date!.Value)
++            .ToArray();
++
++        var rangeStart = dates.Length > 0 ? dates.Min().AddDays(-7) : DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
++        var rangeEndExclusive = dates.Length > 0 ? dates.Max().AddDays(8) : DateOnly.FromDateTime(DateTime.UtcNow).AddYears(2);
++
++        IReadOnlyCollection<DateOnly> holidays;
++        if (_officeCalendar is not null)
++        {
++            holidays = (await _officeCalendar.GetNonWorkingDatesAsync(
++                rangeStart,
++                rangeEndExclusive,
++                cancellationToken)).ToArray();
++        }
++        else
++        {
++            holidays = await _db.Holidays
++                .AsNoTracking()
++                .Where(holiday =>
++                    holiday.Date >= rangeStart
++                    && holiday.Date < rangeEndExclusive
++                    && (holiday.Type == HolidayType.Gazetted || holiday.IsObservedAsOfficeHoliday))
++                .Select(holiday => holiday.Date)
++                .Distinct()
++                .ToListAsync(cancellationToken);
++        }
++
++        return new WorkingCalendar(holidays, includeWeekends, skipHolidays);
+     }
+ 
+     private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+@@ -654,6 +705,7 @@
+         string userId,
+         ClaimsPrincipal principal,
+         IReadOnlyCollection<PlanEditInputRow> rows,
++        WorkingCalendar workingCalendar,
+         CancellationToken cancellationToken)
+     {
+         var stageRows = await _db.ProjectStages
+@@ -663,6 +715,13 @@
+         var stageLookup = stageRows
+             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+             .ToDictionary(stage => stage.StageCode!, StringComparer.OrdinalIgnoreCase);
++
++        var durationRows = await _db.ProjectPlanDurations
++            .Where(item => item.ProjectId == projectId)
++            .ToListAsync(cancellationToken);
++        var durationLookup = durationRows
++            .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
++            .ToDictionary(item => item.StageCode!, StringComparer.OrdinalIgnoreCase);
+ 
+         var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(await _db.Projects
+             .AsNoTracking()
+@@ -705,6 +764,24 @@
+ 
+             stage.PlannedStart = row.PlannedStart;
+             stage.PlannedDue = row.PlannedDue;
++
++            if (!durationLookup.TryGetValue(row.Code, out var duration))
++            {
++                duration = new ProjectPlanDuration
++                {
++                    ProjectId = projectId,
++                    StageCode = row.Code,
++                    SortOrder = stage.SortOrder
++                };
++                _db.ProjectPlanDurations.Add(duration);
++                durationLookup[row.Code] = duration;
++            }
++
++            duration.SortOrder = stage.SortOrder;
++            duration.DurationDays = row.PlannedStart.HasValue && row.PlannedDue.HasValue
++                ? CalculateWorkingDuration(workingCalendar, row.PlannedStart, row.PlannedDue)
++                : null;
++
+             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
+         }
+ 
+--- a/Pages/Projects/Timeline/_EditActualsForm.cshtml
++++ b/Pages/Projects/Timeline/_EditActualsForm.cshtml
+@@ -30,11 +30,19 @@
+                 var completedId = $"actual-completed-{row.StageCode}";
+                 var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
+                 var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
++                var earliestStartValue = row.EarliestAllowedStartDate?.ToString("yyyy-MM-dd");
++                var startBoundarySourceName = row.StartBoundarySourceName ?? "predecessor";
+                 var canEditStart = row.IsEditable && !row.HasPendingDecision;
+                 var canEditCompletion = canEditStart && !row.IsArppManaged;
+                 var startDisabledAttr = canEditStart ? null : "disabled";
+                 var completionDisabledAttr = canEditCompletion ? null : "disabled";
+-                <section class="actuals-editor__stage border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
++                <section class="actuals-editor__stage border rounded p-3"
++                         data-actuals-row
++                         data-stage-code="@row.StageCode"
++                         data-stage-name="@row.StageName"
++                         data-stage-status="@row.Status"
++                         data-earliest-start="@earliestStartValue"
++                         data-start-source="@row.StartBoundarySourceName">
+                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                         <div class="d-flex flex-column">
+                             <div class="fw-semibold">@row.StageName</div>
+@@ -80,7 +88,14 @@
+                                 }
+                                 else
+                                 {
+-                                    <text>@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration may be inferred from the preceding completion date." : "Enter when work began for the current stage.")</text>
++                                    @if (row.EarliestAllowedStartDate.HasValue)
++                                    {
++                                        <text>Earliest permitted: @row.EarliestAllowedStartDate.Value.ToString("dd MMM yyyy") (@startBoundarySourceName completion). Same-day commencement is permitted. @(row.Status == StageStatus.Completed ? "If omitted, duration may be inferred from the following day." : string.Empty)</text>
++                                    }
++                                    else
++                                    {
++                                        <text>@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration may be inferred from the preceding completion date." : "Enter when work began for the current stage.")</text>
++                                    }
+                                 }
+                             </div>
+                         </div>
+--- a/Pages/Projects/_StageDirectApplyModal.cshtml
++++ b/Pages/Projects/_StageDirectApplyModal.cshtml
+@@ -36,7 +36,7 @@
+                         <label class="form-label" for="directApplyStartDate">Start date <span class="text-muted">(optional)</span></label>
+                         <input type="date" class="form-control" id="directApplyStartDate" name="startDate" />
+                         <div class="form-text" data-direct-apply-start-hint>
+-                            Enter the actual start date. Where available, the day after the effective predecessor's completion is suggested.
++                            Enter the actual start date. Where available, the following day is suggested; commencement on the predecessor completion date itself is also permitted.
+                         </div>
+                     </div>
+ 
+--- a/Pages/Shared/_ProjectTimeline.cshtml
++++ b/Pages/Shared/_ProjectTimeline.cshtml
+@@ -253,6 +253,7 @@
+                         data-current-status="@s.Status"
+                         data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                         data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
++                        data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                         data-start-source="@s.SuggestedStartSourceName"
+                         data-stage-sort-order="@s.SortOrder"
+                         data-pending-status="@s.PendingStatus"
+@@ -309,6 +310,7 @@
+                                 data-stage-name="@s.Name"
+                                 data-status="InProgress"
+                                 data-default-date="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
++                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                                 data-start-source="@s.SuggestedStartSourceName">
+                           Start stage
+                         </button>
+@@ -322,6 +324,7 @@
+                                 data-status="Completed"
+                                 data-direct-completion="true"
+                                 data-default-start-date="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
++                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                                 data-start-source="@s.SuggestedStartSourceName">
+                           Complete stage directly
+                         </button>
+@@ -358,6 +361,7 @@
+                                 data-status="Completed"
+                                 data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")"
+                                 data-default-start-date="@((s.ActualStart ?? s.SuggestedStartDate)?.ToString("yyyy-MM-dd"))"
++                                data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                                 data-start-source="@s.SuggestedStartSourceName">
+                           Complete stage
+                         </button>
+@@ -437,6 +441,7 @@
+                               data-current-status="@s.Status"
+                               data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                               data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
++                              data-earliest-start="@s.EarliestAllowedStartDate?.ToString("yyyy-MM-dd")"
+                               data-start-source="@s.SuggestedStartSourceName"
+                               data-stage-sort-order="@s.SortOrder"
+                               data-pending-status="@s.PendingStatus"
+@@ -569,7 +574,7 @@
+                   <span class="pm-date-label">Time taken</span>
+                   <strong data-stage-duration>
+                     @(s.ActualDurationDays.HasValue
+-                      ? $"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}"
++                      ? $"{s.ActualDurationDays.Value} calendar day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}"
+                       : "Unavailable")
+                   </strong>
+                 </div>
+--- a/ProjectManagement.Tests/EditPlanPncOptionalityTests.cs
++++ b/ProjectManagement.Tests/EditPlanPncOptionalityTests.cs
+@@ -196,6 +196,77 @@
+     }
+ 
+     [Fact]
++    public async Task ExactFlow_RecalculatesDurationAsWorkingDays_NotCalendarDays()
++    {
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseInMemoryDatabase(Guid.NewGuid().ToString())
++            .Options;
++
++        await using var db = new ApplicationDbContext(options);
++        SeedStageTemplates(db);
++
++        db.Projects.Add(new Project
++        {
++            Id = 20,
++            Name = "Working-day exact plan",
++            LeadPoUserId = "po-user",
++            WorkflowVersion = PlanConstants.StageTemplateVersionV1
++        });
++        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
++        {
++            ProjectId = 20,
++            IncludeWeekends = false,
++            SkipHolidays = true,
++            NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay
++        });
++        db.Holidays.Add(new Holiday
++        {
++            Date = new DateOnly(2024, 3, 5),
++            Name = "Test office holiday",
++            Type = HolidayType.Gazetted
++        });
++        await db.SaveChangesAsync();
++
++        var clock = new TestClock(new DateTimeOffset(2024, 3, 10, 0, 0, 0, TimeSpan.Zero));
++        var audit = new RecordingAudit();
++        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
++        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
++        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
++        var planGeneration = new PlanGenerationService(db);
++
++        var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
++        {
++            Input = new PlanEditInput
++            {
++                ProjectId = 20,
++                Mode = PlanEditorModes.Exact,
++                Action = PlanEditActions.SaveDraft,
++                Rows = new List<PlanEditInputRow>
++                {
++                    new()
++                    {
++                        Code = StageCodes.PNC,
++                        Name = "PNC",
++                        PlannedStart = new DateOnly(2024, 3, 1), // Friday
++                        PlannedDue = new DateOnly(2024, 3, 7)    // Thursday
++                    }
++                }
++            }
++        };
++
++        ConfigurePageContext(page, userContext);
++
++        var result = await page.OnPostAsync(20, CancellationToken.None);
++
++        Assert.IsType<RedirectToPageResult>(result);
++        var stagePlan = await db.StagePlans.SingleAsync(stage => stage.StageCode == StageCodes.PNC);
++
++        // 01, 04, 06 and 07 Mar are working days. Weekend 02-03 Mar and
++        // the gazetted holiday on 05 Mar are excluded.
++        Assert.Equal(4, stagePlan.DurationDays);
++    }
++
++    [Fact]
+     public async Task DurationsFlow_WorkflowVersionWithoutOptionalStageRequiresDuration()
+     {
+         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+--- a/ProjectManagement.Tests/ProjectAnalyticsServiceStageTimeTests.cs
++++ b/ProjectManagement.Tests/ProjectAnalyticsServiceStageTimeTests.cs
+@@ -93,14 +93,14 @@
+         var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
+         var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
+ 
+-        Assert.Equal(10, aboveRow.MedianDays);
++        Assert.Equal(11, aboveRow.MedianDays);
+         Assert.Equal(1, aboveRow.ProjectCount);
+-        Assert.Equal(5, belowRow.MedianDays);
++        Assert.Equal(6, belowRow.MedianDays);
+         Assert.Equal(1, belowRow.ProjectCount);
+ 
+         var hotspot = Assert.Single(result.StageHotspots);
+         Assert.Equal(StageCodes.FS, hotspot.StageKey);
+-        Assert.Equal(7.5, hotspot.MedianDays);
++        Assert.Equal(8.5, hotspot.MedianDays);
+         Assert.Equal(2, hotspot.ProjectCount);
+     }
+ 
+@@ -194,7 +194,7 @@
+ 
+         var designHotspot = Assert.Single(result.StageHotspots);
+         Assert.Equal(StageCodes.FS, designHotspot.StageKey);
+-        Assert.Equal(10, designHotspot.MedianDays);
++        Assert.Equal(11, designHotspot.MedianDays);
+         Assert.Equal(1, designHotspot.ProjectCount);
+     }
+ 
+--- a/ProjectManagement.Tests/ProjectTimelineUiTests.cs
++++ b/ProjectManagement.Tests/ProjectTimelineUiTests.cs
+@@ -70,6 +70,7 @@
+                     Status = StageStatus.NotStarted,
+                     SortOrder = 1,
+                     SuggestedStartDate = new DateOnly(2026, 6, 11),
++                    EarliestAllowedStartDate = new DateOnly(2026, 6, 10),
+                     SuggestedStartSourceName = "Acceptance of Necessity"
+                 }
+             }
+@@ -80,6 +81,7 @@
+         Assert.Contains("Complete stage directly", html, StringComparison.Ordinal);
+         Assert.Contains("data-direct-completion=\"true\"", html, StringComparison.Ordinal);
+         Assert.Contains("data-default-start-date=\"2026-06-11\"", html, StringComparison.Ordinal);
++        Assert.Contains("data-earliest-start=\"2026-06-10\"", html, StringComparison.Ordinal);
+         Assert.Contains("data-start-source=\"Acceptance of Necessity\"", html, StringComparison.Ordinal);
+     }
+ 
+@@ -119,6 +121,33 @@
+         Assert.DoesNotContain("data-direct-apply", poHtml, StringComparison.Ordinal);
+     }
+ 
++
++    [Fact]
++    public async Task CompletedSameDayStage_RendersOneInclusiveCalendarDay()
++    {
++        var date = new DateOnly(2026, 8, 10);
++        var timeline = new TimelineVm
++        {
++            ProjectId = 1,
++            Items = new[]
++            {
++                new TimelineItemVm
++                {
++                    Code = "FS",
++                    Name = "Feasibility Study",
++                    Status = StageStatus.Completed,
++                    ActualStart = date,
++                    EffectiveActualStart = date,
++                    CompletedOn = date,
++                    SortOrder = 1
++                }
++            }
++        };
++
++        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: false);
++
++        Assert.Contains("1 calendar day", html, StringComparison.Ordinal);
++    }
+ 
+     [Fact]
+     public async Task ArppManagedIpa_RendersAuthorityAndUnknownDuration_WithoutManualActions()
+--- a/ProjectManagement.Tests/StageActualsUpdateServiceTests.cs
++++ b/ProjectManagement.Tests/StageActualsUpdateServiceTests.cs
+@@ -231,6 +231,151 @@
+     }
+ 
+     [Fact]
++    public async Task UpdateAsync_AllowsSuccessorToStartOnPredecessorCompletionDate()
++    {
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++
++        await using var db = new ApplicationDbContext(options);
++        await db.Database.EnsureCreatedAsync();
++
++        db.Projects.Add(new Project
++        {
++            Id = 1,
++            Name = "Same-day chronology",
++            CreatedByUserId = "user-1",
++            WorkflowVersion = ProcurementWorkflow.VersionV1
++        });
++
++        var predecessorCompletion = new DateOnly(2024, 1, 10);
++        db.ProjectStages.AddRange(
++            new ProjectStage
++            {
++                ProjectId = 1,
++                StageCode = StageCodes.FS,
++                SortOrder = 0,
++                Status = StageStatus.Completed,
++                ActualStart = new DateOnly(2024, 1, 1),
++                CompletedOn = predecessorCompletion
++            },
++            new ProjectStage
++            {
++                ProjectId = 1,
++                StageCode = StageCodes.IPA,
++                SortOrder = 1,
++                Status = StageStatus.InProgress,
++                ActualStart = predecessorCompletion.AddDays(1)
++            });
++
++        await db.SaveChangesAsync();
++
++        var service = new StageActualsUpdateService(
++            db,
++            new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)),
++            new FakeAudit(),
++            NullLogger<StageActualsUpdateService>.Instance,
++            workflowPolicy: StageWorkflowTestFactory.CreatePolicy(db));
++
++        var result = await service.UpdateAsync(
++            new ActualsEditInput
++            {
++                ProjectId = 1,
++                Rows = new List<ActualsEditRowInput>
++                {
++                    new()
++                    {
++                        StageCode = StageCodes.IPA,
++                        ActualStart = predecessorCompletion
++                    }
++                }
++            },
++            userId: "user-1",
++            userName: "Tester");
++
++        Assert.Equal(1, result.UpdatedCount);
++        var successor = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
++        Assert.Equal(predecessorCompletion, successor.ActualStart);
++    }
++
++    [Fact]
++    public async Task UpdateAsync_RejectsSuccessorStartBeforePredecessorCompletionDate()
++    {
++        await using var connection = new SqliteConnection("DataSource=:memory:");
++        await connection.OpenAsync();
++
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseSqlite(connection)
++            .Options;
++
++        await using var db = new ApplicationDbContext(options);
++        await db.Database.EnsureCreatedAsync();
++
++        db.Projects.Add(new Project
++        {
++            Id = 1,
++            Name = "Chronology guard",
++            CreatedByUserId = "user-1",
++            WorkflowVersion = ProcurementWorkflow.VersionV1
++        });
++
++        var predecessorCompletion = new DateOnly(2024, 1, 10);
++        db.ProjectStages.AddRange(
++            new ProjectStage
++            {
++                ProjectId = 1,
++                StageCode = StageCodes.FS,
++                SortOrder = 0,
++                Status = StageStatus.Completed,
++                ActualStart = new DateOnly(2024, 1, 1),
++                CompletedOn = predecessorCompletion
++            },
++            new ProjectStage
++            {
++                ProjectId = 1,
++                StageCode = StageCodes.IPA,
++                SortOrder = 1,
++                Status = StageStatus.InProgress,
++                ActualStart = predecessorCompletion.AddDays(1)
++            });
++
++        await db.SaveChangesAsync();
++
++        var service = new StageActualsUpdateService(
++            db,
++            new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)),
++            new FakeAudit(),
++            NullLogger<StageActualsUpdateService>.Instance,
++            workflowPolicy: StageWorkflowTestFactory.CreatePolicy(db));
++
++        var exception = await Assert.ThrowsAsync<StageActualsValidationException>(() => service.UpdateAsync(
++            new ActualsEditInput
++            {
++                ProjectId = 1,
++                Rows = new List<ActualsEditRowInput>
++                {
++                    new()
++                    {
++                        StageCode = StageCodes.IPA,
++                        ActualStart = predecessorCompletion.AddDays(-1)
++                    }
++                }
++            },
++            userId: "user-1",
++            userName: "Tester"));
++
++        Assert.Contains(exception.Errors, error =>
++            error.Contains("10 Jan 2024", StringComparison.OrdinalIgnoreCase)
++            && error.Contains("Same-day commencement is permitted", StringComparison.OrdinalIgnoreCase));
++
++        var successor = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
++        Assert.Equal(predecessorCompletion.AddDays(1), successor.ActualStart);
++    }
++
++    [Fact]
+     public async Task UpdateAsync_ArppManagedIpa_AllowsClearingActualStart_AndPreservesCompletion()
+     {
+         var (connection, db, _) = await CreateServiceWithSingleStageAsync(
+--- /dev/null
++++ b/ProjectManagement.Tests/StageDurationCalculatorTests.cs
+@@ -0,0 +1,37 @@
++using System;
++using ProjectManagement.Services.Stages;
++using ProjectManagement.Utilities;
++using Xunit;
++
++namespace ProjectManagement.Tests;
++
++public sealed class StageDurationCalculatorTests
++{
++    [Fact]
++    public void InclusiveCalendarDays_SameDay_IsOneDay()
++    {
++        var date = new DateOnly(2026, 8, 10);
++        Assert.Equal(1, StageDurationCalculator.InclusiveCalendarDays(date, date));
++    }
++
++    [Fact]
++    public void InclusiveCalendarDays_CountsAllElapsedCalendarDates()
++    {
++        var start = new DateOnly(2026, 8, 7); // Friday
++        var end = new DateOnly(2026, 8, 10);  // Monday
++        Assert.Equal(4, StageDurationCalculator.InclusiveCalendarDays(start, end));
++    }
++
++    [Fact]
++    public void CountWorkingDaysInclusive_UsesWeekendAndHolidayPolicy()
++    {
++        var holiday = new DateOnly(2026, 8, 11);
++        var calendar = new WorkingCalendar(new[] { holiday }, includeWeekends: false, skipHolidays: true);
++
++        var start = new DateOnly(2026, 8, 7);  // Friday
++        var end = new DateOnly(2026, 8, 13);   // Thursday
++
++        // Fri 07, Mon 10, Wed 12, Thu 13. Weekend and Tue 11 holiday excluded.
++        Assert.Equal(4, calendar.CountWorkingDaysInclusive(start, end));
++    }
++}
+--- a/ProjectManagement.Tests/Stages/StageDateSuggestionResolverTests.cs
++++ b/ProjectManagement.Tests/Stages/StageDateSuggestionResolverTests.cs
+@@ -30,6 +30,8 @@
+         var result = StageDateSuggestionResolver.Resolve(Workflow, stages, "BID");
+ 
+         Assert.Equal(new DateOnly(2026, 6, 11), result.SuggestedStartDate);
++        Assert.Equal(new DateOnly(2026, 6, 10), result.EarliestAllowedStartDate);
++        Assert.Equal(new DateOnly(2026, 6, 10), result.SourceCompletionDate);
+         Assert.Equal("AON", result.SourceStageCode);
+         Assert.Equal(0, result.SkippedStageCount);
+     }
+@@ -48,6 +50,7 @@
+         var result = StageDateSuggestionResolver.Resolve(Workflow, stages, "BID");
+ 
+         Assert.Equal(new DateOnly(2026, 5, 21), result.SuggestedStartDate);
++        Assert.Equal(new DateOnly(2026, 5, 20), result.EarliestAllowedStartDate);
+         Assert.Equal("SOW", result.SourceStageCode);
+         Assert.Equal(2, result.SkippedStageCount);
+     }
+@@ -65,6 +68,7 @@
+         var result = StageDateSuggestionResolver.Resolve(Workflow, stages, "BID");
+ 
+         Assert.Null(result.SuggestedStartDate);
++        Assert.Null(result.EarliestAllowedStartDate);
+         Assert.Equal("AON", result.SourceStageCode);
+     }
+ 
+@@ -77,6 +81,7 @@
+             "FS");
+ 
+         Assert.Null(result.SuggestedStartDate);
++        Assert.Null(result.EarliestAllowedStartDate);
+         Assert.Null(result.SourceStageCode);
+     }
+ 
+--- a/ProjectManagement.Tests/Stages/StageRequestServiceTests.cs
++++ b/ProjectManagement.Tests/Stages/StageRequestServiceTests.cs
+@@ -563,7 +563,7 @@
+         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+         Assert.Contains(result.Errors, error =>
+             error.Contains("pending Bidding/Tendering", StringComparison.OrdinalIgnoreCase)
+-            && error.Contains("06 Feb 2025", StringComparison.OrdinalIgnoreCase));
++            && error.Contains("05 Feb 2025", StringComparison.OrdinalIgnoreCase));
+         Assert.Equal(2, await db.StageChangeRequests.CountAsync(request => request.DecisionStatus == "Pending"));
+         Assert.Empty(await db.StageChangeRequests.Where(request => request.DecisionStatus == "Superseded").ToListAsync());
+     }
+@@ -625,7 +625,7 @@
+                     {
+                         StageCode = StageCodes.BID,
+                         RequestedStatus = StageStatus.InProgress.ToString(),
+-                        RequestedDate = new DateOnly(2025, 2, 6)
++                        RequestedDate = new DateOnly(2025, 2, 5)
+                     }
+                 }
+             },
+@@ -643,7 +643,7 @@
+             .SingleAsync();
+ 
+         Assert.Equal(new DateOnly(2025, 2, 5), latestAon.RequestedDate);
+-        Assert.Equal(new DateOnly(2025, 2, 6), latestBid.RequestedDate);
++        Assert.Equal(new DateOnly(2025, 2, 5), latestBid.RequestedDate);
+     }
+ 
+     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status)
+--- a/ProjectManagement.Tests/Stages/StageValidationServiceTests.cs
++++ b/ProjectManagement.Tests/Stages/StageValidationServiceTests.cs
+@@ -139,6 +139,89 @@
+     }
+ 
+     [Fact]
++    public async Task ValidateAsync_StartingStageOnPredecessorCompletionDate_IsAllowedAndKeepsNextDaySuggestion()
++    {
++        var today = new DateOnly(2025, 9, 15);
++        var predecessorCompleted = new DateOnly(2025, 9, 10);
++        var clock = FakeClock.ForIstDate(today);
++        await using var db = CreateContext();
++        await SeedAsync(
++            db,
++            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), predecessorCompleted),
++            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
++
++        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
++
++        var result = await service.ValidateAsync(
++            1,
++            StageCodes.IPA,
++            StageStatus.InProgress.ToString(),
++            predecessorCompleted,
++            requestedStartDate: null,
++            isHoD: false);
++
++        Assert.True(result.IsValid);
++        Assert.Empty(result.Errors);
++        Assert.Equal(predecessorCompleted.AddDays(1), result.SuggestedAutoStart);
++    }
++
++    [Fact]
++    public async Task ValidateAsync_StartingStageBeforePredecessorCompletionDate_IsRejected()
++    {
++        var today = new DateOnly(2025, 9, 15);
++        var predecessorCompleted = new DateOnly(2025, 9, 10);
++        var clock = FakeClock.ForIstDate(today);
++        await using var db = CreateContext();
++        await SeedAsync(
++            db,
++            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), predecessorCompleted),
++            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
++
++        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
++
++        var result = await service.ValidateAsync(
++            1,
++            StageCodes.IPA,
++            StageStatus.InProgress.ToString(),
++            predecessorCompleted.AddDays(-1),
++            requestedStartDate: null,
++            isHoD: false);
++
++        Assert.False(result.IsValid);
++        Assert.Contains(result.Errors, error =>
++            error.Contains("2025-09-10", StringComparison.Ordinal)
++            && error.Contains("Same-day commencement is permitted", StringComparison.OrdinalIgnoreCase));
++        Assert.Equal(predecessorCompleted.AddDays(1), result.SuggestedAutoStart);
++    }
++
++    [Fact]
++    public async Task ValidateAsync_DirectCompletion_AllowsSameDayStartAndCompletionAtPredecessorBoundary()
++    {
++        var today = new DateOnly(2025, 9, 15);
++        var predecessorCompleted = new DateOnly(2025, 9, 10);
++        var clock = FakeClock.ForIstDate(today);
++        await using var db = CreateContext();
++        await SeedAsync(
++            db,
++            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), predecessorCompleted),
++            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
++
++        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
++
++        var result = await service.ValidateAsync(
++            1,
++            StageCodes.IPA,
++            StageStatus.Completed.ToString(),
++            predecessorCompleted,
++            requestedStartDate: predecessorCompleted,
++            isHoD: true);
++
++        Assert.True(result.IsValid);
++        Assert.Empty(result.Errors);
++        Assert.Equal(predecessorCompleted.AddDays(1), result.SuggestedAutoStart);
++    }
++
++    [Fact]
+     public async Task ValidateAsync_DirectCompletion_AllowsBlankStartWhenCompletionIsChronologicallyValid()
+     {
+         var today = new DateOnly(2025, 9, 15);
+--- a/Services/Analytics/ProjectAnalyticsService.cs
++++ b/Services/Analytics/ProjectAnalyticsService.cs
+@@ -847,12 +847,7 @@
+     }
+ 
+     private static double CalculateStageDurationDays(DateOnly start, DateOnly end)
+-    {
+-        var startDate = start.ToDateTime(TimeOnly.MinValue);
+-        var endDate = end.ToDateTime(TimeOnly.MinValue);
+-        var duration = (endDate - startDate).TotalDays;
+-        return duration < 0 ? 0 : duration;
+-    }
++        => StageDurationCalculator.InclusiveCalendarDays(start, end);
+ 
+     private static double CalculateMedian(double[] orderedValues)
+     {
+--- a/Services/Approvals/StageApprovalSequenceService.cs
++++ b/Services/Approvals/StageApprovalSequenceService.cs
+@@ -443,7 +443,7 @@
+                         ApprovalCheckState.Blocked,
+                         "Lifecycle chronology",
+                         $"The {chronologyLabel} must be on or after {startBoundary.EarliestStartDate:dd MMM yyyy}, " +
+-                        $"the day after {StageCodes.DisplayNameOf(workflow.WorkflowVersion, startBoundary.SourceStageCode!)} completion."));
++                        $"when {StageCodes.DisplayNameOf(workflow.WorkflowVersion, startBoundary.SourceStageCode!)} was completed. Same-day commencement is permitted."));
+                 }
+                 else
+                 {
+@@ -537,7 +537,7 @@
+             }
+ 
+             return effectiveStatus == StageStatus.Completed && effectiveCompletion.HasValue
+-                ? new StartBoundary(effectiveCompletion.Value.AddDays(1), predecessorCode)
++                ? new StartBoundary(effectiveCompletion.Value, predecessorCode)
+                 : StartBoundary.None;
+         }
+ 
+--- a/Services/Projects/OngoingProjectsReadService.cs
++++ b/Services/Projects/OngoingProjectsReadService.cs
+@@ -16,6 +16,8 @@
+ using System.Threading;
+ using System.Threading.Tasks;
+ 
++using ProjectManagement.Utilities;
++
+ namespace ProjectManagement.Services.Projects
+ {
+     /// <summary>
+@@ -298,11 +300,9 @@
+                             effectiveStart = inferred > actualCompleted.Value ? actualCompleted.Value : inferred;
+                         }
+ 
+-                        if (effectiveStart.HasValue && actualCompleted.HasValue)
+-                        {
+-                            var rawDuration = actualCompleted.Value.DayNumber - effectiveStart.Value.DayNumber + 1;
+-                            actualDurationDays = Math.Max(1, rawDuration);
+-                        }
++                        actualDurationDays = StageDurationCalculator.InclusiveCalendarDays(
++                            effectiveStart,
++                            actualCompleted);
+                     }
+                     else
+                     {
+--- a/Services/Projects/ProjectTimelineReadService.cs
++++ b/Services/Projects/ProjectTimelineReadService.cs
+@@ -82,6 +82,7 @@
+                 var hasPending = pendingLookup.ContainsKey(stage.Code);
+                 var status = projectStage?.Status ?? StageStatus.NotStarted;
+                 var isEditable = status is StageStatus.InProgress or StageStatus.Completed;
++                var startBoundary = StageDateSuggestionResolver.Resolve(workflowStages, stages, stage.Code);
+ 
+                 return new ActualsEditorRowVm
+                 {
+@@ -91,6 +92,8 @@
+                     IsEditable = isEditable,
+                     ActualStart = projectStage?.ActualStart,
+                     CompletedOn = projectStage?.CompletedOn,
++                    EarliestAllowedStartDate = startBoundary.EarliestAllowedStartDate,
++                    StartBoundarySourceName = startBoundary.SourceStageName,
+                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
+                     RequiresBackfill = projectStage is not null &&
+                         status == StageStatus.Completed &&
+@@ -302,6 +305,7 @@
+                 IsActualStartInferred = isActualStartInferred,
+                 CompletedOn = actualEnd,
+                 SuggestedStartDate = startSuggestion.SuggestedStartDate,
++                EarliestAllowedStartDate = startSuggestion.EarliestAllowedStartDate,
+                 SuggestedStartSourceCode = startSuggestion.SourceStageCode,
+                 SuggestedStartSourceName = startSuggestion.SourceStageName,
+                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
+--- a/Services/Stages/StageActualsUpdateService.cs
++++ b/Services/Stages/StageActualsUpdateService.cs
+@@ -27,19 +27,22 @@
+     private readonly IAuditService _audit;
+     private readonly ILogger<StageActualsUpdateService> _logger;
+     private readonly IArppIpaStageAuthorityService _arppIpaStageAuthority;
++    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
+ 
+     public StageActualsUpdateService(
+         ApplicationDbContext db,
+         IClock clock,
+         IAuditService audit,
+         ILogger<StageActualsUpdateService> logger,
+-        IArppIpaStageAuthorityService? arppIpaStageAuthority = null)
++        IArppIpaStageAuthorityService? arppIpaStageAuthority = null,
++        IProjectStageWorkflowPolicy? workflowPolicy = null)
+     {
+         _db = db ?? throw new ArgumentNullException(nameof(db));
+         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+         _arppIpaStageAuthority = arppIpaStageAuthority ?? new ArppIpaStageAuthorityService(db);
++        _workflowPolicy = workflowPolicy ?? new ProjectStageWorkflowPolicy(db, new WorkflowStageMetadataProvider());
+     }
+ 
+     public async Task<StageActualsUpdateResult> UpdateAsync(
+@@ -81,9 +84,13 @@
+ 
+         var codes = normalized.Select(r => r.StageCode).ToArray();
+ 
+-        var stageLookup = await _db.ProjectStages
+-            .Where(s => s.ProjectId == input.ProjectId && codes.Contains(s.StageCode))
+-            .ToDictionaryAsync(s => s.StageCode!, StringComparer.OrdinalIgnoreCase, cancellationToken);
++        var allProjectStages = await _db.ProjectStages
++            .Where(s => s.ProjectId == input.ProjectId)
++            .ToListAsync(cancellationToken);
++
++        var stageLookup = allProjectStages
++            .Where(s => codes.Contains(s.StageCode))
++            .ToDictionary(s => s.StageCode!, StringComparer.OrdinalIgnoreCase);
+ 
+         if (stageLookup.Count != codes.Length)
+         {
+@@ -95,6 +102,31 @@
+                 string.Equals(code, StageCodes.IPA, StringComparison.OrdinalIgnoreCase))
+             ? await _arppIpaStageAuthority.ResolveAsync(input.ProjectId, cancellationToken)
+             : null;
++
++        var workflow = await _workflowPolicy.GetAsync(input.ProjectId, cancellationToken);
++        var submittedByCode = normalized.ToDictionary(row => row.StageCode, StringComparer.OrdinalIgnoreCase);
++        var projectedStages = allProjectStages
++            .Select(stage =>
++            {
++                var projectedCompletion = stage.CompletedOn;
++                if (submittedByCode.TryGetValue(stage.StageCode, out var submittedRow))
++                {
++                    var isArppManaged = ipaAuthority is not null
++                        && string.Equals(stage.StageCode, StageCodes.IPA, StringComparison.OrdinalIgnoreCase);
++                    if (!isArppManaged && submittedRow.CompletedOn.HasValue)
++                    {
++                        projectedCompletion = submittedRow.CompletedOn;
++                    }
++                }
++
++                return new ProjectStage
++                {
++                    StageCode = stage.StageCode,
++                    Status = stage.Status,
++                    CompletedOn = projectedCompletion
++                };
++            })
++            .ToArray();
+ 
+         var lockedStages = await _db.StageChangeRequests
+             .AsNoTracking()
+@@ -156,6 +188,22 @@
+             if (proposedStart is not null && proposedCompleted is not null && proposedStart > proposedCompleted)
+             {
+                 validationErrors.Add($"{row.StageCode}: Completion date must be on or after the start date.");
++            }
++
++            var chronologyDate = proposedStart ?? proposedCompleted;
++            var chronologyLabel = proposedStart.HasValue ? "Start date" : "Completion date";
++            var startBoundary = StageDateSuggestionResolver.Resolve(workflow, projectedStages, row.StageCode);
++            if (chronologyDate.HasValue
++                && startBoundary.EarliestAllowedStartDate.HasValue
++                && chronologyDate.Value < startBoundary.EarliestAllowedStartDate.Value)
++            {
++                var predecessorName = string.IsNullOrWhiteSpace(startBoundary.SourceStageName)
++                    ? "the effective predecessor"
++                    : startBoundary.SourceStageName;
++                validationErrors.Add(
++                    $"{row.StageCode}: {chronologyLabel} must be on or after " +
++                    $"{startBoundary.EarliestAllowedStartDate.Value:dd MMM yyyy}, when {predecessorName} was completed. " +
++                    "Same-day commencement is permitted.");
+             }
+ 
+             var updatedStart = proposedStart;
+--- a/Services/Stages/StageDateSuggestionResolver.cs
++++ b/Services/Stages/StageDateSuggestionResolver.cs
+@@ -7,9 +7,12 @@
+ namespace ProjectManagement.Services.Stages;
+ 
+ /// <summary>
+-/// Resolves the suggested start date for a stage from the immediately preceding
+-/// stage in the project's configured workflow. Consecutive skipped stages are
+-/// traversed backwards until the first non-skipped predecessor is found.
++/// Resolves both the normal suggested start date and the earliest permissible
++/// start boundary from the effective predecessor in the project's configured
++/// workflow. The conventional suggestion remains the following day, while the
++/// predecessor completion date itself is a valid same-day commencement boundary.
++/// Consecutive skipped stages are traversed backwards until the first non-skipped
++/// predecessor is found.
+ /// </summary>
+ public static class StageDateSuggestionResolver
+ {
+@@ -69,16 +72,19 @@
+ 
+             if (predecessor?.Status == StageStatus.Completed && predecessor.CompletedOn.HasValue)
+             {
++                var completionDate = predecessor.CompletedOn.Value;
+                 return new StageDateSuggestion(
+-                    predecessor.CompletedOn.Value.AddDays(1),
+-                    predecessorDefinition.Code,
+-                    predecessorDefinition.Name,
+-                    predecessor.CompletedOn.Value,
++                    SuggestedStartDate: completionDate.AddDays(1),
++                    EarliestAllowedStartDate: completionDate,
++                    SourceStageCode: predecessorDefinition.Code,
++                    SourceStageName: predecessorDefinition.Name,
++                    SourceCompletionDate: completionDate,
+                     SkippedStageCount: targetIndex - index - 1);
+             }
+ 
+             return new StageDateSuggestion(
+                 SuggestedStartDate: null,
++                EarliestAllowedStartDate: null,
+                 SourceStageCode: predecessorDefinition.Code,
+                 SourceStageName: predecessorDefinition.Name,
+                 SourceCompletionDate: predecessor?.CompletedOn,
+@@ -91,12 +97,15 @@
+ 
+ public sealed record StageDateSuggestion(
+     DateOnly? SuggestedStartDate,
++    DateOnly? EarliestAllowedStartDate,
+     string? SourceStageCode,
+     string? SourceStageName,
+     DateOnly? SourceCompletionDate,
+     int SkippedStageCount)
+ {
+-    public static StageDateSuggestion None { get; } = new(null, null, null, null, 0);
++    public static StageDateSuggestion None { get; } = new(null, null, null, null, null, 0);
+ 
+     public bool HasSuggestion => SuggestedStartDate.HasValue;
++
++    public bool HasStartBoundary => EarliestAllowedStartDate.HasValue;
+ }
+--- a/Services/Stages/StageRequestService.cs
++++ b/Services/Stages/StageRequestService.cs
+@@ -606,8 +606,8 @@
+             var dateLabel = proposedStartDate.HasValue ? "start date" : "completion date";
+             errors.Add(
+                 $"{DisplayName(stageNames, item.StageCode)} {dateLabel} must be on or after " +
+-                $"{boundary.EarliestStartDate.Value:dd MMM yyyy}, the day after " +
+-                $"{DisplayName(stageNames, boundary.SourceStageCode!)} completion.");
++                $"{boundary.EarliestStartDate.Value:dd MMM yyyy}, when " +
++                $"{DisplayName(stageNames, boundary.SourceStageCode!)} was completed. Same-day commencement is permitted.");
+         }
+     }
+ 
+@@ -686,7 +686,7 @@
+                 errors.Add(
+                     $"The pending {DisplayName(stageNames, pending.StageCode)} {dateLabel} {chronologyDate.Value:dd MMM yyyy} " +
+                     $"conflicts with this revised sequence. It must be on or after {boundary.EarliestStartDate.Value:dd MMM yyyy}, " +
+-                    $"the day after {DisplayName(stageNames, boundary.SourceStageCode!)} completion. " +
++                    $"when {DisplayName(stageNames, boundary.SourceStageCode!)} was completed. Same-day commencement is permitted. " +
+                     $"Include {DisplayName(stageNames, pending.StageCode)} in this submission to revise it.");
+             }
+         }
+@@ -726,7 +726,7 @@
+             return predecessor.ProjectedStatus == StageStatus.Completed
+                    && predecessor.ProjectedCompletionDate.HasValue
+                 ? new ProjectedStartBoundary(
+-                    predecessor.ProjectedCompletionDate.Value.AddDays(1),
++                    predecessor.ProjectedCompletionDate.Value,
+                     predecessorCode)
+                 : ProjectedStartBoundary.None;
+         }
+--- a/Services/Stages/StageValidationService.cs
++++ b/Services/Stages/StageValidationService.cs
+@@ -170,16 +170,18 @@
+                 ? targetDate
+                 : requestedStartDate ?? stage.ActualStart;
+ 
++            var earliestAllowedStart = suggestion.EarliestAllowedStartDate;
++
+             if (effectiveStartDate.HasValue
+-                && suggestedAutoStart.HasValue
+-                && effectiveStartDate.Value < suggestedAutoStart.Value)
++                && earliestAllowedStart.HasValue
++                && effectiveStartDate.Value < earliestAllowedStart.Value)
+             {
+                 var source = string.IsNullOrWhiteSpace(suggestion.SourceStageName)
+                     ? "the effective predecessor"
+                     : suggestion.SourceStageName;
+                 errors.Add(
+-                    $"Start date must be on or after {suggestedAutoStart.Value:yyyy-MM-dd}, " +
+-                    $"the day after {source} completion.");
++                    $"Start date must be on or after {earliestAllowedStart.Value:yyyy-MM-dd}, " +
++                    $"when {source} was completed. Same-day commencement is permitted.");
+             }
+ 
+             if (desiredStatus == StageStatus.Completed && targetDate.HasValue)
+@@ -191,15 +193,15 @@
+                         $"({effectiveStartDate.Value:yyyy-MM-dd}).");
+                 }
+                 else if (!effectiveStartDate.HasValue
+-                    && suggestedAutoStart.HasValue
+-                    && targetDate.Value < suggestedAutoStart.Value)
++                    && earliestAllowedStart.HasValue
++                    && targetDate.Value < earliestAllowedStart.Value)
+                 {
+                     var source = string.IsNullOrWhiteSpace(suggestion.SourceStageName)
+                         ? "the effective predecessor"
+                         : suggestion.SourceStageName;
+                     errors.Add(
+-                        $"Completion date must be on or after {suggestedAutoStart.Value:yyyy-MM-dd}, " +
+-                        $"the day after {source} completion.");
++                        $"Completion date must be on or after {earliestAllowedStart.Value:yyyy-MM-dd}, " +
++                        $"when {source} was completed. Same-day completion is permitted.");
+                 }
+             }
+         }
+--- a/Services/Stages/TrackerBuilder.cs
++++ b/Services/Stages/TrackerBuilder.cs
+@@ -3,6 +3,8 @@
+ using System.Linq;
+ using ProjectManagement.Models.Execution;
+ using ProjectManagement.Models.Stages;
++
++using ProjectManagement.Utilities;
+ 
+ namespace ProjectManagement.Services.Stages;
+ 
+@@ -188,7 +190,9 @@
+ 
+         if (from != null && from.Status == StageStatus.Completed && from.CompletedOn.HasValue && from.ActualStart.HasValue)
+         {
+-            var days = Math.Max(1, DaysBetween(from.ActualStart.Value, from.CompletedOn.Value));
++            var days = StageDurationCalculator.InclusiveCalendarDays(
++                from.ActualStart.Value,
++                from.CompletedOn.Value);
+             if (from.PlannedDue.HasValue)
+             {
+                 var slip = DaysBetween(from.PlannedDue.Value, from.CompletedOn.Value);
+@@ -212,7 +216,9 @@
+         {
+             if (to.ActualStart.HasValue)
+             {
+-                var duration = Math.Max(1, DaysBetween(to.ActualStart.Value, today));
++                var duration = StageDurationCalculator.InclusiveCalendarDays(
++                    to.ActualStart.Value,
++                    today);
+                 label = $"in progress {duration}d";
+                 variant = "progress";
+             }
+--- a/Services/Stages/WorkingCalendar.cs
++++ b/Services/Stages/WorkingCalendar.cs
+@@ -56,4 +56,27 @@
+ 
+         return cursor;
+     }
++
++    /// <summary>
++    /// Counts working days inclusively between two dates using the same weekend
++    /// and holiday policy used by plan generation. A reversed range returns zero.
++    /// </summary>
++    public int CountWorkingDaysInclusive(DateOnly start, DateOnly end)
++    {
++        if (end < start)
++        {
++            return 0;
++        }
++
++        var count = 0;
++        for (var cursor = start; cursor <= end; cursor = cursor.AddDays(1))
++        {
++            if (IsWorkingDay(cursor))
++            {
++                count++;
++            }
++        }
++
++        return count;
++    }
+ }
+--- /dev/null
++++ b/Utilities/StageDurationCalculator.cs
+@@ -0,0 +1,19 @@
++using System;
++
++namespace ProjectManagement.Utilities;
++
++/// <summary>
++/// Centralises actual-stage duration semantics. Actual elapsed time is expressed
++/// as inclusive calendar days: a stage that starts and completes on the same date
++/// has a duration of one calendar day.
++/// </summary>
++public static class StageDurationCalculator
++{
++    public static int InclusiveCalendarDays(DateOnly start, DateOnly end)
++        => end < start ? 0 : end.DayNumber - start.DayNumber + 1;
++
++    public static int? InclusiveCalendarDays(DateOnly? start, DateOnly? end)
++        => start.HasValue && end.HasValue && end.Value >= start.Value
++            ? InclusiveCalendarDays(start.Value, end.Value)
++            : null;
++}
+--- a/ViewModels/ActualsEditorVm.cs
++++ b/ViewModels/ActualsEditorVm.cs
+@@ -33,6 +33,10 @@
+ 
+     public DateOnly? CompletedOn { get; init; }
+ 
++    public DateOnly? EarliestAllowedStartDate { get; init; }
++
++    public string? StartBoundarySourceName { get; init; }
++
+     public bool IsAutoCompleted { get; init; }
+ 
+     public bool RequiresBackfill { get; init; }
+--- a/ViewModels/TimelineVm.cs
++++ b/ViewModels/TimelineVm.cs
+@@ -2,6 +2,7 @@
+ using System.Linq;
+ using ProjectManagement.Models.Execution;
+ using ProjectManagement.Models.Stages;
++using ProjectManagement.Utilities;
+ 
+ namespace ProjectManagement.ViewModels;
+ 
+@@ -47,6 +48,7 @@
+     public bool IsActualStartInferred { get; init; }
+     public DateOnly? CompletedOn { get; init; }
+     public DateOnly? SuggestedStartDate { get; init; }
++    public DateOnly? EarliestAllowedStartDate { get; init; }
+     public string? SuggestedStartSourceCode { get; init; }
+     public string? SuggestedStartSourceName { get; init; }
+ 
+@@ -83,11 +85,7 @@
+     public int? PlannedDurationDays =>
+         (PlannedStart.HasValue && PlannedEnd.HasValue) ? (PlannedEnd.Value.DayNumber - PlannedStart.Value.DayNumber + 1) : null;
+     public int? ActualDurationDays =>
+-        EffectiveActualStart.HasValue &&
+-        CompletedOn.HasValue &&
+-        EffectiveActualStart.Value <= CompletedOn.Value
+-            ? CompletedOn.Value.DayNumber - EffectiveActualStart.Value.DayNumber + 1
+-            : null;
++        StageDurationCalculator.InclusiveCalendarDays(EffectiveActualStart, CompletedOn);
+ 
+     // Completed stages are completion-driven. Actual start is optional and may be inferred.
+     public bool NeedsStart => Status == StageStatus.InProgress && ActualStart is null;
+--- /dev/null
++++ b/wwwroot/js/projects/actuals-edit-chronology.test.js
+@@ -0,0 +1,20 @@
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const source = fs.readFileSync(path.resolve(__dirname, 'actuals-edit.js'), 'utf8');
++
++test('actuals editor derives chronology from the current projected predecessor values', () => {
++  assert.match(source, /function|const resolveChronologyBoundary/);
++  assert.match(source, /predecessorStatus === 'skipped'/);
++  assert.match(source, /predecessorStatus !== 'completed'/);
++  assert.match(source, /completedInput\.value/);
++  assert.match(source, /refreshChronologyBoundaries/);
++});
++
++test('actuals editor permits equality and rejects dates before the projected boundary', () => {
++  assert.match(source, /chronologyDate = startDate \|\| completedDate/);
++  assert.match(source, /chronologyDate < earliestStartDate/);
++  assert.match(source, /Same-day commencement is permitted/);
++});
+--- a/wwwroot/js/projects/actuals-edit.js
++++ b/wwwroot/js/projects/actuals-edit.js
+@@ -85,12 +85,68 @@
+     return Number.isNaN(parsed.getTime()) ? null : parsed;
+   };
+ 
++  const formatLocalDate = (value) => {
++    if (!value) return '—';
++    const [year, month, day] = value.split('-').map(Number);
++    if (!year || !month || !day) return value;
++    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
++  };
++
++  const resolveChronologyBoundary = (row) => {
++    const targetIndex = rows.indexOf(row);
++    if (targetIndex <= 0) {
++      return { value: '', source: '' };
++    }
++
++    for (let index = targetIndex - 1; index >= 0; index -= 1) {
++      const predecessor = rows[index];
++      const predecessorStatus = (predecessor.dataset.stageStatus ?? '').toLowerCase();
++
++      // Match server workflow semantics: consecutive skipped stages are transparent;
++      // the first non-skipped predecessor is the effective chronology boundary.
++      if (predecessorStatus === 'skipped') {
++        continue;
++      }
++
++      if (predecessorStatus !== 'completed') {
++        return { value: '', source: '' };
++      }
++
++      const completedInput = predecessor.querySelector('[data-field="completed"]');
++      const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
++      return {
++        value: completedValue,
++        source: predecessor.dataset.stageName ?? predecessor.dataset.stageCode ?? 'the effective predecessor'
++      };
++    }
++
++    return { value: '', source: '' };
++  };
++
++  const refreshChronologyBoundaries = () => {
++    rows.forEach((row) => {
++      const boundary = resolveChronologyBoundary(row);
++      const startInput = row.querySelector('[data-field="start"]');
++      const completedInput = row.querySelector('[data-field="completed"]');
++
++      if (startInput instanceof HTMLInputElement) {
++        startInput.min = boundary.value;
++      }
++      if (completedInput instanceof HTMLInputElement) {
++        completedInput.min = boundary.value;
++      }
++    });
++  };
++
+   const validateRow = (row) => {
+     const code = row.dataset.stageCode ?? '';
+     const original = initialValues.get(code) ?? { start: '', completed: '' };
+     const startInput = row.querySelector('[data-field="start"]');
+     const completedInput = row.querySelector('[data-field="completed"]');
+     const status = (row.dataset.stageStatus ?? '').toLowerCase();
++    const boundary = resolveChronologyBoundary(row);
++    const earliestStartValue = boundary.value;
++    const startSource = boundary.source || row.dataset.startSource || 'the effective predecessor';
+ 
+     const startValue = startInput instanceof HTMLInputElement ? startInput.value : '';
+     const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
+@@ -103,6 +159,7 @@
+ 
+     const startDate = parseDate(startValue);
+     const completedDate = parseDate(completedValue);
++    const earliestStartDate = parseDate(earliestStartValue);
+ 
+     let error = '';
+ 
+@@ -118,6 +175,11 @@
+ 
+     if (!error && startDate && completedDate && startDate > completedDate) {
+       error = 'Completion must be on or after the start date.';
++    }
++
++    const chronologyDate = startDate || completedDate;
++    if (!error && chronologyDate && earliestStartDate && chronologyDate < earliestStartDate) {
++      error = `Actual dates cannot precede ${startSource} completion (${formatLocalDate(earliestStartValue)}). Same-day commencement is permitted.`;
+     }
+ 
+     if (!error) {
+@@ -153,6 +215,7 @@
+   });
+ 
+   const refreshState = () => {
++    refreshChronologyBoundaries();
+     const allValid = rows.every(validateRow);
+     if (saveButton instanceof HTMLButtonElement) {
+       saveButton.disabled = !allValid || !hasChanges();
+@@ -169,7 +232,6 @@
+       return;
+     }
+ 
+-    validateRow(row);
+     refreshState();
+   });
+ 
+--- a/wwwroot/js/projects/stages-project-officer-update.test.js
++++ b/wwwroot/js/projects/stages-project-officer-update.test.js
+@@ -63,3 +63,10 @@
+ test('editing a pending update uses save wording', () => {
+   assert.match(source, /isEditingPending \? 'Save update' : 'Submit update'/);
+ });
++
++test('same-day chronology keeps next-day suggestion while enforcing predecessor completion as minimum', () => {
++  assert.match(source, /earliestStart/);
++  assert.match(source, /dateInput\.min = status === 'InProgress' \|\| status === 'Completed'/);
++  assert.match(source, /input\.min = visible \? \(stage\?\.earliestStart \|\| ''\) : ''/);
++  assert.match(source, /Same-day start on/);
++});
+--- a/wwwroot/js/projects/stages.js
++++ b/wwwroot/js/projects/stages.js
+@@ -578,7 +578,7 @@
+       updateSubmitButton(status);
+     }
+ 
+-    function configureStartDate(status, defaultStartDate, sourceName, isDirectCompletion) {
++    function configureStartDate(status, defaultStartDate, earliestStartDate, sourceName, isDirectCompletion) {
+       if (!startDateInput || !startDateGroup) return;
+ 
+       const showStartDate = status === 'Completed';
+@@ -586,6 +586,7 @@
+       startDateInput.disabled = !showStartDate;
+       startDateInput.required = false;
+       startDateInput.value = showStartDate ? (defaultStartDate || '') : '';
++      startDateInput.min = showStartDate ? (earliestStartDate || '') : '';
+ 
+       if (completionNote) {
+         completionNote.classList.toggle('d-none', !(showStartDate && isDirectCompletion));
+@@ -594,6 +595,8 @@
+       if (!startDateHint) return;
+       if (!showStartDate) {
+         startDateHint.textContent = '';
++      } else if (defaultStartDate && earliestStartDate && sourceName) {
++        startDateHint.textContent = `Suggested: ${formatDate(defaultStartDate)}. Same-day start on ${formatDate(earliestStartDate)}, when ${sourceName} was completed, is permitted.`;
+       } else if (defaultStartDate && sourceName) {
+         startDateHint.textContent = `Suggested as the day after ${sourceName} was completed. You may edit this date.`;
+       } else if (defaultStartDate) {
+@@ -669,6 +672,7 @@
+       const stageName = trigger.getAttribute('data-stage-name') || '';
+       const defaultDate = trigger.getAttribute('data-default-date') || '';
+       const defaultStartDate = trigger.getAttribute('data-default-start-date') || '';
++      const earliestStartDate = trigger.getAttribute('data-earliest-start') || '';
+       const startSource = trigger.getAttribute('data-start-source') || '';
+       activeStatus = status;
+       activeDirectCompletion = trigger.getAttribute('data-direct-completion') === 'true';
+@@ -708,8 +712,9 @@
+       const requiresDate = applyDateState(status, { resetValue: true });
+       if (dateInput) {
+         dateInput.value = defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
+-      }
+-      configureStartDate(status, defaultStartDate, startSource, activeDirectCompletion);
++        dateInput.min = status === 'InProgress' || status === 'Completed' ? earliestStartDate : '';
++      }
++      configureStartDate(status, defaultStartDate, earliestStartDate, startSource, activeDirectCompletion);
+       updateNoDateWarning(status);
+ 
+       if (submitButton) {
+@@ -924,6 +929,7 @@
+         currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
+         actualStart: button.getAttribute('data-actual-start') || '',
+         suggestedStart: button.getAttribute('data-suggested-start') || '',
++        earliestStart: button.getAttribute('data-earliest-start') || '',
+         startSource: button.getAttribute('data-start-source') || '',
+         pendingStatus: button.getAttribute('data-pending-status') || '',
+         pendingDate: button.getAttribute('data-pending-date') || '',
+@@ -1024,15 +1030,18 @@
+       if (label) label.textContent = config.label;
+       if (hint) {
+         if (status === 'InProgress' && stage?.suggestedStart && !preferredValue) {
+-          hint.textContent = stage.startSource
+-            ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
+-            : 'Suggested from the preceding workflow stage. You may edit it.';
++          hint.textContent = stage.startSource && stage.earliestStart
++            ? `Suggested: ${formatDate(stage.suggestedStart)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`
++            : stage.startSource
++              ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
++              : 'Suggested from the preceding workflow stage. You may edit it.';
+         } else {
+           hint.textContent = config.hint;
+         }
+       }
+       if (dateInput) {
+         dateInput.required = config.required;
++        dateInput.min = status === 'InProgress' || status === 'Completed' ? (stage?.earliestStart || '') : '';
+         if (preferredValue) {
+           dateInput.value = preferredValue;
+         } else if (resetValue) {
+@@ -1063,6 +1072,7 @@
+       if (input) {
+         input.disabled = !visible;
+         input.required = false;
++        input.min = visible ? (stage?.earliestStart || '') : '';
+         if (!visible) {
+           input.value = '';
+         } else if (preferredValue) {
+@@ -1077,6 +1087,8 @@
+         hint.textContent = '';
+       } else if (stage?.actualStart) {
+         hint.textContent = 'Existing stage start. Edit it only when the recorded date needs correction.';
++      } else if (stage?.startSource && stage?.suggestedStart && stage?.earliestStart) {
++        hint.textContent = `Suggested: ${formatDate(stage.suggestedStart)}. Same-day start on ${formatDate(stage.earliestStart)}, when ${stage.startSource} was completed, is permitted.`;
+       } else if (stage?.startSource && stage?.suggestedStart) {
+         hint.textContent = `Suggested as the day after ${stage.startSource} was completed. You may edit it.`;
+       } else if (stage?.suggestedStart) {

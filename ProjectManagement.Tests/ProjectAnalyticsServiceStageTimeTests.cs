@@ -93,14 +93,14 @@ public class ProjectAnalyticsServiceStageTimeTests
         var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
         var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
 
-        Assert.Equal(10, aboveRow.MedianDays);
+        Assert.Equal(11, aboveRow.MedianDays);
         Assert.Equal(1, aboveRow.ProjectCount);
-        Assert.Equal(5, belowRow.MedianDays);
+        Assert.Equal(6, belowRow.MedianDays);
         Assert.Equal(1, belowRow.ProjectCount);
 
         var hotspot = Assert.Single(result.StageHotspots);
         Assert.Equal(StageCodes.FS, hotspot.StageKey);
-        Assert.Equal(7.5, hotspot.MedianDays);
+        Assert.Equal(8.5, hotspot.MedianDays);
         Assert.Equal(2, hotspot.ProjectCount);
     }
 
@@ -194,7 +194,7 @@ public class ProjectAnalyticsServiceStageTimeTests
 
         var designHotspot = Assert.Single(result.StageHotspots);
         Assert.Equal(StageCodes.FS, designHotspot.StageKey);
-        Assert.Equal(10, designHotspot.MedianDays);
+        Assert.Equal(11, designHotspot.MedianDays);
         Assert.Equal(1, designHotspot.ProjectCount);
     }
 

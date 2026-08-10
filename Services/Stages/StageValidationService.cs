@@ -170,16 +170,18 @@ public sealed class StageValidationService : IStageValidationService
                 ? targetDate
                 : requestedStartDate ?? stage.ActualStart;
 
+            var earliestAllowedStart = suggestion.EarliestAllowedStartDate;
+
             if (effectiveStartDate.HasValue
-                && suggestedAutoStart.HasValue
-                && effectiveStartDate.Value < suggestedAutoStart.Value)
+                && earliestAllowedStart.HasValue
+                && effectiveStartDate.Value < earliestAllowedStart.Value)
             {
                 var source = string.IsNullOrWhiteSpace(suggestion.SourceStageName)
                     ? "the effective predecessor"
                     : suggestion.SourceStageName;
                 errors.Add(
-                    $"Start date must be on or after {suggestedAutoStart.Value:yyyy-MM-dd}, " +
-                    $"the day after {source} completion.");
+                    $"Start date must be on or after {earliestAllowedStart.Value:yyyy-MM-dd}, " +
+                    $"when {source} was completed. Same-day commencement is permitted.");
             }
 
             if (desiredStatus == StageStatus.Completed && targetDate.HasValue)
@@ -191,15 +193,15 @@ public sealed class StageValidationService : IStageValidationService
                         $"({effectiveStartDate.Value:yyyy-MM-dd}).");
                 }
                 else if (!effectiveStartDate.HasValue
-                    && suggestedAutoStart.HasValue
-                    && targetDate.Value < suggestedAutoStart.Value)
+                    && earliestAllowedStart.HasValue
+                    && targetDate.Value < earliestAllowedStart.Value)
                 {
                     var source = string.IsNullOrWhiteSpace(suggestion.SourceStageName)
                         ? "the effective predecessor"
                         : suggestion.SourceStageName;
                     errors.Add(
-                        $"Completion date must be on or after {suggestedAutoStart.Value:yyyy-MM-dd}, " +
-                        $"the day after {source} completion.");
+                        $"Completion date must be on or after {earliestAllowedStart.Value:yyyy-MM-dd}, " +
+                        $"when {source} was completed. Same-day completion is permitted.");
                 }
             }
         }

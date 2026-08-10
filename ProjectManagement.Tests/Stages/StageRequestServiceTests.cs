@@ -563,7 +563,7 @@ public class StageRequestServiceTests
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
         Assert.Contains(result.Errors, error =>
             error.Contains("pending Bidding/Tendering", StringComparison.OrdinalIgnoreCase)
-            && error.Contains("06 Feb 2025", StringComparison.OrdinalIgnoreCase));
+            && error.Contains("05 Feb 2025", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(2, await db.StageChangeRequests.CountAsync(request => request.DecisionStatus == "Pending"));
         Assert.Empty(await db.StageChangeRequests.Where(request => request.DecisionStatus == "Superseded").ToListAsync());
     }
@@ -625,7 +625,7 @@ public class StageRequestServiceTests
                     {
                         StageCode = StageCodes.BID,
                         RequestedStatus = StageStatus.InProgress.ToString(),
-                        RequestedDate = new DateOnly(2025, 2, 6)
+                        RequestedDate = new DateOnly(2025, 2, 5)
                     }
                 }
             },
@@ -643,7 +643,7 @@ public class StageRequestServiceTests
             .SingleAsync();
 
         Assert.Equal(new DateOnly(2025, 2, 5), latestAon.RequestedDate);
-        Assert.Equal(new DateOnly(2025, 2, 6), latestBid.RequestedDate);
+        Assert.Equal(new DateOnly(2025, 2, 5), latestBid.RequestedDate);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status)

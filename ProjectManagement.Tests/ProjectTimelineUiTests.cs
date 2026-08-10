@@ -70,6 +70,7 @@ public class ProjectTimelineUiTests
                     Status = StageStatus.NotStarted,
                     SortOrder = 1,
                     SuggestedStartDate = new DateOnly(2026, 6, 11),
+                    EarliestAllowedStartDate = new DateOnly(2026, 6, 10),
                     SuggestedStartSourceName = "Acceptance of Necessity"
                 }
             }
@@ -80,6 +81,7 @@ public class ProjectTimelineUiTests
         Assert.Contains("Complete stage directly", html, StringComparison.Ordinal);
         Assert.Contains("data-direct-completion=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains("data-default-start-date=\"2026-06-11\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-earliest-start=\"2026-06-10\"", html, StringComparison.Ordinal);
         Assert.Contains("data-start-source=\"Acceptance of Necessity\"", html, StringComparison.Ordinal);
     }
 
@@ -119,6 +121,33 @@ public class ProjectTimelineUiTests
         Assert.DoesNotContain("data-direct-apply", poHtml, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task CompletedSameDayStage_RendersOneInclusiveCalendarDay()
+    {
+        var date = new DateOnly(2026, 8, 10);
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "FS",
+                    Name = "Feasibility Study",
+                    Status = StageStatus.Completed,
+                    ActualStart = date,
+                    EffectiveActualStart = date,
+                    CompletedOn = date,
+                    SortOrder = 1
+                }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: false);
+
+        Assert.Contains("1 calendar day", html, StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task ArppManagedIpa_RendersAuthorityAndUnknownDuration_WithoutManualActions()

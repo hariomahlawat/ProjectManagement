@@ -63,3 +63,10 @@ test('start and direct completion use the workflow-derived editable defaults', (
 test('editing a pending update uses save wording', () => {
   assert.match(source, /isEditingPending \? 'Save update' : 'Submit update'/);
 });
+
+test('same-day chronology keeps next-day suggestion while enforcing predecessor completion as minimum', () => {
+  assert.match(source, /earliestStart/);
+  assert.match(source, /dateInput\.min = status === 'InProgress' \|\| status === 'Completed'/);
+  assert.match(source, /input\.min = visible \? \(stage\?\.earliestStart \|\| ''\) : ''/);
+  assert.match(source, /Same-day start on/);
+});

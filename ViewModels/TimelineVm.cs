@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.ViewModels;
 
@@ -47,6 +48,7 @@ public sealed class TimelineItemVm
     public bool IsActualStartInferred { get; init; }
     public DateOnly? CompletedOn { get; init; }
     public DateOnly? SuggestedStartDate { get; init; }
+    public DateOnly? EarliestAllowedStartDate { get; init; }
     public string? SuggestedStartSourceCode { get; init; }
     public string? SuggestedStartSourceName { get; init; }
 
@@ -83,11 +85,7 @@ public sealed class TimelineItemVm
     public int? PlannedDurationDays =>
         (PlannedStart.HasValue && PlannedEnd.HasValue) ? (PlannedEnd.Value.DayNumber - PlannedStart.Value.DayNumber + 1) : null;
     public int? ActualDurationDays =>
-        EffectiveActualStart.HasValue &&
-        CompletedOn.HasValue &&
-        EffectiveActualStart.Value <= CompletedOn.Value
-            ? CompletedOn.Value.DayNumber - EffectiveActualStart.Value.DayNumber + 1
-            : null;
+        StageDurationCalculator.InclusiveCalendarDays(EffectiveActualStart, CompletedOn);
 
     // Completed stages are completion-driven. Actual start is optional and may be inferred.
     public bool NeedsStart => Status == StageStatus.InProgress && ActualStart is null;

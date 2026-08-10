@@ -16,6 +16,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ProjectManagement.Utilities;
+
 namespace ProjectManagement.Services.Projects
 {
     /// <summary>
@@ -298,11 +300,9 @@ namespace ProjectManagement.Services.Projects
                             effectiveStart = inferred > actualCompleted.Value ? actualCompleted.Value : inferred;
                         }
 
-                        if (effectiveStart.HasValue && actualCompleted.HasValue)
-                        {
-                            var rawDuration = actualCompleted.Value.DayNumber - effectiveStart.Value.DayNumber + 1;
-                            actualDurationDays = Math.Max(1, rawDuration);
-                        }
+                        actualDurationDays = StageDurationCalculator.InclusiveCalendarDays(
+                            effectiveStart,
+                            actualCompleted);
                     }
                     else
                     {
