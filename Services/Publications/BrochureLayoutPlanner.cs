@@ -3,72 +3,54 @@ using System.Text.RegularExpressions;
 namespace ProjectManagement.Services.Publications;
 
 /// <summary>
-/// Converts project narratives into deterministic A4 brochure page plans.
-/// The planner deliberately changes the number of project cards per page instead
-/// of shrinking body copy below the publication typography floor.
+/// Creates a deterministic, publication-aware A4 page plan while preserving the user's
+/// project order. The planner uses dynamic programming rather than a greedy first-fit
+/// strategy so that visually weak orphans such as 4+1 are avoided when 3+2 is available.
 /// </summary>
 public static partial class BrochureLayoutPlanner
 {
-    private const int LongNarrativeChunkWords = 210;
+    public const int LongNarrativeChunkWords = 210;
 
     public static IReadOnlyList<BrochurePagePlan> Plan(IReadOnlyList<BrochurePublicationProject> projects)
     {
         ArgumentNullException.ThrowIfNull(projects);
 
-        var fragments = projects
-            .SelectMany(CreateFragments)
-            .ToList();
-
-        var pages = new List<BrochurePagePlan>();
-        var index = 0;
-        while (index < fragments.Count)
+        var fragments = projects.SelectMany(CreateFragments).ToArray();
+        if (fragments.Length == 0)
         {
-            var remaining = fragments.Count - index;
-            var current = fragments[index];
-
-            if (current.FragmentCount > 1 || current.IsContinuation || current.NarrativeWordCount > 210)
-            {
-                pages.Add(new BrochurePagePlan(
-                    BrochurePageLayoutKind.SingleFeature,
-                    new[] { current }));
-                index++;
-                continue;
-            }
-
-            if (remaining >= 4 && CanUseFour(fragments, index))
-            {
-                pages.Add(new BrochurePagePlan(
-                    BrochurePageLayoutKind.FourCompact,
-                    fragments.Skip(index).Take(4).ToArray()));
-                index += 4;
-                continue;
-            }
-
-            if (remaining >= 3 && CanUseThree(fragments, index))
-            {
-                pages.Add(new BrochurePagePlan(
-                    BrochurePageLayoutKind.ThreeStandard,
-                    fragments.Skip(index).Take(3).ToArray()));
-                index += 3;
-                continue;
-            }
-
-            if (remaining >= 2 && CanUseTwo(fragments, index))
-            {
-                pages.Add(new BrochurePagePlan(
-                    BrochurePageLayoutKind.TwoFeature,
-                    fragments.Skip(index).Take(2).ToArray()));
-                index += 2;
-                continue;
-            }
-
-            pages.Add(new BrochurePagePlan(
-                BrochurePageLayoutKind.SingleFeature,
-                new[] { current }));
-            index++;
+            return Array.Empty<BrochurePagePlan>();
         }
 
-        return pages;
+        var result = new List<BrochurePagePlan>();
+        var segment = new List<BrochureProjectFragment>();
+
+        foreach (var fragment in fragments)
+        {
+            if (IsForcedFeature(fragment))
+            {
+                FlushSegment();
+                result.Add(new BrochurePagePlan(
+                    BrochurePageLayoutKind.SingleFeature,
+                    new[] { fragment }));
+                continue;
+            }
+
+            segment.Add(fragment);
+        }
+
+        FlushSegment();
+        return result;
+
+        void FlushSegment()
+        {
+            if (segment.Count == 0)
+            {
+                return;
+            }
+
+            result.AddRange(PlanRegularSegment(segment));
+            segment.Clear();
+        }
     }
 
     public static int CountWords(string? value)
@@ -76,17 +58,138 @@ public static partial class BrochureLayoutPlanner
             ? 0
             : WordRegex().Matches(value).Count;
 
+    private static IReadOnlyList<BrochurePagePlan> PlanRegularSegment(
+        IReadOnlyList<BrochureProjectFragment> fragments)
+    {
+        var count = fragments.Count;
+        var bestCost = Enumerable.Repeat(double.PositiveInfinity, count + 1).ToArray();
+        var bestChoice = new PageChoice?[count + 1];
+        bestCost[count] = 0;
+
+        for (var index = count - 1; index >= 0; index--)
+        {
+            foreach (var candidate in EnumerateCandidates(fragments, index))
+            {
+                var nextIndex = index + candidate.ItemCount;
+                var cost = candidate.Penalty + bestCost[nextIndex];
+                if (cost + .0001 < bestCost[index]
+                    || (Math.Abs(cost - bestCost[index]) < .0001
+                        && PreferCandidate(candidate, bestChoice[index])))
+                {
+                    bestCost[index] = cost;
+                    bestChoice[index] = candidate;
+                }
+            }
+        }
+
+        var pages = new List<BrochurePagePlan>();
+        var cursor = 0;
+        while (cursor < count)
+        {
+            var choice = bestChoice[cursor] ?? new PageChoice(
+                BrochurePageLayoutKind.SingleFeature,
+                1,
+                50);
+            pages.Add(new BrochurePagePlan(
+                choice.Layout,
+                fragments.Skip(cursor).Take(choice.ItemCount).ToArray()));
+            cursor += choice.ItemCount;
+        }
+
+        return pages;
+    }
+
+    private static IEnumerable<PageChoice> EnumerateCandidates(
+        IReadOnlyList<BrochureProjectFragment> fragments,
+        int index)
+    {
+        var remaining = fragments.Count - index;
+
+        if (remaining >= 4 && CanUseFour(fragments, index))
+        {
+            yield return new PageChoice(
+                BrochurePageLayoutKind.FourCompact,
+                4,
+                DensePagePenalty(fragments, index, 4, targetWords: 62));
+        }
+
+        if (remaining >= 3 && CanUseThree(fragments, index))
+        {
+            yield return new PageChoice(
+                BrochurePageLayoutKind.ThreeStandard,
+                3,
+                2 + DensePagePenalty(fragments, index, 3, targetWords: 92));
+        }
+
+        if (remaining >= 2 && CanUseTwo(fragments, index))
+        {
+            yield return new PageChoice(
+                BrochurePageLayoutKind.TwoFeature,
+                2,
+                4 + DensePagePenalty(fragments, index, 2, targetWords: 145));
+        }
+
+        // A lone project is deliberately expensive unless it is the only remaining item.
+        // This is what steers five concise projects towards 3+2 rather than 4+1.
+        var singlePenalty = remaining == 1 ? 8 : 32;
+        yield return new PageChoice(
+            BrochurePageLayoutKind.SingleFeature,
+            1,
+            singlePenalty + SingleFeaturePenalty(fragments[index]));
+    }
+
+    private static bool PreferCandidate(PageChoice candidate, PageChoice? current)
+    {
+        if (current is null)
+        {
+            return true;
+        }
+
+        // On an exact score tie prefer the more balanced, less dense page.
+        return candidate.ItemCount < current.ItemCount;
+    }
+
+    private static double DensePagePenalty(
+        IReadOnlyList<BrochureProjectFragment> fragments,
+        int index,
+        int itemCount,
+        int targetWords)
+    {
+        var items = fragments.Skip(index).Take(itemCount).ToArray();
+        var average = items.Average(item => item.NarrativeWordCount);
+        var longestTitle = items.Max(item => item.Project.ProjectName.Length);
+        var wordPenalty = Math.Max(0, average - targetWords) / 18d;
+        var titlePenalty = Math.Max(0, longestTitle - 72) / 28d;
+        var galleryPenalty = items.Count(item => item.Project.ImageMode == BrochureImageMode.GalleryTwo) * 8d;
+        return wordPenalty + titlePenalty + galleryPenalty;
+    }
+
+    private static double SingleFeaturePenalty(BrochureProjectFragment fragment)
+        => fragment.Project.ImageMode == BrochureImageMode.GalleryTwo ? 0 : 1;
+
     private static bool CanUseFour(IReadOnlyList<BrochureProjectFragment> fragments, int index)
         => fragments.Skip(index).Take(4).All(fragment =>
-            !fragment.IsContinuation && fragment.NarrativeWordCount <= 85);
+            !fragment.IsContinuation
+            && fragment.NarrativeWordCount <= 85
+            && fragment.Project.ProjectName.Length <= 105
+            && fragment.Project.ImageMode != BrochureImageMode.GalleryTwo);
 
     private static bool CanUseThree(IReadOnlyList<BrochureProjectFragment> fragments, int index)
         => fragments.Skip(index).Take(3).All(fragment =>
-            !fragment.IsContinuation && fragment.NarrativeWordCount <= 125);
+            !fragment.IsContinuation
+            && fragment.NarrativeWordCount <= 125
+            && fragment.Project.ProjectName.Length <= 130
+            && fragment.Project.ImageMode != BrochureImageMode.GalleryTwo);
 
     private static bool CanUseTwo(IReadOnlyList<BrochureProjectFragment> fragments, int index)
         => fragments.Skip(index).Take(2).All(fragment =>
-            !fragment.IsContinuation && fragment.NarrativeWordCount <= 210);
+            !fragment.IsContinuation
+            && fragment.NarrativeWordCount <= LongNarrativeChunkWords);
+
+    private static bool IsForcedFeature(BrochureProjectFragment fragment)
+        => fragment.FragmentCount > 1
+           || fragment.IsContinuation
+           || fragment.NarrativeWordCount > LongNarrativeChunkWords;
 
     private static IReadOnlyList<BrochureProjectFragment> CreateFragments(BrochurePublicationProject project)
     {
@@ -123,56 +226,62 @@ public static partial class BrochureLayoutPlanner
             .Replace("\r", "\n", StringComparison.Ordinal)
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        var chunks = new List<string>();
-        var current = new List<string>();
-        var currentWords = 0;
-
-        foreach (var paragraph in paragraphs)
+        var tokens = paragraphs
+            .SelectMany((paragraph, paragraphIndex) => paragraph
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                .Select(word => new NarrativeToken(word, paragraphIndex)))
+            .ToArray();
+        if (tokens.Length <= maximumWords)
         {
-            var paragraphWords = CountWords(paragraph);
-            if (paragraphWords > maximumWords)
+            return new[] { value.Trim() };
+        }
+
+        // Balance continuation pages rather than creating a nearly empty final page.
+        // Example: 211 words becomes 106 + 105, not 210 + 1. Paragraph boundaries
+        // are retained wherever they fall within each balanced word slice.
+        var chunkCount = (int)Math.Ceiling(tokens.Length / (double)maximumWords);
+        var baseSize = tokens.Length / chunkCount;
+        var remainder = tokens.Length % chunkCount;
+        var chunks = new List<string>(chunkCount);
+        var offset = 0;
+
+        for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+        {
+            var chunkSize = baseSize + (chunkIndex < remainder ? 1 : 0);
+            var slice = tokens.AsSpan(offset, chunkSize);
+            var builder = new System.Text.StringBuilder();
+            var previousParagraph = -1;
+            foreach (var token in slice)
             {
-                FlushCurrent();
-                foreach (var part in SplitLongParagraph(paragraph, maximumWords))
+                if (builder.Length > 0)
                 {
-                    chunks.Add(part);
+                    if (token.ParagraphIndex == previousParagraph)
+                    {
+                        builder.Append(' ');
+                    }
+                    else
+                    {
+                        builder.Append("\n\n");
+                    }
                 }
-                continue;
+
+                builder.Append(token.Word);
+                previousParagraph = token.ParagraphIndex;
             }
 
-            if (currentWords > 0 && currentWords + paragraphWords > maximumWords)
-            {
-                FlushCurrent();
-            }
-
-            current.Add(paragraph);
-            currentWords += paragraphWords;
+            chunks.Add(builder.ToString());
+            offset += chunkSize;
         }
 
-        FlushCurrent();
-        return chunks.Count == 0 ? new[] { value } : chunks;
-
-        void FlushCurrent()
-        {
-            if (current.Count == 0)
-            {
-                return;
-            }
-
-            chunks.Add(string.Join("\n\n", current));
-            current.Clear();
-            currentWords = 0;
-        }
+        return chunks;
     }
 
-    private static IEnumerable<string> SplitLongParagraph(string paragraph, int maximumWords)
-    {
-        var words = paragraph.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        for (var index = 0; index < words.Length; index += maximumWords)
-        {
-            yield return string.Join(" ", words.Skip(index).Take(maximumWords));
-        }
-    }
+    private sealed record NarrativeToken(string Word, int ParagraphIndex);
+
+    private sealed record PageChoice(
+        BrochurePageLayoutKind Layout,
+        int ItemCount,
+        double Penalty);
 
     [GeneratedRegex(@"\S+", RegexOptions.Compiled)]
     private static partial Regex WordRegex();

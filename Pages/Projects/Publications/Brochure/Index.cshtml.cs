@@ -1,11 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Data;
 using ProjectManagement.Services;
-using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.Publications;
 using ProjectManagement.Utilities.Reporting;
 
@@ -16,23 +13,23 @@ public sealed class IndexModel : PageModel
 {
     private const int MaximumSelectedProjects = 100;
 
-    private readonly ApplicationDbContext _db;
-    private readonly IProjectBriefingPhotoLoader _photoLoader;
+    private readonly IBrochurePublicationService _publicationService;
+    private readonly IBrochurePdfReportBuilder _pdfBuilder;
+    private readonly IPublicationFontService _fontService;
     private readonly IClock _clock;
-    private readonly IWebHostEnvironment _environment;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
-        ApplicationDbContext db,
-        IProjectBriefingPhotoLoader photoLoader,
+        IBrochurePublicationService publicationService,
+        IBrochurePdfReportBuilder pdfBuilder,
+        IPublicationFontService fontService,
         IClock clock,
-        IWebHostEnvironment environment,
         ILogger<IndexModel> logger)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
+        _publicationService = publicationService ?? throw new ArgumentNullException(nameof(publicationService));
+        _pdfBuilder = pdfBuilder ?? throw new ArgumentNullException(nameof(pdfBuilder));
+        _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -45,7 +42,13 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<string> ProjectCategories { get; private set; } = Array.Empty<string>();
     public IReadOnlyList<string> TechnicalCategories { get; private set; } = Array.Empty<string>();
     public PublicationFontStatus FontStatus { get; private set; }
-        = new(PublicationFontRegistry.FallbackFamilyName, PublicationFontRegistry.FallbackFamilyName, false, false, Array.Empty<string>());
+        = new(
+            PublicationFontService.FallbackFamilyName,
+            PublicationFontService.FallbackFamilyName,
+            false,
+            false,
+            Array.Empty<string>(),
+            "QuestPDF bundled fallback");
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -53,28 +56,55 @@ public sealed class IndexModel : PageModel
         await LoadAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostGenerateAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostPreflightAsync(CancellationToken cancellationToken)
     {
         ApplyDefaults();
         NormalizeInput();
 
-        if (Input.ProjectIds.Count == 0)
-        {
-            ModelState.AddModelError(nameof(Input.ProjectIds), "Select at least one project for the brochure.");
-        }
-        else if (Input.ProjectIds.Count > MaximumSelectedProjects)
-        {
-            ModelState.AddModelError(nameof(Input.ProjectIds), $"A brochure can contain up to {MaximumSelectedProjects} selected projects.");
-        }
-
-        if (!Enum.IsDefined(Input.CoverStyle))
-        {
-            ModelState.AddModelError(nameof(Input.CoverStyle), "Select a valid cover style.");
-        }
         if (!Enum.IsDefined(Input.NarrativeSource))
         {
-            ModelState.AddModelError(nameof(Input.NarrativeSource), "Select a valid project narrative source.");
+            return new JsonResult(new
+            {
+                selectedProjectCount = Input.Selections.Count,
+                blockerCount = 1,
+                warningCount = 0,
+                informationCount = 0,
+                canGenerate = false,
+                issues = new[]
+                {
+                    new
+                    {
+                        severity = "blocker",
+                        code = "invalidNarrativeSource",
+                        projectId = (int?)null,
+                        projectName = (string?)null,
+                        message = "Select a valid project narrative source."
+                    }
+                }
+            });
         }
+
+        var preflight = await _publicationService.PreflightAsync(
+            ToSelections(),
+            Input.NarrativeSource,
+            Input.AllowTextOnlyProjects,
+            cancellationToken);
+        return new JsonResult(ToClientPreflight(preflight));
+    }
+
+    public Task<IActionResult> OnPostPreviewAsync(CancellationToken cancellationToken)
+        => GenerateInternalAsync(preview: true, cancellationToken);
+
+    public Task<IActionResult> OnPostGenerateAsync(CancellationToken cancellationToken)
+        => GenerateInternalAsync(preview: false, cancellationToken);
+
+    private async Task<IActionResult> GenerateInternalAsync(
+        bool preview,
+        CancellationToken cancellationToken)
+    {
+        ApplyDefaults();
+        NormalizeInput();
+        ValidateGenerationInput();
 
         if (!ModelState.IsValid)
         {
@@ -84,7 +114,7 @@ public sealed class IndexModel : PageModel
 
         try
         {
-            var service = new BrochurePublicationService(_db, _photoLoader);
+            var generatedAt = _clock.UtcNow;
             var options = new BrochureBuildOptions(
                 Input.Title!,
                 Input.Subtitle!,
@@ -96,13 +126,35 @@ public sealed class IndexModel : PageModel
                 NullIfWhiteSpace(Input.IntroductionText),
                 NullIfWhiteSpace(Input.HandlingMarking),
                 "Simulator Development Division",
-                _clock.UtcNow);
+                Input.AllowTextOnlyProjects,
+                generatedAt);
 
-            var publication = await service.BuildAsync(Input.ProjectIds, options, cancellationToken);
-            var builder = new BrochurePdfReportBuilder(_environment);
-            var bytes = builder.Build(publication);
-            var fileName = $"{SanitizeFileName(Input.Title, "SDD_Capability_Brochure")}_{_clock.UtcNow:yyyyMMdd}.pdf";
+            var publication = await _publicationService.BuildAsync(
+                ToSelections(),
+                options,
+                cancellationToken);
+            var bytes = _pdfBuilder.Build(publication);
+            var fileName = $"{SanitizeFileName(Input.Title, "SDD_Capability_Brochure")}_{generatedAt:yyyyMMdd}.pdf";
+
+            if (preview)
+            {
+                Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
+                return File(bytes, "application/pdf");
+            }
+
             return File(bytes, "application/pdf", fileName);
+        }
+        catch (BrochurePublicationValidationException exception)
+        {
+            foreach (var issue in exception.Preflight.Issues
+                         .Where(issue => issue.Severity == PublicationIssueSeverity.Blocker)
+                         .Take(8))
+            {
+                ModelState.AddModelError(string.Empty, issue.Message);
+            }
+
+            await LoadAsync(cancellationToken);
+            return Page();
         }
         catch (OperationCanceledException)
         {
@@ -112,13 +164,16 @@ public sealed class IndexModel : PageModel
         {
             _logger.LogError(
                 exception,
-                "Capability brochure generation failed. SelectedProjects={SelectedProjectCount}, Narrative={NarrativeSource}, Cover={CoverStyle}",
-                Input.ProjectIds.Count,
+                "Capability brochure {Operation} failed. SelectedProjects={SelectedProjectCount}, Narrative={NarrativeSource}, Cover={CoverStyle}",
+                preview ? "preview" : "generation",
+                Input.Selections.Count,
                 Input.NarrativeSource,
                 Input.CoverStyle);
             ModelState.AddModelError(
                 string.Empty,
-                "The brochure could not be generated. Review the selected projects and publication warnings, then try again.");
+                preview
+                    ? "The brochure preview could not be generated. Review publication preflight and try again."
+                    : "The brochure could not be generated. Review publication preflight and try again.");
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -126,8 +181,7 @@ public sealed class IndexModel : PageModel
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        var service = new BrochurePublicationService(_db, _photoLoader);
-        Projects = await service.GetProjectOptionsAsync(cancellationToken);
+        Projects = await _publicationService.GetProjectOptionsAsync(cancellationToken);
         ProjectCategories = Projects
             .Select(project => project.ProjectCategory)
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -143,7 +197,7 @@ public sealed class IndexModel : PageModel
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        FontStatus = PublicationFontRegistry.EnsureRegistered(_environment.WebRootPath);
+        FontStatus = _fontService.CurrentStatus;
     }
 
     private void ApplyDefaults()
@@ -166,12 +220,81 @@ public sealed class IndexModel : PageModel
         Input.IntroductionTitle = NormalizeOptional(Input.IntroductionTitle, 120);
         Input.IntroductionText = NormalizeOptional(Input.IntroductionText, 3000, preserveLineBreaks: true);
         Input.HandlingMarking = NormalizeOptional(Input.HandlingMarking, 80)?.ToUpperInvariant();
-        Input.ProjectIds = Input.ProjectIds
-            .Where(id => id > 0)
-            .Distinct()
+
+        Input.Selections = Input.Selections
+            .Where(selection => selection.ProjectId > 0)
+            .GroupBy(selection => selection.ProjectId)
+            .Select(group => group.First())
             .Take(MaximumSelectedProjects + 1)
+            .Select(selection =>
+            {
+                selection.PrimaryPhotoId = NormalizePhotoId(selection.PrimaryPhotoId);
+                selection.SecondaryPhotoId = NormalizePhotoId(selection.SecondaryPhotoId);
+                selection.PrimaryFocalX = ClampFocal(selection.PrimaryFocalX);
+                selection.PrimaryFocalY = ClampFocal(selection.PrimaryFocalY);
+                selection.SecondaryFocalX = ClampFocal(selection.SecondaryFocalX);
+                selection.SecondaryFocalY = ClampFocal(selection.SecondaryFocalY);
+                if (!Enum.IsDefined(selection.ImageMode))
+                {
+                    selection.ImageMode = BrochureImageMode.Automatic;
+                }
+                return selection;
+            })
             .ToList();
     }
+
+    private void ValidateGenerationInput()
+    {
+        if (Input.Selections.Count == 0)
+        {
+            ModelState.AddModelError(nameof(Input.Selections), "Select at least one project for the brochure.");
+        }
+        else if (Input.Selections.Count > MaximumSelectedProjects)
+        {
+            ModelState.AddModelError(nameof(Input.Selections), $"A brochure can contain up to {MaximumSelectedProjects} selected projects.");
+        }
+
+        if (!Enum.IsDefined(Input.CoverStyle))
+        {
+            ModelState.AddModelError(nameof(Input.CoverStyle), "Select a valid cover style.");
+        }
+        if (!Enum.IsDefined(Input.NarrativeSource))
+        {
+            ModelState.AddModelError(nameof(Input.NarrativeSource), "Select a valid project narrative source.");
+        }
+    }
+
+    private IReadOnlyList<BrochureProjectSelection> ToSelections()
+        => Input.Selections
+            .Select(selection => new BrochureProjectSelection(
+                selection.ProjectId,
+                selection.PrimaryPhotoId,
+                selection.SecondaryPhotoId,
+                selection.PrimaryFocalX,
+                selection.PrimaryFocalY,
+                selection.SecondaryFocalX,
+                selection.SecondaryFocalY,
+                selection.ImageMode))
+            .ToArray();
+
+    private static object ToClientPreflight(BrochurePreflight preflight)
+        => new
+        {
+            selectedProjectCount = preflight.SelectedProjectCount,
+            blockerCount = preflight.BlockerCount,
+            warningCount = preflight.WarningCount,
+            informationCount = preflight.InformationCount,
+            canGenerate = preflight.CanGenerate,
+            isPublicationReady = preflight.IsPublicationReady,
+            issues = preflight.Issues.Select(issue => new
+            {
+                severity = issue.Severity.ToString().ToLowerInvariant(),
+                code = issue.Code.ToString(),
+                issue.ProjectId,
+                issue.ProjectName,
+                issue.Message
+            }).ToArray()
+        };
 
     private static string Normalize(string? value, int maximumLength)
     {
@@ -207,6 +330,12 @@ public sealed class IndexModel : PageModel
 
     private static string? NullIfWhiteSpace(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static int? NormalizePhotoId(int? value)
+        => value.HasValue && value.Value > 0 ? value : null;
+
+    private static double ClampFocal(double value)
+        => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
 
     private static string SanitizeFileName(string? value, string fallback)
     {
@@ -259,6 +388,20 @@ public sealed class IndexModel : PageModel
         [Display(Name = "Handling/classification marking")]
         public string? HandlingMarking { get; set; }
 
-        public List<int> ProjectIds { get; set; } = new();
+        public bool AllowTextOnlyProjects { get; set; }
+
+        public List<BrochureProjectSelectionInput> Selections { get; set; } = new();
+    }
+
+    public sealed class BrochureProjectSelectionInput
+    {
+        public int ProjectId { get; set; }
+        public int? PrimaryPhotoId { get; set; }
+        public int? SecondaryPhotoId { get; set; }
+        public double PrimaryFocalX { get; set; } = .5d;
+        public double PrimaryFocalY { get; set; } = .5d;
+        public double SecondaryFocalX { get; set; } = .5d;
+        public double SecondaryFocalY { get; set; } = .5d;
+        public BrochureImageMode ImageMode { get; set; } = BrochureImageMode.Automatic;
     }
 }

@@ -1,21 +1,58 @@
-PRISM PROJECT PUBLICATIONS — PREPARATION VALIDATION
-==================================================
+PRISM PROJECT PUBLICATIONS — PHASE 2 VALIDATION
+================================================
 
-PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js
-PASS  JavaScript syntax: wwwroot/js/pages/projects-publications.js
+STATIC / SOURCE VALIDATION
+--------------------------
+PASS  Node.js syntax check: wwwroot/js/pages/projects-brochure.js
+PASS  C# delimiter lexer check across all supplied Phase 2 .cs files
 PASS  CSS brace/parenthesis structural balance
-PASS  C# brace/parenthesis/bracket structural balance for all supplied .cs files
-PASS  No .ttf/.otf/.woff/.woff2 binary is present in the package
-PASS  No migration is included
-PASS  No Program.cs replacement is included
-PASS  No existing Compendium read/export/PDF-builder replacement is included
-PASS  Existing ProjectBriefingPhotoLoader contract checked: LoadAsync(projectId, photoId, cancellationToken)
-PASS  Existing ProjectBriefingPhotoContent contract checked: Content byte[] + SourceVariant
-PASS  Existing Project capability-statement fields checked: ProjectId, Statement, DisplayOrder
-PASS  Existing project photo ordering fields checked: IsCover, IsLowResolution, Ordinal
-PASS  Existing Compendium preflight/generation contracts checked against supplied source
+PASS  Razor page gross brace balance
+PASS  Every data-* selector queried by projects-brochure.js exists in Brochure/Index.cshtml
+PASS  Brochure Razor Page no longer directly constructs BrochurePublicationService or BrochurePdfReportBuilder
+PASS  Central AddProjectPublications() DI registration exists
+PASS  Publication font warm-up service exists for startup registration
+PASS  Publication photo pipeline uses preserved master / derivative fallback and focal crop helper
+PASS  Secondary brochure imagery is explicit/opt-in unless Gallery 2 is deliberately selected
+PASS  Dynamic planner contains orphan avoidance and balanced continuation logic
+PASS  Renderer regression test supplied for both cover types
+PASS  Focal crop regression tests supplied
+PASS  No database migration is included
+PASS  No font binary is included in this source package
+PASS  Existing Compendium services and renderer are not replaced by Phase 2
+PASS  Project Publications navigation is not modified by Phase 2
 
-NOT RUN
--------
-.NET compilation and xUnit execution could not be run because the preparation environment has no .NET SDK.
-Run the normal PRISM Release build/test sequence after copying the files.
+INTEGRATION PATCH VALIDATION
+----------------------------
+PASS  Phase 1 Publications source was overlaid onto the supplied PRISM source archive
+PASS  Phase 1 navigation patch applied successfully to that combined source
+PASS  Phase 2 Program.cs patch applied successfully to the combined source
+PASS  Combined Program.cs contains exactly one AddProjectPublications() registration
+PASS  Combined Project navigation contains exactly one Publications item
+PASS  Full Phase 2 unified patch passes `git apply --check` against the Phase 1 baseline
+
+TESTS SUPPLIED
+--------------
+- BrochureLayoutPlannerTests
+  * exact four-card layout
+  * 5-project 3+2 orphan avoidance
+  * three-card and two-card density layouts
+  * Gallery 2 layout restrictions
+  * long-copy continuation/order
+  * 211-word balanced continuation (106+105)
+  * project nomenclature word counting
+- BrochurePhotoCropTests
+  * centred landscape crop
+  * right focal crop
+  * portrait top/bottom focal crops
+  * invalid focal clamping
+- BrochurePdfReportBuilderTests
+  * Cover A PDF generation without external assets
+  * Cover B PDF generation without external assets
+
+NOT RUN IN THIS EXECUTION ENVIRONMENT
+-------------------------------------
+The container does not contain the .NET SDK, so `dotnet build` and xUnit execution could not
+be run here. Run the normal PRISM Release build/test sequence after copying the files.
+
+This package therefore does NOT claim a successful .NET compilation in the preparation
+environment. JavaScript syntax and the source/integration checks above were actually run.

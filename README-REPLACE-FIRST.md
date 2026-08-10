@@ -1,105 +1,133 @@
-# PRISM Project Publications + Capability Brochure
+# PRISM Project Publications — Phase 2 Quality Hardening
 
-## What this package implements
+## Scope
 
-This phase creates one **Publications** entry point under Projects and keeps the two publication purposes separate beneath it:
+This package upgrades the existing Project Publications / Capability Brochure implementation from a functional Phase 1 builder to a publication-quality workflow. It does **not** replace the existing Simulators Compendium and does **not** add a database migration.
 
-- **Capability Brochure** — new, visual A4 publication workflow.
-- **Simulators Compendium** — existing detailed proliferation catalogue, using the existing Compendium read/export services and renderer.
+Phase 1 must already be present. If it is not, use the consolidated package supplied alongside this incremental package.
 
-The legacy `/Projects/Compendium` route remains compatible. GET requests move users to the canonical Publications workspace; a legacy `Generate` POST still invokes the existing Compendium exporter.
+## What Phase 2 implements
 
-## Brochure behaviour implemented
+### 1. Proper service architecture
+- `IBrochurePublicationService` owns brochure preparation/preflight/build orchestration.
+- `IBrochurePhotoService` owns publication photo probing and rendering.
+- `IBrochurePdfReportBuilder` owns PDF composition.
+- `IPublicationFontService` owns publication fonts.
+- `AddProjectPublications()` centralises DI registration.
+- The Razor Page no longer constructs publication services manually.
 
-- Project Brief is the default and recommended project narrative source.
-- A global selector also permits Capability Overview or Full Description.
-- Sources are never merged automatically.
-- Cover A: **Institutional / Evolutionary**.
-- Cover B: **Contemporary / Premium**.
-- Project selection supports search, lifecycle, project-category and technical-category filters.
-- Selected projects can be reordered by drag-and-drop or move-up/move-down buttons.
-- Cover B uses the first selected project with a usable photograph as its hero image.
-- Cover A uses up to the first three selected project photographs as an institutional montage.
-- Brochure preflight updates for the selected narrative source and reports:
-  - missing narrative;
-  - missing photograph;
-  - low-resolution selected photograph;
-  - long copy over 210 words.
-- Layout is deterministic and adaptive:
-  - up to 4 concise projects per page;
-  - 3 standard projects per page;
-  - 2 longer projects per page;
-  - exceptional long copy is split into continuation feature pages.
-- Project body typography is not reduced below the publication floor simply to force another card onto a page.
-- PDF generation uses live PRISM records and does not modify project data.
-- No database migration is required in this phase.
-- No new NuGet package and no `Program.cs` replacement are required.
+### 2. Startup font initialisation
+- Publication fonts are registered during application startup through a hosted warm-up service.
+- Existing `wwwroot/fonts/publications` DM Sans / Alatsi installation remains fully supported.
+- An optional server-resource location `Resources/Publications/Fonts` is also recognised when that folder is included in deployment.
+- QuestPDF Lato remains a deterministic fallback.
 
-## Existing Compendium
+### 3. Authoritative server preflight
+Preview and final generation now use the same server preparation rules. Preflight validates:
+- project still exists and is publishable;
+- selected narrative exists;
+- selected primary/secondary photos belong to the project;
+- selected photo files actually exist and can be decoded;
+- publication image resolution;
+- Gallery 2 has a valid second photo;
+- explicit text-only publication policy;
+- selection limit;
+- exceptional narrative length.
 
-The Compendium's existing eligibility and generation services are retained. This package does **not** change `CompendiumReadService`, `CompendiumExportService` or `CompendiumPdfReportBuilder`.
+Findings are classified as **Blocker**, **Warning**, or **Information**. Preview and Generate are enabled only after a current blocker-free server preflight.
 
-The new Publications/Compendium page is a common-workspace shell over those existing services. Publication warnings remain accessible, with the first eight shown initially and a `Show all` action for larger warning sets.
+### 4. Brochure-specific image editorial control
+Each selected project can now have independent brochure image settings without modifying the project's normal PRISM cover photo:
+- image treatment: Automatic / Single / Gallery 2;
+- explicit primary photo selection;
+- optional explicit second photo selection;
+- independent focal point for each selected photo;
+- click-to-position focal crop preview;
+- focal-point reset.
 
-## Offline publication fonts
+Secondary imagery is deliberately opt-in. PRISM does not silently select and warn about a second photograph the user never chose. Selecting Gallery 2 prompts the user to choose a second image.
 
-The brochure code has an explicit publication-font registry. It never needs an internet font request.
+### 5. Publication photo pipeline
+The brochure no longer uses the PowerPoint loader's fixed centre crop. It:
+- prefers the preserved project photo master;
+- falls back through the largest available derivatives;
+- honours the user-selected focal point;
+- creates a deterministic 16:9 publication crop;
+- renders a 1920×1080 JPEG for the PDF composer;
+- performs actual-file probing before export.
 
-Preferred primary family:
+This is isolated to brochure generation and does not alter stored project photographs.
 
-`DM Sans`
+### 6. Publication-aware page planning
+The page planner now uses dynamic programming instead of greedy first-fit layout.
+- 4 concise projects can still use a four-card page.
+- 5 concise projects prefer 3+2 instead of 4+1.
+- 6 concise projects can balance as 3+3.
+- Gallery 2 projects cannot be forced into 3/4-card pages.
+- exceptional long narratives use feature continuation pages.
+- continuation chunks are balanced; 211 words becomes 106+105 rather than 210+1.
+- selected project order remains authoritative.
 
-Optional Cover A display accent:
+### 7. Exact PDF preview
+`Preview PDF` and `Generate brochure PDF` use the **same data preparation and same QuestPDF composer**. Preview is returned inline in a new browser tab; final generation is returned as an attachment.
 
-`Alatsi`
+### 8. Cover improvements
+- Cover B uses the focal-cropped first usable selected project image as its hero.
+- Cover A supports an approved local institutional artwork asset.
+- If Cover A artwork is absent, the existing disciplined project montage remains the fallback.
 
-Font binaries are intentionally not part of this source package. Place organisation-approved/licensed static TTF files at the exact paths documented in:
+Optional approved artwork paths:
+- `wwwroot/img/publications/cover-a-institutional.jpg`
+- `wwwroot/img/publications/cover-a-institutional.png`
+- `wwwroot/img/publications/cover-a-institutional.webp`
 
-`wwwroot/fonts/publications/README-PUBLICATION-FONTS.txt`
+See `wwwroot/img/publications/README-COVER-A.txt`.
 
-If DM Sans is absent or cannot be registered, the brochure safely falls back to QuestPDF's bundled Lato family. Restart PRISM after adding/changing the local font package.
+## Installation — incremental Phase 2
 
-## Installation
+Copy these replacement/new paths over the ProjectManagement project root:
 
-### 1. Copy the ready-to-replace source tree
-
-Copy these folders/files over the ProjectManagement project root, preserving paths:
-
-- `Pages/Projects/Publications/**`
-- `Pages/Projects/Compendium/Index.cshtml`
-- `Pages/Projects/Compendium/Index.cshtml.cs`
-- `Services/Publications/**`
+- `Pages/Projects/Publications/Brochure/Index.cshtml`
+- `Pages/Projects/Publications/Brochure/Index.cshtml.cs`
+- `Services/Publications/BrochureContracts.cs`
+- `Services/Publications/BrochureLayoutPlanner.cs`
+- `Services/Publications/BrochurePhotoService.cs`
+- `Services/Publications/BrochurePublicationService.cs`
+- `Services/Publications/PublicationServiceCollectionExtensions.cs`
 - `Utilities/Reporting/BrochurePdfReportBuilder.cs`
 - `Utilities/Reporting/PublicationFontRegistry.cs`
 - `wwwroot/css/pages/projects-publications.css`
 - `wwwroot/js/pages/projects-brochure.js`
-- `wwwroot/js/pages/projects-publications.js`
 - `wwwroot/fonts/publications/README-PUBLICATION-FONTS.txt`
+- `wwwroot/img/publications/README-COVER-A.txt`
 - `ProjectManagement.Tests/Publications/BrochureLayoutPlannerTests.cs`
+- `ProjectManagement.Tests/Publications/BrochurePhotoCropTests.cs`
+- `ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs`
 
-### 2. Merge the single navigation change
+Then apply the narrow Program merge:
 
-Apply:
+```powershell
+git apply .\PRISM-Publications-Phase2-Program.patch
+```
 
-`PRISM-Publications-Navigation.patch`
+or use the exact manual insertion in `PROGRAM-MERGE.txt`.
 
-or paste the exact insertion documented in:
+There is no navigation change in Phase 2; the Phase 1 **Publications** navigation item remains as-is.
 
-`NAVIGATION-MERGE.txt`
+## Fonts
 
-This is deliberately supplied as a narrow merge rather than a full replacement for `ProjectModuleNavDefinition.cs`, because that file has independent ARPP and Industry Directory changes that should not be overwritten from an older snapshot.
+If you already ran the previously supplied `Install-PrismPublicationFonts.ps1`, no further font installation is required. Phase 2 continues to recognise:
 
-### 3. Optional premium offline fonts
+```text
+wwwroot\fonts\publications\dm-sans\
+wwwroot\fonts\publications\alatsi\
+```
 
-Install the static TTF files described in:
+Restart the PRISM application pool after adding or changing font files.
 
-`wwwroot/fonts/publications/README-PUBLICATION-FONTS.txt`
+## Build
 
-This can be done before or after the code deployment. The brochure remains functional with Lato until then.
-
-### 4. Clean/rebuild
-
-From the application project root:
+From the ProjectManagement project root:
 
 ```powershell
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
@@ -108,39 +136,28 @@ dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-Then restart IIS/IIS Express and hard-refresh the browser.
+Then restart IIS / IIS Express and hard-refresh the browser.
 
 ## Acceptance checks
 
-1. Open Projects and confirm the new **Publications** item appears before Industry directory.
-2. Open Publications and confirm Overview / Brochure / Compendium are reachable from the same workspace.
-3. Open Brochure and confirm Project Brief is selected by default.
-4. Change the narrative source and confirm the row readiness indicator and preflight update to that source.
-5. Select projects and reorder them using both drag-and-drop and the up/down controls.
-6. Generate Cover A and Cover B.
-7. Verify Cover B hero selection follows selected project order.
-8. Verify concise project briefs are composed 4/3/2 per page according to density.
-9. Verify a project over 210 words is moved to continuation feature page(s), not rendered with tiny text.
-10. Generate with a missing photo and confirm the brochure still generates without inventing imagery.
-11. Open the Compendium tab and generate the existing Compendium successfully.
-12. Browse directly to `/Projects/Compendium` and confirm it reaches the canonical Publications/Compendium workflow.
-13. If premium font files are absent, confirm the font-status card reports the Lato fallback and brochure generation still succeeds.
-14. After installing the local DM Sans files and restarting, confirm the font-status card reports DM Sans ready.
+1. Open **Projects → Publications → Brochure**.
+2. Confirm Project Brief remains the default narrative source.
+3. Select a project and open **Images**.
+4. Change the primary photograph and click different positions on the focal preview; verify the marker moves.
+5. Select **Gallery 2** and verify a distinct second photograph is required.
+6. Select **Single** and verify the second-image treatment is not used.
+7. Confirm server preflight shows Blockers / Warnings / Info and actually detects an unavailable selected image file.
+8. Confirm Preview and Generate remain disabled while preflight is stale/running or has blockers.
+9. Generate Preview PDF; verify it opens inline and matches the final PDF layout.
+10. Verify 5 concise projects are composed as 3+2 rather than 4+1.
+11. Verify a 211-word narrative creates balanced continuation pages rather than a one-word orphan page.
+12. Verify Cover B uses the selected focal crop for its hero image.
+13. Add approved Cover A artwork and verify it replaces the montage; remove it and confirm montage fallback.
+14. Verify DM Sans is reported ready when the local static TTF package is present; otherwise Lato fallback remains operational.
+15. Open Publications → Compendium and verify the existing Compendium remains unchanged and generates normally.
 
 ## Deliberate scope boundary
 
-This phase is schema-neutral. It does **not** yet persist named/saved brochure definitions. The user selects and orders projects for the current generation session. Adding durable named brochure presets later should be a separate migration-backed phase rather than hidden in local browser storage.
+This phase still does **not** persist named brochure definitions, drafts, editions or project-specific brochure selections in the database. That should be the next schema-backed phase after the rendering/preview workflow has been visually accepted.
 
-It also uses the project's configured cover photo (or the best available photo) and the existing PRISM 16:9 project-photo export pipeline. Brochure-specific focal-point/crop editing is not introduced in this phase.
-
-## Validation performed in the preparation environment
-
-- Both new JavaScript files pass `node --check`.
-- CSS delimiter/brace checks pass.
-- C# source structural delimiter checks pass.
-- The brochure photo-loader contract was checked against the existing Project Briefing photo loader (`LoadAsync(projectId, photoId, ...)` returning 1600×900 JPEG content).
-- The Compendium wrapper was checked against the existing `ICompendiumReadService` / `ICompendiumExportService` contracts.
-- No font binary is present in the replacement package.
-- No migration, `ApplicationDbContext`, `Program.cs` or existing Compendium renderer/service file is replaced by this package.
-
-The preparation environment does not contain the .NET SDK, so the final Release `dotnet build` and `dotnet test` must be run in the normal PRISM development environment after copying the files.
+No database migration is included in this package.

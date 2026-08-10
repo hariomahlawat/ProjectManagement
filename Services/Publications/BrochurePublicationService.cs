@@ -2,26 +2,54 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Services.ProjectBriefings;
 
 namespace ProjectManagement.Services.Publications;
 
-/// <summary>
-/// Read/composition service for project brochures. It intentionally reads the same
-/// authoritative Project, capability-statement and ProjectPhoto records already used
-/// by PRISM briefing/export workflows; no brochure copy is persisted separately.
-/// </summary>
-public sealed partial class BrochurePublicationService
+public interface IBrochurePublicationService
 {
+    Task<IReadOnlyList<BrochureProjectListItemVm>> GetProjectOptionsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<BrochurePreflight> PreflightAsync(
+        IReadOnlyList<BrochureProjectSelection> selections,
+        BrochureNarrativeSource narrativeSource,
+        bool allowTextOnlyProjects,
+        CancellationToken cancellationToken = default);
+
+    Task<BrochurePublicationData> BuildAsync(
+        IReadOnlyList<BrochureProjectSelection> selections,
+        BrochureBuildOptions options,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class BrochurePublicationValidationException : Exception
+{
+    public BrochurePublicationValidationException(BrochurePreflight preflight)
+        : base("The brochure did not pass publication preflight.")
+    {
+        Preflight = preflight ?? throw new ArgumentNullException(nameof(preflight));
+    }
+
+    public BrochurePreflight Preflight { get; }
+}
+
+/// <summary>
+/// Authoritative brochure read, preflight and composition service. UI preflight and
+/// final generation deliberately run through the same project/narrative/photo rules.
+/// </summary>
+public sealed partial class BrochurePublicationService : IBrochurePublicationService
+{
+    private const int MaximumProjects = 100;
+
     private readonly ApplicationDbContext _db;
-    private readonly IProjectBriefingPhotoLoader _photoLoader;
+    private readonly IBrochurePhotoService _photoService;
 
     public BrochurePublicationService(
         ApplicationDbContext db,
-        IProjectBriefingPhotoLoader photoLoader)
+        IBrochurePhotoService photoService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
+        _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
     }
 
     public async Task<IReadOnlyList<BrochureProjectListItemVm>> GetProjectOptionsAsync(
@@ -62,31 +90,29 @@ public sealed partial class BrochurePublicationService
                 group => group.Key,
                 group => group.Sum(row => BrochureLayoutPlanner.CountWords(row.Statement)));
 
-        var photoRows = await _db.ProjectPhotos
-            .AsNoTracking()
-            .Where(photo => projectIds.Contains(photo.ProjectId))
-            .Select(photo => new PublicationPhotoRow(
-                photo.ProjectId,
-                photo.Id,
-                photo.IsCover,
-                photo.IsLowResolution,
-                photo.Ordinal))
-            .ToListAsync(cancellationToken);
-        var photosByProject = photoRows
-            .GroupBy(photo => photo.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<PublicationPhotoRow>)group
-                    .OrderByDescending(photo => photo.IsCover)
-                    .ThenBy(photo => photo.IsLowResolution)
-                    .ThenBy(photo => photo.Ordinal)
-                    .ThenBy(photo => photo.PhotoId)
-                    .ToArray());
+        var photoRows = await LoadPhotoRowsAsync(projectIds, cancellationToken);
+        var photosByProject = GroupPhotos(photoRows);
 
         return projects.Select(project =>
         {
-            var projectPhotos = photosByProject.GetValueOrDefault(project.ProjectId);
-            var selectedPhoto = SelectPhoto(project.CoverPhotoId, projectPhotos);
+            var projectPhotos = photosByProject.GetValueOrDefault(project.ProjectId)
+                                ?? Array.Empty<PublicationPhotoRow>();
+            var primary = SelectDefaultPrimary(project.CoverPhotoId, projectPhotos);
+            // A second brochure image is an editorial choice, not an implicit side effect
+            // of a project having multiple photographs. Gallery 2 can still prompt/pick a
+            // second image in the client, while Automatic uses one only when explicitly set.
+            PublicationPhotoRow? secondary = null;
+            var photoOptions = projectPhotos
+                .Select(photo => new BrochurePhotoOptionVm(
+                    photo.PhotoId,
+                    photo.Version,
+                    photo.Caption,
+                    photo.Width,
+                    photo.Height,
+                    photo.IsCover,
+                    photo.IsLowResolution))
+                .ToArray();
+
             return new BrochureProjectListItemVm(
                 project.ProjectId,
                 project.ProjectName,
@@ -99,32 +125,156 @@ public sealed partial class BrochurePublicationService
                 BrochureLayoutPlanner.CountWords(project.ProjectBrief),
                 capabilityWords.GetValueOrDefault(project.ProjectId),
                 BrochureLayoutPlanner.CountWords(project.Description),
-                selectedPhoto is not null,
-                selectedPhoto is not null && !selectedPhoto.IsLowResolution);
+                primary?.PhotoId,
+                secondary?.PhotoId,
+                photoOptions);
         }).ToArray();
     }
 
+    public async Task<BrochurePreflight> PreflightAsync(
+        IReadOnlyList<BrochureProjectSelection> selections,
+        BrochureNarrativeSource narrativeSource,
+        bool allowTextOnlyProjects,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = await PrepareAsync(
+            selections,
+            narrativeSource,
+            allowTextOnlyProjects,
+            cancellationToken);
+        return prepared.Preflight;
+    }
+
     public async Task<BrochurePublicationData> BuildAsync(
-        IReadOnlyList<int> orderedProjectIds,
+        IReadOnlyList<BrochureProjectSelection> selections,
         BrochureBuildOptions options,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(orderedProjectIds);
         ArgumentNullException.ThrowIfNull(options);
 
-        var orderedIds = orderedProjectIds
-            .Where(id => id > 0)
-            .Distinct()
-            .Take(100)
-            .ToArray();
-        if (orderedIds.Length == 0)
+        var prepared = await PrepareAsync(
+            selections,
+            options.NarrativeSource,
+            options.AllowTextOnlyProjects,
+            cancellationToken);
+        if (!prepared.Preflight.CanGenerate)
         {
-            throw new InvalidOperationException("Select at least one project for the brochure.");
+            throw new BrochurePublicationValidationException(prepared.Preflight);
         }
 
+        var renderRequests = prepared.Projects
+            .SelectMany(project => BuildRenderRequests(project))
+            .ToArray();
+        var rendered = await _photoService.RenderAsync(renderRequests, cancellationToken);
+
+        var lateIssues = new List<BrochurePreflightIssue>();
+        var publicationProjects = new List<BrochurePublicationProject>(prepared.Projects.Count);
+        foreach (var project in prepared.Projects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            BrochurePublicationImage? primary = null;
+            if (project.PrimaryPhotoId.HasValue)
+            {
+                rendered.TryGetValue(project.PrimaryPhotoId.Value, out primary);
+                if (primary is null)
+                {
+                    lateIssues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.SelectedPhotoUnavailable,
+                        PublicationIssueSeverity.Blocker,
+                        project.Row.ProjectId,
+                        project.Row.ProjectName,
+                        "The selected primary photograph became unavailable during generation."));
+                }
+            }
+
+            BrochurePublicationImage? secondary = null;
+            if (project.SecondaryPhotoId.HasValue && project.ImageMode != BrochureImageMode.Single)
+            {
+                rendered.TryGetValue(project.SecondaryPhotoId.Value, out secondary);
+                if (secondary is null && project.ImageMode == BrochureImageMode.GalleryTwo)
+                {
+                    lateIssues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.GallerySecondPhotoUnavailable,
+                        PublicationIssueSeverity.Blocker,
+                        project.Row.ProjectId,
+                        project.Row.ProjectName,
+                        "The selected second gallery photograph became unavailable during generation."));
+                }
+            }
+
+            publicationProjects.Add(new BrochurePublicationProject(
+                project.Row.ProjectId,
+                project.Row.ProjectName,
+                project.Row.ProjectCategory,
+                project.Row.TechnicalCategory,
+                project.Narrative,
+                project.NarrativeWordCount,
+                primary,
+                secondary,
+                project.ImageMode));
+        }
+
+        if (lateIssues.Count > 0)
+        {
+            throw new BrochurePublicationValidationException(new BrochurePreflight(
+                prepared.Preflight.SelectedProjectCount,
+                prepared.Preflight.Issues.Concat(lateIssues).ToArray()));
+        }
+
+        return new BrochurePublicationData(
+            options,
+            publicationProjects,
+            prepared.Preflight);
+    }
+
+    private async Task<PreparedPublication> PrepareAsync(
+        IReadOnlyList<BrochureProjectSelection> selections,
+        BrochureNarrativeSource narrativeSource,
+        bool allowTextOnlyProjects,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(selections);
+        if (!Enum.IsDefined(narrativeSource))
+        {
+            throw new InvalidOperationException("The selected brochure narrative source is invalid.");
+        }
+
+        var normalizedSelections = NormalizeSelections(selections);
+        if (normalizedSelections.Length == 0)
+        {
+            return new PreparedPublication(
+                Array.Empty<PreparedProject>(),
+                new BrochurePreflight(0, new[]
+                {
+                    new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.ProjectUnavailable,
+                        PublicationIssueSeverity.Blocker,
+                        null,
+                        null,
+                        "Select at least one project for the brochure.")
+                }));
+        }
+
+        if (normalizedSelections.Length > MaximumProjects)
+        {
+            return new PreparedPublication(
+                Array.Empty<PreparedProject>(),
+                new BrochurePreflight(normalizedSelections.Length, new[]
+                {
+                    new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.SelectionLimitExceeded,
+                        PublicationIssueSeverity.Blocker,
+                        null,
+                        null,
+                        $"A brochure can contain up to {MaximumProjects} selected projects.")
+                }));
+        }
+
+        var projectIds = normalizedSelections.Select(selection => selection.ProjectId).ToArray();
         var rows = await _db.Projects
             .AsNoTracking()
-            .Where(project => orderedIds.Contains(project.Id)
+            .Where(project => projectIds.Contains(project.Id)
                               && !project.IsDeleted
                               && !project.IsArchived
                               && (project.LifecycleStatus == ProjectLifecycleStatus.Active
@@ -138,17 +288,12 @@ public sealed partial class BrochurePublicationService
                 project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
                 project.CoverPhotoId))
             .ToListAsync(cancellationToken);
-
         var rowById = rows.ToDictionary(row => row.ProjectId);
-        var validOrderedIds = orderedIds.Where(rowById.ContainsKey).ToArray();
-        if (validOrderedIds.Length == 0)
-        {
-            throw new InvalidOperationException("The selected projects are no longer available for publication.");
-        }
 
+        var validProjectIds = rows.Select(row => row.ProjectId).ToArray();
         var capabilityRows = await _db.ProjectCapabilityStatements
             .AsNoTracking()
-            .Where(statement => validOrderedIds.Contains(statement.ProjectId))
+            .Where(statement => validProjectIds.Contains(statement.ProjectId))
             .OrderBy(statement => statement.ProjectId)
             .ThenBy(statement => statement.DisplayOrder)
             .ThenBy(statement => statement.Id)
@@ -163,17 +308,242 @@ public sealed partial class BrochurePublicationService
                     .Where(HasMeaningfulText)
                     .ToArray());
 
-        var photoRows = await _db.ProjectPhotos
+        var photoRows = await LoadPhotoRowsAsync(validProjectIds, cancellationToken);
+        var photosByProject = GroupPhotos(photoRows);
+
+        var issues = new List<BrochurePreflightIssue>();
+        var prepared = new List<PreparedProject>(normalizedSelections.Length);
+        foreach (var selection in normalizedSelections)
+        {
+            if (!rowById.TryGetValue(selection.ProjectId, out var row))
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.ProjectUnavailable,
+                    PublicationIssueSeverity.Blocker,
+                    selection.ProjectId,
+                    null,
+                    $"Project {selection.ProjectId} is no longer available for publication."));
+                continue;
+            }
+
+            var capabilities = capabilitiesByProject.GetValueOrDefault(selection.ProjectId)
+                               ?? Array.Empty<string>();
+            var (narrative, hasNarrative) = ResolveNarrative(row, capabilities, narrativeSource);
+            var wordCount = BrochureLayoutPlanner.CountWords(narrative);
+            if (!hasNarrative)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.MissingNarrative,
+                    PublicationIssueSeverity.Blocker,
+                    row.ProjectId,
+                    row.ProjectName,
+                    $"{NarrativeSourceLabel(narrativeSource)} is not recorded for this project."));
+            }
+            else if (wordCount > BrochureLayoutPlanner.LongNarrativeChunkWords)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.LongNarrative,
+                    PublicationIssueSeverity.Information,
+                    row.ProjectId,
+                    row.ProjectName,
+                    $"Narrative is {wordCount} words and will continue on a feature page rather than use smaller body text."));
+            }
+
+            var projectPhotos = photosByProject.GetValueOrDefault(row.ProjectId)
+                                ?? Array.Empty<PublicationPhotoRow>();
+            var (primaryPhotoId, primaryInvalid) = ResolvePrimaryPhotoId(
+                selection.PrimaryPhotoId,
+                row.CoverPhotoId,
+                projectPhotos);
+            if (primaryInvalid)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.SelectedPhotoInvalid,
+                    PublicationIssueSeverity.Blocker,
+                    row.ProjectId,
+                    row.ProjectName,
+                    "The selected primary photograph does not belong to this project."));
+            }
+
+            var (secondaryPhotoId, secondaryInvalid) = ResolveSecondaryPhotoId(
+                selection.SecondaryPhotoId,
+                primaryPhotoId,
+                projectPhotos);
+            if (secondaryInvalid)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.GallerySecondPhotoInvalid,
+                    selection.ImageMode == BrochureImageMode.GalleryTwo
+                        ? PublicationIssueSeverity.Blocker
+                        : PublicationIssueSeverity.Warning,
+                    row.ProjectId,
+                    row.ProjectName,
+                    "The selected second photograph is invalid or duplicates the primary photograph."));
+            }
+
+            if (!primaryPhotoId.HasValue && !primaryInvalid)
+            {
+                var textOnlyPermitted = allowTextOnlyProjects && selection.ImageMode != BrochureImageMode.GalleryTwo;
+                issues.Add(new BrochurePreflightIssue(
+                    textOnlyPermitted
+                        ? BrochurePreflightIssueCode.TextOnlyProject
+                        : BrochurePreflightIssueCode.MissingPrimaryPhoto,
+                    textOnlyPermitted
+                        ? PublicationIssueSeverity.Warning
+                        : PublicationIssueSeverity.Blocker,
+                    row.ProjectId,
+                    row.ProjectName,
+                    textOnlyPermitted
+                        ? "No photograph is available; this project will be typeset as a text-only project block."
+                        : "A primary photograph is required for this image treatment. Enable text-only projects only for non-gallery projects where publication without imagery is intentional."));
+            }
+
+            if (selection.ImageMode == BrochureImageMode.GalleryTwo && !secondaryPhotoId.HasValue && !secondaryInvalid)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.GallerySecondPhotoRequired,
+                    PublicationIssueSeverity.Blocker,
+                    row.ProjectId,
+                    row.ProjectName,
+                    "Gallery 2 requires a second project photograph."));
+            }
+
+            prepared.Add(new PreparedProject(
+                row,
+                narrative,
+                wordCount,
+                primaryPhotoId,
+                secondaryPhotoId,
+                selection.PrimaryFocalX,
+                selection.PrimaryFocalY,
+                selection.SecondaryFocalX,
+                selection.SecondaryFocalY,
+                selection.ImageMode));
+        }
+
+        var references = prepared
+            .SelectMany(project =>
+            {
+                var list = new List<BrochurePhotoReference>(2);
+                if (project.PrimaryPhotoId.HasValue)
+                {
+                    list.Add(new BrochurePhotoReference(project.Row.ProjectId, project.PrimaryPhotoId.Value));
+                }
+                if (project.SecondaryPhotoId.HasValue && project.ImageMode != BrochureImageMode.Single)
+                {
+                    list.Add(new BrochurePhotoReference(project.Row.ProjectId, project.SecondaryPhotoId.Value));
+                }
+                return list;
+            })
+            .ToArray();
+        var probes = await _photoService.ProbeAsync(references, cancellationToken);
+
+        foreach (var project in prepared)
+        {
+            if (project.PrimaryPhotoId.HasValue)
+            {
+                var primaryProbe = probes.GetValueOrDefault(project.PrimaryPhotoId.Value);
+                if (primaryProbe is null || !primaryProbe.IsReady)
+                {
+                    issues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.SelectedPhotoUnavailable,
+                        PublicationIssueSeverity.Blocker,
+                        project.Row.ProjectId,
+                        project.Row.ProjectName,
+                        primaryProbe?.FailureReason ?? "The selected primary photograph cannot be loaded from storage."));
+                }
+                else if (!primaryProbe.IsPrintReady)
+                {
+                    issues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.LowResolutionPhoto,
+                        PublicationIssueSeverity.Warning,
+                        project.Row.ProjectId,
+                        project.Row.ProjectName,
+                        $"Primary photograph is {primaryProbe.Width}×{primaryProbe.Height}px; it may look soft in a large brochure frame."));
+                }
+            }
+
+            if (project.SecondaryPhotoId.HasValue && project.ImageMode != BrochureImageMode.Single)
+            {
+                var secondaryProbe = probes.GetValueOrDefault(project.SecondaryPhotoId.Value);
+                if (secondaryProbe is null || !secondaryProbe.IsReady)
+                {
+                    issues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.GallerySecondPhotoUnavailable,
+                        project.ImageMode == BrochureImageMode.GalleryTwo
+                            ? PublicationIssueSeverity.Blocker
+                            : PublicationIssueSeverity.Warning,
+                        project.Row.ProjectId,
+                        project.Row.ProjectName,
+                        secondaryProbe?.FailureReason ?? "The selected second photograph cannot be loaded from storage."));
+                }
+                else if (!secondaryProbe.IsPrintReady)
+                {
+                    issues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.LowResolutionPhoto,
+                        PublicationIssueSeverity.Warning,
+                        project.Row.ProjectId,
+                        project.Row.ProjectName,
+                        $"Second photograph is {secondaryProbe.Width}×{secondaryProbe.Height}px; it may look soft in print."));
+                }
+            }
+        }
+
+        return new PreparedPublication(
+            prepared,
+            new BrochurePreflight(normalizedSelections.Length, issues));
+    }
+
+    private static IEnumerable<BrochurePhotoRenderRequest> BuildRenderRequests(PreparedProject project)
+    {
+        if (project.PrimaryPhotoId.HasValue)
+        {
+            yield return new BrochurePhotoRenderRequest(
+                project.Row.ProjectId,
+                project.PrimaryPhotoId.Value,
+                project.PrimaryFocalX,
+                project.PrimaryFocalY);
+        }
+
+        if (project.SecondaryPhotoId.HasValue && project.ImageMode != BrochureImageMode.Single)
+        {
+            yield return new BrochurePhotoRenderRequest(
+                project.Row.ProjectId,
+                project.SecondaryPhotoId.Value,
+                project.SecondaryFocalX,
+                project.SecondaryFocalY);
+        }
+    }
+
+    private async Task<IReadOnlyList<PublicationPhotoRow>> LoadPhotoRowsAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return Array.Empty<PublicationPhotoRow>();
+        }
+
+        var ids = projectIds.ToArray();
+        return await _db.ProjectPhotos
             .AsNoTracking()
-            .Where(photo => validOrderedIds.Contains(photo.ProjectId))
+            .Where(photo => ids.Contains(photo.ProjectId))
             .Select(photo => new PublicationPhotoRow(
                 photo.ProjectId,
                 photo.Id,
                 photo.IsCover,
                 photo.IsLowResolution,
-                photo.Ordinal))
+                photo.Ordinal,
+                photo.Width,
+                photo.Height,
+                photo.Caption,
+                photo.Version))
             .ToListAsync(cancellationToken);
-        var photosByProject = photoRows
+    }
+
+    private static IReadOnlyDictionary<int, IReadOnlyList<PublicationPhotoRow>> GroupPhotos(
+        IReadOnlyList<PublicationPhotoRow> photos)
+        => photos
             .GroupBy(photo => photo.ProjectId)
             .ToDictionary(
                 group => group.Key,
@@ -184,74 +554,82 @@ public sealed partial class BrochurePublicationService
                     .ThenBy(photo => photo.PhotoId)
                     .ToArray());
 
-        var projects = new List<BrochurePublicationProject>(validOrderedIds.Length);
-        var missingNarrative = 0;
-        var missingPhoto = 0;
-        var lowResolution = 0;
-        var longNarrative = 0;
-
-        foreach (var projectId in validOrderedIds)
+    private static PublicationPhotoRow? SelectDefaultPrimary(
+        int? configuredCoverPhotoId,
+        IReadOnlyList<PublicationPhotoRow> photos)
+    {
+        if (photos.Count == 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var row = rowById[projectId];
-            var capabilities = capabilitiesByProject.GetValueOrDefault(projectId) ?? Array.Empty<string>();
-            var (narrative, hasNarrative) = ResolveNarrative(row, capabilities, options.NarrativeSource);
-            if (!hasNarrative)
-            {
-                missingNarrative++;
-            }
-
-            var wordCount = BrochureLayoutPlanner.CountWords(narrative);
-            if (wordCount > 210)
-            {
-                longNarrative++;
-            }
-
-            var selectedPhoto = SelectPhoto(row.CoverPhotoId, photosByProject.GetValueOrDefault(projectId));
-            ProjectBriefingPhotoContent? photoContent = null;
-            if (selectedPhoto is not null)
-            {
-                photoContent = await _photoLoader.LoadAsync(projectId, selectedPhoto.PhotoId, cancellationToken);
-            }
-
-            if (photoContent is null)
-            {
-                missingPhoto++;
-            }
-            else if (selectedPhoto?.IsLowResolution == true)
-            {
-                lowResolution++;
-            }
-
-            projects.Add(new BrochurePublicationProject(
-                row.ProjectId,
-                row.ProjectName,
-                row.ProjectCategory,
-                row.TechnicalCategory,
-                narrative,
-                wordCount,
-                photoContent?.Content,
-                selectedPhoto?.IsLowResolution == true,
-                photoContent?.SourceVariant));
+            return null;
         }
 
-        return new BrochurePublicationData(
-            options,
-            projects,
-            new BrochurePreflight(
-                projects.Count,
-                missingNarrative,
-                missingPhoto,
-                lowResolution,
-                longNarrative));
+        if (configuredCoverPhotoId.HasValue)
+        {
+            var configured = photos.FirstOrDefault(photo => photo.PhotoId == configuredCoverPhotoId.Value);
+            if (configured is not null)
+            {
+                return configured;
+            }
+        }
+
+        return photos.First();
     }
+
+    private static (int? PhotoId, bool Invalid) ResolvePrimaryPhotoId(
+        int? requestedPhotoId,
+        int? configuredCoverPhotoId,
+        IReadOnlyList<PublicationPhotoRow> photos)
+    {
+        if (requestedPhotoId.HasValue)
+        {
+            return photos.Any(photo => photo.PhotoId == requestedPhotoId.Value)
+                ? (requestedPhotoId, false)
+                : (null, true);
+        }
+
+        return (SelectDefaultPrimary(configuredCoverPhotoId, photos)?.PhotoId, false);
+    }
+
+    private static (int? PhotoId, bool Invalid) ResolveSecondaryPhotoId(
+        int? requestedPhotoId,
+        int? primaryPhotoId,
+        IReadOnlyList<PublicationPhotoRow> photos)
+    {
+        if (requestedPhotoId.HasValue)
+        {
+            var valid = requestedPhotoId.Value != primaryPhotoId
+                        && photos.Any(photo => photo.PhotoId == requestedPhotoId.Value);
+            return valid ? (requestedPhotoId, false) : (null, true);
+        }
+
+        // Secondary imagery is deliberately opt-in. This prevents hidden image choices,
+        // unnecessary image decoding, and warnings for photographs the user never selected.
+        return (null, false);
+    }
+
+    private static BrochureProjectSelection[] NormalizeSelections(
+        IReadOnlyList<BrochureProjectSelection> selections)
+        => selections
+            .Where(selection => selection.ProjectId > 0)
+            .GroupBy(selection => selection.ProjectId)
+            .Select(group => group.First())
+            .Select(selection => selection with
+            {
+                PrimaryFocalX = ClampFocal(selection.PrimaryFocalX),
+                PrimaryFocalY = ClampFocal(selection.PrimaryFocalY),
+                SecondaryFocalX = ClampFocal(selection.SecondaryFocalX),
+                SecondaryFocalY = ClampFocal(selection.SecondaryFocalY),
+                ImageMode = Enum.IsDefined(selection.ImageMode)
+                    ? selection.ImageMode
+                    : BrochureImageMode.Automatic
+            })
+            .ToArray();
 
     private static (string Narrative, bool HasNarrative) ResolveNarrative(
         PublicationProjectRow project,
         IReadOnlyList<string> capabilities,
         BrochureNarrativeSource source)
-    {
-        return source switch
+        => source switch
         {
             BrochureNarrativeSource.ProjectBrief => ResolveText(
                 project.ProjectBrief,
@@ -264,7 +642,6 @@ public sealed partial class BrochurePublicationService
                 "Project description not recorded."),
             _ => throw new InvalidOperationException("The selected brochure narrative source is invalid.")
         };
-    }
 
     private static (string Text, bool HasText) ResolveText(string? value, string fallback)
     {
@@ -279,31 +656,14 @@ public sealed partial class BrochurePublicationService
             : (normalized, true);
     }
 
-    private static PublicationPhotoRow? SelectPhoto(
-        int? configuredCoverPhotoId,
-        IReadOnlyList<PublicationPhotoRow>? photos)
-    {
-        if (photos is null || photos.Count == 0)
+    private static string NarrativeSourceLabel(BrochureNarrativeSource source)
+        => source switch
         {
-            return null;
-        }
-
-        if (configuredCoverPhotoId.HasValue)
-        {
-            var configured = photos.FirstOrDefault(photo => photo.PhotoId == configuredCoverPhotoId.Value);
-            if (configured is not null)
-            {
-                return configured;
-            }
-        }
-
-        return photos
-            .OrderByDescending(photo => photo.IsCover)
-            .ThenBy(photo => photo.IsLowResolution)
-            .ThenBy(photo => photo.Ordinal)
-            .ThenBy(photo => photo.PhotoId)
-            .First();
-    }
+            BrochureNarrativeSource.ProjectBrief => "Project Brief",
+            BrochureNarrativeSource.CapabilityOverview => "Capability Overview",
+            BrochureNarrativeSource.FullDescription => "Full Description",
+            _ => "Selected narrative"
+        };
 
     private static string NormalizeNarrative(string value)
     {
@@ -316,10 +676,7 @@ public sealed partial class BrochurePublicationService
         normalized = MarkdownDecorationRegex().Replace(normalized, string.Empty);
         normalized = HorizontalWhitespaceRegex().Replace(normalized, " ");
 
-        var lines = normalized
-            .Split('\n')
-            .Select(line => CleanLine(line))
-            .ToArray();
+        var lines = normalized.Split('\n').Select(CleanLine).ToArray();
         normalized = string.Join("\n", lines);
         normalized = ExcessiveNewlinesRegex().Replace(normalized, "\n\n").Trim();
         return normalized;
@@ -335,10 +692,10 @@ public sealed partial class BrochurePublicationService
         var line = value.Trim();
         line = ListPrefixRegex().Replace(line, match =>
             string.Equals(match.Groups[1].Value, "-", StringComparison.Ordinal)
-                || string.Equals(match.Groups[1].Value, "*", StringComparison.Ordinal)
-                || string.Equals(match.Groups[1].Value, "+", StringComparison.Ordinal)
-                    ? "• "
-                    : match.Value);
+            || string.Equals(match.Groups[1].Value, "*", StringComparison.Ordinal)
+            || string.Equals(match.Groups[1].Value, "+", StringComparison.Ordinal)
+                ? "• "
+                : match.Value);
         return line;
     }
 
@@ -352,6 +709,9 @@ public sealed partial class BrochurePublicationService
             ProjectLifecycleStatus.Completed => "Completed",
             _ => status.ToString()
         };
+
+    private static double ClampFocal(double value)
+        => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;
 
     private sealed record ProjectOptionRow(
         int ProjectId,
@@ -379,7 +739,27 @@ public sealed partial class BrochurePublicationService
         int PhotoId,
         bool IsCover,
         bool IsLowResolution,
-        int Ordinal);
+        int Ordinal,
+        int Width,
+        int Height,
+        string? Caption,
+        int Version);
+
+    private sealed record PreparedProject(
+        PublicationProjectRow Row,
+        string Narrative,
+        int NarrativeWordCount,
+        int? PrimaryPhotoId,
+        int? SecondaryPhotoId,
+        double PrimaryFocalX,
+        double PrimaryFocalY,
+        double SecondaryFocalX,
+        double SecondaryFocalY,
+        BrochureImageMode ImageMode);
+
+    private sealed record PreparedPublication(
+        IReadOnlyList<PreparedProject> Projects,
+        BrochurePreflight Preflight);
 
     [GeneratedRegex(@"!\[[^\]]*\]\([^\)]+\)", RegexOptions.Compiled)]
     private static partial Regex MarkdownImageRegex();

@@ -1,9 +1,43 @@
 @page "/Projects/Publications/Brochure"
 @model ProjectManagement.Pages.Projects.Publications.Brochure.IndexModel
 @using ProjectManagement.Services.Publications
+@using System.Text.Json
 @{
     ViewData["Title"] = "Capability Brochure";
-    var selectedIds = Model.Input.ProjectIds.ToHashSet();
+    var selectedIds = Model.Input.Selections.Select(selection => selection.ProjectId).ToHashSet();
+    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var clientProjects = Model.Projects.Select(project => new
+    {
+        project.ProjectId,
+        project.ProjectName,
+        project.Lifecycle,
+        project.ProjectCategory,
+        project.TechnicalCategory,
+        project.HasProjectBrief,
+        project.HasCapabilityOverview,
+        project.HasFullDescription,
+        project.ProjectBriefWordCount,
+        project.CapabilityOverviewWordCount,
+        project.FullDescriptionWordCount,
+        project.DefaultPrimaryPhotoId,
+        project.DefaultSecondaryPhotoId,
+        photos = project.Photos.Select(photo => new
+        {
+            photo.PhotoId,
+            photo.Version,
+            photo.Caption,
+            photo.Width,
+            photo.Height,
+            photo.IsCover,
+            photo.IsLowResolution,
+            thumbnailUrl = Url.Page("/Projects/Photos/View", new { id = project.ProjectId, photoId = photo.PhotoId, size = "sm", v = photo.Version }),
+            previewUrl = Url.Page("/Projects/Photos/View", new { id = project.ProjectId, photoId = photo.PhotoId, size = "xl", v = photo.Version })
+        })
+    }).ToArray();
+    var projectJson = JsonSerializer.Serialize(clientProjects, jsonOptions);
+    var selectionJson = JsonSerializer.Serialize(Model.Input.Selections, jsonOptions);
+    var preflightUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preflight");
+    var previewUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preview");
 }
 
 @section Styles {
@@ -23,20 +57,28 @@
         <div>
             <p class="publications-eyebrow">CAPABILITY PUBLICATION</p>
             <h1>Brochure Builder</h1>
-            <p>Compose a publication-quality A4 brochure from selected PRISM projects. The source project records remain authoritative.</p>
+            <p>Compose, preflight and preview a publication-quality A4 brochure from authoritative PRISM project records.</p>
         </div>
         <div class="brochure-header-badge">
             <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-            <span>QuestPDF · offline generation</span>
+            <span>QuestPDF · offline publication</span>
         </div>
     </header>
 
     <partial name="/Pages/Projects/Publications/_PublicationTabs.cshtml" />
 
     <div asp-validation-summary="ModelOnly" class="alert alert-danger brochure-validation" role="alert"></div>
-    <span asp-validation-for="Input.ProjectIds" class="text-danger small"></span>
+    <span asp-validation-for="Input.Selections" class="text-danger small"></span>
 
-    <form method="post" asp-page-handler="Generate" class="brochure-form" data-brochure-form>
+    <form method="post"
+          asp-page-handler="Generate"
+          class="brochure-form"
+          data-brochure-form
+          data-brochure-preflight-url="@preflightUrl">
+        <div data-brochure-hidden-inputs></div>
+        <script type="application/json" data-brochure-project-data>@Html.Raw(projectJson)</script>
+        <script type="application/json" data-brochure-initial-selections>@Html.Raw(selectionJson)</script>
+
         <div class="brochure-layout">
             <main class="brochure-main">
                 <section class="publication-panel">
@@ -45,7 +87,7 @@
                             <span class="publication-step">1</span>
                             <div>
                                 <h2>Publication settings</h2>
-                                <p>Choose the brochure copy source and cover treatment. Project Brief is the recommended default.</p>
+                                <p>Project Brief remains the recommended source. One narrative source is applied consistently across the publication.</p>
                             </div>
                         </div>
                     </header>
@@ -73,17 +115,20 @@
                             </label>
                             <label class="form-label brochure-field">
                                 <span>Project narrative source</span>
-                                <select asp-for="Input.NarrativeSource" class="form-select" data-brochure-narrative-source>
+                                <select asp-for="Input.NarrativeSource"
+                                        class="form-select"
+                                        data-brochure-narrative-source
+                                        data-brochure-preflight-trigger>
                                     <option value="@BrochureNarrativeSource.ProjectBrief">Project Brief — recommended</option>
                                     <option value="@BrochureNarrativeSource.CapabilityOverview">Capability Overview</option>
                                     <option value="@BrochureNarrativeSource.FullDescription">Full Description</option>
                                 </select>
-                                <small>One source is used consistently for every selected project. Sources are never merged automatically.</small>
+                                <small>Sources are never merged automatically.</small>
                             </label>
                             <label class="form-label brochure-field">
                                 <span>Handling/classification marking</span>
                                 <input asp-for="Input.HandlingMarking" class="form-control" maxlength="80" placeholder="Optional, e.g. RESTRICTED" />
-                                <small>Enter only when authorised and applicable. PRISM does not assign a marking automatically.</small>
+                                <small>PRISM never assigns a marking automatically.</small>
                             </label>
                         </div>
 
@@ -99,7 +144,7 @@
                                     </span>
                                     <span class="brochure-cover-option__copy">
                                         <strong>A · Institutional / Evolutionary</strong>
-                                        <small>Retains the green institutional character and visual DNA of the present brochure.</small>
+                                        <small>Uses approved institutional cover artwork when present; otherwise falls back to a disciplined project montage.</small>
                                     </span>
                                 </label>
                                 <label class="brochure-cover-option @(Model.Input.CoverStyle == BrochureCoverStyle.Contemporary ? "is-selected" : string.Empty)" data-cover-option>
@@ -111,23 +156,34 @@
                                     </span>
                                     <span class="brochure-cover-option__copy">
                                         <strong>B · Contemporary / Premium</strong>
-                                        <small>Cleaner editorial cover with stronger typography and a dominant project photograph.</small>
+                                        <small>Clean editorial cover with stronger typography and the first selected usable project photograph as the hero.</small>
                                     </span>
                                 </label>
                             </div>
                         </fieldset>
 
-                        <details class="brochure-intro-options" open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText))">
+                        <div class="brochure-policy-row">
+                            <label class="brochure-policy-option">
+                                <input asp-for="Input.AllowTextOnlyProjects"
+                                       class="form-check-input"
+                                       data-brochure-preflight-trigger />
+                                <span>
+                                    <strong>Permit text-only project blocks</strong>
+                                    <small>Off by default. Enable only when a project genuinely has no suitable publication photograph.</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <details class="brochure-intro-options" open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText) ? "open" : null)">
                             <summary><i class="bi bi-file-text" aria-hidden="true"></i> Optional introduction page</summary>
-                            <div class="brochure-form-grid brochure-form-grid--intro">
+                            <div class="brochure-intro-grid">
                                 <label class="form-label brochure-field">
-                                    <span>Introduction title</span>
+                                    <span>Introduction heading</span>
                                     <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" />
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Introduction text</span>
-                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="6" maxlength="3000" placeholder="Leave blank to omit the introduction page."></textarea>
-                                    <small>PRISM prints this text as entered; it does not generate or rewrite institutional narrative.</small>
+                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="6" maxlength="3000" placeholder="Optional institutional introduction..."></textarea>
                                 </label>
                             </div>
                         </details>
@@ -135,152 +191,259 @@
                 </section>
 
                 <section class="publication-panel">
-                    <header class="publication-panel__header">
+                    <header class="publication-panel__header publication-panel__header--actions">
                         <div>
                             <span class="publication-step">2</span>
                             <div>
                                 <h2>Select projects</h2>
-                                <p>Select the projects to publish. Drag selected projects in the right-hand tray to set their publication order.</p>
+                                <p>Filter the portfolio, select projects and establish the publication order.</p>
                             </div>
                         </div>
-                        <div class="publication-panel__header-count"><strong>@Model.Projects.Count</strong> available</div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-brochure-select-visible>
+                            <i class="bi bi-check2-square" aria-hidden="true"></i> Select visible
+                        </button>
                     </header>
-
-                    <div class="publication-panel__body publication-panel__body--projects">
-                        <div class="brochure-project-filters">
-                            <label class="brochure-project-search">
+                    <div class="publication-panel__body">
+                        <div class="brochure-filters">
+                            <label class="brochure-search">
                                 <i class="bi bi-search" aria-hidden="true"></i>
-                                <input type="search" class="form-control" placeholder="Search project name" autocomplete="off" data-brochure-project-search />
+                                <input type="search" class="form-control" placeholder="Search projects..." data-brochure-search />
                             </label>
-                            <select class="form-select" aria-label="Lifecycle" data-brochure-filter="lifecycle">
+                            <select class="form-select" data-brochure-filter="lifecycle" aria-label="Filter by lifecycle">
                                 <option value="">All lifecycle states</option>
                                 <option value="ongoing">Ongoing</option>
                                 <option value="completed">Completed</option>
                             </select>
-                            <select class="form-select" aria-label="Project category" data-brochure-filter="category">
+                            <select class="form-select" data-brochure-filter="category" aria-label="Filter by project category">
                                 <option value="">All project categories</option>
                                 @foreach (var category in Model.ProjectCategories)
                                 {
                                     <option value="@category.ToLowerInvariant()">@category</option>
                                 }
                             </select>
-                            <select class="form-select" aria-label="Technical category" data-brochure-filter="technical">
+                            <select class="form-select" data-brochure-filter="technical" aria-label="Filter by technical category">
                                 <option value="">All technical categories</option>
                                 @foreach (var category in Model.TechnicalCategories)
                                 {
                                     <option value="@category.ToLowerInvariant()">@category</option>
                                 }
                             </select>
-                            <button type="button" class="btn btn-outline-secondary" data-brochure-select-visible>Select visible</button>
                         </div>
 
-                        <div class="brochure-project-list" role="list" data-brochure-project-list>
-                            @foreach (var project in Model.Projects)
-                            {
-                                var isSelected = selectedIds.Contains(project.ProjectId);
-                                <article class="brochure-project-row"
-                                         role="listitem"
-                                         data-project-row
-                                         data-project-id="@project.ProjectId"
-                                         data-project-name="@project.ProjectName"
-                                         data-lifecycle="@project.Lifecycle.ToLowerInvariant()"
-                                         data-category="@(project.ProjectCategory?.ToLowerInvariant() ?? string.Empty)"
-                                         data-technical="@(project.TechnicalCategory?.ToLowerInvariant() ?? string.Empty)"
-                                         data-has-project-brief="@project.HasProjectBrief.ToString().ToLowerInvariant()"
-                                         data-has-capability-overview="@project.HasCapabilityOverview.ToString().ToLowerInvariant()"
-                                         data-has-full-description="@project.HasFullDescription.ToString().ToLowerInvariant()"
-                                         data-project-brief-words="@project.ProjectBriefWordCount"
-                                         data-capability-overview-words="@project.CapabilityOverviewWordCount"
-                                         data-full-description-words="@project.FullDescriptionWordCount"
-                                         data-has-photo="@project.HasPhoto.ToString().ToLowerInvariant()"
-                                         data-has-print-photo="@project.HasPrintReadyPhoto.ToString().ToLowerInvariant()">
-                                    <label class="brochure-project-row__select">
-                                        <input type="checkbox" value="@project.ProjectId" data-brochure-project-checkbox checked="@isSelected" />
-                                        <span class="visually-hidden">Select @project.ProjectName</span>
-                                    </label>
-                                    <div class="brochure-project-row__main">
-                                        <strong>@project.ProjectName</strong>
-                                        <span>
-                                            @project.Lifecycle
-                                            @if (!string.IsNullOrWhiteSpace(project.ProjectCategory)) { <text> · @project.ProjectCategory</text> }
-                                            @if (!string.IsNullOrWhiteSpace(project.TechnicalCategory)) { <text> · @project.TechnicalCategory</text> }
-                                        </span>
-                                    </div>
-                                    <div class="brochure-project-row__readiness" aria-label="Publication readiness">
-                                        <span class="@(project.HasProjectBrief ? "is-ready" : "is-missing")" title="Project Brief" data-brochure-narrative-status><i class="bi bi-file-text"></i></span>
-                                        <span class="@(project.HasPhoto ? "is-ready" : "is-missing")" title="Project photograph"><i class="bi bi-image"></i></span>
-                                        @if (project.HasPhoto && !project.HasPrintReadyPhoto)
-                                        {
-                                            <span class="is-warning" title="Only low-resolution photographs are recorded"><i class="bi bi-exclamation-triangle"></i></span>
-                                        }
-                                    </div>
-                                </article>
-                            }
+                        <div class="brochure-project-table-wrap">
+                            <table class="table brochure-project-table">
+                                <thead>
+                                    <tr>
+                                        <th class="brochure-select-cell"><span class="visually-hidden">Select</span></th>
+                                        <th>Project</th>
+                                        <th>Publication copy</th>
+                                        <th>Photography</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var project in Model.Projects)
+                                {
+                                    var selected = selectedIds.Contains(project.ProjectId);
+                                    var defaultPhoto = project.Photos.FirstOrDefault(photo => photo.PhotoId == project.DefaultPrimaryPhotoId);
+                                    var defaultPhotoUrl = defaultPhoto is null
+                                        ? null
+                                        : Url.Page("/Projects/Photos/View", new { id = project.ProjectId, photoId = defaultPhoto.PhotoId, size = "xs", v = defaultPhoto.Version });
+                                    <tr data-brochure-project-row
+                                        data-project-id="@project.ProjectId"
+                                        data-project-name="@project.ProjectName"
+                                        data-lifecycle="@project.Lifecycle.ToLowerInvariant()"
+                                        data-category="@(project.ProjectCategory?.ToLowerInvariant() ?? string.Empty)"
+                                        data-technical="@(project.TechnicalCategory?.ToLowerInvariant() ?? string.Empty)">
+                                        <td class="brochure-select-cell">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   value="@project.ProjectId"
+                                                   checked="@selected"
+                                                   data-brochure-project-checkbox
+                                                   aria-label="Select @project.ProjectName" />
+                                        </td>
+                                        <td>
+                                            <div class="brochure-project-name">@project.ProjectName</div>
+                                            <div class="brochure-project-meta">
+                                                <span>@project.Lifecycle</span>
+                                                @if (!string.IsNullOrWhiteSpace(project.TechnicalCategory))
+                                                {
+                                                    <span>@project.TechnicalCategory</span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="brochure-copy-status" data-brochure-narrative-status>
+                                                <i class="bi bi-circle-fill" aria-hidden="true"></i>
+                                                <span data-brochure-narrative-label>Project Brief</span>
+                                            </div>
+                                            <small class="brochure-word-count" data-brochure-word-count></small>
+                                        </td>
+                                        <td>
+                                            <div class="brochure-photo-summary">
+                                                @if (!string.IsNullOrWhiteSpace(defaultPhotoUrl))
+                                                {
+                                                    <img src="@defaultPhotoUrl" alt="" loading="lazy" />
+                                                }
+                                                else
+                                                {
+                                                    <span class="brochure-photo-placeholder"><i class="bi bi-image" aria-hidden="true"></i></span>
+                                                }
+                                                <span>
+                                                    <strong>@project.Photos.Count photo@(project.Photos.Count == 1 ? string.Empty : "s")</strong>
+                                                    <small>@(project.HasPrintReadyPhoto ? "print-ready option recorded" : project.HasPhoto ? "quality to be checked" : "no photo recorded")</small>
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                            <div class="brochure-empty-filter" hidden data-brochure-empty-filter>
+                                <i class="bi bi-funnel" aria-hidden="true"></i>
+                                <strong>No projects match these filters.</strong>
+                            </div>
                         </div>
-                        <div class="brochure-project-empty" hidden data-brochure-project-empty>No projects match the current filters.</div>
                     </div>
                 </section>
             </main>
 
             <aside class="brochure-sidebar">
-                <section class="brochure-selection-card">
-                    <header>
+                <section class="publication-panel brochure-selection-panel">
+                    <header class="publication-panel__header publication-panel__header--compact">
                         <div>
-                            <span>SELECTED PROJECTS</span>
-                            <strong data-brochure-selected-count>@selectedIds.Count</strong>
+                            <div>
+                                <h2>Publication order</h2>
+                                <p><strong data-brochure-selected-count>0</strong> selected</p>
+                            </div>
                         </div>
-                        <button type="button" class="btn btn-link" data-brochure-clear-selection disabled="@(selectedIds.Count == 0)">Clear</button>
+                        <button type="button" class="btn btn-sm btn-link" data-brochure-clear disabled>Clear</button>
                     </header>
-                    <p>Drag to reorder. The first project with a usable photograph becomes the primary image on Cover B.</p>
-                    <ol class="brochure-selected-list" data-brochure-selected-list></ol>
-                    <div class="brochure-selected-empty" data-brochure-selected-empty hidden="@(selectedIds.Count > 0)">
-                        <i class="bi bi-check2-square" aria-hidden="true"></i>
-                        <span>Select projects from the list.</span>
-                    </div>
-                    <div data-brochure-hidden-inputs>
-                        @foreach (var id in Model.Input.ProjectIds)
-                        {
-                            <input type="hidden" name="Input.ProjectIds" value="@id" />
-                        }
+                    <div class="publication-panel__body brochure-selection-body">
+                        <div class="brochure-selected-empty" data-brochure-selected-empty>
+                            <i class="bi bi-journals" aria-hidden="true"></i>
+                            <span>Select projects from the portfolio.</span>
+                        </div>
+                        <ol class="brochure-selected-list" data-brochure-selected-list></ol>
                     </div>
                 </section>
 
-                <section class="brochure-preflight-card">
-                    <header>
-                        <span>PUBLICATION PREFLIGHT</span>
-                        <i class="bi bi-clipboard-check" aria-hidden="true"></i>
+                <section class="publication-panel brochure-photo-editor" hidden data-brochure-photo-editor>
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <p class="publication-panel__kicker">PROJECT IMAGERY</p>
+                                <h2 data-photo-editor-title>Photograph setup</h2>
+                            </div>
+                        </div>
+                        <button type="button" class="brochure-icon-button" data-photo-editor-close title="Close imagery editor">
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
                     </header>
-                    <div class="brochure-preflight-metrics">
-                        <div><span>Selected</span><strong data-preflight-selected>0</strong></div>
-                        <div><span>Missing copy</span><strong data-preflight-narrative>0</strong></div>
-                        <div><span>No photo</span><strong data-preflight-photo>0</strong></div>
-                        <div><span>Low-res only</span><strong data-preflight-lowres>0</strong></div>
-                        <div><span>Long copy</span><strong data-preflight-longcopy>0</strong></div>
+                    <div class="publication-panel__body">
+                        <label class="brochure-image-mode-field">
+                            <span>Image treatment</span>
+                            <select class="form-select form-select-sm" data-photo-image-mode>
+                                <option value="@((int)BrochureImageMode.Automatic)">Automatic</option>
+                                <option value="@((int)BrochureImageMode.Single)">Single image</option>
+                                <option value="@((int)BrochureImageMode.GalleryTwo)">Gallery 2</option>
+                            </select>
+                            <small>Automatic uses the second image only on larger 2-project / feature layouts.</small>
+                        </label>
+
+                        <div class="brochure-photo-editor-section">
+                            <div class="brochure-photo-editor-heading">
+                                <strong>Primary photograph</strong>
+                                <span>Used on compact pages and may become the Cover B hero.</span>
+                            </div>
+                            <div class="brochure-photo-picker" data-primary-photo-picker></div>
+                            <div class="brochure-focal-stage" data-primary-focal-stage hidden>
+                                <img alt="Primary brochure focal-point source" data-primary-focal-image />
+                                <span class="brochure-focal-crop-frame" data-primary-crop-frame aria-hidden="true"></span>
+                                <span class="brochure-focal-marker" data-primary-focal-marker aria-hidden="true"></span>
+                                <button type="button" class="brochure-focal-reset" data-primary-focal-reset>Reset focal point</button>
+                            </div>
+                            <small class="brochure-focal-help">Click the source image to set the focal point. The outlined frame shows the 16:9 crop PRISM will use in the publication.</small>
+                        </div>
+
+                        <div class="brochure-photo-editor-section" data-secondary-photo-section>
+                            <div class="brochure-photo-editor-heading">
+                                <strong>Second photograph</strong>
+                                <span>Optional in Automatic; mandatory for Gallery 2.</span>
+                            </div>
+                            <div class="brochure-photo-picker" data-secondary-photo-picker></div>
+                            <div class="brochure-focal-stage" data-secondary-focal-stage hidden>
+                                <img alt="Second brochure focal-point source" data-secondary-focal-image />
+                                <span class="brochure-focal-crop-frame" data-secondary-crop-frame aria-hidden="true"></span>
+                                <span class="brochure-focal-marker" data-secondary-focal-marker aria-hidden="true"></span>
+                                <button type="button" class="brochure-focal-reset" data-secondary-focal-reset>Reset focal point</button>
+                            </div>
+                        </div>
                     </div>
-                    <p data-preflight-message>Select projects to run brochure preflight.</p>
                 </section>
 
-                <section class="brochure-font-card @(Model.FontStatus.DmSansAvailable ? "is-ready" : "is-warning")">
-                    <div class="brochure-font-card__icon"><i class="bi bi-fonts" aria-hidden="true"></i></div>
-                    <div>
-                        <strong>@(Model.FontStatus.DmSansAvailable ? "DM Sans publication fonts ready" : "DM Sans font package not yet installed")</strong>
-                        @if (Model.FontStatus.DmSansAvailable)
-                        {
-                            <span>PDFs use PRISM's local DM Sans files. No network font request is required.</span>
-                        }
-                        else
-                        {
-                            <span>The brochure remains functional using Lato. Add the local static DM Sans files under <code>wwwroot/fonts/publications/dm-sans</code> for the intended premium typography.</span>
-                        }
+                <section class="publication-panel brochure-preflight-panel">
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <h2>Publication preflight</h2>
+                                <p>Server-validated against the actual selected records and image files.</p>
+                            </div>
+                        </div>
+                        <span class="brochure-preflight-spinner" hidden data-preflight-spinner><span class="spinner-border spinner-border-sm" aria-hidden="true"></span></span>
+                    </header>
+                    <div class="publication-panel__body">
+                        <div class="brochure-preflight-grid">
+                            <div><span>Selected</span><strong data-preflight-selected>0</strong></div>
+                            <div class="is-blocker"><span>Blockers</span><strong data-preflight-blockers>0</strong></div>
+                            <div class="is-warning"><span>Warnings</span><strong data-preflight-warnings>0</strong></div>
+                            <div><span>Info</span><strong data-preflight-info>0</strong></div>
+                        </div>
+                        <div class="brochure-preflight-message" data-preflight-message>
+                            Select projects to run publication preflight.
+                        </div>
+                        <div class="brochure-preflight-issues" data-preflight-issues></div>
                     </div>
                 </section>
 
-                <button type="submit" class="btn btn-primary brochure-generate-button" data-brochure-generate disabled="@(selectedIds.Count == 0)">
-                    <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-brochure-spinner></span>
-                    <i class="bi bi-file-earmark-pdf" aria-hidden="true" data-brochure-generate-icon></i>
-                    <span data-brochure-generate-label>Generate brochure PDF</span>
-                </button>
-                <small class="brochure-generate-note">Generation uses live project data and does not modify any project record.</small>
+                <section class="publication-panel brochure-font-panel">
+                    <div class="publication-panel__body">
+                        <div class="brochure-font-status @(Model.FontStatus.DmSansAvailable ? "is-ready" : "is-fallback")">
+                            <i class="bi @(Model.FontStatus.DmSansAvailable ? "bi-type" : "bi-exclamation-circle")" aria-hidden="true"></i>
+                            <span>
+                                <strong>@Model.FontStatus.PrimaryFamily</strong>
+                                <small>
+                                    @if (Model.FontStatus.DmSansAvailable)
+                                    {
+                                        <text>Offline publication font ready · @Model.FontStatus.SourceDescription</text>
+                                    }
+                                    else
+                                    {
+                                        <text>Lato fallback active. Add the approved DM Sans static TTF package and restart PRISM.</text>
+                                    }
+                                </small>
+                            </span>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="brochure-generate-actions">
+                    <button type="submit"
+                            class="btn btn-outline-primary brochure-preview-button"
+                            formaction="@previewUrl"
+                            formtarget="_blank"
+                            data-brochure-preview
+                            disabled>
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                        Preview PDF
+                    </button>
+                    <button type="submit" class="btn btn-primary brochure-generate-button" data-brochure-generate disabled>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-brochure-generate-spinner></span>
+                        <i class="bi bi-file-earmark-pdf" aria-hidden="true" data-brochure-generate-icon></i>
+                        <span data-brochure-generate-label>Generate brochure PDF</span>
+                    </button>
+                    <small>Preview and final export use the exact same PDF composer.</small>
+                </div>
             </aside>
         </div>
     </form>

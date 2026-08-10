@@ -1,0 +1,21 @@
+PRISM Project Publications Phase 2 — Program.cs merge
+=====================================================
+
+This is intentionally a narrow merge because Program.cs is a high-churn application file.
+
+1. Add this using with the other ProjectManagement.Services.* imports:
+
+    using ProjectManagement.Services.Publications;
+
+2. Immediately after the existing Compendium registrations:
+
+    builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
+    builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
+    builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
+
+   add:
+
+    // SECTION: Project publications and capability brochure
+    builder.Services.AddProjectPublications();
+
+The supplied PRISM-Publications-Phase2-Program.patch performs exactly these two changes.

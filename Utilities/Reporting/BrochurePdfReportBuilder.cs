@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Hosting;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -7,12 +6,17 @@ using ProjectManagement.Services.Publications;
 
 namespace ProjectManagement.Utilities.Reporting;
 
+public interface IBrochurePdfReportBuilder
+{
+    byte[] Build(BrochurePublicationData data);
+}
+
 /// <summary>
-/// Publication-grade A4 brochure composer. The layout is deterministic and adaptive:
-/// short narratives can share a four-project page, while longer projects automatically
-/// receive progressively more page area rather than forcing smaller body typography.
+/// Publication-grade A4 brochure composer. The renderer consumes the same focal-point
+/// crops used by preflight/preview and never shrinks project body copy below the agreed
+/// publication floor merely to keep an extra card on a page.
 /// </summary>
-public sealed class BrochurePdfReportBuilder
+public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 {
     private const string Forest950 = "#0B2F2A";
     private const string Forest900 = "#103D35";
@@ -27,15 +31,19 @@ public sealed class BrochurePdfReportBuilder
     private const string WarmWhite = "#FBFAF6";
 
     private readonly IWebHostEnvironment _environment;
+    private readonly IPublicationFontService _fontService;
 
     static BrochurePdfReportBuilder()
     {
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public BrochurePdfReportBuilder(IWebHostEnvironment environment)
+    public BrochurePdfReportBuilder(
+        IWebHostEnvironment environment,
+        IPublicationFontService fontService)
     {
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
     }
 
     public byte[] Build(BrochurePublicationData data)
@@ -46,16 +54,26 @@ public sealed class BrochurePdfReportBuilder
             throw new InvalidOperationException("A brochure requires at least one project.");
         }
 
-        var fontStatus = PublicationFontRegistry.EnsureRegistered(_environment.WebRootPath);
+        var fontStatus = _fontService.EnsureRegistered();
         var pagePlans = BrochureLayoutPlanner.Plan(data.Projects);
         var sddLogo = TryLoadAsset("img/logos/sdd.png");
         var artracLogo = TryLoadAsset("img/logos/artrac.png");
+        var institutionalArtwork = TryLoadFirstAsset(
+            "img/publications/cover-a-institutional.jpg",
+            "img/publications/cover-a-institutional.png",
+            "img/publications/cover-a-institutional.webp");
 
         var document = Document.Create(container =>
         {
             if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
             {
-                ComposeInstitutionalCover(container, data, fontStatus, sddLogo, artracLogo);
+                ComposeInstitutionalCover(
+                    container,
+                    data,
+                    fontStatus,
+                    sddLogo,
+                    artracLogo,
+                    institutionalArtwork);
             }
             else
             {
@@ -99,12 +117,13 @@ public sealed class BrochurePdfReportBuilder
         BrochurePublicationData data,
         PublicationFontStatus fonts,
         byte[]? sddLogo,
-        byte[]? artracLogo)
+        byte[]? artracLogo,
+        byte[]? institutionalArtwork)
     {
         var coverPhotos = data.Projects
-            .Where(project => project.Photo is { Length: > 0 })
+            .Where(project => project.PrimaryPhoto is not null)
             .Take(3)
-            .Select(project => project.Photo!)
+            .Select(project => project.PrimaryPhoto!.Content)
             .ToArray();
 
         container.Page(page =>
@@ -169,7 +188,7 @@ public sealed class BrochurePdfReportBuilder
                             .FontColor("#F5D978");
                     }
 
-                    var coverTitle = column.Item().PaddingTop(48).Text(data.Options.Title)
+                    var coverTitle = column.Item().PaddingTop(42).Text(data.Options.Title)
                         .FontFamily(fonts.DisplayFamily)
                         .FontSize(35)
                         .LineHeight(1.02f)
@@ -180,7 +199,6 @@ public sealed class BrochurePdfReportBuilder
                     }
 
                     column.Item().Width(120).Height(3).Background(Gold);
-
                     column.Item().Text(data.Options.Subtitle)
                         .FontSize(15)
                         .SemiBold()
@@ -189,22 +207,37 @@ public sealed class BrochurePdfReportBuilder
                         .FontSize(10.5f)
                         .FontColor("#91B7AB");
 
-                    column.Item().PaddingTop(28).BorderLeft(3).BorderColor(Gold).PaddingLeft(16)
+                    column.Item().PaddingTop(24).BorderLeft(3).BorderColor(Gold).PaddingLeft(16)
                         .Text(data.Options.Strapline)
-                        .FontSize(18)
+                        .FontSize(17)
                         .SemiBold()
                         .LineHeight(1.18f)
                         .FontColor("#F7F3E5");
 
-                    column.Item().PaddingTop(38).Height(178).Element(box =>
-                        ComposeCoverPhotoMontage(box, coverPhotos));
+                    column.Item().PaddingTop(28).Height(210).Element(box =>
+                    {
+                        if (institutionalArtwork is { Length: > 0 })
+                        {
+                            box.Border(1)
+                                .BorderColor("#5E887C")
+                                .Background(Forest900)
+                                .Image(institutionalArtwork)
+                                .FitArea();
+                        }
+                        else
+                        {
+                            ComposeCoverPhotoMontage(box, coverPhotos);
+                        }
+                    });
 
-                    column.Item().PaddingTop(18).Row(bottom =>
+                    column.Item().PaddingTop(14).Row(bottom =>
                     {
                         bottom.RelativeItem().Text($"{data.Projects.Count} selected project{(data.Projects.Count == 1 ? string.Empty : "s")}")
                             .FontSize(9)
                             .FontColor("#9EC0B6");
-                        bottom.AutoItem().Text("Generated from PRISM ERP")
+                        bottom.AutoItem().Text(institutionalArtwork is { Length: > 0 }
+                                ? "Institutional cover · PRISM ERP"
+                                : "Project montage · PRISM ERP")
                             .FontSize(8.5f)
                             .FontColor("#9EC0B6");
                     });
@@ -220,7 +253,7 @@ public sealed class BrochurePdfReportBuilder
         byte[]? sddLogo,
         byte[]? artracLogo)
     {
-        var hero = data.Projects.FirstOrDefault(project => project.Photo is { Length: > 0 })?.Photo;
+        var hero = data.Projects.FirstOrDefault(project => project.PrimaryPhoto is not null)?.PrimaryPhoto?.Content;
 
         container.Page(page =>
         {
@@ -260,7 +293,7 @@ public sealed class BrochurePdfReportBuilder
                     });
                 });
 
-                column.Item().PaddingHorizontal(38).PaddingTop(54).Text(data.Options.Title)
+                column.Item().PaddingHorizontal(38).PaddingTop(50).Text(data.Options.Title)
                     .FontSize(40)
                     .Bold()
                     .LineHeight(1.0f)
@@ -282,11 +315,11 @@ public sealed class BrochurePdfReportBuilder
                         .FontColor("#986D14");
                 }
 
-                column.Item().PaddingTop(34).Height(340).Element(heroBox =>
+                column.Item().PaddingTop(30).Height(340).Element(heroBox =>
                 {
                     if (hero is { Length: > 0 })
                     {
-                        heroBox.Image(hero).FitArea();
+                        heroBox.Background(Forest50).Image(hero).FitArea();
                     }
                     else
                     {
@@ -334,9 +367,9 @@ public sealed class BrochurePdfReportBuilder
                     .FontColor(Ink);
 
                 var photos = data.Projects
-                    .Where(project => project.Photo is { Length: > 0 })
+                    .Where(project => project.PrimaryPhoto is not null)
                     .Take(2)
-                    .Select(project => project.Photo!)
+                    .Select(project => project.PrimaryPhoto!.Content)
                     .ToArray();
                 if (photos.Length > 0)
                 {
@@ -514,22 +547,35 @@ public sealed class BrochurePdfReportBuilder
     {
         container.Padding(9).Row(row =>
         {
-            row.RelativeItem(1.55f).Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize));
+            var hasPrimary = fragment.Project.PrimaryPhoto is not null;
+            var useSecond = ShouldUseSecondImage(fragment.Project, layout);
+            var textWeight = hasPrimary ? 1.55f : 1f;
+            row.RelativeItem(textWeight).Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize));
 
-            if (fragment.Project.Photo is { Length: > 0 })
+            if (!hasPrimary)
             {
-                row.ConstantItem(10);
-                var photoWidth = layout == BrochurePageLayoutKind.FourCompact ? 150f : 164f;
-                var photoHeight = photoWidth * 9f / 16f;
+                return;
+            }
+
+            row.ConstantItem(10);
+            var photoWidth = layout == BrochurePageLayoutKind.FourCompact ? 150f : 164f;
+            if (!useSecond)
+            {
                 row.ConstantItem(photoWidth)
                     .AlignMiddle()
-                    .Height(photoHeight)
-                    .Border(1)
-                    .BorderColor("#B5C9C2")
-                    .Background(Forest50)
-                    .Image(fragment.Project.Photo)
-                    .FitArea();
+                    .Height(photoWidth * 9f / 16f)
+                    .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto!.Content));
+                return;
             }
+
+            row.ConstantItem(photoWidth).AlignMiddle().Column(gallery =>
+            {
+                gallery.Spacing(6);
+                gallery.Item().Height(photoWidth * 9f / 16f)
+                    .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto!.Content));
+                gallery.Item().Height(photoWidth * 9f / 16f)
+                    .Element(box => ComposeImageFrame(box, fragment.Project.SecondaryPhoto!.Content));
+            });
         });
     }
 
@@ -541,34 +587,65 @@ public sealed class BrochurePdfReportBuilder
         container.Padding(11).Column(column =>
         {
             column.Spacing(10);
-            if (!fragment.IsContinuation && fragment.Project.Photo is { Length: > 0 })
+            if (!fragment.IsContinuation && fragment.Project.PrimaryPhoto is not null)
             {
-                column.Item()
-                    .AlignCenter()
-                    .Width(382)
-                    .Height(215)
-                    .Border(1)
-                    .BorderColor("#B5C9C2")
-                    .Background(Forest50)
-                    .Image(fragment.Project.Photo)
-                    .FitArea();
+                if (ShouldUseSecondImage(fragment.Project, BrochurePageLayoutKind.SingleFeature))
+                {
+                    column.Item().Height(150).Row(row =>
+                    {
+                        row.Spacing(9);
+                        row.RelativeItem().Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto.Content));
+                        row.RelativeItem().Element(box => ComposeImageFrame(box, fragment.Project.SecondaryPhoto!.Content));
+                    });
+                }
+                else
+                {
+                    column.Item()
+                        .AlignCenter()
+                        .Width(382)
+                        .Height(215)
+                        .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto.Content));
+                }
             }
 
             column.Item().Element(textBox => ComposeNarrative(textBox, fragment.Narrative, fontSize));
         });
     }
 
+    private static bool ShouldUseSecondImage(
+        BrochurePublicationProject project,
+        BrochurePageLayoutKind layout)
+    {
+        if (project.SecondaryPhoto is null || project.ImageMode == BrochureImageMode.Single)
+        {
+            return false;
+        }
+
+        if (project.ImageMode == BrochureImageMode.GalleryTwo)
+        {
+            return layout is BrochurePageLayoutKind.TwoFeature or BrochurePageLayoutKind.SingleFeature;
+        }
+
+        return project.ImageMode == BrochureImageMode.Automatic
+               && layout is BrochurePageLayoutKind.TwoFeature or BrochurePageLayoutKind.SingleFeature;
+    }
+
+    private static void ComposeImageFrame(IContainer container, byte[] image)
+    {
+        container
+            .Border(1)
+            .BorderColor("#B5C9C2")
+            .Background(Forest50)
+            .Image(image)
+            .FitArea();
+    }
+
     private static void ComposeNarrative(IContainer container, string narrative, float fontSize)
     {
-        var isMissing = narrative.EndsWith("not recorded.", StringComparison.OrdinalIgnoreCase);
-        var text = container.Text(narrative)
+        container.Text(narrative)
             .FontSize(fontSize)
             .LineHeight(1.18f)
-            .FontColor(isMissing ? "#8A6B30" : Ink);
-        if (isMissing)
-        {
-            text.Italic();
-        }
+            .FontColor(Ink);
     }
 
     private static void ComposeCoverPhotoMontage(IContainer container, IReadOnlyList<byte[]> photos)
@@ -581,51 +658,28 @@ public sealed class BrochurePdfReportBuilder
 
         if (photos.Count == 1)
         {
-            container.AlignCenter().Width(300).Height(169)
-                .Border(1)
-                .BorderColor("#5E887C")
-                .Background(Forest900)
-                .Image(photos[0])
-                .FitArea();
+            container.AlignCenter().Width(320).Height(180)
+                .Element(box => ComposeImageFrame(box, photos[0]));
             return;
         }
 
-        container.Row(row =>
+        // All montage frames remain wide. This prevents a 16:9 publication crop being
+        // forced into a tall portrait box and keeps Cover A deterministic.
+        container.Column(column =>
         {
-            row.RelativeItem(1.65f)
-                .Border(1)
-                .BorderColor("#5E887C")
-                .Background(Forest900)
-                .Image(photos[0])
-                .FitArea();
-
-            row.ConstantItem(8);
-            row.RelativeItem().Column(right =>
+            column.Spacing(8);
+            column.Item().Height(118).Element(box => ComposeImageFrame(box, photos[0]));
+            column.Item().Height(76).Row(row =>
             {
-                right.Spacing(8);
-                right.Item().Height(85)
-                    .Border(1)
-                    .BorderColor("#5E887C")
-                    .Background(Forest900)
-                    .Image(photos[1])
-                    .FitArea();
-
+                row.Spacing(8);
+                row.RelativeItem().Element(box => ComposeImageFrame(box, photos[1]));
                 if (photos.Count > 2)
                 {
-                    right.Item().Height(85)
-                        .Border(1)
-                        .BorderColor("#5E887C")
-                        .Background(Forest900)
-                        .Image(photos[2])
-                        .FitArea();
+                    row.RelativeItem().Element(box => ComposeImageFrame(box, photos[2]));
                 }
                 else
                 {
-                    right.Item().Height(85)
-                        .Background(Forest900)
-                        .Padding(12)
-                        .AlignMiddle()
-                        .Text("SDD · PRISM")
+                    row.RelativeItem().Background(Forest900).Padding(12).AlignMiddle().Text("SDD · PRISM")
                         .FontSize(10)
                         .SemiBold()
                         .FontColor("#9EC0B6");
@@ -652,6 +706,20 @@ public sealed class BrochurePdfReportBuilder
         });
     }
 
+    private byte[]? TryLoadFirstAsset(params string[] relativePaths)
+    {
+        foreach (var relativePath in relativePaths)
+        {
+            var asset = TryLoadAsset(relativePath);
+            if (asset is { Length: > 0 })
+            {
+                return asset;
+            }
+        }
+
+        return null;
+    }
+
     private byte[]? TryLoadAsset(string relativePath)
     {
         var root = _environment.WebRootPath;
@@ -666,4 +734,3 @@ public sealed class BrochurePdfReportBuilder
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 }
-

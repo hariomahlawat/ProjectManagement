@@ -23,6 +23,45 @@ public enum BrochurePageLayoutKind
     SingleFeature = 4
 }
 
+public enum BrochureImageMode
+{
+    Automatic = 1,
+    Single = 2,
+    GalleryTwo = 3
+}
+
+public enum PublicationIssueSeverity
+{
+    Blocker = 1,
+    Warning = 2,
+    Information = 3
+}
+
+public enum BrochurePreflightIssueCode
+{
+    ProjectUnavailable = 1,
+    MissingNarrative = 2,
+    MissingPrimaryPhoto = 3,
+    SelectedPhotoInvalid = 4,
+    SelectedPhotoUnavailable = 5,
+    LowResolutionPhoto = 6,
+    GallerySecondPhotoRequired = 7,
+    GallerySecondPhotoInvalid = 8,
+    GallerySecondPhotoUnavailable = 9,
+    LongNarrative = 10,
+    TextOnlyProject = 11,
+    SelectionLimitExceeded = 12
+}
+
+public sealed record BrochurePhotoOptionVm(
+    int PhotoId,
+    int Version,
+    string? Caption,
+    int Width,
+    int Height,
+    bool IsCover,
+    bool IsLowResolution);
+
 public sealed record BrochureProjectListItemVm(
     int ProjectId,
     string ProjectName,
@@ -35,8 +74,54 @@ public sealed record BrochureProjectListItemVm(
     int ProjectBriefWordCount,
     int CapabilityOverviewWordCount,
     int FullDescriptionWordCount,
-    bool HasPhoto,
-    bool HasPrintReadyPhoto);
+    int? DefaultPrimaryPhotoId,
+    int? DefaultSecondaryPhotoId,
+    IReadOnlyList<BrochurePhotoOptionVm> Photos)
+{
+    public bool HasPhoto => Photos.Count > 0;
+    public bool HasPrintReadyPhoto => Photos.Any(photo =>
+        !photo.IsLowResolution
+        && photo.Width >= 1600
+        && photo.Height >= 900);
+}
+
+public sealed record BrochureProjectSelection(
+    int ProjectId,
+    int? PrimaryPhotoId,
+    int? SecondaryPhotoId,
+    double PrimaryFocalX,
+    double PrimaryFocalY,
+    double SecondaryFocalX,
+    double SecondaryFocalY,
+    BrochureImageMode ImageMode);
+
+public sealed record BrochurePhotoReference(int ProjectId, int PhotoId);
+
+public sealed record BrochurePhotoProbe(
+    int ProjectId,
+    int PhotoId,
+    bool IsReady,
+    bool IsPrintReady,
+    int Width,
+    int Height,
+    string? SourceVariant,
+    string? FailureReason = null);
+
+public sealed record BrochurePhotoRenderRequest(
+    int ProjectId,
+    int PhotoId,
+    double FocalX,
+    double FocalY,
+    int TargetWidth = 1920,
+    int TargetHeight = 1080);
+
+public sealed record BrochurePublicationImage(
+    int PhotoId,
+    byte[] Content,
+    int SourceWidth,
+    int SourceHeight,
+    bool IsPrintReady,
+    string SourceVariant);
 
 public sealed record BrochurePublicationProject(
     int ProjectId,
@@ -45,9 +130,9 @@ public sealed record BrochurePublicationProject(
     string? TechnicalCategory,
     string Narrative,
     int NarrativeWordCount,
-    byte[]? Photo,
-    bool PhotoIsLowResolution,
-    string? PhotoSourceVariant);
+    BrochurePublicationImage? PrimaryPhoto,
+    BrochurePublicationImage? SecondaryPhoto,
+    BrochureImageMode ImageMode);
 
 public sealed record BrochureBuildOptions(
     string Title,
@@ -60,17 +145,25 @@ public sealed record BrochureBuildOptions(
     string? IntroductionText,
     string? HandlingMarking,
     string IssuerDisplayName,
+    bool AllowTextOnlyProjects,
     DateTimeOffset GeneratedAtUtc);
+
+public sealed record BrochurePreflightIssue(
+    BrochurePreflightIssueCode Code,
+    PublicationIssueSeverity Severity,
+    int? ProjectId,
+    string? ProjectName,
+    string Message);
 
 public sealed record BrochurePreflight(
     int SelectedProjectCount,
-    int MissingNarrativeCount,
-    int MissingPhotoCount,
-    int LowResolutionPhotoCount,
-    int LongNarrativeCount)
+    IReadOnlyList<BrochurePreflightIssue> Issues)
 {
-    public int TotalWarnings => MissingNarrativeCount + MissingPhotoCount + LowResolutionPhotoCount + LongNarrativeCount;
-    public bool IsReady => SelectedProjectCount > 0 && TotalWarnings == 0;
+    public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
+    public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);
+    public int InformationCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Information);
+    public bool CanGenerate => SelectedProjectCount > 0 && BlockerCount == 0;
+    public bool IsPublicationReady => CanGenerate && WarningCount == 0;
 }
 
 public sealed record BrochurePublicationData(
@@ -95,4 +188,5 @@ public sealed record PublicationFontStatus(
     string DisplayFamily,
     bool DmSansAvailable,
     bool AlatsiAvailable,
-    IReadOnlyList<string> MissingDmSansFiles);
+    IReadOnlyList<string> MissingDmSansFiles,
+    string SourceDescription);

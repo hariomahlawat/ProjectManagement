@@ -1,14 +1,13 @@
 PRISM PUBLICATION FONTS — OFFLINE DEPLOYMENT
 ============================================
 
-The brochure generator is fully offline. It never requests a web font.
+The brochure subsystem never requests a web font.
 
-Preferred brochure family
--------------------------
-Copy the licensed STATIC TTF files for DM Sans to:
-  wwwroot/fonts/publications/dm-sans/
+Current supported deployment path (recommended with supplied installer)
+-----------------------------------------------------------------------
+If you already used Install-PrismPublicationFonts.ps1, no move is required:
 
-Expected filenames:
+wwwroot/fonts/publications/dm-sans/
   DMSans-Regular.ttf
   DMSans-Medium.ttf
   DMSans-SemiBold.ttf
@@ -16,22 +15,31 @@ Expected filenames:
   DMSans-Italic.ttf
   DMSans-BoldItalic.ttf
 
-Optional Cover A display accent
--------------------------------
-Copy the licensed STATIC TTF for Alatsi to:
-  wwwroot/fonts/publications/alatsi/Alatsi-Regular.ttf
+wwwroot/fonts/publications/alatsi/
+  Alatsi-Regular.ttf
+
+Optional hardened server-resource path
+--------------------------------------
+PRISM also recognises:
+
+Resources/Publications/Fonts/dm-sans/
+Resources/Publications/Fonts/alatsi/
+
+Use this path only when your publish/deployment process explicitly includes the Resources
+font folder. The existing wwwroot path requires no project-file change and remains fully
+supported for air-gapped deployment.
+
+Startup registration
+--------------------
+The application registers the publication font package once during startup. Restart PRISM /
+the IIS application pool after adding or replacing any font files.
+
+Fallback
+--------
+If DM Sans is unavailable or cannot be registered, QuestPDF's bundled Lato remains the safe
+fallback. If Alatsi is unavailable, Cover A uses the primary publication family.
 
 Licensing
 ---------
-Keep the applicable font licence text with your deployed font package. Use only font files
-that your organisation is authorised to redistribute/deploy. Variable font files are not
-used by this implementation.
-
-Safe fallback
--------------
-If the DM Sans files have not yet been installed, the brochure remains functional and uses
-QuestPDF's Lato family. If Alatsi is absent, Cover A uses DM Sans (or Lato fallback) rather
-than failing generation.
-
-No font binary is required for the source-code replacement itself. Restart the application
-after adding or changing the font package so the process registers the new files cleanly.
+Keep the applicable OFL/licence text with the deployed font package. Use static TTF files,
+not variable-font files.

@@ -1,14 +1,10 @@
-PRISM PROJECT PUBLICATIONS + CAPABILITY BROCHURE
-================================================
+PRISM PROJECT PUBLICATIONS — PHASE 2 QUALITY HARDENING
+======================================================
 
-NEW
----
-Pages/Projects/Publications/Index.cshtml
-Pages/Projects/Publications/_PublicationTabs.cshtml
+REPLACE
+-------
 Pages/Projects/Publications/Brochure/Index.cshtml
 Pages/Projects/Publications/Brochure/Index.cshtml.cs
-Pages/Projects/Publications/Compendium/Index.cshtml
-Pages/Projects/Publications/Compendium/Index.cshtml.cs
 Services/Publications/BrochureContracts.cs
 Services/Publications/BrochureLayoutPlanner.cs
 Services/Publications/BrochurePublicationService.cs
@@ -16,28 +12,31 @@ Utilities/Reporting/BrochurePdfReportBuilder.cs
 Utilities/Reporting/PublicationFontRegistry.cs
 wwwroot/css/pages/projects-publications.css
 wwwroot/js/pages/projects-brochure.js
-wwwroot/js/pages/projects-publications.js
 wwwroot/fonts/publications/README-PUBLICATION-FONTS.txt
 ProjectManagement.Tests/Publications/BrochureLayoutPlannerTests.cs
 
-REPLACE (legacy-route compatibility wrappers)
----------------------------------------------
-Pages/Projects/Compendium/Index.cshtml
-Pages/Projects/Compendium/Index.cshtml.cs
+NEW
+---
+Services/Publications/BrochurePhotoService.cs
+Services/Publications/PublicationServiceCollectionExtensions.cs
+wwwroot/img/publications/README-COVER-A.txt
+ProjectManagement.Tests/Publications/BrochurePhotoCropTests.cs
+ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
 
-MERGE — do not replace wholesale
---------------------------------
-Services/Navigation/ModuleNav/ProjectModuleNavDefinition.cs
-ProjectManagement.Tests/ProjectModuleNavDefinitionTests.cs
-
-Use PRISM-Publications-Navigation.patch or NAVIGATION-MERGE.txt for the two narrow merge edits.
-
-UNCHANGED BY THIS PACKAGE
--------------------------
+MERGE — DO NOT BLINDLY REPLACE PROGRAM.CS
+----------------------------------------
 Program.cs
-ApplicationDbContext / migrations
-Configuration/CompendiumPdfOptions.cs
-Services/Compendiums/CompendiumReadService.cs
-Services/Compendiums/CompendiumExportService.cs
+  Use PRISM-Publications-Phase2-Program.patch or PROGRAM-MERGE.txt.
+
+UNCHANGED
+---------
+Project Publications navigation
+Pages/Projects/Publications/Index.cshtml
+Pages/Projects/Publications/_PublicationTabs.cshtml
+Pages/Projects/Publications/Compendium/**
+Pages/Projects/Compendium compatibility wrapper
+Services/Compendiums/**
 Utilities/Reporting/CompendiumPdfReportBuilder.cs
-ProjectBriefing photo pipeline
+ApplicationDbContext / migrations
+Project entities / ProjectPhoto entities
+Existing Project Photos UI and storage format
