@@ -1244,7 +1244,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskPeek_PlanningAuthorityKeepsDeepPlanningActionsOutOfTheDrawer()
+    public async Task TaskPeek_PlanningAuthorityShowsApplicablePlanningActionsDirectly()
     {
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var sprint = AddSprint(setup.Db, "Inspector Sprint", ActionSprintStatus.Active);
@@ -1264,10 +1264,10 @@ public class ActionTaskPageTests
         Assert.Contains("Start work", html, StringComparison.Ordinal);
         Assert.Contains("Add a remark", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Open full task", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Remove from Sprint", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Move to Backlog", html, StringComparison.Ordinal);
-        Assert.Contains("Change", html, StringComparison.Ordinal);
-        Assert.Contains("Planning controls", html, StringComparison.Ordinal);
+        Assert.Contains("Remove from sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Return to backlog", html, StringComparison.Ordinal);
+        Assert.Contains("Change due date", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Planning controls", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,0 +1,118 @@
+/* Task UX V2.2 — shared, role/state-aware command surface. */
+.at-task-action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .38rem;
+}
+
+.at-inline-command-form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.at-task-action-bar .at-task-action {
+    min-height: 2rem;
+    padding: .36rem .68rem;
+    border-radius: .56rem;
+    font-size: .77rem;
+    font-weight: 720;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.at-task-action-bar.is-compact .at-task-action {
+    min-height: 1.9rem;
+    padding: .32rem .58rem;
+    font-size: .74rem;
+}
+
+.at-task-action-quiet {
+    border: 1px solid #d7e0ec;
+    background: #fff;
+    color: #315b95;
+}
+.at-task-action-quiet:hover,
+.at-task-action-quiet:focus-visible {
+    border-color: #bdcce0;
+    background: #f7faff;
+    color: #173f7d;
+}
+
+.at-task-action-danger {
+    border: 1px solid #efb7b2;
+    background: #fff;
+    color: #b42318;
+}
+.at-task-action-danger:hover,
+.at-task-action-danger:focus-visible {
+    border-color: #dc8f88;
+    background: #fff7f6;
+    color: #8f1c13;
+}
+
+.at-task-action-tray {
+    margin-top: .52rem;
+}
+
+.at-task-action-panel {
+    padding: .68rem .72rem;
+    border: 1px solid #cad8ec;
+    border-radius: .76rem;
+    background: #f8fbff;
+}
+.at-task-action-panel[hidden] { display: none !important; }
+
+.at-task-action-panel form {
+    display: grid;
+    grid-template-columns: minmax(9.5rem, .7fr) minmax(15rem, 1.35fr) auto;
+    align-items: center;
+    gap: .55rem;
+    margin: 0;
+}
+
+.at-task-action-panel .at-task-action-copy strong {
+    display: block;
+    color: #172b4d;
+    font-size: .79rem;
+    font-weight: 760;
+}
+.at-task-action-panel .at-task-action-copy span {
+    display: block;
+    margin-top: .1rem;
+    color: #708197;
+    font-size: .7rem;
+    line-height: 1.35;
+}
+
+.at-task-action-panel .form-control,
+.at-task-action-panel .form-select {
+    min-height: 2.15rem;
+    font-size: .8rem;
+}
+.at-task-action-panel textarea.form-control {
+    min-height: 58px;
+    resize: vertical;
+}
+
+.at-task-action-panel-controls {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    white-space: nowrap;
+}
+
+.at-task-action-panel-fields {
+    display: grid;
+    grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr);
+    gap: .45rem;
+}
+.at-task-action-panel-fields.is-single { grid-template-columns: 1fr; }
+.at-task-action-panel-fields.is-two-selects { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+@media (max-width: 900px) {
+    .at-task-action-panel form { grid-template-columns: 1fr; }
+    .at-task-action-panel-fields,
+    .at-task-action-panel-fields.is-two-selects { grid-template-columns: 1fr; }
+    .at-task-action-panel-controls { justify-content: flex-start; }
+}

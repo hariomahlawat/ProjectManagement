@@ -18,17 +18,14 @@
     var capabilities = Model.Capabilities;
     var hasSprintAdd = Model.CanManagePlanning && !Model.IsBacklog && !Model.TaskItem.SprintId.HasValue && Model.AssignableSprints.Any();
     var hasBacklogAssign = Model.CanManagePlanning && Model.IsBacklog && Model.AssignableSprints.Any() && Model.AssignableUsers.Any();
-    var hasTaskControls = capabilities.CanBlockAsCommandControl
-        || capabilities.CanResumeAsCommandControl
-        || hasSprintAdd
-        || hasBacklogAssign
-        || Model.CanRemoveFromSprint
-        || Model.CanMoveToBacklog
-        || capabilities.CanCloseDirectly;
+    var canRemoveFromSprint = Model.CanRemoveFromSprint;
+    var canMoveToBacklog = Model.CanMoveToBacklog;
+    var updateStatusPostUrl = Url.Page("/ActionTasks/Details", "UpdateStatus", new { id = Model.TaskItem.Id, returnUrl = Model.ReturnUrl }) ?? string.Empty;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/action-tracker.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/action-task-actions.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/action-task-workspace.css" asp-append-version="true" />
 }
 
@@ -37,131 +34,169 @@
 }
 
 <div class="at-task-workspace" data-at-v2-task-root data-at-task-intent="@(Model.Intent ?? string.Empty)">
-    <header class="at-task-workspace-header" data-at-v2-sticky-header>
-        <div class="at-task-workspace-title-block">
-            <a href="@Model.BackUrl" class="at-task-back-link"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to tasks</a>
-            <div class="at-task-workspace-kicker">AT-@Model.TaskItem.Id</div>
+    <header class="at-task-workspace-header">
+        <div class="at-task-workspace-identity-line">
+            <a href="@Model.BackUrl" class="at-task-back-link" aria-label="Back to tasks"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Tasks</span></a>
+            <span class="at-task-workspace-kicker">AT-@Model.TaskItem.Id</span>
             <h1>@Model.TaskItem.Title</h1>
-            <div class="at-task-workspace-meta">
-                @if (!Model.IsBacklog)
-                {
-                    <span class="at-meta-assignee"><i class="bi bi-person" aria-hidden="true"></i>@Model.ResolveAssigneeName()</span>
-                }
-                <span class="@Model.GetStatusBadgeClass()">@statusLabel</span>
-                @if (string.Equals(Model.TaskItem.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
-                {
-                    <span class="@Model.GetPriorityBadgeClass()">@Model.TaskItem.Priority</span>
-                }
-                @if (isOverdue)
-                {
-                    <span class="at-date-warning">Overdue @overdueDays @(overdueDays == 1 ? "day" : "days")</span>
-                }
-                <span class="at-meta-date"><i class="bi bi-calendar3" aria-hidden="true"></i>@(Model.IsBacklog ? "Target" : "Due") @Model.TaskItem.DueDate.ToString("dd MMM yyyy")</span>
-            </div>
         </div>
+
+        <div class="at-task-workspace-meta">
+            @if (!Model.IsBacklog)
+            {
+                <span class="at-meta-assignee"><i class="bi bi-person" aria-hidden="true"></i>@Model.ResolveAssigneeName()</span>
+            }
+            <span class="@Model.GetStatusBadgeClass()">@statusLabel</span>
+            @if (string.Equals(Model.TaskItem.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
+            {
+                <span class="@Model.GetPriorityBadgeClass()">@Model.TaskItem.Priority</span>
+            }
+            @if (isOverdue)
+            {
+                <span class="at-date-warning">Overdue @overdueDays @(overdueDays == 1 ? "day" : "days")</span>
+            }
+            <span class="at-meta-date"><i class="bi bi-calendar3" aria-hidden="true"></i>@(Model.IsBacklog ? "Target" : "Due") @Model.TaskItem.DueDate.ToString("dd MMM yyyy")</span>
+        </div>
+
+        <partial name="_TaskActionBar" model="@(new TaskActionBarViewModel
+        {
+            Capabilities = capabilities,
+            IsClosed = Model.IsClosed,
+            IsBacklog = Model.IsBacklog,
+            HasBacklogAssign = hasBacklogAssign,
+            HasSprintAdd = hasSprintAdd,
+            CanRemoveFromSprint = canRemoveFromSprint,
+            CanMoveToBacklog = canMoveToBacklog,
+            Compact = false,
+            RowVersion = rowVersion,
+            UpdateStatusPostUrl = updateStatusPostUrl
+        })" />
 
         @if (!Model.IsClosed)
         {
-            <div class="at-task-workspace-actions" aria-label="Current task actions">
-                @if (capabilities.CanStartWork)
+            <div class="at-task-action-tray at-task-workspace-action-tray">
+                @if (capabilities.CanBlockAsOwner || capabilities.CanBlockAsCommandControl)
                 {
-                    <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="UpdateStatus" class="at-inline-command-form">
-                        <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                        <input type="hidden" name="rowVersion" value="@rowVersion" />
-                        <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
-                        <button type="submit" class="btn btn-primary">Start work</button>
-                    </form>
-                }
-                @if (capabilities.CanResumeWork)
-                {
-                    <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="UpdateStatus" class="at-inline-command-form">
-                        <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                        <input type="hidden" name="rowVersion" value="@rowVersion" />
-                        <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
-                        <button type="submit" class="btn btn-primary">Resume</button>
-                    </form>
+                    <section class="at-task-action-panel" data-at-v22-panel="block" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="UpdateStatus">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <input type="hidden" name="rowVersion" value="@rowVersion" />
+                            <input type="hidden" name="status" value="@ActionTaskStatuses.Blocked" />
+                            <div class="at-task-action-copy"><strong>Block task</strong><span>Record the blocker so the next action is clear.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control" rows="2" maxlength="4000" required placeholder="What is blocking progress?"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-warning btn-sm">Mark blocked</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
                 }
                 @if (capabilities.CanSubmitForClosure)
                 {
-                    <button type="button" class="btn btn-primary" data-at-v2-open="submit">Submit for closure</button>
-                }
-                @if (capabilities.CanBlockAsOwner)
-                {
-                    <button type="button" class="btn btn-outline-secondary" data-at-v2-open="block">Block</button>
-                }
-                @if (Model.IsSubmitted && !capabilities.CanAcceptAndClose)
-                {
-                    <span class="at-task-workspace-state">Awaiting closure review</span>
-                }
-                @if (capabilities.CanAcceptAndClose)
-                {
-                    <button type="button" class="btn btn-primary" data-at-v2-open="close">Accept &amp; close</button>
+                    <section class="at-task-action-panel" data-at-v22-panel="submit" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="Submit">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <input type="hidden" name="rowVersion" value="@rowVersion" />
+                            <div class="at-task-action-copy"><strong>Submit for closure</strong><span>Give the reviewer a concise completion note.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control" rows="2" maxlength="4000" required placeholder="Completion remarks"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Submit for closure</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
                 }
                 @if (capabilities.CanReturnForAction)
                 {
-                    <button type="button" class="btn btn-outline-secondary" data-at-v2-open="return">Return for action</button>
+                    <section class="at-task-action-panel" data-at-v22-panel="return" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="ReturnForAction">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <input type="hidden" name="rowVersion" value="@rowVersion" />
+                            <div class="at-task-action-copy"><strong>Return for action</strong><span>State exactly what remains to be done.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control" rows="2" maxlength="4000" required placeholder="Further direction / reason for return"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Return for action</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (capabilities.CanAcceptAndClose)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="accept-close" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="Close">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <input type="hidden" name="rowVersion" value="@rowVersion" />
+                            <input type="hidden" name="closeMode" value="accept" />
+                            <div class="at-task-action-copy"><strong>Accept &amp; close</strong><span>Record the closure decision.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control" rows="2" maxlength="2000" required placeholder="Closure remarks"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Accept &amp; close</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (capabilities.CanCloseDirectly && !capabilities.CanAcceptAndClose)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="close-direct" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="Close">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <input type="hidden" name="rowVersion" value="@rowVersion" />
+                            <input type="hidden" name="closeMode" value="direct" />
+                            <div class="at-task-action-copy"><strong>Close directly</strong><span>Command override. Closure remarks are retained in task history.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control" rows="2" maxlength="2000" required placeholder="Closure remarks"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-danger btn-sm">Close directly</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (capabilities.CanChangeDate)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="change-date" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="ChangeDate">
+                            <input type="hidden" asp-for="ChangeDateInput.TaskId" value="@Model.TaskItem.Id" />
+                            <input type="hidden" asp-for="ChangeDateInput.RowVersion" value="@rowVersion" />
+                            <div class="at-task-action-copy"><strong>Change @(Model.IsBacklog ? "target" : "due") date</strong><span>Record the reason with the revised date.</span></div>
+                            <div class="at-task-action-panel-fields"><input asp-for="ChangeDateInput.NewDate" type="date" class="form-control form-control-sm" min="@Model.IstToday.ToString("yyyy-MM-dd")" value="@(Model.TaskItem.DueDate.Date >= Model.IstToday ? Model.TaskItem.DueDate.ToString("yyyy-MM-dd") : Model.IstToday.ToString("yyyy-MM-dd"))" /><textarea asp-for="ChangeDateInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for date change"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Save date</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (hasBacklogAssign)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="assign-sprint" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="AssignBacklogToSprint">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <div class="at-task-action-copy"><strong>Assign to sprint</strong><span>Select the sprint and responsible person.</span></div>
+                            <div class="at-task-action-panel-fields is-two-selects"><select name="sprintId" class="form-select form-select-sm" required><option value="">Select sprint</option>@foreach (var sprint in Model.AssignableSprints) { <option value="@sprint.Id">@sprint.Name</option> }</select><select name="responsibleUserId" class="form-select form-select-sm" required><option value="">Responsible person</option>@foreach (var user in Model.AssignableUsers) { <option value="@user.UserId">@user.DisplayName</option> }</select></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Assign</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (hasSprintAdd)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="add-sprint" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="AssignOutsideToSprint">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <div class="at-task-action-copy"><strong>Add to sprint</strong><span>Keep the current assignee and select a sprint.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><select name="sprintId" class="form-select form-select-sm" required><option value="">Select sprint</option>@foreach (var sprint in Model.AssignableSprints) { <option value="@sprint.Id">@sprint.Name</option> }</select></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Add</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (canRemoveFromSprint)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="remove-sprint" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="RemoveFromSprint">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <div class="at-task-action-copy"><strong>Remove from sprint</strong><span>The task remains assigned.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for removing from sprint"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-outline-secondary btn-sm">Remove</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
+                }
+                @if (canMoveToBacklog)
+                {
+                    <section class="at-task-action-panel" data-at-v22-panel="backlog" hidden>
+                        <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="MoveToBacklog">
+                            <input type="hidden" name="id" value="@Model.TaskItem.Id" />
+                            <div class="at-task-action-copy"><strong>Return to backlog</strong><span>Remove sprint and assignee so the task can be replanned.</span></div>
+                            <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for replanning"></textarea></div>
+                            <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-outline-warning btn-sm">Move to backlog</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
+                        </form>
+                    </section>
                 }
             </div>
         }
     </header>
-
-    @if (!Model.IsClosed)
-    {
-        <div class="at-task-workspace-command-host">
-            @if (capabilities.CanBlockAsOwner || capabilities.CanBlockAsCommandControl)
-            {
-                <section class="at-v2-command-panel at-task-workspace-command-panel" data-at-v2-panel="block" hidden>
-                    <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="UpdateStatus">
-                        <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                        <input type="hidden" name="rowVersion" value="@rowVersion" />
-                        <input type="hidden" name="status" value="@ActionTaskStatuses.Blocked" />
-                        <div><strong>Block task</strong><div class="text-muted small">Record the blocker so the next action is clear.</div></div>
-                        <textarea name="remarks" class="form-control" rows="2" maxlength="4000" required placeholder="What is blocking progress?"></textarea>
-                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-warning btn-sm">Mark blocked</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                    </form>
-                </section>
-            }
-            @if (capabilities.CanSubmitForClosure)
-            {
-                <section class="at-v2-command-panel at-task-workspace-command-panel" data-at-v2-panel="submit" hidden>
-                    <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="Submit">
-                        <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                        <input type="hidden" name="rowVersion" value="@rowVersion" />
-                        <div><strong>Submit for closure</strong><div class="text-muted small">Give the reviewer the completion context in one concise note.</div></div>
-                        <textarea name="remarks" class="form-control" rows="3" maxlength="4000" required placeholder="Completion remarks"></textarea>
-                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Submit for closure</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                    </form>
-                </section>
-            }
-            @if (capabilities.CanReturnForAction)
-            {
-                <section class="at-v2-command-panel at-task-workspace-command-panel" data-at-v2-panel="return" hidden>
-                    <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="ReturnForAction">
-                        <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                        <input type="hidden" name="rowVersion" value="@rowVersion" />
-                        <div><strong>Return for action</strong><div class="text-muted small">State exactly what remains to be done.</div></div>
-                        <textarea name="remarks" class="form-control" rows="3" maxlength="4000" required placeholder="Further direction / reason for return"></textarea>
-                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">Return for action</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                    </form>
-                </section>
-            }
-            @if (capabilities.CanAcceptAndClose || capabilities.CanCloseDirectly)
-            {
-                <section class="at-v2-command-panel at-task-workspace-command-panel" data-at-v2-panel="close" hidden>
-                    <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="Close">
-                        <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                        <input type="hidden" name="rowVersion" value="@rowVersion" />
-                        <div>
-                            <strong>@(capabilities.CanAcceptAndClose ? "Accept and close" : "Close directly")</strong>
-                            <div class="text-muted small">Closure remarks are retained in the task history.</div>
-                        </div>
-                        <textarea name="remarks" class="form-control" rows="3" maxlength="2000" required placeholder="Closure remarks"></textarea>
-                        <div class="at-v2-command-actions"><button type="submit" class="btn btn-primary btn-sm">@(capabilities.CanAcceptAndClose ? "Accept & close" : "Close directly")</button><button type="button" class="btn btn-link btn-sm" data-at-v2-cancel>Cancel</button></div>
-                    </form>
-                </section>
-            }
-        </div>
-    }
 
     <div class="at-task-workspace-grid">
         <main class="at-task-workspace-main">
@@ -219,55 +254,16 @@
             <section class="at-task-side-card at-task-details-card">
                 <div class="at-task-section-label">Task details</div>
                 <div class="at-task-property-list">
-                    <div class="at-task-property-row">
-                        <span class="at-task-property-key">Status</span>
-                        <span class="at-task-property-value"><span class="@Model.GetStatusBadgeClass()">@statusLabel</span></span>
-                    </div>
+                    <div class="at-task-property-row"><span class="at-task-property-key">Status</span><span class="at-task-property-value"><span class="@Model.GetStatusBadgeClass()">@statusLabel</span></span></div>
                     @if (!Model.IsBacklog)
                     {
-                        <div class="at-task-property-row">
-                            <span class="at-task-property-key">Assigned to</span>
-                            <span class="at-task-property-value">@Model.ResolveAssigneeName()</span>
-                        </div>
+                        <div class="at-task-property-row"><span class="at-task-property-key">Assigned to</span><span class="at-task-property-value">@Model.ResolveAssigneeName()</span></div>
                     }
-                    <div class="at-task-property-row">
-                        <span class="at-task-property-key">@(Model.IsBacklog ? "Target date" : "Due date")</span>
-                        <span class="at-task-property-value at-task-property-value-with-action">
-                            <span>@Model.TaskItem.DueDate.ToString("dd MMM yyyy")</span>
-                            @if (capabilities.CanChangeDate)
-                            {
-                                <button type="button" class="at-inline-edit-link" data-at-v2-inline-toggle="date">Change</button>
-                            }
-                        </span>
-                    </div>
-                    @if (capabilities.CanChangeDate)
-                    {
-                        <div class="at-inline-editor" data-at-v2-inline-panel="date" hidden>
-                            <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="ChangeDate">
-                                <input type="hidden" asp-for="ChangeDateInput.TaskId" value="@Model.TaskItem.Id" />
-                                <input type="hidden" asp-for="ChangeDateInput.RowVersion" value="@rowVersion" />
-                                <input asp-for="ChangeDateInput.NewDate" type="date" class="form-control form-control-sm" min="@Model.IstToday.ToString("yyyy-MM-dd")" value="@(Model.TaskItem.DueDate.Date >= Model.IstToday ? Model.TaskItem.DueDate.ToString("yyyy-MM-dd") : Model.IstToday.ToString("yyyy-MM-dd"))" />
-                                <textarea asp-for="ChangeDateInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for date change"></textarea>
-                                <div class="at-inline-editor-actions"><button type="submit" class="btn btn-primary btn-sm">Save</button><button type="button" class="btn btn-link btn-sm" data-at-v2-inline-cancel>Cancel</button></div>
-                            </form>
-                        </div>
-                    }
-                    <div class="at-task-property-row">
-                        <span class="at-task-property-key">Sprint</span>
-                        <span class="at-task-property-value">@Model.GetSprintText()</span>
-                    </div>
-                    <div class="at-task-property-row">
-                        <span class="at-task-property-key">Priority</span>
-                        <span class="at-task-property-value">@Model.TaskItem.Priority</span>
-                    </div>
-                    <div class="at-task-property-row">
-                        <span class="at-task-property-key">Updated</span>
-                        <span class="at-task-property-value">@(Model.LastActivityAtUtc.HasValue ? TimeFmt.ToIst(Model.LastActivityAtUtc.Value) : "Not recorded")</span>
-                    </div>
-                    <div class="at-task-property-row">
-                        <span class="at-task-property-key">Files</span>
-                        <span class="at-task-property-value">@attachmentCount</span>
-                    </div>
+                    <div class="at-task-property-row"><span class="at-task-property-key">@(Model.IsBacklog ? "Target date" : "Due date")</span><span class="at-task-property-value">@Model.TaskItem.DueDate.ToString("dd MMM yyyy")</span></div>
+                    <div class="at-task-property-row"><span class="at-task-property-key">Sprint</span><span class="at-task-property-value">@Model.GetSprintText()</span></div>
+                    <div class="at-task-property-row"><span class="at-task-property-key">Priority</span><span class="at-task-property-value">@Model.TaskItem.Priority</span></div>
+                    <div class="at-task-property-row"><span class="at-task-property-key">Updated</span><span class="at-task-property-value">@(Model.LastActivityAtUtc.HasValue ? TimeFmt.ToIst(Model.LastActivityAtUtc.Value) : "Not recorded")</span></div>
+                    <div class="at-task-property-row"><span class="at-task-property-key">Files</span><span class="at-task-property-value">@attachmentCount</span></div>
                 </div>
             </section>
 
@@ -280,86 +276,6 @@
                         <div class="at-task-property-row"><span class="at-task-property-key">Closed by</span><span class="at-task-property-value">@Model.ResolveClosedByName()</span></div>
                     </div>
                     <div class="at-task-side-remarks">@(string.IsNullOrWhiteSpace(Model.TaskItem.ClosureRemarks) ? "No closure remarks recorded." : Model.TaskItem.ClosureRemarks)</div>
-                </section>
-            }
-
-            @if (!Model.IsClosed && hasTaskControls)
-            {
-                <section class="at-task-side-card at-task-controls-card" id="task-controls">
-                    <div class="at-task-section-label">Task controls</div>
-                    <div class="at-task-control-list">
-                        @if (capabilities.CanBlockAsCommandControl)
-                        {
-                            <button type="button" class="at-task-control-item" data-at-v2-open="block"><span>Block task</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                        }
-                        @if (capabilities.CanResumeAsCommandControl)
-                        {
-                            <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="UpdateStatus">
-                                <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                                <input type="hidden" name="rowVersion" value="@rowVersion" />
-                                <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
-                                <button type="submit" class="at-task-control-item"><span>Resume task</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                            </form>
-                        }
-                        @if (hasBacklogAssign)
-                        {
-                            <button type="button" class="at-task-control-item" data-at-v2-inline-toggle="assign-sprint"><span>Assign to sprint</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                            <div class="at-inline-editor" data-at-v2-inline-panel="assign-sprint" hidden>
-                                <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="AssignBacklogToSprint">
-                                    <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                                    <select name="sprintId" class="form-select form-select-sm" required>
-                                        <option value="">Select sprint</option>
-                                        @foreach (var sprint in Model.AssignableSprints) { <option value="@sprint.Id">@sprint.Name</option> }
-                                    </select>
-                                    <select name="responsibleUserId" class="form-select form-select-sm" required>
-                                        <option value="">Responsible person</option>
-                                        @foreach (var user in Model.AssignableUsers) { <option value="@user.UserId">@user.DisplayName</option> }
-                                    </select>
-                                    <div class="at-inline-editor-actions"><button type="submit" class="btn btn-primary btn-sm">Assign</button><button type="button" class="btn btn-link btn-sm" data-at-v2-inline-cancel>Cancel</button></div>
-                                </form>
-                            </div>
-                        }
-                        @if (hasSprintAdd)
-                        {
-                            <button type="button" class="at-task-control-item" data-at-v2-inline-toggle="add-sprint"><span>Add to sprint</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                            <div class="at-inline-editor" data-at-v2-inline-panel="add-sprint" hidden>
-                                <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="AssignOutsideToSprint">
-                                    <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                                    <select name="sprintId" class="form-select form-select-sm" required>
-                                        <option value="">Select sprint</option>
-                                        @foreach (var sprint in Model.AssignableSprints) { <option value="@sprint.Id">@sprint.Name</option> }
-                                    </select>
-                                    <div class="at-inline-editor-actions"><button type="submit" class="btn btn-primary btn-sm">Add</button><button type="button" class="btn btn-link btn-sm" data-at-v2-inline-cancel>Cancel</button></div>
-                                </form>
-                            </div>
-                        }
-                        @if (Model.CanRemoveFromSprint)
-                        {
-                            <button type="button" class="at-task-control-item" data-at-v2-inline-toggle="remove-sprint"><span>Remove from sprint</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                            <div class="at-inline-editor" data-at-v2-inline-panel="remove-sprint" hidden>
-                                <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="RemoveFromSprint">
-                                    <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                                    <textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason"></textarea>
-                                    <div class="at-inline-editor-actions"><button type="submit" class="btn btn-outline-secondary btn-sm">Remove</button><button type="button" class="btn btn-link btn-sm" data-at-v2-inline-cancel>Cancel</button></div>
-                                </form>
-                            </div>
-                        }
-                        @if (Model.CanMoveToBacklog)
-                        {
-                            <button type="button" class="at-task-control-item" data-at-v2-inline-toggle="backlog"><span>Return to backlog</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                            <div class="at-inline-editor" data-at-v2-inline-panel="backlog" hidden>
-                                <form method="post" asp-route-returnUrl="@Model.ReturnUrl" asp-page-handler="MoveToBacklog">
-                                    <input type="hidden" name="id" value="@Model.TaskItem.Id" />
-                                    <textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for replanning"></textarea>
-                                    <div class="at-inline-editor-actions"><button type="submit" class="btn btn-outline-warning btn-sm">Move to backlog</button><button type="button" class="btn btn-link btn-sm" data-at-v2-inline-cancel>Cancel</button></div>
-                                </form>
-                            </div>
-                        }
-                        @if (capabilities.CanCloseDirectly)
-                        {
-                            <button type="button" class="at-task-control-item is-danger" data-at-v2-open="close"><span>Close directly</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-                        }
-                    </div>
                 </section>
             }
 

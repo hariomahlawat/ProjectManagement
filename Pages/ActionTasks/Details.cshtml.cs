@@ -250,24 +250,29 @@ public sealed class DetailsModel : PageModel
         return RedirectToPage(new { id, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
-    public async Task<IActionResult> OnPostCloseAsync(int id, string rowVersion, string? remarks)
+    public async Task<IActionResult> OnPostCloseAsync(int id, string rowVersion, string? remarks, string? closeMode)
     {
         await ResolveIdentityAsync();
+        var closeIntent = string.Equals(closeMode, "accept", StringComparison.OrdinalIgnoreCase)
+            ? "accept-close"
+            : "close-direct";
         var reopenIntent = (string?)null;
         try
         {
             await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Task closed successfully.";
+            TempData["ToastMessage"] = closeIntent == "accept-close"
+                ? "Task accepted and closed."
+                : "Task closed successfully.";
         }
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
-            reopenIntent = "close";
+            reopenIntent = closeIntent;
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
-            reopenIntent = "close";
+            reopenIntent = closeIntent;
         }
 
         return RedirectToPage(new { id, intent = reopenIntent, returnUrl = SafeReturnUrl() });
@@ -276,6 +281,7 @@ public sealed class DetailsModel : PageModel
     public async Task<IActionResult> OnPostChangeDateAsync()
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             await _service.UpdateTaskDateAsync(
@@ -290,18 +296,21 @@ public sealed class DetailsModel : PageModel
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "change-date";
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "change-date";
         }
 
-        return RedirectToPage(new { id = ChangeDateInput.TaskId, returnUrl = SafeReturnUrl() });
+        return RedirectToPage(new { id = ChangeDateInput.TaskId, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
     public async Task<IActionResult> OnPostAssignBacklogToSprintAsync(int id, int sprintId, string responsibleUserId)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             // SECTION: Resolve the responsible person's task role server-side. Never trust a client-supplied role snapshot.
@@ -325,14 +334,16 @@ public sealed class DetailsModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "assign-sprint";
         }
 
-        return RedirectToPage(new { id, returnUrl = SafeReturnUrl() });
+        return RedirectToPage(new { id, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
     public async Task<IActionResult> OnPostAssignOutsideToSprintAsync(int id, int sprintId)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             await _sprintService.AssignOutsideSprintTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
@@ -341,14 +352,16 @@ public sealed class DetailsModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "add-sprint";
         }
 
-        return RedirectToPage(new { id, returnUrl = SafeReturnUrl() });
+        return RedirectToPage(new { id, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
     public async Task<IActionResult> OnPostRemoveFromSprintAsync(int id, string? remarks)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             await _sprintService.RemoveTaskFromSprintKeepAssignedAsync(id, CurrentUserId, CurrentRole, remarks);
@@ -357,14 +370,16 @@ public sealed class DetailsModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "remove-sprint";
         }
 
-        return RedirectToPage(new { id, returnUrl = SafeReturnUrl() });
+        return RedirectToPage(new { id, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
     public async Task<IActionResult> OnPostMoveToBacklogAsync(int id, string? remarks)
     {
         await ResolveIdentityAsync();
+        var reopenIntent = (string?)null;
         try
         {
             await _sprintService.MoveTaskToBacklogRemoveAssigneeAsync(id, CurrentUserId, CurrentRole, remarks);
@@ -373,9 +388,10 @@ public sealed class DetailsModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            reopenIntent = "backlog";
         }
 
-        return RedirectToPage(new { id, returnUrl = SafeReturnUrl() });
+        return RedirectToPage(new { id, intent = reopenIntent, returnUrl = SafeReturnUrl() });
     }
 
     public string ResolveActorName(string? userId)

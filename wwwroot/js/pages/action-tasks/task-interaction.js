@@ -3,48 +3,55 @@
 
     const roots = () => Array.from(document.querySelectorAll('[data-at-v2-task-root]'));
 
-    function closeCommandPanels(root) {
-        root.querySelectorAll('[data-at-v2-panel]').forEach((panel) => {
+    function closeActionPanels(root) {
+        root.querySelectorAll('[data-at-v22-panel], [data-at-v2-panel]').forEach((panel) => {
             panel.hidden = true;
         });
     }
 
-    function openCommandPanel(root, name) {
-        const panel = root.querySelector(`[data-at-v2-panel="${name}"]`);
-        if (!panel) return;
-
-        closeCommandPanels(root);
-        panel.hidden = false;
-        const target = panel.querySelector('textarea, select, input:not([type="hidden"]), button');
-        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        window.setTimeout(() => target?.focus({ preventScroll: true }), 120);
+    function findActionPanel(root, name) {
+        return root.querySelector(`[data-at-v22-panel="${name}"]`)
+            || root.querySelector(`[data-at-v2-panel="${name}"]`);
     }
 
-    function initCommandPanels() {
+    function openActionPanel(root, name) {
+        const panel = findActionPanel(root, name);
+        if (!panel) return;
+
+        closeActionPanels(root);
+        panel.hidden = false;
+        const target = panel.querySelector('textarea, select, input:not([type="hidden"]), button');
+        window.setTimeout(() => target?.focus({ preventScroll: true }), 60);
+    }
+
+    function initActionPanels() {
         document.addEventListener('click', (event) => {
-            const opener = event.target.closest('[data-at-v2-open]');
+            const opener = event.target.closest('[data-at-v22-open], [data-at-v2-open]');
             if (opener) {
                 const root = opener.closest('[data-at-v2-task-root]');
                 if (!root) return;
                 event.preventDefault();
-                openCommandPanel(root, opener.getAttribute('data-at-v2-open'));
+                const name = opener.getAttribute('data-at-v22-open') || opener.getAttribute('data-at-v2-open');
+                openActionPanel(root, name);
                 return;
             }
 
-            const cancel = event.target.closest('[data-at-v2-cancel]');
+            const cancel = event.target.closest('[data-at-v22-cancel], [data-at-v2-cancel]');
             if (!cancel) return;
             const root = cancel.closest('[data-at-v2-task-root]');
             if (!root) return;
             event.preventDefault();
-            closeCommandPanels(root);
+            closeActionPanels(root);
         });
 
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') return;
-            roots().forEach(closeCommandPanels);
+            roots().forEach(closeActionPanels);
         });
     }
 
+    // Kept for compatible legacy controls elsewhere in the Task module. V2.2
+    // deliberately avoids automatic page movement so inline actions stay in place.
     function closeInlineEditors(root, exceptName) {
         root.querySelectorAll('[data-at-v2-inline-panel]').forEach((panel) => {
             if (panel.getAttribute('data-at-v2-inline-panel') !== exceptName) {
@@ -59,8 +66,7 @@
         closeInlineEditors(root, name);
         panel.hidden = false;
         const target = panel.querySelector('input:not([type="hidden"]), select, textarea, button');
-        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        window.setTimeout(() => target?.focus({ preventScroll: true }), 100);
+        window.setTimeout(() => target?.focus({ preventScroll: true }), 50);
     }
 
     function initInlineEditors() {
@@ -173,19 +179,12 @@
         });
     }
 
-    function initStickyTaskHeader() {
-        const header = document.querySelector('[data-at-v2-sticky-header]');
-        if (!header) return;
-
-        const update = () => {
-            header.classList.toggle('is-compact', window.scrollY > 110);
-        };
-
-        update();
-        window.addEventListener('scroll', update, { passive: true });
-    }
-
     function initTaskIntent() {
+        const panelIntents = new Set([
+            'submit', 'block', 'return', 'accept-close', 'close-direct', 'change-date',
+            'assign-sprint', 'add-sprint', 'remove-sprint', 'backlog'
+        ]);
+
         roots().forEach((root) => {
             const intent = (root.getAttribute('data-at-task-intent') || '').trim().toLowerCase();
             if (!intent) return;
@@ -193,22 +192,20 @@
             if (intent === 'remark') {
                 const composer = root.querySelector('[data-at-v2-remark-composer]');
                 const body = composer?.querySelector('[data-at-v2-remark-body]');
-                composer?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                window.setTimeout(() => body?.focus({ preventScroll: true }), 150);
+                window.setTimeout(() => body?.focus({ preventScroll: false }), 80);
                 return;
             }
 
-            if (['submit', 'block', 'return', 'close', 'change-date'].includes(intent)) {
-                window.setTimeout(() => openCommandPanel(root, intent), 50);
+            if (panelIntents.has(intent)) {
+                window.setTimeout(() => openActionPanel(root, intent), 40);
             }
         });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        initCommandPanels();
+        initActionPanels();
         initInlineEditors();
         initRemarkComposers();
-        initStickyTaskHeader();
         initTaskIntent();
     });
 })();

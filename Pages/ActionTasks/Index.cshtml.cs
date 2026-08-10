@@ -992,25 +992,30 @@ public class IndexModel : PageModel
         return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
     }
 
-    // SECTION: Close task by command role
-    public async Task<IActionResult> OnPostCloseAsync(int id, string rowVersion, string? remarks)
+    // SECTION: Close task. UI intent distinguishes normal acceptance from direct command override.
+    public async Task<IActionResult> OnPostCloseAsync(int id, string rowVersion, string? remarks, string? closeMode)
     {
         await ResolveIdentityAsync();
+        var closeIntent = string.Equals(closeMode, "accept", StringComparison.OrdinalIgnoreCase)
+            ? "accept-close"
+            : "close-direct";
         var reopenIntent = (string?)null;
         try
         {
             await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Task closed successfully.";
+            TempData["ToastMessage"] = closeIntent == "accept-close"
+                ? "Task accepted and closed."
+                : "Task closed successfully.";
         }
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
-            reopenIntent = "close";
+            reopenIntent = closeIntent;
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
-            reopenIntent = "close";
+            reopenIntent = closeIntent;
         }
 
         return RedirectToTaskPage(id, SelectedSprintId, reopenIntent);
@@ -1077,7 +1082,7 @@ public class IndexModel : PageModel
                     .Select(error => error.ErrorMessage)
                     .FirstOrDefault(error => !string.IsNullOrWhiteSpace(error))
                     ?? "Enter a valid task date.";
-                return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId);
+                return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId, "change-date");
             }
 
             await _service.UpdateTaskDateAsync(
@@ -1093,10 +1098,12 @@ public class IndexModel : PageModel
         catch (ActionTaskConcurrencyException ex)
         {
             TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId, "change-date");
         }
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId, "change-date");
         }
 
         return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId);
@@ -1113,7 +1120,7 @@ public class IndexModel : PageModel
             if (responsibleRole is null)
             {
                 TempData["ToastError"] = "Select an active responsible person before adding the backlog item to a sprint.";
-                return RedirectToTaskPage(id, SelectedSprintId);
+                return RedirectToTaskPage(id, SelectedSprintId, "assign-sprint");
             }
 
             await _sprintService.AssignBacklogItemToSprintAsync(id, sprintId, responsibleUserId, responsibleRole, CurrentUserId, CurrentRole);
@@ -1122,6 +1129,7 @@ public class IndexModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(id, SelectedSprintId, "assign-sprint");
         }
 
         return RedirectToTaskPage(id, sprintId);
@@ -1140,6 +1148,7 @@ public class IndexModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(id, SelectedSprintId, "add-sprint");
         }
 
         return RedirectToTaskPage(id, sprintId);
@@ -1155,7 +1164,7 @@ public class IndexModel : PageModel
             if (string.IsNullOrWhiteSpace(remarks))
             {
                 TempData["ToastError"] = "Enter a short reason before removing the task from sprint.";
-                return RedirectToTaskPage(id, SelectedSprintId);
+                return RedirectToTaskPage(id, SelectedSprintId, "remove-sprint");
             }
 
             await _sprintService.RemoveTaskFromSprintKeepAssignedAsync(id, CurrentUserId, CurrentRole, remarks);
@@ -1164,6 +1173,7 @@ public class IndexModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(id, SelectedSprintId, "remove-sprint");
         }
 
         return RedirectToTaskPage(id, SelectedSprintId);
@@ -1179,7 +1189,7 @@ public class IndexModel : PageModel
             if (string.IsNullOrWhiteSpace(remarks))
             {
                 TempData["ToastError"] = "Enter a short reason before moving the task to backlog.";
-                return RedirectToTaskPage(id, SelectedSprintId);
+                return RedirectToTaskPage(id, SelectedSprintId, "backlog");
             }
 
             await _sprintService.MoveTaskToBacklogRemoveAssigneeAsync(id, CurrentUserId, CurrentRole, remarks);
@@ -1188,6 +1198,7 @@ public class IndexModel : PageModel
         catch (InvalidOperationException ex)
         {
             TempData["ToastError"] = ex.Message;
+            return RedirectToTaskPage(id, SelectedSprintId, "backlog");
         }
 
         return RedirectToTaskPage(id, SelectedSprintId);

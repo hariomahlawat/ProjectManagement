@@ -71,11 +71,11 @@ public class ActionTaskProductionReadinessTests
     }
 
     [Fact]
-    public void TaskPeekCss_UsesCompactOverlayWidth()
+    public void TaskPeekCss_UsesWiderOperationalWidth()
     {
         var css = ReadRepoFile("wwwroot", "css", "action-task-peek.css");
 
-        Assert.Contains("width: min(32rem, calc(100vw - 2rem));", css, StringComparison.Ordinal);
+        Assert.Contains("width: min(40rem, calc(100vw - 2rem));", css, StringComparison.Ordinal);
         Assert.Contains(".at-task-peek-body", css, StringComparison.Ordinal);
         Assert.Contains("overflow-y: auto", css, StringComparison.Ordinal);
     }
@@ -89,16 +89,36 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("Discussion &amp; progress", html, StringComparison.Ordinal);
         Assert.Contains("_TaskUpdateTimeline", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Manage task", html, StringComparison.Ordinal);
-        Assert.Contains("Task controls", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Task controls", html, StringComparison.Ordinal);
         Assert.Contains("Activity history", html, StringComparison.Ordinal);
         Assert.Contains("<details", html, StringComparison.Ordinal);
-        Assert.Contains("data-at-v2-inline-toggle=\"date\"", html, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionBar", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"change-date\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"ChangeDate\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"AssignBacklogToSprint\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"AssignOutsideToSprint\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"RemoveFromSprint\"", html, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"MoveToBacklog\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-at-v2-open=\"close\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"accept-close\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"close-direct\"", html, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void TaskActionSurface_IsSharedAndDoesNotScrollThePageToRemoteForms()
+    {
+        var peek = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
+        var page = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml");
+        var bar = ReadRepoFile("Pages", "ActionTasks", "_TaskActionBar.cshtml");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "action-tasks", "task-interaction.js");
+
+        Assert.Contains("_TaskActionBar", peek, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionBar", page, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-open=\"change-date\"", bar, StringComparison.Ordinal);
+        Assert.Contains("Return to backlog", bar, StringComparison.Ordinal);
+        Assert.Contains("Close directly", bar, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-open", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("scrollIntoView", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -110,7 +130,7 @@ public class ActionTaskProductionReadinessTests
 
         Assert.Contains(@"href=""@Model.BackUrl""", page, StringComparison.Ordinal);
         Assert.Contains(@"asp-route-returnUrl=""@Model.ReturnUrl""", page, StringComparison.Ordinal);
-        Assert.Contains("asp-route-returnUrl", peek, StringComparison.Ordinal);
+        Assert.Contains("returnUrl = currentCollectionUrl", peek, StringComparison.Ordinal);
         Assert.Contains("Url.IsLocalUrl(ReturnUrl)", model, StringComparison.Ordinal);
     }
 

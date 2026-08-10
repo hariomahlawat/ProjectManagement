@@ -1,90 +1,122 @@
-PRISM ERP — Action Tasks UX V2.1 (Low-Friction Operational Workspace)
-====================================================================
+PRISM ERP — Action Tasks UX V2.2
+Unified Command Surface & Density
+=================================
 
 PURPOSE
 -------
-This phase keeps the V2 Peek + Full Task architecture and removes the remaining
-interaction friction. Valid actions are now role-aware and state-aware: normal
-operations stay visible, irrelevant operations disappear, and consequential
-commands expand inline only when the user selects them.
+V2.2 keeps the proven Peek + Full Task architecture but removes the remaining
+spatial friction. The user should never have to click a control at one location
+and then be moved elsewhere on the page to complete it.
 
-KEY UX CHANGES
---------------
-1. Task Peek
-   - Full-task icon is always visible in the header.
-   - "Open full task" is also kept in a persistent footer; no scrolling is
-     required to discover the full workspace.
-   - Owner workflow actions remain direct: Start work, Resume, Submit for
-     closure and Block.
-   - Command users no longer see an orphaned Block button as the apparent
-     primary action for somebody else's task.
-   - Legitimate command controls remain visible in a separate Task controls
-     strip: Block task, Resume task, change due/target date, Close directly and
-     Planning controls where applicable.
-   - Change date is available inline in the Peek.
-   - Remark composer stays permanently visible.
-   - Latest three updates use the same shared timeline component as the full
-     workspace.
+CORE UX RULE
+------------
+Every action that is currently valid for the user's role and the task's state is
+visible at the top. Selecting an action opens its required fields immediately
+under the same action bar. No Manage accordion, no generic Planning controls,
+no remote forms, and no automatic page jumping.
 
-2. Full Task Workspace
-   - Header is sticky and compacts while scrolling so task identity and current
-     primary actions are always available.
-   - Generic "Manage task" accordion has been removed.
-   - Task details remain visible at all times.
-   - Due/target date exposes a visible Change action and expands inline.
-   - Task controls are always visible when authorised/relevant; sprint/backlog
-     operations expand directly below the selected control.
-   - Direct command closure is explicitly labelled "Close directly" to
-     distinguish it from the normal Submit -> Accept & close workflow.
-   - Activity history remains discoverable but collapsed; old/new values are
-     rendered in plain language.
+WHAT CHANGED
+------------
+1. One shared task action bar
+   - New shared partial: Pages/ActionTasks/_TaskActionBar.cshtml
+   - New shared model:   Pages/ActionTasks/TaskActionBarViewModel.cs
+   - Used by both Task Peek and Full Task Workspace.
+   - Same ordering, labels and role/state visibility in both surfaces.
 
-3. Timeline
-   - Peek and full workspace now render through one shared partial.
-   - General, Conference and Progress remain one chronological stream.
-   - Workflow-generated Progress entries receive semantic presentation such as
-     Work started, Work resumed, Task blocked and Submitted for closure rather
-     than exposing raw persistence terminology where possible.
-   - Attachments remain visually attached to the originating update.
+2. All applicable controls are at the top
+   - Start work / Resume
+   - Submit for closure
+   - Block task
+   - Accept & close / Return for action
+   - Change due/target date
+   - Assign/Add/Remove sprint when applicable
+   - Return to backlog when applicable
+   - Close directly when the normal closure path is not available
+   - Generic "Planning controls" link removed.
 
-4. Architecture
-   - ActionTaskInteractionCapabilities centralises role/state action visibility.
-   - Both Peek and full workspace consume the same capability rules.
-   - ActionTaskPresentation centralises human-facing timeline/audit labels.
-   - No database migration is required.
+3. One action tray directly under the action bar
+   - Required remarks, dates and sprint selectors open in one fixed location.
+   - No scroll-to-form behaviour.
+   - Escape or Cancel closes the active tray.
+   - Validation failures reopen the exact action that failed.
 
-REPLACE / ADD THESE FILES
+4. Close semantics are explicit
+   - "Accept & close" and "Close directly" are separate UI intents.
+   - Submitted tasks use the normal acceptance path.
+   - Direct closure remains an exceptional command override.
+
+5. Full Task page is substantially denser
+   - Removed the large hero treatment.
+   - Back, task number and title now share one compact identity line.
+   - Metadata is directly below it.
+   - The compact operational header is sticky from the start; it does not
+     transform into a second visual mode while scrolling.
+   - Task Brief padding is reduced so Discussion appears earlier.
+
+6. Right rail is information-only
+   - Task Details remains visible.
+   - Activity History remains visible/collapsed.
+   - Due-date edit and the Task Controls card are removed from the rail because
+     those operations now live in the top action surface.
+
+7. Task Peek is wider and more useful
+   - Desktop width increased from 32rem to a maximum of 40rem.
+   - At medium widths it uses a 36rem cap; mobile remains full width.
+   - The action bar and its action tray are outside the Peek's scrolling body,
+     so task operations remain visible while reading updates.
+   - Composer is slightly larger and recent updates retain the shared timeline.
+
+8. JavaScript no longer moves the page for task commands
+   - task-interaction.js opens/focuses the local action tray only.
+   - No automatic scroll-to-command-form behaviour.
+   - Existing remark composer validation and Ctrl/Cmd+Enter remain intact.
+
+FILES ADDED IN V2.2
+-------------------
+Pages/ActionTasks/_TaskActionBar.cshtml
+Pages/ActionTasks/TaskActionBarViewModel.cs
+wwwroot/css/action-task-actions.css
+
+KEY FILES UPDATED IN V2.2
 -------------------------
-Pages/ActionTasks/Details.cshtml
-Pages/ActionTasks/Details.cshtml.cs
 Pages/ActionTasks/Index.cshtml
 Pages/ActionTasks/Index.cshtml.cs
 Pages/ActionTasks/_TaskDetails.cshtml
-Pages/ActionTasks/_TaskMyWorkQueueRows.cshtml
-Pages/ActionTasks/_TaskUpdateTimeline.cshtml                         [NEW]
-Pages/ActionTasks/TaskUpdateTimelineViewModel.cs                    [NEW]
-
-Services/ActionTasks/ActionTaskCollaborationService.cs
-Services/ActionTasks/ActionTaskInspectorReadModelBuilder.cs
-Services/ActionTasks/ActionTaskInteractionCapabilities.cs           [NEW]
-Services/ActionTasks/ActionTaskNotificationService.cs
-Services/ActionTasks/ActionTaskPermissionService.cs
-Services/ActionTasks/ActionTaskPresentation.cs                      [NEW]
-Services/ActionTasks/ActionTaskService.cs
-Services/ActionTasks/ActionTaskWorkflowPolicy.cs
-Services/ActionTasks/IActionTaskService.cs
-
+Pages/ActionTasks/Details.cshtml
+Pages/ActionTasks/Details.cshtml.cs
 wwwroot/css/action-task-peek.css
 wwwroot/css/action-task-workspace.css
 wwwroot/js/pages/action-tasks/task-interaction.js
+ProjectManagement.Tests/ActionTasks/ActionTaskProductionReadinessTests.cs
+ProjectManagement.Tests/ActionTasks/ActionTaskPageTests.cs
 
-Tests included in the package should also replace/add the corresponding files.
+PACKAGE NOTE
+------------
+The ZIP is a full superseding Task UX package. It also includes the V2/V2.1
+service, timeline, notification and RowVersion changes, so it can safely replace
+the previous ActionTasks-UX-V2.1 package as a unit.
 
-IMPORTANT
----------
-- This package includes the previous UpdateSprintInput.RowVersion hotfix.
-- No EF Core migration is required.
-- After replacement: Clean -> Rebuild -> run ProjectManagement.Tests -> Ctrl+F5.
-- The full .NET build could not be executed in the generation environment
-  because the .NET SDK is not installed there. JavaScript syntax validation was
-  run with Node.
+DATABASE
+--------
+No EF Core migration is required.
+
+VALIDATION AFTER REPLACEMENT
+----------------------------
+1. Clean Solution
+2. Rebuild Solution
+3. Run ProjectManagement.Tests
+4. Ctrl+F5 in browser
+5. Verify at least these scenarios:
+   - Assigned task as assignee: Start/Submit/Block
+   - Blocked task as assignee and command: Resume
+   - Submitted task as HoD/Comdt: Accept & close / Return for action
+   - In-progress task as HoD/Comdt: Change date / backlog / direct close where allowed
+   - Sprint task and outside-sprint task planning actions
+   - Peek and Full Task show the same applicable actions
+   - Opening any action does not move the page vertically
+
+GENERATION-ENVIRONMENT LIMITATION
+---------------------------------
+The .NET SDK is not installed in the generation environment, so the actual
+solution build/xUnit suite could not be executed here. JavaScript syntax and
+focused source-contract checks were run before packaging.
