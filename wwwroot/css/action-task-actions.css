@@ -1,9 +1,37 @@
-/* Task UX V2.2 — shared, role/state-aware command surface. */
+/* Task UX V2.4.1 — refined shared command surface.
+   Keeps every valid task action one click away while adding intentional
+   workflow / management / command-override grouping and denser editors. */
+
 .at-task-action-bar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    gap: .42rem;
+}
+
+.at-task-action-group {
+    position: relative;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: .38rem;
+    min-width: 0;
+}
+
+/* Groups stay visible; separators provide hierarchy without introducing
+   headings or a More menu. */
+.at-task-action-group + .at-task-action-group {
+    margin-left: .22rem;
+    padding-left: .66rem;
+}
+.at-task-action-group + .at-task-action-group::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .28rem;
+    bottom: .28rem;
+    width: 1px;
+    background: #dfe6ef;
 }
 
 .at-inline-command-form {
@@ -106,151 +134,239 @@
     display: grid;
     grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr);
     gap: .45rem;
+    min-width: 0;
 }
 .at-task-action-panel-fields.is-single { grid-template-columns: 1fr; }
 .at-task-action-panel-fields.is-two-selects { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-@media (max-width: 900px) {
-    .at-task-action-panel form { grid-template-columns: 1fr; }
-    .at-task-action-panel-fields,
-    .at-task-action-panel-fields.is-two-selects { grid-template-columns: 1fr; }
-    .at-task-action-panel-controls { justify-content: flex-start; }
+/* Edit fields deliberately expose labels. This remains compact in the full
+   workspace and becomes vertical in the Peek. */
+.at-task-field {
+    display: grid;
+    gap: .24rem;
+    min-width: 0;
+    margin: 0;
+}
+.at-task-field-label {
+    color: #65768d;
+    font-size: .66rem;
+    font-weight: 760;
+    line-height: 1.15;
+    letter-spacing: .025em;
 }
 
-/* Task UX V2.3 — operational completeness: metadata commands + governed remarks. */
-.at-task-action-panel-fields.is-edit-task {
-    grid-template-columns: minmax(11rem, .75fr) minmax(16rem, 1.25fr);
-}
-.at-task-action-panel-fields.is-reassign,
-.at-task-action-panel-fields.is-priority {
-    grid-template-columns: minmax(11rem, .7fr) minmax(15rem, 1.3fr);
-}
-
-.at-v2-update-heading-side {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: flex-end;
-    gap: .36rem !important;
-    flex: 0 0 auto;
-}
-.at-update-inline-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: .14rem;
-}
-.at-update-delete-form { display: inline-flex; margin: 0; }
-.at-update-action {
-    display: inline-grid;
-    place-items: center;
-    width: 1.7rem;
-    height: 1.7rem;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: .42rem;
-    background: transparent;
-    color: #667892;
-    font-size: .72rem;
-}
-.at-update-action:hover,
-.at-update-action:focus-visible {
-    border-color: #d7e0ec;
-    background: #f6f9fd;
-    color: #244f8f;
-}
-.at-update-action.is-danger:hover,
-.at-update-action.is-danger:focus-visible {
-    border-color: #f1c0bc;
-    background: #fff7f6;
-    color: #b42318;
-}
-.at-update-edit-panel {
-    margin-top: .48rem;
-    padding-top: .48rem;
-    border-top: 1px solid #e7edf5;
-}
-.at-update-edit-panel[hidden] { display: none !important; }
-.at-update-edit-panel form { display: grid; gap: .42rem; }
-.at-update-edit-panel textarea { min-height: 68px; resize: vertical; }
-.at-update-edit-controls { display: flex; align-items: center; gap: .3rem; }
-
-@media (max-width: 900px) {
-    .at-task-action-panel-fields.is-edit-task,
-    .at-task-action-panel-fields.is-reassign,
-    .at-task-action-panel-fields.is-priority {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Task UX V2.4 — intentional action grouping, searchable assignee picker and edit provenance. */
-.at-task-action-bar {
-    column-gap: .7rem;
-    row-gap: .4rem;
-}
-.at-task-action-group {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .38rem;
-}
-.at-task-action-group.is-management {
-    padding-left: .65rem;
-    border-left: 1px solid #dfe6ef;
-}
-.at-task-action-bar.is-compact .at-task-action-group.is-management {
-    flex-basis: auto;
-}
-
+/* --- Searchable responsible-person picker -------------------------------- */
 .at-person-picker {
     position: relative;
     min-width: 0;
 }
+
+.at-person-picker-search {
+    width: 100%;
+}
+
 .at-person-picker-menu {
     position: absolute;
     z-index: 1085;
-    top: calc(100% + .25rem);
+    top: calc(100% + .34rem);
     left: 0;
-    right: 0;
-    max-height: 17rem;
+    width: max(100%, 19rem);
+    max-width: min(22rem, calc(100vw - 1.5rem));
+    max-height: 16rem;
     overflow-y: auto;
-    padding: .3rem;
-    border: 1px solid #cfd9e7;
-    border-radius: .62rem;
+    padding: .28rem;
+    border: 1px solid #cad6e5;
+    border-radius: .68rem;
     background: #fff;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, .14);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, .16);
 }
+.at-person-picker-menu[hidden] { display: none !important; }
+.at-person-picker.is-drop-up .at-person-picker-menu {
+    top: auto;
+    bottom: calc(100% + .34rem);
+}
+.at-person-picker.is-align-end .at-person-picker-menu {
+    left: auto;
+    right: 0;
+}
+
 .at-person-picker-option {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .6rem;
     width: 100%;
-    gap: .04rem;
-    padding: .42rem .48rem;
+    min-height: 2.35rem;
+    padding: .44rem .5rem;
     border: 0;
-    border-radius: .45rem;
+    border-radius: .48rem;
     background: transparent;
     color: #172b4d;
     text-align: left;
 }
 .at-person-picker-option:hover,
-.at-person-picker-option:focus-visible,
-.at-person-picker-option.is-active {
-    outline: 0;
-    background: #edf4ff;
+.at-person-picker-option.is-active,
+.at-person-picker-option[aria-selected="true"] {
+    background: #eef5ff;
     color: #173f7d;
 }
-.at-person-picker-option span { font-size: .78rem; font-weight: 670; }
-.at-person-picker-option small { color: #718197; font-size: .67rem; }
-.at-person-picker-empty { padding: .6rem .5rem; color: #718197; font-size: .73rem; text-align: center; }
+.at-person-picker-option-name {
+    min-width: 0;
+    overflow: hidden;
+    font-size: .78rem;
+    font-weight: 680;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.at-person-picker-role {
+    display: inline-flex;
+    align-items: center;
+    max-width: 7.5rem;
+    padding: .12rem .36rem;
+    border: 1px solid #dde5ef;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #6b7c91;
+    font-size: .62rem;
+    font-weight: 720;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.at-person-picker-empty {
+    padding: .62rem .55rem;
+    color: #718096;
+    font-size: .75rem;
+    text-align: center;
+}
 
-.at-update-edited {
-    color: #8593a6;
-    font-style: italic;
+/* --- Priority: four visible, one-click choices ----------------------------- */
+.at-priority-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.at-priority-segmented {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .22rem;
+    padding: .2rem;
+    border: 1px solid #d5deea;
+    border-radius: .62rem;
+    background: #f2f5f9;
+}
+.at-priority-input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+.at-priority-choice {
+    display: grid;
+    place-items: center;
+    min-height: 1.82rem;
+    margin: 0;
+    padding: .24rem .3rem;
+    border: 1px solid transparent;
+    border-radius: .42rem;
+    color: #5e6f84;
+    cursor: pointer;
+    font-size: .68rem;
+    font-weight: 750;
+    line-height: 1.1;
+    white-space: nowrap;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
+}
+.at-priority-choice:hover {
+    background: #fff;
+    color: #244a85;
+}
+.at-priority-input:focus-visible + .at-priority-choice {
+    outline: 2px solid #7da7f7;
+    outline-offset: 1px;
+}
+.at-priority-input:checked + .at-priority-choice {
+    border-color: #b9c9df;
+    background: #fff;
+    color: #173f7d;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .10);
+}
+.at-priority-input:checked + .at-priority-choice[data-priority="critical"] {
+    border-color: #efb7b2;
+    color: #a61b14;
+    background: #fff8f7;
+}
+.at-priority-input:checked + .at-priority-choice[data-priority="high"] {
+    border-color: #f1cf97;
+    color: #885b08;
+    background: #fffbf2;
+}
+
+/* The 40rem Peek has enough room for compact command forms, but Edit Task is
+   intentionally vertical because title/brief are content-editing fields. */
+.at-task-peek-action-tray .at-task-action-panel-fields.is-edit-task {
+    grid-template-columns: 1fr;
+}
+.at-task-peek-action-tray .at-task-action-panel[data-at-v22-panel="edit-task"] form {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+}
+.at-task-peek-action-tray .at-task-action-panel[data-at-v22-panel="edit-task"] .at-task-action-panel-controls {
+    justify-content: flex-start;
+}
+.at-task-peek-action-tray .at-task-action-panel[data-at-v22-panel="edit-task"] textarea.form-control {
+    min-height: 76px;
+}
+
+/* Priority needs a little more input width than a standard two-field action. */
+.at-task-action-panel-fields.is-priority {
+    grid-template-columns: minmax(11.5rem, .9fr) minmax(0, 1.1fr);
+}
+
+@media (max-width: 1100px) {
+    .at-task-action-group + .at-task-action-group {
+        margin-left: .08rem;
+        padding-left: .5rem;
+    }
+
+    .at-person-picker-menu {
+        width: max(100%, 17rem);
+    }
 }
 
 @media (max-width: 900px) {
-    .at-task-action-group.is-management {
+    .at-task-action-panel form { grid-template-columns: 1fr; }
+    .at-task-action-panel-fields,
+    .at-task-action-panel-fields.is-two-selects,
+    .at-task-action-panel-fields.is-priority { grid-template-columns: 1fr; }
+    .at-task-action-panel-controls { justify-content: flex-start; }
+
+    .at-task-action-group + .at-task-action-group {
+        margin-left: 0;
         padding-left: 0;
-        border-left: 0;
+    }
+    .at-task-action-group + .at-task-action-group::before { display: none; }
+}
+
+@media (max-width: 560px) {
+    .at-task-action-bar { gap: .34rem; }
+    .at-task-action-group { gap: .3rem; }
+    .at-task-action-bar .at-task-action,
+    .at-task-action-bar.is-compact .at-task-action {
+        min-height: 1.9rem;
+        padding: .32rem .52rem;
+        font-size: .72rem;
+    }
+
+    .at-person-picker-menu {
+        width: min(19rem, calc(100vw - 2rem));
+    }
+
+    .at-priority-choice {
+        font-size: .64rem;
+        padding-inline: .18rem;
     }
 }
-.at-person-picker-menu[hidden],
-.at-person-picker-option[hidden],
-.at-person-picker-empty[hidden] { display: none !important; }

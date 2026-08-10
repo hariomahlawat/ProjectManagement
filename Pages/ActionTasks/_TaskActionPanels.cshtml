@@ -6,6 +6,7 @@
     var availableUsers = Model.AssignableUsers
         .Where(user => !string.Equals(user.UserId, task.AssignedToUserId, StringComparison.Ordinal))
         .ToList();
+    var personPickerMenuId = $"at-person-picker-menu-{task.Id}-{(Model.Compact ? "peek" : "workspace")}";
 }
 
 <div class="at-task-action-tray @(Model.Compact ? "at-task-peek-action-tray" : "at-task-workspace-action-tray")" data-at-action-tray>
@@ -18,8 +19,25 @@
                 <input type="hidden" name="EditTaskInput.RowVersion" value="@Model.RowVersion" />
                 <div class="at-task-action-copy"><strong>Edit task</strong><span>Correct the title or brief without changing workflow state.</span></div>
                 <div class="at-task-action-panel-fields is-edit-task">
-                    <input name="EditTaskInput.Title" type="text" class="form-control form-control-sm" maxlength="200" required value="@task.Title" placeholder="Task title" />
-                    <textarea name="EditTaskInput.Description" class="form-control form-control-sm" rows="@(Model.Compact ? 3 : 2)" maxlength="4000" required placeholder="Task brief">@task.Description</textarea>
+                    <label class="at-task-field at-task-field-title">
+                        <span class="at-task-field-label">Title</span>
+                        <input name="EditTaskInput.Title"
+                               type="text"
+                               class="form-control form-control-sm"
+                               maxlength="200"
+                               required
+                               value="@task.Title"
+                               placeholder="Task title" />
+                    </label>
+                    <label class="at-task-field at-task-field-brief">
+                        <span class="at-task-field-label">Task brief</span>
+                        <textarea name="EditTaskInput.Description"
+                                  class="form-control form-control-sm"
+                                  rows="@(Model.Compact ? 3 : 2)"
+                                  maxlength="4000"
+                                  required
+                                  placeholder="Task brief">@task.Description</textarea>
+                    </label>
                 </div>
                 <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Save task</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
             </form>
@@ -44,20 +62,34 @@
                                role="combobox"
                                aria-autocomplete="list"
                                aria-expanded="false"
+                               aria-controls="@personPickerMenuId"
                                data-at-person-picker-input
                                required />
-                        <div class="at-person-picker-menu" role="listbox" data-at-person-picker-menu hidden>
-                            @foreach (var user in availableUsers)
+                        <div id="@personPickerMenuId"
+                             class="at-person-picker-menu"
+                             role="listbox"
+                             aria-label="Responsible person"
+                             data-at-person-picker-menu
+                             hidden>
+                            @for (var userIndex = 0; userIndex < availableUsers.Count; userIndex++)
                             {
-                                <button type="button"
+                                var user = availableUsers[userIndex];
+                                var optionId = $"{personPickerMenuId}-option-{userIndex}";
+                                var roleLabel = ActionTaskPresentation.RoleLabel(user.Role);
+                                <button id="@optionId"
+                                        type="button"
                                         class="at-person-picker-option"
                                         role="option"
+                                        aria-selected="false"
                                         data-at-person-picker-option
                                         data-value="@user.UserId"
                                         data-label="@user.DisplayName"
-                                        data-role="@ActionTaskPresentation.RoleLabel(user.Role)">
-                                    <span>@user.DisplayName</span>
-                                    <small>@ActionTaskPresentation.RoleLabel(user.Role)</small>
+                                        data-role="@roleLabel">
+                                    <span class="at-person-picker-option-name" title="@user.DisplayName">@user.DisplayName</span>
+                                    @if (!string.IsNullOrWhiteSpace(roleLabel))
+                                    {
+                                        <span class="at-person-picker-role">@roleLabel</span>
+                                    }
                                 </button>
                             }
                             <div class="at-person-picker-empty" data-at-person-picker-empty hidden>No matching responsible person.</div>
@@ -79,20 +111,31 @@
                 <input type="hidden" name="PriorityInput.RowVersion" value="@Model.RowVersion" />
                 <div class="at-task-action-copy"><strong>Change priority</strong><span>Record why the operational priority has changed.</span></div>
                 <div class="at-task-action-panel-fields is-priority">
-                    <select name="PriorityInput.Priority" class="form-select form-select-sm" required>
-                        @foreach (var priority in Model.PriorityOptions)
-                        {
-                            if (string.Equals(priority, task.Priority, StringComparison.OrdinalIgnoreCase))
+                    <fieldset class="at-priority-fieldset">
+                        <legend class="visually-hidden">Priority</legend>
+                        <div class="at-priority-segmented" role="radiogroup" aria-label="Priority">
+                            @foreach (var priority in Model.PriorityOptions)
                             {
-                                <option value="@priority" selected>@priority</option>
+                                var priorityKey = priority.Replace(" ", "-").ToLowerInvariant();
+                                var priorityId = $"at-priority-{task.Id}-{(Model.Compact ? "peek" : "workspace")}-{priorityKey}";
+                                var isCurrentPriority = string.Equals(priority, task.Priority, StringComparison.OrdinalIgnoreCase);
+                                <input id="@priorityId"
+                                       type="radio"
+                                       class="at-priority-input"
+                                       name="PriorityInput.Priority"
+                                       value="@priority"
+                                       checked="@(isCurrentPriority ? "checked" : null)"
+                                       required />
+                                <label for="@priorityId" class="at-priority-choice" data-priority="@priorityKey">@priority</label>
                             }
-                            else
-                            {
-                                <option value="@priority">@priority</option>
-                            }
-                        }
-                    </select>
-                    <textarea name="PriorityInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for priority change"></textarea>
+                        </div>
+                    </fieldset>
+                    <textarea name="PriorityInput.Remarks"
+                              class="form-control form-control-sm"
+                              rows="2"
+                              maxlength="1000"
+                              required
+                              placeholder="Reason for priority change"></textarea>
                 </div>
                 <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Save priority</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
             </form>

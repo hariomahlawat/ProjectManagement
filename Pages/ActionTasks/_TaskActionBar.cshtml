@@ -7,6 +7,7 @@
         || Model.CanBlock
         || Model.Capabilities.CanAcceptAndClose
         || Model.Capabilities.CanReturnForAction;
+
     var hasManagementActions = Model.Capabilities.CanEditTaskDetails
         || Model.Capabilities.CanReassignTask
         || Model.Capabilities.CanChangePriority
@@ -14,16 +15,19 @@
         || Model.HasBacklogAssign
         || Model.HasSprintAdd
         || Model.CanRemoveFromSprint
-        || Model.CanMoveToBacklog
-        || Model.ShowCloseDirectly;
+        || Model.CanMoveToBacklog;
+
+    var hasOverrideActions = Model.ShowCloseDirectly;
 }
 
 @if (Model.HasAnyAction)
 {
-    <nav class="at-task-action-bar @(Model.Compact ? "is-compact" : string.Empty)" aria-label="Task actions">
+    <nav class="at-task-action-bar @(Model.Compact ? "is-compact" : string.Empty)"
+         aria-label="Task actions">
+
         @if (hasWorkflowActions)
         {
-            <div class="at-task-action-group is-workflow">
+            <div class="at-task-action-group at-task-action-group-workflow" role="group" aria-label="Workflow actions">
                 @if (Model.Capabilities.CanStartWork)
                 {
                     <form method="post" action="@Model.UpdateStatusPostUrl" class="at-inline-command-form">
@@ -63,7 +67,7 @@
 
         @if (hasManagementActions)
         {
-            <div class="at-task-action-group is-management">
+            <div class="at-task-action-group at-task-action-group-management" role="group" aria-label="Task management actions">
                 @if (Model.Capabilities.CanEditTaskDetails)
                 {
                     <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="edit-task">Edit task</button>
@@ -74,11 +78,19 @@
                 }
                 @if (Model.Capabilities.CanChangePriority)
                 {
-                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="priority">@(Model.Compact ? "Priority" : "Change priority")</button>
+                    <button type="button"
+                            class="btn at-task-action at-task-action-quiet"
+                            data-at-v22-open="priority"
+                            title="Change priority"
+                            aria-label="Change priority">Priority</button>
                 }
                 @if (Model.Capabilities.CanChangeDate)
                 {
-                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="change-date">@(Model.Compact ? (Model.IsBacklog ? "Target date" : "Due date") : $"Change {(Model.IsBacklog ? "target" : "due")} date")</button>
+                    <button type="button"
+                            class="btn at-task-action at-task-action-quiet"
+                            data-at-v22-open="change-date"
+                            title="Change @(Model.IsBacklog ? "target" : "due") date"
+                            aria-label="Change @(Model.IsBacklog ? "target" : "due") date">@(Model.IsBacklog ? "Target date" : "Due date")</button>
                 }
                 @if (Model.HasBacklogAssign)
                 {
@@ -94,12 +106,19 @@
                 }
                 @if (Model.CanMoveToBacklog)
                 {
-                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="backlog">@(Model.Compact ? "Backlog" : "Return to backlog")</button>
+                    <button type="button"
+                            class="btn at-task-action at-task-action-quiet"
+                            data-at-v22-open="backlog"
+                            title="Return to backlog"
+                            aria-label="Return to backlog">To backlog</button>
                 }
-                @if (Model.ShowCloseDirectly)
-                {
-                    <button type="button" class="btn at-task-action at-task-action-danger" data-at-v22-open="close-direct">Close directly</button>
-                }
+            </div>
+        }
+
+        @if (hasOverrideActions)
+        {
+            <div class="at-task-action-group at-task-action-group-override" role="group" aria-label="Command override actions">
+                <button type="button" class="btn at-task-action at-task-action-danger" data-at-v22-open="close-direct">Close directly</button>
             </div>
         }
     </nav>

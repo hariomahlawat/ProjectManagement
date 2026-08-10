@@ -229,19 +229,59 @@
             let activeIndex = -1;
 
             const visibleOptions = () => options.filter((option) => !option.hidden);
+
+            const clearActiveOption = () => {
+                activeIndex = -1;
+                input.removeAttribute('aria-activedescendant');
+                options.forEach((option) => option.classList.remove('is-active'));
+            };
+
+            const clearSelectedOption = () => {
+                options.forEach((option) => option.setAttribute('aria-selected', 'false'));
+            };
+
+            const positionMenu = () => {
+                if (menu.hidden) return;
+
+                picker.classList.remove('is-drop-up', 'is-align-end');
+                const pickerRect = picker.getBoundingClientRect();
+                const menuRect = menu.getBoundingClientRect();
+                const safeEdge = 12;
+                const below = window.innerHeight - pickerRect.bottom - safeEdge;
+                const above = pickerRect.top - safeEdge;
+                const desiredHeight = Math.min(menuRect.height || 256, 256);
+
+                if (below < desiredHeight && above > below) {
+                    picker.classList.add('is-drop-up');
+                }
+
+                // Keep the wider result list inside the viewport even when the
+                // search field sits near the right edge of a Peek drawer.
+                const projectedRight = pickerRect.left + Math.max(pickerRect.width, menuRect.width || 304);
+                if (projectedRight > window.innerWidth - safeEdge) {
+                    picker.classList.add('is-align-end');
+                }
+            };
+
             const setExpanded = (expanded) => {
                 menu.hidden = !expanded;
                 input.setAttribute('aria-expanded', expanded ? 'true' : 'false');
                 if (!expanded) {
-                    activeIndex = -1;
-                    options.forEach((option) => option.classList.remove('is-active'));
+                    clearActiveOption();
+                    picker.classList.remove('is-drop-up', 'is-align-end');
+                    return;
                 }
+                window.requestAnimationFrame(positionMenu);
             };
 
-            const filter = () => {
+            const filter = ({ clearSelection = true } = {}) => {
                 const query = input.value.trim().toLowerCase();
-                hidden.value = '';
+                if (clearSelection) {
+                    hidden.value = '';
+                    clearSelectedOption();
+                }
                 input.setCustomValidity('');
+
                 let count = 0;
                 options.forEach((option) => {
                     const haystack = `${option.getAttribute('data-label') || ''} ${option.getAttribute('data-role') || ''}`.toLowerCase();
@@ -250,8 +290,9 @@
                     option.classList.remove('is-active');
                     if (matches) count += 1;
                 });
+
                 if (empty) empty.hidden = count !== 0;
-                activeIndex = -1;
+                clearActiveOption();
                 setExpanded(true);
             };
 
@@ -260,40 +301,57 @@
                 hidden.value = option.getAttribute('data-value') || '';
                 input.value = option.getAttribute('data-label') || option.textContent.trim();
                 input.setCustomValidity('');
+                clearSelectedOption();
+                option.setAttribute('aria-selected', 'true');
                 setExpanded(false);
             };
 
             const move = (delta) => {
                 const visible = visibleOptions();
                 if (visible.length === 0) return;
+
                 activeIndex = activeIndex < 0
                     ? (delta > 0 ? 0 : visible.length - 1)
                     : (activeIndex + delta + visible.length) % visible.length;
+
                 options.forEach((option) => option.classList.remove('is-active'));
-                visible[activeIndex].classList.add('is-active');
-                visible[activeIndex].scrollIntoView({ block: 'nearest' });
+                const active = visible[activeIndex];
+                active.classList.add('is-active');
+                if (active.id) input.setAttribute('aria-activedescendant', active.id);
+                active.scrollIntoView({ block: 'nearest' });
             };
 
             input.addEventListener('focus', () => {
-                filter();
+                // Reopening an already selected picker must not silently clear
+                // the hidden selected user until the user actually edits text.
+                filter({ clearSelection: false });
             });
-            input.addEventListener('input', filter);
+            input.addEventListener('input', () => filter({ clearSelection: true }));
             input.addEventListener('keydown', (event) => {
                 if (event.key === 'ArrowDown') {
                     event.preventDefault();
-                    setExpanded(true);
+                    if (menu.hidden) setExpanded(true);
                     move(1);
                 } else if (event.key === 'ArrowUp') {
                     event.preventDefault();
-                    setExpanded(true);
+                    if (menu.hidden) setExpanded(true);
                     move(-1);
                 } else if (event.key === 'Enter' && !menu.hidden) {
                     const visible = visibleOptions();
-                    if (activeIndex >= 0 && visible[activeIndex]) {
+                    const selected = activeIndex >= 0 ? visible[activeIndex] : (visible.length === 1 ? visible[0] : null);
+                    if (selected) {
                         event.preventDefault();
-                        choose(visible[activeIndex]);
+                        choose(selected);
                     }
                 } else if (event.key === 'Escape') {
+                    // First Escape closes only the result list; the action tray
+                    // remains open. A subsequent Escape can close the tray.
+                    if (!menu.hidden) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setExpanded(false);
+                    }
+                } else if (event.key === 'Tab') {
                     setExpanded(false);
                 }
             });
@@ -315,6 +373,13 @@
             document.addEventListener('click', (event) => {
                 if (!picker.contains(event.target)) setExpanded(false);
             });
+
+            window.addEventListener('resize', () => {
+                if (!menu.hidden) positionMenu();
+            }, { passive: true });
+            window.addEventListener('scroll', () => {
+                if (!menu.hidden) positionMenu();
+            }, { passive: true, capture: true });
         });
     }
 
