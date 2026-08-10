@@ -337,7 +337,7 @@ public class ActionSprintService
         EnsureCanAssignTaskToSprint(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+        EnsureTaskCanBeReplanned(task, "Tasks awaiting closure cannot be added to a sprint. Return the task for action first.");
         if (!ActionTaskCategorization.IsOutsideSprintTask(task))
         {
             throw new InvalidOperationException("Only assigned tasks outside sprint can be added to sprint through this action.");
@@ -373,7 +373,7 @@ public class ActionSprintService
         EnsureCanMoveTaskToBacklog(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        EnsureTaskCanBeReplanned(task, "Tasks awaiting closure cannot be removed from a sprint. Return the task for action first.");
         if (!ActionTaskCategorization.IsSprintTask(task))
         {
             throw new InvalidOperationException("Only sprint tasks can be removed from sprint.");
@@ -405,7 +405,7 @@ public class ActionSprintService
         EnsureCanMoveTaskToBacklog(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        EnsureTaskCanBeReplanned(task, "Tasks awaiting closure cannot be moved to backlog. Return the task for action first.");
         if (ActionTaskCategorization.IsBacklogTask(task))
         {
             throw new InvalidOperationException("Task is already in backlog.");
@@ -522,6 +522,16 @@ public class ActionSprintService
         if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(message);
+        }
+    }
+
+    // SECTION: Submitted tasks are frozen pending command acceptance/return.
+    private static void EnsureTaskCanBeReplanned(ActionTaskItem task, string submittedMessage)
+    {
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(submittedMessage);
         }
     }
 

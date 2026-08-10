@@ -134,6 +134,46 @@ public sealed class ActionTaskNotificationServiceTests
     }
 
     [Fact]
+    public async Task TaskDetailsUpdated_NotifiesAssignedUser()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var service = CreateService(publisher);
+        var task = NewTask(createdBy: "creator", assignedTo: "assignee");
+
+        await service.NotifyTaskDetailsUpdatedAsync(task, "creator");
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal("ActionTaskDetailsUpdated", evt.EventType);
+        Assert.Equal("Task details updated", evt.Title);
+        Assert.Equal(new[] { "assignee" }, evt.Recipients);
+    }
+
+    [Theory]
+    [InlineData(true, "ActionTaskConferenceDirectionEdited", "Conference direction updated")]
+    [InlineData(false, "ActionTaskConferenceDirectionDeleted", "Conference direction withdrawn")]
+    public async Task ConferenceDirectionMutation_NotifiesAssignedUser(bool edited, string eventType, string title)
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var service = CreateService(publisher);
+        var task = NewTask(createdBy: "creator", assignedTo: "assignee");
+        var update = new ActionTaskUpdate { Id = 88, TaskId = task.Id, UpdateType = ActionTaskUpdateTypes.Conference };
+
+        if (edited)
+        {
+            await service.NotifyConferenceDirectionEditedAsync(task, update, "creator");
+        }
+        else
+        {
+            await service.NotifyConferenceDirectionDeletedAsync(task, update, "creator");
+        }
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal(eventType, evt.EventType);
+        Assert.Equal(title, evt.Title);
+        Assert.Equal(new[] { "assignee" }, evt.Recipients);
+    }
+
+    [Fact]
     public async Task StatusChanged_NotifiesCreatorAndAssignee()
     {
         // SECTION: Arrange

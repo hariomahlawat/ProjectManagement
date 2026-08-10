@@ -52,6 +52,7 @@ public sealed class ActionTaskInspectorReadModelBuilder
             var updates = await _collaborationService.GetUpdatesAsync(selectedTask.Id, currentUserId, currentRole);
             var attachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(selectedTask.Id, currentUserId, currentRole);
             var actorNames = await _userLookup.LoadTaskActorNamesAsync(logs);
+            actorNames = await _userLookup.MergeTaskAuditReferencedUserNamesAsync(actorNames, logs);
             actorNames = await _userLookup.MergeUpdateActorNamesAsync(actorNames, updates);
             var lastActivityUtc = ResolveLastActivityUtc(selectedTask, logs, updates);
 

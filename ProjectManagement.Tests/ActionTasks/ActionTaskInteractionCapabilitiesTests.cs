@@ -62,7 +62,18 @@ public class ActionTaskInteractionCapabilitiesTests
 
         Assert.True(capabilities.CanAcceptAndClose);
         Assert.True(capabilities.CanReturnForAction);
+        Assert.True(capabilities.CanAddRemark);
+        Assert.True(capabilities.CanAddConferenceRemark);
         Assert.False(capabilities.CanCloseDirectly);
+        Assert.False(capabilities.CanEditTaskDetails);
+        Assert.False(capabilities.CanReassignTask);
+        Assert.False(capabilities.CanChangePriority);
+        Assert.False(capabilities.CanChangeDate);
+        Assert.False(capabilities.CanManagePlanning);
+        Assert.False(capabilities.CanAssignBacklogToSprint);
+        Assert.False(capabilities.CanAddToSprint);
+        Assert.False(capabilities.CanRemoveFromSprint);
+        Assert.False(capabilities.CanMoveToBacklog);
     }
 
     [Fact]

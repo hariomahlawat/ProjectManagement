@@ -63,6 +63,29 @@ public sealed class ActionTaskUserLookupService
     public Task<IReadOnlyDictionary<string, string>> LoadSprintActorNamesAsync(IReadOnlyList<ActionSprintAuditLog> logs)
         => LoadUserDisplayNamesAsync(logs.Select(log => log.PerformedByUserId));
 
+    // SECTION: Reassignment audit values store user ids. Merge those referenced users so
+    // Activity History can show people, not opaque identity keys.
+    public async Task<IReadOnlyDictionary<string, string>> MergeTaskAuditReferencedUserNamesAsync(
+        IReadOnlyDictionary<string, string> current,
+        IReadOnlyList<ActionTaskAuditLog> logs)
+    {
+        var referencedIds = logs
+            .Where(log => string.Equals(log.ActionType, "TaskReassigned", StringComparison.Ordinal))
+            .SelectMany(log => new[] { log.OldValue, log.NewValue });
+        var referencedNames = await LoadUserDisplayNamesAsync(referencedIds);
+        if (referencedNames.Count == 0)
+        {
+            return current;
+        }
+
+        var merged = new Dictionary<string, string>(current, StringComparer.Ordinal);
+        foreach (var pair in referencedNames)
+        {
+            merged[pair.Key] = pair.Value;
+        }
+        return merged;
+    }
+
     // SECTION: Collaboration update actor merge fills names that are absent from audit actor lookups.
     public async Task<IReadOnlyDictionary<string, string>> MergeUpdateActorNamesAsync(IReadOnlyDictionary<string, string> current, IReadOnlyList<ActionTaskUpdate> updates)
     {

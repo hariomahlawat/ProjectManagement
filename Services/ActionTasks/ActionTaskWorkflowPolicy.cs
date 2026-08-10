@@ -41,20 +41,25 @@ public sealed class ActionTaskWorkflowPolicy
     };
 
     // SECTION: Role/state interaction projection shared by Peek and full task workspace.
+    // Submitted is an approval boundary. Human remarks remain available, but task
+    // definition/planning is frozen until Command accepts or returns the task.
     public ActionTaskInteractionCapabilities GetInteractionCapabilities(
         ActionTaskItem task,
         string currentRole,
         string currentUserId)
     {
-        var isClosed = string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
-        var isAssigned = string.Equals(task.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase);
-        var isInProgress = string.Equals(task.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
-        var isBlocked = string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
-        var isSubmitted = string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+        var isClosed = IsStatus(task, ActionTaskStatuses.Closed);
+        var isBacklog = IsStatus(task, ActionTaskStatuses.Backlog);
+        var isAssigned = IsStatus(task, ActionTaskStatuses.Assigned);
+        var isInProgress = IsStatus(task, ActionTaskStatuses.InProgress);
+        var isBlocked = IsStatus(task, ActionTaskStatuses.Blocked);
+        var isSubmitted = IsStatus(task, ActionTaskStatuses.Submitted);
         var isAssignedUser = !string.IsNullOrWhiteSpace(currentUserId)
             && string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal);
         var isPlanningAuthority = _permission.CanViewAll(currentRole);
         var canUpdateStatus = CanUpdateTaskStatus(task, currentRole, currentUserId);
+        var metadataMutable = !isClosed && !isSubmitted;
+        var canManagePlanning = metadataMutable && _permission.CanManageSprints(currentRole);
 
         return new ActionTaskInteractionCapabilities(
             IsAssignedUser: isAssignedUser,
@@ -69,45 +74,47 @@ public sealed class ActionTaskWorkflowPolicy
             CanResumeAsCommandControl: isBlocked && !isAssignedUser && isPlanningAuthority && canUpdateStatus,
             CanAcceptAndClose: isSubmitted && _permission.CanCloseTaskDirectly(task, currentRole),
             CanReturnForAction: isSubmitted && CanReturnTaskForAction(task, currentRole),
-            CanChangeDate: CanChangeTaskDate(task, currentRole),
-            CanEditTaskDetails: !isClosed && _permission.CanEditTaskDetails(currentRole),
-            CanReassignTask: _permission.CanReassignTask(task, currentRole),
-            CanChangePriority: _permission.CanChangeTaskPriority(task, currentRole),
-            CanManagePlanning: !isClosed && _permission.CanManageSprints(currentRole),
-            CanCloseDirectly: !isSubmitted && _permission.CanCloseTaskDirectly(task, currentRole),
+            CanChangeDate: metadataMutable && CanChangeTaskDate(task, currentRole),
+            CanEditTaskDetails: metadataMutable && _permission.CanEditTaskDetails(currentRole),
+            CanReassignTask: metadataMutable && _permission.CanReassignTask(task, currentRole),
+            CanChangePriority: metadataMutable && _permission.CanChangeTaskPriority(task, currentRole),
+            CanManagePlanning: canManagePlanning,
+            CanAssignBacklogToSprint: canManagePlanning && isBacklog,
+            CanAddToSprint: canManagePlanning && !isBacklog && !task.SprintId.HasValue,
+            CanRemoveFromSprint: canManagePlanning && task.SprintId.HasValue,
+            CanMoveToBacklog: canManagePlanning && !isBacklog,
+            CanCloseDirectly: metadataMutable && _permission.CanCloseTaskDirectly(task, currentRole),
             CanViewSystemHistory: CanViewSystemHistory(currentRole));
     }
 
     // SECTION: Action availability guards.
     public bool CanSubmitTask(ActionTaskItem task, string currentUserId)
     {
-        return !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+        return !IsStatus(task, ActionTaskStatuses.Backlog)
+            && !IsStatus(task, ActionTaskStatuses.Submitted)
+            && !IsStatus(task, ActionTaskStatuses.Closed)
             && string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal);
     }
 
     public bool CanCloseTask(ActionTaskItem task, string currentRole)
-    {
-        return _permission.CanCloseTaskDirectly(task, currentRole);
-    }
+        => _permission.CanCloseTaskDirectly(task, currentRole);
 
     public bool CanReturnTaskForAction(ActionTaskItem task, string currentRole)
-    {
-        return _permission.CanReturnTaskForAction(task, currentRole);
-    }
+        => _permission.CanReturnTaskForAction(task, currentRole);
 
     public bool CanUpdateTaskStatus(ActionTaskItem task, string currentRole, string currentUserId)
     {
-        return !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+        return !IsStatus(task, ActionTaskStatuses.Backlog)
+            && !IsStatus(task, ActionTaskStatuses.Submitted)
+            && !IsStatus(task, ActionTaskStatuses.Closed)
             && (_permission.CanViewAll(currentRole) || string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal));
     }
 
     public bool CanChangeTaskDate(ActionTaskItem task, string currentRole)
     {
         return _permission.CanChangeTaskDate(currentRole)
-            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+            && !IsStatus(task, ActionTaskStatuses.Submitted)
+            && !IsStatus(task, ActionTaskStatuses.Closed);
     }
 
     public bool CanViewSystemHistory(string currentRole)
@@ -155,4 +162,7 @@ public sealed class ActionTaskWorkflowPolicy
         if (string.Equals(priority, "High", StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-priority-high";
         return "at-badge at-badge-priority-normal";
     }
+
+    private static bool IsStatus(ActionTaskItem task, string status)
+        => string.Equals(task.Status, status, StringComparison.OrdinalIgnoreCase);
 }

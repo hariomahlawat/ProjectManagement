@@ -86,6 +86,63 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             dueDate: null,
             cancellationToken: cancellationToken);
 
+    public Task NotifyTaskDetailsUpdatedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default)
+        => PublishForTaskAsync(
+            NotificationKind.ActionTaskProgressUpdated,
+            task,
+            actorUserId,
+            "ActionTaskDetailsUpdated",
+            "Task details updated",
+            $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} title or task brief was updated.",
+            string.Format(CultureInfo.InvariantCulture, "action-task:{0}:details:{1}", task.Id, DateTimeOffset.UtcNow.Ticks),
+            recipients =>
+            {
+                AddRecipient(recipients, task.AssignedToUserId);
+                return Task.CompletedTask;
+            },
+            previousStatus: null,
+            currentStatus: task.Status,
+            dueDate: null,
+            cancellationToken: cancellationToken);
+
+    public Task NotifyConferenceDirectionEditedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default)
+        => PublishForTaskAsync(
+            NotificationKind.ActionTaskProgressUpdated,
+            task,
+            actorUserId,
+            "ActionTaskConferenceDirectionEdited",
+            "Conference direction updated",
+            $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has an updated conference direction.",
+            string.Format(CultureInfo.InvariantCulture, "action-task:{0}:conference-edit:{1}:{2}", task.Id, update.Id, DateTimeOffset.UtcNow.Ticks),
+            recipients =>
+            {
+                AddRecipient(recipients, task.AssignedToUserId);
+                return Task.CompletedTask;
+            },
+            previousStatus: null,
+            currentStatus: task.Status,
+            dueDate: null,
+            cancellationToken: cancellationToken);
+
+    public Task NotifyConferenceDirectionDeletedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default)
+        => PublishForTaskAsync(
+            NotificationKind.ActionTaskProgressUpdated,
+            task,
+            actorUserId,
+            "ActionTaskConferenceDirectionDeleted",
+            "Conference direction withdrawn",
+            $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a conference direction that was withdrawn.",
+            string.Format(CultureInfo.InvariantCulture, "action-task:{0}:conference-delete:{1}:{2}", task.Id, update.Id, DateTimeOffset.UtcNow.Ticks),
+            recipients =>
+            {
+                AddRecipient(recipients, task.AssignedToUserId);
+                return Task.CompletedTask;
+            },
+            previousStatus: null,
+            currentStatus: task.Status,
+            dueDate: null,
+            cancellationToken: cancellationToken);
+
     public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default)
     {
         var isConferenceRemark = string.Equals(

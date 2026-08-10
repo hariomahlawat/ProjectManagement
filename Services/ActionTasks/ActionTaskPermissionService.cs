@@ -76,6 +76,7 @@ public class ActionTaskPermissionService
 
     public bool CanChangeTaskPriority(ActionTaskItem? task, string role)
         => task is not null
+            && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && IsPlanningAuthority(role);
 

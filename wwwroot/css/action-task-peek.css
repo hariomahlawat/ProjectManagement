@@ -140,3 +140,28 @@
     .at-shell.is-planning-board.has-selection .at-drawer-host { width: 100vw; max-width: 100vw; }
     .at-task-peek { border-radius: 1rem 1rem 0 0; }
 }
+
+/* Task UX V2.4 — the 40rem Peek uses its width for comfortable temporary forms. */
+.at-task-peek .at-task-action-panel-fields.is-edit-task {
+    grid-template-columns: 1fr;
+}
+.at-task-peek .at-task-action-panel-fields.is-edit-task textarea {
+    min-height: 76px;
+}
+.at-task-peek .at-task-action-bar {
+    align-items: flex-start;
+}
+.at-task-peek .at-task-action-group.is-management {
+    flex: 1 1 100%;
+    padding-left: 0;
+    border-left: 0;
+}
+.at-task-peek .at-person-picker-menu {
+    max-height: 14rem;
+}
+.at-task-peek [data-at-v22-panel="edit-task"] form {
+    grid-template-columns: 1fr;
+}
+.at-task-peek [data-at-v22-panel="edit-task"] .at-task-action-panel-controls {
+    justify-content: flex-start;
+}

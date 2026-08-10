@@ -302,9 +302,8 @@ public class IndexModel : PageModel
     // SECTION: Sprint planning visibility helpers for lifecycle-aware UI actions.
     public bool CanAssignTaskToSprint(ActionTaskItem task)
     {
-        return _permission.CanAssignTaskToSprint(CurrentRole)
-               && IsBacklogTask(task)
-               && AssignableSprints.Any();
+        var capabilities = GetInteractionCapabilities(task);
+        return capabilities.CanAssignBacklogToSprint && AssignableSprints.Any() && AssignableUsers.Any();
     }
 
     public bool IsBacklogTask(ActionTaskItem task)
@@ -312,9 +311,8 @@ public class IndexModel : PageModel
 
     public bool CanAddOutsideSprintTaskToSprint(ActionTaskItem task)
     {
-        return _permission.CanAssignTaskToSprint(CurrentRole)
-               && ActionTaskCategorization.IsOutsideSprintTask(task)
-               && AssignableSprints.Any();
+        var capabilities = GetInteractionCapabilities(task);
+        return capabilities.CanAddToSprint && AssignableSprints.Any();
     }
 
     public string DisplayBucketFilter(string bucket)
@@ -329,15 +327,15 @@ public class IndexModel : PageModel
         };
     public bool CanMoveTaskToBacklog(ActionTaskItem task)
     {
-        if (!_permission.CanMoveTaskToBacklog(CurrentRole)
-            || string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        var capabilities = GetInteractionCapabilities(task);
+        if (!capabilities.CanMoveToBacklog)
         {
             return false;
         }
 
         if (!task.SprintId.HasValue)
         {
-            return ActionTaskCategorization.IsOutsideSprintTask(task);
+            return true;
         }
 
         var sprint = Sprints.FirstOrDefault(s => s.Id == task.SprintId.Value);
@@ -1020,10 +1018,16 @@ public class IndexModel : PageModel
         var reopenIntent = (string?)null;
         try
         {
-            await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = closeIntent == "accept-close"
-                ? "Task accepted and closed."
-                : "Task closed successfully.";
+            if (closeIntent == "accept-close")
+            {
+                await _service.AcceptSubmittedTaskAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
+                TempData["ToastMessage"] = "Task accepted and closed.";
+            }
+            else
+            {
+                await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
+                TempData["ToastMessage"] = "Task closed successfully.";
+            }
         }
         catch (ActionTaskConcurrencyException ex)
         {

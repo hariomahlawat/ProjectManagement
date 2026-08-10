@@ -34,15 +34,18 @@ public class ActionTaskProductionReadinessTests
     public void TaskPeek_KeepsWorkflowCommandsSeparateFromRemarkComposer()
     {
         var html = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
+        var actions = ReadRepoFile("Pages", "ActionTasks", "_TaskActionBar.cshtml");
+        var panels = ReadRepoFile("Pages", "ActionTasks", "_TaskActionPanels.cshtml");
 
         Assert.Contains("asp-page-handler=\"AddUpdate\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"Submit\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"ReturnForAction\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"Close\"", html, StringComparison.Ordinal);
-        Assert.Contains("Start work", html, StringComparison.Ordinal);
-        Assert.Contains("Resume", html, StringComparison.Ordinal);
-        Assert.Contains("Submit for closure", html, StringComparison.Ordinal);
-        Assert.Contains("Return for action", html, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionPanels", html, StringComparison.Ordinal);
+        Assert.Contains("Start work", actions, StringComparison.Ordinal);
+        Assert.Contains("Resume", actions, StringComparison.Ordinal);
+        Assert.Contains("Submit for closure", actions, StringComparison.Ordinal);
+        Assert.Contains("Return for action", actions, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"submit\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"return\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"accept-close\"", panels, StringComparison.Ordinal);
         Assert.DoesNotContain("NewStatus", html, StringComparison.Ordinal);
     }
 
@@ -64,10 +67,10 @@ public class ActionTaskProductionReadinessTests
     {
         var html = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
 
-        Assert.Contains("name=\"ViewMode\" value=\"@Model.ResolvedViewMode\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"PlanningTab\" value=\"@planningTabRouteValue\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"PlanningView\" value=\"@planningViewRouteValue\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"SelectedSprintId\" value=\"@Model.SelectedSprintId\"", html, StringComparison.Ordinal);
+        Assert.Contains("ViewMode = Model.ResolvedViewMode", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningTab = planningTabRouteValue", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningView = planningViewRouteValue", html, StringComparison.Ordinal);
+        Assert.Contains("SelectedSprintId = Model.SelectedSprintId", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,6 +87,7 @@ public class ActionTaskProductionReadinessTests
     public void FullTaskWorkspace_ProvidesDeepWorkWithoutInflatingPeek()
     {
         var html = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml");
+        var panels = ReadRepoFile("Pages", "ActionTasks", "_TaskActionPanels.cshtml");
 
         Assert.Contains("at-task-workspace-grid", html, StringComparison.Ordinal);
         Assert.Contains(">Updates<", html, StringComparison.Ordinal);
@@ -93,14 +97,14 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("Activity history", html, StringComparison.Ordinal);
         Assert.Contains("<details", html, StringComparison.Ordinal);
         Assert.Contains("_TaskActionBar", html, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"change-date\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"ChangeDate\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"AssignBacklogToSprint\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"AssignOutsideToSprint\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"RemoveFromSprint\"", html, StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"MoveToBacklog\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"accept-close\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"close-direct\"", html, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionPanels", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"change-date\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"assign-sprint\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"add-sprint\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"remove-sprint\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"backlog\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"accept-close\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"close-direct\"", panels, StringComparison.Ordinal);
     }
 
 
@@ -118,7 +122,8 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("Return to backlog", bar, StringComparison.Ordinal);
         Assert.Contains("Close directly", bar, StringComparison.Ordinal);
         Assert.Contains("data-at-v22-open", bar, StringComparison.Ordinal);
-        Assert.DoesNotContain("scrollIntoView", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("panel.scrollIntoView", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("window.scrollTo", script, StringComparison.Ordinal);
     }
 
 
@@ -128,16 +133,17 @@ public class ActionTaskProductionReadinessTests
         var bar = ReadRepoFile("Pages", "ActionTasks", "_TaskActionBar.cshtml");
         var peek = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
         var page = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml");
+        var panels = ReadRepoFile("Pages", "ActionTasks", "_TaskActionPanels.cshtml");
 
         Assert.Contains("Edit task", bar, StringComparison.Ordinal);
         Assert.Contains("Reassign", bar, StringComparison.Ordinal);
         Assert.Contains("Change priority", bar, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"edit-task\"", peek, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"reassign\"", peek, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"priority\"", peek, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"edit-task\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"reassign\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-at-v22-panel=\"priority\"", page, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionPanels", peek, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionPanels", page, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"edit-task\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"reassign\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-v22-panel=\"priority\"", panels, StringComparison.Ordinal);
+        Assert.Contains("data-at-person-picker", panels, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -152,6 +158,8 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("!isProgress && Model.CanDeleteUpdate(update)", timeline, StringComparison.Ordinal);
         Assert.Contains("CanEditUpdate", model, StringComparison.Ordinal);
         Assert.Contains("CanDeleteUpdate", model, StringComparison.Ordinal);
+        Assert.Contains("EditedUpdateIds", model, StringComparison.Ordinal);
+        Assert.Contains("at-update-edited", timeline, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -198,6 +206,25 @@ public class ActionTaskProductionReadinessTests
         Assert.Contains("asp-route-taskIntent=\"submit\"", html, StringComparison.Ordinal);
         Assert.Contains("Add remark", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Add update<", html, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void TaskV24_UsesSharedPanelsSearchableAssigneePickerAndSubmittedFreeze()
+    {
+        var peek = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
+        var page = ReadRepoFile("Pages", "ActionTasks", "Details.cshtml");
+        var panels = ReadRepoFile("Pages", "ActionTasks", "_TaskActionPanels.cshtml");
+        var policy = ReadRepoFile("Services", "ActionTasks", "ActionTaskWorkflowPolicy.cs");
+        var script = ReadRepoFile("wwwroot", "js", "pages", "action-tasks", "task-interaction.js");
+
+        Assert.Contains("_TaskActionPanels", peek, StringComparison.Ordinal);
+        Assert.Contains("_TaskActionPanels", page, StringComparison.Ordinal);
+        Assert.Contains("data-at-person-picker", panels, StringComparison.Ordinal);
+        Assert.Contains("initPersonPickers", script, StringComparison.Ordinal);
+        Assert.Contains("var metadataMutable = !isClosed && !isSubmitted", policy, StringComparison.Ordinal);
+        Assert.Contains("CanAcceptAndClose: isSubmitted", policy, StringComparison.Ordinal);
+        Assert.Contains("CanReturnForAction: isSubmitted", policy, StringComparison.Ordinal);
     }
 
     private static string ReadRepoFile(params string[] relativePathParts)

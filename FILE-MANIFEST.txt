@@ -1,36 +1,38 @@
-PRISM ERP — Action Tasks V2.3 file manifest
+PRISM ERP — Action Tasks UX V2.4 DELTA FILE MANIFEST
+=====================================================
 
-Production replacements/additions:
-  Pages/ActionTasks/Details.cshtml
-  Pages/ActionTasks/Details.cshtml.cs
-  Pages/ActionTasks/Index.cshtml.cs
-  Pages/ActionTasks/_TaskDetails.cshtml
-  Pages/ActionTasks/_TaskActionBar.cshtml
-  Pages/ActionTasks/TaskActionBarViewModel.cs
-  Pages/ActionTasks/TaskManagementInputModels.cs
-  Pages/ActionTasks/TaskUpdateTimelineViewModel.cs
-  Pages/ActionTasks/_TaskUpdateTimeline.cshtml
-  Pages/ActionTasks/_TaskDashboard.cshtml
-  Services/ActionTasks/ActionTaskPermissionService.cs
-  Services/ActionTasks/ActionTaskInteractionCapabilities.cs
-  Services/ActionTasks/ActionTaskWorkflowPolicy.cs
-  Services/ActionTasks/IActionTaskService.cs
-  Services/ActionTasks/ActionTaskService.cs
-  Services/ActionTasks/IActionTaskCollaborationService.cs
-  Services/ActionTasks/ActionTaskCollaborationService.cs
-  Services/ActionTasks/ActionTaskPresentation.cs
-  Services/ActionTasks/IActionTaskNotificationService.cs
-  Services/ActionTasks/ActionTaskNotificationService.cs
-  wwwroot/js/pages/action-tasks/task-interaction.js
-  wwwroot/css/action-task-actions.css
+Replace these paths from the project root (V2.3 must already be installed):
 
-Verification tests included:
-  ProjectManagement.Tests/ActionTasks/ActionTaskPermissionServiceTests.cs
-  ProjectManagement.Tests/ActionTasks/ActionTaskInteractionCapabilitiesTests.cs
-  ProjectManagement.Tests/ActionTasks/ActionTaskServiceTests.cs
-  ProjectManagement.Tests/ActionTasks/ActionTaskCollaborationServiceTests.cs
-  ProjectManagement.Tests/ActionTasks/ActionTaskNotificationIntegrationTests.cs
-  ProjectManagement.Tests/ActionTasks/ActionTaskPageTests.cs
-  ProjectManagement.Tests/ActionTasks/ActionTaskProductionReadinessTests.cs
-  ProjectManagement.Tests/ConferenceTaskCommandServiceTests.cs
-  ProjectManagement.Tests/ConferenceRemarkCommandServiceTests.cs
+Pages/ActionTasks/Details.cshtml
+Pages/ActionTasks/Details.cshtml.cs
+Pages/ActionTasks/Index.cshtml.cs
+Pages/ActionTasks/TaskActionBarViewModel.cs
+Pages/ActionTasks/TaskActionPanelsViewModel.cs
+Pages/ActionTasks/TaskUpdateTimelineViewModel.cs
+Pages/ActionTasks/_TaskActionBar.cshtml
+Pages/ActionTasks/_TaskActionPanels.cshtml
+Pages/ActionTasks/_TaskDetails.cshtml
+Pages/ActionTasks/_TaskUpdateTimeline.cshtml
+ProjectManagement.Tests/ActionTasks/ActionTaskInteractionCapabilitiesTests.cs
+ProjectManagement.Tests/ActionTasks/ActionTaskNotificationIntegrationTests.cs
+ProjectManagement.Tests/ActionTasks/ActionTaskNotificationServiceTests.cs
+ProjectManagement.Tests/ActionTasks/ActionTaskProductionReadinessTests.cs
+ProjectManagement.Tests/ActionTasks/ActionTaskServiceTests.cs
+ProjectManagement.Tests/ConferenceTaskCommandServiceTests.cs
+README-REPLACE.txt
+Services/ActionTasks/ActionSprintService.cs
+Services/ActionTasks/ActionTaskCollaborationService.cs
+Services/ActionTasks/ActionTaskInspectorReadModelBuilder.cs
+Services/ActionTasks/ActionTaskInteractionCapabilities.cs
+Services/ActionTasks/ActionTaskNotificationService.cs
+Services/ActionTasks/ActionTaskPermissionService.cs
+Services/ActionTasks/ActionTaskPresentation.cs
+Services/ActionTasks/ActionTaskService.cs
+Services/ActionTasks/ActionTaskUserLookupService.cs
+Services/ActionTasks/ActionTaskWorkflowPolicy.cs
+Services/ActionTasks/IActionTaskNotificationService.cs
+Services/ActionTasks/IActionTaskService.cs
+wwwroot/css/action-task-actions.css
+wwwroot/css/action-task-peek.css
+wwwroot/css/action-task-workspace.css
+wwwroot/js/pages/action-tasks/task-interaction.js

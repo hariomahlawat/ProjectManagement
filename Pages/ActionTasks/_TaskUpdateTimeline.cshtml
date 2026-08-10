@@ -47,7 +47,13 @@ else
                         }
                     </div>
                     <div class="at-v2-update-heading-side">
-                        <time>@TimeFmt.ToIst(update.CreatedAtUtc)</time>
+                        <time>
+                            @TimeFmt.ToIst(update.CreatedAtUtc)
+                            @if (Model.EditedUpdateIds.Contains(update.Id))
+                            {
+                                <span class="at-update-edited"> · edited</span>
+                            }
+                        </time>
                         @if (canEdit || canDelete)
                         {
                             <div class="at-update-inline-actions" aria-label="Remark actions">

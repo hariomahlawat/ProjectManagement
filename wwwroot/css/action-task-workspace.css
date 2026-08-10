@@ -162,3 +162,32 @@
     .at-task-workspace-kicker::after { display: none; }
     .at-task-workspace-grid { gap: .7rem; }
 }
+
+/* Task UX V2.4 — action forms are normal content below the sticky command bar. */
+.at-task-workspace-action-tray {
+    margin: -.12rem 0 .72rem;
+}
+.at-task-history-changes {
+    margin-top: .42rem;
+    border-top: 1px solid #e8edf4;
+    padding-top: .38rem;
+}
+.at-task-history-changes > summary {
+    display: inline-flex;
+    color: #315b95;
+    font-size: .7rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.at-task-history-change {
+    display: grid;
+    gap: .3rem;
+    margin-top: .42rem;
+    padding: .44rem .48rem;
+    border-radius: .5rem;
+    background: #f7f9fc;
+}
+.at-task-history-change > strong { color: #344b69; font-size: .72rem; }
+.at-task-history-change > div { display: grid; grid-template-columns: 3.5rem 1fr; gap: .4rem; align-items: start; }
+.at-task-history-change span { color: #7a899e; font-size: .66rem; text-transform: uppercase; letter-spacing: .03em; }
+.at-task-history-change p { margin: 0; color: #4f6077; font-size: .72rem; line-height: 1.4; white-space: pre-line; }

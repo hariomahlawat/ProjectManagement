@@ -170,6 +170,15 @@ public sealed class ActionTaskNotificationIntegrationTests
         public Task NotifyTaskReassignedAsync(ActionTaskItem task, string? previousAssigneeUserId, string actorUserId, CancellationToken cancellationToken = default)
             => Record("Reassigned", task, actorUserId, previousAssigneeUserId: previousAssigneeUserId);
 
+        public Task NotifyTaskDetailsUpdatedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default)
+            => Record("DetailsUpdated", task, actorUserId);
+
+        public Task NotifyConferenceDirectionEditedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default)
+            => Record("ConferenceEdited", task, actorUserId);
+
+        public Task NotifyConferenceDirectionDeletedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default)
+            => Record("ConferenceDeleted", task, actorUserId);
+
         public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default)
             => Record("ProgressUpdated", task, actorUserId);
 

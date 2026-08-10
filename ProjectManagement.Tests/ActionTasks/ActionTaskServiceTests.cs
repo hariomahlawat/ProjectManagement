@@ -203,6 +203,27 @@ public class ActionTaskServiceTests
         Assert.Equal("Task reviewed and closed as per command decision.", audit.Remarks);
     }
 
+    [Theory]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task AwaitingClosure_MustUseAcceptCommand_NotDirectClose(string role)
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Submitted, "assignee");
+        task.SubmittedOn = TestActionTrackerClock.FixedToday;
+        await db.SaveChangesAsync();
+
+        var direct = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, "Direct", "authority", role));
+        Assert.Contains("Accept & close", direct.Message, StringComparison.OrdinalIgnoreCase);
+
+        await service.AcceptSubmittedTaskAsync(task.Id, task.RowVersion, "Accepted after review.", "authority", role);
+        var closed = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.Closed, closed.Status);
+        Assert.Equal("Accepted after review.", closed.ClosureRemarks);
+    }
+
     [Fact]
     public async Task Assignee_CannotDirectlyCloseTask()
     {
@@ -704,8 +725,34 @@ public class ActionTaskServiceTests
         Assert.Empty(await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).ToListAsync());
 
         var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "TaskDetailsUpdated");
-        Assert.Equal("Task", audit.OldValue);
-        Assert.Equal("Revised task title", audit.NewValue);
+        Assert.Contains("\"Title\":\"Task\"", audit.OldValue, StringComparison.Ordinal);
+        Assert.Contains("\"Description\":\"Task\"", audit.OldValue, StringComparison.Ordinal);
+        Assert.Contains("\"Title\":\"Revised task title\"", audit.NewValue, StringComparison.Ordinal);
+        Assert.Contains("\"Description\":\"Revised task brief with corrected operational detail.\"", audit.NewValue, StringComparison.Ordinal);
+    }
+
+
+    [Theory]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task AwaitingClosure_FreezesTaskDefinitionPriorityAndDateUntilReturned(string role)
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Submitted, "assignee");
+        task.SubmittedOn = TestActionTrackerClock.FixedToday;
+        await db.SaveChangesAsync();
+
+        var edit = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskDetailsAsync(task.Id, task.RowVersion, "Changed", "Changed brief", "authority", role));
+        Assert.Contains("awaiting closure", edit.Message, StringComparison.OrdinalIgnoreCase);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskPriorityAsync(task.Id, task.RowVersion, "High", "Change", "authority", role));
+
+        var date = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, TestActionTrackerClock.FixedToday.AddDays(5), "authority", role, "Change"));
+        Assert.Contains("awaiting closure", date.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

@@ -4,7 +4,6 @@
 @using ProjectManagement.Services.ActionTasks
 
 @{
-    // SECTION: Task Peek is the fastest operating surface inside the current collection context.
     var planningTabRouteValue = Model.IsPlanningView ? Model.ResolvedPlanningTab : null;
     var planningViewRouteValue = Model.IsPlanningView && !string.Equals(Model.ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
         ? Model.ResolvedPlanningView
@@ -26,26 +25,76 @@
         ? string.Empty
         : Url.Page("/ActionTasks/Details", new { id = task.Id, returnUrl = currentCollectionUrl }) ?? string.Empty;
 
-    var hasBacklogAssign = task is not null && Model.CanAssignTaskToSprint(task);
-    var hasSprintAdd = task is not null && Model.CanAddOutsideSprintTaskToSprint(task);
-    var canRemoveFromSprint = task is not null
-        && Model.CanPlanSprints
-        && !isClosed
-        && task.SprintId.HasValue
-        && Model.Sprints.Any(sprint => sprint.Id == task.SprintId.Value && sprint.Status != ActionSprintStatus.Closed);
-    var canMoveToBacklog = task is not null && Model.CanMoveTaskToBacklog(task);
     var rowVersion = task is null ? string.Empty : Convert.ToBase64String(task.RowVersion);
-    var updateStatusPostUrl = task is null
-        ? string.Empty
-        : Url.Page("/ActionTasks/Index", "UpdateStatus", new
-        {
-            ViewMode = Model.ResolvedViewMode,
-            SelectedSprintId = Model.SelectedSprintId,
-            PlanningTab = planningTabRouteValue,
-            PlanningView = planningViewRouteValue,
-            TaskId = task.Id,
-            id = task.Id
-        }) ?? string.Empty;
+    var hasAssignableSprint = Model.AssignableSprints.Any();
+    var hasAssignableUsers = Model.AssignableUsers.Any();
+    var currentSprintMutable = task is null || !task.SprintId.HasValue || Model.Sprints.Any(s => s.Id == task.SprintId.Value && s.Status != ActionSprintStatus.Closed);
+    var editedUpdateIds = ActionTaskPresentation.ResolveEditedUpdateIds(Model.SelectedTaskLogs, Model.SelectedTaskUpdates);
+
+    object Route(int id) => new
+    {
+        ViewMode = Model.ResolvedViewMode,
+        SelectedSprintId = Model.SelectedSprintId,
+        PlanningTab = planningTabRouteValue,
+        PlanningView = planningViewRouteValue,
+        TaskId = id,
+        id
+    };
+
+    var updateStatusPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "UpdateStatus", Route(task.Id)) ?? string.Empty;
+    var submitPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "Submit", Route(task.Id)) ?? string.Empty;
+    var returnPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "ReturnForAction", Route(task.Id)) ?? string.Empty;
+    var closePostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "Close", Route(task.Id)) ?? string.Empty;
+    var editTaskPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "EditTask", Route(task.Id)) ?? string.Empty;
+    var reassignPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "Reassign", Route(task.Id)) ?? string.Empty;
+    var priorityPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "ChangePriority", Route(task.Id)) ?? string.Empty;
+    var changeDatePostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "ChangeTaskDate", Route(task.Id)) ?? string.Empty;
+    var assignBacklogPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "AssignToSprint", Route(task.Id)) ?? string.Empty;
+    var addSprintPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "AddOutsideSprintTaskToSprint", Route(task.Id)) ?? string.Empty;
+    var removeSprintPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "RemoveFromSprintKeepAssigned", Route(task.Id)) ?? string.Empty;
+    var moveBacklogPostUrl = task is null ? string.Empty : Url.Page("/ActionTasks/Index", "MoveToBacklogRemoveAssignee", Route(task.Id)) ?? string.Empty;
+
+    var actionBar = task is null ? null : new TaskActionBarViewModel
+    {
+        Capabilities = capabilities,
+        IsClosed = isClosed,
+        IsBacklog = isBacklog,
+        HasAssignableSprint = hasAssignableSprint,
+        HasAssignableUsers = hasAssignableUsers,
+        CurrentSprintMutable = currentSprintMutable,
+        Compact = true,
+        RowVersion = rowVersion,
+        UpdateStatusPostUrl = updateStatusPostUrl
+    };
+
+    var actionPanels = task is null ? null : new TaskActionPanelsViewModel
+    {
+        TaskItem = task,
+        Capabilities = capabilities,
+        AssignableUsers = Model.AssignableUsers,
+        AssignableSprints = Model.AssignableSprints,
+        PriorityOptions = Model.PriorityOptions,
+        IstToday = Model.IstToday,
+        Compact = true,
+        IsBacklog = isBacklog,
+        HasBacklogAssign = actionBar!.HasBacklogAssign,
+        HasSprintAdd = actionBar.HasSprintAdd,
+        CanRemoveFromSprint = actionBar.CanRemoveFromSprint,
+        CanMoveToBacklog = actionBar.CanMoveToBacklog,
+        RowVersion = rowVersion,
+        UpdateStatusPostUrl = updateStatusPostUrl,
+        SubmitPostUrl = submitPostUrl,
+        ReturnPostUrl = returnPostUrl,
+        ClosePostUrl = closePostUrl,
+        EditTaskPostUrl = editTaskPostUrl,
+        ReassignPostUrl = reassignPostUrl,
+        PriorityPostUrl = priorityPostUrl,
+        ChangeDatePostUrl = changeDatePostUrl,
+        AssignBacklogPostUrl = assignBacklogPostUrl,
+        AddSprintPostUrl = addSprintPostUrl,
+        RemoveSprintPostUrl = removeSprintPostUrl,
+        MoveBacklogPostUrl = moveBacklogPostUrl
+    };
 }
 
 <section id="task-details"
@@ -83,10 +132,7 @@
                 <div class="at-task-peek-header-actions">
                     @if (task is not null)
                     {
-                        <a href="@fullTaskUrl"
-                           class="btn btn-light btn-sm at-task-peek-full-icon"
-                           title="Open full task"
-                           aria-label="Open full task">
+                        <a href="@fullTaskUrl" class="btn btn-light btn-sm at-task-peek-full-icon" title="Open full task" aria-label="Open full task">
                             <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
                         </a>
                     }
@@ -102,247 +148,10 @@
                 </div>
             </div>
 
-            @if (task is not null)
+            @if (actionBar is not null)
             {
-                <partial name="_TaskActionBar" model="@(new TaskActionBarViewModel
-                {
-                    Capabilities = capabilities,
-                    IsClosed = isClosed,
-                    IsBacklog = isBacklog,
-                    HasBacklogAssign = hasBacklogAssign,
-                    HasSprintAdd = hasSprintAdd,
-                    CanRemoveFromSprint = canRemoveFromSprint,
-                    CanMoveToBacklog = canMoveToBacklog,
-                    Compact = true,
-                    RowVersion = rowVersion,
-                    UpdateStatusPostUrl = updateStatusPostUrl
-                })" />
-
-                @if (!isClosed)
-                {
-                    <div class="at-task-action-tray at-task-peek-action-tray">
-                        @if (capabilities.CanBlockAsOwner || capabilities.CanBlockAsCommandControl)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="block" hidden>
-                                <form method="post" asp-page-handler="UpdateStatus">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <input type="hidden" name="rowVersion" value="@rowVersion" />
-                                    <input type="hidden" name="status" value="@ActionTaskStatuses.Blocked" />
-                                    <div class="at-task-action-copy"><strong>Block task</strong><span>Record the blocker so the next action is clear.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="What is blocking progress?"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-warning btn-sm">Mark blocked</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanSubmitForClosure)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="submit" hidden>
-                                <form method="post" asp-page-handler="Submit">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <input type="hidden" name="rowVersion" value="@rowVersion" />
-                                    <div class="at-task-action-copy"><strong>Submit for closure</strong><span>Give the reviewer a concise completion note.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="Completion remarks"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Submit</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanReturnForAction)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="return" hidden>
-                                <form method="post" asp-page-handler="ReturnForAction">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <input type="hidden" name="rowVersion" value="@rowVersion" />
-                                    <div class="at-task-action-copy"><strong>Return for action</strong><span>State exactly what remains to be done.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="Further direction / reason for return"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Return</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanAcceptAndClose)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="accept-close" hidden>
-                                <form method="post" asp-page-handler="Close">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <input type="hidden" name="rowVersion" value="@rowVersion" />
-                                    <input type="hidden" name="closeMode" value="accept" />
-                                    <div class="at-task-action-copy"><strong>Accept &amp; close</strong><span>Record the closure decision.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="2000" required placeholder="Closure remarks"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Accept &amp; close</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanCloseDirectly && !capabilities.CanAcceptAndClose)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="close-direct" hidden>
-                                <form method="post" asp-page-handler="Close">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <input type="hidden" name="rowVersion" value="@rowVersion" />
-                                    <input type="hidden" name="closeMode" value="direct" />
-                                    <div class="at-task-action-copy"><strong>Close directly</strong><span>Command override. Closure remarks are retained in task history.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="2000" required placeholder="Closure remarks"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-danger btn-sm">Close directly</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanEditTaskDetails)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="edit-task" hidden>
-                                <form method="post" asp-page-handler="EditTask">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="EditTaskInput.TaskId" value="@task.Id" />
-                                    <input type="hidden" name="EditTaskInput.RowVersion" value="@rowVersion" />
-                                    <div class="at-task-action-copy"><strong>Edit task</strong><span>Correct the title or brief without changing workflow state.</span></div>
-                                    <div class="at-task-action-panel-fields is-edit-task"><input name="EditTaskInput.Title" type="text" class="form-control form-control-sm" maxlength="200" required value="@task.Title" placeholder="Task title" /><textarea name="EditTaskInput.Description" class="form-control form-control-sm" rows="2" maxlength="4000" required placeholder="Task brief">@task.Description</textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Save task</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanReassignTask)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="reassign" hidden>
-                                <form method="post" asp-page-handler="Reassign">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="ReassignInput.TaskId" value="@task.Id" />
-                                    <input type="hidden" name="ReassignInput.RowVersion" value="@rowVersion" />
-                                    <div class="at-task-action-copy"><strong>Reassign</strong><span>Change responsibility without resetting task status or sprint.</span></div>
-                                    <div class="at-task-action-panel-fields is-reassign"><select name="ReassignInput.AssignedToUserId" class="form-select form-select-sm" required><option value="">Select new responsible person</option>@foreach (var user in Model.AssignableUsers.Where(user => !string.Equals(user.UserId, task.AssignedToUserId, StringComparison.Ordinal))) { <option value="@user.UserId">@user.DisplayName</option> }</select><textarea name="ReassignInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for reassignment"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Reassign</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanChangePriority)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="priority" hidden>
-                                <form method="post" asp-page-handler="ChangePriority">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="PriorityInput.TaskId" value="@task.Id" />
-                                    <input type="hidden" name="PriorityInput.RowVersion" value="@rowVersion" />
-                                    <div class="at-task-action-copy"><strong>Change priority</strong><span>Record why the operational priority has changed.</span></div>
-                                    <div class="at-task-action-panel-fields is-priority"><select name="PriorityInput.Priority" class="form-select form-select-sm" required>@foreach (var priority in Model.PriorityOptions) { if (string.Equals(priority, task.Priority, StringComparison.OrdinalIgnoreCase)) { <option value="@priority" selected>@priority</option> } else { <option value="@priority">@priority</option> } }</select><textarea name="PriorityInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for priority change"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Save priority</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (capabilities.CanChangeDate)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="change-date" hidden>
-                                <form method="post" asp-page-handler="ChangeTaskDate">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="ChangeDateInput.TaskId" value="@task.Id" />
-                                    <input type="hidden" name="ChangeDateInput.RowVersion" value="@rowVersion" />
-                                    <div class="at-task-action-copy"><strong>Change @(isBacklog ? "target" : "due") date</strong><span>Record the reason with the revised date.</span></div>
-                                    <div class="at-task-action-panel-fields"><input name="ChangeDateInput.NewDate" type="date" class="form-control form-control-sm" min="@Model.IstToday.ToString("yyyy-MM-dd")" value="@(task.DueDate.Date >= Model.IstToday ? task.DueDate.ToString("yyyy-MM-dd") : Model.IstToday.ToString("yyyy-MM-dd"))" required /><textarea name="ChangeDateInput.Remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for date change"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Save date</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (hasBacklogAssign)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="assign-sprint" hidden>
-                                <form method="post" asp-page-handler="AssignToSprint">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="at-task-action-copy"><strong>Assign to sprint</strong><span>Select the sprint and responsible person.</span></div>
-                                    <div class="at-task-action-panel-fields is-two-selects"><select name="sprintId" class="form-select form-select-sm" required><option value="">Select sprint</option>@foreach (var sprint in Model.AssignableSprints) { <option value="@sprint.Id">@sprint.Name</option> }</select><select name="responsibleUserId" class="form-select form-select-sm" required><option value="">Responsible person</option>@foreach (var user in Model.AssignableUsers) { <option value="@user.UserId">@user.DisplayName</option> }</select></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Assign</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (hasSprintAdd)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="add-sprint" hidden>
-                                <form method="post" asp-page-handler="AddOutsideSprintTaskToSprint">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="at-task-action-copy"><strong>Add to sprint</strong><span>Keep the current assignee and select a sprint.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><select name="sprintId" class="form-select form-select-sm" required><option value="">Select sprint</option>@foreach (var sprint in Model.AssignableSprints) { <option value="@sprint.Id">@sprint.Name</option> }</select></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-primary btn-sm">Add</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (canRemoveFromSprint)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="remove-sprint" hidden>
-                                <form method="post" asp-page-handler="RemoveFromSprintKeepAssigned">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="at-task-action-copy"><strong>Remove from sprint</strong><span>The task remains assigned.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for removing from sprint"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-outline-secondary btn-sm">Remove</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                        @if (canMoveToBacklog)
-                        {
-                            <section class="at-task-action-panel" data-at-v22-panel="backlog" hidden>
-                                <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                    <input type="hidden" name="PlanningTab" value="@planningTabRouteValue" />
-                                    <input type="hidden" name="PlanningView" value="@planningViewRouteValue" />
-                                    <input type="hidden" name="TaskId" value="@task.Id" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="at-task-action-copy"><strong>Return to backlog</strong><span>Remove sprint and assignee so the task can be replanned.</span></div>
-                                    <div class="at-task-action-panel-fields is-single"><textarea name="remarks" class="form-control form-control-sm" rows="2" maxlength="1000" required placeholder="Reason for replanning"></textarea></div>
-                                    <div class="at-task-action-panel-controls"><button type="submit" class="btn btn-outline-warning btn-sm">Move to backlog</button><button type="button" class="btn btn-link btn-sm" data-at-v22-cancel>Cancel</button></div>
-                                </form>
-                            </section>
-                        }
-                    </div>
-                }
+                <partial name="_TaskActionBar" model="@actionBar" />
+                <partial name="_TaskActionPanels" model="@actionPanels" />
             }
         </header>
 
@@ -393,12 +202,13 @@
                     {
                         Updates = Model.SelectedTaskUpdates,
                         Attachments = Model.UpdateAttachments,
+                        EditedUpdateIds = editedUpdateIds,
                         ResolveActorName = Model.ResolveActorName,
                         CanEditUpdate = Model.CanEditRemark,
                         CanDeleteUpdate = Model.CanDeleteRemark,
                         TaskId = task.Id,
-                        EditPostUrl = Url.Page("/ActionTasks/Index", "EditRemark", new { ViewMode = Model.ResolvedViewMode, SelectedSprintId = Model.SelectedSprintId, PlanningTab = planningTabRouteValue, PlanningView = planningViewRouteValue, TaskId = task.Id }) ?? string.Empty,
-                        DeletePostUrl = Url.Page("/ActionTasks/Index", "DeleteRemark", new { ViewMode = Model.ResolvedViewMode, SelectedSprintId = Model.SelectedSprintId, PlanningTab = planningTabRouteValue, PlanningView = planningViewRouteValue, TaskId = task.Id }) ?? string.Empty,
+                        EditPostUrl = Url.Page("/ActionTasks/Index", "EditRemark", Route(task.Id)) ?? string.Empty,
+                        DeletePostUrl = Url.Page("/ActionTasks/Index", "DeleteRemark", Route(task.Id)) ?? string.Empty,
                         Take = 3,
                         Compact = true
                     })" />
@@ -406,9 +216,7 @@
             </div>
 
             <footer class="at-task-peek-footer">
-                <a href="@fullTaskUrl" class="at-task-peek-open-full">
-                    Open full task <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                </a>
+                <a href="@fullTaskUrl" class="at-task-peek-open-full">Open full task <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </footer>
         }
     </div>

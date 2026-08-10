@@ -331,9 +331,15 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             PerformedAt = _clock.UtcNow,
             OldValue = oldBody,
             NewValue = normalizedBody,
-            Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark edited."
+            Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark edited. [update:{update.Id}]"
         });
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (_notifications is not null
+            && string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
+        {
+            await _notifications.NotifyConferenceDirectionEditedAsync(task, update, userId, cancellationToken);
+        }
     }
 
     // SECTION: Human remark deletion is soft-delete and also retires attached files from the active thread.
@@ -375,9 +381,15 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             PerformedAt = _clock.UtcNow,
             OldValue = update.Body,
             NewValue = null,
-            Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark deleted."
+            Remarks = $"{ActionTaskPresentation.UpdateTypeLabel(update.UpdateType)} remark deleted. [update:{update.Id}]"
         });
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (_notifications is not null
+            && string.Equals(update.UpdateType, ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase))
+        {
+            await _notifications.NotifyConferenceDirectionDeletedAsync(task, update, userId, cancellationToken);
+        }
     }
 
     // SECTION: Read updates for inspector thread

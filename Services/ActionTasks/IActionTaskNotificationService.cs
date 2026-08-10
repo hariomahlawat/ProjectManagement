@@ -11,7 +11,13 @@ public interface IActionTaskNotificationService
 
     Task NotifyTaskReassignedAsync(ActionTaskItem task, string? previousAssigneeUserId, string actorUserId, CancellationToken cancellationToken = default);
 
+    Task NotifyTaskDetailsUpdatedAsync(ActionTaskItem task, string actorUserId, CancellationToken cancellationToken = default);
+
     Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default);
+
+    Task NotifyConferenceDirectionEditedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default);
+
+    Task NotifyConferenceDirectionDeletedAsync(ActionTaskItem task, ActionTaskUpdate update, string actorUserId, CancellationToken cancellationToken = default);
 
     Task NotifyStatusChangedAsync(ActionTaskItem task, string previousStatus, string newStatus, string actorUserId, CancellationToken cancellationToken = default);
 

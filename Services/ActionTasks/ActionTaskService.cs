@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -427,18 +428,17 @@ public class ActionTaskService : IActionTaskService
         }
     }
 
-    // SECTION: Compatibility wrapper for older close-task callers.
-    // Current policy allows authorised task-controlling roles to close any non-closed task.
-    // Closure permission and remarks validation are enforced by CloseTaskDirectlyAsync.
+    // SECTION: Compatibility wrapper for older direct-close callers.
     public Task CloseTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
-    {
-        return CloseTaskDirectlyAsync(taskId, rowVersion, remarks ?? string.Empty, userId, role, cancellationToken);
-    }
+        => CloseTaskDirectlyAsync(taskId, rowVersion, remarks ?? string.Empty, userId, role, cancellationToken);
 
     public async Task CloseTaskDirectlyAsync(int taskId, byte[] rowVersion, string closureRemarks, string closedByUserId, string role, CancellationToken cancellationToken = default)
     {
-        // SECTION: Validation
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Tasks awaiting closure must be accepted through Accept & close or returned for further action.");
+        }
         if (!_permission.CanCloseTaskDirectly(task, role))
         {
             throw new InvalidOperationException(string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
@@ -446,22 +446,37 @@ public class ActionTaskService : IActionTaskService
                 : "You are not authorised to close this task.");
         }
 
-        // SECTION: Remarks validation for direct command closure
+        await CloseTaskCoreAsync(task, rowVersion, closureRemarks, closedByUserId, role, cancellationToken);
+    }
+
+    public async Task AcceptSubmittedTaskAsync(int taskId, byte[] rowVersion, string closureRemarks, string closedByUserId, string role, CancellationToken cancellationToken = default)
+    {
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (!string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only a task awaiting closure can be accepted and closed.");
+        }
+        if (!_permission.CanCloseTaskDirectly(task, role))
+        {
+            throw new InvalidOperationException("Only command authority can accept and close a submitted task.");
+        }
+
+        await CloseTaskCoreAsync(task, rowVersion, closureRemarks, closedByUserId, role, cancellationToken);
+    }
+
+    private async Task CloseTaskCoreAsync(ActionTaskItem task, byte[] rowVersion, string closureRemarks, string closedByUserId, string role, CancellationToken cancellationToken)
+    {
         var trimmedRemarks = closureRemarks?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(trimmedRemarks))
         {
             throw new InvalidOperationException("Closure remarks are required when closing a task.");
         }
-
         if (trimmedRemarks.Length > MaxClosureRemarksLength)
         {
             throw new InvalidOperationException($"Closure remarks cannot exceed {MaxClosureRemarksLength} characters.");
         }
 
-        // SECTION: Concurrency token validation
         _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
-
-        // SECTION: State Mutation
         var oldStatus = task.Status;
         var closedAtUtc = _clock.UtcNow;
         task.Status = ActionTaskStatuses.Closed;
@@ -470,11 +485,9 @@ public class ActionTaskService : IActionTaskService
         task.ClosureRemarks = trimmedRemarks;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
-        // SECTION: Human-visible workflow chronology and audit are persisted atomically.
         AddProgressTimelineEntry(task, closedByUserId, role, trimmedRemarks);
-        _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskClosedByCommandAuthority", closedByUserId, role, oldStatus, task.Status, trimmedRemarks));
+        _context.ActionTaskAuditLogs.Add(Log(task.Id, "TaskClosedByCommandAuthority", closedByUserId, role, oldStatus, task.Status, trimmedRemarks));
 
-        // SECTION: Persistence
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
@@ -484,7 +497,6 @@ public class ActionTaskService : IActionTaskService
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
         }
 
-        // SECTION: In-app notification after successful persistence
         if (_notifications is not null)
         {
             await _notifications.NotifyTaskClosedAsync(task, closedByUserId, closedByCommandAuthority: true, cancellationToken);
@@ -498,6 +510,10 @@ public class ActionTaskService : IActionTaskService
         if (!_permission.CanEditTaskDetails(role) || string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("You are not authorized to edit this task.");
+        }
+        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Tasks awaiting closure are frozen. Return the task for action before editing its title or brief.");
         }
 
         var normalizedTitle = title?.Trim() ?? string.Empty;
@@ -518,10 +534,18 @@ public class ActionTaskService : IActionTaskService
 
         _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
         var oldTitle = task.Title;
-        var briefChanged = !string.Equals(task.Description, normalizedDescription, StringComparison.Ordinal);
+        var oldDescription = task.Description;
+        var titleChanged = !string.Equals(oldTitle, normalizedTitle, StringComparison.Ordinal);
+        var briefChanged = !string.Equals(oldDescription, normalizedDescription, StringComparison.Ordinal);
+        var oldSnapshot = JsonSerializer.Serialize(new TaskDetailsAuditSnapshot(oldTitle, oldDescription));
+        var newSnapshot = JsonSerializer.Serialize(new TaskDetailsAuditSnapshot(normalizedTitle, normalizedDescription));
+
         task.Title = normalizedTitle;
         task.Description = normalizedDescription;
-        _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskDetailsUpdated", userId, role, oldTitle, normalizedTitle, briefChanged ? "Task brief updated." : null));
+        var auditRemarks = titleChanged && briefChanged
+            ? "Title and task brief changed."
+            : titleChanged ? "Task title changed." : "Task brief changed.";
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskDetailsUpdated", userId, role, oldSnapshot, newSnapshot, auditRemarks));
 
         try
         {
@@ -530,6 +554,11 @@ public class ActionTaskService : IActionTaskService
         catch (DbUpdateConcurrencyException)
         {
             throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyTaskDetailsUpdatedAsync(task, userId, cancellationToken);
         }
     }
 
@@ -583,6 +612,10 @@ public class ActionTaskService : IActionTaskService
     public async Task UpdateTaskPriorityAsync(int taskId, byte[] rowVersion, string priority, string remarks, string userId, string role, CancellationToken cancellationToken = default)
     {
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Tasks awaiting closure are frozen. Return the task for action before changing its priority.");
+        }
         if (!_permission.CanChangeTaskPriority(task, role))
         {
             throw new InvalidOperationException("You are not authorized to change task priority.");
@@ -637,6 +670,10 @@ public class ActionTaskService : IActionTaskService
         if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Closed tasks cannot have their dates changed.");
+        }
+        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Tasks awaiting closure are frozen. Return the task for action before changing its date.");
         }
 
         var normalizedNewDate = newDate.Date;
@@ -764,4 +801,7 @@ public class ActionTaskService : IActionTaskService
 
     // SECTION: Shared blank-value guard for required workflow remarks.
     private static bool IsBlank(string? value) => string.IsNullOrWhiteSpace(value);
+
+    private sealed record TaskDetailsAuditSnapshot(string Title, string Description);
+
 }

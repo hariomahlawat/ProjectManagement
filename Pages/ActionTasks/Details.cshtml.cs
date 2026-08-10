@@ -110,16 +110,14 @@ public sealed class DetailsModel : PageModel
     public bool CanCommandClose => _permission.CanCloseTaskDirectly(TaskItem, CurrentRole);
     public bool CanReturnForAction => IsSubmitted && _workflow.CanReturnTaskForAction(TaskItem, CurrentRole);
     public bool CanChangeDate => _workflow.CanChangeTaskDate(TaskItem, CurrentRole);
-    public bool CanManagePlanning => _permission.CanManageSprints(CurrentRole);
+    public bool CanManagePlanning => Capabilities.CanManagePlanning;
     public bool CanViewSystemHistory => _workflow.CanViewSystemHistory(CurrentRole);
+    public IReadOnlyList<string> PriorityOptions => _workflow.PriorityOptions;
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(sprint => sprint.Status != ActionSprintStatus.Closed).ToList();
-    public bool CanRemoveFromSprint => CanManagePlanning
-        && !IsClosed
+    public bool CanRemoveFromSprint => Capabilities.CanRemoveFromSprint
         && TaskItem.SprintId.HasValue
         && Sprints.Any(sprint => sprint.Id == TaskItem.SprintId.Value && sprint.Status != ActionSprintStatus.Closed);
-    public bool CanMoveToBacklog => CanManagePlanning
-        && !IsClosed
-        && !IsBacklog
+    public bool CanMoveToBacklog => Capabilities.CanMoveToBacklog
         && (!TaskItem.SprintId.HasValue || CanRemoveFromSprint);
     public string DefaultRemarkType => string.Equals(CurrentRole, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase) && CanAddConference
         ? ActionTaskUpdateTypes.Conference
@@ -305,10 +303,16 @@ public sealed class DetailsModel : PageModel
         var reopenIntent = (string?)null;
         try
         {
-            await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = closeIntent == "accept-close"
-                ? "Task accepted and closed."
-                : "Task closed successfully.";
+            if (closeIntent == "accept-close")
+            {
+                await _service.AcceptSubmittedTaskAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
+                TempData["ToastMessage"] = "Task accepted and closed.";
+            }
+            else
+            {
+                await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
+                TempData["ToastMessage"] = "Task closed successfully.";
+            }
         }
         catch (ActionTaskConcurrencyException ex)
         {

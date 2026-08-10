@@ -3,7 +3,8 @@ namespace ProjectManagement.Services.ActionTasks;
 /// <summary>
 /// Role- and state-aware interaction capabilities for a single task.
 /// The UI consumes this projection so that valid actions stay visible without
-/// exposing irrelevant workflow choices.
+/// exposing irrelevant workflow choices. Submitted tasks are intentionally
+/// frozen for metadata/planning mutations until Command accepts or returns them.
 /// </summary>
 public sealed record ActionTaskInteractionCapabilities(
     bool IsAssignedUser,
@@ -23,12 +24,17 @@ public sealed record ActionTaskInteractionCapabilities(
     bool CanReassignTask,
     bool CanChangePriority,
     bool CanManagePlanning,
+    bool CanAssignBacklogToSprint,
+    bool CanAddToSprint,
+    bool CanRemoveFromSprint,
+    bool CanMoveToBacklog,
     bool CanCloseDirectly,
     bool CanViewSystemHistory)
 {
     public static ActionTaskInteractionCapabilities None { get; } = new(
         false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false);
+        false, false, false, false, false, false, false, false, false, false,
+        false, false, false);
 
     public bool HasPrimaryWorkflowAction =>
         CanStartWork || CanResumeWork || CanSubmitForClosure || CanBlockAsOwner ||

@@ -1,78 +1,106 @@
 @model ProjectManagement.Pages.ActionTasks.TaskActionBarViewModel
 @using ProjectManagement.Models
+@{
+    var hasWorkflowActions = Model.Capabilities.CanStartWork
+        || Model.CanResume
+        || Model.Capabilities.CanSubmitForClosure
+        || Model.CanBlock
+        || Model.Capabilities.CanAcceptAndClose
+        || Model.Capabilities.CanReturnForAction;
+    var hasManagementActions = Model.Capabilities.CanEditTaskDetails
+        || Model.Capabilities.CanReassignTask
+        || Model.Capabilities.CanChangePriority
+        || Model.Capabilities.CanChangeDate
+        || Model.HasBacklogAssign
+        || Model.HasSprintAdd
+        || Model.CanRemoveFromSprint
+        || Model.CanMoveToBacklog
+        || Model.ShowCloseDirectly;
+}
 
 @if (Model.HasAnyAction)
 {
     <nav class="at-task-action-bar @(Model.Compact ? "is-compact" : string.Empty)" aria-label="Task actions">
-        @if (Model.Capabilities.CanStartWork)
+        @if (hasWorkflowActions)
         {
-            <form method="post" action="@Model.UpdateStatusPostUrl" class="at-inline-command-form">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
-                <button type="submit" class="btn btn-primary at-task-action">Start work</button>
-            </form>
+            <div class="at-task-action-group is-workflow">
+                @if (Model.Capabilities.CanStartWork)
+                {
+                    <form method="post" action="@Model.UpdateStatusPostUrl" class="at-inline-command-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+                        <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
+                        <button type="submit" class="btn btn-primary at-task-action">Start work</button>
+                    </form>
+                }
+                @if (Model.CanResume)
+                {
+                    <form method="post" action="@Model.UpdateStatusPostUrl" class="at-inline-command-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+                        <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
+                        <button type="submit" class="btn btn-primary at-task-action">Resume</button>
+                    </form>
+                }
+                @if (Model.Capabilities.CanSubmitForClosure)
+                {
+                    <button type="button" class="btn btn-primary at-task-action" data-at-v22-open="submit">Submit for closure</button>
+                }
+                @if (Model.CanBlock)
+                {
+                    <button type="button" class="btn btn-outline-secondary at-task-action" data-at-v22-open="block">Block task</button>
+                }
+                @if (Model.Capabilities.CanAcceptAndClose)
+                {
+                    <button type="button" class="btn btn-primary at-task-action" data-at-v22-open="accept-close">Accept &amp; close</button>
+                }
+                @if (Model.Capabilities.CanReturnForAction)
+                {
+                    <button type="button" class="btn btn-outline-secondary at-task-action" data-at-v22-open="return">Return for action</button>
+                }
+            </div>
         }
-        @if (Model.CanResume)
+
+        @if (hasManagementActions)
         {
-            <form method="post" action="@Model.UpdateStatusPostUrl" class="at-inline-command-form">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                <input type="hidden" name="status" value="@ActionTaskStatuses.InProgress" />
-                <button type="submit" class="btn btn-primary at-task-action">Resume</button>
-            </form>
-        }
-        @if (Model.Capabilities.CanSubmitForClosure)
-        {
-            <button type="button" class="btn btn-primary at-task-action" data-at-v22-open="submit">Submit for closure</button>
-        }
-        @if (Model.CanBlock)
-        {
-            <button type="button" class="btn btn-outline-secondary at-task-action" data-at-v22-open="block">Block task</button>
-        }
-        @if (Model.Capabilities.CanAcceptAndClose)
-        {
-            <button type="button" class="btn btn-primary at-task-action" data-at-v22-open="accept-close">Accept &amp; close</button>
-        }
-        @if (Model.Capabilities.CanReturnForAction)
-        {
-            <button type="button" class="btn btn-outline-secondary at-task-action" data-at-v22-open="return">Return for action</button>
-        }
-        @if (Model.Capabilities.CanEditTaskDetails)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="edit-task">Edit task</button>
-        }
-        @if (Model.Capabilities.CanReassignTask)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="reassign">Reassign</button>
-        }
-        @if (Model.Capabilities.CanChangePriority)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="priority">Change priority</button>
-        }
-        @if (Model.Capabilities.CanChangeDate)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="change-date">Change @(Model.IsBacklog ? "target" : "due") date</button>
-        }
-        @if (Model.HasBacklogAssign)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="assign-sprint">Assign to sprint</button>
-        }
-        @if (Model.HasSprintAdd)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="add-sprint">Add to sprint</button>
-        }
-        @if (Model.CanRemoveFromSprint)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="remove-sprint">Remove from sprint</button>
-        }
-        @if (Model.CanMoveToBacklog)
-        {
-            <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="backlog">Return to backlog</button>
-        }
-        @if (Model.ShowCloseDirectly)
-        {
-            <button type="button" class="btn at-task-action at-task-action-danger" data-at-v22-open="close-direct">Close directly</button>
+            <div class="at-task-action-group is-management">
+                @if (Model.Capabilities.CanEditTaskDetails)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="edit-task">Edit task</button>
+                }
+                @if (Model.Capabilities.CanReassignTask)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="reassign">Reassign</button>
+                }
+                @if (Model.Capabilities.CanChangePriority)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="priority">@(Model.Compact ? "Priority" : "Change priority")</button>
+                }
+                @if (Model.Capabilities.CanChangeDate)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="change-date">@(Model.Compact ? (Model.IsBacklog ? "Target date" : "Due date") : $"Change {(Model.IsBacklog ? "target" : "due")} date")</button>
+                }
+                @if (Model.HasBacklogAssign)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="assign-sprint">Assign to sprint</button>
+                }
+                @if (Model.HasSprintAdd)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="add-sprint">Add to sprint</button>
+                }
+                @if (Model.CanRemoveFromSprint)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="remove-sprint">Remove from sprint</button>
+                }
+                @if (Model.CanMoveToBacklog)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-quiet" data-at-v22-open="backlog">@(Model.Compact ? "Backlog" : "Return to backlog")</button>
+                }
+                @if (Model.ShowCloseDirectly)
+                {
+                    <button type="button" class="btn at-task-action at-task-action-danger" data-at-v22-open="close-direct">Close directly</button>
+                }
+            </div>
         }
     </nav>
 }

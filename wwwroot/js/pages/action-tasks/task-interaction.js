@@ -216,6 +216,108 @@
         });
     }
 
+
+    function initPersonPickers() {
+        document.querySelectorAll('[data-at-person-picker]').forEach((picker) => {
+            const input = picker.querySelector('[data-at-person-picker-input]');
+            const hidden = picker.querySelector('[data-at-person-picker-value]');
+            const menu = picker.querySelector('[data-at-person-picker-menu]');
+            const empty = picker.querySelector('[data-at-person-picker-empty]');
+            const options = Array.from(picker.querySelectorAll('[data-at-person-picker-option]'));
+            if (!input || !hidden || !menu) return;
+
+            let activeIndex = -1;
+
+            const visibleOptions = () => options.filter((option) => !option.hidden);
+            const setExpanded = (expanded) => {
+                menu.hidden = !expanded;
+                input.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                if (!expanded) {
+                    activeIndex = -1;
+                    options.forEach((option) => option.classList.remove('is-active'));
+                }
+            };
+
+            const filter = () => {
+                const query = input.value.trim().toLowerCase();
+                hidden.value = '';
+                input.setCustomValidity('');
+                let count = 0;
+                options.forEach((option) => {
+                    const haystack = `${option.getAttribute('data-label') || ''} ${option.getAttribute('data-role') || ''}`.toLowerCase();
+                    const matches = !query || haystack.includes(query);
+                    option.hidden = !matches;
+                    option.classList.remove('is-active');
+                    if (matches) count += 1;
+                });
+                if (empty) empty.hidden = count !== 0;
+                activeIndex = -1;
+                setExpanded(true);
+            };
+
+            const choose = (option) => {
+                if (!option) return;
+                hidden.value = option.getAttribute('data-value') || '';
+                input.value = option.getAttribute('data-label') || option.textContent.trim();
+                input.setCustomValidity('');
+                setExpanded(false);
+            };
+
+            const move = (delta) => {
+                const visible = visibleOptions();
+                if (visible.length === 0) return;
+                activeIndex = activeIndex < 0
+                    ? (delta > 0 ? 0 : visible.length - 1)
+                    : (activeIndex + delta + visible.length) % visible.length;
+                options.forEach((option) => option.classList.remove('is-active'));
+                visible[activeIndex].classList.add('is-active');
+                visible[activeIndex].scrollIntoView({ block: 'nearest' });
+            };
+
+            input.addEventListener('focus', () => {
+                filter();
+            });
+            input.addEventListener('input', filter);
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setExpanded(true);
+                    move(1);
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setExpanded(true);
+                    move(-1);
+                } else if (event.key === 'Enter' && !menu.hidden) {
+                    const visible = visibleOptions();
+                    if (activeIndex >= 0 && visible[activeIndex]) {
+                        event.preventDefault();
+                        choose(visible[activeIndex]);
+                    }
+                } else if (event.key === 'Escape') {
+                    setExpanded(false);
+                }
+            });
+
+            options.forEach((option) => {
+                option.addEventListener('click', () => choose(option));
+            });
+
+            const form = picker.closest('[data-at-person-picker-form]');
+            form?.addEventListener('submit', (event) => {
+                if (hidden.value) return;
+                event.preventDefault();
+                input.setCustomValidity('Select a responsible person from the list.');
+                input.reportValidity();
+                input.focus({ preventScroll: false });
+                setExpanded(true);
+            });
+
+            document.addEventListener('click', (event) => {
+                if (!picker.contains(event.target)) setExpanded(false);
+            });
+        });
+    }
+
     function initTaskIntent() {
         const panelIntents = new Set([
             'submit', 'block', 'return', 'accept-close', 'close-direct', 'change-date',
@@ -244,6 +346,7 @@
         initInlineEditors();
         initRemarkComposers();
         initRemarkActions();
+        initPersonPickers();
         initTaskIntent();
     });
 })();
