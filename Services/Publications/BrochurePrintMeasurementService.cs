@@ -28,6 +28,7 @@ public interface IBrochurePrintMeasurementService
 public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementService, IDisposable
 {
     private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex WordToken = new(@"\S+", RegexOptions.Compiled);
 
     private readonly IWebHostEnvironment _environment;
     private readonly IPublicationFontService _fontService;
@@ -68,11 +69,14 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             titleWidth,
             FontWeight.SemiBold);
 
-        // Long project titles are allowed to use a slightly smaller title treatment, but the
-        // adjustment is bounded and measured rather than inferred from character count.
-        while (titleLines > 2 && titleFontSize > 7.2f)
+        // Reference-format behaviour: preserve readable heading typography and let the green band
+        // grow to two (or exceptionally three) lines. Shrinking is bounded and is never used as
+        // the primary mechanism for protecting a fixed-height title strip.
+        while (titleLines > 2 && titleFontSize > BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize)
         {
-            titleFontSize -= .25f;
+            titleFontSize = Math.Max(
+                BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize,
+                titleFontSize - .25f);
             titleLines = MeasureLineCount(
                 item.ProjectName.ToUpperInvariant(),
                 titleFontSize,
@@ -81,42 +85,88 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         }
 
         var titleHeight = Math.Max(
-            18f,
-            (titleLines * titleFontSize * 1.02f) + 5.5f);
+            20f,
+            (titleLines * titleFontSize * BrochurePrintLayoutMetrics.ProjectTitleLineHeight) + 6f);
 
         var hasPrimary = item.HasPrimaryPhoto;
         var hasSecond = item.HasSecondaryPhoto
                         && item.ImageMode != BrochureImageMode.Single;
-        var imageWidth = hasPrimary ? Math.Max(92f, spec.ImageWidthPoints) : 0f;
+        var imageWidth = hasPrimary ? Math.Max(94f, spec.ImageWidthPoints) : 0f;
 
         var bodyInnerWidth = moduleWidth
                              - (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
                              - (spec.BodyPaddingPoints * 2f);
-        var textWidth = hasPrimary
+        var sideTextWidth = hasPrimary
             ? bodyInnerWidth - imageWidth - BrochurePrintLayoutMetrics.TextImageGapPoints
             : bodyInnerWidth;
-        textWidth = Math.Max(120f, textWidth);
+        sideTextWidth = Math.Max(118f, sideTextWidth);
+        var fullTextWidth = bodyInnerWidth;
 
-        var textHeight = MeasureTextHeight(
-            item.Narrative,
-            spec.BodyFontSize,
-            textWidth,
-            spec.BodyLineHeight,
-            FontWeight.Regular);
-
+        var primaryImageHeight = 0f;
+        var secondaryImageHeight = 0f;
         var imageHeight = 0f;
         if (hasPrimary)
         {
-            var singleHeight = imageWidth * 9f / 16f;
-            imageHeight = hasSecond
-                ? (singleHeight * 2f) + 4f
-                : singleHeight;
+            var imageAspect = hasSecond
+                ? BrochurePrintLayoutMetrics.GalleryImageAspectRatio
+                : BrochurePrintLayoutMetrics.SingleImageAspectRatio;
+            primaryImageHeight = imageWidth / imageAspect;
+            secondaryImageHeight = hasSecond ? imageWidth / imageAspect : 0f;
+            imageHeight = primaryImageHeight
+                          + secondaryImageHeight
+                          + (hasSecond ? BrochurePrintLayoutMetrics.GalleryImageGapPoints : 0f);
         }
 
-        var rowHeight = Math.Max(textHeight, imageHeight);
+        string leadingNarrative;
+        string trailingNarrative;
+        float leadingTextHeight;
+        float trailingTextHeight;
+        float bodyContentHeight;
+
+        if (!hasPrimary)
+        {
+            leadingNarrative = string.Empty;
+            trailingNarrative = item.Narrative ?? string.Empty;
+            leadingTextHeight = 0f;
+            trailingTextHeight = MeasureTextHeight(
+                trailingNarrative,
+                spec.BodyFontSize,
+                fullTextWidth,
+                spec.BodyLineHeight,
+                FontWeight.Regular);
+            bodyContentHeight = trailingTextHeight;
+        }
+        else
+        {
+            var split = SplitNarrativeForFloat(
+                item.Narrative,
+                spec.BodyFontSize,
+                sideTextWidth,
+                fullTextWidth,
+                imageHeight,
+                spec.BodyLineHeight);
+
+            leadingNarrative = split.Leading;
+            trailingNarrative = split.Trailing;
+            leadingTextHeight = split.LeadingHeightPoints;
+            trailingTextHeight = split.TrailingHeightPoints;
+
+            bodyContentHeight = Math.Max(imageHeight, leadingTextHeight);
+            if (!string.IsNullOrWhiteSpace(trailingNarrative))
+            {
+                bodyContentHeight += BrochurePrintLayoutMetrics.FloatRemainderGapPoints + trailingTextHeight;
+            }
+        }
+
+        var totalTextHeight = leadingTextHeight
+                              + trailingTextHeight
+                              + (!string.IsNullOrWhiteSpace(leadingNarrative)
+                                 && !string.IsNullOrWhiteSpace(trailingNarrative)
+                                  ? BrochurePrintLayoutMetrics.FloatRemainderGapPoints
+                                  : 0f);
         var totalHeight = titleHeight
                           + (spec.BodyPaddingPoints * 2f)
-                          + rowHeight
+                          + bodyContentHeight
                           + (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
                           + BrochurePrintLayoutMetrics.ProjectMeasurementSafetyPoints;
 
@@ -130,10 +180,18 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             BodyLineHeight: spec.BodyLineHeight,
             ImageWidthPoints: imageWidth,
             BodyPaddingPoints: spec.BodyPaddingPoints,
-            TextWidthPoints: textWidth,
-            TextHeightPoints: textHeight,
+            TextWidthPoints: sideTextWidth,
+            TextHeightPoints: totalTextHeight,
             ImageHeightPoints: imageHeight,
-            QualityRank: spec.QualityRank);
+            QualityRank: spec.QualityRank,
+            LeadingNarrative: leadingNarrative,
+            TrailingNarrative: trailingNarrative,
+            LeadingTextHeightPoints: leadingTextHeight,
+            TrailingTextHeightPoints: trailingTextHeight,
+            FullTextWidthPoints: fullTextWidth,
+            PrimaryImageHeightPoints: primaryImageHeight,
+            SecondaryImageHeightPoints: secondaryImageHeight,
+            UsesFloatLayout: hasPrimary);
     }
 
     public BrochurePrintClosingMeasurement MeasureClosing(
@@ -339,6 +397,87 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             UtilizationPercent: Math.Clamp(utilization, 0, 100),
             UsesMinimumTypography: selectedBodyFont <= BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize + .01f,
             CoverStyle: coverStyle);
+    }
+
+    private FloatNarrativeSplit SplitNarrativeForFloat(
+        string? narrative,
+        float fontSize,
+        float sideWidth,
+        float fullWidth,
+        float imageHeight,
+        float lineHeight)
+    {
+        if (string.IsNullOrWhiteSpace(narrative))
+        {
+            return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
+        }
+
+        var normalized = narrative
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+        var words = WordToken.Matches(normalized).Cast<Match>().ToArray();
+        if (words.Length == 0)
+        {
+            return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
+        }
+
+        // Find the largest complete-word prefix that fits beside the photograph stack. Binary
+        // search keeps preflight fast even for the maximum supported Project Brief length.
+        var low = 1;
+        var high = words.Length;
+        var bestWordCount = 0;
+        var bestHeight = 0f;
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var end = words[mid - 1].Index + words[mid - 1].Length;
+            var prefix = normalized[..end].TrimEnd();
+            var height = MeasureTextHeight(
+                prefix,
+                fontSize,
+                sideWidth,
+                lineHeight,
+                FontWeight.Regular);
+
+            if (height <= imageHeight + .35f)
+            {
+                bestWordCount = mid;
+                bestHeight = height;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        if (bestWordCount == 0)
+        {
+            var trailingHeight = MeasureTextHeight(
+                normalized,
+                fontSize,
+                fullWidth,
+                lineHeight,
+                FontWeight.Regular);
+            return new FloatNarrativeSplit(string.Empty, normalized, 0f, trailingHeight);
+        }
+
+        var leadingEnd = words[bestWordCount - 1].Index + words[bestWordCount - 1].Length;
+        var leading = normalized[..leadingEnd].Trim();
+        var trailing = bestWordCount < words.Length
+            ? normalized[words[bestWordCount].Index..].Trim()
+            : string.Empty;
+        var trailingHeightPoints = string.IsNullOrWhiteSpace(trailing)
+            ? 0f
+            : MeasureTextHeight(
+                trailing,
+                fontSize,
+                fullWidth,
+                lineHeight,
+                FontWeight.Regular);
+
+        return new FloatNarrativeSplit(leading, trailing, bestHeight, trailingHeightPoints);
     }
 
     private int MeasureLineCount(
@@ -551,6 +690,12 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
     }
 
     private sealed record WrappedMeasurement(int LineCount);
+
+    private sealed record FloatNarrativeSplit(
+        string Leading,
+        string Trailing,
+        float LeadingHeightPoints,
+        float TrailingHeightPoints);
 
     private sealed record TypefaceSet(
         SKTypeface Regular,

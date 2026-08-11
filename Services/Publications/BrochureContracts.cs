@@ -145,7 +145,15 @@ public sealed record BrochurePrintProjectMeasurement(
     float TextWidthPoints,
     float TextHeightPoints,
     float ImageHeightPoints,
-    int QualityRank);
+    int QualityRank,
+    string LeadingNarrative = "",
+    string TrailingNarrative = "",
+    float LeadingTextHeightPoints = 0f,
+    float TrailingTextHeightPoints = 0f,
+    float FullTextWidthPoints = 0f,
+    float PrimaryImageHeightPoints = 0f,
+    float SecondaryImageHeightPoints = 0f,
+    bool UsesFloatLayout = false);
 
 public sealed record BrochurePrintPlannedProject(
     int ProjectIndex,

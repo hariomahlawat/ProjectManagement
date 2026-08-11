@@ -32,7 +32,56 @@ public sealed class BrochurePrintMeasurementServiceTests
         var singleMeasure = fixture.Service.MeasureProject(single, BrochurePrintLayoutVariant.Balanced);
         var galleryMeasure = fixture.Service.MeasureProject(gallery, BrochurePrintLayoutVariant.Balanced);
 
-        Assert.True(galleryMeasure.TotalHeightPoints > singleMeasure.TotalHeightPoints);
+        Assert.True(galleryMeasure.ImageHeightPoints > singleMeasure.ImageHeightPoints);
+    }
+
+
+    [Fact]
+    public void MeasureProject_WithPhoto_UsesReferenceFloatAndFullWidthRemainder()
+    {
+        using var fixture = new Fixture();
+        var item = Item(1, 185, BrochureImageMode.Single, hasSecondary: false);
+
+        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+
+        Assert.True(measure.UsesFloatLayout);
+        Assert.NotEmpty(measure.LeadingNarrative);
+        Assert.NotEmpty(measure.TrailingNarrative);
+        Assert.True(measure.FullTextWidthPoints > measure.TextWidthPoints);
+        Assert.True(measure.ImageHeightPoints > 0);
+        Assert.True(measure.LeadingTextHeightPoints <= measure.ImageHeightPoints + 1f);
+    }
+
+    [Fact]
+    public void MeasureProject_AllVariantsRespectPrintTypographyFloor()
+    {
+        using var fixture = new Fixture();
+        var item = Item(1, 205, BrochureImageMode.Single, hasSecondary: false);
+
+        foreach (var variant in Enum.GetValues<BrochurePrintLayoutVariant>())
+        {
+            var measure = fixture.Service.MeasureProject(item, variant);
+            Assert.True(measure.BodyFontSize >= BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize);
+            Assert.True(measure.TitleFontSize >= BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize);
+        }
+    }
+
+    [Fact]
+    public void MeasureProject_LongTitle_GrowsBandBeforeShrinkingBelowApprovedFloor()
+    {
+        using var fixture = new Fixture();
+        var item = new BrochurePrintPlanningItem(
+            1,
+            "Virtual Reality Based Observation Post End Training Simulator With Thermal Imager Integrated Observation Equipment",
+            string.Join(" ", Enumerable.Range(1, 120).Select(index => $"word{index}")),
+            BrochureImageMode.Single,
+            HasPrimaryPhoto: true,
+            HasSecondaryPhoto: false);
+
+        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+
+        Assert.True(measure.TitleFontSize >= BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize);
+        Assert.True(measure.TitleHeightPoints > 20f);
     }
 
     [Fact]

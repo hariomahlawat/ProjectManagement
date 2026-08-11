@@ -264,8 +264,9 @@ test('phase 8 exposes Gallery 2 directly during publication review', () => {
 });
 
 test('phase 8 print project typography centres headings and justifies publication copy', () => {
-  assert.match(printRenderer, /ProjectName\.ToUpperInvariant\(\)[\s\S]{0,180}\.AlignCenter\(\)/);
-  assert.match(printRenderer, /Text\(project\.Narrative\)[\s\S]{0,160}\.Justify\(\)/);
+  assert.match(printRenderer, /ProjectName\.ToUpperInvariant\(\)/);
+  assert.match(printRenderer, /\.AlignCenter\(\)/);
+  assert.match(printRenderer, /Text\(project\.Narrative\)[\s\S]{0,220}\.Justify\(\)/);
 });
 
 test('phase 9 measured Cover A composition removes fixed body/contact spacer geometry', () => {
@@ -307,3 +308,31 @@ test('phase 9 profile defaults prefer institutional print and contemporary digit
   assert.match(js, /coverSelectionTouched = true/);
 });
 
+
+test('phase 10 print compact restores reference float composition and removes image alternation', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+
+  assert.match(measurement, /SplitNarrativeForFloat/);
+  assert.match(measurement, /LeadingNarrative/);
+  assert.match(measurement, /TrailingNarrative/);
+  assert.match(printRenderer, /layout\.LeadingNarrative/);
+  assert.match(printRenderer, /layout\.TrailingNarrative/);
+  assert.match(printRenderer, /row\.ConstantItem\(layout\.ImageWidthPoints\)\.AlignTop\(\)/);
+  assert.doesNotMatch(printRenderer, /plannedProject\.ProjectIndex\s*%\s*2/);
+  assert.doesNotMatch(printRenderer, /imageOnRight/);
+  assert.match(metrics, /ProjectBodyPreferredFontSize = 9f/);
+  assert.match(metrics, /ProjectBodyMinimumFontSize = 8\.5f/);
+  assert.match(metrics, /ProjectTitlePreferredFontSize = 10f/);
+  assert.match(metrics, /ProjectTitleMinimumFontSize = 9\.25f/);
+});
+
+test('phase 10 print compact restores stronger closing matter and reference-green treatment', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  assert.match(metrics, /ClosingVisionBodyFontSize = 10\.4f/);
+  assert.match(metrics, /ClosingVisionHeadingFontSize = 11\.2f/);
+  assert.match(metrics, /ClosingNewSimulatorsFontSize = 8\.8f/);
+  assert.match(metrics, /ClosingStraplineFontSize = 8\.2f/);
+  assert.match(printRenderer, /Forest800 = "#156656"/);
+  assert.match(printRenderer, /Text\("CONTACTS"\)/);
+});

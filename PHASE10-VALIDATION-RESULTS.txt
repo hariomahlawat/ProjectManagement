@@ -1,0 +1,38 @@
+PRISM PUBLICATIONS PHASE 10 — PREPARATION VALIDATION
+====================================================
+
+Baseline
+--------
+Phase 9 measured Print / Compact implementation.
+
+Executed checks
+---------------
+PASS  node --check wwwroot/js/pages/projects-brochure.js
+PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
+      32 tests passed, 0 failed.
+
+PASS  Structural delimiter validation for modified C# files:
+      Services/Publications/BrochureContracts.cs
+      Services/Publications/BrochurePrintLayoutMetrics.cs
+      Services/Publications/BrochurePrintMeasurementService.cs
+      Utilities/Reporting/BrochurePrintCompactComposer.cs
+      ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+
+PASS  Phase 10 source contract:
+      measured right-image float split present
+      hard-copy image alternation removed
+      9 pt preferred / 8.5 pt minimum body typography present
+      10 pt preferred project heading present
+      stronger final-sheet typography present
+      reference project green present
+      CONTACTS cover treatment present
+      Phase 9 measured planner / DI architecture retained
+
+Not executable in this environment
+----------------------------------
+dotnet restore
+dotnet build
+dotnet test
+
+Run tools/Test-PrismPublicationsPhase10.ps1 and the README commands on the normal
+PRISM development machine before deployment.

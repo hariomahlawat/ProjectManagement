@@ -1,0 +1,14 @@
+PRISM PUBLICATIONS PHASE 10 — CHANGED / NEW FILES
+=================================================
+
+Services/Publications/BrochureContracts.cs
+Services/Publications/BrochurePrintLayoutMetrics.cs
+Services/Publications/BrochurePrintMeasurementService.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
+ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+wwwroot/js/projects/publications-brochure-contract.test.js
+tools/Test-PrismPublicationsPhase10.ps1
+README-REPLACE-FIRST.md
+PHASE10-CHANGED-FILES.txt
+PHASE10-VALIDATION-RESULTS.txt
+PRISM-Publications-Phase10-Reference-Fidelity.patch
