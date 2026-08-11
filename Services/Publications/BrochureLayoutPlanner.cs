@@ -11,6 +11,7 @@ public static partial class BrochureLayoutPlanner
 {
     public const int FourProjectMaximumWords = 85;
     public const int ThreeProjectMaximumWords = 125;
+    public const int TwoFeatureMaximumWords = 185;
     public const int LongNarrativeChunkWords = 210;
 
     public static IReadOnlyList<BrochurePagePlan> Plan(IReadOnlyList<BrochurePublicationProject> projects)
@@ -186,7 +187,7 @@ public static partial class BrochureLayoutPlanner
     private static bool CanUseTwo(IReadOnlyList<BrochureProjectFragment> fragments, int index)
         => fragments.Skip(index).Take(2).All(fragment =>
             !fragment.IsContinuation
-            && fragment.NarrativeWordCount <= LongNarrativeChunkWords);
+            && fragment.NarrativeWordCount <= TwoFeatureMaximumWords);
 
     private static bool IsForcedFeature(BrochureProjectFragment fragment)
         => fragment.FragmentCount > 1

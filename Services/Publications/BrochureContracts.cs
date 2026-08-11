@@ -64,7 +64,10 @@ public enum BrochurePreflightIssueCode
     GallerySecondPhotoUnavailable = 9,
     LongNarrative = 10,
     TextOnlyProject = 11,
-    SelectionLimitExceeded = 12
+    SelectionLimitExceeded = 12,
+    UnconfirmedPrimaryPhoto = 13,
+    CoverHeroInvalid = 14,
+    CoverHeroUnavailable = 15
 }
 
 public sealed record BrochurePhotoOptionVm(
@@ -99,6 +102,24 @@ public sealed record BrochureProjectListItemVm(
         && photo.Height >= 900);
 }
 
+public sealed record BrochureProjectReviewVm(
+    int ProjectId,
+    string ProjectName,
+    string Lifecycle,
+    string? ProjectCategory,
+    string? TechnicalCategory,
+    string Narrative,
+    bool HasNarrative,
+    int NarrativeWordCount,
+    bool HasProjectBrief,
+    bool HasCapabilityOverview,
+    bool HasFullDescription,
+    int ProjectBriefWordCount,
+    int CapabilityOverviewWordCount,
+    int FullDescriptionWordCount,
+    int? DefaultPrimaryPhotoId,
+    IReadOnlyList<BrochurePhotoOptionVm> Photos);
+
 public sealed record BrochureProjectSelection(
     int ProjectId,
     int? PrimaryPhotoId,
@@ -107,7 +128,9 @@ public sealed record BrochureProjectSelection(
     double PrimaryFocalY,
     double SecondaryFocalX,
     double SecondaryFocalY,
-    BrochureImageMode ImageMode);
+    BrochureImageMode ImageMode,
+    bool PrimaryPhotoConfirmed = false,
+    bool IsReviewed = false);
 
 public sealed record BrochurePhotoReference(int ProjectId, int PhotoId);
 
@@ -170,7 +193,9 @@ public sealed record BrochureBuildOptions(
     string? HandlingMarking,
     string IssuerDisplayName,
     bool AllowTextOnlyProjects,
-    DateTimeOffset GeneratedAtUtc);
+    DateTimeOffset GeneratedAtUtc,
+    int? CoverHeroProjectId = null,
+    bool IncludeBackCover = true);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,
@@ -181,7 +206,12 @@ public sealed record BrochurePreflightIssue(
 
 public sealed record BrochurePreflight(
     int SelectedProjectCount,
-    IReadOnlyList<BrochurePreflightIssue> Issues)
+    IReadOnlyList<BrochurePreflightIssue> Issues,
+    int? ResolvedCoverHeroProjectId = null,
+    int? ResolvedCoverHeroPhotoId = null,
+    int ResolvedCoverHeroWidth = 0,
+    int ResolvedCoverHeroHeight = 0,
+    BrochurePhotoQuality? ResolvedCoverHeroQuality = null)
 {
     public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
     public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);

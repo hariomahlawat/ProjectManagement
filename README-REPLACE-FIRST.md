@@ -1,51 +1,86 @@
-# PRISM Publications — Phase 4 Ready-to-Replace Update
+# PRISM Publications — Phase 5 Ready-to-Replace
 
-## Use this package when
+## Phase 5: Editorial Review & Brochure Renderer Maturity
 
-Phase 3 is already installed and the current Publications/Brochure pages open successfully, as shown in the latest PRISM screenshots.
+This package is designed to be copied over a working **Phase 4** Publications installation. It is migration-free and does not replace `Program.cs`, Project navigation, Compendium services, or publication fonts.
 
-Copy the contents of this folder over the **ProjectManagement project root**, preserving relative paths and replacing matching files.
+The changes are based on the first actual PRISM-generated capability brochure and focus on the remaining publication-quality gaps rather than adding unrelated features.
 
-There is **no Program.cs replacement, no navigation merge and no database migration** in this incremental phase.
+## Implemented
 
-## What Phase 4 fixes/improves
+### Cover B
+- Cover B closing band is anchored to the A4 bottom edge; the previous unexplained lower white tail is removed.
+- The front cover no longer displays `Generated from authoritative PRISM records` or a visible project-count provenance line.
+- Cover B has a dedicated hero-selection workflow independent of project ordering.
+- Automatic hero selection remains available and prefers the strongest usable image according to the existing publication quality classification.
+- An explicitly chosen hero survives project reorder and uses the project's brochure focal point.
+- Cover-hero quality is rechecked by authoritative preflight.
 
-- Rebuilds the Brochure CSS against the actual current Razor/JavaScript markup and removes obsolete Phase 1 selector drift.
-- Corrects the malformed duplicate photograph CSS rule.
-- Makes project filters compact and the portfolio table internally scrollable with sticky headings.
-- Adds live matching/selected counts, readiness filtering and Selected-only filtering.
-- Turns Select visible into a counted Select/Deselect action with the 100-project limit respected.
-- Replaces fixed Project Photo derivative URLs with a dedicated publication-photo endpoint.
-- Makes Brochure thumbnails, focal editing, server preflight and final PDF rendering resolve from the same master/fallback source pipeline.
-- Uses source-faithful focal coordinates and an accurate 16:9 crop-frame overlay.
-- Classifies actual publication-source image quality and applies stricter quality requirements to Cover B hero / feature frames than standard project cards.
-- Adds in-memory photo-probe caching keyed by photo/version and file metadata.
-- Makes `AddProjectPublications()` self-register the memory cache it now depends on.
-- Keeps second imagery an explicit editorial choice; Gallery 2 does not silently select another project photo.
-- Makes server preflight actionable and expandable rather than truncating findings.
-- Adds direct actions to locate the project, open Project Brief and manage/configure photographs.
-- Hides healthy DM Sans implementation status from normal users and shows only a fallback warning when required.
-- Removes normal-user QuestPDF/server-path terminology.
-- Compacts Publication Settings and moves optional controls into Advanced publication settings.
-- Reduces Publications landing artwork height.
-- Splits long institutional introduction copy across readable pages without reducing the 11 pt body size.
-- Adds JS/Razor/CSS contract tests, photo-quality tests and introduction-pagination tests.
+### Publication Review
+- Added **Step 3 — Review publication**.
+- Review shows the currently selected authoritative narrative and the actual selected brochure image together.
+- The user can confirm the automatic image, change/crop imagery, open the authoritative project content, manage photographs, and mark the project reviewed.
+- Review is session/request state only; no duplicate project narrative or database record is created.
+- Preview requires technical preflight to pass.
+- Final Download additionally requires every selected project to be reviewed.
+- Review state is invalidated when material publication inputs change, including narrative source, project order, imagery or focal point.
 
-## Install
+### Cross-tab refresh
+- Added an authenticated `ProjectState` handler.
+- Returning from Project Brief/Capability/Description or Photo management refreshes selected project narrative/photo state without losing brochure order or configuration.
+- If source content or photo version changed, the affected project review is invalidated.
+- The source link follows the selected narrative source (`brief`, `capabilities`, or `description`).
 
-1. Close/restart the running debug instance after copying, or stop IIS Express first.
-2. Copy this folder's application files into the ProjectManagement root, preserving paths.
-3. Clean and rebuild.
-4. Run tests.
-5. Restart IIS/IIS Express and hard-refresh the browser.
+### Two-project feature pages
+- Added a dedicated `TwoFeature` renderer rather than stretching the generic card renderer.
+- Project imagery increases to a 205 pt editorial frame.
+- Image position alternates right/left between the two project modules.
+- Full empty bordered rectangles are removed; unused room becomes deliberate page whitespace.
+- TwoFeature is now limited to approximately 185-word fragments. Heavier copy promotes to SingleFeature instead of compressing the feature layout.
+- ThreeStandard and FourCompact remain fundamentally unchanged.
 
-Recommended commands:
+### Final PDF handling
+- Preview and Download now use `fetch` + PDF Blob rather than a normal file form POST.
+- The UI reliably exits `Preparing brochure…` after the response.
+- Server errors are surfaced and buttons restore correctly.
+- The server supplies the final filename through `X-PRISM-Publication-FileName`.
+
+### Back cover and metadata
+- Added an optional institutional closing/back cover, enabled by default.
+- PDF metadata identifies the document as an SDD capability publication created by PRISM Publications.
+
+### UX refinement
+- `Select visible` is replaced by accurate `Select N matching` / `Select first N matching` language.
+- Desktop category-filter widths are increased to avoid clipped labels.
+- The right rail no longer uses one full-height nested scrollbar; Publication Order, image editor and preflight have controlled bounded regions while export actions remain available.
+
+## Deliberately not implemented
+
+- No duplicate Project Brief detection. The duplicate copy observed in the test brochure was test data and is not treated as a production requirement.
+- No AI image-content relevance judgement.
+- No saved brochure/database persistence.
+- No publication-history migration.
+- No change to existing Compendium logic.
+- No new permission model.
+- No new fonts.
+
+## Installation
+
+1. Ensure Phase 4 is already working.
+2. Copy the contents of this package over the **ProjectManagement project root**, preserving relative paths and replacing matching files.
+3. No EF migration is required.
+4. No `Program.cs` merge is required.
+5. No navigation merge is required.
+6. No font reinstall is required.
+
+Run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase4.ps1
+.\tools\Test-PrismPublicationsPhase5.ps1
 
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+
 dotnet restore .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
@@ -54,24 +89,27 @@ node --check .\wwwroot\js\pages\projects-brochure.js
 node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
 ```
 
+Restart IIS/IIS Express and hard-refresh after the successful build.
+
 ## Acceptance checks
 
-1. Open Projects > Publications > Brochure.
-2. Confirm Advanced publication settings is collapsed by default and the main settings block is visibly shorter.
-3. Confirm search + filters form a compact desktop toolbar.
-4. Confirm the project register scrolls internally and its headings remain sticky.
-5. Change Narrative Source and test Brochure ready / Missing selected narrative / Missing photograph / Selected only.
-6. Confirm matching/selected counts and Select/Deselect visible labels update accurately.
-7. Confirm photographs display a designed fallback instead of the browser broken-image icon when a preview is unavailable.
-8. Open Images for a selected project. The focal view should show the uncropped publication source with a 16:9 crop frame.
-9. Confirm Gallery 2 requires an explicit second photograph.
-10. Run preflight and use Show all findings plus Locate / Open project brief / Configure image / Manage photos.
-11. Confirm healthy DM Sans does not occupy a sidebar card.
-12. Preview Cover B with a lower-resolution photograph and confirm placement-specific softness warning appears.
-13. Generate a long introduction and confirm it continues to additional introduction pages instead of using tiny text.
-14. Preview and Download the same selection and confirm the composition is identical.
-15. Open Compendium and confirm the existing workflow remains unaffected.
+1. Select 2 projects with valid Project Briefs and photographs.
+2. Confirm Cover B shows an Automatic hero and allows `Change hero` and `Adjust crop`.
+3. Explicitly choose a hero, reorder the projects, and confirm the chosen hero remains unchanged.
+4. Confirm reordering reruns preflight and invalidates Publication Review.
+5. Open Step 3 and confirm the authoritative current narrative and brochure photograph are shown together.
+6. Mark one project reviewed. Confirm the publication order shows the reviewed state.
+7. Change that project's brochure image or focal point and confirm the review is invalidated.
+8. Open the authoritative project content in a new tab, edit/save it, return to Brochure, and confirm the new content/word count refreshes.
+9. Confirm Preview becomes available once technical blockers are zero, even if review is incomplete.
+10. Confirm Download stays disabled until all selected projects are reviewed.
+11. Preview/download and confirm the action returns from `Preparing...` after the PDF response.
+12. Confirm Cover B has no unexplained white tail below the closing band.
+13. Confirm a 2-project page uses noticeably larger imagery with alternating image placement and no large empty bordered rectangles.
+14. Confirm the optional back cover is present by default and disappears when disabled.
+15. Confirm 3- and 4-project page types remain stable.
+16. Confirm Compendium is unaffected.
 
-## Scope boundary
+## Recommended next step
 
-No saved/named brochure records or publication history are introduced here. That remains a separate migration-backed phase after real generated brochures have been reviewed against the Canva reference.
+After this phase passes build/runtime checks, generate a real 10–15 project brochure using production-quality Project Briefs and appropriate photographs. Review both Cover A and Cover B page-by-page against the Canva reference before introducing saved brochure persistence.

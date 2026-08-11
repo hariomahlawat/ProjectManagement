@@ -49,12 +49,26 @@ public sealed class BrochureLayoutPlannerTests
     [Fact]
     public void Plan_UsesTwoProjectLayoutForLongerStandardBriefs()
     {
-        var projects = new[] { Project(1, 180), Project(2, 190) };
+        var projects = new[] { Project(1, 175), Project(2, 180) };
 
         var page = Assert.Single(BrochureLayoutPlanner.Plan(projects));
 
         Assert.Equal(BrochurePageLayoutKind.TwoFeature, page.Layout);
         Assert.Equal(2, page.Items.Count);
+    }
+
+
+
+    [Fact]
+    public void Plan_PromotesCopyBeyondFeatureThresholdInsteadOfCompressingTwoFeature()
+    {
+        var projects = new[] { Project(1, 190), Project(2, 190) };
+
+        var pages = BrochureLayoutPlanner.Plan(projects);
+
+        Assert.Equal(2, pages.Count);
+        Assert.All(pages, page => Assert.Equal(BrochurePageLayoutKind.SingleFeature, page.Layout));
+        Assert.Equal(new[] { 1, 2 }, pages.SelectMany(page => page.Items).Select(item => item.Project.ProjectId));
     }
 
     [Fact]

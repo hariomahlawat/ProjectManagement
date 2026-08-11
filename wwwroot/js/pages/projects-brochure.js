@@ -25,6 +25,7 @@
     const checkboxes = new Map(rows.map(row => [Number(row.dataset.projectId), row.querySelector("[data-brochure-project-checkbox]")]));
 
     const hiddenInputs = form.querySelector("[data-brochure-hidden-inputs]");
+    const coverHeroInput = form.querySelector("[data-brochure-cover-hero-project]");
     const selectedList = form.querySelector("[data-brochure-selected-list]");
     const selectedEmpty = form.querySelector("[data-brochure-selected-empty]");
     const selectedCount = form.querySelector("[data-brochure-selected-count]");
@@ -43,12 +44,16 @@
     const generateSpinner = form.querySelector("[data-brochure-generate-spinner]");
     const generateIcon = form.querySelector("[data-brochure-generate-icon]");
     const generateLabel = form.querySelector("[data-brochure-generate-label]");
+    const exportStatus = form.querySelector("[data-brochure-export-status]");
 
     const preflightSpinner = form.querySelector("[data-preflight-spinner]");
     const preflightMessage = form.querySelector("[data-preflight-message]");
     const preflightIssues = form.querySelector("[data-preflight-issues]");
     const preflightShowAll = form.querySelector("[data-preflight-show-all]");
     const preflightUrl = form.dataset.brochurePreflightUrl;
+    const projectStateUrl = form.dataset.brochureProjectStateUrl;
+    const previewUrl = form.dataset.brochurePreviewUrl;
+    const generateUrl = form.dataset.brochureGenerateUrl;
 
     const photoEditor = form.querySelector("[data-brochure-photo-editor]");
     const photoEditorTitle = form.querySelector("[data-photo-editor-title]");
@@ -68,6 +73,40 @@
     const secondaryMarker = form.querySelector("[data-secondary-focal-marker]");
     const secondaryReset = form.querySelector("[data-secondary-focal-reset]");
 
+    const coverHeroPanel = form.querySelector("[data-brochure-cover-hero-panel]");
+    const coverHeroCurrent = form.querySelector("[data-cover-hero-current]");
+    const coverHeroImage = form.querySelector("[data-cover-hero-image]");
+    const coverHeroName = form.querySelector("[data-cover-hero-name]");
+    const coverHeroMeta = form.querySelector("[data-cover-hero-meta]");
+    const coverHeroChoose = form.querySelector("[data-cover-hero-choose]");
+    const coverHeroAutomatic = form.querySelector("[data-cover-hero-automatic]");
+    const coverHeroCrop = form.querySelector("[data-cover-hero-crop]");
+    const coverHeroChoices = form.querySelector("[data-cover-hero-choices]");
+
+    const reviewPanel = form.querySelector("[data-brochure-review-panel]");
+    const reviewEmpty = form.querySelector("[data-review-empty]");
+    const reviewWorkspace = form.querySelector("[data-review-workspace]");
+    const reviewNav = form.querySelector("[data-review-nav]");
+    const reviewReviewedCount = form.querySelector("[data-review-reviewed-count]");
+    const reviewTotalCount = form.querySelector("[data-review-total-count]");
+    const reviewNextUnreviewed = form.querySelector("[data-review-next-unreviewed]");
+    const reviewPosition = form.querySelector("[data-review-position]");
+    const reviewProjectName = form.querySelector("[data-review-project-name]");
+    const reviewProjectMeta = form.querySelector("[data-review-project-meta]");
+    const reviewState = form.querySelector("[data-review-state]");
+    const reviewImageFrame = form.querySelector("[data-review-image-frame]");
+    const reviewImageMeta = form.querySelector("[data-review-image-meta]");
+    const reviewConfirmImage = form.querySelector("[data-review-confirm-image]");
+    const reviewChangeImage = form.querySelector("[data-review-change-image]");
+    const reviewNarrativeLabel = form.querySelector("[data-review-narrative-label]");
+    const reviewWordCount = form.querySelector("[data-review-word-count]");
+    const reviewNarrative = form.querySelector("[data-review-narrative]");
+    const reviewOpenBrief = form.querySelector("[data-review-open-brief]");
+    const reviewManagePhotos = form.querySelector("[data-review-manage-photos]");
+    const reviewPrevious = form.querySelector("[data-review-previous]");
+    const reviewNext = form.querySelector("[data-review-next]");
+    const reviewMarkReviewed = form.querySelector("[data-review-mark-reviewed]");
+
     const normalize = value => (value ?? "").trim().toLowerCase();
     const clamp = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : 0.5));
     const projectPhotos = id => projectById.get(id)?.photos ?? [];
@@ -81,7 +120,9 @@
         primaryFocalY: 0.5,
         secondaryFocalX: 0.5,
         secondaryFocalY: 0.5,
-        imageMode: modeAutomatic
+        imageMode: modeAutomatic,
+        primaryPhotoConfirmed: false,
+        isReviewed: false
     });
 
     const configs = new Map();
@@ -100,7 +141,9 @@
             secondaryFocalY: clamp(selection.secondaryFocalY),
             imageMode: [modeAutomatic, modeSingle, modeGalleryTwo].includes(Number(selection.imageMode))
                 ? Number(selection.imageMode)
-                : modeAutomatic
+                : modeAutomatic,
+            primaryPhotoConfirmed: Boolean(selection.primaryPhotoConfirmed),
+            isReviewed: Boolean(selection.isReviewed)
         });
     });
 
@@ -117,11 +160,17 @@
     });
 
     let activePhotoProjectId = null;
+    let activeReviewProjectId = orderedIds[0] ?? null;
     let draggedId = null;
     let preflightTimer = null;
     let preflightAbort = null;
+    let projectStateAbort = null;
+    let projectStateTimer = null;
+    let lastProjectStateRefresh = 0;
     let lastPreflight = null;
     let showAllFindings = false;
+    let exportBusy = false;
+    let explicitCoverHeroProjectId = Number(coverHeroInput?.value) > 0 ? Number(coverHeroInput.value) : null;
 
     const ensureConfig = id => {
         if (!configs.has(id)) {
@@ -149,6 +198,11 @@
         return { ready: Boolean(project.hasProjectBrief), words: Number(project.projectBriefWordCount || 0), label: "Project Brief" };
     };
 
+    const isContemporaryCover = () => {
+        const checked = form.querySelector('[name="Input.CoverStyle"]:checked');
+        return checked?.value === "2" || checked?.value === "Contemporary";
+    };
+
     const createImage = (src, alt = "") => {
         const image = document.createElement("img");
         image.alt = alt;
@@ -157,7 +211,7 @@
         image.addEventListener("error", () => {
             image.classList.add("is-broken");
             image.removeAttribute("src");
-            image.closest(".brochure-photo-thumb, .brochure-selected-item__thumb, .brochure-photo-choice")?.classList.add("is-image-missing");
+            image.closest(".brochure-photo-thumb, .brochure-selected-item__thumb, .brochure-photo-choice, .brochure-cover-hero-current__image, .brochure-review-image__frame")?.classList.add("is-image-missing");
         }, { once: true });
         return image;
     };
@@ -192,8 +246,22 @@
             inputs.push(makeHidden(`${prefix}.SecondaryFocalX`, clamp(config.secondaryFocalX).toFixed(4)));
             inputs.push(makeHidden(`${prefix}.SecondaryFocalY`, clamp(config.secondaryFocalY).toFixed(4)));
             inputs.push(makeHidden(`${prefix}.ImageMode`, Number(config.imageMode) || modeAutomatic));
+            inputs.push(makeHidden(`${prefix}.PrimaryPhotoConfirmed`, config.primaryPhotoConfirmed ? "true" : "false"));
+            inputs.push(makeHidden(`${prefix}.IsReviewed`, config.isReviewed ? "true" : "false"));
         });
         hiddenInputs.replaceChildren(...inputs);
+        if (coverHeroInput) coverHeroInput.value = explicitCoverHeroProjectId == null ? "" : String(explicitCoverHeroProjectId);
+    };
+
+    const invalidateReview = (id, { unconfirmPhoto = false } = {}) => {
+        const config = ensureConfig(id);
+        if (!config) return;
+        config.isReviewed = false;
+        if (unconfirmPhoto) config.primaryPhotoConfirmed = false;
+    };
+
+    const invalidateAllReviews = () => {
+        orderedIds.forEach(id => invalidateReview(id));
     };
 
     const updateNarrativeIndicators = () => {
@@ -213,6 +281,38 @@
         });
     };
 
+    const updateRowPhotoSummary = id => {
+        const row = rowById.get(id);
+        const project = projectById.get(id);
+        if (!row || !project) return;
+        row.dataset.hasPhoto = project.photos?.length ? "true" : "false";
+        const summary = row.querySelector(".brochure-photo-summary");
+        const strong = summary?.querySelector("strong");
+        const small = summary?.querySelector("small");
+        if (strong) strong.textContent = `${project.photos?.length ?? 0} photo${project.photos?.length === 1 ? "" : "s"}`;
+        if (small) small.textContent = project.photos?.length ? "quality checked when selected" : "no photo recorded";
+
+        const currentThumb = summary?.querySelector(".brochure-photo-thumb, .brochure-photo-placeholder");
+        const defaultPhoto = getPhoto(id, project.defaultPrimaryPhotoId);
+        if (!currentThumb) return;
+        if (!defaultPhoto?.thumbnailUrl) {
+            currentThumb.className = "brochure-photo-placeholder";
+            currentThumb.replaceChildren();
+            const icon = document.createElement("i");
+            icon.className = "bi bi-image";
+            icon.setAttribute("aria-hidden", "true");
+            currentThumb.append(icon);
+            return;
+        }
+
+        currentThumb.className = "brochure-photo-thumb";
+        const image = createImage(defaultPhoto.thumbnailUrl);
+        const icon = document.createElement("i");
+        icon.className = "bi bi-image";
+        icon.setAttribute("aria-hidden", "true");
+        currentThumb.replaceChildren(image, icon);
+    };
+
     const modeLabel = mode => mode === modeSingle ? "Single" : mode === modeGalleryTwo ? "Gallery 2" : "Automatic";
 
     const selectedItem = (id, index) => {
@@ -222,6 +322,7 @@
         const item = document.createElement("li");
         item.className = "brochure-selected-item";
         if (activePhotoProjectId === id) item.classList.add("is-photo-editing");
+        if (config?.isReviewed) item.classList.add("is-reviewed");
         item.draggable = true;
         item.dataset.selectedId = String(id);
 
@@ -250,7 +351,8 @@
         name.textContent = project?.projectName ?? `Project ${id}`;
         const meta = document.createElement("span");
         meta.className = "brochure-selected-item__meta";
-        meta.textContent = `${modeLabel(config?.imageMode)} · ${projectPhotos(id).length} photo${projectPhotos(id).length === 1 ? "" : "s"}`;
+        const state = config?.isReviewed ? "Reviewed" : config?.primaryPhotoConfirmed ? "Image confirmed" : "Review required";
+        meta.textContent = `${state} · ${modeLabel(config?.imageMode)}`;
         copy.append(name, meta);
 
         const actions = document.createElement("span");
@@ -306,7 +408,8 @@
             next.splice(from, 1);
             next.splice(to, 0, draggedId);
             orderedIds = next;
-            renderSelected(false);
+            invalidateAllReviews();
+            renderSelected(true);
         });
         return item;
     };
@@ -318,23 +421,30 @@
         const next = [...orderedIds];
         [next[index], next[target]] = [next[target], next[index]];
         orderedIds = next;
-        renderSelected(false);
+        invalidateAllReviews();
+        renderSelected(true);
     };
 
     const add = id => {
         if (!projectById.has(id) || orderedIds.includes(id) || orderedIds.length >= MAX_PROJECTS) return;
         ensureConfig(id);
         orderedIds.push(id);
+        if (activeReviewProjectId == null) activeReviewProjectId = id;
         renderSelected(true);
     };
 
     const remove = id => {
         orderedIds = orderedIds.filter(value => value !== id);
         if (activePhotoProjectId === id) closePhotoEditor();
+        if (activeReviewProjectId === id) activeReviewProjectId = orderedIds[0] ?? null;
+        if (explicitCoverHeroProjectId === id) explicitCoverHeroProjectId = null;
         renderSelected(true);
     };
 
-    const renderSelected = (runPreflight = true) => {
+    const reviewedCount = () => orderedIds.filter(id => ensureConfig(id)?.isReviewed).length;
+    const allReviewed = () => orderedIds.length > 0 && reviewedCount() === orderedIds.length;
+
+    const renderSelected = (runPreflight = true, refreshState = true) => {
         orderedIds = orderedIds.filter(id => projectById.has(id)).slice(0, MAX_PROJECTS);
         selectedList?.replaceChildren(...orderedIds.map(selectedItem));
         for (const [id, checkbox] of checkboxes.entries()) {
@@ -346,7 +456,11 @@
         if (clearButton) clearButton.disabled = orderedIds.length === 0;
         syncHiddenInputs();
         applyFilters();
+        renderReview();
+        renderCoverHero();
+        if (refreshState) scheduleProjectStateRefresh();
         if (runPreflight) schedulePreflight();
+        else updateButtons(Boolean(lastPreflight?.canGenerate));
     };
 
     const photoChoice = (projectId, photo, selected, onClick, allowNone = false) => {
@@ -449,9 +563,7 @@
 
         const applyOverlay = () => positionFocalOverlay(stage, image, marker, cropFrame, x, y);
         const absolute = new URL(photo.previewUrl, window.location.href).href;
-        image.onerror = () => {
-            stage.hidden = true;
-        };
+        image.onerror = () => { stage.hidden = true; };
         if (image.src !== absolute) {
             image.onload = applyOverlay;
             image.src = photo.previewUrl;
@@ -489,6 +601,8 @@
                         if (Number(config.secondaryPhotoId) === Number(photo.photoId)) config.secondaryPhotoId = null;
                         config.primaryFocalX = 0.5;
                         config.primaryFocalY = 0.5;
+                        config.primaryPhotoConfirmed = true;
+                        invalidateReview(project.projectId);
                         renderPhotoEditor();
                         renderSelected(false);
                         schedulePreflight();
@@ -499,6 +613,7 @@
         if (secondaryPicker) {
             const choices = [photoChoice(project.projectId, null, config.secondaryPhotoId == null, () => {
                 config.secondaryPhotoId = null;
+                invalidateReview(project.projectId);
                 renderPhotoEditor();
                 renderSelected(false);
                 schedulePreflight();
@@ -513,6 +628,7 @@
                         config.secondaryPhotoId = Number(photo.photoId);
                         config.secondaryFocalX = 0.5;
                         config.secondaryFocalY = 0.5;
+                        invalidateReview(project.projectId);
                         renderPhotoEditor();
                         renderSelected(false);
                         schedulePreflight();
@@ -561,8 +677,12 @@
             config.secondaryFocalX = x;
             config.secondaryFocalY = y;
         }
+        invalidateReview(activePhotoProjectId);
         updateFocalStage(kind, activePhotoProjectId);
         syncHiddenInputs();
+        renderReview();
+        renderCoverHero();
+        schedulePreflight();
     };
 
     const resetFocal = kind => {
@@ -576,8 +696,330 @@
             config.secondaryFocalX = 0.5;
             config.secondaryFocalY = 0.5;
         }
+        invalidateReview(activePhotoProjectId);
         updateFocalStage(kind, activePhotoProjectId);
         syncHiddenInputs();
+        renderReview();
+        renderCoverHero();
+        schedulePreflight();
+    };
+
+    const projectSignature = project => JSON.stringify({
+        narrative: project.reviewNarrative ?? "",
+        hasNarrative: project.reviewHasNarrative ?? false,
+        narrativeWordCount: project.reviewNarrativeWordCount ?? 0,
+        photos: (project.photos ?? []).map(photo => [Number(photo.photoId), Number(photo.version)])
+    });
+
+    const refreshProjectState = async () => {
+        if (!projectStateUrl || !orderedIds.length) return;
+        projectStateAbort?.abort();
+        projectStateAbort = new AbortController();
+        syncHiddenInputs();
+        try {
+            const response = await fetch(projectStateUrl, {
+                method: "POST",
+                body: new FormData(form),
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+                signal: projectStateAbort.signal
+            });
+            if (!response.ok) throw new Error(`Project state refresh failed with HTTP ${response.status}`);
+            const payload = await response.json();
+            const photoProbes = payload.photoProbes ?? {};
+            (payload.projects ?? []).forEach(updated => {
+                const id = Number(updated.projectId);
+                const project = projectById.get(id);
+                if (!project) return;
+                const oldSignature = project.__publicationSignature;
+                Object.assign(project, {
+                    lifecycle: updated.lifecycle,
+                    projectCategory: updated.projectCategory,
+                    technicalCategory: updated.technicalCategory,
+                    reviewNarrative: updated.narrative,
+                    reviewHasNarrative: Boolean(updated.hasNarrative),
+                    reviewNarrativeWordCount: Number(updated.narrativeWordCount || 0),
+                    hasProjectBrief: Boolean(updated.hasProjectBrief),
+                    hasCapabilityOverview: Boolean(updated.hasCapabilityOverview),
+                    hasFullDescription: Boolean(updated.hasFullDescription),
+                    projectBriefWordCount: Number(updated.projectBriefWordCount || 0),
+                    capabilityOverviewWordCount: Number(updated.capabilityOverviewWordCount || 0),
+                    fullDescriptionWordCount: Number(updated.fullDescriptionWordCount || 0),
+                    defaultPrimaryPhotoId: updated.defaultPrimaryPhotoId ?? null,
+                    photos: updated.photos ?? [],
+                    overviewUrl: updated.overviewUrl,
+                    photosUrl: updated.photosUrl
+                });
+                project.photos = (project.photos ?? []).map(photo => {
+                    const probe = photoProbes[String(photo.photoId)] ?? null;
+                    return probe
+                        ? {
+                            ...photo,
+                            publicationReady: Boolean(probe.isReady),
+                            publicationWidth: Number(probe.width || 0),
+                            publicationHeight: Number(probe.height || 0),
+                            publicationQuality: probe.quality || null,
+                            publicationSource: probe.sourceVariant || null
+                        }
+                        : photo;
+                });
+                const newSignature = projectSignature(project);
+                if (oldSignature && oldSignature !== newSignature) {
+                    invalidateReview(id);
+                }
+                project.__publicationSignature = newSignature;
+
+                const config = ensureConfig(id);
+                if (config?.primaryPhotoId != null && !getPhoto(id, config.primaryPhotoId)) {
+                    config.primaryPhotoId = project.defaultPrimaryPhotoId ?? null;
+                    config.primaryFocalX = 0.5;
+                    config.primaryFocalY = 0.5;
+                    config.primaryPhotoConfirmed = false;
+                    config.isReviewed = false;
+                }
+                if (config?.secondaryPhotoId != null && !getPhoto(id, config.secondaryPhotoId)) {
+                    config.secondaryPhotoId = null;
+                    config.secondaryFocalX = 0.5;
+                    config.secondaryFocalY = 0.5;
+                    config.isReviewed = false;
+                }
+                updateRowPhotoSummary(id);
+            });
+            lastProjectStateRefresh = Date.now();
+            updateNarrativeIndicators();
+            applyFilters();
+            syncHiddenInputs();
+            renderSelected(false, false);
+            renderReview();
+            renderCoverHero();
+            schedulePreflight();
+        } catch (error) {
+            if (error?.name !== "AbortError") console.error(error);
+        }
+    };
+
+    const scheduleProjectStateRefresh = () => {
+        window.clearTimeout(projectStateTimer);
+        if (!orderedIds.length) return;
+        projectStateTimer = window.setTimeout(refreshProjectState, 320);
+    };
+
+    const resolvedCoverHeroId = () => {
+        if (explicitCoverHeroProjectId && orderedIds.includes(explicitCoverHeroProjectId)) return explicitCoverHeroProjectId;
+        const resolved = Number(lastPreflight?.resolvedCoverHeroProjectId);
+        return resolved > 0 && orderedIds.includes(resolved) ? resolved : null;
+    };
+
+    const renderCoverHero = () => {
+        if (!coverHeroPanel) return;
+        coverHeroPanel.hidden = !isContemporaryCover();
+        if (coverHeroPanel.hidden) return;
+
+        if (explicitCoverHeroProjectId && !orderedIds.includes(explicitCoverHeroProjectId)) {
+            explicitCoverHeroProjectId = null;
+        }
+        syncHiddenInputs();
+
+        const heroId = resolvedCoverHeroId();
+        const project = heroId ? projectById.get(heroId) : null;
+        const config = heroId ? ensureConfig(heroId) : null;
+        const photo = heroId ? getPhoto(heroId, config?.primaryPhotoId) : null;
+        if (coverHeroName) coverHeroName.textContent = project?.projectName ?? "Waiting for a usable project image";
+        if (coverHeroMeta) {
+            if (!project) {
+                coverHeroMeta.textContent = "Select projects to resolve the Cover B hero.";
+            } else {
+                const mode = explicitCoverHeroProjectId ? "Selected hero" : "Automatic hero";
+                const width = Number(lastPreflight?.resolvedCoverHeroWidth || 0);
+                const height = Number(lastPreflight?.resolvedCoverHeroHeight || 0);
+                const quality = String(lastPreflight?.resolvedCoverHeroQuality || "").replace(/([a-z])([A-Z])/g, "$1 $2");
+                const details = [width > 0 && height > 0 ? `${width}×${height}` : null, quality || null].filter(Boolean).join(" · ");
+                coverHeroMeta.textContent = `${mode}${details ? ` · ${details}` : ""}${explicitCoverHeroProjectId ? " · independent of project order" : ""}`;
+            }
+        }
+        if (coverHeroCrop) coverHeroCrop.disabled = !heroId;
+        if (coverHeroAutomatic) coverHeroAutomatic.disabled = explicitCoverHeroProjectId == null;
+
+        if (coverHeroImage) {
+            coverHeroImage.classList.remove("is-image-missing");
+            coverHeroImage.replaceChildren();
+            if (photo?.thumbnailUrl) {
+                coverHeroImage.append(createImage(photo.thumbnailUrl, project?.projectName ?? "Cover hero"));
+            } else {
+                const icon = document.createElement("i");
+                icon.className = "bi bi-image";
+                icon.setAttribute("aria-hidden", "true");
+                coverHeroImage.append(icon);
+            }
+        }
+    };
+
+    const renderCoverHeroChoices = () => {
+        if (!coverHeroChoices) return;
+        const choices = orderedIds
+            .map(id => {
+                const project = projectById.get(id);
+                const config = ensureConfig(id);
+                const photo = getPhoto(id, config?.primaryPhotoId);
+                if (!project || !photo) return null;
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "brochure-cover-hero-choice";
+                if (explicitCoverHeroProjectId === id) button.classList.add("is-selected");
+                const thumb = document.createElement("span");
+                thumb.append(createImage(photo.thumbnailUrl, project.projectName));
+                const copy = document.createElement("span");
+                const name = document.createElement("strong");
+                name.textContent = project.projectName;
+                const meta = document.createElement("small");
+                const dimensions = photo.publicationWidth > 0 && photo.publicationHeight > 0
+                    ? `${photo.publicationWidth}×${photo.publicationHeight}`
+                    : null;
+                const quality = String(photo.publicationQuality || "").replace(/([a-z])([A-Z])/g, "$1 $2");
+                meta.textContent = [
+                    config.primaryPhotoConfirmed ? "Confirmed image" : "Automatic image",
+                    dimensions,
+                    quality || null
+                ].filter(Boolean).join(" · ");
+                copy.append(name, meta);
+                button.append(thumb, copy);
+                button.addEventListener("click", () => {
+                    explicitCoverHeroProjectId = id;
+                    coverHeroChoices.hidden = true;
+                    syncHiddenInputs();
+                    renderCoverHero();
+                    schedulePreflight();
+                });
+                return button;
+            })
+            .filter(Boolean);
+
+        if (!choices.length) {
+            const empty = document.createElement("div");
+            empty.className = "brochure-cover-hero-choice-empty";
+            empty.textContent = "No selected project currently has a primary publication photograph.";
+            coverHeroChoices.replaceChildren(empty);
+        } else {
+            coverHeroChoices.replaceChildren(...choices);
+        }
+    };
+
+    const setActiveReview = id => {
+        if (!orderedIds.includes(id)) return;
+        activeReviewProjectId = id;
+        renderReview();
+        reviewPanel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+
+    const renderReview = () => {
+        const total = orderedIds.length;
+        const reviewed = reviewedCount();
+        if (reviewTotalCount) reviewTotalCount.textContent = String(total);
+        if (reviewReviewedCount) reviewReviewedCount.textContent = String(reviewed);
+        if (reviewEmpty) reviewEmpty.hidden = total !== 0;
+        if (reviewWorkspace) reviewWorkspace.hidden = total === 0;
+        if (reviewNextUnreviewed) reviewNextUnreviewed.disabled = total === 0 || reviewed === total;
+        if (total === 0) {
+            activeReviewProjectId = null;
+            updateButtons(Boolean(lastPreflight?.canGenerate));
+            return;
+        }
+
+        if (!orderedIds.includes(activeReviewProjectId)) {
+            activeReviewProjectId = orderedIds.find(id => !ensureConfig(id)?.isReviewed) ?? orderedIds[0];
+        }
+        const id = activeReviewProjectId;
+        const index = orderedIds.indexOf(id);
+        const project = projectById.get(id);
+        const config = ensureConfig(id);
+        const primary = getPhoto(id, config?.primaryPhotoId);
+        if (!project || !config) return;
+
+        if (reviewNav) {
+            const nodes = orderedIds.map((projectId, projectIndex) => {
+                const nav = document.createElement("button");
+                nav.type = "button";
+                nav.className = "brochure-review-nav__item";
+                nav.classList.toggle("is-active", projectId === id);
+                nav.classList.toggle("is-reviewed", Boolean(ensureConfig(projectId)?.isReviewed));
+                nav.title = projectById.get(projectId)?.projectName ?? `Project ${projectId}`;
+                nav.innerHTML = `<span>${projectIndex + 1}</span><i class="bi ${ensureConfig(projectId)?.isReviewed ? "bi-check-circle-fill" : "bi-circle"}" aria-hidden="true"></i>`;
+                nav.addEventListener("click", () => setActiveReview(projectId));
+                return nav;
+            });
+            reviewNav.replaceChildren(...nodes);
+        }
+
+        if (reviewPosition) reviewPosition.textContent = `Project ${index + 1} of ${total}`;
+        if (reviewProjectName) reviewProjectName.textContent = project.projectName;
+        if (reviewProjectMeta) reviewProjectMeta.textContent = [project.lifecycle, project.technicalCategory].filter(Boolean).join(" · ");
+        if (reviewState) {
+            reviewState.classList.toggle("is-reviewed", config.isReviewed);
+            reviewState.textContent = config.isReviewed ? "Reviewed" : "Review required";
+        }
+
+        if (reviewImageFrame) {
+            reviewImageFrame.classList.remove("is-image-missing");
+            reviewImageFrame.replaceChildren();
+            if (primary?.previewUrl) {
+                const image = createImage(primary.previewUrl, project.projectName);
+                image.style.objectPosition = `${clamp(config.primaryFocalX) * 100}% ${clamp(config.primaryFocalY) * 100}%`;
+                reviewImageFrame.append(image);
+            } else {
+                const icon = document.createElement("i");
+                icon.className = "bi bi-image";
+                icon.setAttribute("aria-hidden", "true");
+                reviewImageFrame.append(icon);
+            }
+        }
+        if (reviewImageMeta) {
+            if (!primary) {
+                reviewImageMeta.textContent = "No primary publication photograph selected";
+            } else {
+                const dimensions = primary.publicationWidth > 0 && primary.publicationHeight > 0
+                    ? `${primary.publicationWidth}×${primary.publicationHeight}`
+                    : null;
+                const quality = String(primary.publicationQuality || "").replace(/([a-z])([A-Z])/g, "$1 $2");
+                reviewImageMeta.textContent = [
+                    config.primaryPhotoConfirmed ? "Confirmed publication image" : "Automatic publication image",
+                    primary.isCover ? "project cover" : null,
+                    dimensions,
+                    quality || null
+                ].filter(Boolean).join(" · ");
+            }
+        }
+        if (reviewConfirmImage) {
+            reviewConfirmImage.disabled = !primary || config.primaryPhotoConfirmed;
+            reviewConfirmImage.textContent = config.primaryPhotoConfirmed ? "Image confirmed" : "Use this image";
+        }
+        if (reviewChangeImage) reviewChangeImage.disabled = project.photos?.length === 0;
+
+        const info = narrativeInfo(project);
+        if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = info.label;
+        if (reviewWordCount) reviewWordCount.textContent = `${project.reviewNarrativeWordCount ?? info.words} words`;
+        if (reviewNarrative) {
+            reviewNarrative.textContent = project.reviewNarrative ?? "Loading current publication copy…";
+            reviewNarrative.classList.toggle("is-missing", project.reviewHasNarrative === false || !info.ready);
+        }
+        if (reviewOpenBrief) {
+            reviewOpenBrief.href = project.overviewUrl ?? "#";
+            reviewOpenBrief.textContent = `Open ${info.label}`;
+        }
+        if (reviewManagePhotos) reviewManagePhotos.href = project.photosUrl ?? "#";
+
+        if (reviewPrevious) reviewPrevious.disabled = index <= 0;
+        if (reviewNext) reviewNext.disabled = index >= total - 1;
+        if (reviewMarkReviewed) {
+            const canReview = project.reviewHasNarrative === true
+                && typeof project.reviewNarrative === "string"
+                && project.reviewNarrative.trim().length > 0
+                && info.ready;
+            reviewMarkReviewed.disabled = !canReview || config.isReviewed;
+            reviewMarkReviewed.innerHTML = config.isReviewed
+                ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Reviewed'
+                : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Mark reviewed';
+        }
+        updateButtons(Boolean(lastPreflight?.canGenerate));
     };
 
     const setMetric = (selector, value) => {
@@ -586,8 +1028,14 @@
     };
 
     const updateButtons = canGenerate => {
-        if (previewButton) previewButton.disabled = !canGenerate;
-        if (generateButton && generateButton.getAttribute("aria-busy") !== "true") generateButton.disabled = !canGenerate;
+        const previewReady = canGenerate && orderedIds.length > 0 && !exportBusy;
+        const finalReady = previewReady && allReviewed();
+        if (previewButton) previewButton.disabled = !previewReady;
+        if (generateButton) generateButton.disabled = !finalReady;
+        if (exportStatus && !exportBusy) {
+            if (!orderedIds.length) exportStatus.textContent = "";
+            else if (canGenerate && !allReviewed()) exportStatus.textContent = `${orderedIds.length - reviewedCount()} selected project${orderedIds.length - reviewedCount() === 1 ? "" : "s"} still require Publication Review.`;
+        }
     };
 
     const issueIcon = severity => severity === "blocker"
@@ -604,7 +1052,9 @@
         "GallerySecondPhotoRequired",
         "GallerySecondPhotoInvalid",
         "GallerySecondPhotoUnavailable",
-        "TextOnlyProject"
+        "TextOnlyProject",
+        "CoverHeroUnavailable",
+        "CoverHeroInvalid"
     ]);
 
     const resetFiltersForProject = projectId => {
@@ -637,8 +1087,14 @@
             link.href = project.overviewUrl;
             link.target = "_blank";
             link.rel = "noopener";
-            link.textContent = "Open project brief";
+            link.textContent = `Open ${narrativeInfo(project).label}`;
             actions.append(link);
+        } else if (issue.code === "UnconfirmedPrimaryPhoto") {
+            const review = document.createElement("button");
+            review.type = "button";
+            review.textContent = "Review project";
+            review.addEventListener("click", () => setActiveReview(Number(issue.projectId)));
+            actions.append(review);
         } else if (photoIssueCodes.has(issue.code)) {
             if (orderedIds.includes(Number(issue.projectId)) && project.photos?.length) {
                 const configure = document.createElement("button");
@@ -713,7 +1169,7 @@
                 preflightMessage.textContent = `${result.blockerCount} blocker${result.blockerCount === 1 ? "" : "s"} must be resolved before preview or download.`;
                 preflightMessage.classList.add("is-blocked");
             } else if ((result.warningCount ?? 0) > 0) {
-                preflightMessage.textContent = `Preflight passed with ${result.warningCount} warning${result.warningCount === 1 ? "" : "s"}. Preview the PDF before final download.`;
+                preflightMessage.textContent = `Preflight passed with ${result.warningCount} warning${result.warningCount === 1 ? "" : "s"}. Complete Publication Review before final download.`;
                 preflightMessage.classList.add("is-warning");
             } else {
                 preflightMessage.textContent = "Publication preflight passed. Selected records and source images are ready.";
@@ -722,13 +1178,14 @@
         }
 
         renderIssues(result.issues ?? []);
+        renderCoverHero();
         updateButtons(Boolean(result.canGenerate));
     };
 
     const runPreflight = async () => {
         if (!orderedIds.length) {
             showAllFindings = false;
-            renderPreflight({ selectedProjectCount: 0, blockerCount: 0, warningCount: 0, informationCount: 0, canGenerate: false, issues: [] });
+            renderPreflight({ selectedProjectCount: 0, blockerCount: 0, warningCount: 0, informationCount: 0, canGenerate: false, issues: [], resolvedCoverHeroProjectId: null });
             return;
         }
         if (!preflightUrl) return;
@@ -798,14 +1255,16 @@
         const slots = Math.max(0, MAX_PROJECTS - orderedIds.length);
         selectVisibleButton.disabled = visible.length === 0 || (!allSelected && slots === 0);
         if (allSelected) {
-            selectVisibleLabel.textContent = `Deselect ${visible.length} visible`;
+            selectVisibleLabel.textContent = `Deselect ${visible.length} matching`;
             selectVisibleButton.dataset.mode = "deselect";
         } else if (slots === 0) {
             selectVisibleLabel.textContent = `${MAX_PROJECTS} project limit reached`;
             selectVisibleButton.dataset.mode = "limit";
         } else {
             const count = Math.min(unselected.length, slots);
-            selectVisibleLabel.textContent = `Select ${count} visible`;
+            selectVisibleLabel.textContent = unselected.length > slots
+                ? `Select first ${count} matching`
+                : `Select ${count} matching`;
             selectVisibleButton.dataset.mode = "select";
         }
     };
@@ -832,6 +1291,92 @@
         updateSelectVisible();
     };
 
+    const setExportBusy = (busy, preview = false) => {
+        exportBusy = busy;
+        if (previewButton) {
+            previewButton.setAttribute("aria-busy", busy && preview ? "true" : "false");
+        }
+        if (generateButton) {
+            generateButton.setAttribute("aria-busy", busy && !preview ? "true" : "false");
+        }
+        generateSpinner?.classList.toggle("d-none", !(busy && !preview));
+        generateIcon?.classList.toggle("d-none", busy && !preview);
+        if (generateLabel) generateLabel.textContent = busy && !preview ? "Preparing brochure…" : "Download brochure PDF";
+        if (exportStatus && busy) exportStatus.textContent = preview ? "Preparing exact PDF preview…" : "Preparing final brochure…";
+        updateButtons(Boolean(lastPreflight?.canGenerate));
+    };
+
+    const responseError = async response => {
+        const type = response.headers.get("content-type") ?? "";
+        if (type.includes("application/json")) {
+            const payload = await response.json();
+            const errors = Array.isArray(payload.errors) ? payload.errors : [];
+            return errors.length ? `${payload.message ?? "Publication request failed"} ${errors.join(" ")}` : payload.message ?? "Publication request failed.";
+        }
+        const text = await response.text();
+        return text?.trim() || `Publication request failed with HTTP ${response.status}.`;
+    };
+
+    const fileNameFromResponse = response => {
+        const explicit = response.headers.get("X-PRISM-Publication-FileName");
+        if (explicit) return explicit;
+        const disposition = response.headers.get("Content-Disposition") ?? "";
+        const utf = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf?.[1]) return decodeURIComponent(utf[1]);
+        const basic = disposition.match(/filename="?([^";]+)"?/i);
+        return basic?.[1] ?? "SDD_Capability_Brochure.pdf";
+    };
+
+    const requestPdf = async preview => {
+        const targetUrl = preview ? previewUrl : generateUrl;
+        if (!targetUrl || exportBusy) return;
+        if (!lastPreflight?.canGenerate || !orderedIds.length) return;
+        if (!preview && !allReviewed()) {
+            if (exportStatus) exportStatus.textContent = "Complete Publication Review for all selected projects before final download.";
+            reviewPanel?.scrollIntoView({ block: "start", behavior: "smooth" });
+            return;
+        }
+
+        const previewWindow = preview ? window.open("about:blank", "_blank") : null;
+        syncHiddenInputs();
+        setExportBusy(true, preview);
+        try {
+            const response = await fetch(targetUrl, {
+                method: "POST",
+                body: new FormData(form),
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+            if (!response.ok) throw new Error(await responseError(response));
+            const type = response.headers.get("content-type") ?? "";
+            if (!type.includes("application/pdf")) throw new Error("The server did not return a PDF publication.");
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const fileName = fileNameFromResponse(response);
+            if (preview) {
+                if (previewWindow) previewWindow.location.replace(url);
+                else window.open(url, "_blank", "noopener");
+                window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+                if (exportStatus) exportStatus.textContent = "Preview ready in a new tab.";
+            } else {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = fileName;
+                document.body.append(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+                if (exportStatus) exportStatus.textContent = "Brochure ready. Download started.";
+            }
+        } catch (error) {
+            if (previewWindow && !previewWindow.closed) previewWindow.close();
+            if (exportStatus) exportStatus.textContent = error?.message || "The brochure could not be prepared.";
+            console.error(error);
+        } finally {
+            setExportBusy(false, preview);
+        }
+    };
+
     rows.forEach(row => {
         const id = Number(row.dataset.projectId);
         row.querySelector("[data-brochure-project-checkbox]")?.addEventListener("change", event => {
@@ -850,6 +1395,7 @@
             const visibleIds = new Set(visible.map(row => Number(row.dataset.projectId)));
             orderedIds = orderedIds.filter(id => !visibleIds.has(id));
             if (activePhotoProjectId != null && visibleIds.has(activePhotoProjectId)) closePhotoEditor();
+            if (explicitCoverHeroProjectId != null && visibleIds.has(explicitCoverHeroProjectId)) explicitCoverHeroProjectId = null;
         } else {
             for (const row of visible) {
                 if (orderedIds.length >= MAX_PROJECTS) break;
@@ -860,24 +1406,42 @@
                 }
             }
         }
+        activeReviewProjectId = orderedIds.find(id => !ensureConfig(id)?.isReviewed) ?? orderedIds[0] ?? null;
         renderSelected(true);
     });
 
     clearButton?.addEventListener("click", () => {
         orderedIds = [];
+        explicitCoverHeroProjectId = null;
+        activeReviewProjectId = null;
         closePhotoEditor();
         renderSelected(true);
     });
 
     narrativeSource?.addEventListener("change", () => {
+        invalidateAllReviews();
+        orderedIds.forEach(id => {
+            const project = projectById.get(id);
+            if (project) {
+                delete project.reviewNarrative;
+                delete project.reviewHasNarrative;
+                delete project.reviewNarrativeWordCount;
+                delete project.__publicationSignature;
+            }
+        });
         updateNarrativeIndicators();
         applyFilters();
+        renderReview();
+        scheduleProjectStateRefresh();
         schedulePreflight();
     });
 
     form.querySelectorAll("[data-brochure-preflight-trigger]").forEach(element => {
         if (element === narrativeSource) return;
-        element.addEventListener("change", schedulePreflight);
+        element.addEventListener("change", () => {
+            renderCoverHero();
+            schedulePreflight();
+        });
     });
 
     form.querySelectorAll("[data-cover-option] input[type=radio]").forEach(radio => {
@@ -885,7 +1449,26 @@
             form.querySelectorAll("[data-cover-option]").forEach(option => {
                 option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
             });
+            renderCoverHero();
+            schedulePreflight();
         });
+    });
+
+    coverHeroChoose?.addEventListener("click", () => {
+        if (!coverHeroChoices) return;
+        renderCoverHeroChoices();
+        coverHeroChoices.hidden = !coverHeroChoices.hidden;
+    });
+    coverHeroAutomatic?.addEventListener("click", () => {
+        explicitCoverHeroProjectId = null;
+        if (coverHeroChoices) coverHeroChoices.hidden = true;
+        syncHiddenInputs();
+        renderCoverHero();
+        schedulePreflight();
+    });
+    coverHeroCrop?.addEventListener("click", () => {
+        const id = resolvedCoverHeroId();
+        if (id) openPhotoEditor(id);
     });
 
     imageModeSelect?.addEventListener("change", () => {
@@ -893,8 +1476,7 @@
         const config = ensureConfig(activePhotoProjectId);
         if (!config) return;
         config.imageMode = Number(imageModeSelect.value) || modeAutomatic;
-        // Gallery 2 deliberately does not auto-pick a second image. The user must make
-        // the editorial choice, and preflight will block until that choice is complete.
+        invalidateReview(activePhotoProjectId);
         renderPhotoEditor();
         renderSelected(false);
         schedulePreflight();
@@ -906,6 +1488,48 @@
     primaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("primary"); });
     secondaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("secondary"); });
 
+    reviewConfirmImage?.addEventListener("click", () => {
+        if (activeReviewProjectId == null) return;
+        const config = ensureConfig(activeReviewProjectId);
+        if (!config?.primaryPhotoId) return;
+        config.primaryPhotoConfirmed = true;
+        config.isReviewed = false;
+        syncHiddenInputs();
+        renderSelected(false);
+        renderReview();
+        schedulePreflight();
+    });
+    reviewChangeImage?.addEventListener("click", () => {
+        if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId);
+    });
+    reviewPrevious?.addEventListener("click", () => {
+        const index = orderedIds.indexOf(activeReviewProjectId);
+        if (index > 0) setActiveReview(orderedIds[index - 1]);
+    });
+    reviewNext?.addEventListener("click", () => {
+        const index = orderedIds.indexOf(activeReviewProjectId);
+        if (index >= 0 && index < orderedIds.length - 1) setActiveReview(orderedIds[index + 1]);
+    });
+    reviewNextUnreviewed?.addEventListener("click", () => {
+        const id = orderedIds.find(projectId => !ensureConfig(projectId)?.isReviewed);
+        if (id) setActiveReview(id);
+    });
+    reviewMarkReviewed?.addEventListener("click", () => {
+        if (activeReviewProjectId == null) return;
+        const project = projectById.get(activeReviewProjectId);
+        const config = ensureConfig(activeReviewProjectId);
+        if (!project || !config || project.reviewHasNarrative !== true || !narrativeInfo(project).ready) return;
+        if (config.primaryPhotoId != null) config.primaryPhotoConfirmed = true;
+        config.isReviewed = true;
+        syncHiddenInputs();
+        renderSelected(false);
+        renderReview();
+        schedulePreflight();
+        const nextId = orderedIds.find(projectId => !ensureConfig(projectId)?.isReviewed);
+        if (nextId) activeReviewProjectId = nextId;
+        renderReview();
+    });
+
     preflightShowAll?.addEventListener("click", () => {
         showAllFindings = !showAllFindings;
         renderIssues(lastPreflight?.issues ?? []);
@@ -913,23 +1537,10 @@
 
     form.addEventListener("submit", event => {
         const isPreview = event.submitter?.matches("[data-brochure-preview]") === true;
-        if (!lastPreflight?.canGenerate || orderedIds.length === 0) {
-            event.preventDefault();
-            return;
-        }
-        syncHiddenInputs();
-        if (isPreview) return;
-        if (generateButton?.getAttribute("aria-busy") === "true") {
-            event.preventDefault();
-            return;
-        }
-        if (generateButton) {
-            generateButton.setAttribute("aria-busy", "true");
-            generateButton.disabled = true;
-        }
-        generateSpinner?.classList.remove("d-none");
-        generateIcon?.classList.add("d-none");
-        if (generateLabel) generateLabel.textContent = "Generating brochure…";
+        const isGenerate = event.submitter?.matches("[data-brochure-generate]") === true;
+        if (!isPreview && !isGenerate) return;
+        event.preventDefault();
+        requestPdf(isPreview);
     });
 
     window.addEventListener("resize", () => {
@@ -939,16 +1550,22 @@
         }
     });
 
-    window.addEventListener("pageshow", () => {
-        if (generateButton) generateButton.setAttribute("aria-busy", "false");
-        generateSpinner?.classList.add("d-none");
-        generateIcon?.classList.remove("d-none");
-        if (generateLabel) generateLabel.textContent = "Download brochure PDF";
-        updateButtons(Boolean(lastPreflight?.canGenerate));
+    const refreshAfterExternalEdit = () => {
+        if (!orderedIds.length || document.hidden) return;
+        if (Date.now() - lastProjectStateRefresh < 500) return;
+        scheduleProjectStateRefresh();
+    };
+    window.addEventListener("focus", refreshAfterExternalEdit);
+    window.addEventListener("pageshow", refreshAfterExternalEdit);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) refreshAfterExternalEdit();
     });
 
     updateNarrativeIndicators();
     renderSelected(false);
     applyFilters();
+    renderCoverHero();
+    renderReview();
+    scheduleProjectStateRefresh();
     schedulePreflight();
 })();

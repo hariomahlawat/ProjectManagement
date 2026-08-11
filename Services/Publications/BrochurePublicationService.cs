@@ -10,11 +10,17 @@ public interface IBrochurePublicationService
     Task<IReadOnlyList<BrochureProjectListItemVm>> GetProjectOptionsAsync(
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<BrochureProjectReviewVm>> GetReviewProjectsAsync(
+        IReadOnlyCollection<int> projectIds,
+        BrochureNarrativeSource narrativeSource,
+        CancellationToken cancellationToken = default);
+
     Task<BrochurePreflight> PreflightAsync(
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
         BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
+        int? coverHeroProjectId,
         CancellationToken cancellationToken = default);
 
     Task<BrochurePublicationData> BuildAsync(
@@ -132,11 +138,126 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         }).ToArray();
     }
 
+
+    public async Task<IReadOnlyList<BrochureProjectReviewVm>> GetReviewProjectsAsync(
+        IReadOnlyCollection<int> projectIds,
+        BrochureNarrativeSource narrativeSource,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(projectIds);
+        if (!Enum.IsDefined(narrativeSource))
+        {
+            throw new InvalidOperationException("The selected brochure narrative source is invalid.");
+        }
+
+        var ids = projectIds
+            .Where(projectId => projectId > 0)
+            .Distinct()
+            .Take(MaximumProjects)
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return Array.Empty<BrochureProjectReviewVm>();
+        }
+
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Where(project => ids.Contains(project.Id)
+                              && !project.IsDeleted
+                              && !project.IsArchived
+                              && (project.LifecycleStatus == ProjectLifecycleStatus.Active
+                                  || project.LifecycleStatus == ProjectLifecycleStatus.Completed))
+            .Select(project => new ProjectOptionRow(
+                project.Id,
+                project.Name,
+                project.LifecycleStatus,
+                project.Category != null ? project.Category.Name : null,
+                project.TechnicalCategory != null ? project.TechnicalCategory.Name : null,
+                project.ProjectBrief,
+                project.Description,
+                project.CoverPhotoId))
+            .ToListAsync(cancellationToken);
+
+        var capabilityRows = await _db.ProjectCapabilityStatements
+            .AsNoTracking()
+            .Where(statement => ids.Contains(statement.ProjectId))
+            .OrderBy(statement => statement.ProjectId)
+            .ThenBy(statement => statement.DisplayOrder)
+            .ThenBy(statement => statement.Id)
+            .Select(statement => new CapabilityRow(statement.ProjectId, statement.Statement))
+            .ToListAsync(cancellationToken);
+        var capabilitiesByProject = capabilityRows
+            .GroupBy(row => row.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group
+                    .Select(row => CleanLine(row.Statement))
+                    .Where(HasMeaningfulText)
+                    .ToArray());
+
+        var photoRows = await LoadPhotoRowsAsync(ids, cancellationToken);
+        var photosByProject = GroupPhotos(photoRows);
+        var projectById = projects.ToDictionary(project => project.ProjectId);
+
+        var result = new List<BrochureProjectReviewVm>(projects.Count);
+        foreach (var id in ids)
+        {
+            if (!projectById.TryGetValue(id, out var project))
+            {
+                continue;
+            }
+
+            var capabilities = capabilitiesByProject.GetValueOrDefault(id) ?? Array.Empty<string>();
+            var publicationRow = new PublicationProjectRow(
+                project.ProjectId,
+                project.ProjectName,
+                project.ProjectBrief,
+                project.Description,
+                project.ProjectCategory,
+                project.TechnicalCategory,
+                project.CoverPhotoId);
+            var (narrative, hasNarrative) = ResolveNarrative(publicationRow, capabilities, narrativeSource);
+            var projectPhotos = photosByProject.GetValueOrDefault(id) ?? Array.Empty<PublicationPhotoRow>();
+            var primary = SelectDefaultPrimary(project.CoverPhotoId, projectPhotos);
+            var photoOptions = projectPhotos
+                .Select(photo => new BrochurePhotoOptionVm(
+                    photo.PhotoId,
+                    photo.Version,
+                    photo.Caption,
+                    photo.Width,
+                    photo.Height,
+                    photo.IsCover,
+                    photo.IsLowResolution))
+                .ToArray();
+
+            result.Add(new BrochureProjectReviewVm(
+                project.ProjectId,
+                project.ProjectName,
+                LifecycleDisplay(project.LifecycleStatus),
+                project.ProjectCategory,
+                project.TechnicalCategory,
+                narrative,
+                hasNarrative,
+                BrochureLayoutPlanner.CountWords(narrative),
+                HasMeaningfulText(project.ProjectBrief),
+                capabilities.Count > 0,
+                HasMeaningfulText(project.Description),
+                BrochureLayoutPlanner.CountWords(project.ProjectBrief),
+                capabilities.Sum(statement => BrochureLayoutPlanner.CountWords(statement)),
+                BrochureLayoutPlanner.CountWords(project.Description),
+                primary?.PhotoId,
+                photoOptions));
+        }
+
+        return result;
+    }
+
     public async Task<BrochurePreflight> PreflightAsync(
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
         BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
+        int? coverHeroProjectId,
         CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareAsync(
@@ -144,6 +265,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             narrativeSource,
             coverStyle,
             allowTextOnlyProjects,
+            coverHeroProjectId,
             cancellationToken);
         return prepared.Preflight;
     }
@@ -160,6 +282,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             options.NarrativeSource,
             options.CoverStyle,
             options.AllowTextOnlyProjects,
+            options.CoverHeroProjectId,
             cancellationToken);
         if (!prepared.Preflight.CanGenerate)
         {
@@ -223,7 +346,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         {
             throw new BrochurePublicationValidationException(new BrochurePreflight(
                 prepared.Preflight.SelectedProjectCount,
-                prepared.Preflight.Issues.Concat(lateIssues).ToArray()));
+                prepared.Preflight.Issues.Concat(lateIssues).ToArray(),
+                prepared.Preflight.ResolvedCoverHeroProjectId,
+                prepared.Preflight.ResolvedCoverHeroPhotoId,
+                prepared.Preflight.ResolvedCoverHeroWidth,
+                prepared.Preflight.ResolvedCoverHeroHeight,
+                prepared.Preflight.ResolvedCoverHeroQuality));
         }
 
         return new BrochurePublicationData(
@@ -237,6 +365,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         BrochureNarrativeSource narrativeSource,
         BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
+        int? requestedCoverHeroProjectId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(selections);
@@ -427,7 +556,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 selection.PrimaryFocalY,
                 selection.SecondaryFocalX,
                 selection.SecondaryFocalY,
-                selection.ImageMode));
+                selection.ImageMode,
+                selection.PrimaryPhotoConfirmed,
+                selection.IsReviewed));
         }
 
         var references = prepared
@@ -446,12 +577,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             })
             .ToArray();
         var probes = await _photoService.ProbeAsync(references, cancellationToken);
-        var coverHeroProjectId = coverStyle == BrochureCoverStyle.Contemporary
-            ? prepared.FirstOrDefault(project =>
-                project.PrimaryPhotoId.HasValue
-                && probes.TryGetValue(project.PrimaryPhotoId.Value, out var probe)
-                && probe.IsReady)?.Row.ProjectId
-            : null;
+        var coverHeroProjectId = ResolveCoverHeroProjectId(
+            prepared,
+            probes,
+            coverStyle,
+            requestedCoverHeroProjectId,
+            issues);
 
         foreach (var project in prepared)
         {
@@ -469,6 +600,16 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 }
                 else
                 {
+                    if (!project.PrimaryPhotoConfirmed)
+                    {
+                        issues.Add(new BrochurePreflightIssue(
+                            BrochurePreflightIssueCode.UnconfirmedPrimaryPhoto,
+                            PublicationIssueSeverity.Warning,
+                            project.Row.ProjectId,
+                            project.Row.ProjectName,
+                            "Primary publication photograph is automatic or has not yet been confirmed in Publication Review."));
+                    }
+
                     var placement = coverHeroProjectId == project.Row.ProjectId
                         ? PhotoPlacement.CoverHero
                         : project.ImageMode == BrochureImageMode.GalleryTwo
@@ -500,9 +641,110 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             }
         }
 
+        var coverHeroProject = coverHeroProjectId.HasValue
+            ? prepared.FirstOrDefault(project => project.Row.ProjectId == coverHeroProjectId.Value)
+            : null;
+        var coverHeroProbe = coverHeroProject is not null && coverHeroProject.PrimaryPhotoId.HasValue
+            ? probes.GetValueOrDefault(coverHeroProject.PrimaryPhotoId.Value)
+            : null;
+
         return new PreparedPublication(
             prepared,
-            new BrochurePreflight(normalizedSelections.Length, issues));
+            new BrochurePreflight(
+                normalizedSelections.Length,
+                issues,
+                coverHeroProjectId,
+                coverHeroProject?.PrimaryPhotoId,
+                coverHeroProbe?.Width ?? 0,
+                coverHeroProbe?.Height ?? 0,
+                coverHeroProbe?.Quality));
+    }
+
+
+    private static int? ResolveCoverHeroProjectId(
+        IReadOnlyList<PreparedProject> projects,
+        IReadOnlyDictionary<int, BrochurePhotoProbe> probes,
+        BrochureCoverStyle coverStyle,
+        int? requestedProjectId,
+        ICollection<BrochurePreflightIssue> issues)
+    {
+        if (coverStyle != BrochureCoverStyle.Contemporary)
+        {
+            return null;
+        }
+
+        if (requestedProjectId.HasValue)
+        {
+            var requested = projects.FirstOrDefault(project => project.Row.ProjectId == requestedProjectId.Value);
+            if (requested is null)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.CoverHeroInvalid,
+                    PublicationIssueSeverity.Blocker,
+                    requestedProjectId,
+                    null,
+                    "The selected Cover B hero project is no longer part of this brochure."));
+                return null;
+            }
+
+            if (!requested.PrimaryPhotoId.HasValue
+                || !probes.TryGetValue(requested.PrimaryPhotoId.Value, out var requestedProbe)
+                || !requestedProbe.IsReady)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.CoverHeroUnavailable,
+                    PublicationIssueSeverity.Blocker,
+                    requested.Row.ProjectId,
+                    requested.Row.ProjectName,
+                    "The selected Cover B hero does not have a usable primary publication photograph."));
+                return null;
+            }
+
+            return requested.Row.ProjectId;
+        }
+
+        var candidates = projects
+            .Select((project, order) => new
+            {
+                Project = project,
+                Order = order,
+                Probe = project.PrimaryPhotoId.HasValue
+                    ? probes.GetValueOrDefault(project.PrimaryPhotoId.Value)
+                    : null
+            })
+            .Where(candidate => candidate.Probe is { IsReady: true })
+            .Select(candidate =>
+            {
+                var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveWideCropDimensions(
+                    candidate.Probe!.Width,
+                    candidate.Probe.Height);
+                return new
+                {
+                    candidate.Project,
+                    candidate.Order,
+                    Probe = candidate.Probe!,
+                    EffectivePixels = effectiveWidth * effectiveHeight
+                };
+            })
+            .OrderByDescending(candidate => candidate.Probe.Quality)
+            .ThenByDescending(candidate => candidate.EffectivePixels)
+            .ThenBy(candidate => candidate.Order)
+            .ToArray();
+
+        var resolved = candidates.FirstOrDefault();
+
+        if (resolved is null)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.CoverHeroUnavailable,
+                PublicationIssueSeverity.Blocker,
+                null,
+                null,
+                "Cover B requires at least one selected project with a usable publication photograph."));
+            return null;
+        }
+
+        return resolved.Project.Row.ProjectId;
     }
 
 
@@ -804,7 +1046,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         double PrimaryFocalY,
         double SecondaryFocalX,
         double SecondaryFocalY,
-        BrochureImageMode ImageMode);
+        BrochureImageMode ImageMode,
+        bool PrimaryPhotoConfirmed,
+        bool IsReviewed);
 
     private sealed record PreparedPublication(
         IReadOnlyList<PreparedProject> Projects,

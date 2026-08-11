@@ -309,14 +309,12 @@
 .brochure-sidebar {
     position: sticky;
     top: calc(var(--topbar-height, 56px) + 62px);
-    display: grid;
-    gap: .8rem;
+    display: flex;
+    flex-direction: column;
+    gap: .65rem;
     min-width: 0;
     max-height: calc(100vh - var(--topbar-height, 56px) - 78px);
-    padding-right: 2px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
+    overflow: hidden;
 }
 
 .publication-panel { overflow: hidden; border: 1px solid var(--pub-border); border-radius: 14px; background: #fff; box-shadow: 0 4px 16px rgba(30, 57, 49, .045); }
@@ -371,7 +369,7 @@
 .brochure-policy-option strong { font-size: .69rem; }
 .brochure-policy-option small { margin-top: .12rem; color: #76867f; font-size: .59rem; line-height: 1.32; }
 
-.brochure-filter-toolbar { display: grid; grid-template-columns: minmax(190px, 1.35fr) repeat(4, minmax(128px, .72fr)) auto; gap: .45rem; align-items: center; margin-bottom: .65rem; }
+.brochure-filter-toolbar { display: grid; grid-template-columns: minmax(220px, 2fr) minmax(135px, .9fr) minmax(175px, 1.2fr) minmax(175px, 1.2fr) minmax(150px, 1fr) auto; gap: .45rem; align-items: center; margin-bottom: .65rem; }
 .brochure-filter-toolbar .form-control, .brochure-filter-toolbar .form-select { min-height: 35px; border-color: #d8e2de; font-size: .69rem; }
 .brochure-search-field { position: relative; margin: 0; }
 .brochure-search-field i { position: absolute; top: 50%; left: .68rem; z-index: 1; color: #7c8c87; transform: translateY(-50%); }
@@ -500,10 +498,120 @@
 .brochure-preview-button, .brochure-generate-button { width: 100%; min-height: 38px; font-size: .72rem; }
 .brochure-generate-actions > small { color: #73847d; font-size: .56rem; text-align: center; }
 
+
+/* ============================================================
+   Capability Brochure Builder — Phase 5 editorial review
+   ============================================================ */
+.brochure-cover-hero-panel {
+    display: grid;
+    gap: .5rem;
+    margin-top: .7rem;
+    padding: .62rem;
+    border: 1px solid #d9e5e0;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #fbfdfc 0%, #f7faf8 100%);
+}
+.brochure-cover-hero-panel[hidden] { display: none !important; }
+.brochure-cover-hero-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.brochure-cover-hero-heading strong, .brochure-cover-hero-heading small { display: block; }
+.brochure-cover-hero-heading strong { color: #253f36; font-size: .69rem; }
+.brochure-cover-hero-heading small { max-width: 690px; margin-top: .12rem; color: #74847e; font-size: .59rem; line-height: 1.32; }
+.brochure-cover-hero-current { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: .65rem; align-items: center; min-width: 0; padding: .5rem; border: 1px solid #dfe8e4; border-radius: 8px; background: #fff; }
+.brochure-cover-hero-current__image { position: relative; display: grid; width: 88px; aspect-ratio: 16 / 9; place-items: center; overflow: hidden; border: 1px solid #d6e1dd; border-radius: 6px; background: #eff4f2; color: #879891; }
+.brochure-cover-hero-current__image img { width: 100%; height: 100%; object-fit: cover; }
+.brochure-cover-hero-current__image.is-image-missing img { display: none; }
+.brochure-cover-hero-current__copy { min-width: 0; }
+.brochure-cover-hero-current__copy strong, .brochure-cover-hero-current__copy small { display: block; }
+.brochure-cover-hero-current__copy strong { overflow: hidden; color: #20382f; text-overflow: ellipsis; white-space: nowrap; font-size: .69rem; }
+.brochure-cover-hero-current__copy small { margin-top: .12rem; color: #73847d; font-size: .58rem; line-height: 1.32; }
+.brochure-cover-hero-current__actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .32rem; }
+.brochure-cover-hero-current__actions .btn { white-space: nowrap; font-size: .61rem; }
+.brochure-cover-hero-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .42rem; padding-top: .1rem; }
+.brochure-cover-hero-choices[hidden] { display: none !important; }
+.brochure-cover-hero-choice { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: .45rem; align-items: center; min-width: 0; padding: .38rem; border: 1px solid #dbe5e1; border-radius: 7px; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+.brochure-cover-hero-choice:hover { border-color: #9dbab0; background: #f7fbf9; }
+.brochure-cover-hero-choice.is-selected { border-color: #5d927f; box-shadow: 0 0 0 2px rgba(27,107,89,.08); }
+.brochure-cover-hero-choice img { width: 62px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: #eef3f1; }
+.brochure-cover-hero-choice strong, .brochure-cover-hero-choice small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brochure-cover-hero-choice strong { color: #263f36; font-size: .6rem; }
+.brochure-cover-hero-choice small { margin-top: 1px; color: #7b8b85; font-size: .52rem; }
+
+.brochure-review-body { padding: .8rem; }
+.brochure-review-empty { display: grid; min-height: 150px; place-items: center; align-content: center; gap: .25rem; padding: 1rem; color: #7b8c85; text-align: center; }
+.brochure-review-empty i { font-size: 1.35rem; color: #8ea69d; }
+.brochure-review-empty strong { color: #415a51; font-size: .72rem; }
+.brochure-review-empty span { max-width: 540px; font-size: .61rem; line-height: 1.4; }
+.brochure-review-workspace { display: grid; gap: .58rem; }
+.brochure-review-workspace[hidden] { display: none !important; }
+.brochure-review-nav { display: flex; gap: .28rem; max-width: 100%; overflow-x: auto; padding: .05rem .02rem .25rem; scrollbar-width: thin; }
+.brochure-review-nav__item { display: inline-flex; flex: 0 0 auto; align-items: center; gap: .25rem; min-width: 43px; height: 30px; justify-content: center; padding: 0 .4rem; border: 1px solid #dce6e2; border-radius: 7px; background: #fff; color: #64766f; font-size: .58rem; font-weight: 750; cursor: pointer; }
+.brochure-review-nav__item:hover { border-color: #aec4bb; }
+.brochure-review-nav__item.is-active { border-color: #5f9684; background: #f0f8f4; color: #1d604d; box-shadow: 0 0 0 2px rgba(27,107,89,.06); }
+.brochure-review-nav__item.is-reviewed { color: #267054; }
+.brochure-review-nav__item i { font-size: .62rem; }
+.brochure-review-card { overflow: hidden; border: 1px solid #dce6e2; border-radius: 11px; background: #fff; }
+.brochure-review-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding: .7rem .78rem; border-bottom: 1px solid #e5ece9; background: #fafcfb; }
+.brochure-review-card__header span:first-child { color: #6f817a; font-size: .57rem; font-weight: 750; letter-spacing: .03em; text-transform: uppercase; }
+.brochure-review-card__header h3 { margin: .12rem 0 .08rem; color: #20382f; font-size: .85rem; font-weight: 770; }
+.brochure-review-card__header small { color: #74847e; font-size: .58rem; }
+.brochure-review-state { flex: 0 0 auto; padding: .28rem .48rem; border: 1px solid #ead7aa; border-radius: 999px; background: #fff8e8; color: #856414; font-size: .55rem; font-weight: 780; white-space: nowrap; }
+.brochure-review-state.is-reviewed { border-color: #bddaca; background: #eef9f3; color: #23694d; }
+.brochure-review-card__content { display: grid; grid-template-columns: minmax(210px, 34%) minmax(0, 1fr); gap: .8rem; padding: .78rem; }
+.brochure-review-image, .brochure-review-copy { min-width: 0; }
+.brochure-review-image__frame { position: relative; display: grid; width: 100%; aspect-ratio: 16 / 9; place-items: center; overflow: hidden; border: 1px solid #cfddd8; border-radius: 8px; background: #edf3f1; color: #8b9c95; }
+.brochure-review-image__frame img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.brochure-review-image__frame.is-image-missing img { display: none; }
+.brochure-review-image__meta { min-height: 30px; padding-top: .35rem; color: #71827b; font-size: .57rem; line-height: 1.35; }
+.brochure-review-image__actions, .brochure-review-copy__actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .42rem; }
+.brochure-review-image__actions .btn, .brochure-review-copy__actions .btn { font-size: .6rem; }
+.brochure-review-copy { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.brochure-review-copy__heading { display: flex; align-items: baseline; justify-content: space-between; gap: .7rem; margin-bottom: .35rem; }
+.brochure-review-copy__heading strong { color: #27463b; font-size: .7rem; }
+.brochure-review-copy__heading span { color: #75867f; font-size: .57rem; }
+.brochure-review-narrative { max-height: 190px; overflow-y: auto; padding: .58rem .62rem; border: 1px solid #e0e8e5; border-radius: 7px; background: #fcfdfd; color: #344b42; font-size: .67rem; line-height: 1.52; white-space: pre-wrap; scrollbar-width: thin; }
+.brochure-review-narrative.is-missing { border-color: #efd0cb; background: #fff8f7; color: #97483f; }
+.brochure-review-card__footer { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .62rem .78rem; border-top: 1px solid #e5ece9; background: #fafcfb; }
+.brochure-review-navigation { display: inline-flex; gap: .35rem; }
+
+/* Keep the sidebar controls available without introducing a third full-height scroll area. */
+.brochure-selection-panel { flex: 0 0 auto; }
+.brochure-photo-editor { flex: 0 1 auto; min-height: 0; }
+.brochure-photo-editor > .publication-panel__body { max-height: 285px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.brochure-preflight-panel { flex: 1 1 auto; min-height: 170px; }
+.brochure-preflight-panel > .publication-panel__body { display: flex; flex-direction: column; min-height: 0; max-height: 315px; }
+.brochure-preflight-issues { max-height: 185px; overflow-y: auto; padding-right: 2px; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.brochure-generate-actions { flex: 0 0 auto; position: static; }
+.brochure-export-status { min-height: .8rem; color: #557069; font-size: .58rem; text-align: center; line-height: 1.3; }
+.brochure-export-status.is-error { color: #a43a30; }
+.brochure-export-status.is-success { color: #256c50; }
+
+.brochure-selected-item.is-reviewed { background: #fbfefc; }
+.brochure-selected-item.is-reviewed .brochure-selected-item__name::after { content: "  ✓"; color: #2a7658; font-weight: 800; }
+
+@media (max-width: 1250px) {
+    .brochure-cover-hero-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .brochure-review-card__content { grid-template-columns: minmax(190px, 38%) minmax(0, 1fr); }
+}
+
+@media (max-width: 980px) {
+    .brochure-cover-hero-current { grid-template-columns: 80px minmax(0, 1fr); }
+    .brochure-cover-hero-current__actions { grid-column: 1 / -1; justify-content: flex-start; }
+    .brochure-review-card__content { grid-template-columns: 1fr; }
+    .brochure-review-image { max-width: 520px; }
+    .brochure-review-narrative { max-height: 240px; }
+}
+
+@media (max-width: 720px) {
+    .brochure-cover-hero-heading, .brochure-review-card__footer { align-items: stretch; flex-direction: column; }
+    .brochure-cover-hero-choices { grid-template-columns: 1fr; }
+    .brochure-review-navigation { width: 100%; }
+    .brochure-review-navigation .btn { flex: 1 1 0; }
+}
+
 @media (max-width: 1280px) {
-    .brochure-filter-toolbar { grid-template-columns: minmax(190px, 1.2fr) repeat(2, minmax(130px, .75fr)); }
+    .brochure-filter-toolbar { grid-template-columns: minmax(220px, 1.6fr) repeat(2, minmax(155px, 1fr)); }
     .brochure-filter-toolbar select[data-brochure-filter="technical"],
-    .brochure-filter-toolbar select[data-brochure-filter="readiness"] { grid-row: 2; }
+    .brochure-filter-toolbar select[data-brochure-filter="readiness"],
     .brochure-selected-only { grid-row: 2; }
 }
 
@@ -514,7 +622,7 @@
 
 @media (max-width: 900px) {
     .publication-choice-grid, .brochure-layout { grid-template-columns: 1fr; }
-    .brochure-sidebar { position: static; max-height: none; overflow: visible; }
+    .brochure-sidebar { position: static; display: grid; max-height: none; overflow: visible; }
     .brochure-project-table-wrap { max-height: 58vh; }
     .brochure-generate-actions { position: static; }
 }
@@ -538,3 +646,20 @@
     .publication-tabs, .brochure-header-badge, .brochure-filter-toolbar, .brochure-sidebar { display: none !important; }
     .publication-panel, .publication-choice { box-shadow: none; }
 }
+
+/* Phase 5 small-state helpers. */
+.brochure-cover-hero-choice-empty {
+    grid-column: 1 / -1;
+    padding: .55rem .65rem;
+    border: 1px dashed #d5e1dc;
+    border-radius: 7px;
+    background: #fbfcfc;
+    color: #788981;
+    font-size: .59rem;
+    text-align: center;
+}
+.brochure-review-panel { min-width: 0; }
+.brochure-builder,
+.brochure-settings-panel,
+.brochure-project-selector,
+.brochure-font-panel { min-width: 0; }

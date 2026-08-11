@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services;
@@ -86,6 +87,53 @@ public sealed class IndexModel : PageModel
         return File(preview.Content, preview.ContentType);
     }
 
+
+    public async Task<IActionResult> OnPostProjectStateAsync(CancellationToken cancellationToken)
+    {
+        ApplyDefaults();
+        NormalizeInput();
+
+        if (!Enum.IsDefined(Input.NarrativeSource))
+        {
+            return BadRequest(new { message = "Select a valid project narrative source." });
+        }
+
+        var reviewProjects = await _publicationService.GetReviewProjectsAsync(
+            Input.Selections.Select(selection => selection.ProjectId).ToArray(),
+            Input.NarrativeSource,
+            cancellationToken);
+
+        var photoReferences = Input.Selections
+            .SelectMany(selection => new[]
+            {
+                selection.PrimaryPhotoId.HasValue
+                    ? new BrochurePhotoReference(selection.ProjectId, selection.PrimaryPhotoId.Value)
+                    : null,
+                selection.SecondaryPhotoId.HasValue
+                    ? new BrochurePhotoReference(selection.ProjectId, selection.SecondaryPhotoId.Value)
+                    : null
+            })
+            .Where(reference => reference is not null)
+            .Select(reference => reference!)
+            .ToArray();
+        var probes = await _photoService.ProbeAsync(photoReferences, cancellationToken);
+
+        return new JsonResult(new
+        {
+            projects = reviewProjects.Select(ToClientReviewProject).ToArray(),
+            photoProbes = probes.ToDictionary(
+                pair => pair.Key.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                pair => new
+                {
+                    pair.Value.IsReady,
+                    pair.Value.Width,
+                    pair.Value.Height,
+                    quality = pair.Value.Quality.ToString(),
+                    pair.Value.SourceVariant
+                })
+        });
+    }
+
     public async Task<IActionResult> OnPostPreflightAsync(CancellationToken cancellationToken)
     {
         ApplyDefaults();
@@ -126,6 +174,7 @@ public sealed class IndexModel : PageModel
             Input.NarrativeSource,
             Input.CoverStyle,
             Input.AllowTextOnlyProjects,
+            Input.CoverHeroProjectId,
             cancellationToken);
         return new JsonResult(ToClientPreflight(preflight));
     }
@@ -142,10 +191,25 @@ public sealed class IndexModel : PageModel
     {
         ApplyDefaults();
         NormalizeInput();
-        ValidateGenerationInput();
+        ValidateGenerationInput(preview);
 
         if (!ModelState.IsValid)
         {
+            if (WantsJson())
+            {
+                return BadRequest(new
+                {
+                    message = preview
+                        ? "The brochure preview could not be prepared."
+                        : "The brochure is not ready for final download.",
+                    errors = ModelState.Values
+                        .SelectMany(value => value.Errors)
+                        .Select(error => error.ErrorMessage)
+                        .Where(message => !string.IsNullOrWhiteSpace(message))
+                        .ToArray()
+                });
+            }
+
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -165,7 +229,9 @@ public sealed class IndexModel : PageModel
                 NullIfWhiteSpace(Input.HandlingMarking),
                 "Simulator Development Division",
                 Input.AllowTextOnlyProjects,
-                generatedAt);
+                generatedAt,
+                Input.CoverHeroProjectId,
+                Input.IncludeBackCover);
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -174,6 +240,7 @@ public sealed class IndexModel : PageModel
             var bytes = _pdfBuilder.Build(publication);
             var fileName = $"{SanitizeFileName(Input.Title, "SDD_Capability_Brochure")}_{generatedAt:yyyyMMdd}.pdf";
 
+            Response.Headers["X-PRISM-Publication-FileName"] = fileName;
             if (preview)
             {
                 Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
@@ -184,11 +251,28 @@ public sealed class IndexModel : PageModel
         }
         catch (BrochurePublicationValidationException exception)
         {
-            foreach (var issue in exception.Preflight.Issues
-                         .Where(issue => issue.Severity == PublicationIssueSeverity.Blocker)
-                         .Take(8))
+            var blockerMessages = exception.Preflight.Issues
+                .Where(issue => issue.Severity == PublicationIssueSeverity.Blocker)
+                .Select(issue => issue.Message)
+                .Distinct(StringComparer.Ordinal)
+                .Take(12)
+                .ToArray();
+
+            if (WantsJson())
             {
-                ModelState.AddModelError(string.Empty, issue.Message);
+                return new JsonResult(new
+                {
+                    message = "Publication preflight changed while the brochure was being prepared.",
+                    errors = blockerMessages
+                })
+                {
+                    StatusCode = StatusCodes.Status409Conflict
+                };
+            }
+
+            foreach (var message in blockerMessages)
+            {
+                ModelState.AddModelError(string.Empty, message);
             }
 
             await LoadAsync(cancellationToken);
@@ -207,11 +291,18 @@ public sealed class IndexModel : PageModel
                 Input.Selections.Count,
                 Input.NarrativeSource,
                 Input.CoverStyle);
-            ModelState.AddModelError(
-                string.Empty,
-                preview
-                    ? "The brochure preview could not be generated. Review publication preflight and try again."
-                    : "The brochure could not be generated. Review publication preflight and try again.");
+            var message = preview
+                ? "The brochure preview could not be generated. Review publication preflight and try again."
+                : "The brochure could not be generated. Review publication preflight and try again.";
+            if (WantsJson())
+            {
+                return new JsonResult(new { message })
+                {
+                    StatusCode = StatusCodes.Status500InternalServerError
+                };
+            }
+
+            ModelState.AddModelError(string.Empty, message);
             await LoadAsync(cancellationToken);
             return Page();
         }
@@ -258,6 +349,9 @@ public sealed class IndexModel : PageModel
         Input.IntroductionTitle = NormalizeOptional(Input.IntroductionTitle, 120);
         Input.IntroductionText = NormalizeOptional(Input.IntroductionText, 3000, preserveLineBreaks: true);
         Input.HandlingMarking = NormalizeOptional(Input.HandlingMarking, 80)?.ToUpperInvariant();
+        Input.CoverHeroProjectId = Input.CoverHeroProjectId is > 0
+            ? Input.CoverHeroProjectId
+            : null;
 
         Input.Selections = Input.Selections
             .Where(selection => selection.ProjectId > 0)
@@ -281,7 +375,7 @@ public sealed class IndexModel : PageModel
             .ToList();
     }
 
-    private void ValidateGenerationInput()
+    private void ValidateGenerationInput(bool preview)
     {
         if (Input.Selections.Count == 0)
         {
@@ -300,6 +394,17 @@ public sealed class IndexModel : PageModel
         {
             ModelState.AddModelError(nameof(Input.NarrativeSource), "Select a valid project narrative source.");
         }
+
+        if (!preview && Input.Selections.Count > 0)
+        {
+            var unreviewed = Input.Selections.Count(selection => !selection.IsReviewed);
+            if (unreviewed > 0)
+            {
+                ModelState.AddModelError(
+                    nameof(Input.Selections),
+                    $"Review all selected projects before final download. {unreviewed} project{(unreviewed == 1 ? string.Empty : "s")} still require review.");
+            }
+        }
     }
 
     private IReadOnlyList<BrochureProjectSelection> ToSelections()
@@ -312,7 +417,9 @@ public sealed class IndexModel : PageModel
                 selection.PrimaryFocalY,
                 selection.SecondaryFocalX,
                 selection.SecondaryFocalY,
-                selection.ImageMode))
+                selection.ImageMode,
+                selection.PrimaryPhotoConfirmed,
+                selection.IsReviewed))
             .ToArray();
 
     private static object ToClientPreflight(BrochurePreflight preflight)
@@ -324,6 +431,11 @@ public sealed class IndexModel : PageModel
             informationCount = preflight.InformationCount,
             canGenerate = preflight.CanGenerate,
             isPublicationReady = preflight.IsPublicationReady,
+            resolvedCoverHeroProjectId = preflight.ResolvedCoverHeroProjectId,
+            resolvedCoverHeroPhotoId = preflight.ResolvedCoverHeroPhotoId,
+            resolvedCoverHeroWidth = preflight.ResolvedCoverHeroWidth,
+            resolvedCoverHeroHeight = preflight.ResolvedCoverHeroHeight,
+            resolvedCoverHeroQuality = preflight.ResolvedCoverHeroQuality?.ToString(),
             issues = preflight.Issues.Select(issue => new
             {
                 severity = issue.Severity.ToString().ToLowerInvariant(),
@@ -333,6 +445,67 @@ public sealed class IndexModel : PageModel
                 issue.Message
             }).ToArray()
         };
+
+
+    private object ToClientReviewProject(BrochureProjectReviewVm project)
+        => new
+        {
+            project.ProjectId,
+            project.ProjectName,
+            project.Lifecycle,
+            project.ProjectCategory,
+            project.TechnicalCategory,
+            project.Narrative,
+            project.HasNarrative,
+            project.NarrativeWordCount,
+            project.HasProjectBrief,
+            project.HasCapabilityOverview,
+            project.HasFullDescription,
+            project.ProjectBriefWordCount,
+            project.CapabilityOverviewWordCount,
+            project.FullDescriptionWordCount,
+            project.DefaultPrimaryPhotoId,
+            overviewUrl = Url.Page("/Projects/Overview", new { id = project.ProjectId, content = NarrativeContentTab(Input.NarrativeSource) }),
+            photosUrl = Url.Page("/Projects/Photos/Index", new { id = project.ProjectId }),
+            photos = project.Photos.Select(photo => new
+            {
+                photo.PhotoId,
+                photo.Version,
+                photo.Caption,
+                photo.Width,
+                photo.Height,
+                photo.IsCover,
+                thumbnailUrl = Url.Page("/Projects/Publications/Brochure/Index", "Photo", new
+                {
+                    projectId = project.ProjectId,
+                    photoId = photo.PhotoId,
+                    mode = "thumb",
+                    v = photo.Version
+                }),
+                previewUrl = Url.Page("/Projects/Publications/Brochure/Index", "Photo", new
+                {
+                    projectId = project.ProjectId,
+                    photoId = photo.PhotoId,
+                    mode = "source",
+                    v = photo.Version
+                })
+            }).ToArray()
+        };
+
+    private static string NarrativeContentTab(BrochureNarrativeSource source)
+        => source switch
+        {
+            BrochureNarrativeSource.ProjectBrief => "brief",
+            BrochureNarrativeSource.CapabilityOverview => "capabilities",
+            BrochureNarrativeSource.FullDescription => "description",
+            _ => "brief"
+        };
+
+    private bool WantsJson()
+        => string.Equals(
+            Request.Headers["X-Requested-With"].ToString(),
+            "XMLHttpRequest",
+            StringComparison.OrdinalIgnoreCase);
 
     private static string Normalize(string? value, int maximumLength)
     {
@@ -428,6 +601,10 @@ public sealed class IndexModel : PageModel
 
         public bool AllowTextOnlyProjects { get; set; }
 
+        public int? CoverHeroProjectId { get; set; }
+
+        public bool IncludeBackCover { get; set; } = true;
+
         public List<BrochureProjectSelectionInput> Selections { get; set; } = new();
     }
 
@@ -441,5 +618,7 @@ public sealed class IndexModel : PageModel
         public double SecondaryFocalX { get; set; } = .5d;
         public double SecondaryFocalY { get; set; } = .5d;
         public BrochureImageMode ImageMode { get; set; } = BrochureImageMode.Automatic;
+        public bool PrimaryPhotoConfirmed { get; set; }
+        public bool IsReviewed { get; set; }
     }
 }

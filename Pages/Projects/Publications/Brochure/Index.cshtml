@@ -50,7 +50,9 @@
     var projectJson = JsonSerializer.Serialize(clientProjects, jsonOptions);
     var selectionJson = JsonSerializer.Serialize(Model.Input.Selections, jsonOptions);
     var preflightUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preflight");
+    var projectStateUrl = Url.Page("/Projects/Publications/Brochure/Index", "ProjectState");
     var previewUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preview");
+    var generateUrl = Url.Page("/Projects/Publications/Brochure/Index", "Generate");
 }
 
 @section Styles {
@@ -87,7 +89,11 @@
           asp-page-handler="Generate"
           class="brochure-form"
           data-brochure-form
-          data-brochure-preflight-url="@preflightUrl">
+          data-brochure-preflight-url="@preflightUrl"
+          data-brochure-project-state-url="@projectStateUrl"
+          data-brochure-preview-url="@previewUrl"
+          data-brochure-generate-url="@generateUrl">
+        <input asp-for="Input.CoverHeroProjectId" type="hidden" data-brochure-cover-hero-project />
         <div data-brochure-hidden-inputs></div>
         <script type="application/json" data-brochure-project-data>@Html.Raw(projectJson)</script>
         <script type="application/json" data-brochure-initial-selections>@Html.Raw(selectionJson)</script>
@@ -165,11 +171,35 @@
                                     </span>
                                     <span class="brochure-cover-option__copy">
                                         <strong>B · Contemporary / Premium</strong>
-                                        <small>Editorial cover using the first selected usable project photograph as the hero.</small>
+                                        <small>Editorial cover with a dedicated hero selected from the chosen project imagery.</small>
                                     </span>
                                 </label>
                             </div>
                         </fieldset>
+
+                        <section class="brochure-cover-hero-panel" data-brochure-cover-hero-panel>
+                            <div class="brochure-cover-hero-heading">
+                                <div>
+                                    <strong>Cover B hero</strong>
+                                    <small>Automatic proposes the best suitable selected project image. Choose a hero to lock it independently of project order.</small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-link" data-cover-hero-automatic>Use automatic</button>
+                            </div>
+                            <div class="brochure-cover-hero-current" data-cover-hero-current>
+                                <span class="brochure-cover-hero-current__image" data-cover-hero-image>
+                                    <i class="bi bi-image" aria-hidden="true"></i>
+                                </span>
+                                <span class="brochure-cover-hero-current__copy">
+                                    <strong data-cover-hero-name>Waiting for project selection</strong>
+                                    <small data-cover-hero-meta>Select projects to resolve the automatic Cover B hero.</small>
+                                </span>
+                                <span class="brochure-cover-hero-current__actions">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-hero-choose>Change hero</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-hero-crop disabled>Adjust crop</button>
+                                </span>
+                            </div>
+                            <div class="brochure-cover-hero-choices" hidden data-cover-hero-choices></div>
+                        </section>
 
                         <details class="brochure-advanced-options" open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText) || !string.IsNullOrWhiteSpace(Model.Input.HandlingMarking) || Model.Input.AllowTextOnlyProjects ? "open" : null)">
                             <summary><i class="bi bi-sliders" aria-hidden="true"></i> Advanced publication settings</summary>
@@ -191,6 +221,13 @@
                                     <span>
                                         <strong>Permit text-only project blocks</strong>
                                         <small>Enable only where a project genuinely has no suitable publication photograph.</small>
+                                    </span>
+                                </label>
+                                <label class="brochure-policy-option">
+                                    <input asp-for="Input.IncludeBackCover" class="form-check-input" />
+                                    <span>
+                                        <strong>Include closing/back cover</strong>
+                                        <small>Recommended. Adds a restrained institutional closing page after the final project page.</small>
                                     </span>
                                 </label>
                                 <label class="form-label brochure-field">
@@ -218,7 +255,7 @@
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary brochure-select-visible" data-brochure-select-visible>
                             <i class="bi bi-check2-square" aria-hidden="true"></i>
-                            <span data-brochure-select-visible-label>Select @Model.Projects.Count visible</span>
+                            <span data-brochure-select-visible-label>Select @Model.Projects.Count matching</span>
                         </button>
                     </header>
                     <div class="publication-panel__body publication-panel__body--projects">
@@ -345,6 +382,76 @@
                         </div>
                     </div>
                 </section>
+
+                <section class="publication-panel brochure-review-panel" data-brochure-review-panel>
+                    <header class="publication-panel__header publication-panel__header--actions">
+                        <div>
+                            <span class="publication-step">3</span>
+                            <div>
+                                <h2>Review publication</h2>
+                                <p><strong data-review-reviewed-count>0</strong> of <strong data-review-total-count>0</strong> reviewed · Preview is available after technical preflight; final download requires review.</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next-unreviewed disabled>
+                            Review next
+                        </button>
+                    </header>
+                    <div class="publication-panel__body brochure-review-body">
+                        <div class="brochure-review-empty" data-review-empty>
+                            <i class="bi bi-eye" aria-hidden="true"></i>
+                            <strong>Select projects to begin publication review.</strong>
+                            <span>Review uses the authoritative selected narrative and the exact brochure image choice.</span>
+                        </div>
+                        <div class="brochure-review-workspace" hidden data-review-workspace>
+                            <nav class="brochure-review-nav" aria-label="Selected projects for publication review" data-review-nav></nav>
+                            <article class="brochure-review-card">
+                                <div class="brochure-review-card__header">
+                                    <div>
+                                        <span data-review-position>Project 1 of 1</span>
+                                        <h3 data-review-project-name></h3>
+                                        <small data-review-project-meta></small>
+                                    </div>
+                                    <span class="brochure-review-state" data-review-state>Review required</span>
+                                </div>
+                                <div class="brochure-review-card__content">
+                                    <div class="brochure-review-image">
+                                        <div class="brochure-review-image__frame" data-review-image-frame>
+                                            <i class="bi bi-image" aria-hidden="true"></i>
+                                        </div>
+                                        <div class="brochure-review-image__meta" data-review-image-meta></div>
+                                        <div class="brochure-review-image__actions">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-confirm-image>Use this image</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image>Change image</button>
+                                        </div>
+                                    </div>
+                                    <div class="brochure-review-copy">
+                                        <div class="brochure-review-copy__heading">
+                                            <strong data-review-narrative-label>Project Brief</strong>
+                                            <span data-review-word-count></span>
+                                        </div>
+                                        <div class="brochure-review-narrative" data-review-narrative>
+                                            Loading current publication copy…
+                                        </div>
+                                        <div class="brochure-review-copy__actions">
+                                            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-review-open-brief>Open project brief</a>
+                                            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-review-manage-photos>Manage photos</a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <footer class="brochure-review-card__footer">
+                                    <div class="brochure-review-navigation">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-previous><i class="bi bi-arrow-left" aria-hidden="true"></i> Previous</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next>Next <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-success" data-review-mark-reviewed>
+                                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                                        Mark reviewed
+                                    </button>
+                                </footer>
+                            </article>
+                        </div>
+                    </div>
+                </section>
             </main>
 
             <aside class="brochure-sidebar">
@@ -465,7 +572,6 @@
                     <button type="submit"
                             class="btn btn-outline-primary brochure-preview-button"
                             formaction="@previewUrl"
-                            formtarget="_blank"
                             data-brochure-preview
                             disabled>
                         <i class="bi bi-eye" aria-hidden="true"></i>
@@ -476,7 +582,8 @@
                         <i class="bi bi-file-earmark-arrow-down" aria-hidden="true" data-brochure-generate-icon></i>
                         <span data-brochure-generate-label>Download brochure PDF</span>
                     </button>
-                    <small>Preview and download use the same PDF composer.</small>
+                    <div class="brochure-export-status" role="status" aria-live="polite" data-brochure-export-status></div>
+                    <small>Preview and download use the same PDF composer. Final download also requires Publication Review.</small>
                 </div>
             </aside>
         </div>

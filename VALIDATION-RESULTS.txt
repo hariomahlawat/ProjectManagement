@@ -1,32 +1,23 @@
-PRISM PUBLICATIONS — PHASE 4 PREPARATION VALIDATION
-===================================================
+PRISM Publications Phase 5 — validation results
+=================================================
 
-PASS  Phase 4 full tree overlaid onto the exact ProjectManagement source archive supplied in this conversation.
-PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js (node --check).
-PASS  Brochure UI contract tests: 5/5 passed with Node's built-in test runner.
-PASS  Current Razor/JavaScript critical brochure classes have explicit Phase 4 stylesheet coverage.
-PASS  Dedicated publication-photo handler is used for both thumbnail and source-preview modes.
-PASS  Brochure Builder no longer references /Projects/Photos/View for publication imagery.
-PASS  Source photo resolver prefers preserved master and falls back through configured derivatives.
-PASS  Publication photo source probes use IMemoryCache and AddProjectPublications() self-registers AddMemoryCache().
-PASS  CSS brace/parenthesis balance and malformed duplicate photograph-rule check.
-PASS  C# delimiter structural checks for all modified Phase 4 .cs files.
-PASS  Existing Phase 3 Program.cs still contains AddProjectPublications().
-PASS  Existing Phase 3 Project navigation still contains Publications.
-PASS  Phase 4 patch applies cleanly to the Phase 3 full package (git apply --check).
-PASS  No EF migration is introduced by Phase 4.
-PASS  No font binary is included or changed by Phase 4.
+Validation performed against the complete Phase 4 publication tree overlaid on the supplied PRISM source.
 
-ADDED TEST COVERAGE (NOT EXECUTED HERE WITHOUT .NET SDK)
---------------------------------------------------------
-- Effective 16:9 publication-photo quality classification.
-- Portrait-source quality classification.
-- Introduction pagination / word preservation.
-- Existing Cover A and Cover B PDF smoke tests remain in the suite.
+PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js
+PASS  Browser/Razor/CSS/renderer contract tests: 13/13
+PASS  C# structural delimiter scan on all modified C# files
+PASS  CSS structural balance: 392 opening / 392 closing braces
+PASS  Brochure Razor/JavaScript brochure-* class coverage: no unstyled current classes detected
+PASS  Cross-tab refresh recursion guard present (renderSelected(false, false))
+PASS  Explicit Cover B hero contract present
+PASS  Publication Review final-download gate present
+PASS  Fetch/Blob PDF preview/download contract present
+PASS  Dedicated TwoFeature renderer and optional back cover contract present
+PASS  Front-cover 'Generated from authoritative PRISM records' text removed
+PASS  No duplicate-Project-Brief / near-duplicate validation added
+PASS  Incremental package does not replace Program.cs, navigation, Compendium services, database models, migrations, or fonts
 
-NOT AVAILABLE IN PREPARATION ENVIRONMENT
-----------------------------------------
-.NET SDK / csc / msbuild are not installed, so dotnet build and xUnit execution could not be run here.
-PowerShell Core is not installed, so tools/Test-PrismPublicationsPhase4.ps1 was source-reviewed but not executed here.
+NOT RUN  dotnet build / xUnit — .NET SDK is not installed in this preparation environment.
+          Run the commands in README-REPLACE-FIRST.md in the actual PRISM development environment.
 
-Run the normal PRISM build/test sequence on the development machine after replacement.
+The user's Phase 4 baseline previously built successfully on .NET 8; Phase 5 is provided as an incremental replacement over that baseline.
