@@ -824,3 +824,94 @@
     .brochure-profile-options,
     .brochure-print-content-grid { grid-template-columns: 1fr; }
 }
+
+/* Phase 8 — hard-copy pagination intelligence and print-fidelity controls */
+.brochure-print-content-note {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .7rem;
+}
+.brochure-print-content-note > span { min-width: 0; }
+.brochure-print-content-note > span > strong,
+.brochure-print-content-note > span > span { display: block; }
+.brochure-print-content-note .btn {
+    white-space: nowrap;
+    font-size: .59rem;
+}
+.brochure-print-word-status {
+    display: block;
+    margin-top: .2rem;
+    color: #788781;
+    font-size: .56rem;
+    font-variant-numeric: tabular-nums;
+}
+.brochure-print-word-status.is-near-limit { color: #8a6500; font-weight: 650; }
+.brochure-print-word-status.is-over-limit { color: #b42318; font-weight: 720; }
+.brochure-print-content-grid textarea.is-print-over-limit {
+    border-color: #dc857d;
+    box-shadow: 0 0 0 .12rem rgba(180, 35, 24, .08);
+}
+.brochure-print-plan-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .42rem;
+    margin-top: .52rem;
+    padding: .55rem;
+    border: 1px solid #cfe0d8;
+    border-radius: 8px;
+    background: #f5faf7;
+}
+.brochure-print-plan-summary[hidden] { display: none !important; }
+.brochure-print-plan-summary > div {
+    display: grid;
+    gap: .08rem;
+    min-width: 0;
+}
+.brochure-print-plan-summary > div > span {
+    color: #718079;
+    font-size: .55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+}
+.brochure-print-plan-summary > div > strong {
+    color: #1f4e3e;
+    font-size: .78rem;
+    line-height: 1.2;
+}
+.brochure-print-plan-summary__closing { grid-column: 1 / -1; }
+.brochure-print-plan-summary > small {
+    grid-column: 1 / -1;
+    padding-top: .2rem;
+    border-top: 1px solid #dce9e4;
+    color: #75847e;
+    font-size: .54rem;
+    line-height: 1.35;
+}
+.brochure-review-image-mode {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7rem;
+    gap: .18rem .45rem;
+    align-items: center;
+    margin-top: .35rem;
+    padding: .42rem .48rem;
+    border: 1px solid #d9e3df;
+    border-radius: 7px;
+    background: #f8faf9;
+}
+.brochure-review-image-mode > span {
+    color: #344a42;
+    font-size: .59rem;
+    font-weight: 700;
+}
+.brochure-review-image-mode .form-select { font-size: .59rem; }
+.brochure-review-image-mode > small {
+    grid-column: 1 / -1;
+    color: #74837d;
+    font-size: .54rem;
+    line-height: 1.35;
+}
+@media (max-width: 900px) {
+    .brochure-print-content-note { grid-template-columns: 1fr; }
+    .brochure-print-content-note .btn { justify-self: start; }
+}

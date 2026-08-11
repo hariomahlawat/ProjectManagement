@@ -1,111 +1,111 @@
-# PRISM Publications — Phase 7 Compact Print Profile
+PRISM PUBLICATIONS — PHASE 8
+HARD-COPY PAGINATION & OFFICIAL-STYLE PRINT FIDELITY
+====================================================
 
-## Purpose
+PURPOSE
+-------
+Phase 8 builds on the Phase 7 Print / Compact profile and addresses the remaining
+hard-copy brochure differences identified against the approved reference brochure.
 
-Phase 7 adds a purpose-built **Print / Compact** brochure profile modelled on the effective page geometry and information architecture of the supplied approved hard-copy brochure, while preserving the existing **Digital / Comfortable** A4 profile.
+The interior project-module concept is retained. The implementation focuses on
+sheet planning, first/final-page fidelity, print preflight and editorial usability.
 
-The supplied Canva PDF was rechecked at PDF page-box level. Its effective page size is **423.23 × 846.755 points** (approximately **149.3 × 298.7 mm**), not A4. The new hard-copy compositor uses those exact effective dimensions.
+WHAT CHANGED
+------------
+1. Closing-aware compact-sheet planner
+   - New BrochurePrintCompactPlanner.
+   - Page membership is determined before QuestPDF renders the sheets.
+   - The final project sheet reserves space for:
+       Visionary Horizons & Strategic Objectives
+       New Simulators guidance
+       strapline
+   - Closing matter normally shares the final sheet with projects instead of
+     creating a mostly-empty dedicated page.
+   - Project order is never changed by the planner.
+   - Modest per-module expansion uses residual sheet height without inflating
+     the brochure into a spacious digital layout.
 
-The reference brochure also uses content-bearing first and final pages. Phase 7 therefore retains editable publication-level institutional text in addition to project briefs:
+2. Print / Compact Cover A
+   - Dedicated institutional treatment.
+   - Approved institutional artwork is used when present.
+   - If artwork is absent, PRISM renders a disciplined institutional fallback.
+   - It no longer substitutes the first selected project's photograph.
+   - Opening narrative, future-readiness copy, procurement guidance and contact
+     information remain content-bearing on the first sheet.
+   - Cover B remains the contemporary image-led alternative.
 
-- opening simulator/technology narrative;
-- Centre of Expertise statement;
-- procurement guidance;
-- Developing Agency / contact details;
-- Manufacturing Agency details;
-- Visionary Horizons & Strategic Objectives;
-- New Simulators guidance;
-- institutional strapline.
+3. Hard-copy project typography
+   - Project headings are centred in the green title band.
+   - Project narrative is justified for a denser print-publication treatment.
+   - Existing Single / Automatic / Gallery 2 image handling is retained.
 
-These values are publication-level defaults. They do **not** write back to Project records.
+4. Direct Gallery 2 control in Publication Review
+   - Image treatment is now selectable directly while reviewing each project.
+   - Choosing Gallery 2 without a second image opens the second-image chooser.
+   - A project cannot be approved in Gallery 2 mode until the second image is set.
 
-## Installation — recommended for the current Phase 6 installation
+5. Authoritative institutional preflight
+   - First/final-page publication text now goes through the same server-side
+     preflight used for project narratives and photographs.
+   - Missing or overlength institutional sections are blockers in the visible
+     Publication preflight panel, not late Preview-only errors.
 
-Copy the contents of the Phase 7 incremental ZIP over the **ProjectManagement project root**, preserving paths and replacing matching files.
+6. Print fit feedback
+   - Live word counters against compact-print section limits.
+   - Restore approved text action.
+   - Preflight shows:
+       estimated page count
+       estimated average sheet fill
+       final-sheet packing state
 
-There is:
+INSTALL
+-------
+This incremental package assumes the Phase 7 brochure implementation and its
+build hotfix are already installed.
 
-- **no EF migration**;
-- **no Program.cs change**;
-- **no navigation change**;
-- **no Compendium change**;
-- **no font reinstall**.
+1. Stop PRISM / IIS Express if desired.
+2. Copy the contents of this package over the ProjectManagement project root.
+3. Preserve the directory structure and replace matching files.
+4. No EF migration is required.
+5. No Program.cs change is required for Phase 8.
+6. No publication font reinstall is required.
 
-## Phase 7 behaviour
+Then run:
 
-### Print / Compact — default
+    Set-ExecutionPolicy -Scope Process Bypass
+    .\tools\Test-PrismPublicationsPhase8.ps1
 
-- Exact effective reference size: **423.23 × 846.755 pt** (~149.3 × 298.7 mm).
-- Purpose-built slim hard-copy renderer; it does not use A4.
-- Content-bearing first page rather than a sparse decorative cover.
-- Project modules are measured and flowed vertically by QuestPDF; they are not forced into the Digital `SingleFeature` / `TwoFeature` geometry.
-- Compact print typography and tactical one/two-image treatment.
-- Each project module stays intact; the next project begins immediately after it whenever space permits.
-- Final institutional matter follows the last project, allowing the final physical page to contain both projects and the Visionary/New Simulators sections when space permits.
-- Long project narratives above the compact-print safety threshold are blocked by preflight rather than silently shrinking typography to unreadable sizes.
-- Cover B remains independently selectable/croppable and uses a profile-specific source crop.
+    Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 
-### Digital / Comfortable
+    dotnet restore .\ProjectManagement.csproj
+    dotnet build .\ProjectManagement.csproj
+    dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 
-The existing Phase 6 A4 renderer remains isolated and unchanged in principle:
+    node --check .\wwwroot\js\pages\projects-brochure.js
+    node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
 
-- A4 layout;
-- current Cover A/B choices;
-- digital introduction/back-cover controls;
-- spacious 1–4 project layout planning;
-- Phase 6 SingleFeature / TwoFeature composition.
+ACCEPTANCE CHECK
+----------------
+Use 8–12 representative projects and Print / Compact.
 
-### Image-control fixes
+Verify:
+- Publication preflight shows an estimated page count and average fill.
+- Final sheet reports one or more projects + closing matter where feasible.
+- Preview does not produce a mostly-empty closing-only page for a normal set of
+  medium-length Project Briefs.
+- Cover A uses institutional artwork/fallback, not an arbitrary project photo.
+- Cover B still uses the independently approved hero.
+- Project title bands are centred.
+- Project paragraphs are compact/justified.
+- Gallery 2 can be selected directly during Review.
+- Clearing or over-extending institutional copy immediately appears as a preflight blocker.
+- Restore approved text returns all hard-copy institutional fields to the reference wording.
 
-Phase 7 also fixes the Review interaction identified during Phase 6 acceptance:
+IMPORTANT
+---------
+The planner is deliberately deterministic and order-preserving. It optimises page
+breaks; it does not reorder projects.
 
-- **Change image** opens the photograph selector.
-- **Adjust crop** opens and focuses the focal-point crop editor for the current primary image.
-- Cover **Change hero** brings the chooser into view.
-- Cover **Adjust crop** brings and focuses the cover crop editor.
-
-## Verify after copying
-
-From the ProjectManagement root:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase7.ps1
-
-Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
-
-dotnet restore .\ProjectManagement.csproj
-dotnet build .\ProjectManagement.csproj
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-
-node --check .\wwwroot\js\pages\projects-brochure.js
-node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
-```
-
-## Browser acceptance checks
-
-1. Open Publications → Brochure. **Print / Compact** should be selected by default.
-2. Switch between Print / Compact and Digital / Comfortable. Print institutional fields and Digital-only introduction/back-cover controls should switch cleanly.
-3. In Print / Compact, open **Hard-copy institutional content** and verify the front/final publication text is populated and editable.
-4. Select 8–12 projects and complete technical preflight.
-5. In Review, verify **Change image** opens photograph selection while **Adjust crop** goes directly to the focal editor.
-6. Verify Cover B hero selection/crop still works independently of project image/order.
-7. Preview Print / Compact and check the PDF page proportions are the same slim portrait proportions as the supplied hard-copy brochure—not A4.
-8. Verify the first print page contains the institutional narrative, procurement and agency/contact content.
-9. Verify project pages are densely flowed with no Digital-style giant feature-page whitespace.
-10. Verify the final print page (or, if necessary because of content volume, the next complete page) contains **Visionary Horizons & Strategic Objectives** and **New Simulators** after the final project modules.
-11. Switch to Digital / Comfortable and confirm the existing A4 output remains available.
-
-## Preparation-environment validation
-
-Completed here:
-
-- Rechecked the supplied reference PDF with `pdfinfo -box`: effective page size **423.23 × 846.755 pt**, CropBox/TrimBox matching that effective page.
-- `node --check wwwroot/js/pages/projects-brochure.js` — passed.
-- `node --test wwwroot/js/projects/publications-brochure-contract.test.js` — **19/19 passed**.
-- Modified C# files passed structural delimiter checks.
-- Publications CSS passed structural brace validation.
-- Phase 7 source contracts were cross-checked against the generated checker patterns.
-- All `BrochureBuildOptions` and brochure preflight call sites in the supplied Publications package were checked for the new profile parameter.
-
-The preparation environment does not contain the .NET SDK or PowerShell, so `dotnet build`, xUnit execution and the supplied PowerShell integration checker must be run in the normal PRISM development environment.
+The exact PDF layout still depends on the installed publication font metrics and
+the actual selected photographs. Always review the generated hard-copy PDF before
+final distribution.

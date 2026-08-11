@@ -1,0 +1,39 @@
+PRISM PUBLICATIONS PHASE 8 — PREPARATION VALIDATION
+===================================================
+
+Completed in the artifact preparation environment:
+
+[PASS] JavaScript syntax:
+       node --check wwwroot/js/pages/projects-brochure.js
+
+[PASS] Browser/source regression suite:
+       25 tests passed
+       0 failed
+
+[PASS] Phase 8 static source contract:
+       16 required/rejected integration checks passed
+
+[PASS] C# structural delimiter scan:
+       BrochureContracts.cs
+       BrochurePublicationService.cs
+       BrochurePrintPublicationPolicy.cs
+       BrochurePrintCompactPlanner.cs
+       BrochurePrintCompactComposer.cs
+       Index.cshtml.cs
+       BrochurePrintCompactPlannerTests.cs
+       BrochurePrintPublicationPolicyTests.cs
+
+[PASS] Razor/CSS structural checks:
+       details/section/label pairs balanced
+       CSS braces balanced
+
+[PASS] Incremental patch dry-run against Phase 7 + Phase 7 composer build hotfix:
+       13 source/test/tool files apply cleanly
+
+NOT EXECUTED HERE:
+       dotnet restore
+       dotnet build
+       dotnet test
+
+The preparation runtime does not expose the .NET SDK. Run the commands in
+README-REPLACE-FIRST.md on the PRISM development machine before deployment.

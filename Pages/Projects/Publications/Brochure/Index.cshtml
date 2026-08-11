@@ -49,6 +49,7 @@
     }).ToArray();
     var projectJson = JsonSerializer.Serialize(clientProjects, jsonOptions);
     var selectionJson = JsonSerializer.Serialize(Model.Input.Selections, jsonOptions);
+    var approvedPrintJson = JsonSerializer.Serialize(Model.ApprovedPrintMatter, jsonOptions);
     var preflightUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preflight");
     var projectStateUrl = Url.Page("/Projects/Publications/Brochure/Index", "ProjectState");
     var previewUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preview");
@@ -101,6 +102,7 @@
         <div data-brochure-hidden-inputs></div>
         <script type="application/json" data-brochure-project-data>@Html.Raw(projectJson)</script>
         <script type="application/json" data-brochure-initial-selections>@Html.Raw(selectionJson)</script>
+        <script type="application/json" data-brochure-approved-print-content>@Html.Raw(approvedPrintJson)</script>
 
         <div class="brochure-layout">
             <main class="brochure-main">
@@ -157,7 +159,7 @@
                                     <span class="brochure-profile-option__icon"><i class="bi bi-journal-richtext" aria-hidden="true"></i></span>
                                     <span>
                                         <strong>Print / Compact</strong>
-                                        <small>Hard-copy profile modelled on the approved brochure: 423.23 × 846.755 pt (≈149.3 × 298.7 mm), dense project packing and content-bearing first/final pages.</small>
+                                        <small>Original brochure format · narrow portrait · balanced hard-copy packing with content-bearing first and final pages.</small>
                                     </span>
                                 </label>
                                 <label class="brochure-profile-option @(Model.Input.PublicationProfile == BrochurePublicationProfile.DigitalComfortable ? "is-selected" : string.Empty)" data-profile-option>
@@ -190,7 +192,7 @@
                                     </span>
                                     <span class="brochure-cover-option__copy">
                                         <strong>A · Institutional / Evolutionary</strong>
-                                        <small>Approved institutional artwork when available; disciplined project montage as fallback.</small>
+                                        <small>Approved institutional artwork when available; disciplined institutional treatment as fallback.</small>
                                     </span>
                                 </label>
                                 <label class="brochure-cover-option @(Model.Input.CoverStyle == BrochureCoverStyle.Contemporary ? "is-selected" : string.Empty)" data-cover-option>
@@ -296,41 +298,55 @@
                         <details class="brochure-print-content" data-brochure-print-only>
                             <summary><i class="bi bi-file-text" aria-hidden="true"></i> Print institutional content</summary>
                             <div class="brochure-print-content-note">
-                                <strong>Hard-copy first and final pages remain content-bearing.</strong>
-                                <span>These publication-level fields are pre-populated from the approved reference brochure and can be updated without changing any project record.</span>
+                                <span>
+                                    <strong>Hard-copy first and final pages remain content-bearing.</strong>
+                                    <span>These publication-level fields are pre-populated from the approved reference brochure and can be updated without changing any project record.</span>
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-print-restore-approved>
+                                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                    Restore approved text
+                                </button>
                             </div>
                             <div class="brochure-print-content-grid">
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Centre of Expertise statement</span>
-                                    <textarea asp-for="Input.PrintCentreStatement" class="form-control" rows="2" maxlength="1200"></textarea>
+                                    <textarea asp-for="Input.PrintCentreStatement" class="form-control" rows="2" maxlength="1200" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.CentreStatementMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.CentreStatementMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Role of simulators / opening narrative</span>
-                                    <textarea asp-for="Input.PrintIntroText" class="form-control" rows="6" maxlength="5000"></textarea>
+                                    <textarea asp-for="Input.PrintIntroText" class="form-control" rows="6" maxlength="5000" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.OpeningNarrativeMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.OpeningNarrativeMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Technology and future-readiness narrative</span>
-                                    <textarea asp-for="Input.PrintFutureText" class="form-control" rows="4" maxlength="3500"></textarea>
+                                    <textarea asp-for="Input.PrintFutureText" class="form-control" rows="4" maxlength="3500" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.FutureNarrativeMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.FutureNarrativeMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Procurement guidance</span>
-                                    <textarea asp-for="Input.PrintProcurementText" class="form-control" rows="4" maxlength="3500"></textarea>
+                                    <textarea asp-for="Input.PrintProcurementText" class="form-control" rows="4" maxlength="3500" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.ProcurementMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.ProcurementMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field">
                                     <span>Developing Agency / contact details</span>
-                                    <textarea asp-for="Input.PrintDevelopingAgencyText" class="form-control" rows="6" maxlength="1800"></textarea>
+                                    <textarea asp-for="Input.PrintDevelopingAgencyText" class="form-control" rows="6" maxlength="1800" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.DevelopingAgencyMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.DevelopingAgencyMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field">
                                     <span>Manufacturing Agency details</span>
-                                    <textarea asp-for="Input.PrintManufacturingAgencyText" class="form-control" rows="6" maxlength="1200"></textarea>
+                                    <textarea asp-for="Input.PrintManufacturingAgencyText" class="form-control" rows="6" maxlength="1200" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.ManufacturingAgencyMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.ManufacturingAgencyMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide">
-                                    <span>Visionary Horizons & Strategic Objectives</span>
-                                    <textarea asp-for="Input.PrintVisionaryText" class="form-control" rows="6" maxlength="4500"></textarea>
+                                    <span>Visionary Horizons &amp; Strategic Objectives</span>
+                                    <textarea asp-for="Input.PrintVisionaryText" class="form-control" rows="6" maxlength="4500" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.VisionaryMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.VisionaryMaximumWords words</small>
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>New Simulators guidance</span>
-                                    <textarea asp-for="Input.PrintNewSimulatorsText" class="form-control" rows="3" maxlength="1800"></textarea>
+                                    <textarea asp-for="Input.PrintNewSimulatorsText" class="form-control" rows="3" maxlength="1800" data-brochure-print-matter data-print-word-limit="@BrochurePrintPublicationPolicy.NewSimulatorsMaximumWords"></textarea>
+                                    <small class="brochure-print-word-status"><span data-print-word-count>0</span> / @BrochurePrintPublicationPolicy.NewSimulatorsMaximumWords words</small>
                                 </label>
                             </div>
                         </details>
@@ -512,6 +528,15 @@
                                             <i class="bi bi-image" aria-hidden="true"></i>
                                         </div>
                                         <div class="brochure-review-image__meta" data-review-image-meta></div>
+                                        <label class="brochure-review-image-mode">
+                                            <span>Image treatment</span>
+                                            <select class="form-select form-select-sm" data-review-image-mode>
+                                                <option value="@((int)BrochureImageMode.Automatic)">Automatic</option>
+                                                <option value="@((int)BrochureImageMode.Single)">1 image</option>
+                                                <option value="@((int)BrochureImageMode.GalleryTwo)">Gallery 2</option>
+                                            </select>
+                                            <small data-review-image-mode-help>Automatic keeps one image unless a second image has been explicitly selected.</small>
+                                        </label>
                                         <div class="brochure-review-image__actions">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image>Change image</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop>Adjust crop</button>
@@ -637,6 +662,21 @@
                             <div class="is-blocker"><span>Blockers</span><strong data-preflight-blockers>0</strong></div>
                             <div class="is-warning"><span>Warnings</span><strong data-preflight-warnings>0</strong></div>
                             <div><span>Info</span><strong data-preflight-info>0</strong></div>
+                        </div>
+                        <div class="brochure-print-plan-summary" hidden data-print-plan-summary>
+                            <div>
+                                <span>Estimated pages</span>
+                                <strong data-print-estimate-pages>—</strong>
+                            </div>
+                            <div>
+                                <span>Average fill</span>
+                                <strong data-print-estimate-fill>—</strong>
+                            </div>
+                            <div class="brochure-print-plan-summary__closing">
+                                <span>Final sheet</span>
+                                <strong data-print-estimate-closing>—</strong>
+                            </div>
+                            <small>Planning estimate from the same compact-sheet policy used during PDF generation.</small>
                         </div>
                         <div class="brochure-preflight-message" data-preflight-message>
                             Select projects to run publication preflight.

@@ -1,0 +1,16 @@
+PHASE 8 CHANGED SOURCE FILES
+============================
+
+Pages/Projects/Publications/Brochure/Index.cshtml
+Pages/Projects/Publications/Brochure/Index.cshtml.cs
+Services/Publications/BrochureContracts.cs
+Services/Publications/BrochurePublicationService.cs
+Services/Publications/BrochurePrintCompactPlanner.cs
+Services/Publications/BrochurePrintPublicationPolicy.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
+wwwroot/css/pages/projects-publications.css
+wwwroot/js/pages/projects-brochure.js
+wwwroot/js/projects/publications-brochure-contract.test.js
+ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+ProjectManagement.Tests/Publications/BrochurePrintPublicationPolicyTests.cs
+tools/Test-PrismPublicationsPhase8.ps1

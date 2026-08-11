@@ -74,8 +74,46 @@ public enum BrochurePreflightIssueCode
     UnconfirmedPrimaryPhoto = 13,
     CoverHeroInvalid = 14,
     CoverHeroUnavailable = 15,
-    PrintNarrativeTooLong = 16
+    PrintNarrativeTooLong = 16,
+    PrintInstitutionalContentMissing = 17,
+    PrintInstitutionalContentTooLong = 18,
+    PrintClosingPageStandalone = 19
 }
+
+
+public sealed record BrochurePrintMatter(
+    string? CentreStatement,
+    string? OpeningNarrative,
+    string? FutureNarrative,
+    string? ProcurementGuidance,
+    string? DevelopingAgency,
+    string? ManufacturingAgency,
+    string? VisionaryHorizons,
+    string? NewSimulatorsGuidance);
+
+public sealed record BrochurePrintPlanningItem(
+    int ProjectId,
+    string ProjectName,
+    int NarrativeWordCount,
+    BrochureImageMode ImageMode,
+    bool HasPrimaryPhoto,
+    bool HasSecondaryPhoto);
+
+public sealed record BrochurePrintCompactPage(
+    IReadOnlyList<int> ProjectIndexes,
+    float EstimatedProjectHeightPoints,
+    float EstimatedPhysicalUsedPoints,
+    float CapacityPoints,
+    bool IncludesClosingMatter,
+    float ModuleExpansionPoints);
+
+public sealed record BrochurePrintCompactPlan(
+    IReadOnlyList<BrochurePrintCompactPage> Pages,
+    float EstimatedClosingHeightPoints,
+    int EstimatedTotalPageCount,
+    int AverageContentUtilizationPercent,
+    bool ClosingMatterSharesFinalPage,
+    int ClosingPageProjectCount);
 
 public sealed record BrochurePhotoOptionVm(
     int PhotoId,
@@ -230,7 +268,11 @@ public sealed record BrochurePreflight(
     int? ResolvedCoverHeroPhotoId = null,
     int ResolvedCoverHeroWidth = 0,
     int ResolvedCoverHeroHeight = 0,
-    BrochurePhotoQuality? ResolvedCoverHeroQuality = null)
+    BrochurePhotoQuality? ResolvedCoverHeroQuality = null,
+    int? EstimatedPageCount = null,
+    int? EstimatedAveragePageUtilizationPercent = null,
+    int? EstimatedClosingPageProjectCount = null,
+    bool? ClosingMatterSharesFinalPage = null)
 {
     public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
     public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);

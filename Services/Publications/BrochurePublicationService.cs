@@ -23,6 +23,7 @@ public interface IBrochurePublicationService
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
+        BrochurePrintMatter? printMatter,
         CancellationToken cancellationToken = default);
 
     Task<BrochurePublicationData> BuildAsync(
@@ -262,6 +263,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
+        BrochurePrintMatter? printMatter,
         CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareAsync(
@@ -273,6 +275,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             coverHeroProjectId,
             coverHeroPhotoId,
             cancellationToken);
+
+        prepared = ApplyPublicationLevelPreflight(prepared, publicationProfile, printMatter);
         return prepared.Preflight;
     }
 
@@ -292,6 +296,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             options.CoverHeroProjectId,
             options.CoverHeroPhotoId,
             cancellationToken);
+        prepared = ApplyPublicationLevelPreflight(
+            prepared,
+            options.PublicationProfile,
+            BrochurePrintPublicationPolicy.FromOptions(options));
         if (!prepared.Preflight.CanGenerate)
         {
             throw new BrochurePublicationValidationException(prepared.Preflight);
@@ -381,14 +389,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
 
         if (lateIssues.Count > 0)
         {
-            throw new BrochurePublicationValidationException(new BrochurePreflight(
-                prepared.Preflight.SelectedProjectCount,
-                prepared.Preflight.Issues.Concat(lateIssues).ToArray(),
-                prepared.Preflight.ResolvedCoverHeroProjectId,
-                prepared.Preflight.ResolvedCoverHeroPhotoId,
-                prepared.Preflight.ResolvedCoverHeroWidth,
-                prepared.Preflight.ResolvedCoverHeroHeight,
-                prepared.Preflight.ResolvedCoverHeroQuality));
+            throw new BrochurePublicationValidationException(prepared.Preflight with
+            {
+                Issues = prepared.Preflight.Issues.Concat(lateIssues).ToArray()
+            });
         }
 
         return new BrochurePublicationData(
@@ -396,6 +400,55 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             publicationProjects,
             prepared.Preflight,
             coverHeroImage);
+    }
+
+    private static PreparedPublication ApplyPublicationLevelPreflight(
+        PreparedPublication prepared,
+        BrochurePublicationProfile publicationProfile,
+        BrochurePrintMatter? printMatter)
+    {
+        if (publicationProfile != BrochurePublicationProfile.PrintCompact)
+        {
+            return prepared;
+        }
+
+        var issues = prepared.Preflight.Issues.ToList();
+        issues.AddRange(BrochurePrintPublicationPolicy.Validate(publicationProfile, printMatter));
+
+        var planningItems = prepared.Projects
+            .Select(project => new BrochurePrintPlanningItem(
+                project.Row.ProjectId,
+                project.Row.ProjectName,
+                project.NarrativeWordCount,
+                project.ImageMode,
+                project.PrimaryPhotoId.HasValue,
+                project.SecondaryPhotoId.HasValue))
+            .ToArray();
+        var plan = BrochurePrintCompactPlanner.Plan(
+            planningItems,
+            printMatter?.VisionaryHorizons,
+            printMatter?.NewSimulatorsGuidance);
+
+        if (planningItems.Length > 0 && !plan.ClosingMatterSharesFinalPage)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.PrintClosingPageStandalone,
+                PublicationIssueSeverity.Information,
+                null,
+                null,
+                "The final selected project is too tall to safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order or copy length changes."));
+        }
+
+        var preflight = prepared.Preflight with
+        {
+            Issues = issues,
+            EstimatedPageCount = plan.EstimatedTotalPageCount,
+            EstimatedAveragePageUtilizationPercent = plan.AverageContentUtilizationPercent,
+            EstimatedClosingPageProjectCount = plan.ClosingPageProjectCount,
+            ClosingMatterSharesFinalPage = plan.ClosingMatterSharesFinalPage
+        };
+
+        return prepared with { Preflight = preflight };
     }
 
     private async Task<PreparedPublication> PrepareAsync(

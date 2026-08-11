@@ -32,7 +32,10 @@ const criticalClasses = [
   'brochure-profile-options',
   'brochure-profile-option',
   'brochure-print-content',
-  'brochure-print-content-grid'
+  'brochure-print-content-grid',
+  'brochure-print-plan-summary',
+  'brochure-review-image-mode',
+  'brochure-print-word-status'
 ];
 
 test('brochure critical Razor classes have explicit stylesheet coverage', () => {
@@ -152,7 +155,7 @@ test('phase 6 renderer supports an optional dedicated back cover', () => {
 
 test('phase 7 exposes original-format compact print and digital comfortable profiles', () => {
   assert.match(view, /Print \/ Compact/);
-  assert.match(view, /423\.23 × 846\.755 pt/);
+  assert.match(view, /Original brochure format/);
   assert.match(view, /Digital \/ Comfortable/);
   assert.match(view, /data-brochure-profile/);
   assert.match(js, /isPrintCompactProfile/);
@@ -191,4 +194,59 @@ test('phase 7 cover image controls focus newly opened chooser and crop editor', 
   assert.match(js, /coverHeroChoices\.scrollIntoView/);
   assert.match(js, /coverHeroCropPanel\.scrollIntoView/);
   assert.match(js, /coverHeroFocalStage\?\.focus/);
+});
+
+
+test('phase 8 uses an explicit compact-sheet planner with closing-aware final-page packing', () => {
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintCompactPlanner.cs'), 'utf8');
+  assert.match(planner, /TryPlanSharedClosingPage/);
+  assert.match(planner, /finalPageReservedHeight/);
+  assert.match(planner, /ClosingMatterSharesFinalPage/);
+  assert.match(printRenderer, /BrochurePrintCompactPlanner\.Plan/);
+  assert.match(printRenderer, /ComposeProjectSheet/);
+  assert.match(printRenderer, /sheet\.IncludesClosingMatter/);
+});
+
+test('phase 8 print A never substitutes an arbitrary first-project photograph', () => {
+  const institutional = printRenderer.slice(
+    printRenderer.indexOf('private static void ComposeInstitutionalFrontPage'),
+    printRenderer.indexOf('private static void ComposeContemporaryFrontPage'));
+  assert.match(institutional, /institutionalArtwork/);
+  assert.match(institutional, /ComposeInstitutionalFallbackArtwork/);
+  assert.doesNotMatch(institutional, /data\.Projects\[0\]/);
+  assert.doesNotMatch(institutional, /PrimaryPhoto/);
+});
+
+test('phase 8 hard-copy institutional matter participates in authoritative preflight', () => {
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  const policy = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPublicationPolicy.cs'), 'utf8');
+  assert.match(service, /ApplyPublicationLevelPreflight/);
+  assert.match(service, /BrochurePrintPublicationPolicy\.Validate/);
+  assert.match(policy, /PrintInstitutionalContentMissing/);
+  assert.match(policy, /PrintInstitutionalContentTooLong/);
+  assert.match(view, /data-brochure-approved-print-content/);
+  assert.match(js, /updatePrintMatterWordCounts/);
+  assert.match(js, /Restore all hard-copy institutional text/);
+});
+
+test('phase 8 exposes compact plan estimates in the same publication preflight panel', () => {
+  assert.match(view, /data-print-plan-summary/);
+  assert.match(view, /data-print-estimate-pages/);
+  assert.match(view, /data-print-estimate-fill/);
+  assert.match(view, /data-print-estimate-closing/);
+  assert.match(js, /result\.estimatedPageCount/);
+  assert.match(js, /result\.closingMatterSharesFinalPage/);
+});
+
+test('phase 8 exposes Gallery 2 directly during publication review', () => {
+  assert.match(view, /data-review-image-mode/);
+  assert.match(view, />Gallery 2</);
+  assert.match(js, /reviewImageModeSelect/);
+  assert.match(js, /openPhotoEditor\(activeReviewProjectId, "secondary"\)/);
+  assert.match(js, /config\.imageMode !== modeGalleryTwo \|\| config\.secondaryPhotoId != null/);
+});
+
+test('phase 8 print project typography centres headings and justifies publication copy', () => {
+  assert.match(printRenderer, /ProjectName\.ToUpperInvariant\(\)[\s\S]{0,180}\.AlignCenter\(\)/);
+  assert.match(printRenderer, /Text\(project\.Narrative\)[\s\S]{0,160}\.Justify\(\)/);
 });

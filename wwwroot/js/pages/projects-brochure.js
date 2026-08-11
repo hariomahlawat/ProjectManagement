@@ -19,6 +19,7 @@
 
     const projects = parseJson(form.querySelector("[data-brochure-project-data]"), []);
     const initialSelections = parseJson(form.querySelector("[data-brochure-initial-selections]"), []);
+    const approvedPrintContent = parseJson(form.querySelector("[data-brochure-approved-print-content]"), {});
     const projectById = new Map(projects.map(project => [Number(project.projectId), project]));
     const rows = [...form.querySelectorAll("[data-brochure-project-row]")];
     const rowById = new Map(rows.map(row => [Number(row.dataset.projectId), row]));
@@ -53,6 +54,12 @@
     const generateIcon = form.querySelector("[data-brochure-generate-icon]");
     const generateLabel = form.querySelector("[data-brochure-generate-label]");
     const exportStatus = form.querySelector("[data-brochure-export-status]");
+    const printMatterFields = [...form.querySelectorAll("[data-brochure-print-matter]")];
+    const restoreApprovedPrint = form.querySelector("[data-print-restore-approved]");
+    const printPlanSummary = form.querySelector("[data-print-plan-summary]");
+    const printEstimatePages = form.querySelector("[data-print-estimate-pages]");
+    const printEstimateFill = form.querySelector("[data-print-estimate-fill]");
+    const printEstimateClosing = form.querySelector("[data-print-estimate-closing]");
 
     const preflightSpinner = form.querySelector("[data-preflight-spinner]");
     const preflightMessage = form.querySelector("[data-preflight-message]");
@@ -113,6 +120,8 @@
     const reviewState = form.querySelector("[data-review-state]");
     const reviewImageFrame = form.querySelector("[data-review-image-frame]");
     const reviewImageMeta = form.querySelector("[data-review-image-meta]");
+    const reviewImageModeSelect = form.querySelector("[data-review-image-mode]");
+    const reviewImageModeHelp = form.querySelector("[data-review-image-mode-help]");
     const reviewChangeImage = form.querySelector("[data-review-change-image]");
     const reviewAdjustCrop = form.querySelector("[data-review-adjust-crop]");
     const reviewNarrativeLabel = form.querySelector("[data-review-narrative-label]");
@@ -128,6 +137,36 @@
     const clamp = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : 0.5));
     const projectPhotos = id => projectById.get(id)?.photos ?? [];
     const getPhoto = (id, photoId) => projectPhotos(id).find(photo => Number(photo.photoId) === Number(photoId)) ?? null;
+
+    const countWords = value => String(value ?? "")
+        .trim()
+        .split(/\s+/u)
+        .filter(Boolean)
+        .length;
+
+    const approvedPrintFieldMap = {
+        "Input.PrintCentreStatement": "centreStatement",
+        "Input.PrintIntroText": "openingNarrative",
+        "Input.PrintFutureText": "futureNarrative",
+        "Input.PrintProcurementText": "procurementGuidance",
+        "Input.PrintDevelopingAgencyText": "developingAgency",
+        "Input.PrintManufacturingAgencyText": "manufacturingAgency",
+        "Input.PrintVisionaryText": "visionaryHorizons",
+        "Input.PrintNewSimulatorsText": "newSimulatorsGuidance"
+    };
+
+    const updatePrintMatterWordCounts = () => {
+        printMatterFields.forEach(field => {
+            const label = field.closest(".brochure-field")?.querySelector(".brochure-print-word-status");
+            const countNode = label?.querySelector("[data-print-word-count]");
+            const limit = Number(field.dataset.printWordLimit || 0);
+            const words = countWords(field.value);
+            if (countNode) countNode.textContent = String(words);
+            label?.classList.toggle("is-near-limit", limit > 0 && words >= Math.floor(limit * 0.85) && words <= limit);
+            label?.classList.toggle("is-over-limit", limit > 0 && words > limit);
+            field.classList.toggle("is-print-over-limit", limit > 0 && words > limit);
+        });
+    };
 
     const defaultConfig = project => ({
         projectId: Number(project.projectId),
@@ -242,6 +281,9 @@
         digitalOnlySections.forEach(section => {
             section.hidden = printCompact;
         });
+        if (printPlanSummary && !printCompact) {
+            printPlanSummary.hidden = true;
+        }
     };
 
     const createImage = (src, alt = "") => {
@@ -783,6 +825,12 @@
                 body.scrollTo({ top: Math.max(0, primaryStage.offsetTop - 12), behavior: "smooth" });
                 primaryStage.setAttribute("tabindex", "-1");
                 primaryStage.focus({ preventScroll: true });
+            } else if (photoEditorFocusMode === "secondary" && secondarySection && !secondarySection.hidden) {
+                body.scrollTo({ top: Math.max(0, secondarySection.offsetTop - 12), behavior: "smooth" });
+                const firstSecondaryChoice = secondaryPicker?.querySelector("button:not(.is-none)") ?? secondaryPicker?.querySelector("button");
+                if (firstSecondaryChoice instanceof HTMLElement) {
+                    firstSecondaryChoice.focus({ preventScroll: true });
+                }
             } else {
                 body.scrollTo({ top: 0, behavior: "smooth" });
                 const firstChoice = primaryPicker?.querySelector("button");
@@ -795,7 +843,7 @@
 
     const openPhotoEditor = (id, focusMode = "select") => {
         activePhotoProjectId = id;
-        photoEditorFocusMode = focusMode === "crop" ? "crop" : "select";
+        photoEditorFocusMode = focusMode === "crop" || focusMode === "secondary" ? focusMode : "select";
         renderSelected(false);
         renderPhotoEditor();
         focusPhotoEditor();
@@ -1211,6 +1259,21 @@
                 ].filter(Boolean).join(" · ");
             }
         }
+        if (reviewImageModeSelect) {
+            reviewImageModeSelect.value = String(config.imageMode);
+            reviewImageModeSelect.disabled = (project.photos?.length ?? 0) === 0;
+        }
+        if (reviewImageModeHelp) {
+            if (config.imageMode === modeGalleryTwo) {
+                reviewImageModeHelp.textContent = config.secondaryPhotoId
+                    ? "Gallery 2 confirmed for this project. Both selected images will be considered by the print compositor."
+                    : "Gallery 2 requires a second photograph. Select one to complete project review.";
+            } else if (config.imageMode === modeSingle) {
+                reviewImageModeHelp.textContent = "Single-image treatment locks this project to one photograph.";
+            } else {
+                reviewImageModeHelp.textContent = "Automatic keeps one image unless a second image has been explicitly selected.";
+            }
+        }
         if (reviewChangeImage) reviewChangeImage.disabled = project.photos?.length === 0;
         if (reviewAdjustCrop) reviewAdjustCrop.disabled = !primary;
 
@@ -1230,10 +1293,12 @@
         if (reviewPrevious) reviewPrevious.disabled = index <= 0;
         if (reviewNext) reviewNext.disabled = index >= total - 1;
         if (reviewMarkReviewed) {
+            const imageTreatmentReady = config.imageMode !== modeGalleryTwo || config.secondaryPhotoId != null;
             const canReview = project.reviewHasNarrative === true
                 && typeof project.reviewNarrative === "string"
                 && project.reviewNarrative.trim().length > 0
-                && info.ready;
+                && info.ready
+                && imageTreatmentReady;
             reviewMarkReviewed.disabled = !canReview || config.isReviewed;
             reviewMarkReviewed.innerHTML = config.isReviewed
                 ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approved'
@@ -1383,6 +1448,21 @@
         setMetric("[data-preflight-warnings]", result.warningCount ?? 0);
         setMetric("[data-preflight-info]", result.informationCount ?? 0);
         preflightSpinner?.toggleAttribute("hidden", true);
+
+        if (printPlanSummary) {
+            const showPlan = isPrintCompactProfile() && orderedIds.length > 0 && Number(result.estimatedPageCount) > 0;
+            printPlanSummary.hidden = !showPlan;
+            if (showPlan) {
+                if (printEstimatePages) printEstimatePages.textContent = String(result.estimatedPageCount);
+                if (printEstimateFill) printEstimateFill.textContent = `${Number(result.estimatedAveragePageUtilizationPercent || 0)}%`;
+                if (printEstimateClosing) {
+                    const count = Number(result.estimatedClosingPageProjectCount || 0);
+                    printEstimateClosing.textContent = result.closingMatterSharesFinalPage
+                        ? `${count} project${count === 1 ? "" : "s"} + closing`
+                        : "Dedicated closing sheet";
+                }
+            }
+        }
 
         if (preflightMessage) {
             preflightMessage.classList.remove("is-checking", "is-blocked", "is-warning", "is-ready");
@@ -1677,6 +1757,26 @@
         });
     });
 
+    printMatterFields.forEach(field => {
+        field.addEventListener("input", () => {
+            updatePrintMatterWordCounts();
+            schedulePreflight();
+        });
+    });
+
+    restoreApprovedPrint?.addEventListener("click", () => {
+        const shouldRestore = window.confirm("Restore all hard-copy institutional text to the approved reference wording?");
+        if (!shouldRestore) return;
+
+        printMatterFields.forEach(field => {
+            const key = approvedPrintFieldMap[field.name];
+            if (!key || typeof approvedPrintContent[key] !== "string") return;
+            field.value = approvedPrintContent[key];
+        });
+        updatePrintMatterWordCounts();
+        schedulePreflight();
+    });
+
     publicationProfileInputs.forEach(input => {
         input.addEventListener("change", () => {
             coverReviewed = false;
@@ -1779,6 +1879,23 @@
     primaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("primary"); });
     secondaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("secondary"); });
 
+    reviewImageModeSelect?.addEventListener("change", () => {
+        if (activeReviewProjectId == null) return;
+        const config = ensureConfig(activeReviewProjectId);
+        if (!config) return;
+        const nextMode = Number(reviewImageModeSelect.value) || modeAutomatic;
+        config.imageMode = [modeAutomatic, modeSingle, modeGalleryTwo].includes(nextMode) ? nextMode : modeAutomatic;
+        invalidateReview(activeReviewProjectId);
+        syncHiddenInputs();
+        renderSelected(false);
+        renderReview();
+        schedulePreflight();
+
+        if (config.imageMode === modeGalleryTwo && config.secondaryPhotoId == null) {
+            openPhotoEditor(activeReviewProjectId, "secondary");
+        }
+    });
+
     reviewChangeImage?.addEventListener("click", () => {
         if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId, "select");
     });
@@ -1846,6 +1963,7 @@
         if (!document.hidden) refreshAfterExternalEdit();
     });
 
+    updatePrintMatterWordCounts();
     updatePublicationProfileUi();
     updateNarrativeIndicators();
     renderSelected(false);
