@@ -1,50 +1,51 @@
-PRISM Project Ideas — Remarks & UX Hardening
-Ready-to-paste refinement package · 09 Aug 2026
+PRISM PHASE 7 BUILD HOTFIX
+===========================
 
-PREREQUISITE
-This package is an overlay for the already-applied "Project Ideas Governance & Discussion Lifecycle" phase. Copy the files into the ProjectManagement project root and replace the matching files.
+This hotfix addresses all three diagnostics reported after installing Phase 7.
 
-WHAT THIS PHASE FIXES
-1. One authoritative remark count
-   - General and Conference remain subtypes of the same ProjectIdeaComment/remark record.
-   - Idea Details delete-impact UI shows one collective Remarks count.
-   - Deleted Ideas recovery view shows one collective Remarks count.
-   - The read model no longer carries a parallel ConferenceDirectionCount for Idea recovery summaries.
-   - Conference-specific operational consumers may still filter CommentType == Conference; this does not create a second aggregate/count.
+1) CS0023 at BrochurePrintCompactComposer.cs line ~139
+2) CS0023 at BrochurePrintCompactComposer.cs line ~371
 
-2. Discussion action continuity
-   - Add/edit/delete remark POSTs return to #discussion rather than the top of the page.
-   - The existing global PRISM toast surface is used instead of full-width inline success/error alerts.
-   - Conference success terminology is consistent: "Conference direction added/updated/deleted."
-   - General items use "Remark added/updated/deleted."
+Cause:
+QuestPDF's IContainer.Text(Action<TextDescriptor>) overload returns void.
+Phase 7 incorrectly chained .FontSize(), .LineHeight() and .FontColor() after the rich-text
+callback in two places.
 
-3. Details-page polish
-   - Conference "Add direction" remains on one line.
-   - Discussion is the dominant desktop column (approximately 40/30/30).
-   - Notes heading is clarified to "Idea notes".
-   - Remark action ellipsis is more discoverable without becoming visually prominent.
-   - Anchored returns account for the fixed application header via scroll-margin.
+Fix:
+The common rich-text style is now applied INSIDE each callback with
+text.DefaultTextStyle(...), which matches the QuestPDF API already used elsewhere in PRISM.
 
-4. Lifecycle hardening
-   - RestoreAsync now rejects an Active/On Hold idea and only permits the Archived -> Active transition.
-   - Deleted-Idea restore remains a separate governed recovery workflow.
+No print geometry, page dimensions, text, colours, or brochure logic are changed.
+
+3) CS8622 warning at Pages/ActionTasks/_TaskDetails.cshtml line ~206
+
+Cause:
+TaskUpdateTimelineViewModel expects Func<string?, string>, while
+Pages/ActionTasks/Index.cshtml.cs exposed ResolveActorName(string).
+
+Fix:
+ResolveActorName now accepts string? and handles a missing actor as "System".
+This warning is unrelated to Publications, but the hotfix removes it safely.
 
 INSTALL
-1. Back up or commit the current working tree.
-2. Extract this ZIP at the ProjectManagement project root and replace matching files.
-3. No migration is required.
-4. Run:
-     node --check wwwroot/js/pages/project-ideas-details.js
-     node --test wwwroot/js/projects/project-ideas-governance-contract.test.js
-     dotnet build .\ProjectManagement.sln -c Release
-     dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj -c Release
-5. Hard-refresh the browser (Ctrl+F5).
+-------
+1. Copy the replacement file:
+   Utilities\Reporting\BrochurePrintCompactComposer.cs
 
-MANUAL QA
-- As Comdt, open an Idea: Conference remains the default composer type.
-- Add a Conference direction: toast appears and page returns to Discussion; button text stays on one line.
-- Add a General remark: Discussion count increments in the same total.
-- Open Delete idea: related record summary shows only total remarks + idea notes + files; no separate Conference count.
-- Open Deleted Ideas: same collective remark count is shown.
-- Hover/focus a remark: the ellipsis is visible enough to discover Edit/Delete.
-- Try a crafted Restore POST against an Active idea: operation is rejected; only Archived ideas can use normal Restore.
+2. Copy tools\Apply-PrismPhase7BuildHotfix.ps1 to your project (if not already copied).
+
+3. From the ProjectManagement root run:
+
+   Set-ExecutionPolicy -Scope Process Bypass
+   .\tools\Apply-PrismPhase7BuildHotfix.ps1
+
+4. Build and test:
+
+   dotnet build .\ProjectManagement.csproj
+   dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+
+IMPORTANT
+---------
+The package deliberately does NOT replace the whole Pages\ActionTasks\Index.cshtml.cs file.
+That file is unrelated and may contain newer local changes. The script patches only the exact
+ResolveActorName method.

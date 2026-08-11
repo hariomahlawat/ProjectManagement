@@ -15,6 +15,12 @@ public enum BrochureCoverStyle
     Contemporary = 2
 }
 
+public enum BrochurePublicationProfile
+{
+    PrintCompact = 1,
+    DigitalComfortable = 2
+}
+
 public enum BrochurePageLayoutKind
 {
     FourCompact = 1,
@@ -67,7 +73,8 @@ public enum BrochurePreflightIssueCode
     SelectionLimitExceeded = 12,
     UnconfirmedPrimaryPhoto = 13,
     CoverHeroInvalid = 14,
-    CoverHeroUnavailable = 15
+    CoverHeroUnavailable = 15,
+    PrintNarrativeTooLong = 16
 }
 
 public sealed record BrochurePhotoOptionVm(
@@ -188,6 +195,7 @@ public sealed record BrochureBuildOptions(
     string Strapline,
     BrochureCoverStyle CoverStyle,
     BrochureNarrativeSource NarrativeSource,
+    BrochurePublicationProfile PublicationProfile,
     string? IntroductionTitle,
     string? IntroductionText,
     string? HandlingMarking,
@@ -198,7 +206,15 @@ public sealed record BrochureBuildOptions(
     int? CoverHeroPhotoId = null,
     double CoverHeroFocalX = .5d,
     double CoverHeroFocalY = .5d,
-    bool IncludeBackCover = true);
+    bool IncludeBackCover = true,
+    string? PrintIntroText = null,
+    string? PrintFutureText = null,
+    string? PrintProcurementText = null,
+    string? PrintCentreStatement = null,
+    string? PrintDevelopingAgencyText = null,
+    string? PrintManufacturingAgencyText = null,
+    string? PrintVisionaryText = null,
+    string? PrintNewSimulatorsText = null);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,

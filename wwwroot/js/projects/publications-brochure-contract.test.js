@@ -8,6 +8,7 @@ const view = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications'
 const css = fs.readFileSync(path.join(root, 'wwwroot', 'css', 'pages', 'projects-publications.css'), 'utf8');
 const js = fs.readFileSync(path.join(root, 'wwwroot', 'js', 'pages', 'projects-brochure.js'), 'utf8');
 const renderer = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePdfReportBuilder.cs'), 'utf8');
+const printRenderer = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePrintCompactComposer.cs'), 'utf8');
 
 const criticalClasses = [
   'brochure-filter-toolbar',
@@ -27,7 +28,11 @@ const criticalClasses = [
   'brochure-review-card',
   'brochure-review-nav',
   'brochure-cover-review-state',
-  'brochure-cover-crop-editor'
+  'brochure-cover-crop-editor',
+  'brochure-profile-options',
+  'brochure-profile-option',
+  'brochure-print-content',
+  'brochure-print-content-grid'
 ];
 
 test('brochure critical Razor classes have explicit stylesheet coverage', () => {
@@ -142,4 +147,48 @@ test('phase 6 renderer supports an optional dedicated back cover', () => {
   assert.match(renderer, /data\.Options\.IncludeBackCover/);
   assert.match(renderer, /ComposeBackCover/);
   assert.match(view, /Input\.IncludeBackCover/);
+});
+
+
+test('phase 7 exposes original-format compact print and digital comfortable profiles', () => {
+  assert.match(view, /Print \/ Compact/);
+  assert.match(view, /423\.23 × 846\.755 pt/);
+  assert.match(view, /Digital \/ Comfortable/);
+  assert.match(view, /data-brochure-profile/);
+  assert.match(js, /isPrintCompactProfile/);
+  assert.match(js, /updatePublicationProfileUi/);
+});
+
+test('phase 7 keeps the reference brochure front and final institutional content editable', () => {
+  assert.match(view, /Input\.PrintIntroText/);
+  assert.match(view, /Input\.PrintFutureText/);
+  assert.match(view, /Input\.PrintProcurementText/);
+  assert.match(view, /Input\.PrintDevelopingAgencyText/);
+  assert.match(view, /Input\.PrintManufacturingAgencyText/);
+  assert.match(view, /Input\.PrintVisionaryText/);
+  assert.match(view, /Input\.PrintNewSimulatorsText/);
+  assert.match(printRenderer, /Visionary Horizons & Strategic Objectives/);
+  assert.match(printRenderer, /New Simulators\./);
+});
+
+test('phase 7 print compositor uses the reference CropBox dimensions and natural project packing', () => {
+  assert.match(printRenderer, /ReferenceWidthPoints = 423\.23f/);
+  assert.match(printRenderer, /ReferenceHeightPoints = 846\.755f/);
+  assert.match(printRenderer, /ShowEntire\(\)/);
+  assert.match(printRenderer, /ShowEntire\(\)/);
+  assert.match(printRenderer, /ComposeProjectModule/);
+  assert.doesNotMatch(printRenderer, /PageSizes\.A4/);
+});
+
+test('phase 7 review image buttons have distinct select and crop behaviour', () => {
+  assert.match(js, /openPhotoEditor\(activeReviewProjectId, "select"\)/);
+  assert.match(js, /openPhotoEditor\(activeReviewProjectId, "crop"\)/);
+  assert.match(js, /photoEditorFocusMode === "crop"/);
+  assert.match(js, /primaryStage\.focus/);
+});
+
+test('phase 7 cover image controls focus newly opened chooser and crop editor', () => {
+  assert.match(js, /coverHeroChoices\.scrollIntoView/);
+  assert.match(js, /coverHeroCropPanel\.scrollIntoView/);
+  assert.match(js, /coverHeroFocalStage\?\.focus/);
 });

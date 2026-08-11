@@ -12,9 +12,9 @@ public interface IBrochurePdfReportBuilder
 }
 
 /// <summary>
-/// Publication-grade A4 brochure composer. The renderer consumes the same focal-point
-/// crops used by preflight/preview and never shrinks project body copy below the agreed
-/// publication floor merely to keep an extra card on a page.
+/// Publication-grade brochure composer. Digital/Comfortable retains the A4 editorial
+/// renderer; Print/Compact delegates to the reference-format hard-copy compositor using
+/// the effective dimensions and dense content-bearing structure of the approved brochure.
 /// </summary>
 public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 {
@@ -65,6 +65,18 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
         var document = Document.Create(container =>
         {
+            if (data.Options.PublicationProfile == BrochurePublicationProfile.PrintCompact)
+            {
+                BrochurePrintCompactComposer.Compose(
+                    container,
+                    data,
+                    fontStatus,
+                    sddLogo,
+                    artracLogo,
+                    institutionalArtwork);
+                return;
+            }
+
             if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
             {
                 ComposeInstitutionalCover(

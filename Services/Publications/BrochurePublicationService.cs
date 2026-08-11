@@ -19,6 +19,7 @@ public interface IBrochurePublicationService
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
         BrochureCoverStyle coverStyle,
+        BrochurePublicationProfile publicationProfile,
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
@@ -257,6 +258,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
         BrochureCoverStyle coverStyle,
+        BrochurePublicationProfile publicationProfile,
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
@@ -266,6 +268,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             selections,
             narrativeSource,
             coverStyle,
+            publicationProfile,
             allowTextOnlyProjects,
             coverHeroProjectId,
             coverHeroPhotoId,
@@ -284,6 +287,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             selections,
             options.NarrativeSource,
             options.CoverStyle,
+            options.PublicationProfile,
             options.AllowTextOnlyProjects,
             options.CoverHeroProjectId,
             options.CoverHeroPhotoId,
@@ -302,6 +306,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         BrochurePublicationImage? coverHeroImage = null;
         if (options.CoverStyle == BrochureCoverStyle.Contemporary && prepared.CoverHero is not null)
         {
+            var coverHeroHeight = options.PublicationProfile == BrochurePublicationProfile.PrintCompact
+                ? 1055
+                : 1100;
             coverHeroImage = await _photoService.RenderAsync(
                 new BrochurePhotoRenderRequest(
                     prepared.CoverHero.ProjectId,
@@ -309,7 +316,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                     options.CoverHeroFocalX,
                     options.CoverHeroFocalY,
                     1800,
-                    1100),
+                    coverHeroHeight),
                 cancellationToken);
 
             if (coverHeroImage is null)
@@ -395,6 +402,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
         BrochureCoverStyle coverStyle,
+        BrochurePublicationProfile publicationProfile,
         bool allowTextOnlyProjects,
         int? requestedCoverHeroProjectId,
         int? requestedCoverHeroPhotoId,
@@ -408,6 +416,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         if (!Enum.IsDefined(coverStyle))
         {
             throw new InvalidOperationException("The selected brochure cover style is invalid.");
+        }
+        if (!Enum.IsDefined(publicationProfile))
+        {
+            throw new InvalidOperationException("The selected brochure publication profile is invalid.");
         }
 
         var normalizedSelections = NormalizeSelections(selections);
@@ -509,6 +521,15 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                     row.ProjectName,
                     $"{NarrativeSourceLabel(narrativeSource)} is not recorded for this project."));
             }
+            else if (publicationProfile == BrochurePublicationProfile.PrintCompact && wordCount > 320)
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.PrintNarrativeTooLong,
+                    PublicationIssueSeverity.Blocker,
+                    row.ProjectId,
+                    row.ProjectName,
+                    $"Narrative is {wordCount} words. The compact hard-copy profile supports up to 320 words per project; use Project Brief or shorten the selected publication copy."));
+            }
             else if (wordCount > BrochureLayoutPlanner.LongNarrativeChunkWords)
             {
                 issues.Add(new BrochurePreflightIssue(
@@ -516,7 +537,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                     PublicationIssueSeverity.Information,
                     row.ProjectId,
                     row.ProjectName,
-                    $"Narrative is {wordCount} words and will continue on a feature page rather than use smaller body text."));
+                    publicationProfile == BrochurePublicationProfile.PrintCompact
+                        ? $"Narrative is {wordCount} words and will occupy a larger compact print module."
+                        : $"Narrative is {wordCount} words and will continue on a feature page rather than use smaller body text."));
             }
 
             var projectPhotos = photosByProject.GetValueOrDefault(row.ProjectId)
@@ -627,6 +650,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             photosByProject,
             probes,
             coverStyle,
+            publicationProfile,
             requestedCoverHeroProjectId,
             requestedCoverHeroPhotoId,
             issues);
@@ -656,7 +680,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                           || project.NarrativeWordCount > BrochureLayoutPlanner.ThreeProjectMaximumWords
                             ? PhotoPlacement.Feature
                             : PhotoPlacement.Card;
-                    AddQualityFinding(issues, project, primaryProbe, placement, isCoverHero ? "Cover hero" : "Primary");
+                    AddQualityFinding(issues, project, primaryProbe, publicationProfile, placement, isCoverHero ? "Cover hero" : "Primary");
                 }
             }
 
@@ -676,7 +700,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 }
                 else
                 {
-                    AddQualityFinding(issues, project, secondaryProbe, PhotoPlacement.Card, "Second");
+                    AddQualityFinding(issues, project, secondaryProbe, publicationProfile, PhotoPlacement.Card, "Second");
                 }
             }
         }
@@ -693,7 +717,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             && coverHeroProbe is { IsReady: true }
             && coverHeroProject.PrimaryPhotoId != coverHero.PhotoId)
         {
-            AddQualityFinding(issues, coverHeroProject, coverHeroProbe, PhotoPlacement.CoverHero, "Cover hero");
+            AddQualityFinding(issues, coverHeroProject, coverHeroProbe, publicationProfile, PhotoPlacement.CoverHero, "Cover hero");
         }
 
         return new PreparedPublication(
@@ -705,7 +729,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 coverHero?.PhotoId,
                 coverHeroProbe?.Width ?? 0,
                 coverHeroProbe?.Height ?? 0,
-                coverHeroProbe?.Quality),
+                coverHeroProbe is null
+                    ? null
+                    : DetermineCoverHeroQuality(
+                        coverHeroProbe.Width,
+                        coverHeroProbe.Height,
+                        publicationProfile)),
             coverHero);
     }
 
@@ -715,6 +744,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         IReadOnlyDictionary<int, IReadOnlyList<PublicationPhotoRow>> photosByProject,
         IReadOnlyDictionary<int, BrochurePhotoProbe> probes,
         BrochureCoverStyle coverStyle,
+        BrochurePublicationProfile publicationProfile,
         int? requestedProjectId,
         int? requestedPhotoId,
         ICollection<BrochurePreflightIssue> issues)
@@ -811,19 +841,27 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             .Where(candidate => candidate.Probe is { IsReady: true })
             .Select(candidate =>
             {
+                var coverTargetHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
+                    ? 1055d
+                    : 1100d;
                 var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveCropDimensions(
                     candidate.Probe!.Width,
                     candidate.Probe.Height,
-                    1800d / 1100d);
+                    1800d / coverTargetHeight);
+                var coverQuality = DetermineCoverHeroQuality(
+                    candidate.Probe.Width,
+                    candidate.Probe.Height,
+                    publicationProfile);
                 return new
                 {
                     candidate.Project,
                     candidate.Photo,
                     Probe = candidate.Probe!,
+                    CoverQuality = coverQuality,
                     EffectivePixels = effectiveWidth * effectiveHeight
                 };
             })
-            .OrderByDescending(candidate => candidate.Probe.Quality)
+            .OrderByDescending(candidate => candidate.CoverQuality)
             .ThenByDescending(candidate => candidate.Photo.IsCover)
             .ThenByDescending(candidate => candidate.EffectivePixels)
             .ThenBy(candidate => projectNames[candidate.Project.Row.ProjectId], StringComparer.OrdinalIgnoreCase)
@@ -847,19 +885,56 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
     }
 
 
+    private static BrochurePhotoQuality DetermineCoverHeroQuality(
+        int width,
+        int height,
+        BrochurePublicationProfile publicationProfile)
+    {
+        var targetHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
+            ? 1055d
+            : 1100d;
+        var targetAspect = 1800d / targetHeight;
+        var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveCropDimensions(
+            width,
+            height,
+            targetAspect);
+
+        if (effectiveWidth >= 2400d && effectiveHeight >= targetHeight * (2400d / 1800d))
+        {
+            return BrochurePhotoQuality.Excellent;
+        }
+        if (effectiveWidth >= 1800d && effectiveHeight >= targetHeight)
+        {
+            return BrochurePhotoQuality.PrintReady;
+        }
+        if (effectiveWidth >= 1350d && effectiveHeight >= targetHeight * .75d)
+        {
+            return BrochurePhotoQuality.Acceptable;
+        }
+        return BrochurePhotoQuality.Low;
+    }
+
     private static void AddQualityFinding(
         ICollection<BrochurePreflightIssue> issues,
         PreparedProject project,
         BrochurePhotoProbe probe,
+        BrochurePublicationProfile publicationProfile,
         PhotoPlacement placement,
         string label)
     {
+        var coverHeroHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
+            ? 1055d
+            : 1100d;
         var (effectiveWidth, effectiveHeight) = placement == PhotoPlacement.CoverHero
-            ? BrochurePhotoService.EffectiveCropDimensions(probe.Width, probe.Height, 1800d / 1100d)
+            ? BrochurePhotoService.EffectiveCropDimensions(probe.Width, probe.Height, 1800d / coverHeroHeight)
             : BrochurePhotoService.EffectiveWideCropDimensions(probe.Width, probe.Height);
         var (minimumWidth, minimumHeight, placementLabel) = placement switch
         {
-            PhotoPlacement.CoverHero => (1800d, 1100d, "Cover B hero"),
+            PhotoPlacement.CoverHero => (1800d, coverHeroHeight, "Cover B hero"),
+            PhotoPlacement.Feature when publicationProfile == BrochurePublicationProfile.PrintCompact
+                => (1100d, 619d, "compact print feature frame"),
+            PhotoPlacement.Card when publicationProfile == BrochurePublicationProfile.PrintCompact
+                => (900d, 506d, "compact print project frame"),
             PhotoPlacement.Feature => (1400d, 788d, "large feature frame"),
             _ => (1100d, 619d, "standard project frame")
         };

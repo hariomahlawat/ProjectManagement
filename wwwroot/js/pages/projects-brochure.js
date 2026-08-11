@@ -43,6 +43,10 @@
     const selectedOnly = form.querySelector("[data-brochure-selected-only]");
     const emptyFilterState = form.querySelector("[data-brochure-empty-filter]");
     const narrativeSource = form.querySelector("[data-brochure-narrative-source]");
+    const publicationProfileInputs = [...form.querySelectorAll("[data-brochure-profile]")];
+    const profileOptions = [...form.querySelectorAll("[data-profile-option]")];
+    const printOnlySections = [...form.querySelectorAll("[data-brochure-print-only]")];
+    const digitalOnlySections = [...form.querySelectorAll("[data-brochure-digital-only]")];
     const previewButton = form.querySelector("[data-brochure-preview]");
     const generateButton = form.querySelector("[data-brochure-generate]");
     const generateSpinner = form.querySelector("[data-brochure-generate-spinner]");
@@ -173,6 +177,7 @@
     });
 
     let activePhotoProjectId = null;
+    let photoEditorFocusMode = "select";
     let activeReviewProjectId = orderedIds[0] ?? null;
     let draggedId = null;
     let preflightTimer = null;
@@ -218,6 +223,25 @@
     const isContemporaryCover = () => {
         const checked = form.querySelector('[name="Input.CoverStyle"]:checked');
         return checked?.value === "2" || checked?.value === "Contemporary";
+    };
+
+    const isPrintCompactProfile = () => {
+        const checked = form.querySelector('[name="Input.PublicationProfile"]:checked');
+        return checked?.value === "1" || checked?.value === "PrintCompact";
+    };
+
+    const updatePublicationProfileUi = () => {
+        const printCompact = isPrintCompactProfile();
+        profileOptions.forEach(option => {
+            const input = option.querySelector("[data-brochure-profile]");
+            option.classList.toggle("is-selected", Boolean(input?.checked));
+        });
+        printOnlySections.forEach(section => {
+            section.hidden = !printCompact;
+        });
+        digitalOnlySections.forEach(section => {
+            section.hidden = printCompact;
+        });
     };
 
     const createImage = (src, alt = "") => {
@@ -617,7 +641,7 @@
             coverHeroCropFrame,
             coverHeroFocalX,
             coverHeroFocalY,
-            1800 / 1100);
+            1800 / (isPrintCompactProfile() ? 1055 : 1100));
 
         const absolute = new URL(photo.previewUrl, window.location.href).href;
         coverHeroFocalImage.onerror = () => { coverHeroCropPanel.hidden = true; };
@@ -748,15 +772,38 @@
         updateFocalStage("secondary", activePhotoProjectId);
     };
 
-    const openPhotoEditor = id => {
+    const focusPhotoEditor = () => {
+        if (!photoEditor || photoEditor.hidden) return;
+        window.requestAnimationFrame(() => {
+            photoEditor.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            const body = photoEditor.querySelector(".publication-panel__body");
+            if (!(body instanceof HTMLElement)) return;
+
+            if (photoEditorFocusMode === "crop" && primaryStage && !primaryStage.hidden) {
+                body.scrollTo({ top: Math.max(0, primaryStage.offsetTop - 12), behavior: "smooth" });
+                primaryStage.setAttribute("tabindex", "-1");
+                primaryStage.focus({ preventScroll: true });
+            } else {
+                body.scrollTo({ top: 0, behavior: "smooth" });
+                const firstChoice = primaryPicker?.querySelector("button");
+                if (firstChoice instanceof HTMLElement) {
+                    firstChoice.focus({ preventScroll: true });
+                }
+            }
+        });
+    };
+
+    const openPhotoEditor = (id, focusMode = "select") => {
         activePhotoProjectId = id;
+        photoEditorFocusMode = focusMode === "crop" ? "crop" : "select";
         renderSelected(false);
         renderPhotoEditor();
-        window.requestAnimationFrame(() => photoEditor?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+        focusPhotoEditor();
     };
 
     const closePhotoEditor = () => {
         activePhotoProjectId = null;
+        photoEditorFocusMode = "select";
         if (photoEditor) photoEditor.hidden = true;
         renderSelected(false);
     };
@@ -1623,8 +1670,18 @@
     });
 
     form.querySelectorAll("[data-brochure-preflight-trigger]").forEach(element => {
-        if (element === narrativeSource) return;
+        if (element === narrativeSource || publicationProfileInputs.includes(element)) return;
         element.addEventListener("change", () => {
+            renderCoverHero();
+            schedulePreflight();
+        });
+    });
+
+    publicationProfileInputs.forEach(input => {
+        input.addEventListener("change", () => {
+            coverReviewed = false;
+            updatePublicationProfileUi();
+            syncHiddenInputs();
             renderCoverHero();
             schedulePreflight();
         });
@@ -1657,6 +1714,9 @@
         if (!coverHeroChoices) return;
         renderCoverHeroChoices();
         coverHeroChoices.hidden = !coverHeroChoices.hidden;
+        if (!coverHeroChoices.hidden) {
+            window.requestAnimationFrame(() => coverHeroChoices.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+        }
     });
     coverHeroAutomatic?.addEventListener("click", () => {
         explicitCoverHeroProjectId = null;
@@ -1679,6 +1739,11 @@
         renderCoverHero();
         updateCoverFocalStage();
         schedulePreflight();
+        window.requestAnimationFrame(() => {
+            coverHeroCropPanel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            coverHeroFocalStage?.setAttribute("tabindex", "-1");
+            coverHeroFocalStage?.focus({ preventScroll: true });
+        });
     });
     coverHeroApprove?.addEventListener("click", () => {
         const hero = ensureExplicitCoverHero();
@@ -1715,10 +1780,10 @@
     secondaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("secondary"); });
 
     reviewChangeImage?.addEventListener("click", () => {
-        if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId);
+        if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId, "select");
     });
     reviewAdjustCrop?.addEventListener("click", () => {
-        if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId);
+        if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId, "crop");
     });
     reviewPrevious?.addEventListener("click", () => {
         const index = orderedIds.indexOf(activeReviewProjectId);
@@ -1781,6 +1846,7 @@
         if (!document.hidden) refreshAfterExternalEdit();
     });
 
+    updatePublicationProfileUi();
     updateNarrativeIndicators();
     renderSelected(false);
     applyFilters();

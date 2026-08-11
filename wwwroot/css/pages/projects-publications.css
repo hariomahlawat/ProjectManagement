@@ -712,3 +712,115 @@
 .brochure-settings-panel,
 .brochure-project-selector,
 .brochure-font-panel { min-width: 0; }
+
+/* Phase 7 — dual publication profiles and compact print institutional content */
+.brochure-profile-fieldset {
+    border: 0;
+    margin: .9rem 0 0;
+    padding: 0;
+}
+.brochure-profile-fieldset legend {
+    margin-bottom: .42rem;
+    color: #31453e;
+    font-size: .72rem;
+    font-weight: 700;
+}
+.brochure-profile-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+}
+.brochure-profile-option {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.3rem minmax(0, 1fr);
+    align-items: center;
+    gap: .65rem;
+    min-height: 72px;
+    padding: .72rem .78rem;
+    border: 1px solid #d8e1de;
+    border-radius: .72rem;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.brochure-profile-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.brochure-profile-option:hover { border-color: #aabfb7; }
+.brochure-profile-option:focus-within {
+    outline: 2px solid rgba(58, 116, 243, .35);
+    outline-offset: 2px;
+}
+.brochure-profile-option.is-selected {
+    border-color: #4e8d79;
+    background: #f7fbf9;
+    box-shadow: 0 0 0 2px rgba(56, 120, 99, .08);
+}
+.brochure-profile-option__icon {
+    display: grid;
+    place-items: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: .55rem;
+    background: #edf4f1;
+    color: #216451;
+    font-size: 1.05rem;
+}
+.brochure-profile-option strong {
+    display: block;
+    color: #18342b;
+    font-size: .77rem;
+}
+.brochure-profile-option small {
+    display: block;
+    margin-top: .16rem;
+    color: #718079;
+    font-size: .61rem;
+    line-height: 1.35;
+}
+.brochure-print-content {
+    margin-top: .72rem;
+    border: 1px solid #d8e2de;
+    border-radius: .62rem;
+    background: #fbfcfb;
+    overflow: hidden;
+}
+.brochure-print-content > summary {
+    display: flex;
+    align-items: center;
+    gap: .42rem;
+    padding: .7rem .78rem;
+    color: #28463b;
+    font-size: .69rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+.brochure-print-content > summary::-webkit-details-marker { display: none; }
+.brochure-print-content[open] > summary { border-bottom: 1px solid #e4ebe8; }
+.brochure-print-content-note {
+    display: grid;
+    gap: .12rem;
+    padding: .65rem .78rem 0;
+}
+.brochure-print-content-note strong { color: #1d4336; font-size: .68rem; }
+.brochure-print-content-note span { color: #77857f; font-size: .59rem; line-height: 1.35; }
+.brochure-print-content-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem;
+    padding: .7rem .78rem .82rem;
+}
+.brochure-print-content-grid textarea {
+    min-height: 78px;
+    resize: vertical;
+    font-size: .68rem;
+    line-height: 1.35;
+}
+@media (max-width: 900px) {
+    .brochure-profile-options,
+    .brochure-print-content-grid { grid-template-columns: 1fr; }
+}

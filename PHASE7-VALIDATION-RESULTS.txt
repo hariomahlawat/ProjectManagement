@@ -1,0 +1,59 @@
+PRISM Publications Phase 7 — validation results
+
+Reference geometry
+------------------
+Supplied brochure PDF: SDD_IA_Brochure_Digital_1.2(2).pdf
+pdfinfo -box result:
+  Page size: 423.23 x 846.755 pts
+  Effective dimensions: approximately 149.3 x 298.7 mm
+  Pages: 11
+  CropBox / TrimBox effective size matches the reported page size.
+
+Phase 7 Print / Compact uses the same 423.23 x 846.755 point page dimensions.
+
+JavaScript
+----------
+node --check wwwroot/js/pages/projects-brochure.js
+  PASS
+
+node --test wwwroot/js/projects/publications-brochure-contract.test.js
+  19 tests
+  19 passed
+  0 failed
+
+The regression suite includes Phase 7 checks for:
+- Print / Compact and Digital / Comfortable profile controls;
+- editable institutional first/final-page content;
+- exact reference CropBox constants in the print compositor;
+- natural ShowEntire-based compact project packing;
+- distinct Review Change image vs Adjust crop behaviour;
+- explicit scrolling/focus for Cover B chooser and crop editor.
+
+C# static validation
+--------------------
+Structural delimiter checks passed for:
+- Utilities/Reporting/BrochurePrintCompactComposer.cs
+- Utilities/Reporting/BrochurePdfReportBuilder.cs
+- Services/Publications/BrochureContracts.cs
+- Services/Publications/BrochurePublicationService.cs
+- Pages/Projects/Publications/Brochure/Index.cshtml.cs
+- ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+
+All BrochureBuildOptions construction sites in the package were checked for the new PublicationProfile parameter.
+All IBrochurePublicationService.PreflightAsync call sites in the package were checked for PublicationProfile.
+
+CSS
+---
+projects-publications.css structural brace validation: PASS
+Phase 7 profile and institutional-content selectors are present.
+
+Integration checker
+-------------------
+tools/Test-PrismPublicationsPhase7.ps1 is supplied and its contract patterns were cross-checked against the prepared source tree.
+PowerShell is not installed in the preparation environment, so the script itself was not executed here.
+
+.NET compilation
+----------------
+The preparation environment does not contain the .NET SDK.
+Therefore no claim is made that dotnet build or xUnit executed here.
+Run both in the normal PRISM development environment after replacement.

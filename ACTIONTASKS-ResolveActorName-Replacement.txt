@@ -1,0 +1,23 @@
+Replace ONLY this method in:
+Pages\ActionTasks\Index.cshtml.cs
+
+with:
+
+public string ResolveActorName(string? performedByUserId)
+{
+    if (string.IsNullOrWhiteSpace(performedByUserId))
+    {
+        return "System";
+    }
+
+    return TaskActorNames.TryGetValue(performedByUserId, out var actorName)
+        ? actorName
+        : "User";
+}
+
+Why:
+TaskUpdateTimelineViewModel.ResolveActorName is Func<string?, string>.
+The old IndexModel.ResolveActorName accepted string (non-null), producing CS8622 when Razor
+assigns the method group in _TaskDetails.cshtml.
+
+The guard also prevents passing null to Dictionary.TryGetValue.

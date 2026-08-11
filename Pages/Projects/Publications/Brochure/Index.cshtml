@@ -72,7 +72,7 @@
         <div>
             <p class="publications-eyebrow">CAPABILITY PUBLICATION</p>
             <h1>Brochure Builder</h1>
-            <p>Compose, preflight and preview a publication-quality A4 brochure from authoritative PRISM project records.</p>
+            <p>Compose, review and generate either the original-format compact hard-copy brochure or a comfortable A4 digital edition from authoritative PRISM project records.</p>
         </div>
         <div class="brochure-header-badge" title="PDF generation remains fully offline">
             <i class="bi bi-cloud-slash" aria-hidden="true"></i>
@@ -144,6 +144,36 @@
                                 <small>Sources are never merged automatically.</small>
                             </label>
                         </div>
+
+                        <fieldset class="brochure-profile-fieldset">
+                            <legend>Publication profile</legend>
+                            <div class="brochure-profile-options">
+                                <label class="brochure-profile-option @(Model.Input.PublicationProfile == BrochurePublicationProfile.PrintCompact ? "is-selected" : string.Empty)" data-profile-option>
+                                    <input type="radio"
+                                           asp-for="Input.PublicationProfile"
+                                           value="@BrochurePublicationProfile.PrintCompact"
+                                           data-brochure-profile
+                                           data-brochure-preflight-trigger />
+                                    <span class="brochure-profile-option__icon"><i class="bi bi-journal-richtext" aria-hidden="true"></i></span>
+                                    <span>
+                                        <strong>Print / Compact</strong>
+                                        <small>Hard-copy profile modelled on the approved brochure: 423.23 × 846.755 pt (≈149.3 × 298.7 mm), dense project packing and content-bearing first/final pages.</small>
+                                    </span>
+                                </label>
+                                <label class="brochure-profile-option @(Model.Input.PublicationProfile == BrochurePublicationProfile.DigitalComfortable ? "is-selected" : string.Empty)" data-profile-option>
+                                    <input type="radio"
+                                           asp-for="Input.PublicationProfile"
+                                           value="@BrochurePublicationProfile.DigitalComfortable"
+                                           data-brochure-profile
+                                           data-brochure-preflight-trigger />
+                                    <span class="brochure-profile-option__icon"><i class="bi bi-display" aria-hidden="true"></i></span>
+                                    <span>
+                                        <strong>Digital / Comfortable</strong>
+                                        <small>A4 screen-friendly profile with larger imagery, more whitespace and the existing editorial page planner.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </fieldset>
 
                         <fieldset class="brochure-cover-fieldset">
                             <legend>Cover style</legend>
@@ -244,21 +274,63 @@
                                         <small>Enable only where a project genuinely has no suitable publication photograph.</small>
                                     </span>
                                 </label>
-                                <label class="brochure-policy-option">
+                                <label class="brochure-policy-option" data-brochure-digital-only>
                                     <input asp-for="Input.IncludeBackCover" class="form-check-input" />
                                     <span>
-                                        <strong>Include closing/back cover</strong>
-                                        <small>Recommended. Adds a restrained institutional closing page after the final project page.</small>
+                                        <strong>Include digital closing/back cover</strong>
+                                        <small>Digital profile only. The compact print profile instead retains the original content-bearing final page.</small>
                                     </span>
                                 </label>
-                                <label class="form-label brochure-field">
+                                <label class="form-label brochure-field" data-brochure-digital-only>
                                     <span>Introduction heading</span>
                                     <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" />
                                 </label>
-                                <label class="form-label brochure-field brochure-field--wide">
+                                <label class="form-label brochure-field brochure-field--wide" data-brochure-digital-only>
                                     <span>Optional introduction text</span>
                                     <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional institutional introduction..."></textarea>
                                     <small>Long introductions are automatically continued without shrinking body text below the publication floor.</small>
+                                </label>
+                            </div>
+                        </details>
+
+                        <details class="brochure-print-content" data-brochure-print-only>
+                            <summary><i class="bi bi-file-text" aria-hidden="true"></i> Print institutional content</summary>
+                            <div class="brochure-print-content-note">
+                                <strong>Hard-copy first and final pages remain content-bearing.</strong>
+                                <span>These publication-level fields are pre-populated from the approved reference brochure and can be updated without changing any project record.</span>
+                            </div>
+                            <div class="brochure-print-content-grid">
+                                <label class="form-label brochure-field brochure-field--wide">
+                                    <span>Centre of Expertise statement</span>
+                                    <textarea asp-for="Input.PrintCentreStatement" class="form-control" rows="2" maxlength="1200"></textarea>
+                                </label>
+                                <label class="form-label brochure-field brochure-field--wide">
+                                    <span>Role of simulators / opening narrative</span>
+                                    <textarea asp-for="Input.PrintIntroText" class="form-control" rows="6" maxlength="5000"></textarea>
+                                </label>
+                                <label class="form-label brochure-field brochure-field--wide">
+                                    <span>Technology and future-readiness narrative</span>
+                                    <textarea asp-for="Input.PrintFutureText" class="form-control" rows="4" maxlength="3500"></textarea>
+                                </label>
+                                <label class="form-label brochure-field brochure-field--wide">
+                                    <span>Procurement guidance</span>
+                                    <textarea asp-for="Input.PrintProcurementText" class="form-control" rows="4" maxlength="3500"></textarea>
+                                </label>
+                                <label class="form-label brochure-field">
+                                    <span>Developing Agency / contact details</span>
+                                    <textarea asp-for="Input.PrintDevelopingAgencyText" class="form-control" rows="6" maxlength="1800"></textarea>
+                                </label>
+                                <label class="form-label brochure-field">
+                                    <span>Manufacturing Agency details</span>
+                                    <textarea asp-for="Input.PrintManufacturingAgencyText" class="form-control" rows="6" maxlength="1200"></textarea>
+                                </label>
+                                <label class="form-label brochure-field brochure-field--wide">
+                                    <span>Visionary Horizons & Strategic Objectives</span>
+                                    <textarea asp-for="Input.PrintVisionaryText" class="form-control" rows="6" maxlength="4500"></textarea>
+                                </label>
+                                <label class="form-label brochure-field brochure-field--wide">
+                                    <span>New Simulators guidance</span>
+                                    <textarea asp-for="Input.PrintNewSimulatorsText" class="form-control" rows="3" maxlength="1800"></textarea>
                                 </label>
                             </div>
                         </details>

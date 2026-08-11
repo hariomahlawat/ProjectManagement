@@ -1,32 +1,68 @@
-# PRISM Publications — Phase 6 Visual Composition Finalisation
+# PRISM Publications — Phase 7 Compact Print Profile
 
-## Use this package when
+## Purpose
 
-Phase 5 is already installed and the Brochure Builder is running. This is the recommended package for the current PRISM installation shown in the acceptance screenshots.
+Phase 7 adds a purpose-built **Print / Compact** brochure profile modelled on the effective page geometry and information architecture of the supplied approved hard-copy brochure, while preserving the existing **Digital / Comfortable** A4 profile.
 
-## Installation
+The supplied Canva PDF was rechecked at PDF page-box level. Its effective page size is **423.23 × 846.755 points** (approximately **149.3 × 298.7 mm**), not A4. The new hard-copy compositor uses those exact effective dimensions.
 
-Copy the contents of this folder over the **ProjectManagement project root**, preserving the directory structure and replacing the matching files.
+The reference brochure also uses content-bearing first and final pages. Phase 7 therefore retains editable publication-level institutional text in addition to project briefs:
 
-There is **no EF migration, no Program.cs change, no navigation change, no Compendium change, and no font reinstall** in Phase 6.
+- opening simulator/technology narrative;
+- Centre of Expertise statement;
+- procurement guidance;
+- Developing Agency / contact details;
+- Manufacturing Agency details;
+- Visionary Horizons & Strategic Objectives;
+- New Simulators guidance;
+- institutional strapline.
 
-The replacement `BrochurePdfReportBuilder.cs` already retains the Phase 5 CS0136 compile hotfix (`featureGap` / `cardGap`).
+These values are publication-level defaults. They do **not** write back to Project records.
 
-## What Phase 6 changes
+## Installation — recommended for the current Phase 6 installation
 
-- Cover B hero is now independent from project order and from each project's normal brochure primary image.
-- Automatic Cover B selection considers all usable photographs belonging to selected projects.
-- Cover B has its own focal point and cover-specific 1800×1100 crop/render path.
-- Final Cover B download requires explicit **Approve cover**; Preview remains available before cover approval.
-- Changing Cover B title/subtitle/edition/strapline, hero or crop invalidates cover approval.
-- Project reordering reruns publication preflight but no longer forces already reviewed, unchanged projects to be reviewed again.
-- Project review is simplified to one **Approve project** action; it accepts the narrative and currently selected imagery together.
-- Editorial image confirmation is no longer counted as a technical preflight warning.
-- `SingleFeature` gets a dedicated editorial page renderer instead of an oversized full-page bordered card.
-- `TwoFeature` retains alternating left/right composition and now scales image frames according to narrative length.
-- Cover B hero area is increased to 364 pt and remains bottom-anchored above the closing band.
-- Back cover, Cover A, fonts, Compendium and the existing layout planner thresholds are intentionally retained.
-- No duplicate Project Brief detection is introduced.
+Copy the contents of the Phase 7 incremental ZIP over the **ProjectManagement project root**, preserving paths and replacing matching files.
+
+There is:
+
+- **no EF migration**;
+- **no Program.cs change**;
+- **no navigation change**;
+- **no Compendium change**;
+- **no font reinstall**.
+
+## Phase 7 behaviour
+
+### Print / Compact — default
+
+- Exact effective reference size: **423.23 × 846.755 pt** (~149.3 × 298.7 mm).
+- Purpose-built slim hard-copy renderer; it does not use A4.
+- Content-bearing first page rather than a sparse decorative cover.
+- Project modules are measured and flowed vertically by QuestPDF; they are not forced into the Digital `SingleFeature` / `TwoFeature` geometry.
+- Compact print typography and tactical one/two-image treatment.
+- Each project module stays intact; the next project begins immediately after it whenever space permits.
+- Final institutional matter follows the last project, allowing the final physical page to contain both projects and the Visionary/New Simulators sections when space permits.
+- Long project narratives above the compact-print safety threshold are blocked by preflight rather than silently shrinking typography to unreadable sizes.
+- Cover B remains independently selectable/croppable and uses a profile-specific source crop.
+
+### Digital / Comfortable
+
+The existing Phase 6 A4 renderer remains isolated and unchanged in principle:
+
+- A4 layout;
+- current Cover A/B choices;
+- digital introduction/back-cover controls;
+- spacious 1–4 project layout planning;
+- Phase 6 SingleFeature / TwoFeature composition.
+
+### Image-control fixes
+
+Phase 7 also fixes the Review interaction identified during Phase 6 acceptance:
+
+- **Change image** opens the photograph selector.
+- **Adjust crop** opens and focuses the focal-point crop editor for the current primary image.
+- Cover **Change hero** brings the chooser into view.
+- Cover **Adjust crop** brings and focuses the cover crop editor.
 
 ## Verify after copying
 
@@ -34,7 +70,7 @@ From the ProjectManagement root:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase6.ps1
+.\tools\Test-PrismPublicationsPhase7.ps1
 
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -46,25 +82,30 @@ node --check .\wwwroot\js\pages\projects-brochure.js
 node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
 ```
 
-## Acceptance checks in the browser
+## Browser acceptance checks
 
-1. Select several projects with more than one available photograph.
-2. Verify **Cover B hero → Change hero** lists photographs independently of project primary-image selection.
-3. Select a different cover photograph and adjust its crop. Confirm that project-card imagery remains unchanged.
-4. Preview should be enabled after technical preflight even before final editorial approval.
-5. Final Download should require all selected projects to be approved and, for Cover B, the cover to be approved.
-6. Reorder an already reviewed project. Its project approval should remain intact.
-7. Change a project's brief/photo/crop. Only that project's review should be invalidated.
-8. Generate one 190–200 word project and confirm SingleFeature has a large intentional image + narrative composition with no giant empty bordered rectangle.
-9. Generate two projects at ≤125, 126–155 and 156–185 words and confirm the TwoFeature photograph size responds to copy length while body type remains readable.
-10. Generate both Cover A and Cover B PDFs and compare against the reference brochure.
+1. Open Publications → Brochure. **Print / Compact** should be selected by default.
+2. Switch between Print / Compact and Digital / Comfortable. Print institutional fields and Digital-only introduction/back-cover controls should switch cleanly.
+3. In Print / Compact, open **Hard-copy institutional content** and verify the front/final publication text is populated and editable.
+4. Select 8–12 projects and complete technical preflight.
+5. In Review, verify **Change image** opens photograph selection while **Adjust crop** goes directly to the focal editor.
+6. Verify Cover B hero selection/crop still works independently of project image/order.
+7. Preview Print / Compact and check the PDF page proportions are the same slim portrait proportions as the supplied hard-copy brochure—not A4.
+8. Verify the first print page contains the institutional narrative, procurement and agency/contact content.
+9. Verify project pages are densely flowed with no Digital-style giant feature-page whitespace.
+10. Verify the final print page (or, if necessary because of content volume, the next complete page) contains **Visionary Horizons & Strategic Objectives** and **New Simulators** after the final project modules.
+11. Switch to Digital / Comfortable and confirm the existing A4 output remains available.
 
-## Validation performed in the preparation environment
+## Preparation-environment validation
 
+Completed here:
+
+- Rechecked the supplied reference PDF with `pdfinfo -box`: effective page size **423.23 × 846.755 pt**, CropBox/TrimBox matching that effective page.
 - `node --check wwwroot/js/pages/projects-brochure.js` — passed.
-- `node --test wwwroot/js/projects/publications-brochure-contract.test.js` — **14/14 passed**.
+- `node --test wwwroot/js/projects/publications-brochure-contract.test.js` — **19/19 passed**.
 - Modified C# files passed structural delimiter checks.
 - Publications CSS passed structural brace validation.
-- Incremental changes were diffed against the Phase 5 baseline with the compile hotfix applied.
+- Phase 7 source contracts were cross-checked against the generated checker patterns.
+- All `BrochureBuildOptions` and brochure preflight call sites in the supplied Publications package were checked for the new profile parameter.
 
-The preparation environment does not contain the .NET SDK, so `dotnet build` and xUnit execution must be completed in the user's normal PRISM development environment.
+The preparation environment does not contain the .NET SDK or PowerShell, so `dotnet build`, xUnit execution and the supplied PowerShell integration checker must be run in the normal PRISM development environment.

@@ -82,6 +82,7 @@ public sealed class BrochurePdfReportBuilderTests
                 "Simulators of the Army, by the Army, for the Army",
                 BrochureCoverStyle.Contemporary,
                 BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.DigitalComfortable,
                 IntroductionTitle: null,
                 IntroductionText: null,
                 HandlingMarking: null,
@@ -102,6 +103,68 @@ public sealed class BrochurePdfReportBuilderTests
                     ResolvedCoverHeroProjectId: project.ProjectId,
                     ResolvedCoverHeroPhotoId: hero.PhotoId),
                 hero);
+
+            var bytes = builder.Build(data);
+
+            Assert.True(bytes.Length > 5_000);
+            Assert.Equal("%PDF-", Encoding.ASCII.GetString(bytes, 0, 5));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Build_PrintCompact_GeneratesReferenceFormatHardCopy()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var environment = new TestWebHostEnvironment(webRoot);
+            var fontService = new FixedFontService();
+            var builder = new BrochurePdfReportBuilder(environment, fontService);
+            var projects = Enumerable.Range(1, 6)
+                .Select(id => new BrochurePublicationProject(
+                    id,
+                    $"Compact Print Project {id}",
+                    "Other R&D Projects",
+                    "Simulator",
+                    string.Join(" ", Enumerable.Range(1, 135).Select(index => $"word{index}")),
+                    135,
+                    PrimaryPhoto: null,
+                    SecondaryPhoto: null,
+                    BrochureImageMode.Automatic))
+                .ToArray();
+
+            var options = new BrochureBuildOptions(
+                "SDD Capability Brochure",
+                "Simulator Development Division",
+                "Capability Edition · 2026",
+                "Simulators of the Army, by the Army, for the Army",
+                BrochureCoverStyle.Institutional,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.PrintCompact,
+                IntroductionTitle: null,
+                IntroductionText: null,
+                HandlingMarking: null,
+                IssuerDisplayName: "Simulator Development Division",
+                AllowTextOnlyProjects: true,
+                GeneratedAtUtc: new DateTimeOffset(2026, 8, 11, 3, 0, 0, TimeSpan.Zero),
+                PrintIntroText: "Institutional introduction.",
+                PrintFutureText: "Future readiness narrative.",
+                PrintProcurementText: "Procurement guidance.",
+                PrintCentreStatement: "Centre of Expertise statement.",
+                PrintDevelopingAgencyText: "Simulator Development Division.",
+                PrintManufacturingAgencyText: "515 Army Base Workshop.",
+                PrintVisionaryText: "Visionary horizons and strategic objectives.",
+                PrintNewSimulatorsText: "New simulator requirements may be proposed through the prescribed channels.");
+
+            var data = new BrochurePublicationData(
+                options,
+                projects,
+                new BrochurePreflight(projects.Length, Array.Empty<BrochurePreflightIssue>()));
 
             var bytes = builder.Build(data);
 
@@ -164,6 +227,7 @@ public sealed class BrochurePdfReportBuilderTests
             "Simulators of the Army, by the Army, for the Army",
             coverStyle,
             BrochureNarrativeSource.ProjectBrief,
+            BrochurePublicationProfile.DigitalComfortable,
             IntroductionTitle: null,
             IntroductionText: null,
             HandlingMarking: null,

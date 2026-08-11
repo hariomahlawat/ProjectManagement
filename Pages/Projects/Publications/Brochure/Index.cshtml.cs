@@ -14,6 +14,47 @@ public sealed class IndexModel : PageModel
 {
     private const int MaximumSelectedProjects = 100;
 
+    // Print-profile defaults are intentionally sourced from the approved reference brochure.
+    // They remain editable publication-level content and are never copied into project records.
+    private const string DefaultPrintIntroText = """
+Simulators represent a cornerstone of modern military training, serving as advanced force multipliers that harness cutting-edge technology to significantly enhance training effectiveness and overcome the inherent limitations of live exercises. The escalating complexity and cost of contemporary weapon systems, combined with ammunition scarcity, the imperative to preserve operational readiness, dynamic and fluid battle conditions, shrinking training spaces, and fiscal constraints, all drive the expanding integration of simulators across leading military forces worldwide. These sophisticated training platforms enable realistic preparation for high-risk and life-critical scenarios within a controlled and safe environment. They allow for repeated execution of complex manoeuvres on fully interactive systems, optimise resource utilisation, mitigate risks associated with live training accidents, and facilitate data-driven coaching alongside objective performance metrics. Recent technological advancements in electronics, computing, and immersive software have significantly enhanced realism, effectively narrowing the gap between live operational systems and their simulated counterparts, thereby elevating combat preparedness to new levels.
+""";
+
+    private const string DefaultPrintFutureText = """
+This decade marks a phase of technological transformation, as advances reshape military operations through autonomous, integrated, and AI-enabled systems. The Indian Army is leading this evolution by adopting cutting-edge capabilities, with the Simulator Development Division gearing up to deliver aligned training and operational solutions. IA initiatives, such as Cyber Quest 2025, drive the integration of AI, machine learning, quantum computing, and drone technology to counter threats. Focus on cyber and electronic warfare, as well as advanced strike systems, signals a future-ready vision. Meanwhile, collaboration with academia and industry through schemes such as ADITI fosters indigenous innovation, modernisation, and battlefield self-reliance.
+""";
+
+    private const string DefaultPrintProcurementText = """
+Procurement of the simulators under revenue route can be done through appropriate grants like IR&D/ ACSFP/ATG/TTIEG/ etc by Units/ Formations/ Establishments. Statement of case with production cost ascertained from 515 Army Base Workshop (ABW) is processed by the users for approval of relevant CFA. On allotment of funds for procurement, the payment work order can be placed on 515 ABW through HQ Base Workshop Group (EME), Meerut Cantt. The funds have to be transferred from Unit CDA to CDA, Bengaluru, of 515 ABW. The required simulator is then manufactured by 515 ABW and subsequently installed at the unit premises along with training to unit. The simulators can also be procured through MOLTI/MOTIMS as per the policy in vogue.
+""";
+
+    private const string DefaultPrintCentreStatement = """
+SDD is the Centre of Expertise in AR/VR and the nodal centre for development of Simulators and Niche technologies in AI, Drones & Robotics.
+""";
+
+    private const string DefaultPrintDevelopingAgencyText = """
+Simulator Development Division,
+Trimulgherry Post, Secunderabad - 500015. Telangana.
+Tele/Fax: 040-27794273 ; 040-27795418
+Army Intranet Website : http://sdd.army.mil/
+E-mail ID: itsdd1234@gmail.com ; sdd.it@gov.in
+""";
+
+    private const string DefaultPrintManufacturingAgencyText = """
+515 Army Base Workshop,
+Bangalore-560008. Karnataka.
+Tele/Fax: 080-25591567.
+Army : 460108-6842
+""";
+
+    private const string DefaultPrintVisionaryText = """
+Technological advances are reshaping modern warfare, integrating artificial intelligence, big data, drones, quantum technologies and autonomous systems to enhance efficiency, precision and speed. Contemporary battle strategies rely on UAVs, cyber operations and AI-driven decision support to sharpen intelligence and situational awareness. Future capabilities are centred on AI, robotics, quantum computing, blockchain, machine learning and next-generation communications, enabling autonomous platforms such as drone swarms and robotic vehicles that reduce human risk and improve accuracy. Within this landscape, the Indian Army is actively inducting emerging technologies. The Simulator Development Division is designing next-generation simulators, decision support tools, and testbeds that mirror these capabilities, preparing commanders and soldiers for technology-intensive, multi-domain operations. Ultimately, this proactive digital integration guarantees that frontline forces achieve complete cognitive dominance and tactical superiority long before ever stepping into the actual physical combat zone.
+""";
+
+    private const string DefaultPrintNewSimulatorsText = """
+In case of requirements of new simulators/ niche technology products, HQ ARTRAC (AI & Simulation) may be approached along with Statement of Case covering detailed requirements. The requirement of simulators/ products may also be proposed during Simulator & Wargame Apex Committee Meeting as and when held.
+""";
+
     private readonly IBrochurePublicationService _publicationService;
     private readonly IBrochurePhotoService _photoService;
     private readonly IBrochurePdfReportBuilder _pdfBuilder;
@@ -130,14 +171,20 @@ public sealed class IndexModel : PageModel
         ApplyDefaults();
         NormalizeInput();
 
-        if (!Enum.IsDefined(Input.NarrativeSource) || !Enum.IsDefined(Input.CoverStyle))
+        if (!Enum.IsDefined(Input.NarrativeSource)
+            || !Enum.IsDefined(Input.CoverStyle)
+            || !Enum.IsDefined(Input.PublicationProfile))
         {
             var message = !Enum.IsDefined(Input.NarrativeSource)
                 ? "Select a valid project narrative source."
-                : "Select a valid brochure cover style.";
+                : !Enum.IsDefined(Input.CoverStyle)
+                    ? "Select a valid brochure cover style."
+                    : "Select a valid brochure publication profile.";
             var code = !Enum.IsDefined(Input.NarrativeSource)
                 ? "invalidNarrativeSource"
-                : "invalidCoverStyle";
+                : !Enum.IsDefined(Input.CoverStyle)
+                    ? "invalidCoverStyle"
+                    : "invalidPublicationProfile";
 
             return new JsonResult(new
             {
@@ -164,6 +211,7 @@ public sealed class IndexModel : PageModel
             ToSelections(),
             Input.NarrativeSource,
             Input.CoverStyle,
+            Input.PublicationProfile,
             Input.AllowTextOnlyProjects,
             Input.CoverHeroProjectId,
             Input.CoverHeroPhotoId,
@@ -216,6 +264,7 @@ public sealed class IndexModel : PageModel
                 Input.Strapline!,
                 Input.CoverStyle,
                 Input.NarrativeSource,
+                Input.PublicationProfile,
                 NullIfWhiteSpace(Input.IntroductionTitle),
                 NullIfWhiteSpace(Input.IntroductionText),
                 NullIfWhiteSpace(Input.HandlingMarking),
@@ -226,7 +275,15 @@ public sealed class IndexModel : PageModel
                 Input.CoverHeroPhotoId,
                 Input.CoverHeroFocalX,
                 Input.CoverHeroFocalY,
-                Input.IncludeBackCover);
+                Input.IncludeBackCover,
+                NullIfWhiteSpace(Input.PrintIntroText),
+                NullIfWhiteSpace(Input.PrintFutureText),
+                NullIfWhiteSpace(Input.PrintProcurementText),
+                NullIfWhiteSpace(Input.PrintCentreStatement),
+                NullIfWhiteSpace(Input.PrintDevelopingAgencyText),
+                NullIfWhiteSpace(Input.PrintManufacturingAgencyText),
+                NullIfWhiteSpace(Input.PrintVisionaryText),
+                NullIfWhiteSpace(Input.PrintNewSimulatorsText));
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -333,6 +390,14 @@ public sealed class IndexModel : PageModel
         Input.Strapline = string.IsNullOrWhiteSpace(Input.Strapline)
             ? "Simulators of the Army, by the Army, for the Army"
             : Input.Strapline;
+        Input.PrintIntroText = string.IsNullOrWhiteSpace(Input.PrintIntroText) ? DefaultPrintIntroText : Input.PrintIntroText;
+        Input.PrintFutureText = string.IsNullOrWhiteSpace(Input.PrintFutureText) ? DefaultPrintFutureText : Input.PrintFutureText;
+        Input.PrintProcurementText = string.IsNullOrWhiteSpace(Input.PrintProcurementText) ? DefaultPrintProcurementText : Input.PrintProcurementText;
+        Input.PrintCentreStatement = string.IsNullOrWhiteSpace(Input.PrintCentreStatement) ? DefaultPrintCentreStatement : Input.PrintCentreStatement;
+        Input.PrintDevelopingAgencyText = string.IsNullOrWhiteSpace(Input.PrintDevelopingAgencyText) ? DefaultPrintDevelopingAgencyText : Input.PrintDevelopingAgencyText;
+        Input.PrintManufacturingAgencyText = string.IsNullOrWhiteSpace(Input.PrintManufacturingAgencyText) ? DefaultPrintManufacturingAgencyText : Input.PrintManufacturingAgencyText;
+        Input.PrintVisionaryText = string.IsNullOrWhiteSpace(Input.PrintVisionaryText) ? DefaultPrintVisionaryText : Input.PrintVisionaryText;
+        Input.PrintNewSimulatorsText = string.IsNullOrWhiteSpace(Input.PrintNewSimulatorsText) ? DefaultPrintNewSimulatorsText : Input.PrintNewSimulatorsText;
     }
 
     private void NormalizeInput()
@@ -343,6 +408,14 @@ public sealed class IndexModel : PageModel
         Input.Strapline = Normalize(Input.Strapline, 180);
         Input.IntroductionTitle = NormalizeOptional(Input.IntroductionTitle, 120);
         Input.IntroductionText = NormalizeOptional(Input.IntroductionText, 3000, preserveLineBreaks: true);
+        Input.PrintIntroText = NormalizeOptional(Input.PrintIntroText, 5000, preserveLineBreaks: true);
+        Input.PrintFutureText = NormalizeOptional(Input.PrintFutureText, 3500, preserveLineBreaks: true);
+        Input.PrintProcurementText = NormalizeOptional(Input.PrintProcurementText, 3500, preserveLineBreaks: true);
+        Input.PrintCentreStatement = NormalizeOptional(Input.PrintCentreStatement, 1200, preserveLineBreaks: true);
+        Input.PrintDevelopingAgencyText = NormalizeOptional(Input.PrintDevelopingAgencyText, 1800, preserveLineBreaks: true);
+        Input.PrintManufacturingAgencyText = NormalizeOptional(Input.PrintManufacturingAgencyText, 1200, preserveLineBreaks: true);
+        Input.PrintVisionaryText = NormalizeOptional(Input.PrintVisionaryText, 4500, preserveLineBreaks: true);
+        Input.PrintNewSimulatorsText = NormalizeOptional(Input.PrintNewSimulatorsText, 1800, preserveLineBreaks: true);
         Input.HandlingMarking = NormalizeOptional(Input.HandlingMarking, 80)?.ToUpperInvariant();
         Input.CoverHeroProjectId = Input.CoverHeroProjectId is > 0
             ? Input.CoverHeroProjectId
@@ -400,6 +473,34 @@ public sealed class IndexModel : PageModel
         {
             ModelState.AddModelError(nameof(Input.NarrativeSource), "Select a valid project narrative source.");
         }
+        if (!Enum.IsDefined(Input.PublicationProfile))
+        {
+            ModelState.AddModelError(nameof(Input.PublicationProfile), "Select a valid brochure publication profile.");
+        }
+
+        if (Input.PublicationProfile == BrochurePublicationProfile.PrintCompact)
+        {
+            if (string.IsNullOrWhiteSpace(Input.PrintIntroText)
+                || string.IsNullOrWhiteSpace(Input.PrintFutureText)
+                || string.IsNullOrWhiteSpace(Input.PrintCentreStatement)
+                || string.IsNullOrWhiteSpace(Input.PrintProcurementText)
+                || string.IsNullOrWhiteSpace(Input.PrintDevelopingAgencyText)
+                || string.IsNullOrWhiteSpace(Input.PrintManufacturingAgencyText)
+                || string.IsNullOrWhiteSpace(Input.PrintVisionaryText)
+                || string.IsNullOrWhiteSpace(Input.PrintNewSimulatorsText))
+            {
+                ModelState.AddModelError(
+                    nameof(Input.PublicationProfile),
+                    "The compact print profile requires the institutional front and final-page publication text.");
+            }
+
+            ValidatePrintMatterLength(Input.PrintCentreStatement, 60, "Centre of Expertise statement");
+            ValidatePrintMatterLength(Input.PrintIntroText, 260, "Opening narrative");
+            ValidatePrintMatterLength(Input.PrintFutureText, 180, "Technology and future-readiness narrative");
+            ValidatePrintMatterLength(Input.PrintProcurementText, 190, "Procurement guidance");
+            ValidatePrintMatterLength(Input.PrintVisionaryText, 240, "Visionary Horizons narrative");
+            ValidatePrintMatterLength(Input.PrintNewSimulatorsText, 100, "New Simulators guidance");
+        }
 
         if (!preview && Input.Selections.Count > 0)
         {
@@ -417,6 +518,22 @@ public sealed class IndexModel : PageModel
                     nameof(Input.CoverReviewed),
                     "Approve the Cover B hero and crop before final download.");
             }
+        }
+    }
+
+    private void ValidatePrintMatterLength(string? value, int maximumWords, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var wordCount = BrochureLayoutPlanner.CountWords(value);
+        if (wordCount > maximumWords)
+        {
+            ModelState.AddModelError(
+                nameof(Input.PublicationProfile),
+                $"{label} is {wordCount} words. The compact print profile supports up to {maximumWords} words in this section.");
         }
     }
 
@@ -602,11 +719,38 @@ public sealed class IndexModel : PageModel
         [Required]
         public BrochureNarrativeSource NarrativeSource { get; set; } = BrochureNarrativeSource.ProjectBrief;
 
+        [Required]
+        public BrochurePublicationProfile PublicationProfile { get; set; } = BrochurePublicationProfile.PrintCompact;
+
         [StringLength(120)]
         public string? IntroductionTitle { get; set; }
 
         [StringLength(3000)]
         public string? IntroductionText { get; set; }
+
+        [StringLength(5000)]
+        public string? PrintIntroText { get; set; }
+
+        [StringLength(3500)]
+        public string? PrintFutureText { get; set; }
+
+        [StringLength(3500)]
+        public string? PrintProcurementText { get; set; }
+
+        [StringLength(1200)]
+        public string? PrintCentreStatement { get; set; }
+
+        [StringLength(1800)]
+        public string? PrintDevelopingAgencyText { get; set; }
+
+        [StringLength(1200)]
+        public string? PrintManufacturingAgencyText { get; set; }
+
+        [StringLength(4500)]
+        public string? PrintVisionaryText { get; set; }
+
+        [StringLength(1800)]
+        public string? PrintNewSimulatorsText { get; set; }
 
         [StringLength(80)]
         [Display(Name = "Handling/classification marking")]

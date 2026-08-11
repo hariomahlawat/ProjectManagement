@@ -1,0 +1,42 @@
+--- a/Utilities/Reporting/BrochurePrintCompactComposer.cs
++++ b/Utilities/Reporting/BrochurePrintCompactComposer.cs
+@@
+                         column.Item().Text(text =>
+                         {
++                            text.DefaultTextStyle(style => style
++                                .FontSize(7.0f)
++                                .LineHeight(1.05f)
++                                .FontColor(Ink));
+                             text.Span("Procurement: ").Bold().FontColor("#7A6516");
+                             text.Span(data.Options.PrintProcurementText ?? string.Empty);
+-                        })
+-                            .FontSize(7.0f)
+-                            .LineHeight(1.05f)
+-                            .FontColor(Ink);
++                        });
+@@
+             column.Item().Background(Forest800).Padding(7).Text(text =>
+             {
++                text.DefaultTextStyle(style => style
++                    .FontSize(7.25f)
++                    .LineHeight(1.05f));
+                 text.Span("New Simulators. ").Bold().Italic().FontColor("#F4D66E");
+                 text.Span(data.Options.PrintNewSimulatorsText ?? string.Empty).SemiBold().FontColor("#FFFFFF");
+-            }).FontSize(7.25f).LineHeight(1.05f);
++            });
+
+--- a/Pages/ActionTasks/Index.cshtml.cs
++++ b/Pages/ActionTasks/Index.cshtml.cs
+@@
+-    public string ResolveActorName(string performedByUserId)
++    public string ResolveActorName(string? performedByUserId)
+     {
++        if (string.IsNullOrWhiteSpace(performedByUserId))
++        {
++            return "System";
++        }
++
+         return TaskActorNames.TryGetValue(performedByUserId, out var actorName)
+             ? actorName
+             : "User";
+     }
