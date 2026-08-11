@@ -536,6 +536,54 @@
 .brochure-cover-hero-choice strong { color: #263f36; font-size: .6rem; }
 .brochure-cover-hero-choice small { margin-top: 1px; color: #7b8b85; font-size: .52rem; }
 
+/* Phase 6: independent Cover B artwork and approval */
+.brochure-cover-review-state {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: .25rem;
+    margin-top: .28rem;
+    padding: .16rem .42rem;
+    border: 1px solid #e8d7a7;
+    border-radius: 999px;
+    background: #fff9e9;
+    color: #8a6719;
+    font-size: .54rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.brochure-cover-review-state.is-reviewed {
+    border-color: #b9d7cb;
+    background: #eef8f4;
+    color: #1b6b59;
+}
+.brochure-cover-hero-choices {
+    max-height: 270px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.brochure-cover-crop-editor {
+    padding: .5rem;
+    border: 1px solid #d9e5e0;
+    border-radius: 8px;
+    background: #fff;
+}
+.brochure-cover-crop-editor[hidden] { display: none !important; }
+.brochure-focal-stage--cover { aspect-ratio: 18 / 11; margin-top: 0; }
+.brochure-cover-crop-editor__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-top: .42rem;
+}
+.brochure-cover-crop-editor__footer small {
+    color: #71827b;
+    font-size: .56rem;
+    line-height: 1.35;
+}
+
 .brochure-review-body { padding: .8rem; }
 .brochure-review-empty { display: grid; min-height: 150px; place-items: center; align-content: center; gap: .25rem; padding: 1rem; color: #7b8c85; text-align: center; }
 .brochure-review-empty i { font-size: 1.35rem; color: #8ea69d; }
@@ -603,6 +651,7 @@
 
 @media (max-width: 720px) {
     .brochure-cover-hero-heading, .brochure-review-card__footer { align-items: stretch; flex-direction: column; }
+    .brochure-cover-crop-editor__footer { align-items: stretch; flex-direction: column; }
     .brochure-cover-hero-choices { grid-template-columns: 1fr; }
     .brochure-review-navigation { width: 100%; }
     .brochure-review-navigation .btn { flex: 1 1 0; }

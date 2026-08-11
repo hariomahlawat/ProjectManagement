@@ -25,7 +25,9 @@ const criticalClasses = [
   'brochure-cover-hero-panel',
   'brochure-review-panel',
   'brochure-review-card',
-  'brochure-review-nav'
+  'brochure-review-nav',
+  'brochure-cover-review-state',
+  'brochure-cover-crop-editor'
 ];
 
 test('brochure critical Razor classes have explicit stylesheet coverage', () => {
@@ -66,20 +68,26 @@ test('brochure Gallery 2 remains an explicit second-image editorial choice', () 
 });
 
 
-test('phase 5 keeps cover hero independent from project ordering', () => {
+test('phase 6 keeps cover hero independent from project ordering and project primary imagery', () => {
   assert.match(view, /data-brochure-cover-hero-project/);
-  assert.match(view, /data-cover-hero-choose/);
-  assert.match(js, /explicitCoverHeroProjectId/);
-  assert.match(js, /resolvedCoverHeroId/);
-  assert.match(js, /invalidateAllReviews\(\);\s*renderSelected\(true\)/);
+  assert.match(view, /data-brochure-cover-hero-photo/);
+  assert.match(view, /data-brochure-cover-hero-focal-x/);
+  assert.match(view, /data-cover-hero-approve/);
+  assert.match(js, /explicitCoverHeroPhotoId/);
+  assert.match(js, /coverHeroFocalX/);
+  assert.match(js, /coverReviewed/);
+  assert.match(js, /flatMap\(id =>/);
+  assert.doesNotMatch(js, /orderedIds = next;\s*invalidateAllReviews\(\)/);
 });
 
-test('phase 5 provides publication review and requires review for final download', () => {
+test('phase 6 provides project approval and cover approval for final download', () => {
   assert.match(view, /Review publication/);
-  assert.match(view, /data-review-mark-reviewed/);
+  assert.match(view, /Approve project/);
+  assert.match(view, /data-cover-hero-approve/);
+  assert.doesNotMatch(view, /Use this image/);
   assert.match(js, /allReviewed/);
-  assert.match(js, /config\.isReviewed/);
-  assert.match(js, /finalReady = previewReady && allReviewed\(\)/);
+  assert.match(js, /coverReady = !isContemporaryCover\(\) \|\| coverReviewed/);
+  assert.match(js, /finalReady = previewReady && allReviewed\(\) && coverReady/);
 });
 
 test('phase 5 refreshes authoritative project state after cross-tab edits', () => {
@@ -106,22 +114,31 @@ test('phase 5 selection wording refers to matching projects, not viewport visibi
 });
 
 
-test('phase 5 renderer anchors Cover B and removes front-cover PRISM provenance', () => {
-  assert.match(renderer, /ComposeContemporaryCover/);
-  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,220}PaddingBottom\(92\)[\s\S]{0,120}Height\(340\)/);
+test('phase 6 renderer uses independent Cover B artwork with finalised full-page geometry', () => {
+  assert.match(renderer, /var hero = data\.CoverHeroImage\?\.Content/);
+  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,220}PaddingBottom\(92\)[\s\S]{0,120}Height\(364\)/);
   assert.match(renderer, /AlignBottom\(\)[\s\S]{0,120}Height\(92\)[\s\S]{0,120}Background\(Forest950\)/);
   const contemporary = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeIntroductionPages'));
   assert.doesNotMatch(contemporary, /Generated from authoritative PRISM records/);
 });
 
-test('phase 5 renderer gives two-project pages a dedicated larger editorial composition', () => {
+test('phase 6 renderer gives two-project pages adaptive imagery and SingleFeature a dedicated page composer', () => {
   assert.match(renderer, /ComposeTwoFeatureBlock/);
-  assert.match(renderer, /row\.ConstantItem\(205\)/);
+  assert.match(renderer, /<= 125 => \(225f, 145f, 112f\)/);
+  assert.match(renderer, /<= 155 => \(215f, 132f, 108f\)/);
+  assert.match(renderer, /ComposeSingleFeaturePage/);
+  assert.match(renderer, /Width\(445\)\.Height\(250\)/);
   assert.match(renderer, /imageOnRight:\s*index % 2 == 0/);
-  assert.match(renderer, /BrochurePageLayoutKind\.TwoFeature/);
 });
 
-test('phase 5 renderer supports an optional dedicated back cover', () => {
+
+test('phase 6 technical preflight no longer counts unconfirmed project images as warnings', () => {
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  assert.doesNotMatch(service, /BrochurePreflightIssueCode\.UnconfirmedPrimaryPhoto[\s\S]{0,120}PublicationIssueSeverity\.Warning/);
+  assert.match(view, /data-review-reviewed-count/);
+});
+
+test('phase 6 renderer supports an optional dedicated back cover', () => {
   assert.match(renderer, /data\.Options\.IncludeBackCover/);
   assert.match(renderer, /ComposeBackCover/);
   assert.match(view, /Input\.IncludeBackCover/);

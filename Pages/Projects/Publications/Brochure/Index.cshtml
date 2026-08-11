@@ -94,6 +94,10 @@
           data-brochure-preview-url="@previewUrl"
           data-brochure-generate-url="@generateUrl">
         <input asp-for="Input.CoverHeroProjectId" type="hidden" data-brochure-cover-hero-project />
+        <input asp-for="Input.CoverHeroPhotoId" type="hidden" data-brochure-cover-hero-photo />
+        <input asp-for="Input.CoverHeroFocalX" type="hidden" data-brochure-cover-hero-focal-x />
+        <input asp-for="Input.CoverHeroFocalY" type="hidden" data-brochure-cover-hero-focal-y />
+        <input asp-for="Input.CoverReviewed" type="hidden" data-brochure-cover-reviewed />
         <div data-brochure-hidden-inputs></div>
         <script type="application/json" data-brochure-project-data>@Html.Raw(projectJson)</script>
         <script type="application/json" data-brochure-initial-selections>@Html.Raw(selectionJson)</script>
@@ -192,13 +196,30 @@
                                 <span class="brochure-cover-hero-current__copy">
                                     <strong data-cover-hero-name>Waiting for project selection</strong>
                                     <small data-cover-hero-meta>Select projects to resolve the automatic Cover B hero.</small>
+                                    <span class="brochure-cover-review-state" data-cover-hero-review-state>Cover review required</span>
                                 </span>
                                 <span class="brochure-cover-hero-current__actions">
                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-hero-choose>Change hero</button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-hero-crop disabled>Adjust crop</button>
+                                    <button type="button" class="btn btn-sm btn-success" data-cover-hero-approve disabled>
+                                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                                        Approve cover
+                                    </button>
                                 </span>
                             </div>
                             <div class="brochure-cover-hero-choices" hidden data-cover-hero-choices></div>
+                            <div class="brochure-cover-crop-editor" hidden data-cover-hero-crop-panel>
+                                <div class="brochure-focal-stage brochure-focal-stage--cover" data-cover-hero-focal-stage>
+                                    <img alt="Cover B hero focal-point source" data-cover-hero-focal-image />
+                                    <span class="brochure-focal-crop-frame" data-cover-hero-crop-frame aria-hidden="true"></span>
+                                    <span class="brochure-focal-marker" data-cover-hero-focal-marker aria-hidden="true"></span>
+                                    <button type="button" class="brochure-focal-reset" data-cover-hero-focal-reset>Reset</button>
+                                </div>
+                                <div class="brochure-cover-crop-editor__footer">
+                                    <small>Click the source image to set the independent Cover B focal point. The outlined frame matches the cover-specific crop.</small>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-hero-crop-close>Done</button>
+                                </div>
+                            </div>
                         </section>
 
                         <details class="brochure-advanced-options" open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText) || !string.IsNullOrWhiteSpace(Model.Input.HandlingMarking) || Model.Input.AllowTextOnlyProjects ? "open" : null)">
@@ -420,8 +441,8 @@
                                         </div>
                                         <div class="brochure-review-image__meta" data-review-image-meta></div>
                                         <div class="brochure-review-image__actions">
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-confirm-image>Use this image</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image>Change image</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop>Adjust crop</button>
                                         </div>
                                     </div>
                                     <div class="brochure-review-copy">
@@ -445,7 +466,7 @@
                                     </div>
                                     <button type="button" class="btn btn-sm btn-success" data-review-mark-reviewed>
                                         <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                                        Mark reviewed
+                                        Approve project
                                     </button>
                                 </footer>
                             </article>
@@ -500,7 +521,7 @@
                         <div class="brochure-photo-editor-section">
                             <div class="brochure-photo-editor-heading">
                                 <strong>Primary photograph</strong>
-                                <span>Used on project pages and may become the Cover B hero.</span>
+                                <span>Used on project pages. Cover B imagery is selected independently.</span>
                             </div>
                             <div class="brochure-photo-picker" data-primary-photo-picker></div>
                             <div class="brochure-focal-stage" data-primary-focal-stage hidden>

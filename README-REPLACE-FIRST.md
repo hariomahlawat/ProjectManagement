@@ -1,83 +1,40 @@
-# PRISM Publications — Phase 5 Ready-to-Replace
+# PRISM Publications — Phase 6 Visual Composition Finalisation
 
-## Phase 5: Editorial Review & Brochure Renderer Maturity
+## Use this package when
 
-This package is designed to be copied over a working **Phase 4** Publications installation. It is migration-free and does not replace `Program.cs`, Project navigation, Compendium services, or publication fonts.
-
-The changes are based on the first actual PRISM-generated capability brochure and focus on the remaining publication-quality gaps rather than adding unrelated features.
-
-## Implemented
-
-### Cover B
-- Cover B closing band is anchored to the A4 bottom edge; the previous unexplained lower white tail is removed.
-- The front cover no longer displays `Generated from authoritative PRISM records` or a visible project-count provenance line.
-- Cover B has a dedicated hero-selection workflow independent of project ordering.
-- Automatic hero selection remains available and prefers the strongest usable image according to the existing publication quality classification.
-- An explicitly chosen hero survives project reorder and uses the project's brochure focal point.
-- Cover-hero quality is rechecked by authoritative preflight.
-
-### Publication Review
-- Added **Step 3 — Review publication**.
-- Review shows the currently selected authoritative narrative and the actual selected brochure image together.
-- The user can confirm the automatic image, change/crop imagery, open the authoritative project content, manage photographs, and mark the project reviewed.
-- Review is session/request state only; no duplicate project narrative or database record is created.
-- Preview requires technical preflight to pass.
-- Final Download additionally requires every selected project to be reviewed.
-- Review state is invalidated when material publication inputs change, including narrative source, project order, imagery or focal point.
-
-### Cross-tab refresh
-- Added an authenticated `ProjectState` handler.
-- Returning from Project Brief/Capability/Description or Photo management refreshes selected project narrative/photo state without losing brochure order or configuration.
-- If source content or photo version changed, the affected project review is invalidated.
-- The source link follows the selected narrative source (`brief`, `capabilities`, or `description`).
-
-### Two-project feature pages
-- Added a dedicated `TwoFeature` renderer rather than stretching the generic card renderer.
-- Project imagery increases to a 205 pt editorial frame.
-- Image position alternates right/left between the two project modules.
-- Full empty bordered rectangles are removed; unused room becomes deliberate page whitespace.
-- TwoFeature is now limited to approximately 185-word fragments. Heavier copy promotes to SingleFeature instead of compressing the feature layout.
-- ThreeStandard and FourCompact remain fundamentally unchanged.
-
-### Final PDF handling
-- Preview and Download now use `fetch` + PDF Blob rather than a normal file form POST.
-- The UI reliably exits `Preparing brochure…` after the response.
-- Server errors are surfaced and buttons restore correctly.
-- The server supplies the final filename through `X-PRISM-Publication-FileName`.
-
-### Back cover and metadata
-- Added an optional institutional closing/back cover, enabled by default.
-- PDF metadata identifies the document as an SDD capability publication created by PRISM Publications.
-
-### UX refinement
-- `Select visible` is replaced by accurate `Select N matching` / `Select first N matching` language.
-- Desktop category-filter widths are increased to avoid clipped labels.
-- The right rail no longer uses one full-height nested scrollbar; Publication Order, image editor and preflight have controlled bounded regions while export actions remain available.
-
-## Deliberately not implemented
-
-- No duplicate Project Brief detection. The duplicate copy observed in the test brochure was test data and is not treated as a production requirement.
-- No AI image-content relevance judgement.
-- No saved brochure/database persistence.
-- No publication-history migration.
-- No change to existing Compendium logic.
-- No new permission model.
-- No new fonts.
+Phase 5 is already installed and the Brochure Builder is running. This is the recommended package for the current PRISM installation shown in the acceptance screenshots.
 
 ## Installation
 
-1. Ensure Phase 4 is already working.
-2. Copy the contents of this package over the **ProjectManagement project root**, preserving relative paths and replacing matching files.
-3. No EF migration is required.
-4. No `Program.cs` merge is required.
-5. No navigation merge is required.
-6. No font reinstall is required.
+Copy the contents of this folder over the **ProjectManagement project root**, preserving the directory structure and replacing the matching files.
 
-Run:
+There is **no EF migration, no Program.cs change, no navigation change, no Compendium change, and no font reinstall** in Phase 6.
+
+The replacement `BrochurePdfReportBuilder.cs` already retains the Phase 5 CS0136 compile hotfix (`featureGap` / `cardGap`).
+
+## What Phase 6 changes
+
+- Cover B hero is now independent from project order and from each project's normal brochure primary image.
+- Automatic Cover B selection considers all usable photographs belonging to selected projects.
+- Cover B has its own focal point and cover-specific 1800×1100 crop/render path.
+- Final Cover B download requires explicit **Approve cover**; Preview remains available before cover approval.
+- Changing Cover B title/subtitle/edition/strapline, hero or crop invalidates cover approval.
+- Project reordering reruns publication preflight but no longer forces already reviewed, unchanged projects to be reviewed again.
+- Project review is simplified to one **Approve project** action; it accepts the narrative and currently selected imagery together.
+- Editorial image confirmation is no longer counted as a technical preflight warning.
+- `SingleFeature` gets a dedicated editorial page renderer instead of an oversized full-page bordered card.
+- `TwoFeature` retains alternating left/right composition and now scales image frames according to narrative length.
+- Cover B hero area is increased to 364 pt and remains bottom-anchored above the closing band.
+- Back cover, Cover A, fonts, Compendium and the existing layout planner thresholds are intentionally retained.
+- No duplicate Project Brief detection is introduced.
+
+## Verify after copying
+
+From the ProjectManagement root:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase5.ps1
+.\tools\Test-PrismPublicationsPhase6.ps1
 
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -89,27 +46,25 @@ node --check .\wwwroot\js\pages\projects-brochure.js
 node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
 ```
 
-Restart IIS/IIS Express and hard-refresh after the successful build.
+## Acceptance checks in the browser
 
-## Acceptance checks
+1. Select several projects with more than one available photograph.
+2. Verify **Cover B hero → Change hero** lists photographs independently of project primary-image selection.
+3. Select a different cover photograph and adjust its crop. Confirm that project-card imagery remains unchanged.
+4. Preview should be enabled after technical preflight even before final editorial approval.
+5. Final Download should require all selected projects to be approved and, for Cover B, the cover to be approved.
+6. Reorder an already reviewed project. Its project approval should remain intact.
+7. Change a project's brief/photo/crop. Only that project's review should be invalidated.
+8. Generate one 190–200 word project and confirm SingleFeature has a large intentional image + narrative composition with no giant empty bordered rectangle.
+9. Generate two projects at ≤125, 126–155 and 156–185 words and confirm the TwoFeature photograph size responds to copy length while body type remains readable.
+10. Generate both Cover A and Cover B PDFs and compare against the reference brochure.
 
-1. Select 2 projects with valid Project Briefs and photographs.
-2. Confirm Cover B shows an Automatic hero and allows `Change hero` and `Adjust crop`.
-3. Explicitly choose a hero, reorder the projects, and confirm the chosen hero remains unchanged.
-4. Confirm reordering reruns preflight and invalidates Publication Review.
-5. Open Step 3 and confirm the authoritative current narrative and brochure photograph are shown together.
-6. Mark one project reviewed. Confirm the publication order shows the reviewed state.
-7. Change that project's brochure image or focal point and confirm the review is invalidated.
-8. Open the authoritative project content in a new tab, edit/save it, return to Brochure, and confirm the new content/word count refreshes.
-9. Confirm Preview becomes available once technical blockers are zero, even if review is incomplete.
-10. Confirm Download stays disabled until all selected projects are reviewed.
-11. Preview/download and confirm the action returns from `Preparing...` after the PDF response.
-12. Confirm Cover B has no unexplained white tail below the closing band.
-13. Confirm a 2-project page uses noticeably larger imagery with alternating image placement and no large empty bordered rectangles.
-14. Confirm the optional back cover is present by default and disappears when disabled.
-15. Confirm 3- and 4-project page types remain stable.
-16. Confirm Compendium is unaffected.
+## Validation performed in the preparation environment
 
-## Recommended next step
+- `node --check wwwroot/js/pages/projects-brochure.js` — passed.
+- `node --test wwwroot/js/projects/publications-brochure-contract.test.js` — **14/14 passed**.
+- Modified C# files passed structural delimiter checks.
+- Publications CSS passed structural brace validation.
+- Incremental changes were diffed against the Phase 5 baseline with the compile hotfix applied.
 
-After this phase passes build/runtime checks, generate a real 10–15 project brochure using production-quality Project Briefs and appropriate photographs. Review both Cover A and Cover B page-by-page against the Canva reference before introducing saved brochure persistence.
+The preparation environment does not contain the .NET SDK, so `dotnet build` and xUnit execution must be completed in the user's normal PRISM development environment.

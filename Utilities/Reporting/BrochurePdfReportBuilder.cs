@@ -251,11 +251,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         byte[]? sddLogo,
         byte[]? artracLogo)
     {
-        var heroProject = data.Preflight.ResolvedCoverHeroProjectId.HasValue
-            ? data.Projects.FirstOrDefault(project =>
-                project.ProjectId == data.Preflight.ResolvedCoverHeroProjectId.Value)
-            : data.Projects.FirstOrDefault(project => project.PrimaryPhoto is not null);
-        var hero = heroProject?.PrimaryPhoto?.Content;
+        var hero = data.CoverHeroImage?.Content;
         var titleSize = data.Options.Title.Length switch
         {
             > 78 => 30f,
@@ -336,7 +332,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 layers.Layer()
                     .AlignBottom()
                     .PaddingBottom(92)
-                    .Height(340)
+                    .Height(364)
                     .Element(heroBox =>
                     {
                         if (hero is { Length: > 0 })
@@ -524,6 +520,13 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     return;
                 }
 
+                if (plan.Layout == BrochurePageLayoutKind.SingleFeature)
+                {
+                    var fragment = plan.Items[0];
+                    column.Item().Element(block => ComposeSingleFeaturePage(block, fragment));
+                    return;
+                }
+
                 const float cardGap = 8f;
                 const float totalHeight = 716f;
                 var count = plan.Items.Count;
@@ -618,6 +621,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             > 145 => 9.75f,
             _ => 10f
         };
+        var (photoWidth, photoHeight, galleryHeight) = fragment.NarrativeWordCount switch
+        {
+            <= 125 => (225f, 145f, 112f),
+            <= 155 => (215f, 132f, 108f),
+            _ => (205f, 115f, 104f)
+        };
 
         container.Background("#FFFFFF").Column(column =>
         {
@@ -654,19 +663,19 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                         }
 
                         row.ConstantItem(14);
-                        row.ConstantItem(205).AlignMiddle().Column(images =>
+                        row.ConstantItem(photoWidth).AlignMiddle().Column(images =>
                         {
                             if (!useSecond)
                             {
-                                images.Item().Height(115)
+                                images.Item().Height(photoHeight)
                                     .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto!.Content));
                                 return;
                             }
 
                             images.Spacing(7);
-                            images.Item().Height(104)
+                            images.Item().Height(galleryHeight)
                                 .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto!.Content));
-                            images.Item().Height(104)
+                            images.Item().Height(galleryHeight)
                                 .Element(box => ComposeImageFrame(box, fragment.Project.SecondaryPhoto!.Content));
                         });
                     }
@@ -685,19 +694,19 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     else
                     {
                         // For the alternate block the visual leads the eye from the left.
-                        row.ConstantItem(205).AlignMiddle().Column(images =>
+                        row.ConstantItem(photoWidth).AlignMiddle().Column(images =>
                         {
                             if (!useSecond)
                             {
-                                images.Item().Height(115)
+                                images.Item().Height(photoHeight)
                                     .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto!.Content));
                                 return;
                             }
 
                             images.Spacing(7);
-                            images.Item().Height(104)
+                            images.Item().Height(galleryHeight)
                                 .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto!.Content));
-                            images.Item().Height(104)
+                            images.Item().Height(galleryHeight)
                                 .Element(box => ComposeImageFrame(box, fragment.Project.SecondaryPhoto!.Content));
                         });
                         row.ConstantItem(14);
@@ -706,6 +715,78 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 });
 
             column.Item().Height(1).Background("#D7E2DE");
+        });
+    }
+
+    private static void ComposeSingleFeaturePage(
+        IContainer container,
+        BrochureProjectFragment fragment)
+    {
+        var titleLength = fragment.Project.ProjectName.Length;
+        var titleHeight = titleLength switch
+        {
+            <= 62 => 38f,
+            <= 105 => 42f,
+            _ => 48f
+        };
+        var titleSize = titleLength switch
+        {
+            > 105 => 10.4f,
+            > 72 => 11.4f,
+            _ => 12.4f
+        };
+        var bodySize = fragment.NarrativeWordCount > 200 ? 10.2f : 10.5f;
+
+        container.PaddingTop(3).Column(column =>
+        {
+            column.Item()
+                .Height(titleHeight)
+                .Background(Forest800)
+                .PaddingHorizontal(12)
+                .Row(titleRow =>
+                {
+                    titleRow.RelativeItem().AlignMiddle().Text(fragment.Project.ProjectName.ToUpperInvariant())
+                        .FontSize(titleSize)
+                        .Bold()
+                        .LineHeight(1.0f)
+                        .FontColor("#FFFFFF");
+                    if (fragment.IsContinuation)
+                    {
+                        titleRow.AutoItem().AlignMiddle().Text($"CONTINUED {fragment.FragmentNumber}/{fragment.FragmentCount}")
+                            .FontSize(6.8f)
+                            .SemiBold()
+                            .LetterSpacing(.45f)
+                            .FontColor("#C8E0D8");
+                    }
+                });
+
+            if (!fragment.IsContinuation && fragment.Project.PrimaryPhoto is not null)
+            {
+                column.Item().PaddingTop(16).AlignCenter().Element(imageArea =>
+                {
+                    if (ShouldUseSecondImage(fragment.Project, BrochurePageLayoutKind.SingleFeature))
+                    {
+                        imageArea.Width(500).Height(205).Row(row =>
+                        {
+                            row.Spacing(10);
+                            row.RelativeItem().Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto.Content));
+                            row.RelativeItem().Element(box => ComposeImageFrame(box, fragment.Project.SecondaryPhoto!.Content));
+                        });
+                    }
+                    else
+                    {
+                        imageArea.Width(445).Height(250)
+                            .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto.Content));
+                    }
+                });
+            }
+
+            column.Item()
+                .PaddingTop(fragment.IsContinuation || fragment.Project.PrimaryPhoto is null ? 18 : 20)
+                .PaddingHorizontal(10)
+                .Element(text => ComposeNarrative(text, fragment.Narrative, bodySize));
+
+            column.Item().PaddingTop(18).Width(92).Height(2).Background(Gold);
         });
     }
 

@@ -22,6 +22,10 @@ public interface IBrochurePhotoService
         IReadOnlyCollection<BrochurePhotoRenderRequest> requests,
         CancellationToken cancellationToken = default);
 
+    Task<BrochurePublicationImage?> RenderAsync(
+        BrochurePhotoRenderRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<BrochurePhotoPreview?> GetPreviewAsync(
         int projectId,
         int photoId,
@@ -155,6 +159,28 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         }
 
         return result;
+    }
+
+    public async Task<BrochurePublicationImage?> RenderAsync(
+        BrochurePhotoRenderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.ProjectId <= 0 || request.PhotoId <= 0)
+        {
+            return null;
+        }
+
+        var photo = await _db.ProjectPhotos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                row => row.Id == request.PhotoId && row.ProjectId == request.ProjectId,
+                cancellationToken);
+        if (photo is null)
+        {
+            return null;
+        }
+
+        return await RenderPhotoAsync(photo, request, cancellationToken);
     }
 
     public async Task<BrochurePhotoPreview?> GetPreviewAsync(
@@ -462,13 +488,18 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
     }
 
     internal static (double Width, double Height) EffectiveWideCropDimensions(int width, int height)
+        => EffectiveCropDimensions(width, height, 16d / 9d);
+
+    internal static (double Width, double Height) EffectiveCropDimensions(
+        int width,
+        int height,
+        double targetAspect)
     {
-        if (width <= 0 || height <= 0)
+        if (width <= 0 || height <= 0 || !double.IsFinite(targetAspect) || targetAspect <= 0d)
         {
             return (0d, 0d);
         }
 
-        const double targetAspect = 16d / 9d;
         var sourceAspect = width / (double)height;
         return sourceAspect > targetAspect
             ? (height * targetAspect, height)

@@ -21,6 +21,7 @@ public interface IBrochurePublicationService
         BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
+        int? coverHeroPhotoId,
         CancellationToken cancellationToken = default);
 
     Task<BrochurePublicationData> BuildAsync(
@@ -258,6 +259,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
+        int? coverHeroPhotoId,
         CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareAsync(
@@ -266,6 +268,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             coverStyle,
             allowTextOnlyProjects,
             coverHeroProjectId,
+            coverHeroPhotoId,
             cancellationToken);
         return prepared.Preflight;
     }
@@ -283,6 +286,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             options.CoverStyle,
             options.AllowTextOnlyProjects,
             options.CoverHeroProjectId,
+            options.CoverHeroPhotoId,
             cancellationToken);
         if (!prepared.Preflight.CanGenerate)
         {
@@ -295,6 +299,32 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         var rendered = await _photoService.RenderAsync(renderRequests, cancellationToken);
 
         var lateIssues = new List<BrochurePreflightIssue>();
+        BrochurePublicationImage? coverHeroImage = null;
+        if (options.CoverStyle == BrochureCoverStyle.Contemporary && prepared.CoverHero is not null)
+        {
+            coverHeroImage = await _photoService.RenderAsync(
+                new BrochurePhotoRenderRequest(
+                    prepared.CoverHero.ProjectId,
+                    prepared.CoverHero.PhotoId,
+                    options.CoverHeroFocalX,
+                    options.CoverHeroFocalY,
+                    1800,
+                    1100),
+                cancellationToken);
+
+            if (coverHeroImage is null)
+            {
+                var heroProject = prepared.Projects.FirstOrDefault(project =>
+                    project.Row.ProjectId == prepared.CoverHero.ProjectId);
+                lateIssues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.CoverHeroUnavailable,
+                    PublicationIssueSeverity.Blocker,
+                    prepared.CoverHero.ProjectId,
+                    heroProject?.Row.ProjectName,
+                    "The selected Cover B hero photograph became unavailable during generation."));
+            }
+        }
+
         var publicationProjects = new List<BrochurePublicationProject>(prepared.Projects.Count);
         foreach (var project in prepared.Projects)
         {
@@ -357,7 +387,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         return new BrochurePublicationData(
             options,
             publicationProjects,
-            prepared.Preflight);
+            prepared.Preflight,
+            coverHeroImage);
     }
 
     private async Task<PreparedPublication> PrepareAsync(
@@ -366,6 +397,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         BrochureCoverStyle coverStyle,
         bool allowTextOnlyProjects,
         int? requestedCoverHeroProjectId,
+        int? requestedCoverHeroPhotoId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(selections);
@@ -561,27 +593,42 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 selection.IsReviewed));
         }
 
-        var references = prepared
-            .SelectMany(project =>
+        var references = new List<BrochurePhotoReference>();
+        foreach (var project in prepared)
+        {
+            if (project.PrimaryPhotoId.HasValue)
             {
-                var list = new List<BrochurePhotoReference>(2);
-                if (project.PrimaryPhotoId.HasValue)
+                references.Add(new BrochurePhotoReference(project.Row.ProjectId, project.PrimaryPhotoId.Value));
+            }
+            if (project.SecondaryPhotoId.HasValue && project.ImageMode != BrochureImageMode.Single)
+            {
+                references.Add(new BrochurePhotoReference(project.Row.ProjectId, project.SecondaryPhotoId.Value));
+            }
+
+            if (coverStyle == BrochureCoverStyle.Contemporary)
+            {
+                foreach (var photo in photosByProject.GetValueOrDefault(project.Row.ProjectId)
+                                      ?? Array.Empty<PublicationPhotoRow>())
                 {
-                    list.Add(new BrochurePhotoReference(project.Row.ProjectId, project.PrimaryPhotoId.Value));
+                    references.Add(new BrochurePhotoReference(project.Row.ProjectId, photo.PhotoId));
                 }
-                if (project.SecondaryPhotoId.HasValue && project.ImageMode != BrochureImageMode.Single)
-                {
-                    list.Add(new BrochurePhotoReference(project.Row.ProjectId, project.SecondaryPhotoId.Value));
-                }
-                return list;
-            })
-            .ToArray();
-        var probes = await _photoService.ProbeAsync(references, cancellationToken);
-        var coverHeroProjectId = ResolveCoverHeroProjectId(
+            }
+        }
+
+        var probes = await _photoService.ProbeAsync(
+            references
+                .GroupBy(reference => reference.PhotoId)
+                .Select(group => group.First())
+                .ToArray(),
+            cancellationToken);
+
+        var coverHero = ResolveCoverHero(
             prepared,
+            photosByProject,
             probes,
             coverStyle,
             requestedCoverHeroProjectId,
+            requestedCoverHeroPhotoId,
             issues);
 
         foreach (var project in prepared)
@@ -600,23 +647,16 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 }
                 else
                 {
-                    if (!project.PrimaryPhotoConfirmed)
-                    {
-                        issues.Add(new BrochurePreflightIssue(
-                            BrochurePreflightIssueCode.UnconfirmedPrimaryPhoto,
-                            PublicationIssueSeverity.Warning,
-                            project.Row.ProjectId,
-                            project.Row.ProjectName,
-                            "Primary publication photograph is automatic or has not yet been confirmed in Publication Review."));
-                    }
-
-                    var placement = coverHeroProjectId == project.Row.ProjectId
+                    var isCoverHero = coverHero is not null
+                                      && coverHero.ProjectId == project.Row.ProjectId
+                                      && coverHero.PhotoId == project.PrimaryPhotoId.Value;
+                    var placement = isCoverHero
                         ? PhotoPlacement.CoverHero
                         : project.ImageMode == BrochureImageMode.GalleryTwo
                           || project.NarrativeWordCount > BrochureLayoutPlanner.ThreeProjectMaximumWords
                             ? PhotoPlacement.Feature
                             : PhotoPlacement.Card;
-                    AddQualityFinding(issues, project, primaryProbe, placement, "Primary");
+                    AddQualityFinding(issues, project, primaryProbe, placement, isCoverHero ? "Cover hero" : "Primary");
                 }
             }
 
@@ -641,31 +681,42 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             }
         }
 
-        var coverHeroProject = coverHeroProjectId.HasValue
-            ? prepared.FirstOrDefault(project => project.Row.ProjectId == coverHeroProjectId.Value)
+        var coverHeroProject = coverHero is not null
+            ? prepared.FirstOrDefault(project => project.Row.ProjectId == coverHero.ProjectId)
             : null;
-        var coverHeroProbe = coverHeroProject is not null && coverHeroProject.PrimaryPhotoId.HasValue
-            ? probes.GetValueOrDefault(coverHeroProject.PrimaryPhotoId.Value)
+        var coverHeroProbe = coverHero is not null
+            ? probes.GetValueOrDefault(coverHero.PhotoId)
             : null;
+
+        if (coverHero is not null
+            && coverHeroProject is not null
+            && coverHeroProbe is { IsReady: true }
+            && coverHeroProject.PrimaryPhotoId != coverHero.PhotoId)
+        {
+            AddQualityFinding(issues, coverHeroProject, coverHeroProbe, PhotoPlacement.CoverHero, "Cover hero");
+        }
 
         return new PreparedPublication(
             prepared,
             new BrochurePreflight(
                 normalizedSelections.Length,
                 issues,
-                coverHeroProjectId,
-                coverHeroProject?.PrimaryPhotoId,
+                coverHero?.ProjectId,
+                coverHero?.PhotoId,
                 coverHeroProbe?.Width ?? 0,
                 coverHeroProbe?.Height ?? 0,
-                coverHeroProbe?.Quality));
+                coverHeroProbe?.Quality),
+            coverHero);
     }
 
 
-    private static int? ResolveCoverHeroProjectId(
+    private static CoverHeroResolution? ResolveCoverHero(
         IReadOnlyList<PreparedProject> projects,
+        IReadOnlyDictionary<int, IReadOnlyList<PublicationPhotoRow>> photosByProject,
         IReadOnlyDictionary<int, BrochurePhotoProbe> probes,
         BrochureCoverStyle coverStyle,
         int? requestedProjectId,
+        int? requestedPhotoId,
         ICollection<BrochurePreflightIssue> issues)
     {
         if (coverStyle != BrochureCoverStyle.Contemporary)
@@ -673,66 +724,114 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             return null;
         }
 
-        if (requestedProjectId.HasValue)
+        if (requestedProjectId.HasValue || requestedPhotoId.HasValue)
         {
-            var requested = projects.FirstOrDefault(project => project.Row.ProjectId == requestedProjectId.Value);
-            if (requested is null)
+            PreparedProject? requestedProject = null;
+            PublicationPhotoRow? requestedPhoto = null;
+
+            if (requestedProjectId.HasValue)
+            {
+                requestedProject = projects.FirstOrDefault(project => project.Row.ProjectId == requestedProjectId.Value);
+                if (requestedProject is null)
+                {
+                    issues.Add(new BrochurePreflightIssue(
+                        BrochurePreflightIssueCode.CoverHeroInvalid,
+                        PublicationIssueSeverity.Blocker,
+                        requestedProjectId,
+                        null,
+                        "The selected Cover B hero project is no longer part of this brochure."));
+                    return null;
+                }
+
+                var photos = photosByProject.GetValueOrDefault(requestedProject.Row.ProjectId)
+                             ?? Array.Empty<PublicationPhotoRow>();
+                var photoId = requestedPhotoId ?? requestedProject.PrimaryPhotoId;
+                requestedPhoto = photoId.HasValue
+                    ? photos.FirstOrDefault(photo => photo.PhotoId == photoId.Value)
+                    : null;
+            }
+            else if (requestedPhotoId.HasValue)
+            {
+                foreach (var project in projects)
+                {
+                    var photo = (photosByProject.GetValueOrDefault(project.Row.ProjectId)
+                                 ?? Array.Empty<PublicationPhotoRow>())
+                        .FirstOrDefault(candidate => candidate.PhotoId == requestedPhotoId.Value);
+                    if (photo is null)
+                    {
+                        continue;
+                    }
+
+                    requestedProject = project;
+                    requestedPhoto = photo;
+                    break;
+                }
+            }
+
+            if (requestedProject is null || requestedPhoto is null)
             {
                 issues.Add(new BrochurePreflightIssue(
                     BrochurePreflightIssueCode.CoverHeroInvalid,
                     PublicationIssueSeverity.Blocker,
-                    requestedProjectId,
-                    null,
-                    "The selected Cover B hero project is no longer part of this brochure."));
+                    requestedProject?.Row.ProjectId ?? requestedProjectId,
+                    requestedProject?.Row.ProjectName,
+                    "The selected Cover B hero photograph is no longer available for the selected project."));
                 return null;
             }
 
-            if (!requested.PrimaryPhotoId.HasValue
-                || !probes.TryGetValue(requested.PrimaryPhotoId.Value, out var requestedProbe)
+            if (!probes.TryGetValue(requestedPhoto.PhotoId, out var requestedProbe)
                 || !requestedProbe.IsReady)
             {
                 issues.Add(new BrochurePreflightIssue(
                     BrochurePreflightIssueCode.CoverHeroUnavailable,
                     PublicationIssueSeverity.Blocker,
-                    requested.Row.ProjectId,
-                    requested.Row.ProjectName,
-                    "The selected Cover B hero does not have a usable primary publication photograph."));
+                    requestedProject.Row.ProjectId,
+                    requestedProject.Row.ProjectName,
+                    requestedProbe?.FailureReason ?? "The selected Cover B hero photograph cannot be loaded from storage."));
                 return null;
             }
 
-            return requested.Row.ProjectId;
+            return new CoverHeroResolution(requestedProject.Row.ProjectId, requestedPhoto.PhotoId);
         }
 
+        var projectNames = projects.ToDictionary(
+            project => project.Row.ProjectId,
+            project => project.Row.ProjectName);
+
         var candidates = projects
-            .Select((project, order) => new
-            {
-                Project = project,
-                Order = order,
-                Probe = project.PrimaryPhotoId.HasValue
-                    ? probes.GetValueOrDefault(project.PrimaryPhotoId.Value)
-                    : null
-            })
+            .SelectMany(project =>
+                (photosByProject.GetValueOrDefault(project.Row.ProjectId)
+                 ?? Array.Empty<PublicationPhotoRow>())
+                .Select(photo => new
+                {
+                    Project = project,
+                    Photo = photo,
+                    Probe = probes.GetValueOrDefault(photo.PhotoId)
+                }))
             .Where(candidate => candidate.Probe is { IsReady: true })
             .Select(candidate =>
             {
-                var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveWideCropDimensions(
+                var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveCropDimensions(
                     candidate.Probe!.Width,
-                    candidate.Probe.Height);
+                    candidate.Probe.Height,
+                    1800d / 1100d);
                 return new
                 {
                     candidate.Project,
-                    candidate.Order,
+                    candidate.Photo,
                     Probe = candidate.Probe!,
                     EffectivePixels = effectiveWidth * effectiveHeight
                 };
             })
             .OrderByDescending(candidate => candidate.Probe.Quality)
+            .ThenByDescending(candidate => candidate.Photo.IsCover)
             .ThenByDescending(candidate => candidate.EffectivePixels)
-            .ThenBy(candidate => candidate.Order)
+            .ThenBy(candidate => projectNames[candidate.Project.Row.ProjectId], StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.Photo.Ordinal)
+            .ThenBy(candidate => candidate.Photo.PhotoId)
             .ToArray();
 
         var resolved = candidates.FirstOrDefault();
-
         if (resolved is null)
         {
             issues.Add(new BrochurePreflightIssue(
@@ -744,7 +843,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             return null;
         }
 
-        return resolved.Project.Row.ProjectId;
+        return new CoverHeroResolution(resolved.Project.Row.ProjectId, resolved.Photo.PhotoId);
     }
 
 
@@ -755,12 +854,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         PhotoPlacement placement,
         string label)
     {
-        var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveWideCropDimensions(
-            probe.Width,
-            probe.Height);
+        var (effectiveWidth, effectiveHeight) = placement == PhotoPlacement.CoverHero
+            ? BrochurePhotoService.EffectiveCropDimensions(probe.Width, probe.Height, 1800d / 1100d)
+            : BrochurePhotoService.EffectiveWideCropDimensions(probe.Width, probe.Height);
         var (minimumWidth, minimumHeight, placementLabel) = placement switch
         {
-            PhotoPlacement.CoverHero => (1800d, 1013d, "Cover B hero"),
+            PhotoPlacement.CoverHero => (1800d, 1100d, "Cover B hero"),
             PhotoPlacement.Feature => (1400d, 788d, "large feature frame"),
             _ => (1100d, 619d, "standard project frame")
         };
@@ -1050,9 +1149,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         bool PrimaryPhotoConfirmed,
         bool IsReviewed);
 
+    private sealed record CoverHeroResolution(int ProjectId, int PhotoId);
+
     private sealed record PreparedPublication(
         IReadOnlyList<PreparedProject> Projects,
-        BrochurePreflight Preflight);
+        BrochurePreflight Preflight,
+        CoverHeroResolution? CoverHero = null);
 
     [GeneratedRegex(@"!\[[^\]]*\]\([^\)]+\)", RegexOptions.Compiled)]
     private static partial Regex MarkdownImageRegex();

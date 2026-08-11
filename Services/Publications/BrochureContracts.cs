@@ -195,6 +195,9 @@ public sealed record BrochureBuildOptions(
     bool AllowTextOnlyProjects,
     DateTimeOffset GeneratedAtUtc,
     int? CoverHeroProjectId = null,
+    int? CoverHeroPhotoId = null,
+    double CoverHeroFocalX = .5d,
+    double CoverHeroFocalY = .5d,
     bool IncludeBackCover = true);
 
 public sealed record BrochurePreflightIssue(
@@ -223,7 +226,8 @@ public sealed record BrochurePreflight(
 public sealed record BrochurePublicationData(
     BrochureBuildOptions Options,
     IReadOnlyList<BrochurePublicationProject> Projects,
-    BrochurePreflight Preflight);
+    BrochurePreflight Preflight,
+    BrochurePublicationImage? CoverHeroImage = null);
 
 public sealed record BrochureProjectFragment(
     BrochurePublicationProject Project,

@@ -26,6 +26,10 @@
 
     const hiddenInputs = form.querySelector("[data-brochure-hidden-inputs]");
     const coverHeroInput = form.querySelector("[data-brochure-cover-hero-project]");
+    const coverHeroPhotoInput = form.querySelector("[data-brochure-cover-hero-photo]");
+    const coverHeroFocalXInput = form.querySelector("[data-brochure-cover-hero-focal-x]");
+    const coverHeroFocalYInput = form.querySelector("[data-brochure-cover-hero-focal-y]");
+    const coverReviewedInput = form.querySelector("[data-brochure-cover-reviewed]");
     const selectedList = form.querySelector("[data-brochure-selected-list]");
     const selectedEmpty = form.querySelector("[data-brochure-selected-empty]");
     const selectedCount = form.querySelector("[data-brochure-selected-count]");
@@ -81,7 +85,16 @@
     const coverHeroChoose = form.querySelector("[data-cover-hero-choose]");
     const coverHeroAutomatic = form.querySelector("[data-cover-hero-automatic]");
     const coverHeroCrop = form.querySelector("[data-cover-hero-crop]");
+    const coverHeroApprove = form.querySelector("[data-cover-hero-approve]");
+    const coverHeroReviewState = form.querySelector("[data-cover-hero-review-state]");
     const coverHeroChoices = form.querySelector("[data-cover-hero-choices]");
+    const coverHeroCropPanel = form.querySelector("[data-cover-hero-crop-panel]");
+    const coverHeroFocalStage = form.querySelector("[data-cover-hero-focal-stage]");
+    const coverHeroFocalImage = form.querySelector("[data-cover-hero-focal-image]");
+    const coverHeroCropFrame = form.querySelector("[data-cover-hero-crop-frame]");
+    const coverHeroFocalMarker = form.querySelector("[data-cover-hero-focal-marker]");
+    const coverHeroFocalReset = form.querySelector("[data-cover-hero-focal-reset]");
+    const coverHeroCropClose = form.querySelector("[data-cover-hero-crop-close]");
 
     const reviewPanel = form.querySelector("[data-brochure-review-panel]");
     const reviewEmpty = form.querySelector("[data-review-empty]");
@@ -96,8 +109,8 @@
     const reviewState = form.querySelector("[data-review-state]");
     const reviewImageFrame = form.querySelector("[data-review-image-frame]");
     const reviewImageMeta = form.querySelector("[data-review-image-meta]");
-    const reviewConfirmImage = form.querySelector("[data-review-confirm-image]");
     const reviewChangeImage = form.querySelector("[data-review-change-image]");
+    const reviewAdjustCrop = form.querySelector("[data-review-adjust-crop]");
     const reviewNarrativeLabel = form.querySelector("[data-review-narrative-label]");
     const reviewWordCount = form.querySelector("[data-review-word-count]");
     const reviewNarrative = form.querySelector("[data-review-narrative]");
@@ -171,6 +184,10 @@
     let showAllFindings = false;
     let exportBusy = false;
     let explicitCoverHeroProjectId = Number(coverHeroInput?.value) > 0 ? Number(coverHeroInput.value) : null;
+    let explicitCoverHeroPhotoId = Number(coverHeroPhotoInput?.value) > 0 ? Number(coverHeroPhotoInput.value) : null;
+    let coverHeroFocalX = clamp(coverHeroFocalXInput?.value);
+    let coverHeroFocalY = clamp(coverHeroFocalYInput?.value);
+    let coverReviewed = String(coverReviewedInput?.value).toLowerCase() === "true";
 
     const ensureConfig = id => {
         if (!configs.has(id)) {
@@ -251,6 +268,10 @@
         });
         hiddenInputs.replaceChildren(...inputs);
         if (coverHeroInput) coverHeroInput.value = explicitCoverHeroProjectId == null ? "" : String(explicitCoverHeroProjectId);
+        if (coverHeroPhotoInput) coverHeroPhotoInput.value = explicitCoverHeroPhotoId == null ? "" : String(explicitCoverHeroPhotoId);
+        if (coverHeroFocalXInput) coverHeroFocalXInput.value = clamp(coverHeroFocalX).toFixed(4);
+        if (coverHeroFocalYInput) coverHeroFocalYInput.value = clamp(coverHeroFocalY).toFixed(4);
+        if (coverReviewedInput) coverReviewedInput.value = coverReviewed ? "true" : "false";
     };
 
     const invalidateReview = (id, { unconfirmPhoto = false } = {}) => {
@@ -262,6 +283,11 @@
 
     const invalidateAllReviews = () => {
         orderedIds.forEach(id => invalidateReview(id));
+    };
+
+    const invalidateCoverReview = () => {
+        coverReviewed = false;
+        syncHiddenInputs();
     };
 
     const updateNarrativeIndicators = () => {
@@ -408,7 +434,6 @@
             next.splice(from, 1);
             next.splice(to, 0, draggedId);
             orderedIds = next;
-            invalidateAllReviews();
             renderSelected(true);
         });
         return item;
@@ -421,7 +446,6 @@
         const next = [...orderedIds];
         [next[index], next[target]] = [next[target], next[index]];
         orderedIds = next;
-        invalidateAllReviews();
         renderSelected(true);
     };
 
@@ -437,7 +461,13 @@
         orderedIds = orderedIds.filter(value => value !== id);
         if (activePhotoProjectId === id) closePhotoEditor();
         if (activeReviewProjectId === id) activeReviewProjectId = orderedIds[0] ?? null;
-        if (explicitCoverHeroProjectId === id) explicitCoverHeroProjectId = null;
+        if (explicitCoverHeroProjectId === id) {
+            explicitCoverHeroProjectId = null;
+            explicitCoverHeroPhotoId = null;
+            coverHeroFocalX = 0.5;
+            coverHeroFocalY = 0.5;
+            coverReviewed = false;
+        }
         renderSelected(true);
     };
 
@@ -513,8 +543,7 @@
         };
     };
 
-    const cropForFocal = (sourceWidth, sourceHeight, focalX, focalY) => {
-        const targetAspect = 16 / 9;
+    const cropForFocal = (sourceWidth, sourceHeight, focalX, focalY, targetAspect = 16 / 9) => {
         const sourceAspect = sourceWidth / sourceHeight;
         let cropWidth;
         let cropHeight;
@@ -532,10 +561,10 @@
         return { x, y, width: cropWidth, height: cropHeight };
     };
 
-    const positionFocalOverlay = (stage, image, marker, cropFrame, x, y) => {
+    const positionFocalOverlay = (stage, image, marker, cropFrame, x, y, targetAspect = 16 / 9) => {
         const metrics = sourceMetrics(stage, image);
         if (!metrics) return;
-        const crop = cropForFocal(metrics.sourceWidth, metrics.sourceHeight, x, y);
+        const crop = cropForFocal(metrics.sourceWidth, metrics.sourceHeight, x, y, targetAspect);
         marker.style.left = `${metrics.offsetX + (clamp(x) * metrics.renderedWidth)}px`;
         marker.style.top = `${metrics.offsetY + (clamp(y) * metrics.renderedHeight)}px`;
         if (cropFrame) {
@@ -572,6 +601,85 @@
         } else {
             image.onload = applyOverlay;
         }
+    };
+
+    const updateCoverFocalStage = () => {
+        if (!coverHeroCropPanel || !coverHeroFocalStage || !coverHeroFocalImage || !coverHeroFocalMarker) return;
+        const hero = resolvedCoverHero();
+        const photo = hero ? getPhoto(hero.projectId, hero.photoId) : null;
+        coverHeroCropPanel.hidden = coverHeroCropPanel.hidden || !photo;
+        if (!photo?.previewUrl || coverHeroCropPanel.hidden) return;
+
+        const applyOverlay = () => positionFocalOverlay(
+            coverHeroFocalStage,
+            coverHeroFocalImage,
+            coverHeroFocalMarker,
+            coverHeroCropFrame,
+            coverHeroFocalX,
+            coverHeroFocalY,
+            1800 / 1100);
+
+        const absolute = new URL(photo.previewUrl, window.location.href).href;
+        coverHeroFocalImage.onerror = () => { coverHeroCropPanel.hidden = true; };
+        if (coverHeroFocalImage.src !== absolute) {
+            coverHeroFocalImage.onload = applyOverlay;
+            coverHeroFocalImage.src = photo.previewUrl;
+        } else if (coverHeroFocalImage.complete && coverHeroFocalImage.naturalWidth > 0) {
+            applyOverlay();
+        } else {
+            coverHeroFocalImage.onload = applyOverlay;
+        }
+    };
+
+    const ensureExplicitCoverHero = () => {
+        const hero = resolvedCoverHero();
+        if (!hero) return null;
+        if (!hero.explicit) {
+            explicitCoverHeroProjectId = hero.projectId;
+            explicitCoverHeroPhotoId = hero.photoId;
+            coverHeroFocalX = 0.5;
+            coverHeroFocalY = 0.5;
+            coverReviewed = false;
+        }
+        syncHiddenInputs();
+        return {
+            projectId: explicitCoverHeroProjectId,
+            photoId: explicitCoverHeroPhotoId
+        };
+    };
+
+    const setCoverFocalFromEvent = event => {
+        if (event.target.closest("button")) return;
+        const hero = ensureExplicitCoverHero();
+        if (!hero || !coverHeroFocalStage || !coverHeroFocalImage) return;
+
+        const rect = coverHeroFocalStage.getBoundingClientRect();
+        const metrics = sourceMetrics(coverHeroFocalStage, coverHeroFocalImage);
+        if (!metrics) return;
+
+        const localX = event.clientX - rect.left - metrics.offsetX;
+        const localY = event.clientY - rect.top - metrics.offsetY;
+        if (localX < 0 || localY < 0 || localX > metrics.renderedWidth || localY > metrics.renderedHeight) return;
+
+        coverHeroFocalX = clamp(localX / metrics.renderedWidth);
+        coverHeroFocalY = clamp(localY / metrics.renderedHeight);
+        coverReviewed = false;
+        syncHiddenInputs();
+        updateCoverFocalStage();
+        renderCoverHero();
+        schedulePreflight();
+    };
+
+    const resetCoverFocal = () => {
+        const hero = ensureExplicitCoverHero();
+        if (!hero) return;
+        coverHeroFocalX = 0.5;
+        coverHeroFocalY = 0.5;
+        coverReviewed = false;
+        syncHiddenInputs();
+        updateCoverFocalStage();
+        renderCoverHero();
+        schedulePreflight();
     };
 
     const renderPhotoEditor = () => {
@@ -766,6 +874,9 @@
                 const newSignature = projectSignature(project);
                 if (oldSignature && oldSignature !== newSignature) {
                     invalidateReview(id);
+                    if (explicitCoverHeroProjectId === id) {
+                        coverReviewed = false;
+                    }
                 }
                 project.__publicationSignature = newSignature;
 
@@ -782,6 +893,15 @@
                     config.secondaryFocalX = 0.5;
                     config.secondaryFocalY = 0.5;
                     config.isReviewed = false;
+                }
+                if (explicitCoverHeroProjectId === id
+                    && explicitCoverHeroPhotoId != null
+                    && !getPhoto(id, explicitCoverHeroPhotoId)) {
+                    explicitCoverHeroProjectId = null;
+                    explicitCoverHeroPhotoId = null;
+                    coverHeroFocalX = 0.5;
+                    coverHeroFocalY = 0.5;
+                    coverReviewed = false;
                 }
                 updateRowPhotoSummary(id);
             });
@@ -804,41 +924,79 @@
         projectStateTimer = window.setTimeout(refreshProjectState, 320);
     };
 
-    const resolvedCoverHeroId = () => {
-        if (explicitCoverHeroProjectId && orderedIds.includes(explicitCoverHeroProjectId)) return explicitCoverHeroProjectId;
-        const resolved = Number(lastPreflight?.resolvedCoverHeroProjectId);
-        return resolved > 0 && orderedIds.includes(resolved) ? resolved : null;
+    const resolvedCoverHero = () => {
+        if (explicitCoverHeroProjectId
+            && explicitCoverHeroPhotoId
+            && orderedIds.includes(explicitCoverHeroProjectId)
+            && getPhoto(explicitCoverHeroProjectId, explicitCoverHeroPhotoId)) {
+            return {
+                projectId: explicitCoverHeroProjectId,
+                photoId: explicitCoverHeroPhotoId,
+                explicit: true
+            };
+        }
+
+        const projectId = Number(lastPreflight?.resolvedCoverHeroProjectId);
+        const photoId = Number(lastPreflight?.resolvedCoverHeroPhotoId);
+        if (projectId > 0 && photoId > 0 && orderedIds.includes(projectId) && getPhoto(projectId, photoId)) {
+            return { projectId, photoId, explicit: false };
+        }
+
+        return null;
     };
+
+    const resolvedCoverHeroId = () => resolvedCoverHero()?.projectId ?? null;
 
     const renderCoverHero = () => {
         if (!coverHeroPanel) return;
         coverHeroPanel.hidden = !isContemporaryCover();
-        if (coverHeroPanel.hidden) return;
+        if (coverHeroPanel.hidden) {
+            if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
+            return;
+        }
 
         if (explicitCoverHeroProjectId && !orderedIds.includes(explicitCoverHeroProjectId)) {
             explicitCoverHeroProjectId = null;
+            explicitCoverHeroPhotoId = null;
+            coverHeroFocalX = 0.5;
+            coverHeroFocalY = 0.5;
+            coverReviewed = false;
         }
+
+        const hero = resolvedCoverHero();
+        const project = hero ? projectById.get(hero.projectId) : null;
+        const photo = hero ? getPhoto(hero.projectId, hero.photoId) : null;
         syncHiddenInputs();
 
-        const heroId = resolvedCoverHeroId();
-        const project = heroId ? projectById.get(heroId) : null;
-        const config = heroId ? ensureConfig(heroId) : null;
-        const photo = heroId ? getPhoto(heroId, config?.primaryPhotoId) : null;
         if (coverHeroName) coverHeroName.textContent = project?.projectName ?? "Waiting for a usable project image";
         if (coverHeroMeta) {
-            if (!project) {
+            if (!project || !photo) {
                 coverHeroMeta.textContent = "Select projects to resolve the Cover B hero.";
             } else {
-                const mode = explicitCoverHeroProjectId ? "Selected hero" : "Automatic hero";
-                const width = Number(lastPreflight?.resolvedCoverHeroWidth || 0);
-                const height = Number(lastPreflight?.resolvedCoverHeroHeight || 0);
-                const quality = String(lastPreflight?.resolvedCoverHeroQuality || "").replace(/([a-z])([A-Z])/g, "$1 $2");
-                const details = [width > 0 && height > 0 ? `${width}×${height}` : null, quality || null].filter(Boolean).join(" · ");
-                coverHeroMeta.textContent = `${mode}${details ? ` · ${details}` : ""}${explicitCoverHeroProjectId ? " · independent of project order" : ""}`;
+                const mode = hero.explicit ? "Selected hero" : "Automatic suggestion";
+                const width = Number(lastPreflight?.resolvedCoverHeroWidth || photo.publicationWidth || photo.width || 0);
+                const height = Number(lastPreflight?.resolvedCoverHeroHeight || photo.publicationHeight || photo.height || 0);
+                const quality = String(lastPreflight?.resolvedCoverHeroQuality || photo.publicationQuality || "")
+                    .replace(/([a-z])([A-Z])/g, "$1 $2");
+                const details = [width > 0 && height > 0 ? `${width}×${height}` : null, quality || null]
+                    .filter(Boolean)
+                    .join(" · ");
+                coverHeroMeta.textContent = `${mode}${details ? ` · ${details}` : ""}${hero.explicit ? " · independent cover artwork" : ""}`;
             }
         }
-        if (coverHeroCrop) coverHeroCrop.disabled = !heroId;
-        if (coverHeroAutomatic) coverHeroAutomatic.disabled = explicitCoverHeroProjectId == null;
+
+        if (coverHeroCrop) coverHeroCrop.disabled = !hero;
+        if (coverHeroApprove) {
+            coverHeroApprove.disabled = !hero || coverReviewed;
+            coverHeroApprove.innerHTML = coverReviewed
+                ? '<i class="bi bi-check-circle-fill" aria-hidden="true"></i> Cover approved'
+                : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approve cover';
+        }
+        if (coverHeroAutomatic) coverHeroAutomatic.disabled = !hero?.explicit;
+        if (coverHeroReviewState) {
+            coverHeroReviewState.classList.toggle("is-reviewed", coverReviewed);
+            coverHeroReviewState.textContent = coverReviewed ? "Cover approved" : "Cover review required";
+        }
 
         if (coverHeroImage) {
             coverHeroImage.classList.remove("is-image-missing");
@@ -852,52 +1010,70 @@
                 coverHeroImage.append(icon);
             }
         }
+
+        updateCoverFocalStage();
+        updateButtons(Boolean(lastPreflight?.canGenerate));
     };
 
     const renderCoverHeroChoices = () => {
         if (!coverHeroChoices) return;
         const choices = orderedIds
-            .map(id => {
+            .flatMap(id => {
                 const project = projectById.get(id);
-                const config = ensureConfig(id);
-                const photo = getPhoto(id, config?.primaryPhotoId);
-                if (!project || !photo) return null;
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "brochure-cover-hero-choice";
-                if (explicitCoverHeroProjectId === id) button.classList.add("is-selected");
-                const thumb = document.createElement("span");
-                thumb.append(createImage(photo.thumbnailUrl, project.projectName));
-                const copy = document.createElement("span");
-                const name = document.createElement("strong");
-                name.textContent = project.projectName;
-                const meta = document.createElement("small");
-                const dimensions = photo.publicationWidth > 0 && photo.publicationHeight > 0
-                    ? `${photo.publicationWidth}×${photo.publicationHeight}`
-                    : null;
-                const quality = String(photo.publicationQuality || "").replace(/([a-z])([A-Z])/g, "$1 $2");
-                meta.textContent = [
-                    config.primaryPhotoConfirmed ? "Confirmed image" : "Automatic image",
-                    dimensions,
-                    quality || null
-                ].filter(Boolean).join(" · ");
-                copy.append(name, meta);
-                button.append(thumb, copy);
-                button.addEventListener("click", () => {
-                    explicitCoverHeroProjectId = id;
-                    coverHeroChoices.hidden = true;
-                    syncHiddenInputs();
-                    renderCoverHero();
-                    schedulePreflight();
+                if (!project) return [];
+
+                return (project.photos ?? []).map(photo => {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "brochure-cover-hero-choice";
+                    if (explicitCoverHeroProjectId === id && explicitCoverHeroPhotoId === Number(photo.photoId)) {
+                        button.classList.add("is-selected");
+                    }
+
+                    const thumb = document.createElement("span");
+                    thumb.append(createImage(photo.thumbnailUrl, project.projectName));
+
+                    const copy = document.createElement("span");
+                    const name = document.createElement("strong");
+                    name.textContent = project.projectName;
+
+                    const meta = document.createElement("small");
+                    const dimensions = photo.publicationWidth > 0 && photo.publicationHeight > 0
+                        ? `${photo.publicationWidth}×${photo.publicationHeight}`
+                        : photo.width > 0 && photo.height > 0
+                            ? `${photo.width}×${photo.height}`
+                            : null;
+                    const quality = String(photo.publicationQuality || "")
+                        .replace(/([a-z])([A-Z])/g, "$1 $2");
+                    meta.textContent = [
+                        photo.isCover ? "Project cover" : `Photo ${photo.photoId}`,
+                        dimensions,
+                        quality || null
+                    ].filter(Boolean).join(" · ");
+
+                    copy.append(name, meta);
+                    button.append(thumb, copy);
+                    button.addEventListener("click", () => {
+                        explicitCoverHeroProjectId = id;
+                        explicitCoverHeroPhotoId = Number(photo.photoId);
+                        coverHeroFocalX = 0.5;
+                        coverHeroFocalY = 0.5;
+                        coverReviewed = false;
+                        coverHeroChoices.hidden = true;
+                        if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
+                        syncHiddenInputs();
+                        renderCoverHero();
+                        schedulePreflight();
+                    });
+
+                    return button;
                 });
-                return button;
-            })
-            .filter(Boolean);
+            });
 
         if (!choices.length) {
             const empty = document.createElement("div");
             empty.className = "brochure-cover-hero-choice-empty";
-            empty.textContent = "No selected project currently has a primary publication photograph.";
+            empty.textContent = "No selected project currently has a publication photograph.";
             coverHeroChoices.replaceChildren(empty);
         } else {
             coverHeroChoices.replaceChildren(...choices);
@@ -988,11 +1164,8 @@
                 ].filter(Boolean).join(" · ");
             }
         }
-        if (reviewConfirmImage) {
-            reviewConfirmImage.disabled = !primary || config.primaryPhotoConfirmed;
-            reviewConfirmImage.textContent = config.primaryPhotoConfirmed ? "Image confirmed" : "Use this image";
-        }
         if (reviewChangeImage) reviewChangeImage.disabled = project.photos?.length === 0;
+        if (reviewAdjustCrop) reviewAdjustCrop.disabled = !primary;
 
         const info = narrativeInfo(project);
         if (reviewNarrativeLabel) reviewNarrativeLabel.textContent = info.label;
@@ -1016,8 +1189,8 @@
                 && info.ready;
             reviewMarkReviewed.disabled = !canReview || config.isReviewed;
             reviewMarkReviewed.innerHTML = config.isReviewed
-                ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Reviewed'
-                : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Mark reviewed';
+                ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approved'
+                : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approve project';
         }
         updateButtons(Boolean(lastPreflight?.canGenerate));
     };
@@ -1029,12 +1202,21 @@
 
     const updateButtons = canGenerate => {
         const previewReady = canGenerate && orderedIds.length > 0 && !exportBusy;
-        const finalReady = previewReady && allReviewed();
+        const coverReady = !isContemporaryCover() || coverReviewed;
+        const finalReady = previewReady && allReviewed() && coverReady;
         if (previewButton) previewButton.disabled = !previewReady;
         if (generateButton) generateButton.disabled = !finalReady;
         if (exportStatus && !exportBusy) {
-            if (!orderedIds.length) exportStatus.textContent = "";
-            else if (canGenerate && !allReviewed()) exportStatus.textContent = `${orderedIds.length - reviewedCount()} selected project${orderedIds.length - reviewedCount() === 1 ? "" : "s"} still require Publication Review.`;
+            if (!orderedIds.length) {
+                exportStatus.textContent = "";
+            } else if (canGenerate && !allReviewed()) {
+                const pending = orderedIds.length - reviewedCount();
+                exportStatus.textContent = `${pending} selected project${pending === 1 ? "" : "s"} still require Publication Review.`;
+            } else if (canGenerate && !coverReady) {
+                exportStatus.textContent = "Approve the Cover B hero and crop before final download.";
+            } else if (canGenerate) {
+                exportStatus.textContent = "";
+            }
         }
     };
 
@@ -1089,12 +1271,6 @@
             link.rel = "noopener";
             link.textContent = `Open ${narrativeInfo(project).label}`;
             actions.append(link);
-        } else if (issue.code === "UnconfirmedPrimaryPhoto") {
-            const review = document.createElement("button");
-            review.type = "button";
-            review.textContent = "Review project";
-            review.addEventListener("click", () => setActiveReview(Number(issue.projectId)));
-            actions.append(review);
         } else if (photoIssueCodes.has(issue.code)) {
             if (orderedIds.includes(Number(issue.projectId)) && project.photos?.length) {
                 const configure = document.createElement("button");
@@ -1395,7 +1571,13 @@
             const visibleIds = new Set(visible.map(row => Number(row.dataset.projectId)));
             orderedIds = orderedIds.filter(id => !visibleIds.has(id));
             if (activePhotoProjectId != null && visibleIds.has(activePhotoProjectId)) closePhotoEditor();
-            if (explicitCoverHeroProjectId != null && visibleIds.has(explicitCoverHeroProjectId)) explicitCoverHeroProjectId = null;
+            if (explicitCoverHeroProjectId != null && visibleIds.has(explicitCoverHeroProjectId)) {
+                explicitCoverHeroProjectId = null;
+                explicitCoverHeroPhotoId = null;
+                coverHeroFocalX = 0.5;
+                coverHeroFocalY = 0.5;
+                coverReviewed = false;
+            }
         } else {
             for (const row of visible) {
                 if (orderedIds.length >= MAX_PROJECTS) break;
@@ -1413,6 +1595,10 @@
     clearButton?.addEventListener("click", () => {
         orderedIds = [];
         explicitCoverHeroProjectId = null;
+        explicitCoverHeroPhotoId = null;
+        coverHeroFocalX = 0.5;
+        coverHeroFocalY = 0.5;
+        coverReviewed = false;
         activeReviewProjectId = null;
         closePhotoEditor();
         renderSelected(true);
@@ -1449,8 +1635,21 @@
             form.querySelectorAll("[data-cover-option]").forEach(option => {
                 option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
             });
+            coverReviewed = false;
+            if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
+            syncHiddenInputs();
             renderCoverHero();
             schedulePreflight();
+        });
+    });
+
+    form.querySelectorAll(
+        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"]'
+    ).forEach(field => {
+        field.addEventListener("input", () => {
+            coverReviewed = false;
+            syncHiddenInputs();
+            renderCoverHero();
         });
     });
 
@@ -1461,14 +1660,41 @@
     });
     coverHeroAutomatic?.addEventListener("click", () => {
         explicitCoverHeroProjectId = null;
+        explicitCoverHeroPhotoId = null;
+        coverHeroFocalX = 0.5;
+        coverHeroFocalY = 0.5;
+        coverReviewed = false;
         if (coverHeroChoices) coverHeroChoices.hidden = true;
+        if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
         syncHiddenInputs();
         renderCoverHero();
         schedulePreflight();
     });
     coverHeroCrop?.addEventListener("click", () => {
-        const id = resolvedCoverHeroId();
-        if (id) openPhotoEditor(id);
+        const hero = ensureExplicitCoverHero();
+        if (!hero || !coverHeroCropPanel) return;
+        coverReviewed = false;
+        coverHeroCropPanel.hidden = false;
+        syncHiddenInputs();
+        renderCoverHero();
+        updateCoverFocalStage();
+        schedulePreflight();
+    });
+    coverHeroApprove?.addEventListener("click", () => {
+        const hero = ensureExplicitCoverHero();
+        if (!hero) return;
+        coverReviewed = true;
+        if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
+        syncHiddenInputs();
+        renderCoverHero();
+    });
+    coverHeroFocalStage?.addEventListener("click", setCoverFocalFromEvent);
+    coverHeroFocalReset?.addEventListener("click", event => {
+        event.stopPropagation();
+        resetCoverFocal();
+    });
+    coverHeroCropClose?.addEventListener("click", () => {
+        if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
     });
 
     imageModeSelect?.addEventListener("change", () => {
@@ -1488,18 +1714,10 @@
     primaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("primary"); });
     secondaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("secondary"); });
 
-    reviewConfirmImage?.addEventListener("click", () => {
-        if (activeReviewProjectId == null) return;
-        const config = ensureConfig(activeReviewProjectId);
-        if (!config?.primaryPhotoId) return;
-        config.primaryPhotoConfirmed = true;
-        config.isReviewed = false;
-        syncHiddenInputs();
-        renderSelected(false);
-        renderReview();
-        schedulePreflight();
-    });
     reviewChangeImage?.addEventListener("click", () => {
+        if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId);
+    });
+    reviewAdjustCrop?.addEventListener("click", () => {
         if (activeReviewProjectId != null) openPhotoEditor(activeReviewProjectId);
     });
     reviewPrevious?.addEventListener("click", () => {
@@ -1524,7 +1742,6 @@
         syncHiddenInputs();
         renderSelected(false);
         renderReview();
-        schedulePreflight();
         const nextId = orderedIds.find(projectId => !ensureConfig(projectId)?.isReviewed);
         if (nextId) activeReviewProjectId = nextId;
         renderReview();
@@ -1547,6 +1764,9 @@
         if (activePhotoProjectId != null) {
             updateFocalStage("primary", activePhotoProjectId);
             updateFocalStage("secondary", activePhotoProjectId);
+        }
+        if (coverHeroCropPanel && !coverHeroCropPanel.hidden) {
+            updateCoverFocalStage();
         }
     });
 

@@ -61,6 +61,18 @@ public sealed class BrochurePhotoCropTests
         Assert.Equal(1600, crop.Width);
         Assert.Equal(900, crop.Height);
     }
+
+    [Fact]
+    public void EffectiveCropDimensions_UsesCoverBAspectIndependentlyFromProjectCardAspect()
+    {
+        var cover = BrochurePhotoService.EffectiveCropDimensions(2400, 1600, 1800d / 1100d);
+        var card = BrochurePhotoService.EffectiveWideCropDimensions(2400, 1600);
+
+        Assert.True(cover.Height > card.Height);
+        Assert.Equal(2400d, cover.Width);
+        Assert.InRange(cover.Height, 1466d, 1467d);
+    }
+
     [Theory]
     [InlineData(2400, 1350, BrochurePhotoQuality.Excellent)]
     [InlineData(1600, 900, BrochurePhotoQuality.PrintReady)]

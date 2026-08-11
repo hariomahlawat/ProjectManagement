@@ -103,18 +103,9 @@ public sealed class IndexModel : PageModel
             Input.NarrativeSource,
             cancellationToken);
 
-        var photoReferences = Input.Selections
-            .SelectMany(selection => new[]
-            {
-                selection.PrimaryPhotoId.HasValue
-                    ? new BrochurePhotoReference(selection.ProjectId, selection.PrimaryPhotoId.Value)
-                    : null,
-                selection.SecondaryPhotoId.HasValue
-                    ? new BrochurePhotoReference(selection.ProjectId, selection.SecondaryPhotoId.Value)
-                    : null
-            })
-            .Where(reference => reference is not null)
-            .Select(reference => reference!)
+        var photoReferences = reviewProjects
+            .SelectMany(project => project.Photos.Select(photo =>
+                new BrochurePhotoReference(project.ProjectId, photo.PhotoId)))
             .ToArray();
         var probes = await _photoService.ProbeAsync(photoReferences, cancellationToken);
 
@@ -175,6 +166,7 @@ public sealed class IndexModel : PageModel
             Input.CoverStyle,
             Input.AllowTextOnlyProjects,
             Input.CoverHeroProjectId,
+            Input.CoverHeroPhotoId,
             cancellationToken);
         return new JsonResult(ToClientPreflight(preflight));
     }
@@ -231,6 +223,9 @@ public sealed class IndexModel : PageModel
                 Input.AllowTextOnlyProjects,
                 generatedAt,
                 Input.CoverHeroProjectId,
+                Input.CoverHeroPhotoId,
+                Input.CoverHeroFocalX,
+                Input.CoverHeroFocalY,
                 Input.IncludeBackCover);
 
             var publication = await _publicationService.BuildAsync(
@@ -352,6 +347,17 @@ public sealed class IndexModel : PageModel
         Input.CoverHeroProjectId = Input.CoverHeroProjectId is > 0
             ? Input.CoverHeroProjectId
             : null;
+        Input.CoverHeroPhotoId = Input.CoverHeroPhotoId is > 0
+            ? Input.CoverHeroPhotoId
+            : null;
+        Input.CoverHeroFocalX = ClampFocal(Input.CoverHeroFocalX);
+        Input.CoverHeroFocalY = ClampFocal(Input.CoverHeroFocalY);
+        if (Input.CoverHeroProjectId is null && Input.CoverHeroPhotoId is null)
+        {
+            Input.CoverHeroFocalX = .5d;
+            Input.CoverHeroFocalY = .5d;
+            Input.CoverReviewed = false;
+        }
 
         Input.Selections = Input.Selections
             .Where(selection => selection.ProjectId > 0)
@@ -403,6 +409,13 @@ public sealed class IndexModel : PageModel
                 ModelState.AddModelError(
                     nameof(Input.Selections),
                     $"Review all selected projects before final download. {unreviewed} project{(unreviewed == 1 ? string.Empty : "s")} still require review.");
+            }
+
+            if (Input.CoverStyle == BrochureCoverStyle.Contemporary && !Input.CoverReviewed)
+            {
+                ModelState.AddModelError(
+                    nameof(Input.CoverReviewed),
+                    "Approve the Cover B hero and crop before final download.");
             }
         }
     }
@@ -602,6 +615,14 @@ public sealed class IndexModel : PageModel
         public bool AllowTextOnlyProjects { get; set; }
 
         public int? CoverHeroProjectId { get; set; }
+
+        public int? CoverHeroPhotoId { get; set; }
+
+        public double CoverHeroFocalX { get; set; } = .5d;
+
+        public double CoverHeroFocalY { get; set; } = .5d;
+
+        public bool CoverReviewed { get; set; }
 
         public bool IncludeBackCover { get; set; } = true;
 

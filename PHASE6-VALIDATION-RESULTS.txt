@@ -1,0 +1,34 @@
+PRISM PUBLICATIONS PHASE 6 — VALIDATION RESULTS
+=================================================
+
+Preparation baseline
+--------------------
+Phase 5 full Publications package with the Phase 5 BrochurePdfReportBuilder compile hotfix overlaid.
+
+Executed checks
+---------------
+PASS  node --check wwwroot/js/pages/projects-brochure.js
+PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
+      14 tests passed, 0 failed.
+PASS  Structural delimiter validation for modified C# source/test files.
+PASS  CSS brace validation: 401 opening / 401 closing braces.
+PASS  No technical preflight emission remains for UnconfirmedPrimaryPhoto.
+PASS  No obsolete Review 'Use this image' control remains.
+PASS  Phase 5 CS0136 renderer hotfix retained: featureGap/cardGap.
+PASS  Source diff contains no Program.cs, navigation, Compendium, migration or font changes.
+
+New regression coverage
+-----------------------
+- independent Cover B project/photo/focal state
+- cover final-approval gate
+- automatic hero enumeration across all selected-project photos
+- reorder preserves project review state
+- unified Approve project review action
+- dedicated SingleFeature renderer contract
+- adaptive TwoFeature image geometry
+- cover-specific effective crop dimensions
+- PDF builder test exercises a SingleFeature project with an independent CoverHeroImage
+
+Not executable in this environment
+----------------------------------
+The .NET SDK is not installed in the preparation environment. Therefore no claim is made for a local dotnet build/xUnit execution. Run the commands in README-REPLACE-FIRST.md after replacement.
