@@ -61,10 +61,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         var pagePlans = BrochureLayoutPlanner.Plan(data.Projects);
         var sddLogo = TryLoadAsset("img/logos/sdd.png");
         var artracLogo = TryLoadAsset("img/logos/artrac.png");
-        var institutionalArtwork = TryLoadFirstAsset(
-            "img/publications/cover-a-institutional.jpg",
-            "img/publications/cover-a-institutional.png",
-            "img/publications/cover-a-institutional.webp");
+        var institutionalArtwork = TryLoadInstitutionalArtwork(data.Options.InstitutionalCoverArtwork);
 
         var document = Document.Create(container =>
         {
@@ -1102,6 +1099,25 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 }
             });
         });
+    }
+
+    private byte[]? TryLoadInstitutionalArtwork(BrochureInstitutionalCoverArtwork artwork)
+    {
+        var selected = artwork switch
+        {
+            BrochureInstitutionalCoverArtwork.PremiumGreenGold => "img/publications/covers/cover-a-premium-green-gold.jpg",
+            BrochureInstitutionalCoverArtwork.CinematicCyber => "img/publications/covers/cover-a-cinematic-cyber.jpg",
+            BrochureInstitutionalCoverArtwork.ExecutiveTeal => "img/publications/covers/cover-a-executive-teal.jpg",
+            BrochureInstitutionalCoverArtwork.LuminousHalo => "img/publications/covers/cover-a-luminous-halo.jpg",
+            _ => "img/publications/covers/cover-a-reference-original.jpg"
+        };
+
+        return TryLoadFirstAsset(
+            selected,
+            "img/publications/covers/cover-a-reference-original.jpg",
+            "img/publications/cover-a-institutional.jpg",
+            "img/publications/cover-a-institutional.png",
+            "img/publications/cover-a-institutional.webp");
     }
 
     private byte[]? TryLoadFirstAsset(params string[] relativePaths)

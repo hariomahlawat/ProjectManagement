@@ -1,0 +1,32 @@
+PRISM Publications Phase 12 — Output-Verified Reference Quality
+Ready-to-replace files relative to the ProjectManagement project root
+
+Pages/Projects/Publications/Brochure/Index.cshtml
+Pages/Projects/Publications/Brochure/Index.cshtml.cs
+ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+Services/Publications/BrochureContracts.cs
+Services/Publications/BrochurePrintLayoutMetrics.cs
+Services/Publications/BrochurePrintMeasurementService.cs
+Services/Publications/BrochurePrintPagePlanner.cs
+Utilities/Reporting/BrochurePdfReportBuilder.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
+wwwroot/css/pages/projects-publications.css
+wwwroot/img/publications/README-COVER-A.txt
+wwwroot/js/pages/projects-brochure.js
+wwwroot/js/projects/publications-brochure-contract.test.js
+tools/Test-PrismPublicationsPhase12.ps1
+
+New selectable Cover A artwork:
+wwwroot/img/publications/covers/cover-a-reference-original.jpg
+wwwroot/img/publications/covers/cover-a-premium-green-gold.jpg
+wwwroot/img/publications/covers/cover-a-cinematic-cyber.jpg
+wwwroot/img/publications/covers/cover-a-executive-teal.jpg
+wwwroot/img/publications/covers/cover-a-luminous-halo.jpg
+
+Package documentation:
+README-REPLACE-FIRST.md
+PHASE12-CHANGED-FILES.txt
+PHASE12-VALIDATION-RESULTS.txt
+PRISM-Publications-Phase12-Reference-Quality.patch
+SHA256SUMS.txt

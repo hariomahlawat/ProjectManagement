@@ -91,6 +91,7 @@
     const secondaryMarker = form.querySelector("[data-secondary-focal-marker]");
     const secondaryReset = form.querySelector("[data-secondary-focal-reset]");
 
+    const institutionalArtworkPanel = form.querySelector("[data-brochure-institutional-artwork-panel]");
     const coverHeroPanel = form.querySelector("[data-brochure-cover-hero-panel]");
     const coverHeroCurrent = form.querySelector("[data-cover-hero-current]");
     const coverHeroImage = form.querySelector("[data-cover-hero-image]");
@@ -1047,8 +1048,10 @@
     const resolvedCoverHeroId = () => resolvedCoverHero()?.projectId ?? null;
 
     const renderCoverHero = () => {
+        const contemporary = isContemporaryCover();
+        if (institutionalArtworkPanel) institutionalArtworkPanel.hidden = contemporary;
         if (!coverHeroPanel) return;
-        coverHeroPanel.hidden = !isContemporaryCover();
+        coverHeroPanel.hidden = !contemporary;
         if (coverHeroPanel.hidden) {
             if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
             return;
@@ -1827,6 +1830,15 @@
             updatePublicationProfileUi();
             syncHiddenInputs();
             renderCoverHero();
+            schedulePreflight();
+        });
+    });
+
+    form.querySelectorAll("[data-artwork-option] input[type=radio]").forEach(radio => {
+        radio.addEventListener("change", () => {
+            form.querySelectorAll("[data-artwork-option]").forEach(option => {
+                option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
+            });
             schedulePreflight();
         });
     });

@@ -18,7 +18,7 @@ public interface IBrochurePrintPagePlanner
 }
 
 /// <summary>
-/// Order-preserving, font-aware hard-copy sheet planner. Phase 11 makes publication quality the
+/// Order-preserving, font-aware hard-copy sheet planner. Phase 12 makes publication quality the
 /// first constraint: a 9 pt project body is protected before page count is minimised. Only when an
 /// order-preserving 9 pt solution is impossible may the emergency Compact measurement be selected.
 /// After membership is locked, a bounded residual pass enlarges imagery without changing order or
@@ -383,7 +383,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             }
 
             var set = measurements[start + offset];
-            foreach (var candidate in set.OrderedByQuality)
+            foreach (var candidate in set.CandidatesForSegment(itemCount))
             {
                 selected[offset] = candidate;
                 Search(offset + 1);
@@ -490,12 +490,41 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 currentPhysicalUsed = best.PhysicalUsedPoints;
             }
 
+            // Once imagery has reached its bounded reference-quality size, spend remaining
+            // residual height on measured vertical breathing room rather than leaving a large
+            // dead tail. This never changes page membership or typography.
+            var extraModuleVerticalPadding = 0f;
+            var extraInterModuleSpacing = 0f;
+            var remainingToTarget = Math.Max(0f, targetPhysicalUsed - currentPhysicalUsed);
+            if (remainingToTarget > .5f && selected.Count > 0)
+            {
+                extraModuleVerticalPadding = Math.Min(
+                    BrochurePrintLayoutMetrics.ResidualMaximumExtraModuleVerticalPaddingPoints,
+                    remainingToTarget / selected.Count);
+                var moduleDelta = extraModuleVerticalPadding * selected.Count;
+                currentProjectHeight += moduleDelta;
+                currentPhysicalUsed += moduleDelta;
+                remainingToTarget = Math.Max(0f, targetPhysicalUsed - currentPhysicalUsed);
+            }
+
+            if (remainingToTarget > .5f && selected.Count > 1)
+            {
+                extraInterModuleSpacing = Math.Min(
+                    BrochurePrintLayoutMetrics.ResidualMaximumExtraInterModuleSpacingPoints,
+                    remainingToTarget / (selected.Count - 1));
+                var spacingDelta = extraInterModuleSpacing * (selected.Count - 1);
+                currentProjectHeight += spacingDelta;
+                currentPhysicalUsed += spacingDelta;
+            }
+
             result.Add(page with
             {
                 Projects = selected,
                 ProjectHeightPoints = currentProjectHeight,
                 PhysicalUsedPoints = currentPhysicalUsed,
-                UtilizationPercent = ToPercent(currentPhysicalUsed, capacity)
+                UtilizationPercent = ToPercent(currentPhysicalUsed, capacity),
+                ExtraModuleVerticalPaddingPoints = extraModuleVerticalPadding,
+                ExtraInterModuleSpacingPoints = extraInterModuleSpacing
             });
         }
 
@@ -517,7 +546,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             capacity,
             segment.IncludesClosingMatter,
             segment.ClosingHeightPoints,
-            segment.UtilizationPercent)).ToArray();
+            segment.UtilizationPercent,
+            segment.ExtraModuleVerticalPaddingPoints,
+            segment.ExtraInterModuleSpacingPoints)).ToArray();
 
         var projectPages = pages.Where(page => page.Projects.Count > 0).ToArray();
         var averageUtilization = pages.Length == 0
@@ -608,6 +639,19 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 yield return Compact;
             }
         }
+
+        public IEnumerable<BrochurePrintProjectMeasurement> CandidatesForSegment(int itemCount)
+        {
+            yield return Visual;
+            yield return Balanced;
+
+            // 8.5 pt Compact is a genuine emergency escape hatch for one individually oversized
+            // project. It is never a normal multi-project packing option.
+            if (itemCount == 1)
+            {
+                yield return Compact;
+            }
+        }
     }
 
     private sealed record PlannerState(
@@ -627,7 +671,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         float ClosingHeightPoints,
         int UtilizationPercent,
         int TypographyPenalty,
-        double Score);
+        double Score,
+        float ExtraModuleVerticalPaddingPoints = 0f,
+        float ExtraInterModuleSpacingPoints = 0f);
 
     private sealed record ExpansionCandidate(
         int Offset,

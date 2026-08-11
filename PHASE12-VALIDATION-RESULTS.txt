@@ -1,0 +1,57 @@
+PRISM PUBLICATIONS PHASE 12 — PREPARATION VALIDATION
+====================================================
+
+Completed in the artifact preparation environment:
+
+[PASS] Cover A artwork library
+       5 offline selectable hero assets present.
+       Reference Original is the default.
+       All assets normalized to 1600 x 1280 (5:4).
+       Alternative artworks optimized as high-quality progressive JPEGs for faster LAN/UI loading.
+
+[PASS] JavaScript syntax
+       node --check wwwroot/js/pages/projects-brochure.js
+
+[PASS] Browser/source regression suite
+       39 tests passed
+       0 failed
+
+[PASS] Phase 12 reference-quality source contract
+       Reference sheet remains 423.23 x 846.755 pt.
+       Single + Gallery 2 project imagery remains exact 16:9.
+       Visual image target = 154 pt; Balanced image target = 148 pt.
+       Visual and Balanced project body remain 9 pt.
+       8.5 pt Compact layout is restricted to a single oversized project.
+       Forced mid-sentence float continuation is modelled separately and is not justified.
+       Residual space can enlarge imagery, module padding and inter-module spacing.
+       CONTACTS uses its own row; agency headings use separate asymmetric 61/39 columns.
+       Institutional Centre statement is live PDF text overlaid inside Cover A hero.
+       Selected institutional artwork is loaded deterministically with reference fallback.
+       Final closing matter no longer repeats the institutional strapline.
+
+[PASS] C# structural checks
+       Index.cshtml.cs
+       BrochureContracts.cs
+       BrochurePrintLayoutMetrics.cs
+       BrochurePrintMeasurementService.cs
+       BrochurePrintPagePlanner.cs
+       BrochurePdfReportBuilder.cs
+       BrochurePrintCompactComposer.cs
+       BrochurePrintMeasurementServiceTests.cs
+       BrochurePrintCompactPlannerTests.cs
+       Balanced (), [] and {} after comments/strings.
+       String/comment states closed correctly.
+
+[PASS] Visual asset inspection
+       Reference artwork crop preserves shield, technology head and archer motif.
+       Four generated alternatives preserve usable 5:4 cover-safe composition.
+
+NOT EXECUTED HERE
+       dotnet restore
+       dotnet build
+       dotnet test
+       final generated-PDF acceptance comparison
+
+The preparation runtime does not expose the .NET SDK or PowerShell. Run the commands in
+README-REPLACE-FIRST.md on the PRISM development machine, regenerate the same test brochure,
+and compare the actual PDF against the original brochure before deployment.

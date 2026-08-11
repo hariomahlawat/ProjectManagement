@@ -2,7 +2,7 @@ namespace ProjectManagement.Services.Publications;
 
 /// <summary>
 /// Canonical hard-copy geometry shared by the measurement service, page planner and QuestPDF compositor.
-/// Phase 11 locks the approved narrow reference sheet, 16:9 publication imagery, reference-style
+/// Phase 12 locks the approved narrow reference sheet, 16:9 publication imagery, reference-style
 /// right-hand float composition and a 9 pt normal project typography floor.
 /// </summary>
 public static class BrochurePrintLayoutMetrics
@@ -41,8 +41,10 @@ public static class BrochurePrintLayoutMetrics
     // this pass; only project imagery is enlarged until the page approaches a professional fill.
     public const float ResidualTargetUtilization = .95f;
     public const float ResidualImageExpansionStepPoints = 4f;
-    public const float ResidualMaximumImageExpansionPoints = 24f;
+    public const float ResidualMaximumImageExpansionPoints = 28f;
     public const float ResidualMaximumImageWidthPoints = 176f;
+    public const float ResidualMaximumExtraModuleVerticalPaddingPoints = 8f;
+    public const float ResidualMaximumExtraInterModuleSpacingPoints = 5f;
 
     // Print / Compact project typography. Visual and Balanced both retain the 9 pt publication
     // body. Compact is an emergency layout only and may use the 8.5 pt hard floor.
@@ -64,16 +66,19 @@ public static class BrochurePrintLayoutMetrics
     public const float FrontCentrePreferredFontSize = 11.2f;
     public const float FrontCentreLineHeight = 1.05f;
     public const float FrontBodyPreferredFontSize = 9.0f;
-    public const float FrontBodyMinimumFontSize = 8.4f;
+    public const float FrontBodyMinimumFontSize = 8.6f;
     public const float FrontBodyLineHeight = 1.07f;
     public const float FrontContactPreferredFontSize = 8.5f;
     public const float FrontContactMinimumFontSize = 8.1f;
     public const float FrontContactLineHeight = 1.05f;
-    public const float FrontContactHeaderHeightPoints = 18f;
-    public const float FrontContactCentreWidthPoints = 84f;
+    public const float FrontContactBadgeHeightPoints = 18f;
+    public const float FrontContactAgencyHeadingHeightPoints = 17f;
+    public const float FrontContactDevelopingFraction = .61f;
+    public const float FrontContactManufacturingFraction = .39f;
     public const float FrontStraplineHeightPoints = 22f;
-    public const float FrontMinimumHeroHeightPoints = 215f;
-    public const float FrontMaximumHeroHeightPoints = 355f;
+    public const float FrontMinimumHeroHeightPoints = 300f;
+    public const float FrontMaximumHeroHeightPoints = 338f;
+    public const float FrontInstitutionalCentreOverlayHeightPoints = 44f;
 
     public static float ProjectContentCapacity(bool hasHandlingMarking)
     {
@@ -95,10 +100,10 @@ public static class BrochurePrintLayoutMetrics
         // can support a slightly stronger visual without compromising the reference body size.
         var imageAdjustment = narrativeWordCount switch
         {
-            > 195 => -8f,
-            > 160 => -4f,
-            < 90 => 8f,
-            < 120 => 4f,
+            > 195 => -6f,
+            > 160 => -3f,
+            < 90 => 6f,
+            < 120 => 3f,
             _ => 0f
         };
 
@@ -109,8 +114,8 @@ public static class BrochurePrintLayoutMetrics
                 BodyFontSize: ProjectBodyPreferredFontSize,
                 BodyLineHeight: 1.05f,
                 TitleFontSize: ProjectTitlePreferredFontSize,
-                ImageWidthPoints: 150f + imageAdjustment,
-                BodyPaddingPoints: 6.0f,
+                ImageWidthPoints: 154f + imageAdjustment,
+                BodyPaddingPoints: 6.2f,
                 QualityRank: 3),
 
             // Balanced reduces image footprint only. It deliberately preserves 9 pt copy so page
@@ -120,8 +125,8 @@ public static class BrochurePrintLayoutMetrics
                 BodyFontSize: ProjectBodyPreferredFontSize,
                 BodyLineHeight: 1.05f,
                 TitleFontSize: ProjectTitlePreferredFontSize,
-                ImageWidthPoints: 140f + imageAdjustment,
-                BodyPaddingPoints: 5.6f,
+                ImageWidthPoints: 148f + imageAdjustment,
+                BodyPaddingPoints: 5.8f,
                 QualityRank: 2),
 
             _ => new BrochurePrintVariantSpec(
@@ -129,8 +134,8 @@ public static class BrochurePrintLayoutMetrics
                 BodyFontSize: ProjectBodyMinimumFontSize,
                 BodyLineHeight: 1.04f,
                 TitleFontSize: 9.5f,
-                ImageWidthPoints: 130f + imageAdjustment,
-                BodyPaddingPoints: 5.2f,
+                ImageWidthPoints: 136f + imageAdjustment,
+                BodyPaddingPoints: 5.3f,
                 QualityRank: 1)
         };
     }

@@ -1,44 +1,42 @@
-PRISM COVER A — INSTITUTIONAL ARTWORK CONTRACT (PHASE 11)
-===========================================================
+PRISM COVER A — CURATED INSTITUTIONAL ARTWORK (PHASE 12)
+========================================================
 
-Cover A accepts an optional organisation-approved institutional artwork asset.
+PRISM now ships five offline institutional Cover A artworks under:
+  wwwroot/img/publications/covers/
 
-Place ONE of the following files in this folder:
+Default / approved reference:
+  cover-a-reference-original.jpg
+
+Alternative curated treatments:
+  cover-a-premium-green-gold.jpg
+  cover-a-cinematic-cyber.jpg
+  cover-a-executive-teal.jpg
+  cover-a-luminous-halo.jpg
+
+The Brochure Builder exposes these as a user-selectable Cover A artwork gallery.
+The reference-original artwork is the default.
+
+PRINT / COMPACT CONTRACT
+------------------------
+These are FULL HERO ARTWORKS. They may include the institutional shield / archer motif and
+technology labels. PRISM therefore does NOT paint a second logo/title lockup over a supplied
+Cover A artwork. The authoritative Centre of Expertise statement is overlaid in the lower safe
+zone of the hero so the live publication text remains editable and current.
+
+All five shipped hero assets are normalised to a 5:4 (1600x1280) print-safe composition so the measured Cover A hero fills predictably without distortion.
+
+The image is used only in the measured top hero band of the 423.23 x 846.755 pt reference sheet.
+Contact details, procurement copy and the institutional strapline remain live PDF text.
+
+DIGITAL / COMFORTABLE
+---------------------
+The selected Cover A artwork is also used by the A4 institutional renderer.
+
+FALLBACK
+--------
+Legacy optional files remain supported:
   cover-a-institutional.jpg
   cover-a-institutional.png
   cover-a-institutional.webp
 
-ASSET CONTRACT
---------------
-The file is BACKGROUND ARTWORK ONLY.
-
-Do not embed:
-  - SDD / ARTRAC logos
-  - brochure title
-  - edition / date
-  - handling marking / classification
-  - Centre of Expertise statement
-  - contact details
-  - strapline
-
-PRISM overlays all live publication text and logos so the PDF remains authoritative and
-edition-safe. This prevents duplicated logos/text when the same artwork is reused.
-
-Recommended source:
-  - landscape artwork, approximately 16:9
-  - at least 2000 px wide
-  - no transparent safety-critical text near page edges
-  - sufficient contrast for the white PRISM title/edition lockup at the top
-
-PRINT / COMPACT
----------------
-The artwork fills the measured institutional hero band on the 423.23 x 846.755 pt reference
-sheet. PRISM overlays the title/edition and logos. The Centre of Expertise statement remains in
-the measured institutional band immediately below the hero.
-
-DIGITAL / COMFORTABLE
----------------------
-The same artwork may be reused in the larger A4 institutional cover treatment.
-
-If no approved artwork is present, PRISM uses its deterministic institutional fallback artwork.
-Brochure generation therefore never depends on this optional file.
+If all curated/legacy assets are missing, PRISM uses its deterministic generated fallback.

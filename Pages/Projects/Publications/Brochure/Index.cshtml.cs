@@ -134,18 +134,23 @@ public sealed class IndexModel : PageModel
 
         if (!Enum.IsDefined(Input.NarrativeSource)
             || !Enum.IsDefined(Input.CoverStyle)
-            || !Enum.IsDefined(Input.PublicationProfile))
+            || !Enum.IsDefined(Input.PublicationProfile)
+            || !Enum.IsDefined(Input.InstitutionalCoverArtwork))
         {
             var message = !Enum.IsDefined(Input.NarrativeSource)
                 ? "Select a valid project narrative source."
                 : !Enum.IsDefined(Input.CoverStyle)
                     ? "Select a valid brochure cover style."
-                    : "Select a valid brochure publication profile.";
+                    : !Enum.IsDefined(Input.PublicationProfile)
+                        ? "Select a valid brochure publication profile."
+                        : "Select a valid institutional cover artwork.";
             var code = !Enum.IsDefined(Input.NarrativeSource)
                 ? "invalidNarrativeSource"
                 : !Enum.IsDefined(Input.CoverStyle)
                     ? "invalidCoverStyle"
-                    : "invalidPublicationProfile";
+                    : !Enum.IsDefined(Input.PublicationProfile)
+                        ? "invalidPublicationProfile"
+                        : "invalidInstitutionalCoverArtwork";
 
             return new JsonResult(new
             {
@@ -247,7 +252,8 @@ public sealed class IndexModel : PageModel
                 NullIfWhiteSpace(Input.PrintDevelopingAgencyText),
                 NullIfWhiteSpace(Input.PrintManufacturingAgencyText),
                 NullIfWhiteSpace(Input.PrintVisionaryText),
-                NullIfWhiteSpace(Input.PrintNewSimulatorsText));
+                NullIfWhiteSpace(Input.PrintNewSimulatorsText),
+                Input.InstitutionalCoverArtwork);
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -436,6 +442,10 @@ public sealed class IndexModel : PageModel
         if (!Enum.IsDefined(Input.CoverStyle))
         {
             ModelState.AddModelError(nameof(Input.CoverStyle), "Select a valid cover style.");
+        }
+        if (!Enum.IsDefined(Input.InstitutionalCoverArtwork))
+        {
+            ModelState.AddModelError(nameof(Input.InstitutionalCoverArtwork), "Select a valid institutional cover artwork.");
         }
         if (!Enum.IsDefined(Input.NarrativeSource))
         {
@@ -682,6 +692,9 @@ public sealed class IndexModel : PageModel
 
         [Required]
         public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Institutional;
+
+        [Required]
+        public BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork { get; set; } = BrochureInstitutionalCoverArtwork.ReferenceOriginal;
 
         [Required]
         public BrochureNarrativeSource NarrativeSource { get; set; } = BrochureNarrativeSource.ProjectBrief;

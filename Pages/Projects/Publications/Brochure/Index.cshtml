@@ -213,6 +213,42 @@
                             </div>
                         </fieldset>
 
+                        <section class="brochure-institutional-artwork-panel" data-brochure-institutional-artwork-panel>
+                            <div class="brochure-cover-hero-heading">
+                                <div>
+                                    <strong>Cover A artwork</strong>
+                                    <small>The reference artwork is the default. Alternative offline artworks retain the same SDD technology narrative while offering a different visual treatment.</small>
+                                </div>
+                            </div>
+                            <div class="brochure-artwork-options">
+                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.ReferenceOriginal ? "is-selected" : string.Empty)" data-artwork-option>
+                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.ReferenceOriginal" data-brochure-preflight-trigger />
+                                    <img src="~/img/publications/covers/cover-a-reference-original.jpg" alt="Reference institutional cover artwork" decoding="async" />
+                                    <span><strong>Reference Original</strong><small>Approved brochure visual · default</small></span>
+                                </label>
+                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.PremiumGreenGold ? "is-selected" : string.Empty)" data-artwork-option>
+                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.PremiumGreenGold" data-brochure-preflight-trigger />
+                                    <img src="~/img/publications/covers/cover-a-premium-green-gold.jpg" alt="Premium green and gold cover artwork" loading="lazy" decoding="async" />
+                                    <span><strong>Premium Green–Gold</strong><small>Sharper institutional technology treatment</small></span>
+                                </label>
+                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.CinematicCyber ? "is-selected" : string.Empty)" data-artwork-option>
+                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.CinematicCyber" data-brochure-preflight-trigger />
+                                    <img src="~/img/publications/covers/cover-a-cinematic-cyber.jpg" alt="Cinematic cyber cover artwork" loading="lazy" decoding="async" />
+                                    <span><strong>Cinematic Cyber</strong><small>High-contrast premium technology visual</small></span>
+                                </label>
+                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.ExecutiveTeal ? "is-selected" : string.Empty)" data-artwork-option>
+                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.ExecutiveTeal" data-brochure-preflight-trigger />
+                                    <img src="~/img/publications/covers/cover-a-executive-teal.jpg" alt="Executive teal cover artwork" loading="lazy" decoding="async" />
+                                    <span><strong>Executive Teal</strong><small>Clean, restrained editorial treatment</small></span>
+                                </label>
+                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.LuminousHalo ? "is-selected" : string.Empty)" data-artwork-option>
+                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.LuminousHalo" data-brochure-preflight-trigger />
+                                    <img src="~/img/publications/covers/cover-a-luminous-halo.jpg" alt="Luminous halo cover artwork" loading="lazy" decoding="async" />
+                                    <span><strong>Luminous Halo</strong><small>Bold ceremonial technology treatment</small></span>
+                                </label>
+                            </div>
+                        </section>
+
                         <section class="brochure-cover-hero-panel" data-brochure-cover-hero-panel>
                             <div class="brochure-cover-hero-heading">
                                 <div>

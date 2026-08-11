@@ -1,0 +1,1505 @@
+diff --git a/Pages/Projects/Publications/Brochure/Index.cshtml b/Pages/Projects/Publications/Brochure/Index.cshtml
+index 3e3571c..273fd6c 100644
+--- a/Pages/Projects/Publications/Brochure/Index.cshtml
++++ b/Pages/Projects/Publications/Brochure/Index.cshtml
+@@ -213,6 +213,42 @@
+                             </div>
+                         </fieldset>
+ 
++                        <section class="brochure-institutional-artwork-panel" data-brochure-institutional-artwork-panel>
++                            <div class="brochure-cover-hero-heading">
++                                <div>
++                                    <strong>Cover A artwork</strong>
++                                    <small>The reference artwork is the default. Alternative offline artworks retain the same SDD technology narrative while offering a different visual treatment.</small>
++                                </div>
++                            </div>
++                            <div class="brochure-artwork-options">
++                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.ReferenceOriginal ? "is-selected" : string.Empty)" data-artwork-option>
++                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.ReferenceOriginal" data-brochure-preflight-trigger />
++                                    <img src="~/img/publications/covers/cover-a-reference-original.jpg" alt="Reference institutional cover artwork" decoding="async" />
++                                    <span><strong>Reference Original</strong><small>Approved brochure visual · default</small></span>
++                                </label>
++                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.PremiumGreenGold ? "is-selected" : string.Empty)" data-artwork-option>
++                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.PremiumGreenGold" data-brochure-preflight-trigger />
++                                    <img src="~/img/publications/covers/cover-a-premium-green-gold.jpg" alt="Premium green and gold cover artwork" loading="lazy" decoding="async" />
++                                    <span><strong>Premium Green–Gold</strong><small>Sharper institutional technology treatment</small></span>
++                                </label>
++                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.CinematicCyber ? "is-selected" : string.Empty)" data-artwork-option>
++                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.CinematicCyber" data-brochure-preflight-trigger />
++                                    <img src="~/img/publications/covers/cover-a-cinematic-cyber.jpg" alt="Cinematic cyber cover artwork" loading="lazy" decoding="async" />
++                                    <span><strong>Cinematic Cyber</strong><small>High-contrast premium technology visual</small></span>
++                                </label>
++                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.ExecutiveTeal ? "is-selected" : string.Empty)" data-artwork-option>
++                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.ExecutiveTeal" data-brochure-preflight-trigger />
++                                    <img src="~/img/publications/covers/cover-a-executive-teal.jpg" alt="Executive teal cover artwork" loading="lazy" decoding="async" />
++                                    <span><strong>Executive Teal</strong><small>Clean, restrained editorial treatment</small></span>
++                                </label>
++                                <label class="brochure-artwork-option @(Model.Input.InstitutionalCoverArtwork == BrochureInstitutionalCoverArtwork.LuminousHalo ? "is-selected" : string.Empty)" data-artwork-option>
++                                    <input type="radio" asp-for="Input.InstitutionalCoverArtwork" value="@BrochureInstitutionalCoverArtwork.LuminousHalo" data-brochure-preflight-trigger />
++                                    <img src="~/img/publications/covers/cover-a-luminous-halo.jpg" alt="Luminous halo cover artwork" loading="lazy" decoding="async" />
++                                    <span><strong>Luminous Halo</strong><small>Bold ceremonial technology treatment</small></span>
++                                </label>
++                            </div>
++                        </section>
++
+                         <section class="brochure-cover-hero-panel" data-brochure-cover-hero-panel>
+                             <div class="brochure-cover-hero-heading">
+                                 <div>
+diff --git a/Pages/Projects/Publications/Brochure/Index.cshtml.cs b/Pages/Projects/Publications/Brochure/Index.cshtml.cs
+index 37b4c7c..794670a 100644
+--- a/Pages/Projects/Publications/Brochure/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Brochure/Index.cshtml.cs
+@@ -134,18 +134,23 @@ public sealed class IndexModel : PageModel
+ 
+         if (!Enum.IsDefined(Input.NarrativeSource)
+             || !Enum.IsDefined(Input.CoverStyle)
+-            || !Enum.IsDefined(Input.PublicationProfile))
++            || !Enum.IsDefined(Input.PublicationProfile)
++            || !Enum.IsDefined(Input.InstitutionalCoverArtwork))
+         {
+             var message = !Enum.IsDefined(Input.NarrativeSource)
+                 ? "Select a valid project narrative source."
+                 : !Enum.IsDefined(Input.CoverStyle)
+                     ? "Select a valid brochure cover style."
+-                    : "Select a valid brochure publication profile.";
++                    : !Enum.IsDefined(Input.PublicationProfile)
++                        ? "Select a valid brochure publication profile."
++                        : "Select a valid institutional cover artwork.";
+             var code = !Enum.IsDefined(Input.NarrativeSource)
+                 ? "invalidNarrativeSource"
+                 : !Enum.IsDefined(Input.CoverStyle)
+                     ? "invalidCoverStyle"
+-                    : "invalidPublicationProfile";
++                    : !Enum.IsDefined(Input.PublicationProfile)
++                        ? "invalidPublicationProfile"
++                        : "invalidInstitutionalCoverArtwork";
+ 
+             return new JsonResult(new
+             {
+@@ -247,7 +252,8 @@ public sealed class IndexModel : PageModel
+                 NullIfWhiteSpace(Input.PrintDevelopingAgencyText),
+                 NullIfWhiteSpace(Input.PrintManufacturingAgencyText),
+                 NullIfWhiteSpace(Input.PrintVisionaryText),
+-                NullIfWhiteSpace(Input.PrintNewSimulatorsText));
++                NullIfWhiteSpace(Input.PrintNewSimulatorsText),
++                Input.InstitutionalCoverArtwork);
+ 
+             var publication = await _publicationService.BuildAsync(
+                 ToSelections(),
+@@ -437,6 +443,10 @@ public sealed class IndexModel : PageModel
+         {
+             ModelState.AddModelError(nameof(Input.CoverStyle), "Select a valid cover style.");
+         }
++        if (!Enum.IsDefined(Input.InstitutionalCoverArtwork))
++        {
++            ModelState.AddModelError(nameof(Input.InstitutionalCoverArtwork), "Select a valid institutional cover artwork.");
++        }
+         if (!Enum.IsDefined(Input.NarrativeSource))
+         {
+             ModelState.AddModelError(nameof(Input.NarrativeSource), "Select a valid project narrative source.");
+@@ -683,6 +693,9 @@ public sealed class IndexModel : PageModel
+         [Required]
+         public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Institutional;
+ 
++        [Required]
++        public BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork { get; set; } = BrochureInstitutionalCoverArtwork.ReferenceOriginal;
++
+         [Required]
+         public BrochureNarrativeSource NarrativeSource { get; set; } = BrochureNarrativeSource.ProjectBrief;
+ 
+diff --git a/ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs b/ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+index 02b7837..d5edd80 100644
+--- a/ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
++++ b/ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+@@ -91,7 +91,7 @@ public sealed class BrochurePrintCompactPlannerTests
+             hasHandlingMarking: false);
+ 
+         // All four Compact measurements could fit on one project sheet, but they are 8.5 pt.
+-        // Phase 11 deliberately chooses more sheets and preserves the 9 pt publication body.
++        // Phase 12 deliberately chooses more sheets and preserves the 9 pt publication body.
+         Assert.True(plan.Pages.Count(page => page.Projects.Count > 0) >= 2);
+         Assert.All(
+             plan.Pages.SelectMany(page => page.Projects),
+@@ -119,6 +119,10 @@ public sealed class BrochurePrintCompactPlannerTests
+         var planned = plan.Pages.SelectMany(page => page.Projects).ToArray();
+         Assert.Equal(Enumerable.Range(0, 3).ToArray(), planned.Select(project => project.ProjectIndex).ToArray());
+         Assert.Contains(planned, project => project.Measurement.ImageWidthPoints > 140f);
++        Assert.Contains(plan.Pages, page =>
++            page.ExtraModuleVerticalPaddingPoints > 0f
++            || page.ExtraInterModuleSpacingPoints > 0f
++            || page.Projects.Any(project => project.Measurement.ImageWidthPoints > 140f));
+     }
+ 
+     private static BrochurePrintPlanningItem PlanningItem(int id, int words)
+diff --git a/ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs b/ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+index bd33f2a..c2c8243 100644
+--- a/ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
++++ b/ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+@@ -46,7 +46,9 @@ public sealed class BrochurePrintMeasurementServiceTests
+ 
+         Assert.True(measure.UsesFloatLayout);
+         Assert.NotEmpty(measure.LeadingNarrative);
+-        Assert.NotEmpty(measure.TrailingNarrative);
++        Assert.True(
++            !string.IsNullOrWhiteSpace(measure.ContinuationNarrative)
++            || !string.IsNullOrWhiteSpace(measure.TrailingNarrative));
+         Assert.True(measure.FullTextWidthPoints > measure.TextWidthPoints);
+         Assert.True(measure.ImageHeightPoints > 0);
+         Assert.True(measure.LeadingTextHeightPoints <= measure.ImageHeightPoints + 1f);
+@@ -171,6 +173,7 @@ public sealed class BrochurePrintMeasurementServiceTests
+ 
+         Assert.True(plan.BodyFontSize >= BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize);
+         Assert.True(plan.HeroHeightPoints >= BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints);
++        Assert.Equal(0f, plan.CentreBlockHeightPoints);
+         Assert.InRange(plan.UtilizationPercent, 90, 100);
+     }
+ 
+diff --git a/README-REPLACE-FIRST.md b/README-REPLACE-FIRST.md
+index 7f8555e..7faa356 100644
+--- a/README-REPLACE-FIRST.md
++++ b/README-REPLACE-FIRST.md
+@@ -1,156 +1,146 @@
+-# PRISM Publications — Phase 11 Print Fidelity & Composition Quality Lock
++# PRISM Publications — Phase 12 Output-Verified Reference Quality
+ 
+-## Purpose
++## Objective
+ 
+-Phase 11 is the final hard-copy quality pass on top of the Phase 10 reference-fidelity renderer.
+-It is intentionally isolated to **Print / Compact**. Digital / Comfortable, brochure selection,
+-review, photo editing, approval and preflight workflows are unchanged.
++Phase 12 moves Print / Compact from "close to the original" to a renderer explicitly engineered
++for **equal-or-better reference quality**. It keeps the Phase 10/11 measured architecture and fixes
++the remaining defects observed in the generated PDF while adding a curated institutional Cover A
++artwork library.
+ 
+-The phase addresses the remaining defects visible in the latest generated brochure:
++Digital / Comfortable remains isolated except that, when Institutional Cover A is selected, it may
++reuse the same user-selected institutional artwork.
+ 
+-- Cover A `CONTACTS` overlay colliding with the Manufacturing Agency heading;
+-- 16:9 publication photographs being measured inside taller non-16:9 print frames;
+-- Balanced pages dropping to 8.75 pt merely to protect page count;
+-- float text occasionally continuing at full width from the middle of a sentence;
+-- under-filled sheets not using safe residual space to strengthen imagery.
++## What Phase 12 changes
+ 
+-## What changed
++### 1. Curated Cover A artwork library
+ 
+-### 1. Exact 16:9 project-image geometry
++Cover A now ships with five fully offline hero artworks and exposes them directly in Brochure
++Builder:
+ 
+-The publication photo pipeline already normalises selected project images to a 16:9 publication
+-crop. Print / Compact now measures and renders the same geometry:
++1. **Reference Original** — default and closest to the approved brochure;
++2. **Premium Green–Gold**;
++3. **Cinematic Cyber**;
++4. **Executive Teal**;
++5. **Luminous Halo**.
+ 
+-- Single image frame: **16:9**;
+-- Gallery 2 image frames: **16:9** each;
+-- Visual image width: approximately **150 pt** before bounded narrative adjustment;
+-- Balanced image width: approximately **140 pt**;
+-- Compact image width: approximately **130 pt**.
++All shipped artwork is normalized to **1600 × 1280 (5:4)** for deterministic print composition.
++The selected artwork is stored in the posted brochure options; no database migration is required.
+ 
+-The extra one-point white inset inside the final image frame has also been removed. This eliminates
+-the artificial white strip caused by placing a 16:9 image inside the old 1.45 / 1.65 aspect boxes.
++The selected artwork is treated as full institutional hero artwork, so PRISM does **not** paint a
++second logo/title lockup over it. The authoritative Centre of Expertise statement remains live PDF
++text and is overlaid in the lower safe zone of the hero.
+ 
+-### 2. Nine-point typography is now a planning constraint
++### 2. Cover A first-page integrity
+ 
+-Visual and Balanced layouts both retain the normal **9 pt** project body. Compact remains an
+-emergency layout at the existing **8.5 pt hard floor**.
++- `CONTACTS` now owns a dedicated row above the agency headings;
++- Developing and Manufacturing Agency headings can no longer collide with the badge;
++- agency columns are deliberately asymmetric (**61 / 39**) because Developing Agency carries
++  more copy;
++- the Centre of Expertise statement is integrated into the artwork hero rather than consuming a
++  separate full-width band;
++- the recovered vertical space supports stronger hero presence and more comfortable copy.
+ 
+-The page planner now compares solutions in this order:
++### 3. Reference-scale project imagery
+ 
+-1. lowest typography penalty;
+-2. lowest page count;
+-3. best measured image quality / utilisation score.
++Print / Compact retains exact **16:9** project imagery and raises the normal image scale:
+ 
+-Therefore an additional sheet is preferred over reducing normal project copy below 9 pt.
+-The planner also compares a shared-closing solution against a dedicated closing sheet, so the
+-closing block cannot force an otherwise avoidable typography reduction.
++- Visual: approximately **154 pt** before bounded narrative adjustment;
++- Balanced: approximately **148 pt**;
++- Compact emergency layout: approximately **136 pt**;
++- residual expansion remains bounded at **176 pt** maximum.
+ 
+-### 3. Editorially-aware float splitting
++This brings the generated visual anchor into the same range as the original brochure while keeping
++PRISM's cleaner standardized 16:9 treatment.
+ 
+-The measured right-image text wrap is retained, but the split no longer blindly ends at the last
+-word that fits beside the image.
++### 4. 9 pt is now the real normal-body floor
+ 
+-The measurement service now searches nearby boundaries in this order of preference:
++Visual and Balanced remain **9 pt**. Compact at 8.5 pt is no longer offered to ordinary multi-
++project packing. It is available only as an emergency escape hatch for a single oversized project
++that cannot physically fit at 9 pt.
+ 
+-- paragraph boundary;
+-- sentence boundary;
+-- complete-word fallback.
++This means page count can no longer silently buy density by reducing ordinary project text.
+ 
+-A bounded line-height tolerance keeps the semantic boundary close to the actual image height.
+-This prevents the full-width justified continuation from beginning awkwardly in the middle of a
+-sentence in normal cases.
++### 5. Mid-sentence float continuation is corrected
+ 
+-### 4. Bounded residual-space image expansion
++When the image-height split has to occur in the middle of a sentence, Phase 12 separates the
++unfinished sentence from normal paragraph copy:
+ 
+-After project membership for each sheet is locked, Phase 11 performs a second measured pass on
+-under-filled pages. It enlarges eligible project images in 4 pt width increments, up to a strict
+-24 pt boost / 176 pt maximum width, while:
++- the unfinished sentence continues full-width **without forced justification**;
++- normal justified publication copy resumes at the next sentence boundary.
+ 
+-- preserving project order;
+-- preserving page membership;
+-- preserving the selected typography variant;
+-- never exceeding physical sheet capacity;
+-- stopping near the 95% target fill when further expansion would worsen the result.
++This removes the visibly stretched first continuation line that exposed the algorithmic split.
+ 
+-This improves short three-project sheets without stretching text, creating artificial blank card
+-height or forcing another project onto the page.
++### 6. Under-filled pages use residual space deliberately
+ 
+-### 5. Cover A contact footer is structurally safe
++Residual optimisation now has three bounded stages without changing project order, page membership
++or typography:
+ 
+-`CONTACTS` is no longer an overlay painted on top of two equal agency columns. The footer now has
+-an explicit heading row:
++1. enlarge project imagery;
++2. add measured vertical breathing inside project modules;
++3. add modest inter-module spacing.
+ 
+-`Developing Agency | CONTACTS | Manufacturing Agency`
++The target remains approximately **95% physical sheet utilisation** rather than artificial 100%
++fill.
+ 
+-and a separate two-column content row below it. The measurement service reserves the additional
+-header height, so the first-page footer remains stable at all supported contact font sizes.
++### 7. Closing page is cleaner
+ 
+-### 6. Institutional artwork contract is explicit
++The final closing block now ends on **New Simulators**. The institutional strapline remains on the
++first page only, matching the reference logic and avoiding a redundant final-page repeat.
+ 
+-`wwwroot/img/publications/README-COVER-A.txt` now defines `cover-a-institutional.*` as
+-**background artwork only**. Logos, title, edition, handling marking, Centre statement, contacts
+-and strapline must not be baked into the image; PRISM overlays those live values.
+-
+-## Files changed by Phase 11
++## Files changed
+ 
++- `Pages/Projects/Publications/Brochure/Index.cshtml`
++- `Pages/Projects/Publications/Brochure/Index.cshtml.cs`
++- `Services/Publications/BrochureContracts.cs`
+ - `Services/Publications/BrochurePrintLayoutMetrics.cs`
+ - `Services/Publications/BrochurePrintMeasurementService.cs`
+ - `Services/Publications/BrochurePrintPagePlanner.cs`
++- `Utilities/Reporting/BrochurePdfReportBuilder.cs`
+ - `Utilities/Reporting/BrochurePrintCompactComposer.cs`
+ - `ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs`
+ - `ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs`
++- `wwwroot/css/pages/projects-publications.css`
++- `wwwroot/js/pages/projects-brochure.js`
+ - `wwwroot/js/projects/publications-brochure-contract.test.js`
+ - `wwwroot/img/publications/README-COVER-A.txt`
+-- `tools/Test-PrismPublicationsPhase11.ps1` (new)
++- `wwwroot/img/publications/covers/*` — five shipped artwork assets
++- `tools/Test-PrismPublicationsPhase12.ps1`
+ 
+-There is **no EF migration**, **no database change**, **no Program.cs change**, **no Razor/UI
+-change**, and **no CSS/client workflow change**.
++There is **no EF migration** and **no database schema change**.
+ 
+ ## Installation
+ 
+-This incremental package assumes **Phase 10 is already installed**.
++The incremental Phase 12 package assumes Phase 11 is installed. Copy its contents over the
++`ProjectManagement` project root, preserving directories.
+ 
+-Copy the package contents over the `ProjectManagement` project root and preserve the directory
+-structure. Then run:
++Then run:
+ 
+ ```powershell
+ Set-ExecutionPolicy -Scope Process Bypass
+-.\tools\Test-PrismPublicationsPhase11.ps1
++.\tools\Test-PrismPublicationsPhase12.ps1
+ 
+ Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+ 
+ dotnet restore .\ProjectManagement.csproj
+ dotnet build .\ProjectManagement.csproj
+ dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+-
+-node --check .\wwwroot\js\pages\projects-brochure.js
+-node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
+ ```
+ 
+-## Acceptance checks
+-
+-Generate the same representative Print / Compact brochure used for Phase 10 and verify:
+-
+-1. `CONTACTS` no longer obscures either agency heading on Cover A.
+-2. Single project images fill their frames without the former white band below the photograph.
+-3. Gallery 2 displays two clean 16:9 images stacked on the upper-right.
+-4. Normal Visual and Balanced project modules render at 9 pt body typography.
+-5. 8.5 pt is used only when an individual/combined layout genuinely cannot be planned at 9 pt.
+-6. A dedicated closing sheet is preferred when sharing the closing matter would otherwise require
+-   avoidable typography reduction.
+-7. Full-width continuation normally begins at a paragraph or sentence boundary, not in the middle
+-   of a sentence.
+-8. Under-filled project sheets use bounded larger imagery where measured space permits.
+-9. Project order and the preflight sheet map remain unchanged and deterministic.
+-10. Long two-line project titles grow the green title band rather than collapsing typography.
+-11. Gallery 2 is tested with short, medium and long narratives.
+-12. Digital / Comfortable output remains unchanged.
+-
+-## Validation completed in this preparation environment
+-
+-- `node --check wwwroot/js/projects/publications-brochure-contract.test.js` — passed.
+-- `node --test wwwroot/js/projects/publications-brochure-contract.test.js` — **36/36 passed**.
+-- Structural C# delimiter/string-state scan — passed for all Phase 11 modified C# files.
+-
+-The preparation environment does not expose the .NET SDK. Run `dotnet restore`, `dotnet build`
+-and the xUnit suite on the PRISM development machine before deployment.
++## Acceptance run
++
++Regenerate the same brochure used for the Phase 11 comparison and verify:
++
++- Cover A defaults to **Reference Original** and user can switch among all five artwork cards;
++- no duplicated logos/title are painted over supplied Cover A artwork;
++- CONTACTS does not overlap either agency heading;
++- institutional Centre statement is integrated into the hero;
++- normal project body is 9 pt;
++- normal project images are visibly stronger and remain 16:9;
++- no stretched justified continuation begins in the middle of a sentence;
++- under-filled 3-project sheets use spare space intelligently;
++- project order remains unchanged;
++- final page ends on New Simulators without the repeated strapline;
++- Gallery 2 and long two-line title cases still fit without clipping.
++
++The original brochure remains the minimum visual benchmark. PRISM should retain its advantages in
++consistency, deterministic pagination and clean standardized photography.
+diff --git a/Services/Publications/BrochureContracts.cs b/Services/Publications/BrochureContracts.cs
+index 5458cd0..150be9e 100644
+--- a/Services/Publications/BrochureContracts.cs
++++ b/Services/Publications/BrochureContracts.cs
+@@ -15,6 +15,20 @@ public enum BrochureCoverStyle
+     Contemporary = 2
+ }
+ 
++/// <summary>
++/// Curated offline artwork shipped with PRISM for the institutional Cover A hero.
++/// The reference artwork remains the default; the remaining options are professionally
++/// art-directed alternatives that preserve the same SDD technology narrative.
++/// </summary>
++public enum BrochureInstitutionalCoverArtwork
++{
++    ReferenceOriginal = 1,
++    PremiumGreenGold = 2,
++    CinematicCyber = 3,
++    ExecutiveTeal = 4,
++    LuminousHalo = 5
++}
++
+ public enum BrochurePublicationProfile
+ {
+     PrintCompact = 1,
+@@ -153,7 +167,9 @@ public sealed record BrochurePrintProjectMeasurement(
+     float FullTextWidthPoints = 0f,
+     float PrimaryImageHeightPoints = 0f,
+     float SecondaryImageHeightPoints = 0f,
+-    bool UsesFloatLayout = false);
++    bool UsesFloatLayout = false,
++    string ContinuationNarrative = "",
++    float ContinuationTextHeightPoints = 0f);
+ 
+ public sealed record BrochurePrintPlannedProject(
+     int ProjectIndex,
+@@ -189,7 +205,9 @@ public sealed record BrochurePrintCompactPage(
+     float CapacityPoints,
+     bool IncludesClosingMatter,
+     float ClosingHeightPoints,
+-    int UtilizationPercent)
++    int UtilizationPercent,
++    float ExtraModuleVerticalPaddingPoints = 0f,
++    float ExtraInterModuleSpacingPoints = 0f)
+ {
+     public IReadOnlyList<int> ProjectIndexes => Projects.Select(project => project.ProjectIndex).ToArray();
+ }
+@@ -353,7 +371,8 @@ public sealed record BrochureBuildOptions(
+     string? PrintDevelopingAgencyText = null,
+     string? PrintManufacturingAgencyText = null,
+     string? PrintVisionaryText = null,
+-    string? PrintNewSimulatorsText = null);
++    string? PrintNewSimulatorsText = null,
++    BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork = BrochureInstitutionalCoverArtwork.ReferenceOriginal);
+ 
+ public sealed record BrochurePreflightIssue(
+     BrochurePreflightIssueCode Code,
+diff --git a/Services/Publications/BrochurePrintLayoutMetrics.cs b/Services/Publications/BrochurePrintLayoutMetrics.cs
+index 121226a..e1d56cf 100644
+--- a/Services/Publications/BrochurePrintLayoutMetrics.cs
++++ b/Services/Publications/BrochurePrintLayoutMetrics.cs
+@@ -2,7 +2,7 @@ namespace ProjectManagement.Services.Publications;
+ 
+ /// <summary>
+ /// Canonical hard-copy geometry shared by the measurement service, page planner and QuestPDF compositor.
+-/// Phase 11 locks the approved narrow reference sheet, 16:9 publication imagery, reference-style
++/// Phase 12 locks the approved narrow reference sheet, 16:9 publication imagery, reference-style
+ /// right-hand float composition and a 9 pt normal project typography floor.
+ /// </summary>
+ public static class BrochurePrintLayoutMetrics
+@@ -41,8 +41,10 @@ public static class BrochurePrintLayoutMetrics
+     // this pass; only project imagery is enlarged until the page approaches a professional fill.
+     public const float ResidualTargetUtilization = .95f;
+     public const float ResidualImageExpansionStepPoints = 4f;
+-    public const float ResidualMaximumImageExpansionPoints = 24f;
++    public const float ResidualMaximumImageExpansionPoints = 28f;
+     public const float ResidualMaximumImageWidthPoints = 176f;
++    public const float ResidualMaximumExtraModuleVerticalPaddingPoints = 8f;
++    public const float ResidualMaximumExtraInterModuleSpacingPoints = 5f;
+ 
+     // Print / Compact project typography. Visual and Balanced both retain the 9 pt publication
+     // body. Compact is an emergency layout only and may use the 8.5 pt hard floor.
+@@ -64,16 +66,19 @@ public static class BrochurePrintLayoutMetrics
+     public const float FrontCentrePreferredFontSize = 11.2f;
+     public const float FrontCentreLineHeight = 1.05f;
+     public const float FrontBodyPreferredFontSize = 9.0f;
+-    public const float FrontBodyMinimumFontSize = 8.4f;
++    public const float FrontBodyMinimumFontSize = 8.6f;
+     public const float FrontBodyLineHeight = 1.07f;
+     public const float FrontContactPreferredFontSize = 8.5f;
+     public const float FrontContactMinimumFontSize = 8.1f;
+     public const float FrontContactLineHeight = 1.05f;
+-    public const float FrontContactHeaderHeightPoints = 18f;
+-    public const float FrontContactCentreWidthPoints = 84f;
++    public const float FrontContactBadgeHeightPoints = 18f;
++    public const float FrontContactAgencyHeadingHeightPoints = 17f;
++    public const float FrontContactDevelopingFraction = .61f;
++    public const float FrontContactManufacturingFraction = .39f;
+     public const float FrontStraplineHeightPoints = 22f;
+-    public const float FrontMinimumHeroHeightPoints = 215f;
+-    public const float FrontMaximumHeroHeightPoints = 355f;
++    public const float FrontMinimumHeroHeightPoints = 300f;
++    public const float FrontMaximumHeroHeightPoints = 338f;
++    public const float FrontInstitutionalCentreOverlayHeightPoints = 44f;
+ 
+     public static float ProjectContentCapacity(bool hasHandlingMarking)
+     {
+@@ -95,10 +100,10 @@ public static class BrochurePrintLayoutMetrics
+         // can support a slightly stronger visual without compromising the reference body size.
+         var imageAdjustment = narrativeWordCount switch
+         {
+-            > 195 => -8f,
+-            > 160 => -4f,
+-            < 90 => 8f,
+-            < 120 => 4f,
++            > 195 => -6f,
++            > 160 => -3f,
++            < 90 => 6f,
++            < 120 => 3f,
+             _ => 0f
+         };
+ 
+@@ -109,8 +114,8 @@ public static class BrochurePrintLayoutMetrics
+                 BodyFontSize: ProjectBodyPreferredFontSize,
+                 BodyLineHeight: 1.05f,
+                 TitleFontSize: ProjectTitlePreferredFontSize,
+-                ImageWidthPoints: 150f + imageAdjustment,
+-                BodyPaddingPoints: 6.0f,
++                ImageWidthPoints: 154f + imageAdjustment,
++                BodyPaddingPoints: 6.2f,
+                 QualityRank: 3),
+ 
+             // Balanced reduces image footprint only. It deliberately preserves 9 pt copy so page
+@@ -120,8 +125,8 @@ public static class BrochurePrintLayoutMetrics
+                 BodyFontSize: ProjectBodyPreferredFontSize,
+                 BodyLineHeight: 1.05f,
+                 TitleFontSize: ProjectTitlePreferredFontSize,
+-                ImageWidthPoints: 140f + imageAdjustment,
+-                BodyPaddingPoints: 5.6f,
++                ImageWidthPoints: 148f + imageAdjustment,
++                BodyPaddingPoints: 5.8f,
+                 QualityRank: 2),
+ 
+             _ => new BrochurePrintVariantSpec(
+@@ -129,8 +134,8 @@ public static class BrochurePrintLayoutMetrics
+                 BodyFontSize: ProjectBodyMinimumFontSize,
+                 BodyLineHeight: 1.04f,
+                 TitleFontSize: 9.5f,
+-                ImageWidthPoints: 130f + imageAdjustment,
+-                BodyPaddingPoints: 5.2f,
++                ImageWidthPoints: 136f + imageAdjustment,
++                BodyPaddingPoints: 5.3f,
+                 QualityRank: 1)
+         };
+     }
+diff --git a/Services/Publications/BrochurePrintMeasurementService.cs b/Services/Publications/BrochurePrintMeasurementService.cs
+index e28dc0f..5f31e2e 100644
+--- a/Services/Publications/BrochurePrintMeasurementService.cs
++++ b/Services/Publications/BrochurePrintMeasurementService.cs
+@@ -128,16 +128,20 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+         }
+ 
+         string leadingNarrative;
++        string continuationNarrative;
+         string trailingNarrative;
+         float leadingTextHeight;
++        float continuationTextHeight;
+         float trailingTextHeight;
+         float bodyContentHeight;
+ 
+         if (!hasPrimary)
+         {
+             leadingNarrative = string.Empty;
++            continuationNarrative = string.Empty;
+             trailingNarrative = item.Narrative ?? string.Empty;
+             leadingTextHeight = 0f;
++            continuationTextHeight = 0f;
+             trailingTextHeight = MeasureTextHeight(
+                 trailingNarrative,
+                 spec.BodyFontSize,
+@@ -157,21 +161,26 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+                 spec.BodyLineHeight);
+ 
+             leadingNarrative = split.Leading;
++            continuationNarrative = split.Continuation;
+             trailingNarrative = split.Trailing;
+             leadingTextHeight = split.LeadingHeightPoints;
++            continuationTextHeight = split.ContinuationHeightPoints;
+             trailingTextHeight = split.TrailingHeightPoints;
+ 
+             bodyContentHeight = Math.Max(imageHeight, leadingTextHeight);
+-            if (!string.IsNullOrWhiteSpace(trailingNarrative))
++            if (!string.IsNullOrWhiteSpace(continuationNarrative) || !string.IsNullOrWhiteSpace(trailingNarrative))
+             {
+-                bodyContentHeight += BrochurePrintLayoutMetrics.FloatRemainderGapPoints + trailingTextHeight;
++                bodyContentHeight += BrochurePrintLayoutMetrics.FloatRemainderGapPoints
++                                     + continuationTextHeight
++                                     + trailingTextHeight;
+             }
+         }
+ 
+         var totalTextHeight = leadingTextHeight
++                              + continuationTextHeight
+                               + trailingTextHeight
+                               + (!string.IsNullOrWhiteSpace(leadingNarrative)
+-                                 && !string.IsNullOrWhiteSpace(trailingNarrative)
++                                 && (!string.IsNullOrWhiteSpace(continuationNarrative) || !string.IsNullOrWhiteSpace(trailingNarrative))
+                                   ? BrochurePrintLayoutMetrics.FloatRemainderGapPoints
+                                   : 0f);
+         var totalHeight = titleHeight
+@@ -201,7 +210,9 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+             FullTextWidthPoints: fullTextWidth,
+             PrimaryImageHeightPoints: primaryImageHeight,
+             SecondaryImageHeightPoints: secondaryImageHeight,
+-            UsesFloatLayout: hasPrimary);
++            UsesFloatLayout: hasPrimary,
++            ContinuationNarrative: continuationNarrative,
++            ContinuationTextHeightPoints: continuationTextHeight);
+     }
+ 
+     public BrochurePrintClosingMeasurement MeasureClosing(
+@@ -238,21 +249,15 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+             BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight,
+             FontWeight.SemiBold) + 14f;
+ 
+-        var straplineHeight = Math.Max(
+-            9f,
+-            MeasureTextHeight(
+-                strapline,
+-                BrochurePrintLayoutMetrics.ClosingStraplineFontSize,
+-                outerWidth - 16f,
+-                1.05f,
+-                FontWeight.SemiBold) + 2f);
++        // The approved reference finishes on the New Simulators band. The institutional
++        // strapline belongs to the first page only; omitting it here gives the closing panel
++        // more visual authority and removes a redundant final-page element.
++        const float straplineHeight = 0f;
+ 
+         var total = 1f
+                     + visionPanelHeight
+                     + 5f
+                     + newSimulatorHeight
+-                    + 5f
+-                    + straplineHeight
+                     + 2f;
+ 
+         return new BrochurePrintClosingMeasurement(
+@@ -272,39 +277,48 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+ 
+         const float horizontalPadding = 10f;
+         var bodyWidth = BrochurePrintLayoutMetrics.ReferenceWidthPoints - (horizontalPadding * 2f);
+-        var contactWidth = (BrochurePrintLayoutMetrics.ReferenceWidthPoints - 28f) / 2f;
+ 
+-        // Centre statement is intentionally larger than Phase 8 and is measured independently.
++        // Cover A carries the Centre of Expertise statement inside the artwork hero, like the
++        // approved reference brochure. Cover B retains a separate statement band because its hero
++        // is arbitrary project photography and cannot guarantee a safe text zone.
+         var centreFont = BrochurePrintLayoutMetrics.FrontCentrePreferredFontSize;
+         var centreTextHeight = MeasureTextHeight(
+             matter.CentreStatement,
+             centreFont,
+-            bodyWidth - 20f,
++            bodyWidth - 28f,
+             BrochurePrintLayoutMetrics.FrontCentreLineHeight,
+             FontWeight.SemiBold);
+-        var centreBlockHeight = Math.Max(48f, centreTextHeight + 18f);
++        var centreBlockHeight = coverStyle == BrochureCoverStyle.Institutional
++            ? 0f
++            : Math.Max(48f, centreTextHeight + 18f);
+ 
+-        // Contact details use explicit line breaks from the approved reference copy. Their block
+-        // height therefore reacts to real line wrapping rather than a fixed 98 pt footer.
++        // CONTACTS is a dedicated row above the agency headings. The agency body is asymmetric
++        // because the Developing Agency carries materially more copy than Manufacturing Agency.
+         var contactFont = BrochurePrintLayoutMetrics.FrontContactPreferredFontSize;
++        var contactInnerWidth = BrochurePrintLayoutMetrics.ReferenceWidthPoints - 16f;
++        var agencyGutter = 12f;
++        var distributableWidth = contactInnerWidth - agencyGutter;
++        var developingWidth = distributableWidth * BrochurePrintLayoutMetrics.FrontContactDevelopingFraction;
++        var manufacturingWidth = distributableWidth * BrochurePrintLayoutMetrics.FrontContactManufacturingFraction;
+         var contactBodyHeight = Math.Max(
+             MeasureTextHeight(
+                 matter.DevelopingAgency,
+                 contactFont,
+-                contactWidth,
++                developingWidth,
+                 BrochurePrintLayoutMetrics.FrontContactLineHeight,
+                 FontWeight.SemiBold),
+             MeasureTextHeight(
+                 matter.ManufacturingAgency,
+                 contactFont,
+-                contactWidth,
++                manufacturingWidth,
+                 BrochurePrintLayoutMetrics.FrontContactLineHeight,
+                 FontWeight.SemiBold));
+         var contactBlockHeight = Math.Max(
+-            88f,
++            96f,
+             contactBodyHeight
+-            + BrochurePrintLayoutMetrics.FrontContactHeaderHeightPoints
+-            + 10f);
++            + BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints
++            + BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints
++            + 15f);
+ 
+         var straplineHeight = Math.Max(
+             BrochurePrintLayoutMetrics.FrontStraplineHeightPoints,
+@@ -316,7 +330,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+         var selectedSpacing = 5.5f;
+         var fits = false;
+ 
+-        foreach (var bodyFont in new[] { 9.0f, 8.8f, 8.6f, 8.4f })
++        foreach (var bodyFont in new[] { 9.0f, 8.8f, 8.6f })
+         {
+             var spacing = bodyFont >= 8.8f ? 6f : 5f;
+             var openingHeight = MeasureTextHeight(
+@@ -352,9 +366,6 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+             selectedSpacing = spacing;
+             fits = true;
+ 
+-            // If a particularly short user edit would leave more than the maximum hero allowance,
+-            // keep the hero within the approved visual band and use the residual space as deliberate
+-            // breathing inside the body rather than a blank void above the contact strip.
+             if (heroHeight > BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints)
+             {
+                 selectedBodyHeight += heroHeight - BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints;
+@@ -423,7 +434,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+     {
+         if (string.IsNullOrWhiteSpace(narrative))
+         {
+-            return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
++            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f);
+         }
+ 
+         var normalized = narrative
+@@ -433,7 +444,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+         var words = WordToken.Matches(normalized).Cast<Match>().ToArray();
+         if (words.Length == 0)
+         {
+-            return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
++            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f);
+         }
+ 
+         // First identify the largest complete-word prefix that fits beside the image. This is the
+@@ -475,7 +486,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+                 fullWidth,
+                 lineHeight,
+                 FontWeight.Regular);
+-            return new FloatNarrativeSplit(string.Empty, normalized, 0f, trailingHeight);
++            return new FloatNarrativeSplit(string.Empty, string.Empty, normalized, 0f, 0f, trailingHeight);
+         }
+ 
+         var idealEnd = words[bestWordCount - 1].Index + words[bestWordCount - 1].Length;
+@@ -531,12 +542,14 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+                 bestBoundary = new BoundaryMeasurement(
+                     boundary.EndIndex,
+                     height,
+-                    score);
++                    score,
++                    boundary.Kind);
+             }
+         }
+ 
+         var selectedEnd = bestBoundary?.EndIndex ?? idealEnd;
+         var selectedHeight = bestBoundary?.HeightPoints ?? bestWordHeight;
++        var selectedKind = bestBoundary?.Kind ?? EditorialBoundaryKind.Word;
+ 
+         var leading = normalized[..selectedEnd].Trim();
+         var trailingStart = selectedEnd;
+@@ -545,9 +558,42 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+             trailingStart++;
+         }
+ 
+-        var trailing = trailingStart < normalized.Length
++        var remainder = trailingStart < normalized.Length
+             ? normalized[trailingStart..].Trim()
+             : string.Empty;
++
++        // A forced geometric split can occur in the middle of a sentence. Rendering that remainder
++        // as a freshly justified paragraph creates the conspicuous stretched first line seen in
++        // earlier phases. Keep only the unfinished sentence as a left-aligned continuation, then
++        // return to normal justified editorial copy at the next true sentence boundary.
++        var continuation = string.Empty;
++        var trailing = remainder;
++        if (selectedKind == EditorialBoundaryKind.Word && !string.IsNullOrWhiteSpace(remainder))
++        {
++            var nextSentence = SentenceEnd.Match(remainder);
++            if (nextSentence.Success)
++            {
++                var continuationEnd = nextSentence.Index + nextSentence.Length;
++                continuation = remainder[..continuationEnd].Trim();
++                trailing = continuationEnd < remainder.Length
++                    ? remainder[continuationEnd..].Trim()
++                    : string.Empty;
++            }
++            else
++            {
++                continuation = remainder;
++                trailing = string.Empty;
++            }
++        }
++
++        var continuationHeightPoints = string.IsNullOrWhiteSpace(continuation)
++            ? 0f
++            : MeasureTextHeight(
++                continuation,
++                fontSize,
++                fullWidth,
++                lineHeight,
++                FontWeight.Regular);
+         var trailingHeightPoints = string.IsNullOrWhiteSpace(trailing)
+             ? 0f
+             : MeasureTextHeight(
+@@ -559,8 +605,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+ 
+         return new FloatNarrativeSplit(
+             leading,
++            continuation,
+             trailing,
+             selectedHeight,
++            continuationHeightPoints,
+             trailingHeightPoints);
+     }
+ 
+@@ -813,8 +861,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+ 
+     private sealed record FloatNarrativeSplit(
+         string Leading,
++        string Continuation,
+         string Trailing,
+         float LeadingHeightPoints,
++        float ContinuationHeightPoints,
+         float TrailingHeightPoints);
+ 
+     private enum EditorialBoundaryKind
+@@ -831,7 +881,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
+     private sealed record BoundaryMeasurement(
+         int EndIndex,
+         float HeightPoints,
+-        float Score);
++        float Score,
++        EditorialBoundaryKind Kind);
+ 
+     private sealed record TypefaceSet(
+         SKTypeface Regular,
+diff --git a/Services/Publications/BrochurePrintPagePlanner.cs b/Services/Publications/BrochurePrintPagePlanner.cs
+index 48cf659..61ee55f 100644
+--- a/Services/Publications/BrochurePrintPagePlanner.cs
++++ b/Services/Publications/BrochurePrintPagePlanner.cs
+@@ -18,7 +18,7 @@ public interface IBrochurePrintPagePlanner
+ }
+ 
+ /// <summary>
+-/// Order-preserving, font-aware hard-copy sheet planner. Phase 11 makes publication quality the
++/// Order-preserving, font-aware hard-copy sheet planner. Phase 12 makes publication quality the
+ /// first constraint: a 9 pt project body is protected before page count is minimised. Only when an
+ /// order-preserving 9 pt solution is impossible may the emergency Compact measurement be selected.
+ /// After membership is locked, a bounded residual pass enlarges imagery without changing order or
+@@ -383,7 +383,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
+             }
+ 
+             var set = measurements[start + offset];
+-            foreach (var candidate in set.OrderedByQuality)
++            foreach (var candidate in set.CandidatesForSegment(itemCount))
+             {
+                 selected[offset] = candidate;
+                 Search(offset + 1);
+@@ -490,12 +490,41 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
+                 currentPhysicalUsed = best.PhysicalUsedPoints;
+             }
+ 
++            // Once imagery has reached its bounded reference-quality size, spend remaining
++            // residual height on measured vertical breathing room rather than leaving a large
++            // dead tail. This never changes page membership or typography.
++            var extraModuleVerticalPadding = 0f;
++            var extraInterModuleSpacing = 0f;
++            var remainingToTarget = Math.Max(0f, targetPhysicalUsed - currentPhysicalUsed);
++            if (remainingToTarget > .5f && selected.Count > 0)
++            {
++                extraModuleVerticalPadding = Math.Min(
++                    BrochurePrintLayoutMetrics.ResidualMaximumExtraModuleVerticalPaddingPoints,
++                    remainingToTarget / selected.Count);
++                var moduleDelta = extraModuleVerticalPadding * selected.Count;
++                currentProjectHeight += moduleDelta;
++                currentPhysicalUsed += moduleDelta;
++                remainingToTarget = Math.Max(0f, targetPhysicalUsed - currentPhysicalUsed);
++            }
++
++            if (remainingToTarget > .5f && selected.Count > 1)
++            {
++                extraInterModuleSpacing = Math.Min(
++                    BrochurePrintLayoutMetrics.ResidualMaximumExtraInterModuleSpacingPoints,
++                    remainingToTarget / (selected.Count - 1));
++                var spacingDelta = extraInterModuleSpacing * (selected.Count - 1);
++                currentProjectHeight += spacingDelta;
++                currentPhysicalUsed += spacingDelta;
++            }
++
+             result.Add(page with
+             {
+                 Projects = selected,
+                 ProjectHeightPoints = currentProjectHeight,
+                 PhysicalUsedPoints = currentPhysicalUsed,
+-                UtilizationPercent = ToPercent(currentPhysicalUsed, capacity)
++                UtilizationPercent = ToPercent(currentPhysicalUsed, capacity),
++                ExtraModuleVerticalPaddingPoints = extraModuleVerticalPadding,
++                ExtraInterModuleSpacingPoints = extraInterModuleSpacing
+             });
+         }
+ 
+@@ -517,7 +546,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
+             capacity,
+             segment.IncludesClosingMatter,
+             segment.ClosingHeightPoints,
+-            segment.UtilizationPercent)).ToArray();
++            segment.UtilizationPercent,
++            segment.ExtraModuleVerticalPaddingPoints,
++            segment.ExtraInterModuleSpacingPoints)).ToArray();
+ 
+         var projectPages = pages.Where(page => page.Projects.Count > 0).ToArray();
+         var averageUtilization = pages.Length == 0
+@@ -608,6 +639,19 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
+                 yield return Compact;
+             }
+         }
++
++        public IEnumerable<BrochurePrintProjectMeasurement> CandidatesForSegment(int itemCount)
++        {
++            yield return Visual;
++            yield return Balanced;
++
++            // 8.5 pt Compact is a genuine emergency escape hatch for one individually oversized
++            // project. It is never a normal multi-project packing option.
++            if (itemCount == 1)
++            {
++                yield return Compact;
++            }
++        }
+     }
+ 
+     private sealed record PlannerState(
+@@ -627,7 +671,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
+         float ClosingHeightPoints,
+         int UtilizationPercent,
+         int TypographyPenalty,
+-        double Score);
++        double Score,
++        float ExtraModuleVerticalPaddingPoints = 0f,
++        float ExtraInterModuleSpacingPoints = 0f);
+ 
+     private sealed record ExpansionCandidate(
+         int Offset,
+diff --git a/Utilities/Reporting/BrochurePdfReportBuilder.cs b/Utilities/Reporting/BrochurePdfReportBuilder.cs
+index 9a64c10..bb32809 100644
+--- a/Utilities/Reporting/BrochurePdfReportBuilder.cs
++++ b/Utilities/Reporting/BrochurePdfReportBuilder.cs
+@@ -61,10 +61,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
+         var pagePlans = BrochureLayoutPlanner.Plan(data.Projects);
+         var sddLogo = TryLoadAsset("img/logos/sdd.png");
+         var artracLogo = TryLoadAsset("img/logos/artrac.png");
+-        var institutionalArtwork = TryLoadFirstAsset(
+-            "img/publications/cover-a-institutional.jpg",
+-            "img/publications/cover-a-institutional.png",
+-            "img/publications/cover-a-institutional.webp");
++        var institutionalArtwork = TryLoadInstitutionalArtwork(data.Options.InstitutionalCoverArtwork);
+ 
+         var document = Document.Create(container =>
+         {
+@@ -1104,6 +1101,25 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
+         });
+     }
+ 
++    private byte[]? TryLoadInstitutionalArtwork(BrochureInstitutionalCoverArtwork artwork)
++    {
++        var selected = artwork switch
++        {
++            BrochureInstitutionalCoverArtwork.PremiumGreenGold => "img/publications/covers/cover-a-premium-green-gold.jpg",
++            BrochureInstitutionalCoverArtwork.CinematicCyber => "img/publications/covers/cover-a-cinematic-cyber.jpg",
++            BrochureInstitutionalCoverArtwork.ExecutiveTeal => "img/publications/covers/cover-a-executive-teal.jpg",
++            BrochureInstitutionalCoverArtwork.LuminousHalo => "img/publications/covers/cover-a-luminous-halo.jpg",
++            _ => "img/publications/covers/cover-a-reference-original.jpg"
++        };
++
++        return TryLoadFirstAsset(
++            selected,
++            "img/publications/covers/cover-a-reference-original.jpg",
++            "img/publications/cover-a-institutional.jpg",
++            "img/publications/cover-a-institutional.png",
++            "img/publications/cover-a-institutional.webp");
++    }
++
+     private byte[]? TryLoadFirstAsset(params string[] relativePaths)
+     {
+         foreach (var relativePath in relativePaths)
+diff --git a/Utilities/Reporting/BrochurePrintCompactComposer.cs b/Utilities/Reporting/BrochurePrintCompactComposer.cs
+index 6a7a893..734215b 100644
+--- a/Utilities/Reporting/BrochurePrintCompactComposer.cs
++++ b/Utilities/Reporting/BrochurePrintCompactComposer.cs
+@@ -5,7 +5,7 @@ using ProjectManagement.Services.Publications;
+ namespace ProjectManagement.Utilities.Reporting;
+ 
+ /// <summary>
+-/// Original-format hard-copy brochure compositor. Phase 11 locks the approved reference grammar:
++/// Original-format hard-copy brochure compositor. Phase 12 locks the approved reference grammar:
+ /// imagery is anchored upper-right, copy wraps beside it and returns to full width below, image
+ /// frames use the same 16:9 geometry as the publication crop pipeline, and Cover A contact headings
+ /// reserve an explicit centre lane for the CONTACTS identifier.
+@@ -75,18 +75,21 @@ internal static class BrochurePrintCompactComposer
+                         artracLogo,
+                         institutionalArtwork));
+ 
+-                column.Item().Height(frontPlan.CentreBlockHeightPoints)
+-                    .Background(Forest950)
+-                    .PaddingHorizontal(12)
+-                    .PaddingVertical(7)
+-                    .AlignCenter()
+-                    .AlignMiddle()
+-                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
+-                    .FontSize(frontPlan.CentreFontSize)
+-                    .Bold()
+-                    .LineHeight(BrochurePrintLayoutMetrics.FrontCentreLineHeight)
+-                    .AlignCenter()
+-                    .FontColor("#FFFFFF");
++                if (frontPlan.CentreBlockHeightPoints > .5f)
++                {
++                    column.Item().Height(frontPlan.CentreBlockHeightPoints)
++                        .Background(Forest950)
++                        .PaddingHorizontal(12)
++                        .PaddingVertical(7)
++                        .AlignCenter()
++                        .AlignMiddle()
++                        .Text(data.Options.PrintCentreStatement ?? string.Empty)
++                        .FontSize(frontPlan.CentreFontSize)
++                        .Bold()
++                        .LineHeight(BrochurePrintLayoutMetrics.FrontCentreLineHeight)
++                        .AlignCenter()
++                        .FontColor("#FFFFFF");
++                }
+ 
+                 column.Item().Height(frontPlan.BodyBlockHeightPoints)
+                     .Background(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? Forest800 : "#F8F8F4")
+@@ -185,11 +188,46 @@ internal static class BrochurePrintCompactComposer
+                 }
+             });
+ 
+-            ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
++            if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
++            {
++                ComposeInstitutionalCentreOverlay(layers.Layer(), data.Options.PrintCentreStatement);
++                if (institutionalArtwork is not { Length: > 0 })
++                {
++                    ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
++                }
++            }
++            else
++            {
++                ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
++            }
+             ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
+         });
+     }
+ 
++    private static void ComposeInstitutionalCentreOverlay(IContainer layer, string? statement)
++    {
++        if (string.IsNullOrWhiteSpace(statement))
++        {
++            return;
++        }
++
++        layer.AlignBottom()
++            .PaddingBottom(8)
++            .PaddingHorizontal(34)
++            .Background("#741A16")
++            .BorderTop(1.2f)
++            .BorderColor(Gold)
++            .PaddingHorizontal(12)
++            .PaddingVertical(6)
++            .AlignCenter()
++            .Text(statement)
++            .FontSize(10.2f)
++            .Bold()
++            .LineHeight(1.03f)
++            .AlignCenter()
++            .FontColor("#FFFFFF");
++    }
++
+     private static void ComposeFrontLockup(
+         IContainer layer,
+         BrochurePublicationData data,
+@@ -287,50 +325,47 @@ internal static class BrochurePrintCompactComposer
+             .PaddingVertical(6)
+             .Column(column =>
+             {
+-                column.Spacing(3);
++                column.Spacing(2);
++
++                column.Item().Height(BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints)
++                    .AlignCenter()
++                    .AlignMiddle()
++                    .Background("#E0182D")
++                    .PaddingHorizontal(18)
++                    .PaddingVertical(3)
++                    .Text("CONTACTS")
++                    .FontSize(7.6f)
++                    .Bold()
++                    .AlignCenter()
++                    .FontColor("#F8E34F");
+ 
+-                // CONTACTS owns a real centre lane. It is never painted over either agency heading,
+-                // which keeps the first-page footer stable at every supported contact font size.
+-                column.Item().Height(BrochurePrintLayoutMetrics.FrontContactHeaderHeightPoints)
++                column.Item().Height(BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints)
+                     .Row(header =>
+                     {
+-                        header.RelativeItem().AlignMiddle().Text("Developing Agency")
++                        header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactDevelopingFraction)
++                            .AlignMiddle()
++                            .Text("Developing Agency")
+                             .FontSize(contactFontSize + .45f)
+-                            .Bold()
+-                            .Underline()
+-                            .FontColor("#FFF5DB");
+-
+-                        header.ConstantItem(BrochurePrintLayoutMetrics.FrontContactCentreWidthPoints)
++                            .Bold().Underline().FontColor("#FFF5DB");
++                        header.ConstantItem(12);
++                        header.RelativeItem(BrochurePrintLayoutMetrics.FrontContactManufacturingFraction)
+                             .AlignMiddle()
+-                            .AlignCenter()
+-                            .Background("#E0182D")
+-                            .PaddingVertical(3)
+-                            .Text("CONTACTS")
+-                            .FontSize(7.5f)
+-                            .Bold()
+-                            .AlignCenter()
+-                            .FontColor("#F8E34F");
+-
+-                        header.RelativeItem().AlignMiddle().AlignRight().Text("Manufacturing Agency")
++                            .Text("Manufacturing Agency")
+                             .FontSize(contactFontSize + .45f)
+-                            .Bold()
+-                            .Underline()
+-                            .FontColor("#FFF5DB");
++                            .Bold().Underline().FontColor("#FFF5DB");
+                     });
+ 
+                 column.Item().Row(row =>
+                 {
+-                    row.RelativeItem().Text(data.Options.PrintDevelopingAgencyText ?? string.Empty)
+-                        .FontSize(contactFontSize)
+-                        .SemiBold()
++                    row.RelativeItem(BrochurePrintLayoutMetrics.FrontContactDevelopingFraction)
++                        .Text(data.Options.PrintDevelopingAgencyText ?? string.Empty)
++                        .FontSize(contactFontSize).SemiBold()
+                         .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
+                         .FontColor("#FFFFFF");
+-
+                     row.ConstantItem(12);
+-
+-                    row.RelativeItem().Text(data.Options.PrintManufacturingAgencyText ?? string.Empty)
+-                        .FontSize(contactFontSize)
+-                        .SemiBold()
++                    row.RelativeItem(BrochurePrintLayoutMetrics.FrontContactManufacturingFraction)
++                        .Text(data.Options.PrintManufacturingAgencyText ?? string.Empty)
++                        .FontSize(contactFontSize).SemiBold()
+                         .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
+                         .FontColor("#FFFFFF");
+                 });
+@@ -399,18 +434,19 @@ internal static class BrochurePrintCompactComposer
+ 
+             page.Content().Column(column =>
+             {
+-                column.Spacing(BrochurePrintLayoutMetrics.InterModuleSpacingPoints);
++                column.Spacing(BrochurePrintLayoutMetrics.InterModuleSpacingPoints + sheet.ExtraInterModuleSpacingPoints);
+ 
+                 foreach (var plannedProject in sheet.Projects)
+                 {
+                     var project = data.Projects[plannedProject.ProjectIndex];
+                     column.Item()
+-                        .MinHeight(plannedProject.Measurement.TotalHeightPoints)
++                        .MinHeight(plannedProject.Measurement.TotalHeightPoints + sheet.ExtraModuleVerticalPaddingPoints)
+                         .ShowEntire()
+                         .Element(module => ComposeProjectModule(
+                             module,
+                             project,
+-                            plannedProject.Measurement));
++                            plannedProject.Measurement,
++                            sheet.ExtraModuleVerticalPaddingPoints));
+                 }
+ 
+                 if (sheet.IncludesClosingMatter)
+@@ -428,7 +464,8 @@ internal static class BrochurePrintCompactComposer
+     private static void ComposeProjectModule(
+         IContainer container,
+         BrochurePublicationProject project,
+-        BrochurePrintProjectMeasurement layout)
++        BrochurePrintProjectMeasurement layout,
++        float extraVerticalPaddingPoints)
+     {
+         container.Border(BrochurePrintLayoutMetrics.ModuleBorderPoints)
+             .BorderColor(Forest700)
+@@ -446,7 +483,10 @@ internal static class BrochurePrintCompactComposer
+                     .AlignCenter()
+                     .FontColor("#FFFFFF");
+ 
+-                column.Item().Padding(layout.BodyPaddingPoints).Column(body =>
++                column.Item()
++                    .PaddingHorizontal(layout.BodyPaddingPoints)
++                    .PaddingVertical(layout.BodyPaddingPoints + (extraVerticalPaddingPoints / 2f))
++                    .Column(body =>
+                 {
+                     var hasPrimary = project.PrimaryPhoto is not null;
+                     var useSecond = project.SecondaryPhoto is not null
+@@ -486,10 +526,24 @@ internal static class BrochurePrintCompactComposer
+                         });
+                     });
+ 
+-                    if (!string.IsNullOrWhiteSpace(layout.TrailingNarrative))
++                    var hasContinuation = !string.IsNullOrWhiteSpace(layout.ContinuationNarrative);
++                    if (hasContinuation)
+                     {
+                         body.Item().PaddingTop(BrochurePrintLayoutMetrics.FloatRemainderGapPoints)
+-                            .Text(layout.TrailingNarrative)
++                            .Text(layout.ContinuationNarrative)
++                            .FontSize(layout.BodyFontSize)
++                            .LineHeight(layout.BodyLineHeight)
++                            .FontColor(Ink);
++                    }
++
++                    if (!string.IsNullOrWhiteSpace(layout.TrailingNarrative))
++                    {
++                        var trailing = body.Item();
++                        if (!hasContinuation)
++                        {
++                            trailing = trailing.PaddingTop(BrochurePrintLayoutMetrics.FloatRemainderGapPoints);
++                        }
++                        trailing.Text(layout.TrailingNarrative)
+                             .FontSize(layout.BodyFontSize)
+                             .LineHeight(layout.BodyLineHeight)
+                             .Justify()
+@@ -532,12 +586,6 @@ internal static class BrochurePrintCompactComposer
+                 text.Span("New Simulators. ").Bold().Italic().FontColor("#F4D66E");
+                 text.Span(data.Options.PrintNewSimulatorsText ?? string.Empty).SemiBold().FontColor("#FFFFFF");
+             });
+-
+-            column.Item().AlignCenter().Text(data.Options.Strapline)
+-                .FontSize(BrochurePrintLayoutMetrics.ClosingStraplineFontSize)
+-                .SemiBold()
+-                .Italic()
+-                .FontColor(Forest700);
+         });
+     }
+ 
+diff --git a/wwwroot/css/pages/projects-publications.css b/wwwroot/css/pages/projects-publications.css
+index b652be1..d367068 100644
+--- a/wwwroot/css/pages/projects-publications.css
++++ b/wwwroot/css/pages/projects-publications.css
+@@ -956,3 +956,50 @@
+     border-color: #c8dbd3;
+     background: #eef7f3;
+ }
++
++/* Phase 12 · curated institutional Cover A artwork */
++.brochure-institutional-artwork-panel {
++    display: grid;
++    gap: .55rem;
++    margin-top: .72rem;
++    padding: .62rem;
++    border: 1px solid #dce7e3;
++    border-radius: 10px;
++    background: #f9fbfa;
++}
++.brochure-institutional-artwork-panel[hidden] { display: none !important; }
++.brochure-artwork-options {
++    display: grid;
++    grid-template-columns: repeat(5, minmax(0, 1fr));
++    gap: .5rem;
++}
++.brochure-artwork-option {
++    position: relative;
++    display: grid;
++    gap: .38rem;
++    min-width: 0;
++    padding: .36rem;
++    border: 1px solid #d7e2de;
++    border-radius: 8px;
++    background: #fff;
++    cursor: pointer;
++    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
++}
++.brochure-artwork-option:hover { border-color: #9fbcb1; transform: translateY(-1px); }
++.brochure-artwork-option.is-selected { border-color: #4d8b76; box-shadow: 0 0 0 2px rgba(27,107,89,.1); }
++.brochure-artwork-option:has(input:focus-visible) { outline: 2px solid #2f6f5d; outline-offset: 2px; }
++.brochure-artwork-option > input { position: absolute; opacity: 0; pointer-events: none; }
++.brochure-artwork-option img {
++    display: block;
++    width: 100%;
++    aspect-ratio: 5 / 4;
++    object-fit: cover;
++    border-radius: 5px;
++    background: #e8efec;
++}
++.brochure-artwork-option span, .brochure-artwork-option strong, .brochure-artwork-option small { display: block; min-width: 0; }
++.brochure-artwork-option strong { overflow: hidden; color: #263f36; text-overflow: ellipsis; white-space: nowrap; font-size: .59rem; }
++.brochure-artwork-option small { margin-top: .08rem; color: #73847d; font-size: .51rem; line-height: 1.25; }
++@media (max-width: 1280px) { .brochure-artwork-options { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
++@media (max-width: 820px) { .brochure-artwork-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
++@media (max-width: 560px) { .brochure-artwork-options { grid-template-columns: 1fr; } }
+diff --git a/wwwroot/img/publications/README-COVER-A.txt b/wwwroot/img/publications/README-COVER-A.txt
+index 7013585..c34c3b9 100644
+--- a/wwwroot/img/publications/README-COVER-A.txt
++++ b/wwwroot/img/publications/README-COVER-A.txt
+@@ -1,44 +1,42 @@
+-PRISM COVER A — INSTITUTIONAL ARTWORK CONTRACT (PHASE 11)
+-===========================================================
++PRISM COVER A — CURATED INSTITUTIONAL ARTWORK (PHASE 12)
++========================================================
+ 
+-Cover A accepts an optional organisation-approved institutional artwork asset.
++PRISM now ships five offline institutional Cover A artworks under:
++  wwwroot/img/publications/covers/
+ 
+-Place ONE of the following files in this folder:
+-  cover-a-institutional.jpg
+-  cover-a-institutional.png
+-  cover-a-institutional.webp
++Default / approved reference:
++  cover-a-reference-original.jpg
++
++Alternative curated treatments:
++  cover-a-premium-green-gold.jpg
++  cover-a-cinematic-cyber.jpg
++  cover-a-executive-teal.jpg
++  cover-a-luminous-halo.jpg
++
++The Brochure Builder exposes these as a user-selectable Cover A artwork gallery.
++The reference-original artwork is the default.
++
++PRINT / COMPACT CONTRACT
++------------------------
++These are FULL HERO ARTWORKS. They may include the institutional shield / archer motif and
++technology labels. PRISM therefore does NOT paint a second logo/title lockup over a supplied
++Cover A artwork. The authoritative Centre of Expertise statement is overlaid in the lower safe
++zone of the hero so the live publication text remains editable and current.
+ 
+-ASSET CONTRACT
+---------------
+-The file is BACKGROUND ARTWORK ONLY.
+-
+-Do not embed:
+-  - SDD / ARTRAC logos
+-  - brochure title
+-  - edition / date
+-  - handling marking / classification
+-  - Centre of Expertise statement
+-  - contact details
+-  - strapline
+-
+-PRISM overlays all live publication text and logos so the PDF remains authoritative and
+-edition-safe. This prevents duplicated logos/text when the same artwork is reused.
+-
+-Recommended source:
+-  - landscape artwork, approximately 16:9
+-  - at least 2000 px wide
+-  - no transparent safety-critical text near page edges
+-  - sufficient contrast for the white PRISM title/edition lockup at the top
+-
+-PRINT / COMPACT
+----------------
+-The artwork fills the measured institutional hero band on the 423.23 x 846.755 pt reference
+-sheet. PRISM overlays the title/edition and logos. The Centre of Expertise statement remains in
+-the measured institutional band immediately below the hero.
++All five shipped hero assets are normalised to a 5:4 (1600x1280) print-safe composition so the measured Cover A hero fills predictably without distortion.
++
++The image is used only in the measured top hero band of the 423.23 x 846.755 pt reference sheet.
++Contact details, procurement copy and the institutional strapline remain live PDF text.
+ 
+ DIGITAL / COMFORTABLE
+ ---------------------
+-The same artwork may be reused in the larger A4 institutional cover treatment.
++The selected Cover A artwork is also used by the A4 institutional renderer.
++
++FALLBACK
++--------
++Legacy optional files remain supported:
++  cover-a-institutional.jpg
++  cover-a-institutional.png
++  cover-a-institutional.webp
+ 
+-If no approved artwork is present, PRISM uses its deterministic institutional fallback artwork.
+-Brochure generation therefore never depends on this optional file.
++If all curated/legacy assets are missing, PRISM uses its deterministic generated fallback.
+diff --git a/wwwroot/js/pages/projects-brochure.js b/wwwroot/js/pages/projects-brochure.js
+index e77c702..20f4572 100644
+--- a/wwwroot/js/pages/projects-brochure.js
++++ b/wwwroot/js/pages/projects-brochure.js
+@@ -91,6 +91,7 @@
+     const secondaryMarker = form.querySelector("[data-secondary-focal-marker]");
+     const secondaryReset = form.querySelector("[data-secondary-focal-reset]");
+ 
++    const institutionalArtworkPanel = form.querySelector("[data-brochure-institutional-artwork-panel]");
+     const coverHeroPanel = form.querySelector("[data-brochure-cover-hero-panel]");
+     const coverHeroCurrent = form.querySelector("[data-cover-hero-current]");
+     const coverHeroImage = form.querySelector("[data-cover-hero-image]");
+@@ -1047,8 +1048,10 @@
+     const resolvedCoverHeroId = () => resolvedCoverHero()?.projectId ?? null;
+ 
+     const renderCoverHero = () => {
++        const contemporary = isContemporaryCover();
++        if (institutionalArtworkPanel) institutionalArtworkPanel.hidden = contemporary;
+         if (!coverHeroPanel) return;
+-        coverHeroPanel.hidden = !isContemporaryCover();
++        coverHeroPanel.hidden = !contemporary;
+         if (coverHeroPanel.hidden) {
+             if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
+             return;
+@@ -1831,6 +1834,15 @@
+         });
+     });
+ 
++    form.querySelectorAll("[data-artwork-option] input[type=radio]").forEach(radio => {
++        radio.addEventListener("change", () => {
++            form.querySelectorAll("[data-artwork-option]").forEach(option => {
++                option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
++            });
++            schedulePreflight();
++        });
++    });
++
+     form.querySelectorAll("[data-cover-option] input[type=radio]").forEach(radio => {
+         radio.addEventListener("change", () => {
+             coverSelectionTouched = true;
+diff --git a/wwwroot/js/projects/publications-brochure-contract.test.js b/wwwroot/js/projects/publications-brochure-contract.test.js
+index 80289ac..fb37803 100644
+--- a/wwwroot/js/projects/publications-brochure-contract.test.js
++++ b/wwwroot/js/projects/publications-brochure-contract.test.js
+@@ -342,8 +342,8 @@ test('phase 11 locks 16:9 print imagery and nine-point normal typography', () =>
+   assert.match(metrics, /SingleImageAspectRatio = 16f \/ 9f/);
+   assert.match(metrics, /GalleryImageAspectRatio = 16f \/ 9f/);
+   assert.match(metrics, /BrochurePrintLayoutVariant\.Balanced[\s\S]{0,420}BodyFontSize: ProjectBodyPreferredFontSize/);
+-  assert.match(metrics, /ImageWidthPoints: 150f \+ imageAdjustment/);
+-  assert.match(metrics, /ImageWidthPoints: 140f \+ imageAdjustment/);
++  assert.match(metrics, /ImageWidthPoints: 154f \+ imageAdjustment/);
++  assert.match(metrics, /ImageWidthPoints: 148f \+ imageAdjustment/);
+   assert.match(metrics, /ResidualTargetUtilization = \.95f/);
+ });
+ 
+@@ -365,12 +365,45 @@ test('phase 11 float splitter prefers editorial boundaries before word fallback'
+   assert.match(measurement, /FloatBoundaryToleranceLines/);
+ });
+ 
+-test('phase 11 Cover A contacts reserve a real centre lane and image frames do not add white padding', () => {
+-  assert.match(printRenderer, /FrontContactCentreWidthPoints/);
+-  assert.match(printRenderer, /header\.ConstantItem\(BrochurePrintLayoutMetrics\.FrontContactCentreWidthPoints\)/);
++test('phase 12 Cover A uses a dedicated CONTACTS row and asymmetric agency columns', () => {
++  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
++  assert.match(printRenderer, /FrontContactBadgeHeightPoints/);
++  assert.match(printRenderer, /FrontContactDevelopingFraction/);
++  assert.match(printRenderer, /FrontContactManufacturingFraction/);
++  assert.match(printRenderer, /Text\("CONTACTS"\)/);
++  assert.match(metrics, /FrontContactDevelopingFraction = \.61f/);
+   const imageComposer = printRenderer.slice(
+     printRenderer.indexOf('private static void ComposeImage'),
+     printRenderer.length);
+   assert.doesNotMatch(imageComposer, /\.Padding\(1\)/);
+   assert.match(imageComposer, /\.FitArea\(\)/);
+ });
++
++test('phase 12 ships selectable institutional Cover A artwork including the approved reference', () => {
++  assert.match(view, /data-brochure-institutional-artwork-panel/);
++  assert.match(view, /Reference Original/);
++  assert.match(view, /Premium Green–Gold/);
++  assert.match(view, /Cinematic Cyber/);
++  assert.match(view, /Executive Teal/);
++  assert.match(view, /Luminous Halo/);
++  assert.match(js, /data-artwork-option/);
++  assert.match(renderer, /TryLoadInstitutionalArtwork/);
++  assert.match(renderer, /cover-a-reference-original\.jpg/);
++});
++
++test('phase 12 treats 8.5 pt compact layout as single-project emergency only', () => {
++  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
++  assert.match(planner, /CandidatesForSegment\(itemCount\)/);
++  assert.match(planner, /if \(itemCount == 1\)/);
++  assert.match(planner, /yield return Compact/);
++});
++
++test('phase 12 removes forced mid-sentence justification and uses residual breathing room', () => {
++  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
++  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
++  assert.match(measurement, /ContinuationNarrative/);
++  assert.match(printRenderer, /layout\.ContinuationNarrative/);
++  assert.match(planner, /ResidualMaximumExtraModuleVerticalPaddingPoints/);
++  assert.match(planner, /ResidualMaximumExtraInterModuleSpacingPoints/);
++  assert.doesNotMatch(printRenderer, /ClosingStraplineFontSize/);
++});

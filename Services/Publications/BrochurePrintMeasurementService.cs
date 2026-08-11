@@ -128,16 +128,20 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         }
 
         string leadingNarrative;
+        string continuationNarrative;
         string trailingNarrative;
         float leadingTextHeight;
+        float continuationTextHeight;
         float trailingTextHeight;
         float bodyContentHeight;
 
         if (!hasPrimary)
         {
             leadingNarrative = string.Empty;
+            continuationNarrative = string.Empty;
             trailingNarrative = item.Narrative ?? string.Empty;
             leadingTextHeight = 0f;
+            continuationTextHeight = 0f;
             trailingTextHeight = MeasureTextHeight(
                 trailingNarrative,
                 spec.BodyFontSize,
@@ -157,21 +161,26 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 spec.BodyLineHeight);
 
             leadingNarrative = split.Leading;
+            continuationNarrative = split.Continuation;
             trailingNarrative = split.Trailing;
             leadingTextHeight = split.LeadingHeightPoints;
+            continuationTextHeight = split.ContinuationHeightPoints;
             trailingTextHeight = split.TrailingHeightPoints;
 
             bodyContentHeight = Math.Max(imageHeight, leadingTextHeight);
-            if (!string.IsNullOrWhiteSpace(trailingNarrative))
+            if (!string.IsNullOrWhiteSpace(continuationNarrative) || !string.IsNullOrWhiteSpace(trailingNarrative))
             {
-                bodyContentHeight += BrochurePrintLayoutMetrics.FloatRemainderGapPoints + trailingTextHeight;
+                bodyContentHeight += BrochurePrintLayoutMetrics.FloatRemainderGapPoints
+                                     + continuationTextHeight
+                                     + trailingTextHeight;
             }
         }
 
         var totalTextHeight = leadingTextHeight
+                              + continuationTextHeight
                               + trailingTextHeight
                               + (!string.IsNullOrWhiteSpace(leadingNarrative)
-                                 && !string.IsNullOrWhiteSpace(trailingNarrative)
+                                 && (!string.IsNullOrWhiteSpace(continuationNarrative) || !string.IsNullOrWhiteSpace(trailingNarrative))
                                   ? BrochurePrintLayoutMetrics.FloatRemainderGapPoints
                                   : 0f);
         var totalHeight = titleHeight
@@ -201,7 +210,9 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             FullTextWidthPoints: fullTextWidth,
             PrimaryImageHeightPoints: primaryImageHeight,
             SecondaryImageHeightPoints: secondaryImageHeight,
-            UsesFloatLayout: hasPrimary);
+            UsesFloatLayout: hasPrimary,
+            ContinuationNarrative: continuationNarrative,
+            ContinuationTextHeightPoints: continuationTextHeight);
     }
 
     public BrochurePrintClosingMeasurement MeasureClosing(
@@ -238,21 +249,15 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight,
             FontWeight.SemiBold) + 14f;
 
-        var straplineHeight = Math.Max(
-            9f,
-            MeasureTextHeight(
-                strapline,
-                BrochurePrintLayoutMetrics.ClosingStraplineFontSize,
-                outerWidth - 16f,
-                1.05f,
-                FontWeight.SemiBold) + 2f);
+        // The approved reference finishes on the New Simulators band. The institutional
+        // strapline belongs to the first page only; omitting it here gives the closing panel
+        // more visual authority and removes a redundant final-page element.
+        const float straplineHeight = 0f;
 
         var total = 1f
                     + visionPanelHeight
                     + 5f
                     + newSimulatorHeight
-                    + 5f
-                    + straplineHeight
                     + 2f;
 
         return new BrochurePrintClosingMeasurement(
@@ -272,39 +277,48 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
         const float horizontalPadding = 10f;
         var bodyWidth = BrochurePrintLayoutMetrics.ReferenceWidthPoints - (horizontalPadding * 2f);
-        var contactWidth = (BrochurePrintLayoutMetrics.ReferenceWidthPoints - 28f) / 2f;
 
-        // Centre statement is intentionally larger than Phase 8 and is measured independently.
+        // Cover A carries the Centre of Expertise statement inside the artwork hero, like the
+        // approved reference brochure. Cover B retains a separate statement band because its hero
+        // is arbitrary project photography and cannot guarantee a safe text zone.
         var centreFont = BrochurePrintLayoutMetrics.FrontCentrePreferredFontSize;
         var centreTextHeight = MeasureTextHeight(
             matter.CentreStatement,
             centreFont,
-            bodyWidth - 20f,
+            bodyWidth - 28f,
             BrochurePrintLayoutMetrics.FrontCentreLineHeight,
             FontWeight.SemiBold);
-        var centreBlockHeight = Math.Max(48f, centreTextHeight + 18f);
+        var centreBlockHeight = coverStyle == BrochureCoverStyle.Institutional
+            ? 0f
+            : Math.Max(48f, centreTextHeight + 18f);
 
-        // Contact details use explicit line breaks from the approved reference copy. Their block
-        // height therefore reacts to real line wrapping rather than a fixed 98 pt footer.
+        // CONTACTS is a dedicated row above the agency headings. The agency body is asymmetric
+        // because the Developing Agency carries materially more copy than Manufacturing Agency.
         var contactFont = BrochurePrintLayoutMetrics.FrontContactPreferredFontSize;
+        var contactInnerWidth = BrochurePrintLayoutMetrics.ReferenceWidthPoints - 16f;
+        var agencyGutter = 12f;
+        var distributableWidth = contactInnerWidth - agencyGutter;
+        var developingWidth = distributableWidth * BrochurePrintLayoutMetrics.FrontContactDevelopingFraction;
+        var manufacturingWidth = distributableWidth * BrochurePrintLayoutMetrics.FrontContactManufacturingFraction;
         var contactBodyHeight = Math.Max(
             MeasureTextHeight(
                 matter.DevelopingAgency,
                 contactFont,
-                contactWidth,
+                developingWidth,
                 BrochurePrintLayoutMetrics.FrontContactLineHeight,
                 FontWeight.SemiBold),
             MeasureTextHeight(
                 matter.ManufacturingAgency,
                 contactFont,
-                contactWidth,
+                manufacturingWidth,
                 BrochurePrintLayoutMetrics.FrontContactLineHeight,
                 FontWeight.SemiBold));
         var contactBlockHeight = Math.Max(
-            88f,
+            96f,
             contactBodyHeight
-            + BrochurePrintLayoutMetrics.FrontContactHeaderHeightPoints
-            + 10f);
+            + BrochurePrintLayoutMetrics.FrontContactBadgeHeightPoints
+            + BrochurePrintLayoutMetrics.FrontContactAgencyHeadingHeightPoints
+            + 15f);
 
         var straplineHeight = Math.Max(
             BrochurePrintLayoutMetrics.FrontStraplineHeightPoints,
@@ -316,7 +330,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var selectedSpacing = 5.5f;
         var fits = false;
 
-        foreach (var bodyFont in new[] { 9.0f, 8.8f, 8.6f, 8.4f })
+        foreach (var bodyFont in new[] { 9.0f, 8.8f, 8.6f })
         {
             var spacing = bodyFont >= 8.8f ? 6f : 5f;
             var openingHeight = MeasureTextHeight(
@@ -352,9 +366,6 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             selectedSpacing = spacing;
             fits = true;
 
-            // If a particularly short user edit would leave more than the maximum hero allowance,
-            // keep the hero within the approved visual band and use the residual space as deliberate
-            // breathing inside the body rather than a blank void above the contact strip.
             if (heroHeight > BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints)
             {
                 selectedBodyHeight += heroHeight - BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints;
@@ -423,7 +434,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
     {
         if (string.IsNullOrWhiteSpace(narrative))
         {
-            return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
+            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f);
         }
 
         var normalized = narrative
@@ -433,7 +444,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var words = WordToken.Matches(normalized).Cast<Match>().ToArray();
         if (words.Length == 0)
         {
-            return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
+            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f);
         }
 
         // First identify the largest complete-word prefix that fits beside the image. This is the
@@ -475,7 +486,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fullWidth,
                 lineHeight,
                 FontWeight.Regular);
-            return new FloatNarrativeSplit(string.Empty, normalized, 0f, trailingHeight);
+            return new FloatNarrativeSplit(string.Empty, string.Empty, normalized, 0f, 0f, trailingHeight);
         }
 
         var idealEnd = words[bestWordCount - 1].Index + words[bestWordCount - 1].Length;
@@ -531,12 +542,14 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 bestBoundary = new BoundaryMeasurement(
                     boundary.EndIndex,
                     height,
-                    score);
+                    score,
+                    boundary.Kind);
             }
         }
 
         var selectedEnd = bestBoundary?.EndIndex ?? idealEnd;
         var selectedHeight = bestBoundary?.HeightPoints ?? bestWordHeight;
+        var selectedKind = bestBoundary?.Kind ?? EditorialBoundaryKind.Word;
 
         var leading = normalized[..selectedEnd].Trim();
         var trailingStart = selectedEnd;
@@ -545,9 +558,42 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             trailingStart++;
         }
 
-        var trailing = trailingStart < normalized.Length
+        var remainder = trailingStart < normalized.Length
             ? normalized[trailingStart..].Trim()
             : string.Empty;
+
+        // A forced geometric split can occur in the middle of a sentence. Rendering that remainder
+        // as a freshly justified paragraph creates the conspicuous stretched first line seen in
+        // earlier phases. Keep only the unfinished sentence as a left-aligned continuation, then
+        // return to normal justified editorial copy at the next true sentence boundary.
+        var continuation = string.Empty;
+        var trailing = remainder;
+        if (selectedKind == EditorialBoundaryKind.Word && !string.IsNullOrWhiteSpace(remainder))
+        {
+            var nextSentence = SentenceEnd.Match(remainder);
+            if (nextSentence.Success)
+            {
+                var continuationEnd = nextSentence.Index + nextSentence.Length;
+                continuation = remainder[..continuationEnd].Trim();
+                trailing = continuationEnd < remainder.Length
+                    ? remainder[continuationEnd..].Trim()
+                    : string.Empty;
+            }
+            else
+            {
+                continuation = remainder;
+                trailing = string.Empty;
+            }
+        }
+
+        var continuationHeightPoints = string.IsNullOrWhiteSpace(continuation)
+            ? 0f
+            : MeasureTextHeight(
+                continuation,
+                fontSize,
+                fullWidth,
+                lineHeight,
+                FontWeight.Regular);
         var trailingHeightPoints = string.IsNullOrWhiteSpace(trailing)
             ? 0f
             : MeasureTextHeight(
@@ -559,8 +605,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
         return new FloatNarrativeSplit(
             leading,
+            continuation,
             trailing,
             selectedHeight,
+            continuationHeightPoints,
             trailingHeightPoints);
     }
 
@@ -813,8 +861,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
     private sealed record FloatNarrativeSplit(
         string Leading,
+        string Continuation,
         string Trailing,
         float LeadingHeightPoints,
+        float ContinuationHeightPoints,
         float TrailingHeightPoints);
 
     private enum EditorialBoundaryKind
@@ -831,7 +881,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
     private sealed record BoundaryMeasurement(
         int EndIndex,
         float HeightPoints,
-        float Score);
+        float Score,
+        EditorialBoundaryKind Kind);
 
     private sealed record TypefaceSet(
         SKTypeface Regular,

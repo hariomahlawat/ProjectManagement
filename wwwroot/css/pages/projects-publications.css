@@ -956,3 +956,50 @@
     border-color: #c8dbd3;
     background: #eef7f3;
 }
+
+/* Phase 12 · curated institutional Cover A artwork */
+.brochure-institutional-artwork-panel {
+    display: grid;
+    gap: .55rem;
+    margin-top: .72rem;
+    padding: .62rem;
+    border: 1px solid #dce7e3;
+    border-radius: 10px;
+    background: #f9fbfa;
+}
+.brochure-institutional-artwork-panel[hidden] { display: none !important; }
+.brochure-artwork-options {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .5rem;
+}
+.brochure-artwork-option {
+    position: relative;
+    display: grid;
+    gap: .38rem;
+    min-width: 0;
+    padding: .36rem;
+    border: 1px solid #d7e2de;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.brochure-artwork-option:hover { border-color: #9fbcb1; transform: translateY(-1px); }
+.brochure-artwork-option.is-selected { border-color: #4d8b76; box-shadow: 0 0 0 2px rgba(27,107,89,.1); }
+.brochure-artwork-option:has(input:focus-visible) { outline: 2px solid #2f6f5d; outline-offset: 2px; }
+.brochure-artwork-option > input { position: absolute; opacity: 0; pointer-events: none; }
+.brochure-artwork-option img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 5 / 4;
+    object-fit: cover;
+    border-radius: 5px;
+    background: #e8efec;
+}
+.brochure-artwork-option span, .brochure-artwork-option strong, .brochure-artwork-option small { display: block; min-width: 0; }
+.brochure-artwork-option strong { overflow: hidden; color: #263f36; text-overflow: ellipsis; white-space: nowrap; font-size: .59rem; }
+.brochure-artwork-option small { margin-top: .08rem; color: #73847d; font-size: .51rem; line-height: 1.25; }
+@media (max-width: 1280px) { .brochure-artwork-options { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 820px) { .brochure-artwork-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .brochure-artwork-options { grid-template-columns: 1fr; } }

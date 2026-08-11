@@ -91,7 +91,7 @@ public sealed class BrochurePrintCompactPlannerTests
             hasHandlingMarking: false);
 
         // All four Compact measurements could fit on one project sheet, but they are 8.5 pt.
-        // Phase 11 deliberately chooses more sheets and preserves the 9 pt publication body.
+        // Phase 12 deliberately chooses more sheets and preserves the 9 pt publication body.
         Assert.True(plan.Pages.Count(page => page.Projects.Count > 0) >= 2);
         Assert.All(
             plan.Pages.SelectMany(page => page.Projects),
@@ -119,6 +119,10 @@ public sealed class BrochurePrintCompactPlannerTests
         var planned = plan.Pages.SelectMany(page => page.Projects).ToArray();
         Assert.Equal(Enumerable.Range(0, 3).ToArray(), planned.Select(project => project.ProjectIndex).ToArray());
         Assert.Contains(planned, project => project.Measurement.ImageWidthPoints > 140f);
+        Assert.Contains(plan.Pages, page =>
+            page.ExtraModuleVerticalPaddingPoints > 0f
+            || page.ExtraInterModuleSpacingPoints > 0f
+            || page.Projects.Any(project => project.Measurement.ImageWidthPoints > 140f));
     }
 
     private static BrochurePrintPlanningItem PlanningItem(int id, int words)

@@ -46,7 +46,9 @@ public sealed class BrochurePrintMeasurementServiceTests
 
         Assert.True(measure.UsesFloatLayout);
         Assert.NotEmpty(measure.LeadingNarrative);
-        Assert.NotEmpty(measure.TrailingNarrative);
+        Assert.True(
+            !string.IsNullOrWhiteSpace(measure.ContinuationNarrative)
+            || !string.IsNullOrWhiteSpace(measure.TrailingNarrative));
         Assert.True(measure.FullTextWidthPoints > measure.TextWidthPoints);
         Assert.True(measure.ImageHeightPoints > 0);
         Assert.True(measure.LeadingTextHeightPoints <= measure.ImageHeightPoints + 1f);
@@ -171,6 +173,7 @@ public sealed class BrochurePrintMeasurementServiceTests
 
         Assert.True(plan.BodyFontSize >= BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize);
         Assert.True(plan.HeroHeightPoints >= BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints);
+        Assert.Equal(0f, plan.CentreBlockHeightPoints);
         Assert.InRange(plan.UtilizationPercent, 90, 100);
     }
 

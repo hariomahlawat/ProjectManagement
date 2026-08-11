@@ -15,6 +15,20 @@ public enum BrochureCoverStyle
     Contemporary = 2
 }
 
+/// <summary>
+/// Curated offline artwork shipped with PRISM for the institutional Cover A hero.
+/// The reference artwork remains the default; the remaining options are professionally
+/// art-directed alternatives that preserve the same SDD technology narrative.
+/// </summary>
+public enum BrochureInstitutionalCoverArtwork
+{
+    ReferenceOriginal = 1,
+    PremiumGreenGold = 2,
+    CinematicCyber = 3,
+    ExecutiveTeal = 4,
+    LuminousHalo = 5
+}
+
 public enum BrochurePublicationProfile
 {
     PrintCompact = 1,
@@ -153,7 +167,9 @@ public sealed record BrochurePrintProjectMeasurement(
     float FullTextWidthPoints = 0f,
     float PrimaryImageHeightPoints = 0f,
     float SecondaryImageHeightPoints = 0f,
-    bool UsesFloatLayout = false);
+    bool UsesFloatLayout = false,
+    string ContinuationNarrative = "",
+    float ContinuationTextHeightPoints = 0f);
 
 public sealed record BrochurePrintPlannedProject(
     int ProjectIndex,
@@ -189,7 +205,9 @@ public sealed record BrochurePrintCompactPage(
     float CapacityPoints,
     bool IncludesClosingMatter,
     float ClosingHeightPoints,
-    int UtilizationPercent)
+    int UtilizationPercent,
+    float ExtraModuleVerticalPaddingPoints = 0f,
+    float ExtraInterModuleSpacingPoints = 0f)
 {
     public IReadOnlyList<int> ProjectIndexes => Projects.Select(project => project.ProjectIndex).ToArray();
 }
@@ -353,7 +371,8 @@ public sealed record BrochureBuildOptions(
     string? PrintDevelopingAgencyText = null,
     string? PrintManufacturingAgencyText = null,
     string? PrintVisionaryText = null,
-    string? PrintNewSimulatorsText = null);
+    string? PrintNewSimulatorsText = null,
+    BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork = BrochureInstitutionalCoverArtwork.ReferenceOriginal);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,

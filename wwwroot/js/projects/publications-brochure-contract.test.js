@@ -342,8 +342,8 @@ test('phase 11 locks 16:9 print imagery and nine-point normal typography', () =>
   assert.match(metrics, /SingleImageAspectRatio = 16f \/ 9f/);
   assert.match(metrics, /GalleryImageAspectRatio = 16f \/ 9f/);
   assert.match(metrics, /BrochurePrintLayoutVariant\.Balanced[\s\S]{0,420}BodyFontSize: ProjectBodyPreferredFontSize/);
-  assert.match(metrics, /ImageWidthPoints: 150f \+ imageAdjustment/);
-  assert.match(metrics, /ImageWidthPoints: 140f \+ imageAdjustment/);
+  assert.match(metrics, /ImageWidthPoints: 154f \+ imageAdjustment/);
+  assert.match(metrics, /ImageWidthPoints: 148f \+ imageAdjustment/);
   assert.match(metrics, /ResidualTargetUtilization = \.95f/);
 });
 
@@ -365,12 +365,45 @@ test('phase 11 float splitter prefers editorial boundaries before word fallback'
   assert.match(measurement, /FloatBoundaryToleranceLines/);
 });
 
-test('phase 11 Cover A contacts reserve a real centre lane and image frames do not add white padding', () => {
-  assert.match(printRenderer, /FrontContactCentreWidthPoints/);
-  assert.match(printRenderer, /header\.ConstantItem\(BrochurePrintLayoutMetrics\.FrontContactCentreWidthPoints\)/);
+test('phase 12 Cover A uses a dedicated CONTACTS row and asymmetric agency columns', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  assert.match(printRenderer, /FrontContactBadgeHeightPoints/);
+  assert.match(printRenderer, /FrontContactDevelopingFraction/);
+  assert.match(printRenderer, /FrontContactManufacturingFraction/);
+  assert.match(printRenderer, /Text\("CONTACTS"\)/);
+  assert.match(metrics, /FrontContactDevelopingFraction = \.61f/);
   const imageComposer = printRenderer.slice(
     printRenderer.indexOf('private static void ComposeImage'),
     printRenderer.length);
   assert.doesNotMatch(imageComposer, /\.Padding\(1\)/);
   assert.match(imageComposer, /\.FitArea\(\)/);
+});
+
+test('phase 12 ships selectable institutional Cover A artwork including the approved reference', () => {
+  assert.match(view, /data-brochure-institutional-artwork-panel/);
+  assert.match(view, /Reference Original/);
+  assert.match(view, /Premium Green–Gold/);
+  assert.match(view, /Cinematic Cyber/);
+  assert.match(view, /Executive Teal/);
+  assert.match(view, /Luminous Halo/);
+  assert.match(js, /data-artwork-option/);
+  assert.match(renderer, /TryLoadInstitutionalArtwork/);
+  assert.match(renderer, /cover-a-reference-original\.jpg/);
+});
+
+test('phase 12 treats 8.5 pt compact layout as single-project emergency only', () => {
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+  assert.match(planner, /CandidatesForSegment\(itemCount\)/);
+  assert.match(planner, /if \(itemCount == 1\)/);
+  assert.match(planner, /yield return Compact/);
+});
+
+test('phase 12 removes forced mid-sentence justification and uses residual breathing room', () => {
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+  assert.match(measurement, /ContinuationNarrative/);
+  assert.match(printRenderer, /layout\.ContinuationNarrative/);
+  assert.match(planner, /ResidualMaximumExtraModuleVerticalPaddingPoints/);
+  assert.match(planner, /ResidualMaximumExtraInterModuleSpacingPoints/);
+  assert.doesNotMatch(printRenderer, /ClosingStraplineFontSize/);
 });
