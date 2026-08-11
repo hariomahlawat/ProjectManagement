@@ -1,0 +1,35 @@
+PRISM PUBLICATIONS PHASE 9 — PREPARATION VALIDATION
+===================================================
+
+Completed in the artifact preparation environment:
+
+[PASS] JavaScript syntax
+       node --check wwwroot/js/pages/projects-brochure.js
+
+[PASS] Browser/source regression suite
+       30 tests passed
+       0 failed
+
+[PASS] Measured-print source contract
+       BrochurePrintMeasurementService uses SkiaSharp glyph measurement.
+       No wordsPerLine heuristic remains in the measurement service.
+       BrochurePrintPagePlanner is order-preserving and closing-aware.
+       DI/runtime graph includes measurement + planner services.
+       Compact compositor consumes BrochurePrintCompactPlan.
+       Cover A consumes measured front-page geometry.
+       UI renders the measured per-sheet map and fill diagnostics.
+
+[PASS] Structural checks
+       15 changed C# files checked for balanced (), [] and {} after comments/strings.
+       projects-publications.css braces balanced (451 / 451).
+       Brochure Razor details/section/label/form pairs balanced.
+
+[PASS] Incremental patch dry-run against the Phase 8 baseline.
+
+NOT EXECUTED HERE
+       dotnet restore
+       dotnet build
+       dotnet test
+
+The preparation runtime does not expose the .NET SDK. Run the commands in
+README-REPLACE-FIRST.md on the PRISM development machine before deployment.

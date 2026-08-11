@@ -5,14 +5,14 @@ using ProjectManagement.Services.Publications;
 namespace ProjectManagement.Utilities.Reporting;
 
 /// <summary>
-/// Original-format hard-copy brochure compositor. The reference sheet is 423.23 x 846.755 pt
-/// (approximately 149.3 x 298.7 mm). Phase 8 adds deterministic sheet planning so the final
-/// institutional matter normally shares the last page with projects and interior pages are balanced.
+/// Original-format hard-copy brochure compositor. Phase 9 consumes a font-aware sheet plan so
+/// project membership, typography and image geometry are shared with preflight rather than
+/// independently inferred by the renderer.
 /// </summary>
 internal static class BrochurePrintCompactComposer
 {
-    internal const float ReferenceWidthPoints = 423.23f;
-    internal const float ReferenceHeightPoints = 846.755f;
+    internal const float ReferenceWidthPoints = BrochurePrintLayoutMetrics.ReferenceWidthPoints;
+    internal const float ReferenceHeightPoints = BrochurePrintLayoutMetrics.ReferenceHeightPoints;
 
     private const string Forest950 = "#0B2F2A";
     private const string Forest900 = "#103D35";
@@ -31,10 +31,20 @@ internal static class BrochurePrintCompactComposer
         PublicationFontStatus fonts,
         byte[]? sddLogo,
         byte[]? artracLogo,
-        byte[]? institutionalArtwork)
+        byte[]? institutionalArtwork,
+        BrochurePrintCompactPlan plan)
     {
-        ComposeFrontPage(container, data, fonts, sddLogo, artracLogo, institutionalArtwork);
-        ComposePlannedProjectPages(container, data, fonts, sddLogo);
+        ArgumentNullException.ThrowIfNull(plan);
+
+        ComposeFrontPage(
+            container,
+            data,
+            fonts,
+            sddLogo,
+            artracLogo,
+            institutionalArtwork,
+            plan.FrontPage);
+        ComposePlannedProjectPages(container, data, fonts, sddLogo, plan);
     }
 
     private static void ComposeFrontPage(
@@ -43,201 +53,139 @@ internal static class BrochurePrintCompactComposer
         PublicationFontStatus fonts,
         byte[]? sddLogo,
         byte[]? artracLogo,
-        byte[]? institutionalArtwork)
-    {
-        if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
-        {
-            ComposeInstitutionalFrontPage(
-                container,
-                data,
-                fonts,
-                sddLogo,
-                artracLogo,
-                institutionalArtwork);
-            return;
-        }
-
-        ComposeContemporaryFrontPage(container, data, fonts, sddLogo, artracLogo);
-    }
-
-    /// <summary>
-    /// Official-style hard-copy treatment. The institutional artwork is authoritative when supplied.
-    /// When it is absent, PRISM deliberately renders a restrained institutional fallback rather than
-    /// substituting an unrelated first-project photograph.
-    /// </summary>
-    private static void ComposeInstitutionalFrontPage(
-        IDocumentContainer container,
-        BrochurePublicationData data,
-        PublicationFontStatus fonts,
-        byte[]? sddLogo,
-        byte[]? artracLogo,
-        byte[]? institutionalArtwork)
+        byte[]? institutionalArtwork,
+        BrochurePrintFrontPagePlan frontPlan)
     {
         container.Page(page =>
         {
             page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
             page.Margin(0);
-            page.PageColor(Forest800);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor("#FFFFFF"));
+            page.PageColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? Forest800 : Paper);
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily));
 
-            page.Content().Layers(layers =>
+            page.Content().Column(column =>
             {
-                layers.PrimaryLayer().Background(Forest800);
+                column.Spacing(0);
+                column.Item().Height(frontPlan.HeroHeightPoints).Element(hero =>
+                    ComposeFrontHero(
+                        hero,
+                        data,
+                        sddLogo,
+                        artracLogo,
+                        institutionalArtwork));
 
-                layers.Layer().AlignTop().Height(326).Element(area =>
+                column.Item().Height(frontPlan.CentreBlockHeightPoints)
+                    .Background(Forest950)
+                    .PaddingHorizontal(12)
+                    .PaddingVertical(7)
+                    .AlignCenter()
+                    .AlignMiddle()
+                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
+                    .FontSize(frontPlan.CentreFontSize)
+                    .Bold()
+                    .LineHeight(BrochurePrintLayoutMetrics.FrontCentreLineHeight)
+                    .AlignCenter()
+                    .FontColor("#FFFFFF");
+
+                column.Item().Height(frontPlan.BodyBlockHeightPoints)
+                    .Background(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? Forest800 : "#F8F8F4")
+                    .PaddingHorizontal(10)
+                    .PaddingTop(7)
+                    .PaddingBottom(6)
+                    .Column(body =>
+                    {
+                        body.Spacing(frontPlan.BodySpacingPoints);
+
+                        if (data.Options.CoverStyle == BrochureCoverStyle.Contemporary)
+                        {
+                            body.Item().Background("#EFF4F1").PaddingHorizontal(5).PaddingVertical(2)
+                                .Text(data.Options.PrintIntroText ?? string.Empty)
+                                .FontSize(frontPlan.BodyFontSize)
+                                .LineHeight(frontPlan.BodyLineHeight)
+                                .Justify()
+                                .FontColor(Ink);
+                        }
+                        else
+                        {
+                            body.Item().Text(data.Options.PrintIntroText ?? string.Empty)
+                                .FontSize(frontPlan.BodyFontSize)
+                                .LineHeight(frontPlan.BodyLineHeight)
+                                .Justify()
+                                .FontColor("#FFFFFF");
+                        }
+
+                        body.Item().Text(data.Options.PrintFutureText ?? string.Empty)
+                            .FontSize(frontPlan.BodyFontSize)
+                            .LineHeight(frontPlan.BodyLineHeight)
+                            .Justify()
+                            .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#FFFFFF" : Ink);
+
+                        body.Item().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style
+                                .FontSize(Math.Max(BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize, frontPlan.BodyFontSize - .1f))
+                                .LineHeight(1.06f)
+                                .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#FFFFFF" : Ink));
+                            text.Justify();
+                            text.Span("Procurement: ")
+                                .Bold()
+                                .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#F1D35D" : "#7A6516");
+                            text.Span(data.Options.PrintProcurementText ?? string.Empty);
+                        });
+                    });
+
+                column.Item().Height(frontPlan.ContactBlockHeightPoints)
+                    .Element(contact => ComposeContactBlock(contact, data, frontPlan.ContactFontSize));
+
+                column.Item().Height(frontPlan.StraplineHeightPoints)
+                    .Background(Forest800)
+                    .AlignCenter()
+                    .AlignMiddle()
+                    .Text(data.Options.Strapline)
+                    .FontSize(8.5f)
+                    .SemiBold()
+                    .Italic()
+                    .FontColor("#F4D66E");
+            });
+        });
+    }
+
+    private static void ComposeFrontHero(
+        IContainer container,
+        BrochurePublicationData data,
+        byte[]? sddLogo,
+        byte[]? artracLogo,
+        byte[]? institutionalArtwork)
+    {
+        container.Layers(layers =>
+        {
+            layers.PrimaryLayer().Element(area =>
+            {
+                if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
                 {
                     if (institutionalArtwork is { Length: > 0 })
                     {
-                        area.Image(institutionalArtwork).FitArea();
+                        area.Background(Forest900).Image(institutionalArtwork).FitArea();
                     }
                     else
                     {
                         ComposeInstitutionalFallbackArtwork(area);
                     }
-                });
+                    return;
+                }
 
-                ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
-
-                layers.Layer()
-                    .AlignTop()
-                    .PaddingTop(232)
-                    .PaddingHorizontal(15)
-                    .MinHeight(58)
-                    .Background(Forest950)
-                    .PaddingHorizontal(10)
-                    .PaddingVertical(8)
-                    .AlignCenter()
-                    .AlignMiddle()
-                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
-                    .FontSize(8.2f)
-                    .Bold()
-                    .LineHeight(1.04f)
-                    .AlignCenter()
-                    .FontColor("#FFFFFF");
-
-                layers.Layer()
-                    .PaddingTop(326)
-                    .PaddingBottom(120)
-                    .Background(Forest800)
-                    .PaddingHorizontal(10)
-                    .PaddingVertical(7)
-                    .Column(column =>
-                    {
-                        column.Spacing(3.2f);
-                        column.Item().Text(data.Options.PrintIntroText ?? string.Empty)
-                            .FontSize(7.05f)
-                            .LineHeight(1.06f)
-                            .Justify()
-                            .FontColor("#FFFFFF");
-                        column.Item().Text(data.Options.PrintFutureText ?? string.Empty)
-                            .FontSize(7.0f)
-                            .LineHeight(1.06f)
-                            .Justify()
-                            .FontColor("#FFFFFF");
-                        column.Item().Text(text =>
-                        {
-                            text.DefaultTextStyle(style => style
-                                .FontSize(6.95f)
-                                .LineHeight(1.05f)
-                                .FontColor("#FFFFFF"));
-                            text.Justify();
-                            text.Span("Procurement: ").Bold().FontColor("#F1D35D");
-                            text.Span(data.Options.PrintProcurementText ?? string.Empty);
-                        });
-                    });
-
-                ComposeContactAndStrapline(layers.Layer(), layers.Layer(), data);
-                ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
-            });
-        });
-    }
-
-    /// <summary>
-    /// Contemporary image-led alternative. It retains the same authoritative institutional copy
-    /// but deliberately uses a lighter editorial field so Cover B remains visually distinct.
-    /// </summary>
-    private static void ComposeContemporaryFrontPage(
-        IDocumentContainer container,
-        BrochurePublicationData data,
-        PublicationFontStatus fonts,
-        byte[]? sddLogo,
-        byte[]? artracLogo)
-    {
-        var hero = data.CoverHeroImage?.Content;
-
-        container.Page(page =>
-        {
-            page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
-            page.Margin(0);
-            page.PageColor(Paper);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor(Ink));
-
-            page.Content().Layers(layers =>
-            {
-                layers.PrimaryLayer().Background(Paper);
-
-                layers.Layer().AlignTop().Height(278).Background(Forest900).Element(area =>
+                if (data.CoverHeroImage?.Content is { Length: > 0 } hero)
                 {
-                    if (hero is { Length: > 0 })
-                    {
-                        area.Image(hero).FitArea();
-                    }
-                    else
-                    {
-                        area.Background(Forest800);
-                    }
-                });
-
-                ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
-
-                layers.Layer().AlignTop().PaddingTop(215).PaddingHorizontal(16).MinHeight(58)
-                    .Background(Forest950)
-                    .PaddingHorizontal(10)
-                    .PaddingVertical(8)
-                    .AlignCenter()
-                    .AlignMiddle()
-                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
-                    .FontSize(8.15f)
-                    .Bold()
-                    .LineHeight(1.04f)
-                    .AlignCenter()
-                    .FontColor("#FFFFFF");
-
-                layers.Layer()
-                    .PaddingTop(282)
-                    .PaddingBottom(120)
-                    .PaddingHorizontal(10)
-                    .Background("#F8F8F4")
-                    .PaddingVertical(7)
-                    .Column(column =>
-                    {
-                        column.Spacing(4);
-                        column.Item().Background("#EFF4F1").PaddingHorizontal(6).PaddingVertical(3)
-                            .Text(data.Options.PrintIntroText ?? string.Empty)
-                            .FontSize(7.15f)
-                            .LineHeight(1.07f)
-                            .Justify()
-                            .FontColor(Ink);
-                        column.Item().Text(data.Options.PrintFutureText ?? string.Empty)
-                            .FontSize(7.05f)
-                            .LineHeight(1.07f)
-                            .Justify()
-                            .FontColor(Ink);
-                        column.Item().Text(text =>
-                        {
-                            text.DefaultTextStyle(style => style
-                                .FontSize(7.0f)
-                                .LineHeight(1.05f)
-                                .FontColor(Ink));
-                            text.Justify();
-                            text.Span("Procurement: ").Bold().FontColor("#7A6516");
-                            text.Span(data.Options.PrintProcurementText ?? string.Empty);
-                        });
-                    });
-
-                ComposeContactAndStrapline(layers.Layer(), layers.Layer(), data);
-                ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
+                    area.Background(Forest900).Image(hero).FitArea();
+                }
+                else
+                {
+                    area.Background(Forest800);
+                }
             });
+
+            ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
+            ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
         });
     }
 
@@ -279,9 +227,9 @@ internal static class BrochurePrintCompactComposer
         container.Background(Forest900).Layers(layers =>
         {
             layers.PrimaryLayer().Background(Forest900);
-            layers.Layer().AlignRight().Width(140).Height(326).Background(Forest800);
+            layers.Layer().AlignRight().Width(140).Background(Forest800);
             layers.Layer().AlignBottom().Height(9).Background(Gold);
-            layers.Layer().PaddingTop(78).PaddingHorizontal(32).Column(column =>
+            layers.Layer().PaddingTop(72).PaddingHorizontal(32).Column(column =>
             {
                 column.Spacing(8);
                 column.Item().AlignCenter().Text("SIMULATORS · AR/VR · AI")
@@ -304,24 +252,24 @@ internal static class BrochurePrintCompactComposer
         });
     }
 
-    private static void ComposeContactAndStrapline(
-        IContainer contactLayer,
-        IContainer straplineLayer,
-        BrochurePublicationData data)
+    private static void ComposeContactBlock(
+        IContainer container,
+        BrochurePublicationData data,
+        float contactFontSize)
     {
-        contactLayer.AlignBottom().PaddingBottom(22).Height(98).Background(Contact).Padding(8).Row(row =>
+        container.Background(Contact).PaddingHorizontal(8).PaddingVertical(7).Row(row =>
         {
             row.RelativeItem().Column(left =>
             {
                 left.Item().Text("Developing Agency")
-                    .FontSize(7.0f)
+                    .FontSize(contactFontSize + .45f)
                     .Bold()
                     .Underline()
                     .FontColor("#FFF5DB");
                 left.Item().PaddingTop(2).Text(data.Options.PrintDevelopingAgencyText ?? string.Empty)
-                    .FontSize(6.4f)
+                    .FontSize(contactFontSize)
                     .SemiBold()
-                    .LineHeight(1.05f)
+                    .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
                     .FontColor("#FFFFFF");
             });
 
@@ -329,24 +277,17 @@ internal static class BrochurePrintCompactComposer
             row.RelativeItem().Column(right =>
             {
                 right.Item().Text("Manufacturing Agency")
-                    .FontSize(7.0f)
+                    .FontSize(contactFontSize + .45f)
                     .Bold()
                     .Underline()
                     .FontColor("#FFF5DB");
                 right.Item().PaddingTop(2).Text(data.Options.PrintManufacturingAgencyText ?? string.Empty)
-                    .FontSize(6.4f)
+                    .FontSize(contactFontSize)
                     .SemiBold()
-                    .LineHeight(1.05f)
+                    .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
                     .FontColor("#FFFFFF");
             });
         });
-
-        straplineLayer.AlignBottom().Height(22).Background(Forest800).AlignCenter().AlignMiddle()
-            .Text(data.Options.Strapline)
-            .FontSize(8.3f)
-            .SemiBold()
-            .Italic()
-            .FontColor("#F4D66E");
     }
 
     private static void ComposeHandlingMarking(IContainer layer, string? handlingMarking)
@@ -371,13 +312,9 @@ internal static class BrochurePrintCompactComposer
         IDocumentContainer container,
         BrochurePublicationData data,
         PublicationFontStatus fonts,
-        byte[]? sddLogo)
+        byte[]? sddLogo,
+        BrochurePrintCompactPlan plan)
     {
-        var plan = BrochurePrintCompactPlanner.Plan(
-            data.Projects,
-            data.Options.PrintVisionaryText,
-            data.Options.PrintNewSimulatorsText);
-
         foreach (var sheet in plan.Pages)
         {
             ComposeProjectSheet(container, data, fonts, sddLogo, sheet);
@@ -394,15 +331,19 @@ internal static class BrochurePrintCompactComposer
         container.Page(page =>
         {
             page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
-            page.MarginHorizontal(5);
-            page.MarginTop(string.IsNullOrWhiteSpace(data.Options.HandlingMarking) ? 5 : 15);
-            page.MarginBottom(5);
+            page.MarginHorizontal(BrochurePrintLayoutMetrics.ProjectMarginHorizontalPoints);
+            page.MarginTop(string.IsNullOrWhiteSpace(data.Options.HandlingMarking)
+                ? BrochurePrintLayoutMetrics.ProjectMarginTopPoints
+                : BrochurePrintLayoutMetrics.ProjectMarginTopWithHandlingPoints);
+            page.MarginBottom(BrochurePrintLayoutMetrics.ProjectMarginBottomPoints);
             page.PageColor(Paper);
             page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor(Ink));
 
             if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))
             {
-                page.Header().Height(10).AlignRight().Text(data.Options.HandlingMarking!.ToUpperInvariant())
+                page.Header().Height(BrochurePrintLayoutMetrics.HandlingHeaderHeightPoints)
+                    .AlignRight()
+                    .Text(data.Options.HandlingMarking!.ToUpperInvariant())
                     .FontSize(6.1f)
                     .Bold()
                     .LetterSpacing(.5f)
@@ -411,36 +352,26 @@ internal static class BrochurePrintCompactComposer
 
             page.Content().Column(column =>
             {
-                column.Spacing(BrochurePrintCompactPlanner.InterModuleSpacingPoints);
+                column.Spacing(BrochurePrintLayoutMetrics.InterModuleSpacingPoints);
 
-                foreach (var projectIndex in sheet.ProjectIndexes)
+                foreach (var plannedProject in sheet.Projects)
                 {
-                    var project = data.Projects[projectIndex];
-                    var planningItem = new BrochurePrintPlanningItem(
-                        project.ProjectId,
-                        project.ProjectName,
-                        project.NarrativeWordCount,
-                        project.ImageMode,
-                        project.PrimaryPhoto is not null,
-                        project.SecondaryPhoto is not null);
-                    var minimumHeight = BrochurePrintCompactPlanner.EstimateProjectHeight(planningItem)
-                                        + sheet.ModuleExpansionPoints;
-
+                    var project = data.Projects[plannedProject.ProjectIndex];
                     column.Item()
-                        .MinHeight(minimumHeight)
+                        .MinHeight(plannedProject.Measurement.TotalHeightPoints)
                         .ShowEntire()
                         .Element(module => ComposeProjectModule(
                             module,
                             project,
-                            imageOnRight: projectIndex % 2 == 0,
-                            moduleExpansionPoints: sheet.ModuleExpansionPoints));
+                            plannedProject.Measurement,
+                            imageOnRight: plannedProject.ProjectIndex % 2 == 0));
                 }
 
                 if (sheet.IncludesClosingMatter)
                 {
-                    if (sheet.ProjectIndexes.Count > 0)
+                    if (sheet.Projects.Count > 0)
                     {
-                        column.Item().Height(BrochurePrintCompactPlanner.ClosingGapPoints);
+                        column.Item().Height(BrochurePrintLayoutMetrics.ClosingGapPoints);
                     }
                     column.Item().ShowEntire().Element(block => ComposeClosingMatter(block, data));
                 }
@@ -451,107 +382,83 @@ internal static class BrochurePrintCompactComposer
     private static void ComposeProjectModule(
         IContainer container,
         BrochurePublicationProject project,
-        bool imageOnRight,
-        float moduleExpansionPoints)
+        BrochurePrintProjectMeasurement layout,
+        bool imageOnRight)
     {
-        var titleLength = project.ProjectName.Length;
-        var titleSize = titleLength switch
-        {
-            > 115 => 7.4f,
-            > 82 => 7.9f,
-            _ => 8.5f
-        };
-        var titleHeight = titleLength switch
-        {
-            > 115 => 30f,
-            > 82 => 26f,
-            _ => 22f
-        };
-        var bodySize = project.NarrativeWordCount switch
-        {
-            > 190 => 7.65f,
-            > 155 => 7.85f,
-            > 120 => 8.0f,
-            _ => 8.15f
-        };
-        var imageWidth = project.NarrativeWordCount switch
-        {
-            > 180 => 112f,
-            > 145 => 120f,
-            > 110 => 128f,
-            _ => 136f
-        };
-        imageWidth += Math.Min(7f, moduleExpansionPoints * .45f);
-        var bodyPadding = 5f + Math.Min(1.5f, moduleExpansionPoints * .08f);
-
-        container.Border(1.05f).BorderColor(Forest700).Background("#FBFBF8").Column(column =>
-        {
-            column.Item().Height(titleHeight).Background(Forest800).PaddingHorizontal(6).AlignMiddle()
-                .Text(project.ProjectName.ToUpperInvariant())
-                .FontSize(titleSize)
-                .Bold()
-                .LineHeight(1.0f)
-                .AlignCenter()
-                .FontColor("#FFFFFF");
-
-            column.Item().Padding(bodyPadding).Row(row =>
+        container.Border(BrochurePrintLayoutMetrics.ModuleBorderPoints)
+            .BorderColor(Forest700)
+            .Background("#FBFBF8")
+            .Column(column =>
             {
-                var hasPrimary = project.PrimaryPhoto is not null;
-                var useSecond = project.SecondaryPhoto is not null
-                                && project.ImageMode != BrochureImageMode.Single;
+                column.Item().Height(layout.TitleHeightPoints)
+                    .Background(Forest800)
+                    .PaddingHorizontal(BrochurePrintLayoutMetrics.ModuleHorizontalPaddingPoints)
+                    .AlignMiddle()
+                    .Text(project.ProjectName.ToUpperInvariant())
+                    .FontSize(layout.TitleFontSize)
+                    .Bold()
+                    .LineHeight(1.0f)
+                    .AlignCenter()
+                    .FontColor("#FFFFFF");
 
-                void AddText()
-                    => row.RelativeItem().Text(project.Narrative)
-                        .FontSize(bodySize)
-                        .LineHeight(1.05f)
-                        .Justify()
-                        .FontColor(Ink);
-
-                void AddImageColumn()
+                column.Item().Padding(layout.BodyPaddingPoints).Row(row =>
                 {
-                    if (!hasPrimary)
-                    {
-                        return;
-                    }
+                    var hasPrimary = project.PrimaryPhoto is not null;
+                    var useSecond = project.SecondaryPhoto is not null
+                                    && project.ImageMode != BrochureImageMode.Single;
 
-                    row.ConstantItem(imageWidth).AlignMiddle().Column(images =>
+                    void AddText()
+                        => row.RelativeItem().Text(project.Narrative)
+                            .FontSize(layout.BodyFontSize)
+                            .LineHeight(layout.BodyLineHeight)
+                            .Justify()
+                            .FontColor(Ink);
+
+                    void AddImageColumn()
                     {
-                        if (!useSecond)
+                        if (!hasPrimary)
                         {
-                            images.Item().Height(imageWidth * 9f / 16f)
-                                .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
                             return;
                         }
 
-                        var galleryHeight = imageWidth * 9f / 16f;
-                        images.Spacing(4);
-                        images.Item().Height(galleryHeight)
-                            .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
-                        images.Item().Height(galleryHeight)
-                            .Element(box => ComposeImage(box, project.SecondaryPhoto!.Content));
-                    });
-                }
+                        row.ConstantItem(layout.ImageWidthPoints).AlignMiddle().Column(images =>
+                        {
+                            var imageHeight = layout.ImageWidthPoints * 9f / 16f;
+                            if (!useSecond)
+                            {
+                                images.Item().Height(imageHeight)
+                                    .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
+                                return;
+                            }
 
-                if (!hasPrimary)
-                {
-                    AddText();
-                    return;
-                }
+                            images.Spacing(4);
+                            images.Item().Height(imageHeight)
+                                .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
+                            images.Item().Height(imageHeight)
+                                .Element(box => ComposeImage(box, project.SecondaryPhoto!.Content));
+                        });
+                    }
 
-                if (imageOnRight)
-                {
-                    AddText();
-                    row.ConstantItem(6);
-                    AddImageColumn();
-                }
-                else
-                {
-                    AddImageColumn();
-                    row.ConstantItem(6);
-                    AddText();
-                }
+                    if (!hasPrimary)
+                    {
+                        AddText();
+                        return;
+                    }
+
+                    if (imageOnRight)
+                    {
+                        AddText();
+                        row.ConstantItem(BrochurePrintLayoutMetrics.TextImageGapPoints);
+                        AddImageColumn();
+                    }
+                    else
+                    {
+                        AddImageColumn();
+                        row.ConstantItem(BrochurePrintLayoutMetrics.TextImageGapPoints);
+                        AddText();
+                    }
+                });
             });
-        });
     }
 
     private static void ComposeClosingMatter(IContainer container, BrochurePublicationData data)
@@ -565,15 +472,15 @@ internal static class BrochurePrintCompactComposer
                 vision.Spacing(4);
                 vision.Item().AlignCenter().Background(VisionBlue).PaddingHorizontal(8).PaddingVertical(2)
                     .Text("Visionary Horizons & Strategic Objectives")
-                    .FontSize(8.8f)
+                    .FontSize(BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize)
                     .Bold()
                     .Italic()
                     .AlignCenter()
                     .FontColor("#FFFFFF");
                 vision.Item().Text(data.Options.PrintVisionaryText ?? string.Empty)
-                    .FontSize(7.6f)
+                    .FontSize(BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize)
                     .Italic()
-                    .LineHeight(1.08f)
+                    .LineHeight(BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight)
                     .Justify()
                     .FontColor("#27302B");
             });
@@ -581,15 +488,15 @@ internal static class BrochurePrintCompactComposer
             column.Item().Background(Forest800).Padding(7).Text(text =>
             {
                 text.DefaultTextStyle(style => style
-                    .FontSize(7.25f)
-                    .LineHeight(1.05f));
+                    .FontSize(BrochurePrintLayoutMetrics.ClosingNewSimulatorsFontSize)
+                    .LineHeight(BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight));
                 text.Justify();
                 text.Span("New Simulators. ").Bold().Italic().FontColor("#F4D66E");
                 text.Span(data.Options.PrintNewSimulatorsText ?? string.Empty).SemiBold().FontColor("#FFFFFF");
             });
 
             column.Item().AlignCenter().Text(data.Options.Strapline)
-                .FontSize(6.7f)
+                .FontSize(BrochurePrintLayoutMetrics.ClosingStraplineFontSize)
                 .SemiBold()
                 .Italic()
                 .FontColor(Forest700);

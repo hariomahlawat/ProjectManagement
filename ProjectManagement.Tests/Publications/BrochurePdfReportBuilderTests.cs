@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Services.Publications;
 using ProjectManagement.Utilities.Reporting;
 using Xunit;
@@ -20,7 +21,7 @@ public sealed class BrochurePdfReportBuilderTests
         {
             var environment = new TestWebHostEnvironment(webRoot);
             var fontService = new FixedFontService();
-            var builder = new BrochurePdfReportBuilder(environment, fontService);
+            var builder = CreateBuilder(environment, fontService);
             var data = BuildData(coverStyle);
 
             var bytes = builder.Build(data);
@@ -44,7 +45,7 @@ public sealed class BrochurePdfReportBuilderTests
         {
             var environment = new TestWebHostEnvironment(webRoot);
             var fontService = new FixedFontService();
-            var builder = new BrochurePdfReportBuilder(environment, fontService);
+            var builder = CreateBuilder(environment, fontService);
             var pixel = Convert.FromBase64String(
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
@@ -124,7 +125,7 @@ public sealed class BrochurePdfReportBuilderTests
         {
             var environment = new TestWebHostEnvironment(webRoot);
             var fontService = new FixedFontService();
-            var builder = new BrochurePdfReportBuilder(environment, fontService);
+            var builder = CreateBuilder(environment, fontService);
             var projects = Enumerable.Range(1, 6)
                 .Select(id => new BrochurePublicationProject(
                     id,
@@ -203,6 +204,18 @@ public sealed class BrochurePdfReportBuilderTests
             .SelectMany(page => page.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .ToArray();
         Assert.Equal(words, rebuilt);
+    }
+
+    private static BrochurePdfReportBuilder CreateBuilder(
+        IWebHostEnvironment environment,
+        IPublicationFontService fontService)
+    {
+        var measurement = new BrochurePrintMeasurementService(
+            environment,
+            fontService,
+            NullLogger<BrochurePrintMeasurementService>.Instance);
+        var planner = new BrochurePrintPagePlanner(measurement);
+        return new BrochurePdfReportBuilder(environment, fontService, planner);
     }
 
     private static BrochurePublicationData BuildData(BrochureCoverStyle coverStyle)

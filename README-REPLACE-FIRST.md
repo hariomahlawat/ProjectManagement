@@ -1,111 +1,123 @@
-PRISM PUBLICATIONS — PHASE 8
-HARD-COPY PAGINATION & OFFICIAL-STYLE PRINT FIDELITY
-====================================================
+PRISM PUBLICATIONS — PHASE 9
+MEASURED HARD-COPY COMPOSITION & COVER A FIDELITY
+==================================================
 
 PURPOSE
 -------
-Phase 8 builds on the Phase 7 Print / Compact profile and addresses the remaining
-hard-copy brochure differences identified against the approved reference brochure.
+Phase 9 replaces the remaining compact-print word-count heuristics with font-aware,
+width-aware measurement using the installed offline DM Sans files and SkiaSharp.
+The measured geometry is shared by preflight, sheet planning and the QuestPDF
+hard-copy compositor.
 
-The interior project-module concept is retained. The implementation focuses on
-sheet planning, first/final-page fidelity, print preflight and editorial usability.
+This package assumes Phase 8 is already installed. It is ready to copy over the
+ProjectManagement project root while preserving paths.
 
-WHAT CHANGED
-------------
-1. Closing-aware compact-sheet planner
-   - New BrochurePrintCompactPlanner.
-   - Page membership is determined before QuestPDF renders the sheets.
-   - The final project sheet reserves space for:
-       Visionary Horizons & Strategic Objectives
-       New Simulators guidance
-       strapline
-   - Closing matter normally shares the final sheet with projects instead of
-     creating a mostly-empty dedicated page.
-   - Project order is never changed by the planner.
-   - Modest per-module expansion uses residual sheet height without inflating
-     the brochure into a spacious digital layout.
+CORE IMPLEMENTATION
+-------------------
+1. Font-aware print measurement
+   - New IBrochurePrintMeasurementService / BrochurePrintMeasurementService.
+   - Measures actual glyph widths with SkiaSharp.
+   - Uses the same local DM Sans Regular/SemiBold files used by the publication stack
+     when available; platform fallback is used only if the offline font is unavailable.
+   - Measures project titles, Project Brief wrapping, Gallery 2 geometry, closing
+     institutional matter and the first-sheet institutional composition.
 
-2. Print / Compact Cover A
-   - Dedicated institutional treatment.
-   - Approved institutional artwork is used when present.
-   - If artwork is absent, PRISM renders a disciplined institutional fallback.
-   - It no longer substitutes the first selected project's photograph.
-   - Opening narrative, future-readiness copy, procurement guidance and contact
-     information remain content-bearing on the first sheet.
-   - Cover B remains the contemporary image-led alternative.
+2. Measured sheet planner
+   - New IBrochurePrintPagePlanner / BrochurePrintPagePlanner.
+   - Project order is never changed.
+   - Up to four projects per normal hard-copy sheet when measured geometry permits.
+   - Each project has controlled Visual / Balanced / Compact candidates rather than
+     arbitrary free-form layout.
+   - Page count is minimised first; then the planner favours good utilisation and the
+     highest-quality legal variant.
+   - The exact measured closing block is reserved on the final sheet.
 
-3. Hard-copy project typography
-   - Project headings are centred in the green title band.
-   - Project narrative is justified for a denser print-publication treatment.
-   - Existing Single / Automatic / Gallery 2 image handling is retained.
+3. Cover A measured composition
+   - The first sheet is composed as one measured vertical system.
+   - Hero/artwork, Centre of Expertise statement, institutional narrative,
+     future-readiness text, Procurement, contacts and strapline are measured together.
+   - The Phase 8 fixed body/contact spacer geometry is removed.
+   - Body typography now targets 9 pt and never goes below the Phase 9 8.4 pt floor.
+   - Approved institutional artwork remains preferred; the controlled PRISM
+     institutional fallback remains available and never substitutes a random project photo.
 
-4. Direct Gallery 2 control in Publication Review
-   - Image treatment is now selectable directly while reviewing each project.
-   - Choosing Gallery 2 without a second image opens the second-image chooser.
-   - A project cannot be approved in Gallery 2 mode until the second image is set.
+4. Measurement-based print plan
+   - Preflight now returns a per-sheet plan.
+   - Builder UI shows planned sheet count, average fill, lowest project-sheet fill,
+     final-sheet fill and a sheet map such as:
+       1. Institutional front page
+       2. Projects 1–4
+       3. Projects 5–8
+       4. Projects 9–11 + closing
+   - Values use the same measured model consumed by the renderer.
 
-5. Authoritative institutional preflight
-   - First/final-page publication text now goes through the same server-side
-     preflight used for project narratives and photographs.
-   - Missing or overlength institutional sections are blockers in the visible
-     Publication preflight panel, not late Preview-only errors.
+5. Profile-aware cover defaults
+   - Until the user explicitly chooses a cover in the current composition session:
+       Print / Compact -> Cover A (Institutional)
+       Digital / Comfortable -> Cover B (Contemporary)
+   - Explicit user cover choice is never overwritten by later unrelated changes.
 
-6. Print fit feedback
-   - Live word counters against compact-print section limits.
-   - Restore approved text action.
-   - Preflight shows:
-       estimated page count
-       estimated average sheet fill
-       final-sheet packing state
+6. Existing hard-copy visual grammar retained
+   - Original brochure dimensions remain 423.23 x 846.755 pt.
+   - Centred dark-green project headings remain.
+   - Justified Project Briefs remain.
+   - Single / Automatic / Gallery 2 image treatment remains.
+   - Cover B and Digital / Comfortable remain isolated from the measured Print planner.
+
+NO DATABASE CHANGE
+------------------
+Phase 9 has:
+- no EF migration;
+- no Program.cs merge;
+- no navigation change;
+- no Compendium change;
+- no font reinstall.
+
+PublicationServiceCollectionExtensions.cs IS replaced because it registers the two new
+measured-print services through the existing AddProjectPublications() integration point.
+Program.cs already calls that extension from the previous phases.
 
 INSTALL
 -------
-This incremental package assumes the Phase 7 brochure implementation and its
-build hotfix are already installed.
+1. Copy this package over the ProjectManagement project root.
+2. Preserve directories and replace matching files.
+3. From the ProjectManagement root run:
 
-1. Stop PRISM / IIS Express if desired.
-2. Copy the contents of this package over the ProjectManagement project root.
-3. Preserve the directory structure and replace matching files.
-4. No EF migration is required.
-5. No Program.cs change is required for Phase 8.
-6. No publication font reinstall is required.
+   Set-ExecutionPolicy -Scope Process Bypass
+   .\tools\Test-PrismPublicationsPhase9.ps1
 
-Then run:
+   Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 
-    Set-ExecutionPolicy -Scope Process Bypass
-    .\tools\Test-PrismPublicationsPhase8.ps1
+   dotnet restore .\ProjectManagement.csproj
+   dotnet build .\ProjectManagement.csproj
+   dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 
-    Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+   node --check .\wwwroot\js\pages\projects-brochure.js
+   node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
 
-    dotnet restore .\ProjectManagement.csproj
-    dotnet build .\ProjectManagement.csproj
-    dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+ACCEPTANCE TEST
+---------------
+After a successful build:
 
-    node --check .\wwwroot\js\pages\projects-brochure.js
-    node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
+A. Generate Print / Compact with Cover A using the same 8-project test set.
+   Check:
+   - first page no longer has the previous large institutional-copy/contact void;
+   - body copy is visibly larger than Phase 8;
+   - contacts follow the institutional copy naturally;
+   - no text clipping.
 
-ACCEPTANCE CHECK
-----------------
-Use 8–12 representative projects and Print / Compact.
+B. Generate 12–15 representative projects with realistic 100–150 word Project Briefs.
+   Check the Print Plan before Preview:
+   - four-project sheets should occur where measured geometry actually permits;
+   - project order must match the selected order;
+   - final sheet should normally combine projects + closing matter;
+   - low-fill sheets should correspond to a genuine next-project fit constraint.
 
-Verify:
-- Publication preflight shows an estimated page count and average fill.
-- Final sheet reports one or more projects + closing matter where feasible.
-- Preview does not produce a mostly-empty closing-only page for a normal set of
-  medium-length Project Briefs.
-- Cover A uses institutional artwork/fallback, not an arbitrary project photo.
-- Cover B still uses the independently approved hero.
-- Project title bands are centred.
-- Project paragraphs are compact/justified.
-- Gallery 2 can be selected directly during Review.
-- Clearing or over-extending institutional copy immediately appears as a preflight blocker.
-- Restore approved text returns all hard-copy institutional fields to the reference wording.
+C. Compare page 1, one normal project sheet and the final sheet against the approved
+   physical brochure before treating the Print / Compact renderer as frozen.
 
 IMPORTANT
 ---------
-The planner is deliberately deterministic and order-preserving. It optimises page
-breaks; it does not reorder projects.
-
-The exact PDF layout still depends on the installed publication font metrics and
-the actual selected photographs. Always review the generated hard-copy PDF before
-final distribution.
+The preparation environment used to create this package does not expose the .NET SDK.
+JavaScript and structural/source checks have been executed here, but dotnet build/test must
+be run on the PRISM development machine before deployment.

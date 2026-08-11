@@ -26,6 +26,8 @@ public sealed class PublicationsRuntimeIntegrationTests
 
         Assert.NotNull(services.GetRequiredService<IBrochurePublicationService>());
         Assert.NotNull(services.GetRequiredService<IBrochurePhotoService>());
+        Assert.NotNull(services.GetRequiredService<IBrochurePrintMeasurementService>());
+        Assert.NotNull(services.GetRequiredService<IBrochurePrintPagePlanner>());
         Assert.NotNull(services.GetRequiredService<IBrochurePdfReportBuilder>());
         Assert.NotNull(services.GetRequiredService<IPublicationFontService>());
     }

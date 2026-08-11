@@ -34,6 +34,8 @@ public sealed class PublicationRuntimeValidationHostedService : IHostedService
         var services = scope.ServiceProvider;
 
         _ = services.GetRequiredService<IBrochurePhotoService>();
+        _ = services.GetRequiredService<IBrochurePrintMeasurementService>();
+        _ = services.GetRequiredService<IBrochurePrintPagePlanner>();
         _ = services.GetRequiredService<IBrochurePublicationService>();
         _ = services.GetRequiredService<IBrochurePdfReportBuilder>();
 

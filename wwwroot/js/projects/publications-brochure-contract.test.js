@@ -175,9 +175,11 @@ test('phase 7 keeps the reference brochure front and final institutional content
 });
 
 test('phase 7 print compositor uses the reference CropBox dimensions and natural project packing', () => {
-  assert.match(printRenderer, /ReferenceWidthPoints = 423\.23f/);
-  assert.match(printRenderer, /ReferenceHeightPoints = 846\.755f/);
-  assert.match(printRenderer, /ShowEntire\(\)/);
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  assert.match(metrics, /ReferenceWidthPoints = 423\.23f/);
+  assert.match(metrics, /ReferenceHeightPoints = 846\.755f/);
+  assert.match(printRenderer, /ReferenceWidthPoints = BrochurePrintLayoutMetrics\.ReferenceWidthPoints/);
+  assert.match(printRenderer, /ReferenceHeightPoints = BrochurePrintLayoutMetrics\.ReferenceHeightPoints/);
   assert.match(printRenderer, /ShowEntire\(\)/);
   assert.match(printRenderer, /ComposeProjectModule/);
   assert.doesNotMatch(printRenderer, /PageSizes\.A4/);
@@ -197,24 +199,39 @@ test('phase 7 cover image controls focus newly opened chooser and crop editor', 
 });
 
 
-test('phase 8 uses an explicit compact-sheet planner with closing-aware final-page packing', () => {
-  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintCompactPlanner.cs'), 'utf8');
-  assert.match(planner, /TryPlanSharedClosingPage/);
-  assert.match(planner, /finalPageReservedHeight/);
+test('phase 9 replaces word-count heuristics with font-aware DM Sans measurement', () => {
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  assert.match(measurement, /SKPaint/);
+  assert.match(measurement, /MeasureText\(/);
+  assert.match(measurement, /DMSans-Regular\.ttf/);
+  assert.match(measurement, /DMSans-SemiBold\.ttf/);
+  assert.match(measurement, /MeasureProject/);
+  assert.match(measurement, /MeasureClosing/);
+  assert.match(measurement, /MeasureFrontPage/);
+  assert.doesNotMatch(measurement, /wordsPerLine/);
+});
+
+test('phase 9 uses an order-preserving measured sheet planner with final closing reservation', () => {
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+  assert.match(planner, /MaximumProjectsPerSheet/);
+  assert.match(planner, /TryPlanWithSharedClosing/);
+  assert.match(planner, /MeasureClosing/);
+  assert.match(planner, /MeasureProject/);
   assert.match(planner, /ClosingMatterSharesFinalPage/);
-  assert.match(printRenderer, /BrochurePrintCompactPlanner\.Plan/);
-  assert.match(printRenderer, /ComposeProjectSheet/);
+  assert.match(planner, /SheetPlan/);
+  assert.match(printRenderer, /BrochurePrintCompactPlan plan/);
+  assert.match(printRenderer, /sheet\.Projects/);
   assert.match(printRenderer, /sheet\.IncludesClosingMatter/);
 });
 
 test('phase 8 print A never substitutes an arbitrary first-project photograph', () => {
-  const institutional = printRenderer.slice(
-    printRenderer.indexOf('private static void ComposeInstitutionalFrontPage'),
-    printRenderer.indexOf('private static void ComposeContemporaryFrontPage'));
-  assert.match(institutional, /institutionalArtwork/);
-  assert.match(institutional, /ComposeInstitutionalFallbackArtwork/);
-  assert.doesNotMatch(institutional, /data\.Projects\[0\]/);
-  assert.doesNotMatch(institutional, /PrimaryPhoto/);
+  const frontHero = printRenderer.slice(
+    printRenderer.indexOf('private static void ComposeFrontHero'),
+    printRenderer.indexOf('private static void ComposeFrontLockup'));
+  assert.match(frontHero, /institutionalArtwork/);
+  assert.match(frontHero, /ComposeInstitutionalFallbackArtwork/);
+  assert.doesNotMatch(frontHero, /data\.Projects\[0\]/);
+  assert.doesNotMatch(frontHero, /PrimaryPhoto/);
 });
 
 test('phase 8 hard-copy institutional matter participates in authoritative preflight', () => {
@@ -250,3 +267,43 @@ test('phase 8 print project typography centres headings and justifies publicatio
   assert.match(printRenderer, /ProjectName\.ToUpperInvariant\(\)[\s\S]{0,180}\.AlignCenter\(\)/);
   assert.match(printRenderer, /Text\(project\.Narrative\)[\s\S]{0,160}\.Justify\(\)/);
 });
+
+test('phase 9 measured Cover A composition removes fixed body/contact spacer geometry', () => {
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  assert.match(printRenderer, /frontPlan\.HeroHeightPoints/);
+  assert.match(printRenderer, /frontPlan\.BodyBlockHeightPoints/);
+  assert.match(printRenderer, /frontPlan\.ContactBlockHeightPoints/);
+  assert.match(printRenderer, /frontPlan\.BodyFontSize/);
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  assert.match(metrics, /FrontBodyPreferredFontSize/);
+  assert.match(metrics, /FrontBodyMinimumFontSize/);
+  assert.doesNotMatch(printRenderer, /PaddingTop\(326\)/);
+  assert.doesNotMatch(printRenderer, /Height\(98\)/);
+});
+
+test('phase 9 print plan UI exposes measured per-sheet mapping and fill diagnostics', () => {
+  assert.match(view, /data-print-lowest-fill/);
+  assert.match(view, /data-print-final-fill/);
+  assert.match(view, /data-print-sheet-map/);
+  assert.match(js, /result\.lowestProjectPageUtilizationPercent/);
+  assert.match(js, /result\.finalPageUtilizationPercent/);
+  assert.match(js, /result\.printSheetPlan/);
+  assert.match(css, /\.brochure-print-sheet-chip/);
+});
+
+test('phase 9 registers and validates measured print services through the publication DI graph', () => {
+  const registration = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationServiceCollectionExtensions.cs'), 'utf8');
+  const runtime = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationRuntimeValidationHostedService.cs'), 'utf8');
+  assert.match(registration, /AddSingleton<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>/);
+  assert.match(registration, /AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>/);
+  assert.match(runtime, /GetRequiredService<IBrochurePrintMeasurementService>/);
+  assert.match(runtime, /GetRequiredService<IBrochurePrintPagePlanner>/);
+});
+
+test('phase 9 profile defaults prefer institutional print and contemporary digital until user chooses explicitly', () => {
+  assert.match(js, /coverSelectionTouched/);
+  assert.match(js, /preferredValue = isPrintCompactProfile\(\) \? "1" : "2"/);
+  assert.match(js, /isPrintCompactProfile\(\)/);
+  assert.match(js, /coverSelectionTouched = true/);
+});
+

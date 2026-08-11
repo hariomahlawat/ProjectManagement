@@ -14,6 +14,8 @@ public static class PublicationServiceCollectionExtensions
         // graph self-contained even if the application-level cache registration moves.
         services.AddMemoryCache();
         services.AddSingleton<IPublicationFontService, PublicationFontService>();
+        services.AddSingleton<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>();
+        services.AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>();
         services.AddScoped<IBrochurePhotoService, BrochurePhotoService>();
         services.AddScoped<IBrochurePublicationService, BrochurePublicationService>();
         services.AddScoped<IBrochurePdfReportBuilder, BrochurePdfReportBuilder>();

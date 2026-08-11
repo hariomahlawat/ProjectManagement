@@ -24,6 +24,8 @@ public interface IBrochurePublicationService
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
         BrochurePrintMatter? printMatter,
+        string? strapline,
+        string? handlingMarking,
         CancellationToken cancellationToken = default);
 
     Task<BrochurePublicationData> BuildAsync(
@@ -53,13 +55,16 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
 
     private readonly ApplicationDbContext _db;
     private readonly IBrochurePhotoService _photoService;
+    private readonly IBrochurePrintPagePlanner _printPagePlanner;
 
     public BrochurePublicationService(
         ApplicationDbContext db,
-        IBrochurePhotoService photoService)
+        IBrochurePhotoService photoService,
+        IBrochurePrintPagePlanner printPagePlanner)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
+        _printPagePlanner = printPagePlanner ?? throw new ArgumentNullException(nameof(printPagePlanner));
     }
 
     public async Task<IReadOnlyList<BrochureProjectListItemVm>> GetProjectOptionsAsync(
@@ -264,6 +269,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
         BrochurePrintMatter? printMatter,
+        string? strapline,
+        string? handlingMarking,
         CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareAsync(
@@ -276,7 +283,13 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             coverHeroPhotoId,
             cancellationToken);
 
-        prepared = ApplyPublicationLevelPreflight(prepared, publicationProfile, printMatter);
+        prepared = ApplyPublicationLevelPreflight(
+            prepared,
+            publicationProfile,
+            coverStyle,
+            printMatter,
+            strapline,
+            handlingMarking);
         return prepared.Preflight;
     }
 
@@ -299,7 +312,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         prepared = ApplyPublicationLevelPreflight(
             prepared,
             options.PublicationProfile,
-            BrochurePrintPublicationPolicy.FromOptions(options));
+            options.CoverStyle,
+            BrochurePrintPublicationPolicy.FromOptions(options),
+            options.Strapline,
+            options.HandlingMarking);
         if (!prepared.Preflight.CanGenerate)
         {
             throw new BrochurePublicationValidationException(prepared.Preflight);
@@ -402,10 +418,13 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             coverHeroImage);
     }
 
-    private static PreparedPublication ApplyPublicationLevelPreflight(
+    private PreparedPublication ApplyPublicationLevelPreflight(
         PreparedPublication prepared,
         BrochurePublicationProfile publicationProfile,
-        BrochurePrintMatter? printMatter)
+        BrochureCoverStyle coverStyle,
+        BrochurePrintMatter? printMatter,
+        string? strapline,
+        string? handlingMarking)
     {
         if (publicationProfile != BrochurePublicationProfile.PrintCompact)
         {
@@ -419,15 +438,36 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             .Select(project => new BrochurePrintPlanningItem(
                 project.Row.ProjectId,
                 project.Row.ProjectName,
-                project.NarrativeWordCount,
+                project.Narrative,
                 project.ImageMode,
                 project.PrimaryPhotoId.HasValue,
                 project.SecondaryPhotoId.HasValue))
             .ToArray();
-        var plan = BrochurePrintCompactPlanner.Plan(
+        var plan = _printPagePlanner.Plan(
             planningItems,
-            printMatter?.VisionaryHorizons,
-            printMatter?.NewSimulatorsGuidance);
+            printMatter,
+            coverStyle,
+            strapline,
+            !string.IsNullOrWhiteSpace(handlingMarking));
+
+        if (!plan.FrontPage.Fits)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.PrintFrontPageDoesNotFit,
+                PublicationIssueSeverity.Blocker,
+                null,
+                null,
+                "The hard-copy institutional first page cannot fit the current approved text above the minimum publication typography. Shorten the institutional content before preview or download."));
+        }
+        else if (plan.FrontPage.UsesMinimumTypography)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.PrintFrontPageTightFit,
+                PublicationIssueSeverity.Warning,
+                null,
+                null,
+                "The hard-copy first page fits at the minimum approved body typography. Review the first sheet carefully before final issue."));
+        }
 
         if (planningItems.Length > 0 && !plan.ClosingMatterSharesFinalPage)
         {
@@ -436,7 +476,17 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 PublicationIssueSeverity.Information,
                 null,
                 null,
-                "The final selected project is too tall to safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order or copy length changes."));
+                "The measured final project geometry cannot safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order, copy length or image treatment changes."));
+        }
+
+        if (plan.LowestProjectPageUtilizationPercent is < 82)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.PrintPageUnderUtilized,
+                PublicationIssueSeverity.Information,
+                null,
+                null,
+                $"One hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation because the next ordered project cannot fit without breaching the print typography floor."));
         }
 
         var preflight = prepared.Preflight with
@@ -445,7 +495,11 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             EstimatedPageCount = plan.EstimatedTotalPageCount,
             EstimatedAveragePageUtilizationPercent = plan.AverageContentUtilizationPercent,
             EstimatedClosingPageProjectCount = plan.ClosingPageProjectCount,
-            ClosingMatterSharesFinalPage = plan.ClosingMatterSharesFinalPage
+            ClosingMatterSharesFinalPage = plan.ClosingMatterSharesFinalPage,
+            LowestProjectPageUtilizationPercent = plan.LowestProjectPageUtilizationPercent,
+            FinalPageUtilizationPercent = plan.FinalPageUtilizationPercent,
+            PrintFrontPageUsesMinimumTypography = plan.FrontPage.UsesMinimumTypography,
+            PrintSheetPlan = plan.SheetPlan
         };
 
         return prepared with { Preflight = preflight };

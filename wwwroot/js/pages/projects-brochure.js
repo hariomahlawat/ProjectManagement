@@ -59,7 +59,10 @@
     const printPlanSummary = form.querySelector("[data-print-plan-summary]");
     const printEstimatePages = form.querySelector("[data-print-estimate-pages]");
     const printEstimateFill = form.querySelector("[data-print-estimate-fill]");
+    const printLowestFill = form.querySelector("[data-print-lowest-fill]");
+    const printFinalFill = form.querySelector("[data-print-final-fill]");
     const printEstimateClosing = form.querySelector("[data-print-estimate-closing]");
+    const printSheetMap = form.querySelector("[data-print-sheet-map]");
 
     const preflightSpinner = form.querySelector("[data-preflight-spinner]");
     const preflightMessage = form.querySelector("[data-preflight-message]");
@@ -232,6 +235,7 @@
     let coverHeroFocalX = clamp(coverHeroFocalXInput?.value);
     let coverHeroFocalY = clamp(coverHeroFocalYInput?.value);
     let coverReviewed = String(coverReviewedInput?.value).toLowerCase() === "true";
+    let coverSelectionTouched = false;
 
     const ensureConfig = id => {
         if (!configs.has(id)) {
@@ -1455,11 +1459,36 @@
             if (showPlan) {
                 if (printEstimatePages) printEstimatePages.textContent = String(result.estimatedPageCount);
                 if (printEstimateFill) printEstimateFill.textContent = `${Number(result.estimatedAveragePageUtilizationPercent || 0)}%`;
+                if (printLowestFill) {
+                    const value = Number(result.lowestProjectPageUtilizationPercent || 0);
+                    printLowestFill.textContent = value > 0 ? `${value}%` : "—";
+                }
+                if (printFinalFill) {
+                    const value = Number(result.finalPageUtilizationPercent || 0);
+                    printFinalFill.textContent = value > 0 ? `${value}%` : "—";
+                }
                 if (printEstimateClosing) {
                     const count = Number(result.estimatedClosingPageProjectCount || 0);
                     printEstimateClosing.textContent = result.closingMatterSharesFinalPage
                         ? `${count} project${count === 1 ? "" : "s"} + closing`
                         : "Dedicated closing sheet";
+                }
+                if (printSheetMap) {
+                    printSheetMap.replaceChildren();
+                    const sheets = Array.isArray(result.printSheetPlan) ? result.printSheetPlan : [];
+                    sheets.forEach(sheet => {
+                        const chip = document.createElement("div");
+                        chip.className = "brochure-print-sheet-chip";
+                        if (sheet.kind === "front") chip.classList.add("is-front");
+                        if (Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
+
+                        const label = document.createElement("strong");
+                        label.textContent = `${sheet.sheetNumber}. ${sheet.label || "Sheet"}`;
+                        const fill = document.createElement("span");
+                        fill.textContent = `${Number(sheet.utilizationPercent || 0)}%`;
+                        chip.append(label, fill);
+                        printSheetMap.appendChild(chip);
+                    });
                 }
             }
         }
@@ -1780,6 +1809,21 @@
     publicationProfileInputs.forEach(input => {
         input.addEventListener("change", () => {
             coverReviewed = false;
+
+            // Official/institutional is the natural hard-copy default; contemporary is the
+            // screen-oriented default. Once the user explicitly chooses a cover, profile changes
+            // preserve that editorial decision.
+            if (!coverSelectionTouched) {
+                const preferredValue = isPrintCompactProfile() ? "1" : "2";
+                const preferred = form.querySelector(`[name="Input.CoverStyle"][value="${preferredValue}"]`);
+                if (preferred instanceof HTMLInputElement) {
+                    preferred.checked = true;
+                    form.querySelectorAll("[data-cover-option]").forEach(option => {
+                        option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
+                    });
+                }
+            }
+
             updatePublicationProfileUi();
             syncHiddenInputs();
             renderCoverHero();
@@ -1789,6 +1833,7 @@
 
     form.querySelectorAll("[data-cover-option] input[type=radio]").forEach(radio => {
         radio.addEventListener("change", () => {
+            coverSelectionTouched = true;
             form.querySelectorAll("[data-cover-option]").forEach(option => {
                 option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
             });

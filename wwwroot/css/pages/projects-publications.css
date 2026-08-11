@@ -915,3 +915,44 @@
     .brochure-print-content-note { grid-template-columns: 1fr; }
     .brochure-print-content-note .btn { justify-self: start; }
 }
+
+/* Phase 9 — measured hard-copy sheet plan */
+.brochure-print-sheet-map {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .28rem;
+    padding-top: .15rem;
+}
+.brochure-print-sheet-chip {
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    gap: .08rem .35rem;
+    align-items: center;
+    min-width: 0;
+    padding: .3rem .42rem;
+    border: 1px solid #d6e5df;
+    border-radius: 6px;
+    background: #fff;
+    color: #324a42;
+    font-size: .55rem;
+    line-height: 1.2;
+}
+.brochure-print-sheet-chip strong {
+    color: #1f4e3e;
+    font-size: .58rem;
+    font-weight: 760;
+}
+.brochure-print-sheet-chip span {
+    color: #74837d;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.brochure-print-sheet-chip.is-low {
+    border-color: #e6d8a9;
+    background: #fffaf0;
+}
+.brochure-print-sheet-chip.is-front {
+    border-color: #c8dbd3;
+    background: #eef7f3;
+}

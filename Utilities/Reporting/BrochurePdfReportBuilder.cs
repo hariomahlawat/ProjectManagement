@@ -32,6 +32,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
     private readonly IWebHostEnvironment _environment;
     private readonly IPublicationFontService _fontService;
+    private readonly IBrochurePrintPagePlanner _printPagePlanner;
 
     static BrochurePdfReportBuilder()
     {
@@ -40,10 +41,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
     public BrochurePdfReportBuilder(
         IWebHostEnvironment environment,
-        IPublicationFontService fontService)
+        IPublicationFontService fontService,
+        IBrochurePrintPagePlanner printPagePlanner)
     {
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
+        _printPagePlanner = printPagePlanner ?? throw new ArgumentNullException(nameof(printPagePlanner));
     }
 
     public byte[] Build(BrochurePublicationData data)
@@ -67,13 +70,21 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         {
             if (data.Options.PublicationProfile == BrochurePublicationProfile.PrintCompact)
             {
+                var printPlan = _printPagePlanner.Plan(
+                    data.Projects,
+                    BrochurePrintPublicationPolicy.FromOptions(data.Options),
+                    data.Options.CoverStyle,
+                    data.Options.Strapline,
+                    !string.IsNullOrWhiteSpace(data.Options.HandlingMarking));
+
                 BrochurePrintCompactComposer.Compose(
                     container,
                     data,
                     fontStatus,
                     sddLogo,
                     artracLogo,
-                    institutionalArtwork);
+                    institutionalArtwork,
+                    printPlan);
                 return;
             }
 

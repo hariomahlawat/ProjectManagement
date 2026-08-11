@@ -36,6 +36,13 @@ public enum BrochureImageMode
     GalleryTwo = 3
 }
 
+public enum BrochurePrintLayoutVariant
+{
+    Compact = 1,
+    Balanced = 2,
+    Visual = 3
+}
+
 public enum PublicationIssueSeverity
 {
     Blocker = 1,
@@ -77,7 +84,10 @@ public enum BrochurePreflightIssueCode
     PrintNarrativeTooLong = 16,
     PrintInstitutionalContentMissing = 17,
     PrintInstitutionalContentTooLong = 18,
-    PrintClosingPageStandalone = 19
+    PrintClosingPageStandalone = 19,
+    PrintFrontPageDoesNotFit = 20,
+    PrintFrontPageTightFit = 21,
+    PrintPageUnderUtilized = 22
 }
 
 
@@ -94,26 +104,109 @@ public sealed record BrochurePrintMatter(
 public sealed record BrochurePrintPlanningItem(
     int ProjectId,
     string ProjectName,
-    int NarrativeWordCount,
+    string Narrative,
     BrochureImageMode ImageMode,
     bool HasPrimaryPhoto,
-    bool HasSecondaryPhoto);
+    bool HasSecondaryPhoto)
+{
+    public int NarrativeWordCount => BrochureLayoutPlanner.CountWords(Narrative);
+
+    // Compatibility constructor retained for older tests/helpers that only supplied a word count.
+    public BrochurePrintPlanningItem(
+        int projectId,
+        string projectName,
+        int narrativeWordCount,
+        BrochureImageMode imageMode,
+        bool hasPrimaryPhoto,
+        bool hasSecondaryPhoto)
+        : this(
+            projectId,
+            projectName,
+            narrativeWordCount <= 0
+                ? string.Empty
+                : string.Join(" ", Enumerable.Repeat("word", narrativeWordCount)),
+            imageMode,
+            hasPrimaryPhoto,
+            hasSecondaryPhoto)
+    {
+    }
+}
+
+public sealed record BrochurePrintProjectMeasurement(
+    int ProjectId,
+    BrochurePrintLayoutVariant Variant,
+    float TotalHeightPoints,
+    float TitleHeightPoints,
+    float TitleFontSize,
+    float BodyFontSize,
+    float BodyLineHeight,
+    float ImageWidthPoints,
+    float BodyPaddingPoints,
+    float TextWidthPoints,
+    float TextHeightPoints,
+    float ImageHeightPoints,
+    int QualityRank);
+
+public sealed record BrochurePrintPlannedProject(
+    int ProjectIndex,
+    BrochurePrintProjectMeasurement Measurement);
+
+public sealed record BrochurePrintClosingMeasurement(
+    float TotalHeightPoints,
+    float VisionPanelHeightPoints,
+    float NewSimulatorsHeightPoints,
+    float StraplineHeightPoints);
+
+public sealed record BrochurePrintFrontPagePlan(
+    bool Fits,
+    float HeroHeightPoints,
+    float CentreBlockHeightPoints,
+    float CentreFontSize,
+    float BodyBlockHeightPoints,
+    float BodyFontSize,
+    float BodyLineHeight,
+    float BodySpacingPoints,
+    float ContactBlockHeightPoints,
+    float ContactFontSize,
+    float StraplineHeightPoints,
+    float TotalUsedHeightPoints,
+    int UtilizationPercent,
+    bool UsesMinimumTypography,
+    BrochureCoverStyle CoverStyle);
 
 public sealed record BrochurePrintCompactPage(
-    IReadOnlyList<int> ProjectIndexes,
-    float EstimatedProjectHeightPoints,
-    float EstimatedPhysicalUsedPoints,
+    IReadOnlyList<BrochurePrintPlannedProject> Projects,
+    float MeasuredProjectHeightPoints,
+    float MeasuredPhysicalUsedPoints,
     float CapacityPoints,
     bool IncludesClosingMatter,
-    float ModuleExpansionPoints);
+    float ClosingHeightPoints,
+    int UtilizationPercent)
+{
+    public IReadOnlyList<int> ProjectIndexes => Projects.Select(project => project.ProjectIndex).ToArray();
+}
+
+public sealed record BrochurePrintSheetSummary(
+    int SheetNumber,
+    string Kind,
+    int? FirstProjectOrdinal,
+    int? LastProjectOrdinal,
+    int ProjectCount,
+    bool IncludesClosingMatter,
+    int UtilizationPercent,
+    string Label);
 
 public sealed record BrochurePrintCompactPlan(
     IReadOnlyList<BrochurePrintCompactPage> Pages,
-    float EstimatedClosingHeightPoints,
+    BrochurePrintFrontPagePlan FrontPage,
+    BrochurePrintClosingMeasurement ClosingMatter,
     int EstimatedTotalPageCount,
     int AverageContentUtilizationPercent,
     bool ClosingMatterSharesFinalPage,
-    int ClosingPageProjectCount);
+    int ClosingPageProjectCount,
+    int? LowestProjectPageUtilizationPercent,
+    int? FinalPageUtilizationPercent,
+    IReadOnlyList<BrochurePrintSheetSummary> SheetPlan);
 
 public sealed record BrochurePhotoOptionVm(
     int PhotoId,
@@ -272,7 +365,11 @@ public sealed record BrochurePreflight(
     int? EstimatedPageCount = null,
     int? EstimatedAveragePageUtilizationPercent = null,
     int? EstimatedClosingPageProjectCount = null,
-    bool? ClosingMatterSharesFinalPage = null)
+    bool? ClosingMatterSharesFinalPage = null,
+    int? LowestProjectPageUtilizationPercent = null,
+    int? FinalPageUtilizationPercent = null,
+    bool? PrintFrontPageUsesMinimumTypography = null,
+    IReadOnlyList<BrochurePrintSheetSummary>? PrintSheetPlan = null)
 {
     public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
     public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);

@@ -177,6 +177,8 @@ public sealed class IndexModel : PageModel
             Input.CoverHeroProjectId,
             Input.CoverHeroPhotoId,
             ToPrintMatter(),
+            Input.Strapline,
+            Input.HandlingMarking,
             cancellationToken);
         return new JsonResult(ToClientPreflight(preflight));
     }
@@ -517,6 +519,20 @@ public sealed class IndexModel : PageModel
             estimatedAveragePageUtilizationPercent = preflight.EstimatedAveragePageUtilizationPercent,
             estimatedClosingPageProjectCount = preflight.EstimatedClosingPageProjectCount,
             closingMatterSharesFinalPage = preflight.ClosingMatterSharesFinalPage,
+            lowestProjectPageUtilizationPercent = preflight.LowestProjectPageUtilizationPercent,
+            finalPageUtilizationPercent = preflight.FinalPageUtilizationPercent,
+            printFrontPageUsesMinimumTypography = preflight.PrintFrontPageUsesMinimumTypography,
+            printSheetPlan = preflight.PrintSheetPlan?.Select(sheet => new
+            {
+                sheet.SheetNumber,
+                sheet.Kind,
+                sheet.FirstProjectOrdinal,
+                sheet.LastProjectOrdinal,
+                sheet.ProjectCount,
+                sheet.IncludesClosingMatter,
+                sheet.UtilizationPercent,
+                sheet.Label
+            }).ToArray(),
             issues = preflight.Issues.Select(issue => new
             {
                 severity = issue.Severity.ToString().ToLowerInvariant(),
@@ -665,7 +681,7 @@ public sealed class IndexModel : PageModel
         public string? Strapline { get; set; }
 
         [Required]
-        public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Contemporary;
+        public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Institutional;
 
         [Required]
         public BrochureNarrativeSource NarrativeSource { get; set; } = BrochureNarrativeSource.ProjectBrief;

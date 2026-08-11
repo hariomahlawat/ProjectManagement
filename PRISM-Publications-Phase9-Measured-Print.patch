@@ -1,0 +1,3422 @@
+--- a/Pages/Projects/Publications/Brochure/Index.cshtml
++++ b/Pages/Projects/Publications/Brochure/Index.cshtml
+@@ -665,18 +665,27 @@
+                         </div>
+                         <div class="brochure-print-plan-summary" hidden data-print-plan-summary>
+                             <div>
+-                                <span>Estimated pages</span>
++                                <span>Planned sheets</span>
+                                 <strong data-print-estimate-pages>—</strong>
+                             </div>
+                             <div>
+                                 <span>Average fill</span>
+                                 <strong data-print-estimate-fill>—</strong>
+                             </div>
++                            <div>
++                                <span>Lowest project sheet</span>
++                                <strong data-print-lowest-fill>—</strong>
++                            </div>
++                            <div>
++                                <span>Final sheet</span>
++                                <strong data-print-final-fill>—</strong>
++                            </div>
+                             <div class="brochure-print-plan-summary__closing">
+-                                <span>Final sheet</span>
++                                <span>Final-sheet composition</span>
+                                 <strong data-print-estimate-closing>—</strong>
+                             </div>
+-                            <small>Planning estimate from the same compact-sheet policy used during PDF generation.</small>
++                            <div class="brochure-print-sheet-map" data-print-sheet-map></div>
++                            <small>Measured with the offline publication font and the same geometry used by the hard-copy PDF compositor.</small>
+                         </div>
+                         <div class="brochure-preflight-message" data-preflight-message>
+                             Select projects to run publication preflight.
+--- a/Pages/Projects/Publications/Brochure/Index.cshtml.cs
++++ b/Pages/Projects/Publications/Brochure/Index.cshtml.cs
+@@ -177,6 +177,8 @@
+             Input.CoverHeroProjectId,
+             Input.CoverHeroPhotoId,
+             ToPrintMatter(),
++            Input.Strapline,
++            Input.HandlingMarking,
+             cancellationToken);
+         return new JsonResult(ToClientPreflight(preflight));
+     }
+@@ -517,6 +519,20 @@
+             estimatedAveragePageUtilizationPercent = preflight.EstimatedAveragePageUtilizationPercent,
+             estimatedClosingPageProjectCount = preflight.EstimatedClosingPageProjectCount,
+             closingMatterSharesFinalPage = preflight.ClosingMatterSharesFinalPage,
++            lowestProjectPageUtilizationPercent = preflight.LowestProjectPageUtilizationPercent,
++            finalPageUtilizationPercent = preflight.FinalPageUtilizationPercent,
++            printFrontPageUsesMinimumTypography = preflight.PrintFrontPageUsesMinimumTypography,
++            printSheetPlan = preflight.PrintSheetPlan?.Select(sheet => new
++            {
++                sheet.SheetNumber,
++                sheet.Kind,
++                sheet.FirstProjectOrdinal,
++                sheet.LastProjectOrdinal,
++                sheet.ProjectCount,
++                sheet.IncludesClosingMatter,
++                sheet.UtilizationPercent,
++                sheet.Label
++            }).ToArray(),
+             issues = preflight.Issues.Select(issue => new
+             {
+                 severity = issue.Severity.ToString().ToLowerInvariant(),
+@@ -665,7 +681,7 @@
+         public string? Strapline { get; set; }
+ 
+         [Required]
+-        public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Contemporary;
++        public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Institutional;
+ 
+         [Required]
+         public BrochureNarrativeSource NarrativeSource { get; set; } = BrochureNarrativeSource.ProjectBrief;
+--- a/ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
++++ b/ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+@@ -1,6 +1,7 @@
+ using System.Text;
+ using Microsoft.AspNetCore.Hosting;
+ using Microsoft.Extensions.FileProviders;
++using Microsoft.Extensions.Logging.Abstractions;
+ using ProjectManagement.Services.Publications;
+ using ProjectManagement.Utilities.Reporting;
+ using Xunit;
+@@ -20,7 +21,7 @@
+         {
+             var environment = new TestWebHostEnvironment(webRoot);
+             var fontService = new FixedFontService();
+-            var builder = new BrochurePdfReportBuilder(environment, fontService);
++            var builder = CreateBuilder(environment, fontService);
+             var data = BuildData(coverStyle);
+ 
+             var bytes = builder.Build(data);
+@@ -44,7 +45,7 @@
+         {
+             var environment = new TestWebHostEnvironment(webRoot);
+             var fontService = new FixedFontService();
+-            var builder = new BrochurePdfReportBuilder(environment, fontService);
++            var builder = CreateBuilder(environment, fontService);
+             var pixel = Convert.FromBase64String(
+                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+ 
+@@ -124,7 +125,7 @@
+         {
+             var environment = new TestWebHostEnvironment(webRoot);
+             var fontService = new FixedFontService();
+-            var builder = new BrochurePdfReportBuilder(environment, fontService);
++            var builder = CreateBuilder(environment, fontService);
+             var projects = Enumerable.Range(1, 6)
+                 .Select(id => new BrochurePublicationProject(
+                     id,
+@@ -205,6 +206,18 @@
+         Assert.Equal(words, rebuilt);
+     }
+ 
++    private static BrochurePdfReportBuilder CreateBuilder(
++        IWebHostEnvironment environment,
++        IPublicationFontService fontService)
++    {
++        var measurement = new BrochurePrintMeasurementService(
++            environment,
++            fontService,
++            NullLogger<BrochurePrintMeasurementService>.Instance);
++        var planner = new BrochurePrintPagePlanner(measurement);
++        return new BrochurePdfReportBuilder(environment, fontService, planner);
++    }
++
+     private static BrochurePublicationData BuildData(BrochureCoverStyle coverStyle)
+     {
+         var projects = Enumerable.Range(1, 5)
+--- a/ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
++++ b/ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+@@ -6,66 +6,148 @@
+ public sealed class BrochurePrintCompactPlannerTests
+ {
+     [Fact]
+-    public void Plan_EightRepresentativeProjects_KeepsClosingMatterWithProjects()
++    public void Plan_MediumProjects_PreservesOrderAndUsesFourProjectSheetsWhereTheyFit()
+     {
+-        var projects = Enumerable.Range(1, 8)
+-            .Select(index => PlanningItem(index, words: index == 1 ? 185 : 150))
++        var planner = new BrochurePrintPagePlanner(new DeterministicMeasurementService());
++        var projects = Enumerable.Range(1, 10)
++            .Select(index => PlanningItem(index, words: 135))
+             .ToArray();
+-        var approved = BrochurePrintPublicationPolicy.ApprovedReference;
+ 
+-        var plan = BrochurePrintCompactPlanner.Plan(
++        var plan = planner.Plan(
+             projects,
+-            approved.VisionaryHorizons,
+-            approved.NewSimulatorsGuidance);
+-
+-        Assert.True(plan.ClosingMatterSharesFinalPage);
+-        Assert.True(plan.ClosingPageProjectCount > 0);
+-        Assert.Equal(1 + plan.Pages.Count, plan.EstimatedTotalPageCount);
+-        Assert.InRange(plan.AverageContentUtilizationPercent, 50, 100);
++            BrochurePrintPublicationPolicy.ApprovedReference,
++            BrochureCoverStyle.Institutional,
++            "Simulators of the Army, by the Army, for the Army",
++            hasHandlingMarking: false);
+ 
+         var plannedIndexes = plan.Pages
+             .SelectMany(page => page.ProjectIndexes)
+             .ToArray();
+         Assert.Equal(Enumerable.Range(0, projects.Length).ToArray(), plannedIndexes);
++        Assert.Contains(plan.Pages, page => page.Projects.Count == 4);
++        Assert.True(plan.ClosingMatterSharesFinalPage);
++        Assert.True(plan.ClosingPageProjectCount > 0);
++        Assert.Equal(1 + plan.Pages.Count, plan.EstimatedTotalPageCount);
+     }
+ 
+     [Fact]
+-    public void Plan_ReservesClosingHeightOnFinalSheet()
++    public void Plan_FinalSheet_ReservesMeasuredClosingMatter()
+     {
+-        var projects = Enumerable.Range(1, 6)
+-            .Select(index => PlanningItem(index, words: 135))
++        var planner = new BrochurePrintPagePlanner(new DeterministicMeasurementService());
++        var projects = Enumerable.Range(1, 8)
++            .Select(index => PlanningItem(index, words: 150))
+             .ToArray();
+-        var approved = BrochurePrintPublicationPolicy.ApprovedReference;
+ 
+-        var plan = BrochurePrintCompactPlanner.Plan(
++        var plan = planner.Plan(
+             projects,
+-            approved.VisionaryHorizons,
+-            approved.NewSimulatorsGuidance);
++            BrochurePrintPublicationPolicy.ApprovedReference,
++            BrochureCoverStyle.Institutional,
++            "Simulators of the Army, by the Army, for the Army",
++            hasHandlingMarking: false);
+ 
+-        var finalPage = Assert.Single(plan.Pages.Where(page => page.IncludesClosingMatter));
+-        Assert.True(finalPage.ProjectIndexes.Count > 0);
+-        Assert.True(plan.EstimatedClosingHeightPoints > 0);
+-        Assert.True(finalPage.EstimatedPhysicalUsedPoints <= finalPage.CapacityPoints);
++        var closingPage = Assert.Single(plan.Pages.Where(page => page.IncludesClosingMatter));
++        Assert.True(closingPage.ClosingHeightPoints > 0);
++        Assert.True(closingPage.Projects.Count > 0);
++        Assert.True(closingPage.MeasuredPhysicalUsedPoints <= closingPage.CapacityPoints + .5f);
++        Assert.Equal(closingPage.UtilizationPercent, plan.FinalPageUtilizationPercent);
+     }
+ 
+     [Fact]
+-    public void EstimateProjectHeight_GalleryTwo_ReservesMoreImageHeightThanSingle()
++    public void Plan_PrefersHigherQualityVariantWhenItStillFits()
+     {
+-        var single = PlanningItem(1, words: 75) with { ImageMode = BrochureImageMode.Single, HasSecondaryPhoto = true };
+-        var gallery = single with { ImageMode = BrochureImageMode.GalleryTwo };
++        var planner = new BrochurePrintPagePlanner(new DeterministicMeasurementService());
++        var projects = Enumerable.Range(1, 3)
++            .Select(index => PlanningItem(index, words: 110))
++            .ToArray();
+ 
+-        var singleHeight = BrochurePrintCompactPlanner.EstimateProjectHeight(single);
+-        var galleryHeight = BrochurePrintCompactPlanner.EstimateProjectHeight(gallery);
++        var plan = planner.Plan(
++            projects,
++            BrochurePrintPublicationPolicy.ApprovedReference,
++            BrochureCoverStyle.Institutional,
++            "Simulators of the Army, by the Army, for the Army",
++            hasHandlingMarking: false);
+ 
+-        Assert.True(galleryHeight > singleHeight);
++        var selectedVariants = plan.Pages
++            .SelectMany(page => page.Projects)
++            .Select(project => project.Measurement.Variant)
++            .ToArray();
++
++        Assert.Contains(BrochurePrintLayoutVariant.Visual, selectedVariants);
+     }
+ 
+     private static BrochurePrintPlanningItem PlanningItem(int id, int words)
+         => new(
+             id,
+             $"Representative Compact Project {id}",
+-            words,
++            string.Join(" ", Enumerable.Range(1, words).Select(index => $"word{index}")),
+             BrochureImageMode.Automatic,
+             HasPrimaryPhoto: true,
+             HasSecondaryPhoto: false);
++
++    private sealed class DeterministicMeasurementService : IBrochurePrintMeasurementService
++    {
++        public BrochurePrintProjectMeasurement MeasureProject(
++            BrochurePrintPlanningItem item,
++            BrochurePrintLayoutVariant variant)
++        {
++            var baseHeight = item.NarrativeWordCount switch
++            {
++                > 170 => 185f,
++                > 140 => 165f,
++                > 110 => 148f,
++                _ => 132f
++            };
++            var delta = variant switch
++            {
++                BrochurePrintLayoutVariant.Visual => 14f,
++                BrochurePrintLayoutVariant.Balanced => 7f,
++                _ => 0f
++            };
++            var quality = variant switch
++            {
++                BrochurePrintLayoutVariant.Visual => 3,
++                BrochurePrintLayoutVariant.Balanced => 2,
++                _ => 1
++            };
++
++            return new BrochurePrintProjectMeasurement(
++                item.ProjectId,
++                variant,
++                baseHeight + delta,
++                22f,
++                8f,
++                7.8f,
++                1.05f,
++                120f,
++                4.5f,
++                260f,
++                100f,
++                72f,
++                quality);
++        }
++
++        public BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline)
++            => new(235f, 165f, 50f, 10f);
++
++        public BrochurePrintFrontPagePlan MeasureFrontPage(
++            BrochurePrintMatter? matter,
++            BrochureCoverStyle coverStyle,
++            string? strapline)
++            => new(
++                Fits: true,
++                HeroHeightPoints: 270f,
++                CentreBlockHeightPoints: 55f,
++                CentreFontSize: 11f,
++                BodyBlockHeightPoints: 350f,
++                BodyFontSize: 8.8f,
++                BodyLineHeight: 1.07f,
++                BodySpacingPoints: 6f,
++                ContactBlockHeightPoints: 150f,
++                ContactFontSize: 8.5f,
++                StraplineHeightPoints: 21.755f,
++                TotalUsedHeightPoints: BrochurePrintLayoutMetrics.ReferenceHeightPoints,
++                UtilizationPercent: 100,
++                UsesMinimumTypography: false,
++                CoverStyle: coverStyle);
++    }
+ }
+--- a/ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
++++ b/ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+@@ -0,0 +1,121 @@
++using Microsoft.AspNetCore.Hosting;
++using Microsoft.Extensions.FileProviders;
++using Microsoft.Extensions.Logging.Abstractions;
++using ProjectManagement.Services.Publications;
++using ProjectManagement.Utilities.Reporting;
++using Xunit;
++
++namespace ProjectManagement.Tests.Publications;
++
++public sealed class BrochurePrintMeasurementServiceTests
++{
++    [Fact]
++    public void MeasureProject_LongerNarrativeRequiresMoreHeight()
++    {
++        using var fixture = new Fixture();
++        var shortItem = Item(1, 80, BrochureImageMode.Single, hasSecondary: false);
++        var longItem = Item(2, 170, BrochureImageMode.Single, hasSecondary: false);
++
++        var shortMeasure = fixture.Service.MeasureProject(shortItem, BrochurePrintLayoutVariant.Balanced);
++        var longMeasure = fixture.Service.MeasureProject(longItem, BrochurePrintLayoutVariant.Balanced);
++
++        Assert.True(longMeasure.TotalHeightPoints > shortMeasure.TotalHeightPoints);
++    }
++
++    [Fact]
++    public void MeasureProject_GalleryTwoRequiresMoreHeightThanSingle()
++    {
++        using var fixture = new Fixture();
++        var single = Item(1, 90, BrochureImageMode.Single, hasSecondary: true);
++        var gallery = single with { ImageMode = BrochureImageMode.GalleryTwo };
++
++        var singleMeasure = fixture.Service.MeasureProject(single, BrochurePrintLayoutVariant.Balanced);
++        var galleryMeasure = fixture.Service.MeasureProject(gallery, BrochurePrintLayoutVariant.Balanced);
++
++        Assert.True(galleryMeasure.TotalHeightPoints > singleMeasure.TotalHeightPoints);
++    }
++
++    [Fact]
++    public void MeasureFrontPage_ApprovedReferenceNeverDropsBelowTypographyFloor()
++    {
++        using var fixture = new Fixture();
++
++        var plan = fixture.Service.MeasureFrontPage(
++            BrochurePrintPublicationPolicy.ApprovedReference,
++            BrochureCoverStyle.Institutional,
++            "Simulators of the Army, by the Army, for the Army");
++
++        Assert.True(plan.BodyFontSize >= BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize);
++        Assert.True(plan.HeroHeightPoints >= BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints);
++        Assert.InRange(plan.UtilizationPercent, 90, 100);
++    }
++
++    private static BrochurePrintPlanningItem Item(
++        int id,
++        int words,
++        BrochureImageMode mode,
++        bool hasSecondary)
++        => new(
++            id,
++            $"Measured Project {id}",
++            string.Join(" ", Enumerable.Range(1, words).Select(index => $"word{index}")),
++            mode,
++            HasPrimaryPhoto: true,
++            HasSecondaryPhoto: hasSecondary);
++
++    private sealed class Fixture : IDisposable
++    {
++        private readonly string _root;
++
++        public Fixture()
++        {
++            _root = Path.Combine(Path.GetTempPath(), $"prism-print-measure-{Guid.NewGuid():N}");
++            Directory.CreateDirectory(_root);
++            var environment = new TestWebHostEnvironment(_root);
++            Service = new BrochurePrintMeasurementService(
++                environment,
++                new FixedFontService(),
++                NullLogger<BrochurePrintMeasurementService>.Instance);
++        }
++
++        public BrochurePrintMeasurementService Service { get; }
++
++        public void Dispose()
++        {
++            Service.Dispose();
++            Directory.Delete(_root, recursive: true);
++        }
++    }
++
++    private sealed class FixedFontService : IPublicationFontService
++    {
++        private static readonly PublicationFontStatus Status = new(
++            PublicationFontService.FallbackFamilyName,
++            PublicationFontService.FallbackFamilyName,
++            DmSansAvailable: false,
++            AlatsiAvailable: false,
++            MissingDmSansFiles: Array.Empty<string>(),
++            SourceDescription: "Test fallback");
++
++        public PublicationFontStatus EnsureRegistered() => Status;
++        public PublicationFontStatus CurrentStatus => Status;
++    }
++
++    private sealed class TestWebHostEnvironment : IWebHostEnvironment
++    {
++        public TestWebHostEnvironment(string webRootPath)
++        {
++            WebRootPath = webRootPath;
++            ContentRootPath = webRootPath;
++            WebRootFileProvider = new PhysicalFileProvider(webRootPath);
++            ContentRootFileProvider = WebRootFileProvider;
++        }
++
++        public string ApplicationName { get; set; } = "ProjectManagement.Tests";
++        public IFileProvider WebRootFileProvider { get; set; }
++        public string WebRootPath { get; set; }
++        public string EnvironmentName { get; set; } = "Development";
++        public string ContentRootPath { get; set; }
++        public IFileProvider ContentRootFileProvider { get; set; }
++    }
++}
+--- a/ProjectManagement.Tests/Publications/PublicationsRuntimeIntegrationTests.cs
++++ b/ProjectManagement.Tests/Publications/PublicationsRuntimeIntegrationTests.cs
+@@ -26,6 +26,8 @@
+ 
+         Assert.NotNull(services.GetRequiredService<IBrochurePublicationService>());
+         Assert.NotNull(services.GetRequiredService<IBrochurePhotoService>());
++        Assert.NotNull(services.GetRequiredService<IBrochurePrintMeasurementService>());
++        Assert.NotNull(services.GetRequiredService<IBrochurePrintPagePlanner>());
+         Assert.NotNull(services.GetRequiredService<IBrochurePdfReportBuilder>());
+         Assert.NotNull(services.GetRequiredService<IPublicationFontService>());
+     }
+--- a/Services/Publications/BrochureContracts.cs
++++ b/Services/Publications/BrochureContracts.cs
+@@ -34,6 +34,13 @@
+     Automatic = 1,
+     Single = 2,
+     GalleryTwo = 3
++}
++
++public enum BrochurePrintLayoutVariant
++{
++    Compact = 1,
++    Balanced = 2,
++    Visual = 3
+ }
+ 
+ public enum PublicationIssueSeverity
+@@ -77,7 +84,10 @@
+     PrintNarrativeTooLong = 16,
+     PrintInstitutionalContentMissing = 17,
+     PrintInstitutionalContentTooLong = 18,
+-    PrintClosingPageStandalone = 19
++    PrintClosingPageStandalone = 19,
++    PrintFrontPageDoesNotFit = 20,
++    PrintFrontPageTightFit = 21,
++    PrintPageUnderUtilized = 22
+ }
+ 
+ 
+@@ -94,26 +104,109 @@
+ public sealed record BrochurePrintPlanningItem(
+     int ProjectId,
+     string ProjectName,
+-    int NarrativeWordCount,
++    string Narrative,
+     BrochureImageMode ImageMode,
+     bool HasPrimaryPhoto,
+-    bool HasSecondaryPhoto);
++    bool HasSecondaryPhoto)
++{
++    public int NarrativeWordCount => BrochureLayoutPlanner.CountWords(Narrative);
++
++    // Compatibility constructor retained for older tests/helpers that only supplied a word count.
++    public BrochurePrintPlanningItem(
++        int projectId,
++        string projectName,
++        int narrativeWordCount,
++        BrochureImageMode imageMode,
++        bool hasPrimaryPhoto,
++        bool hasSecondaryPhoto)
++        : this(
++            projectId,
++            projectName,
++            narrativeWordCount <= 0
++                ? string.Empty
++                : string.Join(" ", Enumerable.Repeat("word", narrativeWordCount)),
++            imageMode,
++            hasPrimaryPhoto,
++            hasSecondaryPhoto)
++    {
++    }
++}
++
++public sealed record BrochurePrintProjectMeasurement(
++    int ProjectId,
++    BrochurePrintLayoutVariant Variant,
++    float TotalHeightPoints,
++    float TitleHeightPoints,
++    float TitleFontSize,
++    float BodyFontSize,
++    float BodyLineHeight,
++    float ImageWidthPoints,
++    float BodyPaddingPoints,
++    float TextWidthPoints,
++    float TextHeightPoints,
++    float ImageHeightPoints,
++    int QualityRank);
++
++public sealed record BrochurePrintPlannedProject(
++    int ProjectIndex,
++    BrochurePrintProjectMeasurement Measurement);
++
++public sealed record BrochurePrintClosingMeasurement(
++    float TotalHeightPoints,
++    float VisionPanelHeightPoints,
++    float NewSimulatorsHeightPoints,
++    float StraplineHeightPoints);
++
++public sealed record BrochurePrintFrontPagePlan(
++    bool Fits,
++    float HeroHeightPoints,
++    float CentreBlockHeightPoints,
++    float CentreFontSize,
++    float BodyBlockHeightPoints,
++    float BodyFontSize,
++    float BodyLineHeight,
++    float BodySpacingPoints,
++    float ContactBlockHeightPoints,
++    float ContactFontSize,
++    float StraplineHeightPoints,
++    float TotalUsedHeightPoints,
++    int UtilizationPercent,
++    bool UsesMinimumTypography,
++    BrochureCoverStyle CoverStyle);
+ 
+ public sealed record BrochurePrintCompactPage(
+-    IReadOnlyList<int> ProjectIndexes,
+-    float EstimatedProjectHeightPoints,
+-    float EstimatedPhysicalUsedPoints,
++    IReadOnlyList<BrochurePrintPlannedProject> Projects,
++    float MeasuredProjectHeightPoints,
++    float MeasuredPhysicalUsedPoints,
+     float CapacityPoints,
+     bool IncludesClosingMatter,
+-    float ModuleExpansionPoints);
++    float ClosingHeightPoints,
++    int UtilizationPercent)
++{
++    public IReadOnlyList<int> ProjectIndexes => Projects.Select(project => project.ProjectIndex).ToArray();
++}
++
++public sealed record BrochurePrintSheetSummary(
++    int SheetNumber,
++    string Kind,
++    int? FirstProjectOrdinal,
++    int? LastProjectOrdinal,
++    int ProjectCount,
++    bool IncludesClosingMatter,
++    int UtilizationPercent,
++    string Label);
+ 
+ public sealed record BrochurePrintCompactPlan(
+     IReadOnlyList<BrochurePrintCompactPage> Pages,
+-    float EstimatedClosingHeightPoints,
++    BrochurePrintFrontPagePlan FrontPage,
++    BrochurePrintClosingMeasurement ClosingMatter,
+     int EstimatedTotalPageCount,
+     int AverageContentUtilizationPercent,
+     bool ClosingMatterSharesFinalPage,
+-    int ClosingPageProjectCount);
++    int ClosingPageProjectCount,
++    int? LowestProjectPageUtilizationPercent,
++    int? FinalPageUtilizationPercent,
++    IReadOnlyList<BrochurePrintSheetSummary> SheetPlan);
+ 
+ public sealed record BrochurePhotoOptionVm(
+     int PhotoId,
+@@ -272,7 +365,11 @@
+     int? EstimatedPageCount = null,
+     int? EstimatedAveragePageUtilizationPercent = null,
+     int? EstimatedClosingPageProjectCount = null,
+-    bool? ClosingMatterSharesFinalPage = null)
++    bool? ClosingMatterSharesFinalPage = null,
++    int? LowestProjectPageUtilizationPercent = null,
++    int? FinalPageUtilizationPercent = null,
++    bool? PrintFrontPageUsesMinimumTypography = null,
++    IReadOnlyList<BrochurePrintSheetSummary>? PrintSheetPlan = null)
+ {
+     public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
+     public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);
+--- a/Services/Publications/BrochurePrintCompactPlanner.cs
++++ b/Services/Publications/BrochurePrintCompactPlanner.cs
+@@ -1,338 +1,16 @@
+ namespace ProjectManagement.Services.Publications;
+ 
+ /// <summary>
+-/// Deterministic print-sheet planner for the narrow hard-copy brochure.
+-/// QuestPDF still performs final typography/layout, but page membership is decided here so the
+-/// closing institutional matter can share the final sheet and project pages remain deliberately balanced.
++/// Compatibility surface retained for code that referenced Phase 8 compact-print constants.
++/// Phase 9 planning is performed by <see cref="IBrochurePrintPagePlanner"/> using font-aware
++/// measurements; no page membership should be decided through this type.
+ /// </summary>
++[Obsolete("Use IBrochurePrintPagePlanner. Phase 9 replaced heuristic compact-print planning with measured composition.")]
+ public static class BrochurePrintCompactPlanner
+ {
+-    public const float ContentCapacityPoints = 810f;
+-    public const float InterModuleSpacingPoints = 4f;
+-    public const float ClosingGapPoints = 4f;
+-    public const float MaximumModuleExpansionPoints = 14f;
++    public static float ContentCapacityPoints
++        => BrochurePrintLayoutMetrics.ProjectContentCapacity(hasHandlingMarking: false);
+ 
+-    public static BrochurePrintCompactPlan Plan(
+-        IReadOnlyList<BrochurePrintPlanningItem> projects,
+-        string? visionaryText,
+-        string? newSimulatorsText)
+-    {
+-        ArgumentNullException.ThrowIfNull(projects);
+-
+-        var closingHeight = EstimateClosingHeight(visionaryText, newSimulatorsText);
+-        if (projects.Count == 0)
+-        {
+-            return new BrochurePrintCompactPlan(
+-                Array.Empty<BrochurePrintCompactPage>(),
+-                closingHeight,
+-                EstimatedTotalPageCount: 1,
+-                AverageContentUtilizationPercent: 0,
+-                ClosingMatterSharesFinalPage: false,
+-                ClosingPageProjectCount: 0);
+-        }
+-
+-        var heights = projects.Select(EstimateProjectHeight).ToArray();
+-        var lowerBound = Math.Max(
+-            1,
+-            (int)Math.Ceiling((heights.Sum() + closingHeight) / ContentCapacityPoints));
+-
+-        for (var pageCount = lowerBound; pageCount <= projects.Count; pageCount++)
+-        {
+-            if (!TryPlanSharedClosingPage(heights, closingHeight, pageCount, out var ranges))
+-            {
+-                continue;
+-            }
+-
+-            return BuildPlan(ranges, heights, closingHeight, sharesClosingMatter: true);
+-        }
+-
+-        // A very tall final project can make a shared closing page physically impossible while
+-        // preserving publication order. In that exceptional case, keep the projects balanced and
+-        // use one dedicated closing sheet rather than risking a QuestPDF layout exception.
+-        var projectPageCount = Math.Max(1, (int)Math.Ceiling(heights.Sum() / ContentCapacityPoints));
+-        IReadOnlyList<PageRange>? projectRanges = null;
+-        for (var pageCount = projectPageCount; pageCount <= projects.Count; pageCount++)
+-        {
+-            if (TryPlanProjectOnlyPages(heights, pageCount, out var candidate))
+-            {
+-                projectRanges = candidate;
+-                break;
+-            }
+-        }
+-
+-        projectRanges ??= Enumerable.Range(0, projects.Count)
+-            .Select(index => new PageRange(index, index + 1))
+-            .ToArray();
+-
+-        return BuildPlan(projectRanges, heights, closingHeight, sharesClosingMatter: false);
+-    }
+-
+-    public static BrochurePrintCompactPlan Plan(
+-        IReadOnlyList<BrochurePublicationProject> projects,
+-        string? visionaryText,
+-        string? newSimulatorsText)
+-        => Plan(
+-            projects.Select(project => new BrochurePrintPlanningItem(
+-                project.ProjectId,
+-                project.ProjectName,
+-                project.NarrativeWordCount,
+-                project.ImageMode,
+-                project.PrimaryPhoto is not null,
+-                project.SecondaryPhoto is not null)).ToArray(),
+-            visionaryText,
+-            newSimulatorsText);
+-
+-    public static float EstimateProjectHeight(BrochurePrintPlanningItem project)
+-    {
+-        ArgumentNullException.ThrowIfNull(project);
+-
+-        var titleHeight = project.ProjectName.Length switch
+-        {
+-            > 115 => 30f,
+-            > 82 => 26f,
+-            _ => 22f
+-        };
+-        var bodySize = project.NarrativeWordCount switch
+-        {
+-            > 190 => 7.65f,
+-            > 155 => 7.85f,
+-            > 120 => 8.0f,
+-            _ => 8.15f
+-        };
+-        var imageWidth = project.NarrativeWordCount switch
+-        {
+-            > 180 => 112f,
+-            > 145 => 120f,
+-            > 110 => 128f,
+-            _ => 136f
+-        };
+-
+-        var hasPrimary = project.HasPrimaryPhoto;
+-        var hasSecond = project.HasSecondaryPhoto && project.ImageMode != BrochureImageMode.Single;
+-        var wordsPerLine = hasPrimary
+-            ? project.NarrativeWordCount > 190 ? 8.8f : 9.15f
+-            : 14.2f;
+-        var lineCount = Math.Max(1, (int)Math.Ceiling(project.NarrativeWordCount / wordsPerLine));
+-        var textHeight = lineCount * bodySize * 1.08f;
+-
+-        var imageHeight = 0f;
+-        if (hasPrimary)
+-        {
+-            var singleImageHeight = imageWidth * 9f / 16f;
+-            imageHeight = hasSecond
+-                ? (singleImageHeight * 2f) + 4f
+-                : singleImageHeight;
+-        }
+-
+-        var rowHeight = Math.Max(textHeight, imageHeight);
+-        return titleHeight + rowHeight + 12f;
+-    }
+-
+-    public static float EstimateClosingHeight(string? visionaryText, string? newSimulatorsText)
+-    {
+-        var visionaryWords = BrochureLayoutPlanner.CountWords(visionaryText);
+-        var newSimulatorWords = BrochureLayoutPlanner.CountWords(newSimulatorsText);
+-
+-        var visionaryLines = Math.Max(1, (int)Math.Ceiling(visionaryWords / 14.8f));
+-        var newSimulatorLines = Math.Max(1, (int)Math.Ceiling(newSimulatorWords / 14.2f));
+-
+-        var visionaryPanel = 45f + (visionaryLines * 7.6f * 1.08f);
+-        var newSimulatorPanel = 16f + (newSimulatorLines * 7.25f * 1.05f);
+-        var strapline = 14f;
+-
+-        return Math.Clamp(visionaryPanel + newSimulatorPanel + strapline + 13f, 185f, 292f);
+-    }
+-
+-    private static bool TryPlanSharedClosingPage(
+-        IReadOnlyList<float> heights,
+-        float closingHeight,
+-        int pageCount,
+-        out IReadOnlyList<PageRange> ranges)
+-        => TryPartition(
+-            heights,
+-            pageCount,
+-            finalPageReservedHeight: closingHeight + ClosingGapPoints,
+-            out ranges);
+-
+-    private static bool TryPlanProjectOnlyPages(
+-        IReadOnlyList<float> heights,
+-        int pageCount,
+-        out IReadOnlyList<PageRange> ranges)
+-        => TryPartition(heights, pageCount, finalPageReservedHeight: 0f, out ranges);
+-
+-    private static bool TryPartition(
+-        IReadOnlyList<float> heights,
+-        int pageCount,
+-        float finalPageReservedHeight,
+-        out IReadOnlyList<PageRange> ranges)
+-    {
+-        ranges = Array.Empty<PageRange>();
+-        var count = heights.Count;
+-        if (pageCount <= 0 || pageCount > count)
+-        {
+-            return false;
+-        }
+-
+-        var prefix = new float[count + 1];
+-        for (var index = 0; index < count; index++)
+-        {
+-            prefix[index + 1] = prefix[index] + heights[index];
+-        }
+-
+-        float GroupHeight(int start, int endExclusive)
+-        {
+-            var itemCount = endExclusive - start;
+-            if (itemCount <= 0)
+-            {
+-                return 0f;
+-            }
+-
+-            return (prefix[endExclusive] - prefix[start])
+-                   + (InterModuleSpacingPoints * Math.Max(0, itemCount - 1));
+-        }
+-
+-        var totalEstimated = heights.Sum()
+-                             + (InterModuleSpacingPoints * Math.Max(0, count - pageCount))
+-                             + finalPageReservedHeight;
+-        var targetPhysicalHeight = totalEstimated / pageCount;
+-        var infinity = double.PositiveInfinity;
+-        var cost = new double[pageCount + 1, count + 1];
+-        var previous = new int[pageCount + 1, count + 1];
+-        for (var page = 0; page <= pageCount; page++)
+-        {
+-            for (var index = 0; index <= count; index++)
+-            {
+-                cost[page, index] = infinity;
+-                previous[page, index] = -1;
+-            }
+-        }
+-        cost[0, 0] = 0d;
+-
+-        for (var page = 1; page <= pageCount; page++)
+-        {
+-            var isFinal = page == pageCount;
+-            var reserved = isFinal ? finalPageReservedHeight : 0f;
+-            var available = ContentCapacityPoints - reserved;
+-            if (available <= 0f)
+-            {
+-                return false;
+-            }
+-
+-            var minimumEnd = page;
+-            var maximumEnd = count - (pageCount - page);
+-            for (var end = minimumEnd; end <= maximumEnd; end++)
+-            {
+-                for (var start = page - 1; start < end; start++)
+-                {
+-                    if (double.IsPositiveInfinity(cost[page - 1, start]))
+-                    {
+-                        continue;
+-                    }
+-
+-                    var groupHeight = GroupHeight(start, end);
+-                    if (groupHeight > available)
+-                    {
+-                        continue;
+-                    }
+-
+-                    var physicalHeight = groupHeight + reserved;
+-                    var normalizedDeviation = (physicalHeight - targetPhysicalHeight) / ContentCapacityPoints;
+-                    var underfill = Math.Max(0d, .56d - (physicalHeight / ContentCapacityPoints));
+-                    var candidateCost = cost[page - 1, start]
+-                                        + (normalizedDeviation * normalizedDeviation)
+-                                        + (underfill * underfill * .45d);
+-                    if (candidateCost >= cost[page, end])
+-                    {
+-                        continue;
+-                    }
+-
+-                    cost[page, end] = candidateCost;
+-                    previous[page, end] = start;
+-                }
+-            }
+-        }
+-
+-        if (double.IsPositiveInfinity(cost[pageCount, count]))
+-        {
+-            return false;
+-        }
+-
+-        var result = new PageRange[pageCount];
+-        var cursor = count;
+-        for (var page = pageCount; page >= 1; page--)
+-        {
+-            var start = previous[page, cursor];
+-            if (start < 0)
+-            {
+-                return false;
+-            }
+-
+-            result[page - 1] = new PageRange(start, cursor);
+-            cursor = start;
+-        }
+-
+-        ranges = result;
+-        return cursor == 0;
+-    }
+-
+-    private static BrochurePrintCompactPlan BuildPlan(
+-        IReadOnlyList<PageRange> ranges,
+-        IReadOnlyList<float> heights,
+-        float closingHeight,
+-        bool sharesClosingMatter)
+-    {
+-        var pages = new List<BrochurePrintCompactPage>(ranges.Count + (sharesClosingMatter ? 0 : 1));
+-
+-        for (var pageIndex = 0; pageIndex < ranges.Count; pageIndex++)
+-        {
+-            var range = ranges[pageIndex];
+-            var projectIndexes = Enumerable.Range(range.Start, range.EndExclusive - range.Start).ToArray();
+-            var groupHeight = projectIndexes.Sum(index => heights[index])
+-                              + (InterModuleSpacingPoints * Math.Max(0, projectIndexes.Length - 1));
+-            var includesClosing = sharesClosingMatter && pageIndex == ranges.Count - 1;
+-            var reserved = includesClosing ? closingHeight + ClosingGapPoints : 0f;
+-            var availableForProjects = ContentCapacityPoints - reserved;
+-            var expansion = projectIndexes.Length == 0
+-                ? 0f
+-                : Math.Clamp(
+-                    (availableForProjects - groupHeight) / projectIndexes.Length,
+-                    0f,
+-                    MaximumModuleExpansionPoints);
+-            var physicalUsed = groupHeight + (expansion * projectIndexes.Length) + reserved;
+-
+-            pages.Add(new BrochurePrintCompactPage(
+-                projectIndexes,
+-                groupHeight,
+-                physicalUsed,
+-                ContentCapacityPoints,
+-                includesClosing,
+-                expansion));
+-        }
+-
+-        if (!sharesClosingMatter)
+-        {
+-            pages.Add(new BrochurePrintCompactPage(
+-                Array.Empty<int>(),
+-                0f,
+-                closingHeight,
+-                ContentCapacityPoints,
+-                IncludesClosingMatter: true,
+-                ModuleExpansionPoints: 0f));
+-        }
+-
+-        var averageUtilization = pages.Count == 0
+-            ? 0
+-            : (int)Math.Round(pages.Average(page => page.EstimatedPhysicalUsedPoints / page.CapacityPoints) * 100d);
+-        var closingPage = pages.Last(page => page.IncludesClosingMatter);
+-
+-        return new BrochurePrintCompactPlan(
+-            pages,
+-            closingHeight,
+-            EstimatedTotalPageCount: 1 + pages.Count,
+-            AverageContentUtilizationPercent: Math.Clamp(averageUtilization, 0, 100),
+-            ClosingMatterSharesFinalPage: sharesClosingMatter,
+-            ClosingPageProjectCount: closingPage.ProjectIndexes.Count);
+-    }
+-
+-    private sealed record PageRange(int Start, int EndExclusive);
++    public const float InterModuleSpacingPoints = BrochurePrintLayoutMetrics.InterModuleSpacingPoints;
++    public const float ClosingGapPoints = BrochurePrintLayoutMetrics.ClosingGapPoints;
+ }
+--- a/Services/Publications/BrochurePrintLayoutMetrics.cs
++++ b/Services/Publications/BrochurePrintLayoutMetrics.cs
+@@ -0,0 +1,111 @@
++namespace ProjectManagement.Services.Publications;
++
++/// <summary>
++/// Canonical hard-copy geometry shared by the measurement service, page planner and QuestPDF compositor.
++/// Keeping these values in one place prevents the planner and renderer from drifting apart.
++/// </summary>
++public static class BrochurePrintLayoutMetrics
++{
++    public const float ReferenceWidthPoints = 423.23f;
++    public const float ReferenceHeightPoints = 846.755f;
++
++    public const float ProjectMarginHorizontalPoints = 5f;
++    public const float ProjectMarginTopPoints = 5f;
++    public const float ProjectMarginTopWithHandlingPoints = 15f;
++    public const float ProjectMarginBottomPoints = 5f;
++    public const float HandlingHeaderHeightPoints = 10f;
++
++    public const float ModuleBorderPoints = 1.05f;
++    public const float ModuleHorizontalPaddingPoints = 6f;
++    public const float TextImageGapPoints = 6f;
++    public const float InterModuleSpacingPoints = 4f;
++    public const float ClosingGapPoints = 4f;
++    public const float ProjectMeasurementSafetyPoints = 3.5f;
++
++    public const int MaximumProjectsPerSheet = 4;
++    public const float TargetMinimumUtilization = .90f;
++    public const float PreferredUtilization = .96f;
++
++    public const float ClosingVisionBodyFontSize = 7.6f;
++    public const float ClosingVisionBodyLineHeight = 1.08f;
++    public const float ClosingVisionHeadingFontSize = 8.8f;
++    public const float ClosingNewSimulatorsFontSize = 7.25f;
++    public const float ClosingNewSimulatorsLineHeight = 1.05f;
++    public const float ClosingStraplineFontSize = 6.7f;
++
++    public const float FrontCentrePreferredFontSize = 11.2f;
++    public const float FrontCentreLineHeight = 1.05f;
++    public const float FrontBodyPreferredFontSize = 9.0f;
++    public const float FrontBodyMinimumFontSize = 8.4f;
++    public const float FrontBodyLineHeight = 1.07f;
++    public const float FrontContactPreferredFontSize = 8.5f;
++    public const float FrontContactMinimumFontSize = 8.1f;
++    public const float FrontContactLineHeight = 1.05f;
++    public const float FrontStraplineHeightPoints = 22f;
++    public const float FrontMinimumHeroHeightPoints = 215f;
++    public const float FrontMaximumHeroHeightPoints = 355f;
++
++    public static float ProjectContentCapacity(bool hasHandlingMarking)
++    {
++        var top = hasHandlingMarking
++            ? ProjectMarginTopWithHandlingPoints + HandlingHeaderHeightPoints
++            : ProjectMarginTopPoints;
++
++        return ReferenceHeightPoints - top - ProjectMarginBottomPoints;
++    }
++
++    public static float ModuleWidthPoints
++        => ReferenceWidthPoints - (ProjectMarginHorizontalPoints * 2f);
++
++    public static BrochurePrintVariantSpec VariantSpec(
++        BrochurePrintLayoutVariant variant,
++        int narrativeWordCount)
++    {
++        var imageAdjustment = narrativeWordCount switch
++        {
++            > 190 => -10f,
++            > 155 => -5f,
++            < 95 => 5f,
++            _ => 0f
++        };
++
++        return variant switch
++        {
++            BrochurePrintLayoutVariant.Visual => new BrochurePrintVariantSpec(
++                variant,
++                BodyFontSize: 8.15f,
++                BodyLineHeight: 1.05f,
++                TitleFontSize: 8.5f,
++                ImageWidthPoints: 136f + imageAdjustment,
++                BodyPaddingPoints: 5.0f,
++                QualityRank: 3),
++
++            BrochurePrintLayoutVariant.Balanced => new BrochurePrintVariantSpec(
++                variant,
++                BodyFontSize: 7.9f,
++                BodyLineHeight: 1.05f,
++                TitleFontSize: 8.25f,
++                ImageWidthPoints: 124f + imageAdjustment,
++                BodyPaddingPoints: 4.65f,
++                QualityRank: 2),
++
++            _ => new BrochurePrintVariantSpec(
++                BrochurePrintLayoutVariant.Compact,
++                BodyFontSize: 7.65f,
++                BodyLineHeight: 1.05f,
++                TitleFontSize: 8.0f,
++                ImageWidthPoints: 112f + imageAdjustment,
++                BodyPaddingPoints: 4.35f,
++                QualityRank: 1)
++        };
++    }
++}
++
++public sealed record BrochurePrintVariantSpec(
++    BrochurePrintLayoutVariant Variant,
++    float BodyFontSize,
++    float BodyLineHeight,
++    float TitleFontSize,
++    float ImageWidthPoints,
++    float BodyPaddingPoints,
++    int QualityRank);
+--- a/Services/Publications/BrochurePrintMeasurementService.cs
++++ b/Services/Publications/BrochurePrintMeasurementService.cs
+@@ -0,0 +1,560 @@
++using System.Text.RegularExpressions;
++using Microsoft.AspNetCore.Hosting;
++using ProjectManagement.Utilities.Reporting;
++using SkiaSharp;
++
++namespace ProjectManagement.Services.Publications;
++
++public interface IBrochurePrintMeasurementService
++{
++    BrochurePrintProjectMeasurement MeasureProject(
++        BrochurePrintPlanningItem item,
++        BrochurePrintLayoutVariant variant);
++
++    BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline);
++
++    BrochurePrintFrontPagePlan MeasureFrontPage(
++        BrochurePrintMatter? matter,
++        BrochureCoverStyle coverStyle,
++        string? strapline);
++}
++
++/// <summary>
++/// Font-aware measurement for the narrow hard-copy brochure. It uses the same offline DM Sans
++/// package as QuestPDF when available and falls back to the platform typeface only when the
++/// publication font package is unavailable. The service intentionally measures text by actual
++/// glyph widths rather than using word-count heuristics.
++/// </summary>
++public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementService, IDisposable
++{
++    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
++
++    private readonly IWebHostEnvironment _environment;
++    private readonly IPublicationFontService _fontService;
++    private readonly ILogger<BrochurePrintMeasurementService> _logger;
++    private readonly object _gate = new();
++
++    private TypefaceSet? _typefaces;
++    private bool _disposed;
++
++    public BrochurePrintMeasurementService(
++        IWebHostEnvironment environment,
++        IPublicationFontService fontService,
++        ILogger<BrochurePrintMeasurementService> logger)
++    {
++        _environment = environment ?? throw new ArgumentNullException(nameof(environment));
++        _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
++        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
++    }
++
++    public BrochurePrintProjectMeasurement MeasureProject(
++        BrochurePrintPlanningItem item,
++        BrochurePrintLayoutVariant variant)
++    {
++        ArgumentNullException.ThrowIfNull(item);
++        ThrowIfDisposed();
++
++        var wordCount = item.NarrativeWordCount;
++        var spec = BrochurePrintLayoutMetrics.VariantSpec(variant, wordCount);
++        var moduleWidth = BrochurePrintLayoutMetrics.ModuleWidthPoints;
++        var titleWidth = moduleWidth
++                         - (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
++                         - (BrochurePrintLayoutMetrics.ModuleHorizontalPaddingPoints * 2f);
++
++        var titleFontSize = spec.TitleFontSize;
++        var titleLines = MeasureLineCount(
++            item.ProjectName.ToUpperInvariant(),
++            titleFontSize,
++            titleWidth,
++            FontWeight.SemiBold);
++
++        // Long project titles are allowed to use a slightly smaller title treatment, but the
++        // adjustment is bounded and measured rather than inferred from character count.
++        while (titleLines > 2 && titleFontSize > 7.2f)
++        {
++            titleFontSize -= .25f;
++            titleLines = MeasureLineCount(
++                item.ProjectName.ToUpperInvariant(),
++                titleFontSize,
++                titleWidth,
++                FontWeight.SemiBold);
++        }
++
++        var titleHeight = Math.Max(
++            18f,
++            (titleLines * titleFontSize * 1.02f) + 5.5f);
++
++        var hasPrimary = item.HasPrimaryPhoto;
++        var hasSecond = item.HasSecondaryPhoto
++                        && item.ImageMode != BrochureImageMode.Single;
++        var imageWidth = hasPrimary ? Math.Max(92f, spec.ImageWidthPoints) : 0f;
++
++        var bodyInnerWidth = moduleWidth
++                             - (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
++                             - (spec.BodyPaddingPoints * 2f);
++        var textWidth = hasPrimary
++            ? bodyInnerWidth - imageWidth - BrochurePrintLayoutMetrics.TextImageGapPoints
++            : bodyInnerWidth;
++        textWidth = Math.Max(120f, textWidth);
++
++        var textHeight = MeasureTextHeight(
++            item.Narrative,
++            spec.BodyFontSize,
++            textWidth,
++            spec.BodyLineHeight,
++            FontWeight.Regular);
++
++        var imageHeight = 0f;
++        if (hasPrimary)
++        {
++            var singleHeight = imageWidth * 9f / 16f;
++            imageHeight = hasSecond
++                ? (singleHeight * 2f) + 4f
++                : singleHeight;
++        }
++
++        var rowHeight = Math.Max(textHeight, imageHeight);
++        var totalHeight = titleHeight
++                          + (spec.BodyPaddingPoints * 2f)
++                          + rowHeight
++                          + (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
++                          + BrochurePrintLayoutMetrics.ProjectMeasurementSafetyPoints;
++
++        return new BrochurePrintProjectMeasurement(
++            item.ProjectId,
++            variant,
++            TotalHeightPoints: totalHeight,
++            TitleHeightPoints: titleHeight,
++            TitleFontSize: titleFontSize,
++            BodyFontSize: spec.BodyFontSize,
++            BodyLineHeight: spec.BodyLineHeight,
++            ImageWidthPoints: imageWidth,
++            BodyPaddingPoints: spec.BodyPaddingPoints,
++            TextWidthPoints: textWidth,
++            TextHeightPoints: textHeight,
++            ImageHeightPoints: imageHeight,
++            QualityRank: spec.QualityRank);
++    }
++
++    public BrochurePrintClosingMeasurement MeasureClosing(
++        BrochurePrintMatter? matter,
++        string? strapline)
++    {
++        ThrowIfDisposed();
++        matter ??= new BrochurePrintMatter(null, null, null, null, null, null, null, null);
++
++        var outerWidth = BrochurePrintLayoutMetrics.ModuleWidthPoints;
++        var visionInnerWidth = outerWidth - 8f - 14f; // 4 pt border each side + 7 pt padding each side.
++        var visionHeadingHeight = Math.Max(
++            14f,
++            MeasureTextHeight(
++                "Visionary Horizons & Strategic Objectives",
++                BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize,
++                visionInnerWidth - 16f,
++                1.0f,
++                FontWeight.SemiBold) + 4f);
++        var visionBodyHeight = MeasureTextHeight(
++            matter.VisionaryHorizons,
++            BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
++            visionInnerWidth,
++            BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight,
++            FontWeight.Regular);
++        var visionPanelHeight = 8f + 14f + visionHeadingHeight + 4f + visionBodyHeight;
++
++        var newSimulatorInnerWidth = outerWidth - 14f;
++        var newSimulatorText = $"New Simulators. {matter.NewSimulatorsGuidance}".Trim();
++        var newSimulatorHeight = MeasureTextHeight(
++            newSimulatorText,
++            BrochurePrintLayoutMetrics.ClosingNewSimulatorsFontSize,
++            newSimulatorInnerWidth,
++            BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight,
++            FontWeight.SemiBold) + 14f;
++
++        var straplineHeight = Math.Max(
++            9f,
++            MeasureTextHeight(
++                strapline,
++                BrochurePrintLayoutMetrics.ClosingStraplineFontSize,
++                outerWidth - 16f,
++                1.05f,
++                FontWeight.SemiBold) + 2f);
++
++        var total = 1f
++                    + visionPanelHeight
++                    + 5f
++                    + newSimulatorHeight
++                    + 5f
++                    + straplineHeight
++                    + 2f;
++
++        return new BrochurePrintClosingMeasurement(
++            TotalHeightPoints: total,
++            VisionPanelHeightPoints: visionPanelHeight,
++            NewSimulatorsHeightPoints: newSimulatorHeight,
++            StraplineHeightPoints: straplineHeight);
++    }
++
++    public BrochurePrintFrontPagePlan MeasureFrontPage(
++        BrochurePrintMatter? matter,
++        BrochureCoverStyle coverStyle,
++        string? strapline)
++    {
++        ThrowIfDisposed();
++        matter ??= new BrochurePrintMatter(null, null, null, null, null, null, null, null);
++
++        const float horizontalPadding = 10f;
++        var bodyWidth = BrochurePrintLayoutMetrics.ReferenceWidthPoints - (horizontalPadding * 2f);
++        var contactWidth = (BrochurePrintLayoutMetrics.ReferenceWidthPoints - 26f) / 2f;
++
++        // Centre statement is intentionally larger than Phase 8 and is measured independently.
++        var centreFont = BrochurePrintLayoutMetrics.FrontCentrePreferredFontSize;
++        var centreTextHeight = MeasureTextHeight(
++            matter.CentreStatement,
++            centreFont,
++            bodyWidth - 20f,
++            BrochurePrintLayoutMetrics.FrontCentreLineHeight,
++            FontWeight.SemiBold);
++        var centreBlockHeight = Math.Max(48f, centreTextHeight + 18f);
++
++        // Contact details use explicit line breaks from the approved reference copy. Their block
++        // height therefore reacts to real line wrapping rather than a fixed 98 pt footer.
++        var contactFont = BrochurePrintLayoutMetrics.FrontContactPreferredFontSize;
++        var contactBodyHeight = Math.Max(
++            MeasureTextHeight(
++                matter.DevelopingAgency,
++                contactFont,
++                contactWidth,
++                BrochurePrintLayoutMetrics.FrontContactLineHeight,
++                FontWeight.SemiBold),
++            MeasureTextHeight(
++                matter.ManufacturingAgency,
++                contactFont,
++                contactWidth,
++                BrochurePrintLayoutMetrics.FrontContactLineHeight,
++                FontWeight.SemiBold));
++        var contactBlockHeight = Math.Max(86f, contactBodyHeight + 27f);
++
++        var straplineHeight = Math.Max(
++            BrochurePrintLayoutMetrics.FrontStraplineHeightPoints,
++            MeasureTextHeight(strapline, 8.5f, bodyWidth, 1.05f, FontWeight.SemiBold) + 8f);
++
++        var selectedBodyFont = BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize;
++        var selectedBodyHeight = 0f;
++        var selectedHeroHeight = 0f;
++        var selectedSpacing = 5.5f;
++        var fits = false;
++
++        foreach (var bodyFont in new[] { 9.0f, 8.8f, 8.6f, 8.4f })
++        {
++            var spacing = bodyFont >= 8.8f ? 6f : 5f;
++            var openingHeight = MeasureTextHeight(
++                matter.OpeningNarrative,
++                bodyFont,
++                bodyWidth,
++                BrochurePrintLayoutMetrics.FrontBodyLineHeight,
++                FontWeight.Regular);
++            var futureHeight = MeasureTextHeight(
++                matter.FutureNarrative,
++                bodyFont,
++                bodyWidth,
++                BrochurePrintLayoutMetrics.FrontBodyLineHeight,
++                FontWeight.Regular);
++            var procurementHeight = MeasureTextHeight(
++                $"Procurement: {matter.ProcurementGuidance}".Trim(),
++                Math.Max(BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize, bodyFont - .1f),
++                bodyWidth,
++                1.06f,
++                FontWeight.Regular);
++            var bodyHeight = 14f + openingHeight + spacing + futureHeight + spacing + procurementHeight + 12f;
++            var fixedHeight = centreBlockHeight + bodyHeight + contactBlockHeight + straplineHeight;
++            var heroHeight = BrochurePrintLayoutMetrics.ReferenceHeightPoints - fixedHeight;
++
++            if (heroHeight < BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints)
++            {
++                continue;
++            }
++
++            selectedBodyFont = bodyFont;
++            selectedBodyHeight = bodyHeight;
++            selectedHeroHeight = Math.Min(heroHeight, BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints);
++            selectedSpacing = spacing;
++            fits = true;
++
++            // If a particularly short user edit would leave more than the maximum hero allowance,
++            // keep the hero within the approved visual band and use the residual space as deliberate
++            // breathing inside the body rather than a blank void above the contact strip.
++            if (heroHeight > BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints)
++            {
++                selectedBodyHeight += heroHeight - BrochurePrintLayoutMetrics.FrontMaximumHeroHeightPoints;
++            }
++            break;
++        }
++
++        if (!fits)
++        {
++            var bodyFont = BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize;
++            var openingHeight = MeasureTextHeight(
++                matter.OpeningNarrative,
++                bodyFont,
++                bodyWidth,
++                BrochurePrintLayoutMetrics.FrontBodyLineHeight,
++                FontWeight.Regular);
++            var futureHeight = MeasureTextHeight(
++                matter.FutureNarrative,
++                bodyFont,
++                bodyWidth,
++                BrochurePrintLayoutMetrics.FrontBodyLineHeight,
++                FontWeight.Regular);
++            var procurementHeight = MeasureTextHeight(
++                $"Procurement: {matter.ProcurementGuidance}".Trim(),
++                bodyFont,
++                bodyWidth,
++                1.06f,
++                FontWeight.Regular);
++            selectedBodyHeight = 14f + openingHeight + 5f + futureHeight + 5f + procurementHeight + 12f;
++            selectedHeroHeight = BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints;
++        }
++
++        var totalUsed = selectedHeroHeight
++                        + centreBlockHeight
++                        + selectedBodyHeight
++                        + contactBlockHeight
++                        + straplineHeight;
++        var utilization = (int)Math.Round(
++            Math.Min(1d, totalUsed / BrochurePrintLayoutMetrics.ReferenceHeightPoints) * 100d);
++
++        return new BrochurePrintFrontPagePlan(
++            Fits: fits && totalUsed <= BrochurePrintLayoutMetrics.ReferenceHeightPoints + 1f,
++            HeroHeightPoints: selectedHeroHeight,
++            CentreBlockHeightPoints: centreBlockHeight,
++            CentreFontSize: centreFont,
++            BodyBlockHeightPoints: selectedBodyHeight,
++            BodyFontSize: selectedBodyFont,
++            BodyLineHeight: BrochurePrintLayoutMetrics.FrontBodyLineHeight,
++            BodySpacingPoints: selectedSpacing,
++            ContactBlockHeightPoints: contactBlockHeight,
++            ContactFontSize: contactFont,
++            StraplineHeightPoints: straplineHeight,
++            TotalUsedHeightPoints: totalUsed,
++            UtilizationPercent: Math.Clamp(utilization, 0, 100),
++            UsesMinimumTypography: selectedBodyFont <= BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize + .01f,
++            CoverStyle: coverStyle);
++    }
++
++    private int MeasureLineCount(
++        string? text,
++        float fontSize,
++        float width,
++        FontWeight weight)
++        => MeasureWrapped(text, fontSize, width, weight).LineCount;
++
++    private float MeasureTextHeight(
++        string? text,
++        float fontSize,
++        float width,
++        float lineHeight,
++        FontWeight weight)
++    {
++        var result = MeasureWrapped(text, fontSize, width, weight);
++        return Math.Max(fontSize * lineHeight, result.LineCount * fontSize * lineHeight);
++    }
++
++    private WrappedMeasurement MeasureWrapped(
++        string? text,
++        float fontSize,
++        float width,
++        FontWeight weight)
++    {
++        if (string.IsNullOrWhiteSpace(text))
++        {
++            return new WrappedMeasurement(1);
++        }
++
++        var availableWidth = Math.Max(24f, width);
++        using var paint = new SKPaint
++        {
++            Typeface = GetTypeface(weight),
++            TextSize = fontSize,
++            IsAntialias = true,
++            SubpixelText = true
++        };
++
++        var normalized = text
++            .Replace("\r\n", "\n", StringComparison.Ordinal)
++            .Replace('\r', '\n');
++        var paragraphs = normalized.Split('\n');
++        var lines = 0;
++
++        foreach (var rawParagraph in paragraphs)
++        {
++            var paragraph = Whitespace.Replace(rawParagraph.Trim(), " ");
++            if (paragraph.Length == 0)
++            {
++                lines++;
++                continue;
++            }
++
++            var currentWidth = 0f;
++            var hasWord = false;
++            foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))
++            {
++                var wordWidth = paint.MeasureText(word);
++                var spaceWidth = hasWord ? paint.MeasureText(" ") : 0f;
++
++                if (hasWord && currentWidth + spaceWidth + wordWidth > availableWidth)
++                {
++                    lines++;
++                    currentWidth = 0f;
++                    hasWord = false;
++                    spaceWidth = 0f;
++                }
++
++                if (wordWidth > availableWidth)
++                {
++                    if (hasWord)
++                    {
++                        lines++;
++                        currentWidth = 0f;
++                        hasWord = false;
++                    }
++
++                    var chunks = Math.Max(1, (int)Math.Ceiling(wordWidth / availableWidth));
++                    lines += Math.Max(0, chunks - 1);
++                    currentWidth = Math.Min(availableWidth, wordWidth / chunks);
++                    hasWord = true;
++                    continue;
++                }
++
++                currentWidth += spaceWidth + wordWidth;
++                hasWord = true;
++            }
++
++            if (hasWord)
++            {
++                lines++;
++            }
++        }
++
++        return new WrappedMeasurement(Math.Max(1, lines));
++    }
++
++    private SKTypeface GetTypeface(FontWeight weight)
++    {
++        var set = EnsureTypefaces();
++        return weight switch
++        {
++            FontWeight.SemiBold => set.SemiBold,
++            _ => set.Regular
++        };
++    }
++
++    private TypefaceSet EnsureTypefaces()
++    {
++        if (_typefaces is not null)
++        {
++            return _typefaces;
++        }
++
++        lock (_gate)
++        {
++            if (_typefaces is not null)
++            {
++                return _typefaces;
++            }
++
++            _ = _fontService.EnsureRegistered();
++            var roots = CandidateRoots().ToArray();
++            var regularPath = roots
++                .Select(root => Path.Combine(root, "dm-sans", "DMSans-Regular.ttf"))
++                .FirstOrDefault(File.Exists);
++            var semiboldPath = roots
++                .Select(root => Path.Combine(root, "dm-sans", "DMSans-SemiBold.ttf"))
++                .FirstOrDefault(File.Exists);
++
++            var regular = regularPath is not null
++                ? SKTypeface.FromFile(regularPath)
++                : SKTypeface.Default;
++            var semibold = semiboldPath is not null
++                ? SKTypeface.FromFile(semiboldPath)
++                : regular;
++
++            if (regularPath is null)
++            {
++                _logger.LogWarning(
++                    "DM Sans was not available to the brochure measurement service. Print measurements will use the platform fallback typeface until the offline font package is installed.");
++            }
++
++            _typefaces = new TypefaceSet(
++                regular ?? SKTypeface.Default,
++                semibold ?? regular ?? SKTypeface.Default,
++                OwnsRegular: regularPath is not null,
++                OwnsSemiBold: semiboldPath is not null && !string.Equals(regularPath, semiboldPath, StringComparison.OrdinalIgnoreCase));
++            return _typefaces;
++        }
++    }
++
++    private IEnumerable<string> CandidateRoots()
++    {
++        if (!string.IsNullOrWhiteSpace(_environment.ContentRootPath))
++        {
++            yield return Path.Combine(
++                _environment.ContentRootPath,
++                "Resources",
++                "Publications",
++                "Fonts");
++        }
++
++        if (!string.IsNullOrWhiteSpace(_environment.WebRootPath))
++        {
++            yield return Path.Combine(
++                _environment.WebRootPath,
++                "fonts",
++                "publications");
++        }
++    }
++
++    public void Dispose()
++    {
++        if (_disposed)
++        {
++            return;
++        }
++
++        _disposed = true;
++        if (_typefaces is null)
++        {
++            return;
++        }
++
++        if (_typefaces.OwnsSemiBold)
++        {
++            _typefaces.SemiBold.Dispose();
++        }
++        if (_typefaces.OwnsRegular)
++        {
++            _typefaces.Regular.Dispose();
++        }
++    }
++
++    private void ThrowIfDisposed()
++    {
++        if (_disposed)
++        {
++            throw new ObjectDisposedException(nameof(BrochurePrintMeasurementService));
++        }
++    }
++
++    private enum FontWeight
++    {
++        Regular,
++        SemiBold
++    }
++
++    private sealed record WrappedMeasurement(int LineCount);
++
++    private sealed record TypefaceSet(
++        SKTypeface Regular,
++        SKTypeface SemiBold,
++        bool OwnsRegular,
++        bool OwnsSemiBold);
++}
+--- a/Services/Publications/BrochurePrintPagePlanner.cs
++++ b/Services/Publications/BrochurePrintPagePlanner.cs
+@@ -0,0 +1,458 @@
++namespace ProjectManagement.Services.Publications;
++
++public interface IBrochurePrintPagePlanner
++{
++    BrochurePrintCompactPlan Plan(
++        IReadOnlyList<BrochurePrintPlanningItem> projects,
++        BrochurePrintMatter? printMatter,
++        BrochureCoverStyle coverStyle,
++        string? strapline,
++        bool hasHandlingMarking);
++
++    BrochurePrintCompactPlan Plan(
++        IReadOnlyList<BrochurePublicationProject> projects,
++        BrochurePrintMatter? printMatter,
++        BrochureCoverStyle coverStyle,
++        string? strapline,
++        bool hasHandlingMarking);
++}
++
++/// <summary>
++/// Order-preserving, font-aware hard-copy sheet planner. The planner evaluates real text-width
++/// measurements for three bounded layout variants per project, then minimises page count before
++/// optimising typography/image quality and physical sheet utilisation.
++/// </summary>
++public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
++{
++    private readonly IBrochurePrintMeasurementService _measurement;
++
++    public BrochurePrintPagePlanner(IBrochurePrintMeasurementService measurement)
++    {
++        _measurement = measurement ?? throw new ArgumentNullException(nameof(measurement));
++    }
++
++    public BrochurePrintCompactPlan Plan(
++        IReadOnlyList<BrochurePublicationProject> projects,
++        BrochurePrintMatter? printMatter,
++        BrochureCoverStyle coverStyle,
++        string? strapline,
++        bool hasHandlingMarking)
++        => Plan(
++            projects.Select(project => new BrochurePrintPlanningItem(
++                project.ProjectId,
++                project.ProjectName,
++                project.Narrative,
++                project.ImageMode,
++                project.PrimaryPhoto is not null,
++                project.SecondaryPhoto is not null)).ToArray(),
++            printMatter,
++            coverStyle,
++            strapline,
++            hasHandlingMarking);
++
++    public BrochurePrintCompactPlan Plan(
++        IReadOnlyList<BrochurePrintPlanningItem> projects,
++        BrochurePrintMatter? printMatter,
++        BrochureCoverStyle coverStyle,
++        string? strapline,
++        bool hasHandlingMarking)
++    {
++        ArgumentNullException.ThrowIfNull(projects);
++
++        printMatter ??= BrochurePrintPublicationPolicy.ApprovedReference;
++        var frontPage = _measurement.MeasureFrontPage(printMatter, coverStyle, strapline);
++        var closing = _measurement.MeasureClosing(printMatter, strapline);
++        var capacity = BrochurePrintLayoutMetrics.ProjectContentCapacity(hasHandlingMarking);
++
++        if (projects.Count == 0)
++        {
++            return new BrochurePrintCompactPlan(
++                Array.Empty<BrochurePrintCompactPage>(),
++                frontPage,
++                closing,
++                EstimatedTotalPageCount: 1,
++                AverageContentUtilizationPercent: 0,
++                ClosingMatterSharesFinalPage: false,
++                ClosingPageProjectCount: 0,
++                LowestProjectPageUtilizationPercent: null,
++                FinalPageUtilizationPercent: null,
++                SheetPlan: new[]
++                {
++                    new BrochurePrintSheetSummary(
++                        SheetNumber: 1,
++                        Kind: "front",
++                        FirstProjectOrdinal: null,
++                        LastProjectOrdinal: null,
++                        ProjectCount: 0,
++                        IncludesClosingMatter: false,
++                        UtilizationPercent: frontPage.UtilizationPercent,
++                        Label: "Institutional front page")
++                });
++        }
++
++        var measurements = projects
++            .Select(item => new ProjectCandidateSet(
++                _measurement.MeasureProject(item, BrochurePrintLayoutVariant.Visual),
++                _measurement.MeasureProject(item, BrochurePrintLayoutVariant.Balanced),
++                _measurement.MeasureProject(item, BrochurePrintLayoutVariant.Compact)))
++            .ToArray();
++
++        if (TryPlanWithSharedClosing(
++                measurements,
++                closing.TotalHeightPoints,
++                capacity,
++                out var sharedPages))
++        {
++            return BuildPlan(
++                sharedPages,
++                frontPage,
++                closing,
++                capacity,
++                sharesClosingMatter: true,
++                projects.Count);
++        }
++
++        // If no order-preserving project layout can share the measured closing block safely,
++        // retain project order and use a dedicated final institutional sheet.
++        if (!TryPlanProjectOnly(measurements, capacity, out var projectOnlyPages))
++        {
++            projectOnlyPages = Enumerable.Range(0, projects.Count)
++                .Select(index => CreateSingleProjectFallback(index, measurements[index], capacity))
++                .ToArray();
++        }
++
++        var dedicatedClosing = new PlannedSegment(
++            Start: projects.Count,
++            EndExclusive: projects.Count,
++            Projects: Array.Empty<BrochurePrintPlannedProject>(),
++            ProjectHeightPoints: 0f,
++            PhysicalUsedPoints: closing.TotalHeightPoints,
++            IncludesClosingMatter: true,
++            ClosingHeightPoints: closing.TotalHeightPoints,
++            UtilizationPercent: ToPercent(closing.TotalHeightPoints, capacity),
++            Score: 0d);
++
++        return BuildPlan(
++            projectOnlyPages.Concat(new[] { dedicatedClosing }).ToArray(),
++            frontPage,
++            closing,
++            capacity,
++            sharesClosingMatter: false,
++            projects.Count);
++    }
++
++    private static PlannedSegment CreateSingleProjectFallback(
++        int projectIndex,
++        ProjectCandidateSet candidates,
++        float capacity)
++    {
++        var measurement = candidates.Compact;
++        var planned = new BrochurePrintPlannedProject(projectIndex, measurement);
++        return new PlannedSegment(
++            projectIndex,
++            projectIndex + 1,
++            new[] { planned },
++            measurement.TotalHeightPoints,
++            measurement.TotalHeightPoints,
++            IncludesClosingMatter: false,
++            ClosingHeightPoints: 0f,
++            UtilizationPercent: ToPercent(measurement.TotalHeightPoints, capacity),
++            Score: 0d);
++    }
++
++    private static bool TryPlanWithSharedClosing(
++        IReadOnlyList<ProjectCandidateSet> measurements,
++        float closingHeight,
++        float capacity,
++        out IReadOnlyList<PlannedSegment> pages)
++        => TryPlanInternal(
++            measurements,
++            capacity,
++            finalClosingHeight: closingHeight,
++            requireClosingOnFinalPage: true,
++            out pages);
++
++    private static bool TryPlanProjectOnly(
++        IReadOnlyList<ProjectCandidateSet> measurements,
++        float capacity,
++        out IReadOnlyList<PlannedSegment> pages)
++        => TryPlanInternal(
++            measurements,
++            capacity,
++            finalClosingHeight: 0f,
++            requireClosingOnFinalPage: false,
++            out pages);
++
++    private static bool TryPlanInternal(
++        IReadOnlyList<ProjectCandidateSet> measurements,
++        float capacity,
++        float finalClosingHeight,
++        bool requireClosingOnFinalPage,
++        out IReadOnlyList<PlannedSegment> pages)
++    {
++        var count = measurements.Count;
++        pages = Array.Empty<PlannedSegment>();
++        var states = new PlannerState?[count + 1];
++        states[0] = new PlannerState(0, 0d, null, null);
++
++        for (var start = 0; start < count; start++)
++        {
++            var state = states[start];
++            if (state is null)
++            {
++                continue;
++            }
++
++            var maxEnd = Math.Min(count, start + BrochurePrintLayoutMetrics.MaximumProjectsPerSheet);
++            for (var end = start + 1; end <= maxEnd; end++)
++            {
++                var isFinal = end == count;
++                var closing = isFinal && requireClosingOnFinalPage
++                    ? finalClosingHeight + BrochurePrintLayoutMetrics.ClosingGapPoints
++                    : 0f;
++                var projectCapacity = capacity - closing;
++                if (projectCapacity <= 0f)
++                {
++                    continue;
++                }
++
++                var segment = FindBestSegment(
++                    start,
++                    end,
++                    measurements,
++                    projectCapacity,
++                    closing,
++                    capacity,
++                    isFinal && requireClosingOnFinalPage);
++                if (segment is null)
++                {
++                    continue;
++                }
++
++                var pageCount = state.PageCount + 1;
++                var score = state.Score + segment.Score;
++                var existing = states[end];
++
++                if (existing is null
++                    || pageCount < existing.PageCount
++                    || (pageCount == existing.PageCount && score < existing.Score))
++                {
++                    states[end] = new PlannerState(pageCount, score, start, segment);
++                }
++            }
++        }
++
++        var finalState = states[count];
++        if (finalState is null)
++        {
++            return false;
++        }
++
++        var result = new List<PlannedSegment>(finalState.PageCount);
++        var cursor = count;
++        while (cursor > 0)
++        {
++            var state = states[cursor];
++            if (state?.PreviousIndex is null || state.Segment is null)
++            {
++                return false;
++            }
++
++            result.Add(state.Segment);
++            cursor = state.PreviousIndex.Value;
++        }
++        result.Reverse();
++        pages = result;
++        return true;
++    }
++
++    private static PlannedSegment? FindBestSegment(
++        int start,
++        int endExclusive,
++        IReadOnlyList<ProjectCandidateSet> measurements,
++        float projectCapacity,
++        float closingHeight,
++        float physicalCapacity,
++        bool includesClosingMatter)
++    {
++        var itemCount = endExclusive - start;
++        if (itemCount <= 0 || itemCount > BrochurePrintLayoutMetrics.MaximumProjectsPerSheet)
++        {
++            return null;
++        }
++
++        PlannedSegment? best = null;
++        var selected = new BrochurePrintProjectMeasurement[itemCount];
++
++        void Search(int offset)
++        {
++            if (offset == itemCount)
++            {
++                var projectHeight = selected.Sum(item => item.TotalHeightPoints)
++                                    + (BrochurePrintLayoutMetrics.InterModuleSpacingPoints * Math.Max(0, itemCount - 1));
++                if (projectHeight > projectCapacity + .5f)
++                {
++                    return;
++                }
++
++                var physicalUsed = projectHeight + closingHeight;
++                var utilization = Math.Min(1d, physicalUsed / physicalCapacity);
++                var underfill = Math.Max(0d, BrochurePrintLayoutMetrics.TargetMinimumUtilization - utilization);
++                var preferredDelta = Math.Abs(BrochurePrintLayoutMetrics.PreferredUtilization - utilization);
++                var qualityPenalty = selected.Sum(item => 3 - item.QualityRank);
++                var singleProjectPenalty = itemCount == 1 ? 8d : 0d;
++
++                // Page count is handled by the outer DP. Within an equal-page-count solution,
++                // physical utilisation is more important than choosing a slightly larger image.
++                var score = (underfill * underfill * 8000d)
++                            + (preferredDelta * preferredDelta * 160d)
++                            + (qualityPenalty * 2.5d)
++                            + singleProjectPenalty;
++
++                var projects = selected
++                    .Select((measurement, index) => new BrochurePrintPlannedProject(start + index, measurement))
++                    .ToArray();
++                var candidate = new PlannedSegment(
++                    start,
++                    endExclusive,
++                    projects,
++                    projectHeight,
++                    physicalUsed,
++                    includesClosingMatter,
++                    closingHeight,
++                    ToPercent(physicalUsed, physicalCapacity),
++                    score);
++
++                if (best is null || candidate.Score < best.Score)
++                {
++                    best = candidate;
++                }
++                return;
++            }
++
++            var set = measurements[start + offset];
++            foreach (var candidate in set.OrderedByQuality)
++            {
++                selected[offset] = candidate;
++                Search(offset + 1);
++            }
++        }
++
++        Search(0);
++        return best;
++    }
++
++    private static BrochurePrintCompactPlan BuildPlan(
++        IReadOnlyList<PlannedSegment> segments,
++        BrochurePrintFrontPagePlan frontPage,
++        BrochurePrintClosingMeasurement closing,
++        float capacity,
++        bool sharesClosingMatter,
++        int projectCount)
++    {
++        var pages = segments.Select(segment => new BrochurePrintCompactPage(
++            segment.Projects,
++            segment.ProjectHeightPoints,
++            segment.PhysicalUsedPoints,
++            capacity,
++            segment.IncludesClosingMatter,
++            segment.ClosingHeightPoints,
++            segment.UtilizationPercent)).ToArray();
++
++        var projectPages = pages.Where(page => page.Projects.Count > 0).ToArray();
++        var averageUtilization = pages.Length == 0
++            ? 0
++            : (int)Math.Round(pages.Average(page => page.UtilizationPercent));
++        var lowestProjectUtilization = projectPages.Length == 0
++            ? (int?)null
++            : projectPages.Min(page => page.UtilizationPercent);
++        var finalPage = pages.LastOrDefault();
++        var closingPage = pages.LastOrDefault(page => page.IncludesClosingMatter);
++
++        var sheetSummaries = new List<BrochurePrintSheetSummary>(pages.Length + 1)
++        {
++            new(
++                SheetNumber: 1,
++                Kind: "front",
++                FirstProjectOrdinal: null,
++                LastProjectOrdinal: null,
++                ProjectCount: 0,
++                IncludesClosingMatter: false,
++                UtilizationPercent: frontPage.UtilizationPercent,
++                Label: "Institutional front page")
++        };
++
++        for (var index = 0; index < pages.Length; index++)
++        {
++            var page = pages[index];
++            var first = page.Projects.Count > 0 ? page.Projects[0].ProjectIndex + 1 : (int?)null;
++            var last = page.Projects.Count > 0 ? page.Projects[^1].ProjectIndex + 1 : (int?)null;
++            var label = page.Projects.Count switch
++            {
++                0 when page.IncludesClosingMatter => "Closing institutional matter",
++                > 0 when page.IncludesClosingMatter => $"Projects {first}{(first == last ? string.Empty : $"–{last}")} + closing",
++                _ => $"Projects {first}{(first == last ? string.Empty : $"–{last}")}"
++            };
++
++            sheetSummaries.Add(new BrochurePrintSheetSummary(
++                SheetNumber: index + 2,
++                Kind: page.IncludesClosingMatter ? "closing" : "projects",
++                FirstProjectOrdinal: first,
++                LastProjectOrdinal: last,
++                ProjectCount: page.Projects.Count,
++                IncludesClosingMatter: page.IncludesClosingMatter,
++                UtilizationPercent: page.UtilizationPercent,
++                Label: label));
++        }
++
++        return new BrochurePrintCompactPlan(
++            pages,
++            frontPage,
++            closing,
++            EstimatedTotalPageCount: 1 + pages.Length,
++            AverageContentUtilizationPercent: Math.Clamp(averageUtilization, 0, 100),
++            ClosingMatterSharesFinalPage: sharesClosingMatter,
++            ClosingPageProjectCount: closingPage?.Projects.Count ?? 0,
++            LowestProjectPageUtilizationPercent: lowestProjectUtilization,
++            FinalPageUtilizationPercent: finalPage?.UtilizationPercent,
++            SheetPlan: sheetSummaries);
++    }
++
++    private static int ToPercent(float used, float capacity)
++        => capacity <= 0f
++            ? 0
++            : Math.Clamp((int)Math.Round(Math.Min(1d, used / capacity) * 100d), 0, 100);
++
++    private sealed record ProjectCandidateSet(
++        BrochurePrintProjectMeasurement Visual,
++        BrochurePrintProjectMeasurement Balanced,
++        BrochurePrintProjectMeasurement Compact)
++    {
++        public IEnumerable<BrochurePrintProjectMeasurement> OrderedByQuality
++        {
++            get
++            {
++                yield return Visual;
++                yield return Balanced;
++                yield return Compact;
++            }
++        }
++    }
++
++    private sealed record PlannerState(
++        int PageCount,
++        double Score,
++        int? PreviousIndex,
++        PlannedSegment? Segment);
++
++    private sealed record PlannedSegment(
++        int Start,
++        int EndExclusive,
++        IReadOnlyList<BrochurePrintPlannedProject> Projects,
++        float ProjectHeightPoints,
++        float PhysicalUsedPoints,
++        bool IncludesClosingMatter,
++        float ClosingHeightPoints,
++        int UtilizationPercent,
++        double Score);
++}
+--- a/Services/Publications/BrochurePublicationService.cs
++++ b/Services/Publications/BrochurePublicationService.cs
+@@ -24,6 +24,8 @@
+         int? coverHeroProjectId,
+         int? coverHeroPhotoId,
+         BrochurePrintMatter? printMatter,
++        string? strapline,
++        string? handlingMarking,
+         CancellationToken cancellationToken = default);
+ 
+     Task<BrochurePublicationData> BuildAsync(
+@@ -53,13 +55,16 @@
+ 
+     private readonly ApplicationDbContext _db;
+     private readonly IBrochurePhotoService _photoService;
++    private readonly IBrochurePrintPagePlanner _printPagePlanner;
+ 
+     public BrochurePublicationService(
+         ApplicationDbContext db,
+-        IBrochurePhotoService photoService)
++        IBrochurePhotoService photoService,
++        IBrochurePrintPagePlanner printPagePlanner)
+     {
+         _db = db ?? throw new ArgumentNullException(nameof(db));
+         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
++        _printPagePlanner = printPagePlanner ?? throw new ArgumentNullException(nameof(printPagePlanner));
+     }
+ 
+     public async Task<IReadOnlyList<BrochureProjectListItemVm>> GetProjectOptionsAsync(
+@@ -264,6 +269,8 @@
+         int? coverHeroProjectId,
+         int? coverHeroPhotoId,
+         BrochurePrintMatter? printMatter,
++        string? strapline,
++        string? handlingMarking,
+         CancellationToken cancellationToken = default)
+     {
+         var prepared = await PrepareAsync(
+@@ -276,7 +283,13 @@
+             coverHeroPhotoId,
+             cancellationToken);
+ 
+-        prepared = ApplyPublicationLevelPreflight(prepared, publicationProfile, printMatter);
++        prepared = ApplyPublicationLevelPreflight(
++            prepared,
++            publicationProfile,
++            coverStyle,
++            printMatter,
++            strapline,
++            handlingMarking);
+         return prepared.Preflight;
+     }
+ 
+@@ -299,7 +312,10 @@
+         prepared = ApplyPublicationLevelPreflight(
+             prepared,
+             options.PublicationProfile,
+-            BrochurePrintPublicationPolicy.FromOptions(options));
++            options.CoverStyle,
++            BrochurePrintPublicationPolicy.FromOptions(options),
++            options.Strapline,
++            options.HandlingMarking);
+         if (!prepared.Preflight.CanGenerate)
+         {
+             throw new BrochurePublicationValidationException(prepared.Preflight);
+@@ -402,10 +418,13 @@
+             coverHeroImage);
+     }
+ 
+-    private static PreparedPublication ApplyPublicationLevelPreflight(
++    private PreparedPublication ApplyPublicationLevelPreflight(
+         PreparedPublication prepared,
+         BrochurePublicationProfile publicationProfile,
+-        BrochurePrintMatter? printMatter)
++        BrochureCoverStyle coverStyle,
++        BrochurePrintMatter? printMatter,
++        string? strapline,
++        string? handlingMarking)
+     {
+         if (publicationProfile != BrochurePublicationProfile.PrintCompact)
+         {
+@@ -419,15 +438,36 @@
+             .Select(project => new BrochurePrintPlanningItem(
+                 project.Row.ProjectId,
+                 project.Row.ProjectName,
+-                project.NarrativeWordCount,
++                project.Narrative,
+                 project.ImageMode,
+                 project.PrimaryPhotoId.HasValue,
+                 project.SecondaryPhotoId.HasValue))
+             .ToArray();
+-        var plan = BrochurePrintCompactPlanner.Plan(
++        var plan = _printPagePlanner.Plan(
+             planningItems,
+-            printMatter?.VisionaryHorizons,
+-            printMatter?.NewSimulatorsGuidance);
++            printMatter,
++            coverStyle,
++            strapline,
++            !string.IsNullOrWhiteSpace(handlingMarking));
++
++        if (!plan.FrontPage.Fits)
++        {
++            issues.Add(new BrochurePreflightIssue(
++                BrochurePreflightIssueCode.PrintFrontPageDoesNotFit,
++                PublicationIssueSeverity.Blocker,
++                null,
++                null,
++                "The hard-copy institutional first page cannot fit the current approved text above the minimum publication typography. Shorten the institutional content before preview or download."));
++        }
++        else if (plan.FrontPage.UsesMinimumTypography)
++        {
++            issues.Add(new BrochurePreflightIssue(
++                BrochurePreflightIssueCode.PrintFrontPageTightFit,
++                PublicationIssueSeverity.Warning,
++                null,
++                null,
++                "The hard-copy first page fits at the minimum approved body typography. Review the first sheet carefully before final issue."));
++        }
+ 
+         if (planningItems.Length > 0 && !plan.ClosingMatterSharesFinalPage)
+         {
+@@ -436,7 +476,17 @@
+                 PublicationIssueSeverity.Information,
+                 null,
+                 null,
+-                "The final selected project is too tall to safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order or copy length changes."));
++                "The measured final project geometry cannot safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order, copy length or image treatment changes."));
++        }
++
++        if (plan.LowestProjectPageUtilizationPercent is < 82)
++        {
++            issues.Add(new BrochurePreflightIssue(
++                BrochurePreflightIssueCode.PrintPageUnderUtilized,
++                PublicationIssueSeverity.Information,
++                null,
++                null,
++                $"One hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation because the next ordered project cannot fit without breaching the print typography floor."));
+         }
+ 
+         var preflight = prepared.Preflight with
+@@ -445,7 +495,11 @@
+             EstimatedPageCount = plan.EstimatedTotalPageCount,
+             EstimatedAveragePageUtilizationPercent = plan.AverageContentUtilizationPercent,
+             EstimatedClosingPageProjectCount = plan.ClosingPageProjectCount,
+-            ClosingMatterSharesFinalPage = plan.ClosingMatterSharesFinalPage
++            ClosingMatterSharesFinalPage = plan.ClosingMatterSharesFinalPage,
++            LowestProjectPageUtilizationPercent = plan.LowestProjectPageUtilizationPercent,
++            FinalPageUtilizationPercent = plan.FinalPageUtilizationPercent,
++            PrintFrontPageUsesMinimumTypography = plan.FrontPage.UsesMinimumTypography,
++            PrintSheetPlan = plan.SheetPlan
+         };
+ 
+         return prepared with { Preflight = preflight };
+--- a/Services/Publications/PublicationRuntimeValidationHostedService.cs
++++ b/Services/Publications/PublicationRuntimeValidationHostedService.cs
+@@ -34,6 +34,8 @@
+         var services = scope.ServiceProvider;
+ 
+         _ = services.GetRequiredService<IBrochurePhotoService>();
++        _ = services.GetRequiredService<IBrochurePrintMeasurementService>();
++        _ = services.GetRequiredService<IBrochurePrintPagePlanner>();
+         _ = services.GetRequiredService<IBrochurePublicationService>();
+         _ = services.GetRequiredService<IBrochurePdfReportBuilder>();
+ 
+--- a/Services/Publications/PublicationServiceCollectionExtensions.cs
++++ b/Services/Publications/PublicationServiceCollectionExtensions.cs
+@@ -14,6 +14,8 @@
+         // graph self-contained even if the application-level cache registration moves.
+         services.AddMemoryCache();
+         services.AddSingleton<IPublicationFontService, PublicationFontService>();
++        services.AddSingleton<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>();
++        services.AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>();
+         services.AddScoped<IBrochurePhotoService, BrochurePhotoService>();
+         services.AddScoped<IBrochurePublicationService, BrochurePublicationService>();
+         services.AddScoped<IBrochurePdfReportBuilder, BrochurePdfReportBuilder>();
+--- a/Utilities/Reporting/BrochurePdfReportBuilder.cs
++++ b/Utilities/Reporting/BrochurePdfReportBuilder.cs
+@@ -32,6 +32,7 @@
+ 
+     private readonly IWebHostEnvironment _environment;
+     private readonly IPublicationFontService _fontService;
++    private readonly IBrochurePrintPagePlanner _printPagePlanner;
+ 
+     static BrochurePdfReportBuilder()
+     {
+@@ -40,10 +41,12 @@
+ 
+     public BrochurePdfReportBuilder(
+         IWebHostEnvironment environment,
+-        IPublicationFontService fontService)
++        IPublicationFontService fontService,
++        IBrochurePrintPagePlanner printPagePlanner)
+     {
+         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+         _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
++        _printPagePlanner = printPagePlanner ?? throw new ArgumentNullException(nameof(printPagePlanner));
+     }
+ 
+     public byte[] Build(BrochurePublicationData data)
+@@ -67,13 +70,21 @@
+         {
+             if (data.Options.PublicationProfile == BrochurePublicationProfile.PrintCompact)
+             {
++                var printPlan = _printPagePlanner.Plan(
++                    data.Projects,
++                    BrochurePrintPublicationPolicy.FromOptions(data.Options),
++                    data.Options.CoverStyle,
++                    data.Options.Strapline,
++                    !string.IsNullOrWhiteSpace(data.Options.HandlingMarking));
++
+                 BrochurePrintCompactComposer.Compose(
+                     container,
+                     data,
+                     fontStatus,
+                     sddLogo,
+                     artracLogo,
+-                    institutionalArtwork);
++                    institutionalArtwork,
++                    printPlan);
+                 return;
+             }
+ 
+--- a/Utilities/Reporting/BrochurePrintCompactComposer.cs
++++ b/Utilities/Reporting/BrochurePrintCompactComposer.cs
+@@ -5,14 +5,14 @@
+ namespace ProjectManagement.Utilities.Reporting;
+ 
+ /// <summary>
+-/// Original-format hard-copy brochure compositor. The reference sheet is 423.23 x 846.755 pt
+-/// (approximately 149.3 x 298.7 mm). Phase 8 adds deterministic sheet planning so the final
+-/// institutional matter normally shares the last page with projects and interior pages are balanced.
++/// Original-format hard-copy brochure compositor. Phase 9 consumes a font-aware sheet plan so
++/// project membership, typography and image geometry are shared with preflight rather than
++/// independently inferred by the renderer.
+ /// </summary>
+ internal static class BrochurePrintCompactComposer
+ {
+-    internal const float ReferenceWidthPoints = 423.23f;
+-    internal const float ReferenceHeightPoints = 846.755f;
++    internal const float ReferenceWidthPoints = BrochurePrintLayoutMetrics.ReferenceWidthPoints;
++    internal const float ReferenceHeightPoints = BrochurePrintLayoutMetrics.ReferenceHeightPoints;
+ 
+     private const string Forest950 = "#0B2F2A";
+     private const string Forest900 = "#103D35";
+@@ -31,10 +31,20 @@
+         PublicationFontStatus fonts,
+         byte[]? sddLogo,
+         byte[]? artracLogo,
+-        byte[]? institutionalArtwork)
+-    {
+-        ComposeFrontPage(container, data, fonts, sddLogo, artracLogo, institutionalArtwork);
+-        ComposePlannedProjectPages(container, data, fonts, sddLogo);
++        byte[]? institutionalArtwork,
++        BrochurePrintCompactPlan plan)
++    {
++        ArgumentNullException.ThrowIfNull(plan);
++
++        ComposeFrontPage(
++            container,
++            data,
++            fonts,
++            sddLogo,
++            artracLogo,
++            institutionalArtwork,
++            plan.FrontPage);
++        ComposePlannedProjectPages(container, data, fonts, sddLogo, plan);
+     }
+ 
+     private static void ComposeFrontPage(
+@@ -43,201 +53,139 @@
+         PublicationFontStatus fonts,
+         byte[]? sddLogo,
+         byte[]? artracLogo,
+-        byte[]? institutionalArtwork)
+-    {
+-        if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
+-        {
+-            ComposeInstitutionalFrontPage(
+-                container,
+-                data,
+-                fonts,
+-                sddLogo,
+-                artracLogo,
+-                institutionalArtwork);
+-            return;
+-        }
+-
+-        ComposeContemporaryFrontPage(container, data, fonts, sddLogo, artracLogo);
+-    }
+-
+-    /// <summary>
+-    /// Official-style hard-copy treatment. The institutional artwork is authoritative when supplied.
+-    /// When it is absent, PRISM deliberately renders a restrained institutional fallback rather than
+-    /// substituting an unrelated first-project photograph.
+-    /// </summary>
+-    private static void ComposeInstitutionalFrontPage(
+-        IDocumentContainer container,
+-        BrochurePublicationData data,
+-        PublicationFontStatus fonts,
++        byte[]? institutionalArtwork,
++        BrochurePrintFrontPagePlan frontPlan)
++    {
++        container.Page(page =>
++        {
++            page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
++            page.Margin(0);
++            page.PageColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? Forest800 : Paper);
++            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily));
++
++            page.Content().Column(column =>
++            {
++                column.Spacing(0);
++                column.Item().Height(frontPlan.HeroHeightPoints).Element(hero =>
++                    ComposeFrontHero(
++                        hero,
++                        data,
++                        sddLogo,
++                        artracLogo,
++                        institutionalArtwork));
++
++                column.Item().Height(frontPlan.CentreBlockHeightPoints)
++                    .Background(Forest950)
++                    .PaddingHorizontal(12)
++                    .PaddingVertical(7)
++                    .AlignCenter()
++                    .AlignMiddle()
++                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
++                    .FontSize(frontPlan.CentreFontSize)
++                    .Bold()
++                    .LineHeight(BrochurePrintLayoutMetrics.FrontCentreLineHeight)
++                    .AlignCenter()
++                    .FontColor("#FFFFFF");
++
++                column.Item().Height(frontPlan.BodyBlockHeightPoints)
++                    .Background(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? Forest800 : "#F8F8F4")
++                    .PaddingHorizontal(10)
++                    .PaddingTop(7)
++                    .PaddingBottom(6)
++                    .Column(body =>
++                    {
++                        body.Spacing(frontPlan.BodySpacingPoints);
++
++                        if (data.Options.CoverStyle == BrochureCoverStyle.Contemporary)
++                        {
++                            body.Item().Background("#EFF4F1").PaddingHorizontal(5).PaddingVertical(2)
++                                .Text(data.Options.PrintIntroText ?? string.Empty)
++                                .FontSize(frontPlan.BodyFontSize)
++                                .LineHeight(frontPlan.BodyLineHeight)
++                                .Justify()
++                                .FontColor(Ink);
++                        }
++                        else
++                        {
++                            body.Item().Text(data.Options.PrintIntroText ?? string.Empty)
++                                .FontSize(frontPlan.BodyFontSize)
++                                .LineHeight(frontPlan.BodyLineHeight)
++                                .Justify()
++                                .FontColor("#FFFFFF");
++                        }
++
++                        body.Item().Text(data.Options.PrintFutureText ?? string.Empty)
++                            .FontSize(frontPlan.BodyFontSize)
++                            .LineHeight(frontPlan.BodyLineHeight)
++                            .Justify()
++                            .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#FFFFFF" : Ink);
++
++                        body.Item().Text(text =>
++                        {
++                            text.DefaultTextStyle(style => style
++                                .FontSize(Math.Max(BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize, frontPlan.BodyFontSize - .1f))
++                                .LineHeight(1.06f)
++                                .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#FFFFFF" : Ink));
++                            text.Justify();
++                            text.Span("Procurement: ")
++                                .Bold()
++                                .FontColor(data.Options.CoverStyle == BrochureCoverStyle.Institutional ? "#F1D35D" : "#7A6516");
++                            text.Span(data.Options.PrintProcurementText ?? string.Empty);
++                        });
++                    });
++
++                column.Item().Height(frontPlan.ContactBlockHeightPoints)
++                    .Element(contact => ComposeContactBlock(contact, data, frontPlan.ContactFontSize));
++
++                column.Item().Height(frontPlan.StraplineHeightPoints)
++                    .Background(Forest800)
++                    .AlignCenter()
++                    .AlignMiddle()
++                    .Text(data.Options.Strapline)
++                    .FontSize(8.5f)
++                    .SemiBold()
++                    .Italic()
++                    .FontColor("#F4D66E");
++            });
++        });
++    }
++
++    private static void ComposeFrontHero(
++        IContainer container,
++        BrochurePublicationData data,
+         byte[]? sddLogo,
+         byte[]? artracLogo,
+         byte[]? institutionalArtwork)
+     {
+-        container.Page(page =>
+-        {
+-            page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
+-            page.Margin(0);
+-            page.PageColor(Forest800);
+-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor("#FFFFFF"));
+-
+-            page.Content().Layers(layers =>
+-            {
+-                layers.PrimaryLayer().Background(Forest800);
+-
+-                layers.Layer().AlignTop().Height(326).Element(area =>
++        container.Layers(layers =>
++        {
++            layers.PrimaryLayer().Element(area =>
++            {
++                if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
+                 {
+                     if (institutionalArtwork is { Length: > 0 })
+                     {
+-                        area.Image(institutionalArtwork).FitArea();
++                        area.Background(Forest900).Image(institutionalArtwork).FitArea();
+                     }
+                     else
+                     {
+                         ComposeInstitutionalFallbackArtwork(area);
+                     }
+-                });
+-
+-                ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
+-
+-                layers.Layer()
+-                    .AlignTop()
+-                    .PaddingTop(232)
+-                    .PaddingHorizontal(15)
+-                    .MinHeight(58)
+-                    .Background(Forest950)
+-                    .PaddingHorizontal(10)
+-                    .PaddingVertical(8)
+-                    .AlignCenter()
+-                    .AlignMiddle()
+-                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
+-                    .FontSize(8.2f)
+-                    .Bold()
+-                    .LineHeight(1.04f)
+-                    .AlignCenter()
+-                    .FontColor("#FFFFFF");
+-
+-                layers.Layer()
+-                    .PaddingTop(326)
+-                    .PaddingBottom(120)
+-                    .Background(Forest800)
+-                    .PaddingHorizontal(10)
+-                    .PaddingVertical(7)
+-                    .Column(column =>
+-                    {
+-                        column.Spacing(3.2f);
+-                        column.Item().Text(data.Options.PrintIntroText ?? string.Empty)
+-                            .FontSize(7.05f)
+-                            .LineHeight(1.06f)
+-                            .Justify()
+-                            .FontColor("#FFFFFF");
+-                        column.Item().Text(data.Options.PrintFutureText ?? string.Empty)
+-                            .FontSize(7.0f)
+-                            .LineHeight(1.06f)
+-                            .Justify()
+-                            .FontColor("#FFFFFF");
+-                        column.Item().Text(text =>
+-                        {
+-                            text.DefaultTextStyle(style => style
+-                                .FontSize(6.95f)
+-                                .LineHeight(1.05f)
+-                                .FontColor("#FFFFFF"));
+-                            text.Justify();
+-                            text.Span("Procurement: ").Bold().FontColor("#F1D35D");
+-                            text.Span(data.Options.PrintProcurementText ?? string.Empty);
+-                        });
+-                    });
+-
+-                ComposeContactAndStrapline(layers.Layer(), layers.Layer(), data);
+-                ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
+-            });
+-        });
+-    }
+-
+-    /// <summary>
+-    /// Contemporary image-led alternative. It retains the same authoritative institutional copy
+-    /// but deliberately uses a lighter editorial field so Cover B remains visually distinct.
+-    /// </summary>
+-    private static void ComposeContemporaryFrontPage(
+-        IDocumentContainer container,
+-        BrochurePublicationData data,
+-        PublicationFontStatus fonts,
+-        byte[]? sddLogo,
+-        byte[]? artracLogo)
+-    {
+-        var hero = data.CoverHeroImage?.Content;
+-
+-        container.Page(page =>
+-        {
+-            page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
+-            page.Margin(0);
+-            page.PageColor(Paper);
+-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor(Ink));
+-
+-            page.Content().Layers(layers =>
+-            {
+-                layers.PrimaryLayer().Background(Paper);
+-
+-                layers.Layer().AlignTop().Height(278).Background(Forest900).Element(area =>
++                    return;
++                }
++
++                if (data.CoverHeroImage?.Content is { Length: > 0 } hero)
+                 {
+-                    if (hero is { Length: > 0 })
+-                    {
+-                        area.Image(hero).FitArea();
+-                    }
+-                    else
+-                    {
+-                        area.Background(Forest800);
+-                    }
+-                });
+-
+-                ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
+-
+-                layers.Layer().AlignTop().PaddingTop(215).PaddingHorizontal(16).MinHeight(58)
+-                    .Background(Forest950)
+-                    .PaddingHorizontal(10)
+-                    .PaddingVertical(8)
+-                    .AlignCenter()
+-                    .AlignMiddle()
+-                    .Text(data.Options.PrintCentreStatement ?? string.Empty)
+-                    .FontSize(8.15f)
+-                    .Bold()
+-                    .LineHeight(1.04f)
+-                    .AlignCenter()
+-                    .FontColor("#FFFFFF");
+-
+-                layers.Layer()
+-                    .PaddingTop(282)
+-                    .PaddingBottom(120)
+-                    .PaddingHorizontal(10)
+-                    .Background("#F8F8F4")
+-                    .PaddingVertical(7)
+-                    .Column(column =>
+-                    {
+-                        column.Spacing(4);
+-                        column.Item().Background("#EFF4F1").PaddingHorizontal(6).PaddingVertical(3)
+-                            .Text(data.Options.PrintIntroText ?? string.Empty)
+-                            .FontSize(7.15f)
+-                            .LineHeight(1.07f)
+-                            .Justify()
+-                            .FontColor(Ink);
+-                        column.Item().Text(data.Options.PrintFutureText ?? string.Empty)
+-                            .FontSize(7.05f)
+-                            .LineHeight(1.07f)
+-                            .Justify()
+-                            .FontColor(Ink);
+-                        column.Item().Text(text =>
+-                        {
+-                            text.DefaultTextStyle(style => style
+-                                .FontSize(7.0f)
+-                                .LineHeight(1.05f)
+-                                .FontColor(Ink));
+-                            text.Justify();
+-                            text.Span("Procurement: ").Bold().FontColor("#7A6516");
+-                            text.Span(data.Options.PrintProcurementText ?? string.Empty);
+-                        });
+-                    });
+-
+-                ComposeContactAndStrapline(layers.Layer(), layers.Layer(), data);
+-                ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
+-            });
++                    area.Background(Forest900).Image(hero).FitArea();
++                }
++                else
++                {
++                    area.Background(Forest800);
++                }
++            });
++
++            ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
++            ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
+         });
+     }
+ 
+@@ -279,9 +227,9 @@
+         container.Background(Forest900).Layers(layers =>
+         {
+             layers.PrimaryLayer().Background(Forest900);
+-            layers.Layer().AlignRight().Width(140).Height(326).Background(Forest800);
++            layers.Layer().AlignRight().Width(140).Background(Forest800);
+             layers.Layer().AlignBottom().Height(9).Background(Gold);
+-            layers.Layer().PaddingTop(78).PaddingHorizontal(32).Column(column =>
++            layers.Layer().PaddingTop(72).PaddingHorizontal(32).Column(column =>
+             {
+                 column.Spacing(8);
+                 column.Item().AlignCenter().Text("SIMULATORS · AR/VR · AI")
+@@ -304,24 +252,24 @@
+         });
+     }
+ 
+-    private static void ComposeContactAndStrapline(
+-        IContainer contactLayer,
+-        IContainer straplineLayer,
+-        BrochurePublicationData data)
+-    {
+-        contactLayer.AlignBottom().PaddingBottom(22).Height(98).Background(Contact).Padding(8).Row(row =>
++    private static void ComposeContactBlock(
++        IContainer container,
++        BrochurePublicationData data,
++        float contactFontSize)
++    {
++        container.Background(Contact).PaddingHorizontal(8).PaddingVertical(7).Row(row =>
+         {
+             row.RelativeItem().Column(left =>
+             {
+                 left.Item().Text("Developing Agency")
+-                    .FontSize(7.0f)
++                    .FontSize(contactFontSize + .45f)
+                     .Bold()
+                     .Underline()
+                     .FontColor("#FFF5DB");
+                 left.Item().PaddingTop(2).Text(data.Options.PrintDevelopingAgencyText ?? string.Empty)
+-                    .FontSize(6.4f)
++                    .FontSize(contactFontSize)
+                     .SemiBold()
+-                    .LineHeight(1.05f)
++                    .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
+                     .FontColor("#FFFFFF");
+             });
+ 
+@@ -329,24 +277,17 @@
+             row.RelativeItem().Column(right =>
+             {
+                 right.Item().Text("Manufacturing Agency")
+-                    .FontSize(7.0f)
++                    .FontSize(contactFontSize + .45f)
+                     .Bold()
+                     .Underline()
+                     .FontColor("#FFF5DB");
+                 right.Item().PaddingTop(2).Text(data.Options.PrintManufacturingAgencyText ?? string.Empty)
+-                    .FontSize(6.4f)
++                    .FontSize(contactFontSize)
+                     .SemiBold()
+-                    .LineHeight(1.05f)
+-                    .FontColor("#FFFFFF");
+-            });
+-        });
+-
+-        straplineLayer.AlignBottom().Height(22).Background(Forest800).AlignCenter().AlignMiddle()
+-            .Text(data.Options.Strapline)
+-            .FontSize(8.3f)
+-            .SemiBold()
+-            .Italic()
+-            .FontColor("#F4D66E");
++                    .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
++                    .FontColor("#FFFFFF");
++            });
++        });
+     }
+ 
+     private static void ComposeHandlingMarking(IContainer layer, string? handlingMarking)
+@@ -371,13 +312,9 @@
+         IDocumentContainer container,
+         BrochurePublicationData data,
+         PublicationFontStatus fonts,
+-        byte[]? sddLogo)
+-    {
+-        var plan = BrochurePrintCompactPlanner.Plan(
+-            data.Projects,
+-            data.Options.PrintVisionaryText,
+-            data.Options.PrintNewSimulatorsText);
+-
++        byte[]? sddLogo,
++        BrochurePrintCompactPlan plan)
++    {
+         foreach (var sheet in plan.Pages)
+         {
+             ComposeProjectSheet(container, data, fonts, sddLogo, sheet);
+@@ -394,15 +331,19 @@
+         container.Page(page =>
+         {
+             page.Size(ReferenceWidthPoints, ReferenceHeightPoints);
+-            page.MarginHorizontal(5);
+-            page.MarginTop(string.IsNullOrWhiteSpace(data.Options.HandlingMarking) ? 5 : 15);
+-            page.MarginBottom(5);
++            page.MarginHorizontal(BrochurePrintLayoutMetrics.ProjectMarginHorizontalPoints);
++            page.MarginTop(string.IsNullOrWhiteSpace(data.Options.HandlingMarking)
++                ? BrochurePrintLayoutMetrics.ProjectMarginTopPoints
++                : BrochurePrintLayoutMetrics.ProjectMarginTopWithHandlingPoints);
++            page.MarginBottom(BrochurePrintLayoutMetrics.ProjectMarginBottomPoints);
+             page.PageColor(Paper);
+             page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor(Ink));
+ 
+             if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))
+             {
+-                page.Header().Height(10).AlignRight().Text(data.Options.HandlingMarking!.ToUpperInvariant())
++                page.Header().Height(BrochurePrintLayoutMetrics.HandlingHeaderHeightPoints)
++                    .AlignRight()
++                    .Text(data.Options.HandlingMarking!.ToUpperInvariant())
+                     .FontSize(6.1f)
+                     .Bold()
+                     .LetterSpacing(.5f)
+@@ -411,36 +352,26 @@
+ 
+             page.Content().Column(column =>
+             {
+-                column.Spacing(BrochurePrintCompactPlanner.InterModuleSpacingPoints);
+-
+-                foreach (var projectIndex in sheet.ProjectIndexes)
++                column.Spacing(BrochurePrintLayoutMetrics.InterModuleSpacingPoints);
++
++                foreach (var plannedProject in sheet.Projects)
+                 {
+-                    var project = data.Projects[projectIndex];
+-                    var planningItem = new BrochurePrintPlanningItem(
+-                        project.ProjectId,
+-                        project.ProjectName,
+-                        project.NarrativeWordCount,
+-                        project.ImageMode,
+-                        project.PrimaryPhoto is not null,
+-                        project.SecondaryPhoto is not null);
+-                    var minimumHeight = BrochurePrintCompactPlanner.EstimateProjectHeight(planningItem)
+-                                        + sheet.ModuleExpansionPoints;
+-
++                    var project = data.Projects[plannedProject.ProjectIndex];
+                     column.Item()
+-                        .MinHeight(minimumHeight)
++                        .MinHeight(plannedProject.Measurement.TotalHeightPoints)
+                         .ShowEntire()
+                         .Element(module => ComposeProjectModule(
+                             module,
+                             project,
+-                            imageOnRight: projectIndex % 2 == 0,
+-                            moduleExpansionPoints: sheet.ModuleExpansionPoints));
++                            plannedProject.Measurement,
++                            imageOnRight: plannedProject.ProjectIndex % 2 == 0));
+                 }
+ 
+                 if (sheet.IncludesClosingMatter)
+                 {
+-                    if (sheet.ProjectIndexes.Count > 0)
+-                    {
+-                        column.Item().Height(BrochurePrintCompactPlanner.ClosingGapPoints);
++                    if (sheet.Projects.Count > 0)
++                    {
++                        column.Item().Height(BrochurePrintLayoutMetrics.ClosingGapPoints);
+                     }
+                     column.Item().ShowEntire().Element(block => ComposeClosingMatter(block, data));
+                 }
+@@ -451,107 +382,83 @@
+     private static void ComposeProjectModule(
+         IContainer container,
+         BrochurePublicationProject project,
+-        bool imageOnRight,
+-        float moduleExpansionPoints)
+-    {
+-        var titleLength = project.ProjectName.Length;
+-        var titleSize = titleLength switch
+-        {
+-            > 115 => 7.4f,
+-            > 82 => 7.9f,
+-            _ => 8.5f
+-        };
+-        var titleHeight = titleLength switch
+-        {
+-            > 115 => 30f,
+-            > 82 => 26f,
+-            _ => 22f
+-        };
+-        var bodySize = project.NarrativeWordCount switch
+-        {
+-            > 190 => 7.65f,
+-            > 155 => 7.85f,
+-            > 120 => 8.0f,
+-            _ => 8.15f
+-        };
+-        var imageWidth = project.NarrativeWordCount switch
+-        {
+-            > 180 => 112f,
+-            > 145 => 120f,
+-            > 110 => 128f,
+-            _ => 136f
+-        };
+-        imageWidth += Math.Min(7f, moduleExpansionPoints * .45f);
+-        var bodyPadding = 5f + Math.Min(1.5f, moduleExpansionPoints * .08f);
+-
+-        container.Border(1.05f).BorderColor(Forest700).Background("#FBFBF8").Column(column =>
+-        {
+-            column.Item().Height(titleHeight).Background(Forest800).PaddingHorizontal(6).AlignMiddle()
+-                .Text(project.ProjectName.ToUpperInvariant())
+-                .FontSize(titleSize)
+-                .Bold()
+-                .LineHeight(1.0f)
+-                .AlignCenter()
+-                .FontColor("#FFFFFF");
+-
+-            column.Item().Padding(bodyPadding).Row(row =>
+-            {
+-                var hasPrimary = project.PrimaryPhoto is not null;
+-                var useSecond = project.SecondaryPhoto is not null
+-                                && project.ImageMode != BrochureImageMode.Single;
+-
+-                void AddText()
+-                    => row.RelativeItem().Text(project.Narrative)
+-                        .FontSize(bodySize)
+-                        .LineHeight(1.05f)
+-                        .Justify()
+-                        .FontColor(Ink);
+-
+-                void AddImageColumn()
++        BrochurePrintProjectMeasurement layout,
++        bool imageOnRight)
++    {
++        container.Border(BrochurePrintLayoutMetrics.ModuleBorderPoints)
++            .BorderColor(Forest700)
++            .Background("#FBFBF8")
++            .Column(column =>
++            {
++                column.Item().Height(layout.TitleHeightPoints)
++                    .Background(Forest800)
++                    .PaddingHorizontal(BrochurePrintLayoutMetrics.ModuleHorizontalPaddingPoints)
++                    .AlignMiddle()
++                    .Text(project.ProjectName.ToUpperInvariant())
++                    .FontSize(layout.TitleFontSize)
++                    .Bold()
++                    .LineHeight(1.0f)
++                    .AlignCenter()
++                    .FontColor("#FFFFFF");
++
++                column.Item().Padding(layout.BodyPaddingPoints).Row(row =>
+                 {
+-                    if (!hasPrimary)
+-                    {
+-                        return;
+-                    }
+-
+-                    row.ConstantItem(imageWidth).AlignMiddle().Column(images =>
+-                    {
+-                        if (!useSecond)
++                    var hasPrimary = project.PrimaryPhoto is not null;
++                    var useSecond = project.SecondaryPhoto is not null
++                                    && project.ImageMode != BrochureImageMode.Single;
++
++                    void AddText()
++                        => row.RelativeItem().Text(project.Narrative)
++                            .FontSize(layout.BodyFontSize)
++                            .LineHeight(layout.BodyLineHeight)
++                            .Justify()
++                            .FontColor(Ink);
++
++                    void AddImageColumn()
++                    {
++                        if (!hasPrimary)
+                         {
+-                            images.Item().Height(imageWidth * 9f / 16f)
+-                                .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
+                             return;
+                         }
+ 
+-                        var galleryHeight = imageWidth * 9f / 16f;
+-                        images.Spacing(4);
+-                        images.Item().Height(galleryHeight)
+-                            .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
+-                        images.Item().Height(galleryHeight)
+-                            .Element(box => ComposeImage(box, project.SecondaryPhoto!.Content));
+-                    });
+-                }
+-
+-                if (!hasPrimary)
+-                {
+-                    AddText();
+-                    return;
+-                }
+-
+-                if (imageOnRight)
+-                {
+-                    AddText();
+-                    row.ConstantItem(6);
+-                    AddImageColumn();
+-                }
+-                else
+-                {
+-                    AddImageColumn();
+-                    row.ConstantItem(6);
+-                    AddText();
+-                }
+-            });
+-        });
++                        row.ConstantItem(layout.ImageWidthPoints).AlignMiddle().Column(images =>
++                        {
++                            var imageHeight = layout.ImageWidthPoints * 9f / 16f;
++                            if (!useSecond)
++                            {
++                                images.Item().Height(imageHeight)
++                                    .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
++                                return;
++                            }
++
++                            images.Spacing(4);
++                            images.Item().Height(imageHeight)
++                                .Element(box => ComposeImage(box, project.PrimaryPhoto!.Content));
++                            images.Item().Height(imageHeight)
++                                .Element(box => ComposeImage(box, project.SecondaryPhoto!.Content));
++                        });
++                    }
++
++                    if (!hasPrimary)
++                    {
++                        AddText();
++                        return;
++                    }
++
++                    if (imageOnRight)
++                    {
++                        AddText();
++                        row.ConstantItem(BrochurePrintLayoutMetrics.TextImageGapPoints);
++                        AddImageColumn();
++                    }
++                    else
++                    {
++                        AddImageColumn();
++                        row.ConstantItem(BrochurePrintLayoutMetrics.TextImageGapPoints);
++                        AddText();
++                    }
++                });
++            });
+     }
+ 
+     private static void ComposeClosingMatter(IContainer container, BrochurePublicationData data)
+@@ -565,15 +472,15 @@
+                 vision.Spacing(4);
+                 vision.Item().AlignCenter().Background(VisionBlue).PaddingHorizontal(8).PaddingVertical(2)
+                     .Text("Visionary Horizons & Strategic Objectives")
+-                    .FontSize(8.8f)
++                    .FontSize(BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize)
+                     .Bold()
+                     .Italic()
+                     .AlignCenter()
+                     .FontColor("#FFFFFF");
+                 vision.Item().Text(data.Options.PrintVisionaryText ?? string.Empty)
+-                    .FontSize(7.6f)
++                    .FontSize(BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize)
+                     .Italic()
+-                    .LineHeight(1.08f)
++                    .LineHeight(BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight)
+                     .Justify()
+                     .FontColor("#27302B");
+             });
+@@ -581,15 +488,15 @@
+             column.Item().Background(Forest800).Padding(7).Text(text =>
+             {
+                 text.DefaultTextStyle(style => style
+-                    .FontSize(7.25f)
+-                    .LineHeight(1.05f));
++                    .FontSize(BrochurePrintLayoutMetrics.ClosingNewSimulatorsFontSize)
++                    .LineHeight(BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight));
+                 text.Justify();
+                 text.Span("New Simulators. ").Bold().Italic().FontColor("#F4D66E");
+                 text.Span(data.Options.PrintNewSimulatorsText ?? string.Empty).SemiBold().FontColor("#FFFFFF");
+             });
+ 
+             column.Item().AlignCenter().Text(data.Options.Strapline)
+-                .FontSize(6.7f)
++                .FontSize(BrochurePrintLayoutMetrics.ClosingStraplineFontSize)
+                 .SemiBold()
+                 .Italic()
+                 .FontColor(Forest700);
+--- a/tools/Test-PrismPublicationsPhase9.ps1
++++ b/tools/Test-PrismPublicationsPhase9.ps1
+@@ -0,0 +1,103 @@
++param(
++    [Parameter(Mandatory = $false)]
++    [string]$ProjectRoot = (Get-Location).Path
++)
++
++$ErrorActionPreference = "Stop"
++$root = [IO.Path]::GetFullPath($ProjectRoot)
++
++Write-Host "PRISM Publications Phase 9 integration check" -ForegroundColor Cyan
++Write-Host "Project root: $root"
++
++function Resolve-ProjectPath([string]$RelativePath) {
++    return Join-Path $root $RelativePath
++}
++
++function Require-File([string]$RelativePath) {
++    $path = Resolve-ProjectPath $RelativePath
++    if (-not (Test-Path $path)) {
++        throw "Required Phase 9 file is missing: $RelativePath"
++    }
++    return $path
++}
++
++function Require-Text([string]$RelativePath, [string]$Pattern, [string]$Description) {
++    $path = Require-File $RelativePath
++    $text = Get-Content $path -Raw
++    if ($text -notmatch $Pattern) {
++        throw "Phase 9 contract missing: $Description`nFile: $RelativePath`nPattern: $Pattern"
++    }
++}
++
++function Reject-Text([string]$RelativePath, [string]$Pattern, [string]$Description) {
++    $path = Require-File $RelativePath
++    $text = Get-Content $path -Raw
++    if ($text -match $Pattern) {
++        throw "Obsolete Phase 8 contract is still present: $Description`nFile: $RelativePath`nPattern: $Pattern"
++    }
++}
++
++# Measured print architecture.
++Require-File "Services\Publications\BrochurePrintLayoutMetrics.cs" | Out-Null
++Require-File "Services\Publications\BrochurePrintMeasurementService.cs" | Out-Null
++Require-File "Services\Publications\BrochurePrintPagePlanner.cs" | Out-Null
++Require-Text "Services\Publications\BrochurePrintMeasurementService.cs" "SKPaint" "font-aware SkiaSharp measurement"
++Require-Text "Services\Publications\BrochurePrintMeasurementService.cs" "MeasureText\(" "actual glyph-width measurement"
++Require-Text "Services\Publications\BrochurePrintMeasurementService.cs" "DMSans-Regular\.ttf" "offline DM Sans measurement source"
++Reject-Text "Services\Publications\BrochurePrintMeasurementService.cs" "wordsPerLine" "word-count/words-per-line height heuristic"
++Require-Text "Services\Publications\BrochurePrintPagePlanner.cs" "MaximumProjectsPerSheet" "measured maximum four-project sheet planning"
++Require-Text "Services\Publications\BrochurePrintPagePlanner.cs" "TryPlanWithSharedClosing" "measured closing-aware final sheet"
++Require-Text "Services\Publications\BrochurePrintPagePlanner.cs" "SheetPlan" "per-sheet print plan"
++
++# DI/runtime graph.
++Require-Text "Services\Publications\PublicationServiceCollectionExtensions.cs" "AddSingleton<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>" "measurement-service registration"
++Require-Text "Services\Publications\PublicationServiceCollectionExtensions.cs" "AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>" "page-planner registration"
++Require-Text "Services\Publications\PublicationRuntimeValidationHostedService.cs" "GetRequiredService<IBrochurePrintMeasurementService>" "startup measurement-service validation"
++Require-Text "Services\Publications\PublicationRuntimeValidationHostedService.cs" "GetRequiredService<IBrochurePrintPagePlanner>" "startup page-planner validation"
++
++# Renderer and Cover A.
++Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "BrochurePrintCompactPlan plan" "renderer consumes measured sheet plan"
++Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "frontPlan\.HeroHeightPoints" "measured front-page hero"
++Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "frontPlan\.BodyBlockHeightPoints" "measured front-page body"
++Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "frontPlan\.ContactBlockHeightPoints" "measured front-page contact block"
++Require-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "ComposeInstitutionalFallbackArtwork" "controlled institutional-artwork fallback"
++Reject-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "PaddingTop\(326\)" "fixed Phase 8 front-body spacer"
++Reject-Text "Utilities\Reporting\BrochurePrintCompactComposer.cs" "Height\(98\)" "fixed Phase 8 contact height"
++
++# Preflight / UI plan diagnostics.
++Require-Text "Pages\Projects\Publications\Brochure\Index.cshtml" "data-print-sheet-map" "measured sheet-map UI"
++Require-Text "Pages\Projects\Publications\Brochure\Index.cshtml" "data-print-lowest-fill" "lowest project-sheet fill"
++Require-Text "Pages\Projects\Publications\Brochure\Index.cshtml" "data-print-final-fill" "final-sheet fill"
++Require-Text "wwwroot\js\pages\projects-brochure.js" "result\.printSheetPlan" "client measured sheet plan rendering"
++Require-Text "wwwroot\js\pages\projects-brochure.js" 'preferredValue = isPrintCompactProfile\(\) \? "1" : "2"' "Print A / Digital B smart defaults"
++
++# Tests.
++Require-File "ProjectManagement.Tests\Publications\BrochurePrintMeasurementServiceTests.cs" | Out-Null
++Require-File "ProjectManagement.Tests\Publications\BrochurePrintCompactPlannerTests.cs" | Out-Null
++Require-Text "ProjectManagement.Tests\Publications\PublicationsRuntimeIntegrationTests.cs" "IBrochurePrintMeasurementService" "runtime DI regression"
++Require-Text "ProjectManagement.Tests\Publications\PublicationsRuntimeIntegrationTests.cs" "IBrochurePrintPagePlanner" "planner DI regression"
++
++Write-Host "Phase 9 source/integration contract is present." -ForegroundColor Green
++
++$node = Get-Command node -ErrorAction SilentlyContinue
++if ($node) {
++    Write-Host "Running JavaScript syntax and publication contract tests..." -ForegroundColor Cyan
++    & node --check (Resolve-ProjectPath "wwwroot\js\pages\projects-brochure.js")
++    if ($LASTEXITCODE -ne 0) { throw "projects-brochure.js syntax check failed." }
++
++    Push-Location $root
++    try {
++        & node --test ".\wwwroot\js\projects\publications-brochure-contract.test.js"
++        if ($LASTEXITCODE -ne 0) { throw "Publications browser/source contract tests failed." }
++    }
++    finally {
++        Pop-Location
++    }
++}
++else {
++    Write-Warning "Node.js is not available; JavaScript checks were skipped."
++}
++
++Write-Host "Recommended final checks:" -ForegroundColor Yellow
++Write-Host "dotnet build .\ProjectManagement.csproj"
++Write-Host "dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj"
+--- a/wwwroot/css/pages/projects-publications.css
++++ b/wwwroot/css/pages/projects-publications.css
+@@ -915,3 +915,44 @@
+     .brochure-print-content-note { grid-template-columns: 1fr; }
+     .brochure-print-content-note .btn { justify-self: start; }
+ }
++
++/* Phase 9 — measured hard-copy sheet plan */
++.brochure-print-sheet-map {
++    grid-column: 1 / -1;
++    display: flex;
++    flex-wrap: wrap;
++    gap: .28rem;
++    padding-top: .15rem;
++}
++.brochure-print-sheet-chip {
++    display: inline-grid;
++    grid-template-columns: auto auto;
++    gap: .08rem .35rem;
++    align-items: center;
++    min-width: 0;
++    padding: .3rem .42rem;
++    border: 1px solid #d6e5df;
++    border-radius: 6px;
++    background: #fff;
++    color: #324a42;
++    font-size: .55rem;
++    line-height: 1.2;
++}
++.brochure-print-sheet-chip strong {
++    color: #1f4e3e;
++    font-size: .58rem;
++    font-weight: 760;
++}
++.brochure-print-sheet-chip span {
++    color: #74837d;
++    font-variant-numeric: tabular-nums;
++    white-space: nowrap;
++}
++.brochure-print-sheet-chip.is-low {
++    border-color: #e6d8a9;
++    background: #fffaf0;
++}
++.brochure-print-sheet-chip.is-front {
++    border-color: #c8dbd3;
++    background: #eef7f3;
++}
+--- a/wwwroot/js/pages/projects-brochure.js
++++ b/wwwroot/js/pages/projects-brochure.js
+@@ -59,7 +59,10 @@
+     const printPlanSummary = form.querySelector("[data-print-plan-summary]");
+     const printEstimatePages = form.querySelector("[data-print-estimate-pages]");
+     const printEstimateFill = form.querySelector("[data-print-estimate-fill]");
++    const printLowestFill = form.querySelector("[data-print-lowest-fill]");
++    const printFinalFill = form.querySelector("[data-print-final-fill]");
+     const printEstimateClosing = form.querySelector("[data-print-estimate-closing]");
++    const printSheetMap = form.querySelector("[data-print-sheet-map]");
+ 
+     const preflightSpinner = form.querySelector("[data-preflight-spinner]");
+     const preflightMessage = form.querySelector("[data-preflight-message]");
+@@ -232,6 +235,7 @@
+     let coverHeroFocalX = clamp(coverHeroFocalXInput?.value);
+     let coverHeroFocalY = clamp(coverHeroFocalYInput?.value);
+     let coverReviewed = String(coverReviewedInput?.value).toLowerCase() === "true";
++    let coverSelectionTouched = false;
+ 
+     const ensureConfig = id => {
+         if (!configs.has(id)) {
+@@ -1455,11 +1459,36 @@
+             if (showPlan) {
+                 if (printEstimatePages) printEstimatePages.textContent = String(result.estimatedPageCount);
+                 if (printEstimateFill) printEstimateFill.textContent = `${Number(result.estimatedAveragePageUtilizationPercent || 0)}%`;
++                if (printLowestFill) {
++                    const value = Number(result.lowestProjectPageUtilizationPercent || 0);
++                    printLowestFill.textContent = value > 0 ? `${value}%` : "—";
++                }
++                if (printFinalFill) {
++                    const value = Number(result.finalPageUtilizationPercent || 0);
++                    printFinalFill.textContent = value > 0 ? `${value}%` : "—";
++                }
+                 if (printEstimateClosing) {
+                     const count = Number(result.estimatedClosingPageProjectCount || 0);
+                     printEstimateClosing.textContent = result.closingMatterSharesFinalPage
+                         ? `${count} project${count === 1 ? "" : "s"} + closing`
+                         : "Dedicated closing sheet";
++                }
++                if (printSheetMap) {
++                    printSheetMap.replaceChildren();
++                    const sheets = Array.isArray(result.printSheetPlan) ? result.printSheetPlan : [];
++                    sheets.forEach(sheet => {
++                        const chip = document.createElement("div");
++                        chip.className = "brochure-print-sheet-chip";
++                        if (sheet.kind === "front") chip.classList.add("is-front");
++                        if (Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
++
++                        const label = document.createElement("strong");
++                        label.textContent = `${sheet.sheetNumber}. ${sheet.label || "Sheet"}`;
++                        const fill = document.createElement("span");
++                        fill.textContent = `${Number(sheet.utilizationPercent || 0)}%`;
++                        chip.append(label, fill);
++                        printSheetMap.appendChild(chip);
++                    });
+                 }
+             }
+         }
+@@ -1780,6 +1809,21 @@
+     publicationProfileInputs.forEach(input => {
+         input.addEventListener("change", () => {
+             coverReviewed = false;
++
++            // Official/institutional is the natural hard-copy default; contemporary is the
++            // screen-oriented default. Once the user explicitly chooses a cover, profile changes
++            // preserve that editorial decision.
++            if (!coverSelectionTouched) {
++                const preferredValue = isPrintCompactProfile() ? "1" : "2";
++                const preferred = form.querySelector(`[name="Input.CoverStyle"][value="${preferredValue}"]`);
++                if (preferred instanceof HTMLInputElement) {
++                    preferred.checked = true;
++                    form.querySelectorAll("[data-cover-option]").forEach(option => {
++                        option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
++                    });
++                }
++            }
++
+             updatePublicationProfileUi();
+             syncHiddenInputs();
+             renderCoverHero();
+@@ -1789,6 +1833,7 @@
+ 
+     form.querySelectorAll("[data-cover-option] input[type=radio]").forEach(radio => {
+         radio.addEventListener("change", () => {
++            coverSelectionTouched = true;
+             form.querySelectorAll("[data-cover-option]").forEach(option => {
+                 option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
+             });
+--- a/wwwroot/js/projects/publications-brochure-contract.test.js
++++ b/wwwroot/js/projects/publications-brochure-contract.test.js
+@@ -175,9 +175,11 @@
+ });
+ 
+ test('phase 7 print compositor uses the reference CropBox dimensions and natural project packing', () => {
+-  assert.match(printRenderer, /ReferenceWidthPoints = 423\.23f/);
+-  assert.match(printRenderer, /ReferenceHeightPoints = 846\.755f/);
+-  assert.match(printRenderer, /ShowEntire\(\)/);
++  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
++  assert.match(metrics, /ReferenceWidthPoints = 423\.23f/);
++  assert.match(metrics, /ReferenceHeightPoints = 846\.755f/);
++  assert.match(printRenderer, /ReferenceWidthPoints = BrochurePrintLayoutMetrics\.ReferenceWidthPoints/);
++  assert.match(printRenderer, /ReferenceHeightPoints = BrochurePrintLayoutMetrics\.ReferenceHeightPoints/);
+   assert.match(printRenderer, /ShowEntire\(\)/);
+   assert.match(printRenderer, /ComposeProjectModule/);
+   assert.doesNotMatch(printRenderer, /PageSizes\.A4/);
+@@ -197,24 +199,39 @@
+ });
+ 
+ 
+-test('phase 8 uses an explicit compact-sheet planner with closing-aware final-page packing', () => {
+-  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintCompactPlanner.cs'), 'utf8');
+-  assert.match(planner, /TryPlanSharedClosingPage/);
+-  assert.match(planner, /finalPageReservedHeight/);
++test('phase 9 replaces word-count heuristics with font-aware DM Sans measurement', () => {
++  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
++  assert.match(measurement, /SKPaint/);
++  assert.match(measurement, /MeasureText\(/);
++  assert.match(measurement, /DMSans-Regular\.ttf/);
++  assert.match(measurement, /DMSans-SemiBold\.ttf/);
++  assert.match(measurement, /MeasureProject/);
++  assert.match(measurement, /MeasureClosing/);
++  assert.match(measurement, /MeasureFrontPage/);
++  assert.doesNotMatch(measurement, /wordsPerLine/);
++});
++
++test('phase 9 uses an order-preserving measured sheet planner with final closing reservation', () => {
++  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
++  assert.match(planner, /MaximumProjectsPerSheet/);
++  assert.match(planner, /TryPlanWithSharedClosing/);
++  assert.match(planner, /MeasureClosing/);
++  assert.match(planner, /MeasureProject/);
+   assert.match(planner, /ClosingMatterSharesFinalPage/);
+-  assert.match(printRenderer, /BrochurePrintCompactPlanner\.Plan/);
+-  assert.match(printRenderer, /ComposeProjectSheet/);
++  assert.match(planner, /SheetPlan/);
++  assert.match(printRenderer, /BrochurePrintCompactPlan plan/);
++  assert.match(printRenderer, /sheet\.Projects/);
+   assert.match(printRenderer, /sheet\.IncludesClosingMatter/);
+ });
+ 
+ test('phase 8 print A never substitutes an arbitrary first-project photograph', () => {
+-  const institutional = printRenderer.slice(
+-    printRenderer.indexOf('private static void ComposeInstitutionalFrontPage'),
+-    printRenderer.indexOf('private static void ComposeContemporaryFrontPage'));
+-  assert.match(institutional, /institutionalArtwork/);
+-  assert.match(institutional, /ComposeInstitutionalFallbackArtwork/);
+-  assert.doesNotMatch(institutional, /data\.Projects\[0\]/);
+-  assert.doesNotMatch(institutional, /PrimaryPhoto/);
++  const frontHero = printRenderer.slice(
++    printRenderer.indexOf('private static void ComposeFrontHero'),
++    printRenderer.indexOf('private static void ComposeFrontLockup'));
++  assert.match(frontHero, /institutionalArtwork/);
++  assert.match(frontHero, /ComposeInstitutionalFallbackArtwork/);
++  assert.doesNotMatch(frontHero, /data\.Projects\[0\]/);
++  assert.doesNotMatch(frontHero, /PrimaryPhoto/);
+ });
+ 
+ test('phase 8 hard-copy institutional matter participates in authoritative preflight', () => {
+@@ -250,3 +267,43 @@
+   assert.match(printRenderer, /ProjectName\.ToUpperInvariant\(\)[\s\S]{0,180}\.AlignCenter\(\)/);
+   assert.match(printRenderer, /Text\(project\.Narrative\)[\s\S]{0,160}\.Justify\(\)/);
+ });
++
++test('phase 9 measured Cover A composition removes fixed body/contact spacer geometry', () => {
++  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
++  assert.match(printRenderer, /frontPlan\.HeroHeightPoints/);
++  assert.match(printRenderer, /frontPlan\.BodyBlockHeightPoints/);
++  assert.match(printRenderer, /frontPlan\.ContactBlockHeightPoints/);
++  assert.match(printRenderer, /frontPlan\.BodyFontSize/);
++  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
++  assert.match(metrics, /FrontBodyPreferredFontSize/);
++  assert.match(metrics, /FrontBodyMinimumFontSize/);
++  assert.doesNotMatch(printRenderer, /PaddingTop\(326\)/);
++  assert.doesNotMatch(printRenderer, /Height\(98\)/);
++});
++
++test('phase 9 print plan UI exposes measured per-sheet mapping and fill diagnostics', () => {
++  assert.match(view, /data-print-lowest-fill/);
++  assert.match(view, /data-print-final-fill/);
++  assert.match(view, /data-print-sheet-map/);
++  assert.match(js, /result\.lowestProjectPageUtilizationPercent/);
++  assert.match(js, /result\.finalPageUtilizationPercent/);
++  assert.match(js, /result\.printSheetPlan/);
++  assert.match(css, /\.brochure-print-sheet-chip/);
++});
++
++test('phase 9 registers and validates measured print services through the publication DI graph', () => {
++  const registration = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationServiceCollectionExtensions.cs'), 'utf8');
++  const runtime = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationRuntimeValidationHostedService.cs'), 'utf8');
++  assert.match(registration, /AddSingleton<IBrochurePrintMeasurementService, BrochurePrintMeasurementService>/);
++  assert.match(registration, /AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>/);
++  assert.match(runtime, /GetRequiredService<IBrochurePrintMeasurementService>/);
++  assert.match(runtime, /GetRequiredService<IBrochurePrintPagePlanner>/);
++});
++
++test('phase 9 profile defaults prefer institutional print and contemporary digital until user chooses explicitly', () => {
++  assert.match(js, /coverSelectionTouched/);
++  assert.match(js, /preferredValue = isPrintCompactProfile\(\) \? "1" : "2"/);
++  assert.match(js, /isPrintCompactProfile\(\)/);
++  assert.match(js, /coverSelectionTouched = true/);
++});
++
