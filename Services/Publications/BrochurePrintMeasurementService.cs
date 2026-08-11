@@ -9,7 +9,8 @@ public interface IBrochurePrintMeasurementService
 {
     BrochurePrintProjectMeasurement MeasureProject(
         BrochurePrintPlanningItem item,
-        BrochurePrintLayoutVariant variant);
+        BrochurePrintLayoutVariant variant,
+        float imageWidthAdjustmentPoints = 0f);
 
     BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline);
 
@@ -29,6 +30,9 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 {
     private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex WordToken = new(@"\S+", RegexOptions.Compiled);
+    private static readonly Regex SentenceEnd = new(
+        @"[.!?](?:[""')\]]+)?(?=\s|$)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly IWebHostEnvironment _environment;
     private readonly IPublicationFontService _fontService;
@@ -50,7 +54,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
     public BrochurePrintProjectMeasurement MeasureProject(
         BrochurePrintPlanningItem item,
-        BrochurePrintLayoutVariant variant)
+        BrochurePrintLayoutVariant variant,
+        float imageWidthAdjustmentPoints = 0f)
     {
         ArgumentNullException.ThrowIfNull(item);
         ThrowIfDisposed();
@@ -91,7 +96,12 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var hasPrimary = item.HasPrimaryPhoto;
         var hasSecond = item.HasSecondaryPhoto
                         && item.ImageMode != BrochureImageMode.Single;
-        var imageWidth = hasPrimary ? Math.Max(94f, spec.ImageWidthPoints) : 0f;
+        var imageWidth = hasPrimary
+            ? Math.Clamp(
+                spec.ImageWidthPoints + Math.Max(0f, imageWidthAdjustmentPoints),
+                94f,
+                BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints)
+            : 0f;
 
         var bodyInnerWidth = moduleWidth
                              - (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
@@ -262,7 +272,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
         const float horizontalPadding = 10f;
         var bodyWidth = BrochurePrintLayoutMetrics.ReferenceWidthPoints - (horizontalPadding * 2f);
-        var contactWidth = (BrochurePrintLayoutMetrics.ReferenceWidthPoints - 26f) / 2f;
+        var contactWidth = (BrochurePrintLayoutMetrics.ReferenceWidthPoints - 28f) / 2f;
 
         // Centre statement is intentionally larger than Phase 8 and is measured independently.
         var centreFont = BrochurePrintLayoutMetrics.FrontCentrePreferredFontSize;
@@ -290,7 +300,11 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 contactWidth,
                 BrochurePrintLayoutMetrics.FrontContactLineHeight,
                 FontWeight.SemiBold));
-        var contactBlockHeight = Math.Max(86f, contactBodyHeight + 27f);
+        var contactBlockHeight = Math.Max(
+            88f,
+            contactBodyHeight
+            + BrochurePrintLayoutMetrics.FrontContactHeaderHeightPoints
+            + 10f);
 
         var straplineHeight = Math.Max(
             BrochurePrintLayoutMetrics.FrontStraplineHeightPoints,
@@ -422,12 +436,13 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             return new FloatNarrativeSplit(string.Empty, string.Empty, 0f, 0f);
         }
 
-        // Find the largest complete-word prefix that fits beside the photograph stack. Binary
-        // search keeps preflight fast even for the maximum supported Project Brief length.
+        // First identify the largest complete-word prefix that fits beside the image. This is the
+        // geometric anchor; the actual split is then moved to a nearby editorial boundary so the
+        // full-width continuation does not begin in the middle of a sentence unless unavoidable.
         var low = 1;
         var high = words.Length;
         var bestWordCount = 0;
-        var bestHeight = 0f;
+        var bestWordHeight = 0f;
         while (low <= high)
         {
             var mid = low + ((high - low) / 2);
@@ -443,7 +458,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             if (height <= imageHeight + .35f)
             {
                 bestWordCount = mid;
-                bestHeight = height;
+                bestWordHeight = height;
                 low = mid + 1;
             }
             else
@@ -463,10 +478,75 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             return new FloatNarrativeSplit(string.Empty, normalized, 0f, trailingHeight);
         }
 
-        var leadingEnd = words[bestWordCount - 1].Index + words[bestWordCount - 1].Length;
-        var leading = normalized[..leadingEnd].Trim();
-        var trailing = bestWordCount < words.Length
-            ? normalized[words[bestWordCount].Index..].Trim()
+        var idealEnd = words[bestWordCount - 1].Index + words[bestWordCount - 1].Length;
+        var linePoints = fontSize * lineHeight;
+        var upperTolerance = imageHeight
+                             + (linePoints * BrochurePrintLayoutMetrics.FloatBoundaryToleranceLines);
+        var preferredLowerBound = Math.Max(
+            linePoints,
+            imageHeight - (linePoints * BrochurePrintLayoutMetrics.FloatPreferredBoundaryBandLines));
+
+        var candidates = BuildEditorialBoundaries(normalized, idealEnd);
+        BoundaryMeasurement? bestBoundary = null;
+
+        foreach (var boundary in candidates)
+        {
+            if (boundary.EndIndex <= 0 || boundary.EndIndex >= normalized.Length)
+            {
+                continue;
+            }
+
+            var prefix = normalized[..boundary.EndIndex].TrimEnd();
+            if (prefix.Length == 0)
+            {
+                continue;
+            }
+
+            var height = MeasureTextHeight(
+                prefix,
+                fontSize,
+                sideWidth,
+                lineHeight,
+                FontWeight.Regular);
+            if (height > upperTolerance)
+            {
+                continue;
+            }
+
+            // Avoid choosing a semantically clean boundary that leaves most of the image height
+            // unused when a much closer sentence/word boundary is available.
+            var outsidePreferredBand = height < preferredLowerBound;
+            var distance = Math.Abs(imageHeight - height);
+            var boundaryPenalty = boundary.Kind switch
+            {
+                EditorialBoundaryKind.Paragraph => 0f,
+                EditorialBoundaryKind.Sentence => linePoints * .28f,
+                _ => linePoints * 1.10f
+            };
+            var bandPenalty = outsidePreferredBand ? linePoints * 1.5f : 0f;
+            var score = distance + boundaryPenalty + bandPenalty;
+
+            if (bestBoundary is null || score < bestBoundary.Score)
+            {
+                bestBoundary = new BoundaryMeasurement(
+                    boundary.EndIndex,
+                    height,
+                    score);
+            }
+        }
+
+        var selectedEnd = bestBoundary?.EndIndex ?? idealEnd;
+        var selectedHeight = bestBoundary?.HeightPoints ?? bestWordHeight;
+
+        var leading = normalized[..selectedEnd].Trim();
+        var trailingStart = selectedEnd;
+        while (trailingStart < normalized.Length && char.IsWhiteSpace(normalized[trailingStart]))
+        {
+            trailingStart++;
+        }
+
+        var trailing = trailingStart < normalized.Length
+            ? normalized[trailingStart..].Trim()
             : string.Empty;
         var trailingHeightPoints = string.IsNullOrWhiteSpace(trailing)
             ? 0f
@@ -477,7 +557,47 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 lineHeight,
                 FontWeight.Regular);
 
-        return new FloatNarrativeSplit(leading, trailing, bestHeight, trailingHeightPoints);
+        return new FloatNarrativeSplit(
+            leading,
+            trailing,
+            selectedHeight,
+            trailingHeightPoints);
+    }
+
+    private static IReadOnlyList<EditorialBoundary> BuildEditorialBoundaries(
+        string normalized,
+        int idealEnd)
+    {
+        var boundaries = new List<EditorialBoundary>();
+
+        for (var index = 0; index < normalized.Length; index++)
+        {
+            if (normalized[index] == '\n')
+            {
+                boundaries.Add(new EditorialBoundary(index, EditorialBoundaryKind.Paragraph));
+            }
+        }
+
+        foreach (Match sentenceEnd in SentenceEnd.Matches(normalized))
+        {
+            boundaries.Add(new EditorialBoundary(
+                sentenceEnd.Index + sentenceEnd.Length,
+                EditorialBoundaryKind.Sentence));
+        }
+
+        // Always retain the geometric complete-word split as a last-resort boundary.
+        boundaries.Add(new EditorialBoundary(idealEnd, EditorialBoundaryKind.Word));
+
+        // Bound the search to a useful neighbourhood. Distant paragraph boundaries should not win
+        // merely because they have a stronger semantic rank.
+        var window = Math.Max(90, normalized.Length / 4);
+        return boundaries
+            .Where(boundary => Math.Abs(boundary.EndIndex - idealEnd) <= window
+                               || boundary.Kind == EditorialBoundaryKind.Word)
+            .GroupBy(boundary => boundary.EndIndex)
+            .Select(group => group.OrderBy(boundary => boundary.Kind).First())
+            .OrderBy(boundary => boundary.EndIndex)
+            .ToArray();
     }
 
     private int MeasureLineCount(
@@ -696,6 +816,22 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         string Trailing,
         float LeadingHeightPoints,
         float TrailingHeightPoints);
+
+    private enum EditorialBoundaryKind
+    {
+        Paragraph = 0,
+        Sentence = 1,
+        Word = 2
+    }
+
+    private sealed record EditorialBoundary(
+        int EndIndex,
+        EditorialBoundaryKind Kind);
+
+    private sealed record BoundaryMeasurement(
+        int EndIndex,
+        float HeightPoints,
+        float Score);
 
     private sealed record TypefaceSet(
         SKTypeface Regular,

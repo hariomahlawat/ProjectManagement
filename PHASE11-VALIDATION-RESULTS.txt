@@ -1,0 +1,44 @@
+PRISM PUBLICATIONS PHASE 11 — PREPARATION VALIDATION
+====================================================
+
+Completed in the artifact preparation environment:
+
+[PASS] JavaScript syntax
+       node --check wwwroot/js/pages/projects-brochure.js
+       node --check wwwroot/js/projects/publications-brochure-contract.test.js
+
+[PASS] Browser/source regression suite
+       36 tests passed
+       0 failed
+
+[PASS] Phase 11 print-quality source contract
+       16:9 Single + Gallery 2 geometry present.
+       Visual and Balanced project body remain 9 pt.
+       Compact remains bounded to the 8.5 pt hard floor.
+       Paragraph/sentence-aware float boundary selection present.
+       Typography penalty outranks page count in the planner.
+       Shared closing is compared with dedicated closing before accepting typography reduction.
+       Bounded residual image expansion is present.
+       Cover A CONTACTS uses an explicit centre lane.
+       Image compositor no longer adds the old one-point white inset.
+
+[PASS] Structural checks
+       BrochurePrintLayoutMetrics.cs
+       BrochurePrintMeasurementService.cs
+       BrochurePrintPagePlanner.cs
+       BrochurePrintCompactComposer.cs
+       BrochurePrintMeasurementServiceTests.cs
+       BrochurePrintCompactPlannerTests.cs
+       Balanced (), [] and {} after comments/strings.
+       String/comment state closed correctly.
+
+[PASS] Incremental patch dry-run against the Phase 10 full baseline
+       git apply --check PRISM-Publications-Phase11-Print-Quality-Lock.patch
+
+NOT EXECUTED HERE
+       dotnet restore
+       dotnet build
+       dotnet test
+
+The preparation runtime does not expose the .NET SDK. Run the commands in
+README-REPLACE-FIRST.md on the PRISM development machine before deployment.

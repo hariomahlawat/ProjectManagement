@@ -1,0 +1,13 @@
+PHASE 11 CHANGED / NEW FILES
+============================
+
+Services/Publications/BrochurePrintLayoutMetrics.cs
+Services/Publications/BrochurePrintMeasurementService.cs
+Services/Publications/BrochurePrintPagePlanner.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
+ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+wwwroot/js/projects/publications-brochure-contract.test.js
+wwwroot/img/publications/README-COVER-A.txt
+tools/Test-PrismPublicationsPhase11.ps1
+README-REPLACE-FIRST.md

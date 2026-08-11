@@ -84,6 +84,81 @@ public sealed class BrochurePrintMeasurementServiceTests
         Assert.True(measure.TitleHeightPoints > 20f);
     }
 
+
+    [Fact]
+    public void MeasureProject_PublicationImageFramesUseExactSixteenByNineGeometry()
+    {
+        using var fixture = new Fixture();
+        var item = Item(1, 125, BrochureImageMode.Single, hasSecondary: false);
+
+        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+
+        Assert.True(measure.ImageWidthPoints > 0f);
+        Assert.InRange(
+            Math.Abs((measure.ImageWidthPoints / BrochurePrintLayoutMetrics.SingleImageAspectRatio)
+                     - measure.PrimaryImageHeightPoints),
+            0f,
+            .01f);
+    }
+
+    [Fact]
+    public void MeasureProject_VisualAndBalancedKeepNinePointPublicationBody()
+    {
+        using var fixture = new Fixture();
+        var item = Item(1, 185, BrochureImageMode.Single, hasSecondary: false);
+
+        var visual = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+        var balanced = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Balanced);
+        var compact = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Compact);
+
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, visual.BodyFontSize);
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, balanced.BodyFontSize);
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize, compact.BodyFontSize);
+    }
+
+    [Fact]
+    public void MeasureProject_FloatSplitPrefersSentenceBoundaryNearImageHeight()
+    {
+        using var fixture = new Fixture();
+        var narrative = string.Join(" ", new[]
+        {
+            "First sentence establishes the opening context and remains deliberately concise.",
+            "Second sentence adds enough material to occupy the side column beside the publication photograph.",
+            "Third sentence should normally continue below the photograph at full card width.",
+            "Fourth sentence completes the representative project brief for deterministic testing."
+        });
+        var item = new BrochurePrintPlanningItem(
+            1,
+            "Sentence Boundary Project",
+            narrative,
+            BrochureImageMode.Single,
+            HasPrimaryPhoto: true,
+            HasSecondaryPhoto: false);
+
+        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+
+        Assert.NotEmpty(measure.LeadingNarrative);
+        Assert.NotEmpty(measure.TrailingNarrative);
+        Assert.Contains(measure.LeadingNarrative[^1], new[] { '.', '!', '?' });
+    }
+
+    [Fact]
+    public void MeasureProject_ResidualImageExpansionIsBoundedAndRemeasured()
+    {
+        using var fixture = new Fixture();
+        var item = Item(1, 150, BrochureImageMode.Single, hasSecondary: false);
+
+        var normal = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+        var expanded = fixture.Service.MeasureProject(
+            item,
+            BrochurePrintLayoutVariant.Visual,
+            BrochurePrintLayoutMetrics.ResidualMaximumImageExpansionPoints);
+
+        Assert.True(expanded.ImageWidthPoints > normal.ImageWidthPoints);
+        Assert.True(expanded.ImageWidthPoints <= BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints);
+        Assert.NotEqual(normal.TotalHeightPoints, expanded.TotalHeightPoints);
+    }
+
     [Fact]
     public void MeasureFrontPage_ApprovedReferenceNeverDropsBelowTypographyFloor()
     {

@@ -75,6 +75,52 @@ public sealed class BrochurePrintCompactPlannerTests
         Assert.Contains(BrochurePrintLayoutVariant.Visual, selectedVariants);
     }
 
+    [Fact]
+    public void Plan_NinePointTypographyOutranksSavingOneSheet()
+    {
+        var planner = new BrochurePrintPagePlanner(new QualityFloorMeasurementService());
+        var projects = Enumerable.Range(1, 4)
+            .Select(index => PlanningItem(index, words: 150))
+            .ToArray();
+
+        var plan = planner.Plan(
+            projects,
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Institutional,
+            "Simulators of the Army, by the Army, for the Army",
+            hasHandlingMarking: false);
+
+        // All four Compact measurements could fit on one project sheet, but they are 8.5 pt.
+        // Phase 11 deliberately chooses more sheets and preserves the 9 pt publication body.
+        Assert.True(plan.Pages.Count(page => page.Projects.Count > 0) >= 2);
+        Assert.All(
+            plan.Pages.SelectMany(page => page.Projects),
+            project => Assert.True(
+                project.Measurement.BodyFontSize
+                >= BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize - .01f));
+    }
+
+    [Fact]
+    public void Plan_ResidualPassExpandsImagesWithoutChangingProjectOrder()
+    {
+        var measurement = new DeterministicMeasurementService();
+        var planner = new BrochurePrintPagePlanner(measurement);
+        var projects = Enumerable.Range(1, 3)
+            .Select(index => PlanningItem(index, words: 105))
+            .ToArray();
+
+        var plan = planner.Plan(
+            projects,
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Institutional,
+            "Simulators of the Army, by the Army, for the Army",
+            hasHandlingMarking: false);
+
+        var planned = plan.Pages.SelectMany(page => page.Projects).ToArray();
+        Assert.Equal(Enumerable.Range(0, 3).ToArray(), planned.Select(project => project.ProjectIndex).ToArray());
+        Assert.Contains(planned, project => project.Measurement.ImageWidthPoints > 140f);
+    }
+
     private static BrochurePrintPlanningItem PlanningItem(int id, int words)
         => new(
             id,
@@ -88,7 +134,8 @@ public sealed class BrochurePrintCompactPlannerTests
     {
         public BrochurePrintProjectMeasurement MeasureProject(
             BrochurePrintPlanningItem item,
-            BrochurePrintLayoutVariant variant)
+            BrochurePrintLayoutVariant variant,
+            float imageWidthAdjustmentPoints = 0f)
         {
             var baseHeight = item.NarrativeWordCount switch
             {
@@ -109,20 +156,25 @@ public sealed class BrochurePrintCompactPlannerTests
                 BrochurePrintLayoutVariant.Balanced => 2,
                 _ => 1
             };
+            var bodyFont = variant == BrochurePrintLayoutVariant.Compact
+                ? BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize
+                : BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize;
+            var imageWidth = 140f + imageWidthAdjustmentPoints;
+            var imageExpansionHeight = imageWidthAdjustmentPoints * .45f;
 
             return new BrochurePrintProjectMeasurement(
                 item.ProjectId,
                 variant,
-                baseHeight + delta,
+                baseHeight + delta + imageExpansionHeight,
                 22f,
-                8f,
-                7.8f,
+                variant == BrochurePrintLayoutVariant.Compact ? 9.5f : 10f,
+                bodyFont,
                 1.05f,
-                120f,
-                4.5f,
-                260f,
+                imageWidth,
+                5.6f,
+                250f,
                 100f,
-                72f,
+                imageWidth / BrochurePrintLayoutMetrics.SingleImageAspectRatio,
                 quality);
         }
 
@@ -133,21 +185,63 @@ public sealed class BrochurePrintCompactPlannerTests
             BrochurePrintMatter? matter,
             BrochureCoverStyle coverStyle,
             string? strapline)
-            => new(
-                Fits: true,
-                HeroHeightPoints: 270f,
-                CentreBlockHeightPoints: 55f,
-                CentreFontSize: 11f,
-                BodyBlockHeightPoints: 350f,
-                BodyFontSize: 8.8f,
-                BodyLineHeight: 1.07f,
-                BodySpacingPoints: 6f,
-                ContactBlockHeightPoints: 150f,
-                ContactFontSize: 8.5f,
-                StraplineHeightPoints: 21.755f,
-                TotalUsedHeightPoints: BrochurePrintLayoutMetrics.ReferenceHeightPoints,
-                UtilizationPercent: 100,
-                UsesMinimumTypography: false,
-                CoverStyle: coverStyle);
+            => FrontPlan(coverStyle);
     }
+
+    private sealed class QualityFloorMeasurementService : IBrochurePrintMeasurementService
+    {
+        public BrochurePrintProjectMeasurement MeasureProject(
+            BrochurePrintPlanningItem item,
+            BrochurePrintLayoutVariant variant,
+            float imageWidthAdjustmentPoints = 0f)
+        {
+            var preferred = variant != BrochurePrintLayoutVariant.Compact;
+            var height = preferred ? 230f : 200f;
+            var bodyFont = preferred
+                ? BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize
+                : BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize;
+
+            return new BrochurePrintProjectMeasurement(
+                item.ProjectId,
+                variant,
+                height,
+                22f,
+                preferred ? 10f : 9.5f,
+                bodyFont,
+                1.05f,
+                140f,
+                5.6f,
+                250f,
+                100f,
+                78.75f,
+                preferred ? 3 : 1);
+        }
+
+        public BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline)
+            => new(0f, 0f, 0f, 0f);
+
+        public BrochurePrintFrontPagePlan MeasureFrontPage(
+            BrochurePrintMatter? matter,
+            BrochureCoverStyle coverStyle,
+            string? strapline)
+            => FrontPlan(coverStyle);
+    }
+
+    private static BrochurePrintFrontPagePlan FrontPlan(BrochureCoverStyle coverStyle)
+        => new(
+            Fits: true,
+            HeroHeightPoints: 270f,
+            CentreBlockHeightPoints: 55f,
+            CentreFontSize: 11f,
+            BodyBlockHeightPoints: 350f,
+            BodyFontSize: 8.8f,
+            BodyLineHeight: 1.07f,
+            BodySpacingPoints: 6f,
+            ContactBlockHeightPoints: 150f,
+            ContactFontSize: 8.5f,
+            StraplineHeightPoints: 21.755f,
+            TotalUsedHeightPoints: BrochurePrintLayoutMetrics.ReferenceHeightPoints,
+            UtilizationPercent: 100,
+            UsesMinimumTypography: false,
+            CoverStyle: coverStyle);
 }

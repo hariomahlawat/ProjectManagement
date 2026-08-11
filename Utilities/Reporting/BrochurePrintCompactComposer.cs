@@ -5,9 +5,10 @@ using ProjectManagement.Services.Publications;
 namespace ProjectManagement.Utilities.Reporting;
 
 /// <summary>
-/// Original-format hard-copy brochure compositor. Phase 10 retains the measured Phase 9 sheet
-/// plan but restores the approved reference brochure's interior grammar: imagery is anchored on
-/// the upper-right, narrative text wraps beside it and then returns to the full module width.
+/// Original-format hard-copy brochure compositor. Phase 11 locks the approved reference grammar:
+/// imagery is anchored upper-right, copy wraps beside it and returns to full width below, image
+/// frames use the same 16:9 geometry as the publication crop pipeline, and Cover A contact headings
+/// reserve an explicit centre lane for the CONTACTS identifier.
 /// </summary>
 internal static class BrochurePrintCompactComposer
 {
@@ -281,50 +282,59 @@ internal static class BrochurePrintCompactComposer
         BrochurePublicationData data,
         float contactFontSize)
     {
-        container.Background(Contact).Layers(layers =>
-        {
-            layers.PrimaryLayer().PaddingHorizontal(8).PaddingVertical(7).Row(row =>
+        container.Background(Contact)
+            .PaddingHorizontal(8)
+            .PaddingVertical(6)
+            .Column(column =>
             {
-                row.RelativeItem().Column(left =>
+                column.Spacing(3);
+
+                // CONTACTS owns a real centre lane. It is never painted over either agency heading,
+                // which keeps the first-page footer stable at every supported contact font size.
+                column.Item().Height(BrochurePrintLayoutMetrics.FrontContactHeaderHeightPoints)
+                    .Row(header =>
+                    {
+                        header.RelativeItem().AlignMiddle().Text("Developing Agency")
+                            .FontSize(contactFontSize + .45f)
+                            .Bold()
+                            .Underline()
+                            .FontColor("#FFF5DB");
+
+                        header.ConstantItem(BrochurePrintLayoutMetrics.FrontContactCentreWidthPoints)
+                            .AlignMiddle()
+                            .AlignCenter()
+                            .Background("#E0182D")
+                            .PaddingVertical(3)
+                            .Text("CONTACTS")
+                            .FontSize(7.5f)
+                            .Bold()
+                            .AlignCenter()
+                            .FontColor("#F8E34F");
+
+                        header.RelativeItem().AlignMiddle().AlignRight().Text("Manufacturing Agency")
+                            .FontSize(contactFontSize + .45f)
+                            .Bold()
+                            .Underline()
+                            .FontColor("#FFF5DB");
+                    });
+
+                column.Item().Row(row =>
                 {
-                    left.Item().Text("Developing Agency")
-                        .FontSize(contactFontSize + .45f)
-                        .Bold()
-                        .Underline()
-                        .FontColor("#FFF5DB");
-                    left.Item().PaddingTop(2).Text(data.Options.PrintDevelopingAgencyText ?? string.Empty)
+                    row.RelativeItem().Text(data.Options.PrintDevelopingAgencyText ?? string.Empty)
                         .FontSize(contactFontSize)
                         .SemiBold()
                         .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
                         .FontColor("#FFFFFF");
-                });
 
-                row.ConstantItem(12);
-                row.RelativeItem().Column(right =>
-                {
-                    right.Item().Text("Manufacturing Agency")
-                        .FontSize(contactFontSize + .45f)
-                        .Bold()
-                        .Underline()
-                        .FontColor("#FFF5DB");
-                    right.Item().PaddingTop(2).Text(data.Options.PrintManufacturingAgencyText ?? string.Empty)
+                    row.ConstantItem(12);
+
+                    row.RelativeItem().Text(data.Options.PrintManufacturingAgencyText ?? string.Empty)
                         .FontSize(contactFontSize)
                         .SemiBold()
                         .LineHeight(BrochurePrintLayoutMetrics.FrontContactLineHeight)
                         .FontColor("#FFFFFF");
                 });
             });
-
-            // The approved reference cover uses a small central CONTACTS identifier. It is an
-            // overlay rather than a third column so agency copy keeps approximately half-sheet width.
-            layers.Layer().AlignTop().AlignCenter().PaddingTop(5).Background("#E0182D")
-                .PaddingHorizontal(15).PaddingVertical(3)
-                .Text("CONTACTS")
-                .FontSize(7.5f)
-                .Bold()
-                .AlignCenter()
-                .FontColor("#F8E34F");
-        });
     }
 
     private static void ComposeHandlingMarking(IContainer layer, string? handlingMarking)
@@ -536,7 +546,6 @@ internal static class BrochurePrintCompactComposer
             .Border(.6f)
             .BorderColor("#71817B")
             .Background("#FFFFFF")
-            .Padding(1)
             .Image(image)
             .FitArea();
 }

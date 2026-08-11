@@ -336,3 +336,41 @@ test('phase 10 print compact restores stronger closing matter and reference-gree
   assert.match(printRenderer, /Forest800 = "#156656"/);
   assert.match(printRenderer, /Text\("CONTACTS"\)/);
 });
+
+test('phase 11 locks 16:9 print imagery and nine-point normal typography', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  assert.match(metrics, /SingleImageAspectRatio = 16f \/ 9f/);
+  assert.match(metrics, /GalleryImageAspectRatio = 16f \/ 9f/);
+  assert.match(metrics, /BrochurePrintLayoutVariant\.Balanced[\s\S]{0,420}BodyFontSize: ProjectBodyPreferredFontSize/);
+  assert.match(metrics, /ImageWidthPoints: 150f \+ imageAdjustment/);
+  assert.match(metrics, /ImageWidthPoints: 140f \+ imageAdjustment/);
+  assert.match(metrics, /ResidualTargetUtilization = \.95f/);
+});
+
+test('phase 11 print planner protects typography before page count and expands residual imagery', () => {
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+  assert.match(planner, /typographyPenalty < existing\.TypographyPenalty/);
+  assert.match(planner, /ApplyResidualImageExpansion/);
+  assert.match(planner, /ResidualImageExpansionStepPoints/);
+  assert.match(planner, /ResidualMaximumImageExpansionPoints/);
+  assert.match(planner, /ProjectBodyPreferredFontSize/);
+});
+
+test('phase 11 float splitter prefers editorial boundaries before word fallback', () => {
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  assert.match(measurement, /BuildEditorialBoundaries/);
+  assert.match(measurement, /EditorialBoundaryKind\.Paragraph/);
+  assert.match(measurement, /EditorialBoundaryKind\.Sentence/);
+  assert.match(measurement, /EditorialBoundaryKind\.Word/);
+  assert.match(measurement, /FloatBoundaryToleranceLines/);
+});
+
+test('phase 11 Cover A contacts reserve a real centre lane and image frames do not add white padding', () => {
+  assert.match(printRenderer, /FrontContactCentreWidthPoints/);
+  assert.match(printRenderer, /header\.ConstantItem\(BrochurePrintLayoutMetrics\.FrontContactCentreWidthPoints\)/);
+  const imageComposer = printRenderer.slice(
+    printRenderer.indexOf('private static void ComposeImage'),
+    printRenderer.length);
+  assert.doesNotMatch(imageComposer, /\.Padding\(1\)/);
+  assert.match(imageComposer, /\.FitArea\(\)/);
+});

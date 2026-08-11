@@ -2,8 +2,8 @@ namespace ProjectManagement.Services.Publications;
 
 /// <summary>
 /// Canonical hard-copy geometry shared by the measurement service, page planner and QuestPDF compositor.
-/// Phase 10 keeps the approved narrow reference sheet while restoring the reference brochure's
-/// right-hand image / wrap-under text grammar and print-readable typography.
+/// Phase 11 locks the approved narrow reference sheet, 16:9 publication imagery, reference-style
+/// right-hand float composition and a 9 pt normal project typography floor.
 /// </summary>
 public static class BrochurePrintLayoutMetrics
 {
@@ -20,9 +20,15 @@ public static class BrochurePrintLayoutMetrics
     public const float ModuleHorizontalPaddingPoints = 7f;
     public const float TextImageGapPoints = 6f;
     public const float FloatRemainderGapPoints = 2.5f;
+    public const float FloatBoundaryToleranceLines = 1.25f;
+    public const float FloatPreferredBoundaryBandLines = 1.65f;
     public const float GalleryImageGapPoints = 4f;
-    public const float SingleImageAspectRatio = 1.45f;
-    public const float GalleryImageAspectRatio = 1.65f;
+
+    // Project publication images are normalised to 1920x1080 upstream. Keep the compositor and
+    // planner on the same 16:9 geometry so measured height exactly matches the rendered image.
+    public const float SingleImageAspectRatio = 16f / 9f;
+    public const float GalleryImageAspectRatio = 16f / 9f;
+
     public const float InterModuleSpacingPoints = 4f;
     public const float ClosingGapPoints = 4f;
     public const float ProjectMeasurementSafetyPoints = 3.5f;
@@ -31,8 +37,15 @@ public static class BrochurePrintLayoutMetrics
     public const float TargetMinimumUtilization = .90f;
     public const float PreferredUtilization = .96f;
 
-    // Print / Compact project typography. Phase 10 deliberately keeps the normal body at 9 pt
-    // and never drops below 8.5 pt simply to protect an existing page break.
+    // Residual-space optimisation is deliberately bounded. Page membership never changes during
+    // this pass; only project imagery is enlarged until the page approaches a professional fill.
+    public const float ResidualTargetUtilization = .95f;
+    public const float ResidualImageExpansionStepPoints = 4f;
+    public const float ResidualMaximumImageExpansionPoints = 24f;
+    public const float ResidualMaximumImageWidthPoints = 176f;
+
+    // Print / Compact project typography. Visual and Balanced both retain the 9 pt publication
+    // body. Compact is an emergency layout only and may use the 8.5 pt hard floor.
     public const float ProjectTitlePreferredFontSize = 10f;
     public const float ProjectTitleMinimumFontSize = 9.25f;
     public const float ProjectTitleLineHeight = 1.0f;
@@ -56,6 +69,8 @@ public static class BrochurePrintLayoutMetrics
     public const float FrontContactPreferredFontSize = 8.5f;
     public const float FrontContactMinimumFontSize = 8.1f;
     public const float FrontContactLineHeight = 1.05f;
+    public const float FrontContactHeaderHeightPoints = 18f;
+    public const float FrontContactCentreWidthPoints = 84f;
     public const float FrontStraplineHeightPoints = 22f;
     public const float FrontMinimumHeroHeightPoints = 215f;
     public const float FrontMaximumHeroHeightPoints = 355f;
@@ -76,12 +91,12 @@ public static class BrochurePrintLayoutMetrics
         BrochurePrintLayoutVariant variant,
         int narrativeWordCount)
     {
-        // Images remain visually useful even for long briefs because text is allowed to wrap under
-        // them. Width adjustment is therefore deliberately modest rather than collapsing imagery.
+        // Text wraps under imagery, so long briefs only need a modest width reduction. Short copy
+        // can support a slightly stronger visual without compromising the reference body size.
         var imageAdjustment = narrativeWordCount switch
         {
-            > 195 => -7f,
-            > 160 => -3f,
+            > 195 => -8f,
+            > 160 => -4f,
             < 90 => 8f,
             < 120 => 4f,
             _ => 0f
@@ -94,16 +109,18 @@ public static class BrochurePrintLayoutMetrics
                 BodyFontSize: ProjectBodyPreferredFontSize,
                 BodyLineHeight: 1.05f,
                 TitleFontSize: ProjectTitlePreferredFontSize,
-                ImageWidthPoints: 136f + imageAdjustment,
+                ImageWidthPoints: 150f + imageAdjustment,
                 BodyPaddingPoints: 6.0f,
                 QualityRank: 3),
 
+            // Balanced reduces image footprint only. It deliberately preserves 9 pt copy so page
+            // count never wins by silently reducing normal publication typography.
             BrochurePrintLayoutVariant.Balanced => new BrochurePrintVariantSpec(
                 variant,
-                BodyFontSize: 8.75f,
+                BodyFontSize: ProjectBodyPreferredFontSize,
                 BodyLineHeight: 1.05f,
-                TitleFontSize: 9.75f,
-                ImageWidthPoints: 124f + imageAdjustment,
+                TitleFontSize: ProjectTitlePreferredFontSize,
+                ImageWidthPoints: 140f + imageAdjustment,
                 BodyPaddingPoints: 5.6f,
                 QualityRank: 2),
 
@@ -112,7 +129,7 @@ public static class BrochurePrintLayoutMetrics
                 BodyFontSize: ProjectBodyMinimumFontSize,
                 BodyLineHeight: 1.04f,
                 TitleFontSize: 9.5f,
-                ImageWidthPoints: 112f + imageAdjustment,
+                ImageWidthPoints: 130f + imageAdjustment,
                 BodyPaddingPoints: 5.2f,
                 QualityRank: 1)
         };
