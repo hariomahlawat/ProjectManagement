@@ -37,6 +37,78 @@ public sealed class BrochurePdfReportBuilderTests
 
 
     [Fact]
+    public void Build_DigitalContemporaryCover_WithHeroBytes_ComposesWithoutLayerTopologyFailure()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var environment = new TestWebHostEnvironment(webRoot);
+            var fontService = new FixedFontService();
+            var builder = CreateBuilder(environment, fontService);
+            var pixel = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+
+            var hero = new BrochurePublicationImage(
+                9001,
+                pixel,
+                1024,
+                1024,
+                IsPrintReady: false,
+                SourceVariant: "cover-b-regression",
+                Quality: BrochurePhotoQuality.Low);
+            var project = new BrochurePublicationProject(
+                1,
+                "Cover B Regression Project",
+                "Other R&D Projects",
+                "AR / VR",
+                string.Join(" ", Enumerable.Range(1, 80).Select(index => $"word{index}")),
+                80,
+                hero,
+                SecondaryPhoto: null,
+                BrochureImageMode.Single);
+            var options = new BrochureBuildOptions(
+                "SDD Capability Brochure",
+                "Simulator Development Division",
+                "Capability Edition · 2026",
+                "Simulators of the Army, by the Army, for the Army",
+                BrochureCoverStyle.Contemporary,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.DigitalComfortable,
+                IntroductionTitle: null,
+                IntroductionText: null,
+                HandlingMarking: null,
+                IssuerDisplayName: "Simulator Development Division",
+                AllowTextOnlyProjects: false,
+                GeneratedAtUtc: new DateTimeOffset(2026, 8, 12, 16, 0, 0, TimeSpan.Zero),
+                CoverHeroProjectId: project.ProjectId,
+                CoverHeroPhotoId: hero.PhotoId,
+                CoverHeroFocalX: .5d,
+                CoverHeroFocalY: .5d,
+                IncludeBackCover: true);
+            var data = new BrochurePublicationData(
+                options,
+                new[] { project },
+                new BrochurePreflight(
+                    1,
+                    Array.Empty<BrochurePreflightIssue>(),
+                    ResolvedCoverHeroProjectId: project.ProjectId,
+                    ResolvedCoverHeroPhotoId: hero.PhotoId),
+                hero);
+
+            var bytes = builder.Build(data);
+
+            Assert.True(bytes.Length > 5_000);
+            Assert.Equal("%PDF-", Encoding.ASCII.GetString(bytes, 0, 5));
+            Assert.True(BrochurePdfCompositionVerifier.CountPages(bytes) >= 1);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Build_GeneratesDedicatedSingleFeatureWithIndependentCoverHero()
     {
         var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");

@@ -351,7 +351,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
             page.Content().Layers(layers =>
             {
-                layers.Layer().Background(Forest950);
+                // QuestPDF Layers requires exactly one PrimaryLayer. Cover B previously
+                // declared only overlay Layer() elements, which passed preflight but failed
+                // at physical PDF composition with HTTP 500. The full-page institutional
+                // field is the natural sizing layer; all decorative/content layers are
+                // deliberately rendered above it.
+                layers.PrimaryLayer().Background(Forest950);
                 layers.Layer().AlignTop().Height(8).Background(Gold);
                 layers.Layer().AlignRight().Width(120).Height(842).Background(Forest900);
 

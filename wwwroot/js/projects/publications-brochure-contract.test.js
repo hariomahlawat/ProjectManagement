@@ -128,6 +128,9 @@ test('phase 6 renderer uses independent Cover B artwork with finalised full-page
   assert.match(renderer, /AlignBottom\(\)[\s\S]{0,120}Height\(88\)[\s\S]{0,140}Background\("#082A26"\)/);
   const contemporary = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
   assert.doesNotMatch(contemporary, /Generated from authoritative PRISM records/);
+  const primaryLayers = contemporary.match(/layers\.PrimaryLayer\(\)/g) ?? [];
+  assert.equal(primaryLayers.length, 1, 'Cover B must define exactly one QuestPDF PrimaryLayer');
+  assert.match(contemporary, /layers\.PrimaryLayer\(\)\.Background\(Forest950\)/);
 });
 
 test('phase 6 renderer gives two-project pages adaptive imagery and SingleFeature a dedicated page composer', () => {

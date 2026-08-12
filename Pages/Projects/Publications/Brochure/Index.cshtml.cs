@@ -614,7 +614,11 @@ public sealed class IndexModel : PageModel
                 : "The brochure could not be generated. Review publication preflight and try again.";
             if (WantsJson())
             {
-                return new JsonResult(new { message })
+                return new JsonResult(new
+                {
+                    message,
+                    code = "pdfCompositionFailed"
+                })
                 {
                     StatusCode = StatusCodes.Status500InternalServerError
                 };

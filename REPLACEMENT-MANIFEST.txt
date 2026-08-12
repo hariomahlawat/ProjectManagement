@@ -1,31 +1,23 @@
-PRISM Publications Phase 20.2 — Cover B Reliability
-====================================================
+PRISM Brochure Phase 20.3 - Cover B QuestPDF Composition Fix
+============================================================
 
-Prerequisite
-------------
-Apply on top of Phase 20 + Phase 20.1 compile hotfix.
-No database migration, NuGet change, npm change, or Program.cs change is required.
+REPLACE APPLICATION FILES
+1. Utilities/Reporting/BrochurePdfReportBuilder.cs
+2. Pages/Projects/Publications/Brochure/Index.cshtml.cs
 
-REPLACE
--------
-Pages/Projects/Publications/Brochure/Index.cshtml
-Pages/Projects/Publications/Brochure/Index.cshtml.cs
-Services/Publications/BrochurePhotoService.cs
-wwwroot/css/pages/projects-publications.css
-wwwroot/js/pages/projects-brochure.js
-wwwroot/js/projects/publications-brochure-contract.test.js
+REPLACE TEST FILES
+3. ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+4. wwwroot/js/projects/publications-brochure-contract.test.js
 
-ADD / REPLACE TOOL
-------------------
-tools/Test-PrismPublicationsPhase20_2.ps1
+ADD/REPLACE VALIDATOR
+5. tools/Test-PrismPublicationsPhase20_3.ps1
 
-NOT REPLACED
-------------
-Services/Publications/BrochurePublicationService.cs
-  Phase 20.1's page.Items compile fix remains authoritative and is checked by the validator.
+PREREQUISITES
+- Phase 20 Digital / Comfortable implementation.
+- Phase 20.1 BrochurePagePlan.Items compile fix.
+- Phase 20.2 Cover B approval/reliability fix.
 
-Utilities/Reporting/BrochurePdfReportBuilder.cs
-Utilities/Reporting/BrochurePdfCompositionVerifier.cs
-Services/Publications/BrochureDigitalPublicationPolicy.cs
-Services/Publications/BrochureLayoutPlanner.cs
-  No Cover B reliability defect was found in the Digital page plan or PDF page topology.
+NO database migration.
+NO NuGet change.
+NO npm change.
+NO Print / Compact geometry change.
