@@ -94,7 +94,7 @@ test('phase 6 provides project approval and cover approval for final download', 
   assert.match(view, /data-cover-hero-approve/);
   assert.doesNotMatch(view, /Use this image/);
   assert.match(js, /allReviewed/);
-  assert.match(js, /coverReady = !isContemporaryCover\(\) \|\| Boolean\(coverReviewed && coverReviewFingerprint\)/);
+  assert.match(js, /const coverReady = isCurrentCoverApproved\(\)/);
   assert.match(js, /finalReady = previewReady && allReviewed\(\) && coverReady/);
 });
 
@@ -619,7 +619,7 @@ test('phase 17 keeps post-compose verification persistently visible until public
   assert.match(js, /let lastVerifiedPdf = null/);
   assert.match(js, /PDF verified · \$\{pages\} page/);
   assert.match(js, /lastVerifiedPdf = \{ verified: true, pageCount: physicalPageCount \}/);
-  assert.match(js, /const schedulePreflight = \(\) => \{[\s\S]{0,180}lastVerifiedPdf = null/);
+  assert.match(js, /const schedulePreflight = \(\) => \{[\s\S]{0,520}lastVerifiedPdf = null/);
 });
 
 test('phase 17 findings provide direct Fix image actions instead of locate-plus-configure indirection', () => {
@@ -779,7 +779,7 @@ test('phase 19 Smart Flow participates in shared-brochure dirty-state fingerprin
   assert.match(snapshot, /projects: orderedIds\.map/);
   assert.match(js, /smartFlowUndoOrder = \[\.\.\.orderedIds\];[\s\S]{0,100}orderedIds = suggestedIds;[\s\S]{0,100}renderSelected\(true, false\)/);
   assert.match(js, /orderedIds = \[\.\.\.smartFlowUndoOrder\];[\s\S]{0,120}renderSelected\(true, false\)/);
-  assert.match(js, /const schedulePreflight = \(\) => \{[\s\S]{0,120}renderPresetDirtyState\(\)/);
+  assert.match(js, /const schedulePreflight = \(\) => \{[\s\S]{0,520}renderPresetDirtyState\(\)/);
 });
 
 test('phase 19 restores a modernised heritage identity to the final Visionary panel without changing its measured content box', () => {
@@ -882,4 +882,82 @@ test('phase 20 Digital image quality follows actual feature, split and premium-c
   assert.match(service, /BuildDigitalPhotoPlacements/);
   assert.match(service, /PhotoPlacement\.EditorialSplit/);
   assert.match(js, /1800 \/ \(isPrintCompactProfile\(\) \? 1055 : 1360\)/);
+});
+
+
+test('phase 20.2 Cover B approval is bound to the exact current server preflight fingerprint', () => {
+  assert.match(js, /const currentCoverReviewFingerprint = \(\) =>/);
+  assert.match(js, /const isCurrentCoverApproved = \(\) =>/);
+  assert.match(js, /coverReviewFingerprint === serverFingerprint/);
+  assert.match(js, /const coverReady = isCurrentCoverApproved\(\)/);
+  assert.match(js, /isContemporaryCover\(\) && !isCurrentCoverApproved\(\)/);
+  assert.doesNotMatch(js, /const coverReady = !isContemporaryCover\(\) \|\| Boolean\(coverReviewed && coverReviewFingerprint\)/);
+});
+
+test('phase 20.2 preflight invalidates stale Cover B state immediately and rejects superseded responses', () => {
+  assert.match(js, /let preflightRevision = 0/);
+  assert.match(js, /let preflightPending = false/);
+  assert.match(js, /preflightAbort\?\.abort\(\);[\s\S]{0,180}preflightRevision \+= 1/);
+  assert.match(js, /const runPreflight = async revision =>/);
+  assert.match(js, /if \(revision !== preflightRevision\) return/);
+  assert.match(js, /Checking selected narratives, cover state and publication source images/);
+  assert.match(js, /Checking cover…/);
+});
+
+test('phase 20.2 approving an automatic Cover B hero does not silently convert it to an explicit saved hero', () => {
+  const approve = js.slice(
+    js.indexOf('coverHeroApprove?.addEventListener'),
+    js.indexOf('coverHeroFocalStage?.addEventListener')
+  );
+  assert.match(approve, /const hero = resolvedCoverHero\(\)/);
+  assert.match(approve, /const fingerprint = currentCoverReviewFingerprint\(\)/);
+  assert.doesNotMatch(approve, /ensureExplicitCoverHero\(\)/);
+  assert.match(approve, /updateButtons\(Boolean\(lastPreflight\?\.canGenerate\)\)/);
+});
+
+test('phase 20.2 final Cover B generation performs an independent current-approval guard', () => {
+  const requestStart = js.indexOf('const requestPdf = async preview =>');
+  const requestEnd = js.indexOf('rows.forEach(row =>', requestStart);
+  const request = js.slice(requestStart, requestEnd);
+  assert.match(request, /!preview && isContemporaryCover\(\) && !isCurrentCoverApproved\(\)/);
+  assert.match(request, /Cover B is being rechecked/);
+  assert.match(request, /Approve the current Cover B hero and crop before final download/);
+});
+
+test('phase 20.2 generation errors carry structured publication issue codes and recover stale Cover B state', () => {
+  const pageModel = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+  assert.match(pageModel, /code = "publicationStateChanged"/);
+  assert.match(pageModel, /issues = blockerIssues\.Select/);
+  assert.match(pageModel, /code = issue\.Code\.ToString\(\)/);
+  assert.match(js, /const publicationErrorFromResponse = async response =>/);
+  assert.match(js, /hasCoverApprovalIssue/);
+  assert.match(js, /CoverReviewRequired/);
+  assert.match(js, /CoverReviewStale/);
+  assert.match(js, /schedulePreflight\(\)/);
+});
+
+test('phase 20.2 separates Cover B editorial approval from technical image quality', () => {
+  assert.match(view, /data-cover-hero-quality-state/);
+  assert.match(css, /\.brochure-cover-quality-state\.is-low/);
+  assert.match(css, /\.brochure-cover-quality-state\.is-good/);
+  assert.match(js, /Approved for cover/);
+  assert.match(js, /coverHeroApprove\.hidden = coverIsApproved/);
+  assert.match(js, /Image quality ·/);
+  assert.match(js, /resolvedCoverHeroQuality/);
+});
+
+test('phase 20.2 digital structural settings trigger fresh preflight and Digital verification is surfaced', () => {
+  assert.match(view, /asp-for="Input\.IncludeBackCover"[^>]*data-brochure-preflight-trigger/);
+  assert.match(view, /asp-for="Input\.IntroductionTitle"[^>]*data-brochure-preflight-trigger/);
+  assert.match(view, /asp-for="Input\.IntroductionText"[^>]*data-brochure-preflight-trigger/);
+  const verification = js.slice(js.indexOf('const renderPdfVerification'), js.indexOf('const updateButtons'));
+  assert.doesNotMatch(verification, /isPrintCompactProfile\(\)/);
+});
+
+test('phase 20.2 publication photo rendering treats ImageSharp processing failures as a single-photo failure instead of a request crash', () => {
+  const photoService = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePhotoService.cs'), 'utf8');
+  assert.match(photoService, /IsRecoverableImageException/);
+  assert.match(photoService, /ArgumentException/);
+  assert.match(photoService, /NotSupportedException/);
+  assert.match(photoService, /StartsWith\("SixLabors\.ImageSharp\."/);
 });

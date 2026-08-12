@@ -557,6 +557,50 @@
     background: #eef8f4;
     color: #1b6b59;
 }
+.brochure-cover-review-state.is-checking {
+    border-color: #cfdad6;
+    background: #f3f6f5;
+    color: #62736c;
+}
+.brochure-cover-hero-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .28rem;
+    margin-top: .28rem;
+}
+.brochure-cover-hero-statuses .brochure-cover-review-state {
+    margin-top: 0;
+}
+.brochure-cover-quality-state {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    padding: .16rem .42rem;
+    border: 1px solid #d5dfdb;
+    border-radius: 999px;
+    background: #f7faf9;
+    color: #66766f;
+    font-size: .54rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.brochure-cover-quality-state[hidden] { display: none !important; }
+.brochure-cover-quality-state.is-low {
+    border-color: #ead49a;
+    background: #fff7df;
+    color: #88620f;
+}
+.brochure-cover-quality-state.is-acceptable {
+    border-color: #d5dfdb;
+    background: #f7faf9;
+    color: #536860;
+}
+.brochure-cover-quality-state.is-good {
+    border-color: #b9d7cb;
+    background: #eef8f4;
+    color: #1b6b59;
+}
 .brochure-cover-hero-choices {
     max-height: 270px;
     overflow-y: auto;

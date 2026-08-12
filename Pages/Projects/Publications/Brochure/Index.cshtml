@@ -277,7 +277,7 @@
                                     <span class="brochure-profile-option__icon"><i class="bi bi-display" aria-hidden="true"></i></span>
                                     <span>
                                         <strong>Digital / Comfortable</strong>
-                                        <small>A4 screen-friendly profile with larger imagery, more whitespace and the existing editorial page planner.</small>
+                                        <small>A4 screen-first profile with larger imagery, comfortable typography and deliberate editorial pacing.</small>
                                     </span>
                                 </label>
                             </div>
@@ -371,7 +371,10 @@
                                 <span class="brochure-cover-hero-current__copy">
                                     <strong data-cover-hero-name>Waiting for project selection</strong>
                                     <small data-cover-hero-meta>Select projects to resolve the automatic Cover B hero.</small>
-                                    <span class="brochure-cover-review-state" data-cover-hero-review-state>Cover review required</span>
+                                    <span class="brochure-cover-hero-statuses">
+                                        <span class="brochure-cover-review-state" data-cover-hero-review-state>Cover review required</span>
+                                        <span class="brochure-cover-quality-state" hidden data-cover-hero-quality-state></span>
+                                    </span>
                                 </span>
                                 <span class="brochure-cover-hero-current__actions">
                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-hero-choose>Change hero</button>
@@ -420,7 +423,7 @@
                                     </span>
                                 </label>
                                 <label class="brochure-policy-option" data-brochure-digital-only>
-                                    <input asp-for="Input.IncludeBackCover" class="form-check-input" />
+                                    <input asp-for="Input.IncludeBackCover" class="form-check-input" data-brochure-preflight-trigger />
                                     <span>
                                         <strong>Include digital back cover</strong>
                                         <small>Digital profile only. The institutional closing page remains content-bearing and is separate from this minimal back cover.</small>
@@ -428,11 +431,11 @@
                                 </label>
                                 <label class="form-label brochure-field" data-brochure-digital-only>
                                     <span>Additional introduction heading</span>
-                                    <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" />
+                                    <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger />
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide" data-brochure-digital-only>
                                     <span>Additional introduction (optional)</span>
-                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional supplementary introduction..."></textarea>
+                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional supplementary introduction..." data-brochure-preflight-trigger></textarea>
                                     <small>Digital profile only. This follows the dedicated About SDD page and continues automatically when required.</small>
                                 </label>
                             </div>

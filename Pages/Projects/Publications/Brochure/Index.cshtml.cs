@@ -552,19 +552,36 @@ public sealed class IndexModel : PageModel
         }
         catch (BrochurePublicationValidationException exception)
         {
-            var blockerMessages = exception.Preflight.Issues
+            var blockerIssues = exception.Preflight.Issues
                 .Where(issue => issue.Severity == PublicationIssueSeverity.Blocker)
-                .Select(issue => issue.Message)
-                .Distinct(StringComparer.Ordinal)
+                .DistinctBy(issue => new { issue.Code, issue.ProjectId, issue.Message })
                 .Take(12)
                 .ToArray();
+            var blockerMessages = blockerIssues
+                .Select(issue => issue.Message)
+                .ToArray();
+
+            _logger.LogWarning(
+                "Capability brochure generation was rejected after current-state validation. Preview={Preview}, Cover={CoverStyle}, Blockers={Blockers}",
+                preview,
+                Input.CoverStyle,
+                string.Join(", ", blockerIssues.Select(issue => issue.Code.ToString())));
 
             if (WantsJson())
             {
                 return new JsonResult(new
                 {
-                    message = "Publication preflight changed while the brochure was being prepared.",
-                    errors = blockerMessages
+                    message = "Publication state changed while the brochure was being prepared.",
+                    code = "publicationStateChanged",
+                    errors = blockerMessages,
+                    issues = blockerIssues.Select(issue => new
+                    {
+                        code = issue.Code.ToString(),
+                        severity = issue.Severity.ToString(),
+                        projectId = issue.ProjectId,
+                        projectName = issue.ProjectName,
+                        message = issue.Message
+                    }).ToArray()
                 })
                 {
                     StatusCode = StatusCodes.Status409Conflict

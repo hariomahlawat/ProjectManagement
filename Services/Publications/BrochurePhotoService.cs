@@ -247,7 +247,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 source.Variant,
                 DetermineQuality(sourceWidth, sourceHeight));
         }
-        catch (Exception exception) when (IsImageReadException(exception))
+        catch (Exception exception) when (IsRecoverableImageException(exception))
         {
             _logger.LogWarning(
                 exception,
@@ -336,7 +336,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 source.Variant,
                 quality);
         }
-        catch (Exception exception) when (IsImageReadException(exception))
+        catch (Exception exception) when (IsRecoverableImageException(exception))
         {
             _logger.LogWarning(
                 exception,
@@ -390,7 +390,7 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
                 var quality = DetermineQuality(image.Width, image.Height);
                 probe = new CandidateProbe(true, image.Width, image.Height, quality);
             }
-            catch (Exception exception) when (IsImageReadException(exception))
+            catch (Exception exception) when (IsRecoverableImageException(exception))
             {
                 _logger.LogDebug(
                     exception,
@@ -571,11 +571,26 @@ public sealed class BrochurePhotoService : IBrochurePhotoService
         image.Mutate(context => context.Resize(width, height));
     }
 
-    private static bool IsImageReadException(Exception exception)
-        => exception is IOException
+    private static bool IsRecoverableImageException(Exception exception)
+    {
+        if (exception is IOException
             or UnauthorizedAccessException
             or UnknownImageFormatException
-            or InvalidImageContentException;
+            or InvalidImageContentException
+            or ArgumentException
+            or NotSupportedException)
+        {
+            return true;
+        }
+
+        // ImageSharp can surface format/processing-specific exception types that vary between
+        // library versions. At this single-photo boundary those failures mean "this source is not
+        // renderable", not "crash the entire publication request". Limit the fallback strictly to
+        // ImageSharp exception namespaces so process-level/runtime failures still propagate.
+        var exceptionNamespace = exception.GetType().Namespace;
+        return string.Equals(exceptionNamespace, "SixLabors.ImageSharp", StringComparison.Ordinal)
+            || (exceptionNamespace?.StartsWith("SixLabors.ImageSharp.", StringComparison.Ordinal) ?? false);
+    }
 
     private static double ClampFocal(double value)
         => double.IsFinite(value) ? Math.Clamp(value, 0d, 1d) : .5d;

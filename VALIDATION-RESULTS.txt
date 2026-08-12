@@ -1,15 +1,32 @@
-PRISM Phase 20.1 validation
-===========================
+PRISM Publications Phase 20.2 — Validation Results
+===================================================
 
-PASS  BrochurePublicationService no longer references BrochurePagePlan.Fragments.
-PASS  BuildDigitalPhotoPlacements enumerates BrochurePagePlan.Items.
-PASS  ActionTasks IndexModel.ResolveActorName accepts string? and null-guards it.
-PASS  No remaining .Fragments references were found in the merged working project.
+Environment validation completed
+--------------------------------
 PASS  node --check wwwroot/js/pages/projects-brochure.js
 PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
-      81 tests passed; 0 failed.
+      89 tests passed / 0 failed
+PASS  source contract: canonical exact Cover B fingerprint predicate present
+PASS  source contract: immediate preflight abort/revision sequencing present
+PASS  source contract: independent final Cover B approval guard present
+PASS  source contract: structured 409 issue codes present
+PASS  source contract: Cover B approval and image-quality states separated
+PASS  source contract: Digital structural fields trigger preflight
+PASS  source contract: recoverable publication-photo processing boundary present
+PASS  source contract: Phase 20.1 BrochurePagePlan.Items compile fix retained in merged source
 
-NOT EXECUTED HERE
-- dotnet build
-- dotnet test
-Reason: .NET SDK is not installed in this execution environment.
+Not executed in this environment
+--------------------------------
+.NET SDK is not installed here, therefore dotnet build/test could not be executed.
+Run tools/Test-PrismPublicationsPhase20_2.ps1 on the development machine after replacement.
+
+Required runtime acceptance check
+---------------------------------
+1. Digital / Comfortable + Cover B.
+2. Test Automatic hero and explicit hero.
+3. Approve current cover.
+4. Confirm low-resolution hero remains a warning rather than blocking generation.
+5. Preview PDF.
+6. Download final PDF after all project approvals.
+7. Change hero/crop after approval and confirm Download is disabled until fresh preflight + approval.
+8. Confirm successful Digital generation shows physical PDF verification/page count.
