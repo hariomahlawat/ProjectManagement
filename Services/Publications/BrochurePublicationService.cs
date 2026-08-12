@@ -443,7 +443,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 project.PrimaryPhotoId.HasValue,
                 project.SecondaryPhotoId.HasValue))
             .ToArray();
-        var plan = _printPagePlanner.Plan(
+        var plan = _printPagePlanner.PlanWithSmartFlow(
             planningItems,
             printMatter,
             coverStyle,
@@ -479,14 +479,23 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 "The measured final project geometry cannot safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order, copy length or image treatment changes."));
         }
 
-        if (plan.LowestProjectPageUtilizationPercent is < 82)
+        if (plan.SmartFlowSuggestion is not null)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.PrintSmartFlowAvailable,
+                PublicationIssueSeverity.Information,
+                null,
+                null,
+                plan.SmartFlowSuggestion.Summary));
+        }
+        else if (plan.LowestProjectPageUtilizationPercent is < 82)
         {
             issues.Add(new BrochurePreflightIssue(
                 BrochurePreflightIssueCode.PrintPageUnderUtilized,
                 PublicationIssueSeverity.Information,
                 null,
                 null,
-                $"One hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation because the next ordered project cannot fit without breaching the print typography floor."));
+                $"One hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation. The adaptive 9 pt compositor has already tested approved image widths and dense geometry; the remaining whitespace is structural for the current order."));
         }
 
         var preflight = prepared.Preflight with
@@ -499,7 +508,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             LowestProjectPageUtilizationPercent = plan.LowestProjectPageUtilizationPercent,
             FinalPageUtilizationPercent = plan.FinalPageUtilizationPercent,
             PrintFrontPageUsesMinimumTypography = plan.FrontPage.UsesMinimumTypography,
-            PrintSheetPlan = plan.SheetPlan
+            PrintSheetPlan = plan.SheetPlan,
+            SmartFlowSuggestion = plan.SmartFlowSuggestion
         };
 
         return prepared with { Preflight = preflight };

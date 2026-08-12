@@ -543,6 +543,41 @@ public sealed class IndexModel : PageModel
                 sheet.UtilizationPercent,
                 sheet.Label
             }).ToArray(),
+            smartFlowSuggestion = preflight.SmartFlowSuggestion is null ? null : new
+            {
+                suggestedProjectIds = preflight.SmartFlowSuggestion.SuggestedProjectIds,
+                preflight.SmartFlowSuggestion.CurrentPageCount,
+                preflight.SmartFlowSuggestion.SuggestedPageCount,
+                preflight.SmartFlowSuggestion.CurrentLowestProjectUtilizationPercent,
+                preflight.SmartFlowSuggestion.SuggestedLowestProjectUtilizationPercent,
+                preflight.SmartFlowSuggestion.CurrentAverageUtilizationPercent,
+                preflight.SmartFlowSuggestion.SuggestedAverageUtilizationPercent,
+                preflight.SmartFlowSuggestion.MovedProjectCount,
+                preflight.SmartFlowSuggestion.TotalPositionShift,
+                preflight.SmartFlowSuggestion.DenseProjectCount,
+                preflight.SmartFlowSuggestion.AutomaticSingleProjectCount,
+                preflight.SmartFlowSuggestion.MinimumImageWidthPoints,
+                preflight.SmartFlowSuggestion.AdaptiveTreatmentSummary,
+                preflight.SmartFlowSuggestion.Summary,
+                moves = preflight.SmartFlowSuggestion.Moves.Select(move => new
+                {
+                    move.ProjectId,
+                    move.ProjectName,
+                    move.FromOrdinal,
+                    move.ToOrdinal
+                }).ToArray(),
+                suggestedSheetPlan = preflight.SmartFlowSuggestion.SuggestedSheetPlan.Select(sheet => new
+                {
+                    sheet.SheetNumber,
+                    sheet.Kind,
+                    sheet.FirstProjectOrdinal,
+                    sheet.LastProjectOrdinal,
+                    sheet.ProjectCount,
+                    sheet.IncludesClosingMatter,
+                    sheet.UtilizationPercent,
+                    sheet.Label
+                }).ToArray()
+            },
             issues = preflight.Issues.Select(issue => new
             {
                 severity = issue.Severity.ToString().ToLowerInvariant(),

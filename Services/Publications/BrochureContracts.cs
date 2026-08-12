@@ -52,9 +52,17 @@ public enum BrochureImageMode
 
 public enum BrochurePrintLayoutVariant
 {
+    // Compact remains an emergency 8.5 pt layout for a single pathological project only.
     Compact = 1,
     Balanced = 2,
-    Visual = 3
+    Visual = 3,
+    Dense = 4
+}
+
+public enum BrochureInstitutionalArtworkIdentityMode
+{
+    FullArtwork = 1,
+    BackgroundOnly = 2
 }
 
 public enum BrochureFloatSplitKind
@@ -109,7 +117,8 @@ public enum BrochurePreflightIssueCode
     PrintClosingPageStandalone = 19,
     PrintFrontPageDoesNotFit = 20,
     PrintFrontPageTightFit = 21,
-    PrintPageUnderUtilized = 22
+    PrintPageUnderUtilized = 22,
+    PrintSmartFlowAvailable = 23
 }
 
 
@@ -180,7 +189,10 @@ public sealed record BrochurePrintProjectMeasurement(
     float ContinuationTextHeightPoints = 0f,
     BrochureFloatSplitKind FloatSplitKind = BrochureFloatSplitKind.None,
     float RemainderGapPoints = 0f,
-    float ParagraphSpacingPoints = 0f);
+    float ParagraphSpacingPoints = 0f,
+    bool UsesSecondaryImage = false,
+    float VisualQualityScore = 0f,
+    float TitleMinimumHeightPoints = 18f);
 
 public sealed record BrochurePrintPlannedProject(
     int ProjectIndex,
@@ -233,6 +245,30 @@ public sealed record BrochurePrintSheetSummary(
     int UtilizationPercent,
     string Label);
 
+public sealed record BrochurePrintOrderMove(
+    int ProjectId,
+    string ProjectName,
+    int FromOrdinal,
+    int ToOrdinal);
+
+public sealed record BrochurePrintFlowSuggestion(
+    IReadOnlyList<int> SuggestedProjectIds,
+    int CurrentPageCount,
+    int SuggestedPageCount,
+    int CurrentLowestProjectUtilizationPercent,
+    int SuggestedLowestProjectUtilizationPercent,
+    int CurrentAverageUtilizationPercent,
+    int SuggestedAverageUtilizationPercent,
+    int MovedProjectCount,
+    int TotalPositionShift,
+    int DenseProjectCount,
+    int AutomaticSingleProjectCount,
+    int MinimumImageWidthPoints,
+    string AdaptiveTreatmentSummary,
+    IReadOnlyList<BrochurePrintOrderMove> Moves,
+    IReadOnlyList<BrochurePrintSheetSummary> SuggestedSheetPlan,
+    string Summary);
+
 public sealed record BrochurePrintCompactPlan(
     IReadOnlyList<BrochurePrintCompactPage> Pages,
     BrochurePrintFrontPagePlan FrontPage,
@@ -243,7 +279,8 @@ public sealed record BrochurePrintCompactPlan(
     int ClosingPageProjectCount,
     int? LowestProjectPageUtilizationPercent,
     int? FinalPageUtilizationPercent,
-    IReadOnlyList<BrochurePrintSheetSummary> SheetPlan);
+    IReadOnlyList<BrochurePrintSheetSummary> SheetPlan,
+    BrochurePrintFlowSuggestion? SmartFlowSuggestion = null);
 
 public sealed record BrochurePhotoOptionVm(
     int PhotoId,
@@ -407,7 +444,8 @@ public sealed record BrochurePreflight(
     int? LowestProjectPageUtilizationPercent = null,
     int? FinalPageUtilizationPercent = null,
     bool? PrintFrontPageUsesMinimumTypography = null,
-    IReadOnlyList<BrochurePrintSheetSummary>? PrintSheetPlan = null)
+    IReadOnlyList<BrochurePrintSheetSummary>? PrintSheetPlan = null,
+    BrochurePrintFlowSuggestion? SmartFlowSuggestion = null)
 {
     public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
     public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);

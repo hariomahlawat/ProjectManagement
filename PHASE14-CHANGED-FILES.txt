@@ -1,0 +1,39 @@
+PRISM Publications Phase 14 — replacement files
+================================================
+
+Application / adaptive compositor
+- Services/Publications/BrochureContracts.cs
+- Services/Publications/BrochureInstitutionalCoverArtworkCatalog.cs
+- Services/Publications/BrochurePrintLayoutMetrics.cs
+- Services/Publications/BrochurePrintMeasurementService.cs
+- Services/Publications/BrochurePrintPagePlanner.cs
+- Services/Publications/BrochurePublicationService.cs
+- Utilities/Reporting/BrochurePdfReportBuilder.cs
+- Utilities/Reporting/BrochurePrintCompactComposer.cs
+
+Brochure Builder / preflight UX
+- Pages/Projects/Publications/Brochure/Index.cshtml
+- Pages/Projects/Publications/Brochure/Index.cshtml.cs
+- wwwroot/js/pages/projects-brochure.js
+- wwwroot/css/pages/projects-publications.css
+
+Regression tests
+- ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+- ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+- wwwroot/js/projects/publications-brochure-contract.test.js
+
+Cover A assets / contract
+- wwwroot/img/publications/README-COVER-A.txt
+- wwwroot/img/publications/covers/cover-a-reference-original.jpg
+- wwwroot/img/publications/covers/cover-a-premium-green-gold.jpg
+- wwwroot/img/publications/covers/cover-a-cinematic-cyber.jpg
+- wwwroot/img/publications/covers/cover-a-executive-teal.jpg
+- wwwroot/img/publications/covers/cover-a-luminous-halo.jpg
+
+Validation / instructions
+- tools/Test-PrismPublicationsPhase14.ps1
+- README-REPLACE-FIRST.md
+- PHASE14-CHANGED-FILES.txt
+- PHASE14-VALIDATION-RESULTS.txt
+- PRISM-Publications-Phase14-Adaptive-Editorial-Pagination.patch
+- SHA256SUMS.txt

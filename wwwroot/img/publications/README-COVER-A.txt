@@ -1,36 +1,40 @@
-PRISM COVER A — CURATED INSTITUTIONAL ARTWORK (PHASE 12)
+PRISM COVER A — CURATED INSTITUTIONAL ARTWORK (PHASE 14)
 ========================================================
 
-PRISM now ships five offline institutional Cover A artworks under:
+Offline assets:
   wwwroot/img/publications/covers/
 
-Default / approved reference:
+Default approved reference (complete artwork):
   cover-a-reference-original.jpg
 
-Alternative curated treatments:
+Generated thematic alternatives (BACKGROUND ONLY):
   cover-a-premium-green-gold.jpg
   cover-a-cinematic-cyber.jpg
   cover-a-executive-teal.jpg
   cover-a-luminous-halo.jpg
 
-The Brochure Builder exposes these as a user-selectable Cover A artwork gallery.
-The reference-original artwork is the default.
+IDENTITY CONTRACT
+-----------------
+Reference Original is a complete institutional hero. PRISM does not paint additional official
+marks over it.
 
-PRINT / COMPACT CONTRACT
-------------------------
-These are FULL HERO ARTWORKS. They may include the institutional shield / archer motif and
-technology labels. PRISM therefore does NOT paint a second logo/title lockup over a supplied
-Cover A artwork. The authoritative Centre of Expertise statement is overlaid in the lower safe
-zone of the hero so the live publication text remains editable and current.
+The four generated alternatives are deliberately cropped/normalised as thematic background
+artwork only. They contain the technology head / gears / circuitry treatment but no generated
+institutional shield, archer or institutional wording in the publication-safe frame. PRISM overlays
+the exact deployed institutional identity assets at render time. This prevents generative variation
+from becoming part of authoritative institutional identity.
 
-All five shipped hero assets are normalised to a 5:4 (1600x1280) print-safe composition so the measured Cover A hero fills predictably without distortion.
+All five assets are normalised to 1600 x 1280 (5:4) and are stored locally for air-gapped use.
 
-The image is used only in the measured top hero band of the 423.23 x 846.755 pt reference sheet.
-Contact details, procurement copy and the institutional strapline remain live PDF text.
+PRINT / COMPACT
+---------------
+The selected artwork fills the measured top hero band of the 423.23 x 846.755 pt reference sheet.
+The Centre of Expertise statement, publication narrative, procurement guidance, contacts and
+strapline remain live PDF text.
 
 DIGITAL / COMFORTABLE
 ---------------------
-The selected Cover A artwork is also used by the A4 institutional renderer.
+The selected institutional artwork remains available to the A4 institutional renderer.
 
 FALLBACK
 --------
@@ -39,4 +43,4 @@ Legacy optional files remain supported:
   cover-a-institutional.png
   cover-a-institutional.webp
 
-If all curated/legacy assets are missing, PRISM uses its deterministic generated fallback.
+If curated/legacy assets are unavailable, PRISM uses its deterministic fallback artwork.

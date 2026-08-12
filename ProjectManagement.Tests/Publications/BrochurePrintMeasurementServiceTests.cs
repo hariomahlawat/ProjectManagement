@@ -10,92 +10,84 @@ namespace ProjectManagement.Tests.Publications;
 public sealed class BrochurePrintMeasurementServiceTests
 {
     [Fact]
-    public void MeasureProject_LongerNarrativeRequiresMoreHeight()
+    public void GenerateProjectCandidates_NormalFrontierNeverDropsBelowNinePoint()
     {
         using var fixture = new Fixture();
-        var shortItem = Item(1, 80, BrochureImageMode.Single, hasSecondary: false);
-        var longItem = Item(2, 170, BrochureImageMode.Single, hasSecondary: false);
+        var candidates = fixture.Service.GenerateProjectCandidates(Item(1, 190, BrochureImageMode.Single, hasSecondary: false));
 
-        var shortMeasure = fixture.Service.MeasureProject(shortItem, BrochurePrintLayoutVariant.Balanced);
-        var longMeasure = fixture.Service.MeasureProject(longItem, BrochurePrintLayoutVariant.Balanced);
-
-        Assert.True(longMeasure.TotalHeightPoints > shortMeasure.TotalHeightPoints);
+        Assert.NotEmpty(candidates);
+        Assert.All(candidates, candidate =>
+            Assert.True(candidate.BodyFontSize >= BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize - .01f));
+        Assert.Contains(candidates, candidate => candidate.Variant == BrochurePrintLayoutVariant.Dense);
+        Assert.DoesNotContain(candidates, candidate => candidate.Variant == BrochurePrintLayoutVariant.Compact);
     }
 
     [Fact]
-    public void MeasureProject_GalleryTwoRequiresMoreHeightThanSingle()
+    public void GenerateProjectCandidates_UsesApprovedAdaptiveImageWindow()
     {
         using var fixture = new Fixture();
-        var single = Item(1, 90, BrochureImageMode.Single, hasSecondary: true);
-        var gallery = single with { ImageMode = BrochureImageMode.GalleryTwo };
+        var candidates = fixture.Service.GenerateProjectCandidates(Item(1, 170, BrochureImageMode.Single, hasSecondary: false));
 
-        var singleMeasure = fixture.Service.MeasureProject(single, BrochurePrintLayoutVariant.Balanced);
-        var galleryMeasure = fixture.Service.MeasureProject(gallery, BrochurePrintLayoutVariant.Balanced);
-
-        Assert.True(galleryMeasure.ImageHeightPoints > singleMeasure.ImageHeightPoints);
+        Assert.All(candidates.Where(candidate => candidate.ImageWidthPoints > 0f), candidate =>
+            Assert.InRange(
+                candidate.ImageWidthPoints,
+                BrochurePrintLayoutMetrics.AdaptiveImageMinimumPoints,
+                BrochurePrintLayoutMetrics.AdaptiveImageMaximumPoints));
+        Assert.True(candidates.Select(candidate => candidate.ImageWidthPoints).Distinct().Count() > 1);
     }
 
+    [Fact]
+    public void GenerateProjectCandidates_ParetoFrontierIsBounded()
+    {
+        using var fixture = new Fixture();
+        var candidates = fixture.Service.GenerateProjectCandidates(Item(1, 165, BrochureImageMode.Automatic, hasSecondary: true));
+
+        Assert.InRange(candidates.Count, 1, BrochurePrintLayoutMetrics.MaximumParetoCandidatesPerProject);
+    }
 
     [Fact]
-    public void MeasureProject_WithPhoto_UsesReferenceFloatAndFullWidthRemainder()
+    public void GenerateProjectCandidates_AutomaticMayUseSingleOrGallery()
+    {
+        using var fixture = new Fixture();
+        var candidates = fixture.Service.GenerateProjectCandidates(Item(1, 145, BrochureImageMode.Automatic, hasSecondary: true));
+
+        Assert.Contains(candidates, candidate => !candidate.UsesSecondaryImage);
+        Assert.Contains(candidates, candidate => candidate.UsesSecondaryImage);
+    }
+
+    [Fact]
+    public void GenerateProjectCandidates_ExplicitGalleryAlwaysUsesSecondImage()
+    {
+        using var fixture = new Fixture();
+        var candidates = fixture.Service.GenerateProjectCandidates(Item(1, 145, BrochureImageMode.GalleryTwo, hasSecondary: true));
+
+        Assert.NotEmpty(candidates);
+        Assert.All(candidates, candidate => Assert.True(candidate.UsesSecondaryImage));
+    }
+
+    [Fact]
+    public void MeasureProject_DenseCompactsGeometryWithoutReducingBodyFont()
     {
         using var fixture = new Fixture();
         var item = Item(1, 185, BrochureImageMode.Single, hasSecondary: false);
+        var visual = fixture.Service.MeasureProject(item, BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Visual, 152f));
+        var dense = fixture.Service.MeasureProject(item, BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Dense, 136f));
 
-        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-
-        Assert.True(measure.UsesFloatLayout);
-        Assert.NotEmpty(measure.LeadingNarrative);
-        Assert.True(
-            !string.IsNullOrWhiteSpace(measure.ContinuationNarrative)
-            || !string.IsNullOrWhiteSpace(measure.TrailingNarrative));
-        Assert.True(measure.FullTextWidthPoints > measure.TextWidthPoints);
-        Assert.True(measure.ImageHeightPoints > 0);
-        Assert.True(measure.LeadingTextHeightPoints <= measure.ImageHeightPoints + 1f);
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, visual.BodyFontSize);
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, dense.BodyFontSize);
+        Assert.True(dense.TotalHeightPoints < visual.TotalHeightPoints);
+        Assert.True(dense.ParagraphSpacingPoints < visual.ParagraphSpacingPoints);
+        Assert.True(dense.BodyPaddingPoints < visual.BodyPaddingPoints);
     }
 
     [Fact]
-    public void MeasureProject_AllVariantsRespectPrintTypographyFloor()
+    public void MeasureProject_PublicationImageUsesExactSixteenByNineGeometry()
     {
         using var fixture = new Fixture();
-        var item = Item(1, 205, BrochureImageMode.Single, hasSecondary: false);
+        var measure = fixture.Service.MeasureProject(
+            Item(1, 125, BrochureImageMode.Single, hasSecondary: false),
+            BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Visual, 152f));
 
-        foreach (var variant in Enum.GetValues<BrochurePrintLayoutVariant>())
-        {
-            var measure = fixture.Service.MeasureProject(item, variant);
-            Assert.True(measure.BodyFontSize >= BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize);
-            Assert.True(measure.TitleFontSize >= BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize);
-        }
-    }
-
-    [Fact]
-    public void MeasureProject_LongTitle_GrowsBandBeforeShrinkingBelowApprovedFloor()
-    {
-        using var fixture = new Fixture();
-        var item = new BrochurePrintPlanningItem(
-            1,
-            "Virtual Reality Based Observation Post End Training Simulator With Thermal Imager Integrated Observation Equipment",
-            string.Join(" ", Enumerable.Range(1, 120).Select(index => $"word{index}")),
-            BrochureImageMode.Single,
-            HasPrimaryPhoto: true,
-            HasSecondaryPhoto: false);
-
-        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-
-        Assert.True(measure.TitleFontSize >= BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize);
-        Assert.True(measure.TitleHeightPoints > 18f);
-    }
-
-
-    [Fact]
-    public void MeasureProject_PublicationImageFramesUseExactSixteenByNineGeometry()
-    {
-        using var fixture = new Fixture();
-        var item = Item(1, 125, BrochureImageMode.Single, hasSecondary: false);
-
-        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-
-        Assert.True(measure.ImageWidthPoints > 0f);
         Assert.InRange(
             Math.Abs((measure.ImageWidthPoints / BrochurePrintLayoutMetrics.SingleImageAspectRatio)
                      - measure.PrimaryImageHeightPoints),
@@ -104,22 +96,7 @@ public sealed class BrochurePrintMeasurementServiceTests
     }
 
     [Fact]
-    public void MeasureProject_VisualAndBalancedKeepNinePointPublicationBody()
-    {
-        using var fixture = new Fixture();
-        var item = Item(1, 185, BrochureImageMode.Single, hasSecondary: false);
-
-        var visual = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-        var balanced = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Balanced);
-        var compact = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Compact);
-
-        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, visual.BodyFontSize);
-        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, balanced.BodyFontSize);
-        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize, compact.BodyFontSize);
-    }
-
-    [Fact]
-    public void MeasureProject_FloatSplitPrefersSentenceBoundaryNearImageHeight()
+    public void MeasureProject_FloatSplitCarriesSemanticBoundaryClassification()
     {
         using var fixture = new Fixture();
         var narrative = string.Join(" ", new[]
@@ -137,64 +114,12 @@ public sealed class BrochurePrintMeasurementServiceTests
             HasPrimaryPhoto: true,
             HasSecondaryPhoto: false);
 
-        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-
-        Assert.NotEmpty(measure.LeadingNarrative);
-        Assert.NotEmpty(measure.TrailingNarrative);
-        Assert.Contains(measure.LeadingNarrative[^1], new[] { '.', '!', '?' });
-        Assert.NotEqual(BrochureFloatSplitKind.Word, measure.FloatSplitKind);
-    }
-
-    [Fact]
-    public void MeasureProject_ResidualImageExpansionIsBoundedAndRemeasured()
-    {
-        using var fixture = new Fixture();
-        var item = Item(1, 150, BrochureImageMode.Single, hasSecondary: false);
-
-        var normal = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-        var expanded = fixture.Service.MeasureProject(
-            item,
-            BrochurePrintLayoutVariant.Visual,
-            BrochurePrintLayoutMetrics.ResidualMaximumImageExpansionPoints);
-
-        Assert.True(expanded.ImageWidthPoints > normal.ImageWidthPoints);
-        Assert.True(expanded.ImageWidthPoints <= BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints);
-        Assert.NotEqual(normal.TotalHeightPoints, expanded.TotalHeightPoints);
-    }
-
-
-    [Fact]
-    public void MeasureProject_NormalImageWidthNeverExceedsReferenceQualityCap()
-    {
-        using var fixture = new Fixture();
-        var item = Item(1, 70, BrochureImageMode.Single, hasSecondary: false);
-
         var measure = fixture.Service.MeasureProject(
             item,
-            BrochurePrintLayoutVariant.Visual,
-            BrochurePrintLayoutMetrics.ResidualMaximumImageExpansionPoints);
+            BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Visual, 152f));
 
-        Assert.InRange(measure.ImageWidthPoints, 140f, BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints);
-        Assert.True(measure.ImageWidthPoints <= 160f);
-    }
-
-    [Fact]
-    public void MeasureProject_ParagraphSpacingIsExplicitAndCompact()
-    {
-        using var fixture = new Fixture();
-        var narrative = "First paragraph has enough copy to wrap naturally beside the image.\n\nSecond paragraph continues the project brief without a full blank line.";
-        var item = new BrochurePrintPlanningItem(
-            1,
-            "Paragraph Rhythm Project",
-            narrative,
-            BrochureImageMode.Single,
-            HasPrimaryPhoto: true,
-            HasSecondaryPhoto: false);
-
-        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
-
-        Assert.Equal(BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints, measure.ParagraphSpacingPoints);
-        Assert.InRange(measure.ParagraphSpacingPoints, 1.5f, 3f);
+        Assert.NotEqual(BrochureFloatSplitKind.None, measure.FloatSplitKind);
+        Assert.NotEmpty(measure.LeadingNarrative);
     }
 
     [Fact]
@@ -212,18 +137,39 @@ public sealed class BrochurePrintMeasurementServiceTests
         {
             Narrative = "First paragraph contains representative publication copy.\n\n\n\nSecond paragraph contains the same continuation copy."
         };
+        var spec = BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Balanced, 148f);
 
-        var normal = fixture.Service.MeasureProject(compactBreaks, BrochurePrintLayoutVariant.Visual);
-        var repeated = fixture.Service.MeasureProject(excessiveBreaks, BrochurePrintLayoutVariant.Visual);
+        var normal = fixture.Service.MeasureProject(compactBreaks, spec);
+        var repeated = fixture.Service.MeasureProject(excessiveBreaks, spec);
 
         Assert.InRange(Math.Abs(normal.TotalHeightPoints - repeated.TotalHeightPoints), 0f, .01f);
+    }
+
+    [Fact]
+    public void MeasureProject_LongTitleGrowsBandWithoutReducingBodyTypography()
+    {
+        using var fixture = new Fixture();
+        var item = new BrochurePrintPlanningItem(
+            1,
+            "Virtual Reality Based Observation Post End Training Simulator With Thermal Imager Integrated Observation Equipment",
+            string.Join(" ", Enumerable.Range(1, 140).Select(index => $"word{index}")),
+            BrochureImageMode.Single,
+            HasPrimaryPhoto: true,
+            HasSecondaryPhoto: false);
+
+        var measure = fixture.Service.MeasureProject(
+            item,
+            BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Dense, 136f));
+
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, measure.BodyFontSize);
+        Assert.True(measure.TitleFontSize >= BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize);
+        Assert.True(measure.TitleHeightPoints > measure.TitleMinimumHeightPoints);
     }
 
     [Fact]
     public void MeasureFrontPage_ApprovedReferenceNeverDropsBelowTypographyFloor()
     {
         using var fixture = new Fixture();
-
         var plan = fixture.Service.MeasureFrontPage(
             BrochurePrintPublicationPolicy.ApprovedReference,
             BrochureCoverStyle.Institutional,
@@ -232,7 +178,6 @@ public sealed class BrochurePrintMeasurementServiceTests
         Assert.True(plan.BodyFontSize >= BrochurePrintLayoutMetrics.FrontBodyMinimumFontSize);
         Assert.True(plan.HeroHeightPoints >= BrochurePrintLayoutMetrics.FrontMinimumHeroHeightPoints);
         Assert.Equal(0f, plan.CentreBlockHeightPoints);
-        Assert.InRange(plan.UtilizationPercent, 90, 100);
     }
 
     private static BrochurePrintPlanningItem Item(

@@ -5,7 +5,7 @@ using ProjectManagement.Services.Publications;
 namespace ProjectManagement.Utilities.Reporting;
 
 /// <summary>
-/// Original-format hard-copy brochure compositor. Phase 13 locks deterministic reference-quality geometry:
+/// Original-format hard-copy brochure compositor. Phase 14 consumes adaptive measured geometry:
 /// imagery is anchored upper-right, copy wraps beside it and returns to full width below, image
 /// frames use the same 16:9 geometry as the publication crop pipeline, and Cover A contact headings
 /// reserve an explicit centre lane for the CONTACTS identifier.
@@ -195,7 +195,8 @@ internal static class BrochurePrintCompactComposer
                 {
                     ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
                 }
-                else if (data.Options.InstitutionalCoverArtwork != BrochureInstitutionalCoverArtwork.ReferenceOriginal)
+                else if (BrochureInstitutionalCoverArtworkCatalog.IdentityMode(data.Options.InstitutionalCoverArtwork)
+                         == BrochureInstitutionalArtworkIdentityMode.BackgroundOnly)
                 {
                     ComposeOfficialInstitutionalMarks(layers.Layer(), sddLogo, artracLogo);
                 }
@@ -213,22 +214,21 @@ internal static class BrochurePrintCompactComposer
         byte[]? sddLogo,
         byte[]? artracLogo)
     {
-        // AI-generated artwork is treated as thematic background only. Exact institutional marks
-        // are overlaid from PRISM assets so formal identity is never dependent on generative detail.
+        // Generated alternatives are background-only artwork. Overlay the exact deployed PRISM
+        // identity assets without opaque backing rectangles so the result remains integrated with
+        // the hero rather than looking like a corrective patch.
         layer.AlignTop().PaddingTop(10).PaddingHorizontal(12).Row(row =>
         {
             if (artracLogo is { Length: > 0 })
             {
-                row.ConstantItem(52).Height(52).Background(Forest950).Padding(4)
-                    .Image(artracLogo).FitArea();
+                row.ConstantItem(46).Height(46).Image(artracLogo).FitArea();
             }
 
             row.RelativeItem();
 
             if (sddLogo is { Length: > 0 })
             {
-                row.ConstantItem(52).Height(52).Background(Forest950).Padding(4)
-                    .Image(sddLogo).FitArea();
+                row.ConstantItem(46).Height(46).Image(sddLogo).FitArea();
             }
         });
     }
@@ -531,8 +531,8 @@ internal static class BrochurePrintCompactComposer
                     .Column(body =>
                 {
                     var hasPrimary = project.PrimaryPhoto is not null;
-                    var useSecond = project.SecondaryPhoto is not null
-                                    && project.ImageMode != BrochureImageMode.Single;
+                    var useSecond = layout.UsesSecondaryImage
+                                    && project.SecondaryPhoto is not null;
 
                     if (!hasPrimary || !layout.UsesFloatLayout)
                     {

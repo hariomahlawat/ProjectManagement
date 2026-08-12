@@ -721,6 +721,34 @@
                                 <strong data-print-estimate-closing>—</strong>
                             </div>
                             <div class="brochure-print-sheet-map" data-print-sheet-map></div>
+                            <div class="brochure-smart-flow" hidden data-smart-flow>
+                                <div class="brochure-smart-flow__header">
+                                    <span class="brochure-smart-flow__icon"><i class="bi bi-stars" aria-hidden="true"></i></span>
+                                    <div>
+                                        <strong>Smart Flow opportunity</strong>
+                                        <p data-smart-flow-summary></p>
+                                    </div>
+                                </div>
+                                <div class="brochure-smart-flow__metrics">
+                                    <div><span>Sheets</span><strong data-smart-flow-pages>—</strong></div>
+                                    <div><span>Lowest fill</span><strong data-smart-flow-fill>—</strong></div>
+                                    <div><span>Order changes</span><strong data-smart-flow-moves>—</strong></div>
+                                </div>
+                                <div class="brochure-smart-flow__treatment" data-smart-flow-treatment></div>
+                                <div class="brochure-smart-flow__suggested-map" data-smart-flow-sheet-map></div>
+                                <div class="brochure-smart-flow__moves" data-smart-flow-move-list></div>
+                                <div class="brochure-smart-flow__actions">
+                                    <button type="button" class="btn btn-sm btn-primary" data-smart-flow-apply>
+                                        <i class="bi bi-magic" aria-hidden="true"></i>
+                                        Apply suggested order
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" hidden data-smart-flow-undo>
+                                        <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                        Undo order change
+                                    </button>
+                                </div>
+                                <small>PRISM never reorders projects automatically. The suggestion preserves 9 pt project copy and only changes publication sequence after you approve it.</small>
+                            </div>
                             <small>Measured with the offline publication font and the same geometry used by the hard-copy PDF compositor.</small>
                         </div>
                         <div class="brochure-preflight-message" data-preflight-message>

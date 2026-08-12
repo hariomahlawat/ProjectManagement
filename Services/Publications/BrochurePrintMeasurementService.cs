@@ -12,6 +12,13 @@ public interface IBrochurePrintMeasurementService
         BrochurePrintLayoutVariant variant,
         float imageWidthAdjustmentPoints = 0f);
 
+    BrochurePrintProjectMeasurement MeasureProject(
+        BrochurePrintPlanningItem item,
+        BrochurePrintVariantSpec spec);
+
+    IReadOnlyList<BrochurePrintProjectMeasurement> GenerateProjectCandidates(
+        BrochurePrintPlanningItem item);
+
     BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline);
 
     BrochurePrintFrontPagePlan MeasureFrontPage(
@@ -21,10 +28,10 @@ public interface IBrochurePrintMeasurementService
 }
 
 /// <summary>
-/// Font-aware measurement for the narrow hard-copy brochure. It uses the same offline DM Sans
-/// package as QuestPDF when available and falls back to the platform typeface only when the
-/// publication font package is unavailable. The service intentionally measures text by actual
-/// glyph widths rather than using word-count heuristics.
+/// Font-aware measurement for the narrow hard-copy brochure. Phase 14 measures a bounded set of
+/// valid 9 pt layouts for every project and Pareto-filters them before pagination. The same
+/// measurement object is consumed unchanged by QuestPDF, so planning and rendering remain
+/// geometrically deterministic.
 /// </summary>
 public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementService, IDisposable
 {
@@ -52,16 +59,173 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Compatibility entry point used by older tests/helpers. Visual/Balanced/Dense use their
+    /// preferred image width. Compact remains emergency-only and never participates in normal
+    /// candidate generation.
+    /// </summary>
     public BrochurePrintProjectMeasurement MeasureProject(
         BrochurePrintPlanningItem item,
         BrochurePrintLayoutVariant variant,
         float imageWidthAdjustmentPoints = 0f)
     {
         ArgumentNullException.ThrowIfNull(item);
+        var defaultWidth = variant switch
+        {
+            BrochurePrintLayoutVariant.Visual => 154f,
+            BrochurePrintLayoutVariant.Balanced => 148f,
+            BrochurePrintLayoutVariant.Dense => 136f,
+            _ => BrochurePrintLayoutMetrics.EmergencyImageWidthPoints
+        };
+        var width = variant == BrochurePrintLayoutVariant.Compact
+            ? defaultWidth
+            : Math.Clamp(
+                defaultWidth + Math.Max(0f, imageWidthAdjustmentPoints),
+                BrochurePrintLayoutMetrics.AdaptiveImageMinimumPoints,
+                BrochurePrintLayoutMetrics.AdaptiveImageMaximumPoints);
+        var useSecond = item.HasSecondaryPhoto && item.ImageMode == BrochureImageMode.GalleryTwo;
+        return MeasureProject(item, BrochurePrintLayoutMetrics.VariantSpec(variant, width, useSecond));
+    }
+
+    public IReadOnlyList<BrochurePrintProjectMeasurement> GenerateProjectCandidates(
+        BrochurePrintPlanningItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
         ThrowIfDisposed();
 
-        var wordCount = item.NarrativeWordCount;
-        var spec = BrochurePrintLayoutMetrics.VariantSpec(variant, wordCount);
+        var candidates = new List<BrochurePrintProjectMeasurement>(20);
+        var secondaryChoices = item.ImageMode switch
+        {
+            BrochureImageMode.Single => new[] { false },
+            BrochureImageMode.GalleryTwo => new[] { item.HasSecondaryPhoto },
+            _ when item.HasSecondaryPhoto => new[] { false, true },
+            _ => new[] { false }
+        };
+
+        AddDensityCandidates(
+            item,
+            candidates,
+            BrochurePrintLayoutVariant.Visual,
+            BrochurePrintLayoutMetrics.VisualImageWidths,
+            secondaryChoices);
+        AddDensityCandidates(
+            item,
+            candidates,
+            BrochurePrintLayoutVariant.Balanced,
+            BrochurePrintLayoutMetrics.BalancedImageWidths,
+            secondaryChoices);
+        AddDensityCandidates(
+            item,
+            candidates,
+            BrochurePrintLayoutVariant.Dense,
+            BrochurePrintLayoutMetrics.DenseImageWidths,
+            secondaryChoices);
+
+        return ParetoFilter(candidates);
+    }
+
+    private void AddDensityCandidates(
+        BrochurePrintPlanningItem item,
+        ICollection<BrochurePrintProjectMeasurement> target,
+        BrochurePrintLayoutVariant variant,
+        IEnumerable<float> imageWidths,
+        IEnumerable<bool> secondaryChoices)
+    {
+        // Text-only projects have no useful image-width dimension. Measure exactly one geometry
+        // per density to avoid duplicate candidates and unnecessary planner branching.
+        var widths = item.HasPrimaryPhoto ? imageWidths : new[] { BrochurePrintLayoutMetrics.AdaptiveImageMinimumPoints };
+
+        foreach (var useSecond in secondaryChoices.Distinct())
+        {
+            if (useSecond && (!item.HasPrimaryPhoto || !item.HasSecondaryPhoto))
+            {
+                continue;
+            }
+
+            foreach (var width in widths)
+            {
+                target.Add(MeasureProject(
+                    item,
+                    BrochurePrintLayoutMetrics.VariantSpec(variant, width, useSecond)));
+            }
+        }
+    }
+
+    private static IReadOnlyList<BrochurePrintProjectMeasurement> ParetoFilter(
+        IReadOnlyCollection<BrochurePrintProjectMeasurement> candidates)
+    {
+        var ordered = candidates
+            .OrderBy(candidate => candidate.TotalHeightPoints)
+            .ThenByDescending(candidate => candidate.VisualQualityScore)
+            .ThenByDescending(candidate => candidate.ImageWidthPoints)
+            .ToArray();
+
+        var frontier = new List<BrochurePrintProjectMeasurement>(ordered.Length);
+        foreach (var candidate in ordered)
+        {
+            var dominated = ordered.Any(other =>
+                !ReferenceEquals(other, candidate)
+                && other.TotalHeightPoints <= candidate.TotalHeightPoints
+                    + BrochurePrintLayoutMetrics.CandidateDominanceHeightTolerancePoints
+                && other.VisualQualityScore >= candidate.VisualQualityScore
+                    - BrochurePrintLayoutMetrics.CandidateDominanceQualityTolerance
+                && (other.TotalHeightPoints < candidate.TotalHeightPoints
+                        - BrochurePrintLayoutMetrics.CandidateDominanceHeightTolerancePoints
+                    || other.VisualQualityScore > candidate.VisualQualityScore
+                        + BrochurePrintLayoutMetrics.CandidateDominanceQualityTolerance));
+
+            if (!dominated)
+            {
+                frontier.Add(candidate);
+            }
+        }
+
+        // Keep the frontier bounded and deterministic. Retain both ends (shortest and highest
+        // quality) and sample the remaining trade-offs by a stable height/quality ordering.
+        if (frontier.Count <= BrochurePrintLayoutMetrics.MaximumParetoCandidatesPerProject)
+        {
+            return frontier
+                .OrderByDescending(candidate => candidate.VisualQualityScore)
+                .ThenBy(candidate => candidate.TotalHeightPoints)
+                .ToArray();
+        }
+
+        var selected = new List<BrochurePrintProjectMeasurement>();
+        void AddUnique(BrochurePrintProjectMeasurement candidate)
+        {
+            if (!selected.Contains(candidate))
+            {
+                selected.Add(candidate);
+            }
+        }
+
+        AddUnique(frontier.OrderBy(candidate => candidate.TotalHeightPoints).First());
+        AddUnique(frontier.OrderByDescending(candidate => candidate.VisualQualityScore).First());
+        foreach (var candidate in frontier
+                     .OrderBy(candidate => candidate.TotalHeightPoints)
+                     .ThenByDescending(candidate => candidate.VisualQualityScore))
+        {
+            AddUnique(candidate);
+            if (selected.Count >= BrochurePrintLayoutMetrics.MaximumParetoCandidatesPerProject)
+            {
+                break;
+            }
+        }
+
+        return selected
+            .OrderByDescending(candidate => candidate.VisualQualityScore)
+            .ThenBy(candidate => candidate.TotalHeightPoints)
+            .ToArray();
+    }
+
+    public BrochurePrintProjectMeasurement MeasureProject(
+        BrochurePrintPlanningItem item,
+        BrochurePrintVariantSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(spec);
+        ThrowIfDisposed();
+
         var moduleWidth = BrochurePrintLayoutMetrics.ModuleWidthPoints;
         var titleWidth = moduleWidth
                          - (BrochurePrintLayoutMetrics.ModuleBorderPoints * 2f)
@@ -74,9 +238,6 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             titleWidth,
             FontWeight.SemiBold);
 
-        // Reference-format behaviour: preserve readable heading typography and let the green band
-        // grow to two (or exceptionally three) lines. Shrinking is bounded and is never used as
-        // the primary mechanism for protecting a fixed-height title strip.
         while (titleLines > 2 && titleFontSize > BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize)
         {
             titleFontSize = Math.Max(
@@ -90,17 +251,16 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         }
 
         var titleHeight = Math.Max(
-            18f,
+            spec.TitleMinimumHeightPoints,
             (titleLines * titleFontSize * BrochurePrintLayoutMetrics.ProjectTitleLineHeight) + 5f);
 
         var hasPrimary = item.HasPrimaryPhoto;
-        var hasSecond = item.HasSecondaryPhoto
+        var hasSecond = hasPrimary
+                        && item.HasSecondaryPhoto
+                        && spec.UseSecondaryImage
                         && item.ImageMode != BrochureImageMode.Single;
         var imageWidth = hasPrimary
-            ? Math.Clamp(
-                spec.ImageWidthPoints + Math.Max(0f, imageWidthAdjustmentPoints),
-                94f,
-                BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints)
+            ? spec.ImageWidthPoints
             : 0f;
 
         var bodyInnerWidth = moduleWidth
@@ -117,11 +277,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var imageHeight = 0f;
         if (hasPrimary)
         {
-            var imageAspect = hasSecond
-                ? BrochurePrintLayoutMetrics.GalleryImageAspectRatio
-                : BrochurePrintLayoutMetrics.SingleImageAspectRatio;
-            primaryImageHeight = imageWidth / imageAspect;
-            secondaryImageHeight = hasSecond ? imageWidth / imageAspect : 0f;
+            primaryImageHeight = imageWidth / BrochurePrintLayoutMetrics.SingleImageAspectRatio;
+            secondaryImageHeight = hasSecond
+                ? imageWidth / BrochurePrintLayoutMetrics.GalleryImageAspectRatio
+                : 0f;
             imageHeight = primaryImageHeight
                           + secondaryImageHeight
                           + (hasSecond ? BrochurePrintLayoutMetrics.GalleryImageGapPoints : 0f);
@@ -150,7 +309,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fullTextWidth,
                 spec.BodyLineHeight,
                 FontWeight.Regular,
-                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+                spec.ParagraphSpacingPoints);
             bodyContentHeight = trailingTextHeight;
             remainderGapPoints = 0f;
             floatSplitKind = BrochureFloatSplitKind.None;
@@ -163,7 +322,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 sideTextWidth,
                 fullTextWidth,
                 imageHeight,
-                spec.BodyLineHeight);
+                spec.BodyLineHeight,
+                spec.ParagraphSpacingPoints);
 
             leadingNarrative = split.Leading;
             continuationNarrative = split.Continuation;
@@ -198,7 +358,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
         return new BrochurePrintProjectMeasurement(
             item.ProjectId,
-            variant,
+            spec.Variant,
             TotalHeightPoints: totalHeight,
             TitleHeightPoints: titleHeight,
             TitleFontSize: titleFontSize,
@@ -222,7 +382,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             ContinuationTextHeightPoints: continuationTextHeight,
             FloatSplitKind: floatSplitKind,
             RemainderGapPoints: remainderGapPoints,
-            ParagraphSpacingPoints: BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+            ParagraphSpacingPoints: spec.ParagraphSpacingPoints,
+            UsesSecondaryImage: hasSecond,
+            VisualQualityScore: spec.VisualQualityScore,
+            TitleMinimumHeightPoints: spec.TitleMinimumHeightPoints);
     }
 
     public BrochurePrintClosingMeasurement MeasureClosing(
@@ -441,7 +604,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         float sideWidth,
         float fullWidth,
         float imageHeight,
-        float lineHeight)
+        float lineHeight,
+        float paragraphSpacingPoints)
     {
         if (string.IsNullOrWhiteSpace(narrative))
         {
@@ -476,7 +640,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 sideWidth,
                 lineHeight,
                 FontWeight.Regular,
-                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+                paragraphSpacingPoints);
 
             if (height <= imageHeight + .35f)
             {
@@ -498,7 +662,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fullWidth,
                 lineHeight,
                 FontWeight.Regular,
-                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+                paragraphSpacingPoints);
             return new FloatNarrativeSplit(string.Empty, string.Empty, normalized, 0f, 0f, trailingHeight, BrochureFloatSplitKind.None, 0f);
         }
 
@@ -532,7 +696,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 sideWidth,
                 lineHeight,
                 FontWeight.Regular,
-                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+                paragraphSpacingPoints);
             if (height > upperTolerance)
             {
                 continue;
@@ -608,7 +772,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fullWidth,
                 lineHeight,
                 FontWeight.Regular,
-                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+                paragraphSpacingPoints);
         var trailingHeightPoints = string.IsNullOrWhiteSpace(trailing)
             ? 0f
             : MeasureTextHeight(
@@ -617,7 +781,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fullWidth,
                 lineHeight,
                 FontWeight.Regular,
-                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+                paragraphSpacingPoints);
 
         var splitKind = selectedKind switch
         {

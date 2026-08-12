@@ -63,6 +63,16 @@
     const printFinalFill = form.querySelector("[data-print-final-fill]");
     const printEstimateClosing = form.querySelector("[data-print-estimate-closing]");
     const printSheetMap = form.querySelector("[data-print-sheet-map]");
+    const smartFlowPanel = form.querySelector("[data-smart-flow]");
+    const smartFlowSummary = form.querySelector("[data-smart-flow-summary]");
+    const smartFlowPages = form.querySelector("[data-smart-flow-pages]");
+    const smartFlowFill = form.querySelector("[data-smart-flow-fill]");
+    const smartFlowMoves = form.querySelector("[data-smart-flow-moves]");
+    const smartFlowMoveList = form.querySelector("[data-smart-flow-move-list]");
+    const smartFlowTreatment = form.querySelector("[data-smart-flow-treatment]");
+    const smartFlowSheetMap = form.querySelector("[data-smart-flow-sheet-map]");
+    const smartFlowApply = form.querySelector("[data-smart-flow-apply]");
+    const smartFlowUndo = form.querySelector("[data-smart-flow-undo]");
 
     const preflightSpinner = form.querySelector("[data-preflight-spinner]");
     const preflightMessage = form.querySelector("[data-preflight-message]");
@@ -225,6 +235,8 @@
     let draggedId = null;
     let preflightTimer = null;
     let preflightAbort = null;
+    let smartFlowUndoOrder = null;
+    let currentSmartFlowSuggestion = null;
     let projectStateAbort = null;
     let projectStateTimer = null;
     let lastProjectStateRefresh = 0;
@@ -504,6 +516,7 @@
             const next = [...orderedIds];
             next.splice(from, 1);
             next.splice(to, 0, draggedId);
+            smartFlowUndoOrder = null;
             orderedIds = next;
             renderSelected(true);
         });
@@ -516,6 +529,7 @@
         if (index < 0 || target < 0 || target >= orderedIds.length) return;
         const next = [...orderedIds];
         [next[index], next[target]] = [next[target], next[index]];
+        smartFlowUndoOrder = null;
         orderedIds = next;
         renderSelected(true);
     };
@@ -523,12 +537,14 @@
     const add = id => {
         if (!projectById.has(id) || orderedIds.includes(id) || orderedIds.length >= MAX_PROJECTS) return;
         ensureConfig(id);
+        smartFlowUndoOrder = null;
         orderedIds.push(id);
         if (activeReviewProjectId == null) activeReviewProjectId = id;
         renderSelected(true);
     };
 
     const remove = id => {
+        smartFlowUndoOrder = null;
         orderedIds = orderedIds.filter(value => value !== id);
         if (activePhotoProjectId === id) closePhotoEditor();
         if (activeReviewProjectId === id) activeReviewProjectId = orderedIds[0] ?? null;
@@ -1278,7 +1294,9 @@
             } else if (config.imageMode === modeSingle) {
                 reviewImageModeHelp.textContent = "Single-image treatment locks this project to one photograph.";
             } else {
-                reviewImageModeHelp.textContent = "Automatic keeps one image unless a second image has been explicitly selected.";
+                reviewImageModeHelp.textContent = config.secondaryPhotoId
+                    ? "Automatic lets the print planner use one or two selected images according to page geometry."
+                    : "Automatic uses one image. Select a second image if you want the print planner to consider Gallery 2 when space permits.";
             }
         }
         if (reviewChangeImage) reviewChangeImage.disabled = project.photos?.length === 0;
@@ -1448,6 +1466,97 @@
         }
     };
 
+    const sameProjectSet = (left, right) => {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+        const leftSet = new Set(left.map(Number));
+        return right.every(id => leftSet.has(Number(id)));
+    };
+
+    const renderSmartFlow = (suggestion, result) => {
+        currentSmartFlowSuggestion = suggestion && Array.isArray(suggestion.suggestedProjectIds)
+            ? suggestion
+            : null;
+        if (!smartFlowPanel) return;
+
+        const canUndo = Array.isArray(smartFlowUndoOrder)
+            && sameProjectSet(smartFlowUndoOrder, orderedIds);
+        if (!currentSmartFlowSuggestion && !canUndo) {
+            smartFlowPanel.hidden = true;
+            smartFlowMoveList?.replaceChildren();
+            smartFlowSheetMap?.replaceChildren();
+            return;
+        }
+
+        smartFlowPanel.hidden = false;
+        if (currentSmartFlowSuggestion) {
+            if (smartFlowSummary) smartFlowSummary.textContent = currentSmartFlowSuggestion.summary || "A better page flow is available without reducing project typography.";
+            if (smartFlowPages) smartFlowPages.textContent = `${Number(currentSmartFlowSuggestion.currentPageCount || 0)} → ${Number(currentSmartFlowSuggestion.suggestedPageCount || 0)}`;
+            if (smartFlowFill) smartFlowFill.textContent = `${Number(currentSmartFlowSuggestion.currentLowestProjectUtilizationPercent || 0)}% → ${Number(currentSmartFlowSuggestion.suggestedLowestProjectUtilizationPercent || 0)}%`;
+            if (smartFlowMoves) smartFlowMoves.textContent = String(Number(currentSmartFlowSuggestion.movedProjectCount || 0));
+            if (smartFlowTreatment) {
+                smartFlowTreatment.textContent = currentSmartFlowSuggestion.adaptiveTreatmentSummary
+                    || "Adaptive 9 pt geometry is selected automatically; typography is not reduced.";
+            }
+            if (smartFlowSheetMap) {
+                const sheets = Array.isArray(currentSmartFlowSuggestion.suggestedSheetPlan)
+                    ? currentSmartFlowSuggestion.suggestedSheetPlan
+                    : [];
+                smartFlowSheetMap.replaceChildren(...sheets.map(sheet => {
+                    const chip = document.createElement("span");
+                    chip.className = "brochure-smart-flow__sheet-chip";
+                    if (Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
+                    chip.textContent = `${Number(sheet.sheetNumber || 0)} · ${sheet.label || "Sheet"} · ${Number(sheet.utilizationPercent || 0)}%`;
+                    return chip;
+                }));
+            }
+            if (smartFlowMoveList) {
+                const moves = Array.isArray(currentSmartFlowSuggestion.moves) ? currentSmartFlowSuggestion.moves : [];
+                smartFlowMoveList.replaceChildren(...moves.map(move => {
+                    const item = document.createElement("div");
+                    item.className = "brochure-smart-flow__move";
+                    const name = document.createElement("strong");
+                    name.textContent = move.projectName || projectById.get(Number(move.projectId))?.projectName || `Project ${move.projectId}`;
+                    const detail = document.createElement("span");
+                    detail.textContent = `Position ${Number(move.fromOrdinal || 0)} → ${Number(move.toOrdinal || 0)}`;
+                    item.append(name, detail);
+                    return item;
+                }));
+            }
+            if (smartFlowApply) smartFlowApply.hidden = false;
+        } else {
+            if (smartFlowSummary) smartFlowSummary.textContent = "Smart Flow order applied. Preflight is now showing the resulting composition.";
+            if (smartFlowPages) smartFlowPages.textContent = String(Number(result?.estimatedPageCount || 0) || "—");
+            if (smartFlowFill) smartFlowFill.textContent = `${Number(result?.lowestProjectPageUtilizationPercent || 0)}%`;
+            if (smartFlowMoves) smartFlowMoves.textContent = "Applied";
+            smartFlowMoveList?.replaceChildren();
+            smartFlowSheetMap?.replaceChildren();
+            if (smartFlowTreatment) smartFlowTreatment.textContent = "Applied composition remains at the 9 pt publication typography floor.";
+            if (smartFlowApply) smartFlowApply.hidden = true;
+        }
+        if (smartFlowUndo) smartFlowUndo.hidden = !canUndo;
+    };
+
+    const applySmartFlow = () => {
+        const suggestion = currentSmartFlowSuggestion;
+        const suggestedIds = Array.isArray(suggestion?.suggestedProjectIds)
+            ? suggestion.suggestedProjectIds.map(Number).filter(Number.isFinite)
+            : [];
+        if (!suggestedIds.length || !sameProjectSet(suggestedIds, orderedIds)) return;
+
+        smartFlowUndoOrder = [...orderedIds];
+        orderedIds = suggestedIds;
+        currentSmartFlowSuggestion = null;
+        renderSelected(true, false);
+    };
+
+    const undoSmartFlow = () => {
+        if (!Array.isArray(smartFlowUndoOrder) || !sameProjectSet(smartFlowUndoOrder, orderedIds)) return;
+        orderedIds = [...smartFlowUndoOrder];
+        smartFlowUndoOrder = null;
+        currentSmartFlowSuggestion = null;
+        renderSelected(true, false);
+    };
+
     const renderPreflight = result => {
         lastPreflight = result;
         setMetric("[data-preflight-selected]", result.selectedProjectCount ?? orderedIds.length);
@@ -1495,6 +1604,8 @@
                 }
             }
         }
+
+        renderSmartFlow(result.smartFlowSuggestion ?? null, result);
 
         if (preflightMessage) {
             preflightMessage.classList.remove("is-checking", "is-blocked", "is-warning", "is-ready");
@@ -1725,6 +1836,7 @@
     selectedOnly?.addEventListener("change", applyFilters);
 
     selectVisibleButton?.addEventListener("click", () => {
+        smartFlowUndoOrder = null;
         const visible = visibleRows();
         if (selectVisibleButton.dataset.mode === "deselect") {
             const visibleIds = new Set(visible.map(row => Number(row.dataset.projectId)));
@@ -1752,6 +1864,7 @@
     });
 
     clearButton?.addEventListener("click", () => {
+        smartFlowUndoOrder = null;
         orderedIds = [];
         explicitCoverHeroProjectId = null;
         explicitCoverHeroPhotoId = null;
@@ -1985,6 +2098,9 @@
         if (nextId) activeReviewProjectId = nextId;
         renderReview();
     });
+
+    smartFlowApply?.addEventListener("click", applySmartFlow);
+    smartFlowUndo?.addEventListener("click", undoSmartFlow);
 
     preflightShowAll?.addEventListener("click", () => {
         showAllFindings = !showAllFindings;

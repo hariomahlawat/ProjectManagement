@@ -1,77 +1,88 @@
-# PRISM Publications — Phase 13
-## Deterministic Print Composition Lock
+# PRISM Publications — Phase 14
+## Adaptive Editorial Pagination & Smart Flow
 
-Phase 13 is an incremental replacement over the Phase 12 Brochure Builder implementation.
+This package replaces the Phase 13 Print / Compact pagination engine with an adaptive 9 pt composition optimiser while preserving the approved publication design.
 
-The acceptance standard is unchanged: **Print / Compact output must be equal to or better than the original reference brochure** while remaining deterministic, editable from PRISM data and safe for offline deployment.
+## Objective
 
-## What Phase 13 fixes
+The hard-copy brochure must remain **equal to or better than the original reference brochure**. Phase 14 improves sheet utilisation without reducing normal body typography or exposing low-level design controls to the user.
 
-1. **Planner and renderer now share one exact module-height contract.**
-   - QuestPDF consumes `BrochurePrintProjectMeasurement.TotalHeightPoints` as a fixed module height.
-   - The old `MinHeight(...)` path is removed.
-   - Sheet-level project and closing gaps are explicit measured spacer items; no hidden `Column.Spacing(...)` can inflate the rendered page.
-   - Closing-panel width/padding and top/bottom geometry are measured with the same constants that are rendered.
-   - A planner measurement can no longer reserve invisible height that the rendered card does not occupy.
+## What Phase 14 changes
 
-2. **9 pt project body is a hard normal-print constraint.**
-   - Visual and Balanced remain 9 pt.
-   - Compact 8.5 pt is exposed only when an individual project cannot fit on a complete sheet at 9 pt.
-   - Compact cannot be selected merely to squeeze another project or closing matter onto a page.
+### 1. Adaptive 9 pt project layouts
+Normal print copy remains 9 pt. Every project is measured into a bounded set of Visual, Balanced and **Dense 9 pt** candidates. Dense candidates reduce line rhythm, paragraph rhythm, padding and image width — not font size.
 
-3. **Page count is minimised after quality constraints are satisfied.**
-   - Among equal-page-count layouts, the planner minimises the worst residual/dead-tail space and then aggregate composition cost.
-   - A regression test reproduces the measured Phase 12 three-project combination that was incorrectly split across sheets.
+Approved normal image range: **132–156 pt**, exact **16:9**.
 
-4. **Project imagery is bounded to reference scale.**
-   - 16:9 remains canonical.
-   - Normal image expansion is capped at 160 pt rather than the previous 176 pt.
-   - Residual enlargement is limited to 12 pt.
+8.5 pt Compact remains available only when an individual project cannot fit on a complete sheet at any valid 9 pt geometry.
 
-5. **Compact paragraph rhythm is explicit and measured.**
-   - Blank-line paragraph gaps are no longer treated as a full 9 pt text line; repeated blank lines do not consume additional measured height.
-   - Project paragraph spacing is 2.25 pt and is shared by Skia measurement and QuestPDF composition.
+### 2. Pareto candidate frontier
+The measurement service generates multiple valid layouts and discards dominated alternatives. The page planner receives at most six useful height/visual-quality candidates per project, keeping optimisation deterministic and bounded.
 
-6. **Float continuation semantics are explicit.**
-   - Paragraph / Sentence / Word split type is carried in the layout contract.
-   - Forced mid-sentence continuations remain left aligned and use a minimal continuation gap.
-   - Semantic paragraph boundaries receive the appropriate compact paragraph gap.
+### 3. Automatic image mode is genuinely automatic
+- **Single** — exactly one image.
+- **Gallery 2** — exactly two selected images; the planner may not remove the second image.
+- **Automatic** — if a second image is selected, the planner may use either one or two images according to page geometry.
 
-7. **Title band density is tightened.**
-   - Single-line title-band floor is reduced from 20 pt to 18 pt.
-   - Long titles still grow vertically rather than collapsing typography.
+The renderer consumes the exact image treatment chosen by the planner.
 
-8. **Generated institutional cover alternatives use exact PRISM identity overlays.**
-   - `Reference Original` is left untouched.
-   - Generated alternatives receive the deployed `img/logos/artrac.png` and `img/logos/sdd.png` assets as formal identity overlays.
+### 4. Smart Flow adviser
+PDF generation continues to preserve the user's current publication order exactly.
 
-9. **Closing treatment is tightened without introducing a new font dependency.**
-   - Visionary copy is slightly more prominent and compact.
-   - The existing registered offline publication font remains authoritative, avoiding a fragile server-OS serif-font dependency.
+Preflight separately evaluates a bounded local-order alternative. If it materially improves the publication, PRISM shows:
+- current vs suggested sheet count;
+- lowest-sheet fill improvement;
+- exact projects proposed for movement;
+- adaptive treatment summary;
+- suggested sheet map;
+- **Apply suggested order** and **Undo order change**.
+
+PRISM never reorders projects silently.
+
+Smart Flow is intentionally conservative: maximum local movement is three positions, the search is beam-bounded, page-count reduction dominates the objective, and editorial displacement is penalised.
+
+### 5. Residual-space handling is final polish only
+Once page membership is selected, remaining space may be used for modest card breathing room and inter-project spacing. It does not repaginate projects and does not enlarge photographs after planning.
+
+### 6. Cover A identity hardening
+`Reference Original` remains complete artwork and receives no institutional overlay.
+
+The four generated alternatives are now **background-only** 1600×1280 hero assets. Generated shield/archer identity has been removed from the publication-safe crop. PRISM overlays the exact deployed institutional identity assets at render time.
+
+### 7. Actionable preflight
+When Smart Flow is available, preflight tells the editor what can improve, rather than merely reporting an under-filled sheet. If no material order change helps, under-utilisation is explicitly reported as structural after the adaptive 9 pt engine has tested its valid geometry.
 
 ## Files to replace
 
-Copy these Phase 13 files to the same relative locations in the project:
+Copy the package contents over the same paths in the PRISM project. The Phase 14 incremental ZIP contains only files changed from Phase 13 plus all five Cover A assets.
 
+Key source files:
 - `Services/Publications/BrochureContracts.cs`
+- `Services/Publications/BrochureInstitutionalCoverArtworkCatalog.cs`
 - `Services/Publications/BrochurePrintLayoutMetrics.cs`
 - `Services/Publications/BrochurePrintMeasurementService.cs`
 - `Services/Publications/BrochurePrintPagePlanner.cs`
+- `Services/Publications/BrochurePublicationService.cs`
+- `Utilities/Reporting/BrochurePdfReportBuilder.cs`
 - `Utilities/Reporting/BrochurePrintCompactComposer.cs`
+- `Pages/Projects/Publications/Brochure/Index.cshtml`
+- `Pages/Projects/Publications/Brochure/Index.cshtml.cs`
+- `wwwroot/js/pages/projects-brochure.js`
+- `wwwroot/css/pages/projects-publications.css`
+
+Regression coverage:
 - `ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs`
 - `ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs`
 - `wwwroot/js/projects/publications-brochure-contract.test.js`
-- `tools/Test-PrismPublicationsPhase13.ps1`
-
-The incremental package also carries the five Phase 12 Cover A image assets so it is self-contained. They can safely overwrite the existing copies.
+- `tools/Test-PrismPublicationsPhase14.ps1`
 
 ## Installation
 
-From the project root:
+From the project root after replacing the files:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase13.ps1
+.\tools\Test-PrismPublicationsPhase14.ps1
 
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -80,21 +91,18 @@ dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-## Mandatory acceptance run
+## Acceptance run
 
-Regenerate the **same nine-project Print / Compact test brochure** used for the Phase 12 review.
+Regenerate the same nine-project test brochure used for Phase 13.
 
-Check the actual PDF, not only the preflight estimates:
+Verify:
+1. Normal project body remains 9 pt.
+2. No project image is distorted; normal print width stays inside 132–156 pt.
+3. Current publication order remains unchanged until Smart Flow is explicitly applied.
+4. If Smart Flow is offered, review the exact move list and suggested sheet map before applying it.
+5. Automatic may use one selected image when doing so improves composition; explicit Gallery 2 must remain two images.
+6. No project/title clipping or overlap occurs.
+7. Planner sheet mapping matches actual PDF page membership.
+8. Compare final sheet density and visual balance directly with the original brochure.
 
-- Page 2 should no longer show the false two-project break seen in Phase 12 when three measured projects fit.
-- Normal project body copy should remain 9 pt.
-- Project images should generally sit near the original reference scale and never exceed 160 pt in normal residual expansion.
-- Mid-sentence wrap continuations should no longer look like newly justified paragraphs.
-- Project title bands should remain compact for single-line titles and expand cleanly for long titles.
-- Gallery 2 must retain right-hand stacked 16:9 imagery.
-- Final closing matter should share the last project sheet whenever it genuinely fits without compromising normal project typography.
-- There must be no clipping, overflow, orphan title bands or project-order changes.
-
-## Important
-
-Phase 13 intentionally does **not** redesign Digital / Comfortable. All changes in this phase are isolated to Print / Compact composition and its regression contracts.
+The acceptance standard remains **equal to or better than the original brochure**, not simply fewer pages.

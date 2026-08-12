@@ -1,10 +1,10 @@
 namespace ProjectManagement.Services.Publications;
 
 /// <summary>
-/// Canonical hard-copy geometry shared by the measurement service, page planner and QuestPDF compositor.
-/// Phase 13 locks deterministic print composition: the same measured geometry is consumed by the
-/// planner and renderer, 9 pt remains a hard normal-copy floor, and page packing is optimised only
-/// within those quality constraints.
+/// Canonical geometry for the reference-format Print / Compact brochure.
+/// Phase 14 keeps publication typography fixed at 9 pt and exposes a bounded set of adaptive
+/// geometry candidates (image width, line rhythm, paragraph rhythm and padding). The planner
+/// chooses among those candidates; users are never asked to tune physical design controls.
 /// </summary>
 public static class BrochurePrintLayoutMetrics
 {
@@ -20,47 +20,63 @@ public static class BrochurePrintLayoutMetrics
     public const float ModuleBorderPoints = 1.05f;
     public const float ModuleHorizontalPaddingPoints = 7f;
     public const float TextImageGapPoints = 6f;
-    public const float FloatRemainderGapPoints = 1.25f;
-    public const float FloatWordContinuationGapPoints = .45f;
-    public const float FloatSentenceContinuationGapPoints = 1.0f;
-    public const float FloatParagraphContinuationGapPoints = 2.25f;
-    public const float ProjectParagraphSpacingPoints = 2.25f;
-    public const float FloatBoundaryToleranceLines = 1.25f;
-    public const float FloatPreferredBoundaryBandLines = 1.65f;
-    public const float GalleryImageGapPoints = 4f;
+    public const float FloatRemainderGapPoints = 1.0f;
+    public const float FloatWordContinuationGapPoints = .35f;
+    public const float FloatSentenceContinuationGapPoints = .75f;
+    public const float FloatParagraphContinuationGapPoints = 1.5f;
+    public const float FloatBoundaryToleranceLines = 1.35f;
+    public const float FloatPreferredBoundaryBandLines = 1.85f;
+    public const float GalleryImageGapPoints = 3.5f;
 
-    // Project publication images are normalised to 1920x1080 upstream. Keep the compositor and
-    // planner on the same 16:9 geometry so measured height exactly matches the rendered image.
     public const float SingleImageAspectRatio = 16f / 9f;
     public const float GalleryImageAspectRatio = 16f / 9f;
 
-    public const float InterModuleSpacingPoints = 4.5f;
+    public const float InterModuleSpacingPoints = 4.25f;
     public const float ClosingGapPoints = 4f;
-    public const float ProjectMeasurementSafetyPoints = 1.0f;
+    public const float ProjectMeasurementSafetyPoints = .75f;
 
     public const int MaximumProjectsPerSheet = 4;
     public const float TargetMinimumUtilization = .90f;
     public const float PreferredUtilization = .96f;
 
-    // Residual-space optimisation is deliberately bounded. Page membership never changes during
-    // this pass; only project imagery is enlarged until the page approaches a professional fill.
+    // Final polish happens only after page membership is fixed. Phase 14 deliberately does not
+    // enlarge project imagery after planning: image size is now a first-class planning variable.
     public const float ResidualTargetUtilization = .95f;
-    public const float ResidualImageExpansionStepPoints = 4f;
-    public const float ResidualMaximumImageExpansionPoints = 12f;
-    public const float ResidualMaximumImageWidthPoints = 160f;
-    public const float ResidualMaximumExtraModuleVerticalPaddingPoints = 4f;
-    public const float ResidualMaximumExtraInterModuleSpacingPoints = 3f;
+    public const float ResidualMaximumExtraModuleVerticalPaddingPoints = 3.5f;
+    public const float ResidualMaximumExtraInterModuleSpacingPoints = 2.5f;
 
-    // Print / Compact project typography. Visual and Balanced both retain the 9 pt publication
-    // body. Compact is an emergency layout only and may use the 8.5 pt hard floor.
     public const float ProjectTitlePreferredFontSize = 10f;
     public const float ProjectTitleMinimumFontSize = 9.25f;
     public const float ProjectTitleLineHeight = 1.0f;
     public const float ProjectBodyPreferredFontSize = 9f;
     public const float ProjectBodyMinimumFontSize = 8.5f;
 
-    // Closing matter is intentionally more prominent than project body copy, matching the role it
-    // plays on the approved reference brochure's final sheet.
+    // Approved adaptive image window. This is deliberately narrower than Phase 13's post-plan
+    // 160 pt expansion. The optimiser may compact an individual image, but never below 132 pt
+    // for normal 9 pt candidates.
+    public const float AdaptiveImageMinimumPoints = 132f;
+    public const float AdaptiveImageMaximumPoints = 156f;
+    public const float EmergencyImageWidthPoints = 128f;
+
+    public static readonly float[] VisualImageWidths = { 156f, 152f };
+    public static readonly float[] BalancedImageWidths = { 152f, 148f, 144f };
+    public static readonly float[] DenseImageWidths = { 144f, 140f, 136f, 132f };
+
+    public const int MaximumParetoCandidatesPerProject = 6;
+    public const float CandidateDominanceHeightTolerancePoints = .35f;
+    public const float CandidateDominanceQualityTolerance = .05f;
+
+    // Smart Flow is intentionally local and conservative. It may suggest a different order but
+    // never applies one silently. Restricting movement keeps editorial intent recognisable and
+    // makes optimisation predictable even for large brochures.
+    public const int SmartFlowMaximumMoveDistance = 3;
+    public const int SmartFlowMaximumPasses = 2;
+    public const int SmartFlowBeamWidth = 3;
+    public const int SmartFlowMaximumBoundaryMovesPerState = 8;
+    public const int SmartFlowMinimumFillImprovementPercent = 8;
+    public const int SmartFlowMinimumAverageImprovementPercent = 3;
+
+    // Closing matter remains deliberately more prominent than normal project copy.
     public const float ClosingVisionBodyFontSize = 10.6f;
     public const float ClosingVisionBodyLineHeight = 1.05f;
     public const float ClosingVisionParagraphSpacingPoints = 2.5f;
@@ -98,52 +114,85 @@ public static class BrochurePrintLayoutMetrics
     public static float ModuleWidthPoints
         => ReferenceWidthPoints - (ProjectMarginHorizontalPoints * 2f);
 
+    /// <summary>
+    /// Returns the base geometry for a density class. Image width is supplied separately because
+    /// Phase 14 measures a bounded continuum of approved widths rather than three fixed templates.
+    /// </summary>
     public static BrochurePrintVariantSpec VariantSpec(
         BrochurePrintLayoutVariant variant,
-        int narrativeWordCount)
-    {
-        // Text wraps under imagery, so long briefs only need a modest width reduction. Short copy
-        // can support a slightly stronger visual without compromising the reference body size.
-        var imageAdjustment = narrativeWordCount switch
-        {
-            > 195 => -6f,
-            > 160 => -3f,
-            < 90 => 6f,
-            < 120 => 3f,
-            _ => 0f
-        };
-
-        return variant switch
+        float imageWidthPoints,
+        bool useSecondaryImage = false)
+        => variant switch
         {
             BrochurePrintLayoutVariant.Visual => new BrochurePrintVariantSpec(
                 variant,
                 BodyFontSize: ProjectBodyPreferredFontSize,
                 BodyLineHeight: 1.05f,
                 TitleFontSize: ProjectTitlePreferredFontSize,
-                ImageWidthPoints: 154f + Math.Clamp(imageAdjustment, -4f, 4f),
+                TitleMinimumHeightPoints: 18f,
+                ImageWidthPoints: Math.Clamp(imageWidthPoints, AdaptiveImageMinimumPoints, AdaptiveImageMaximumPoints),
                 BodyPaddingPoints: 5.8f,
-                QualityRank: 3),
+                ParagraphSpacingPoints: 2.25f,
+                QualityRank: 4,
+                VisualQualityScore: QualityScore(variant, imageWidthPoints, useSecondaryImage),
+                UseSecondaryImage: useSecondaryImage),
 
-            // Balanced reduces image footprint only. It deliberately preserves 9 pt copy so page
-            // count never wins by silently reducing normal publication typography.
             BrochurePrintLayoutVariant.Balanced => new BrochurePrintVariantSpec(
                 variant,
                 BodyFontSize: ProjectBodyPreferredFontSize,
-                BodyLineHeight: 1.05f,
+                BodyLineHeight: 1.03f,
                 TitleFontSize: ProjectTitlePreferredFontSize,
-                ImageWidthPoints: 148f + Math.Clamp(imageAdjustment, -4f, 4f),
-                BodyPaddingPoints: 5.5f,
-                QualityRank: 2),
+                TitleMinimumHeightPoints: 17.5f,
+                ImageWidthPoints: Math.Clamp(imageWidthPoints, AdaptiveImageMinimumPoints, AdaptiveImageMaximumPoints),
+                BodyPaddingPoints: 5.15f,
+                ParagraphSpacingPoints: 1.75f,
+                QualityRank: 3,
+                VisualQualityScore: QualityScore(variant, imageWidthPoints, useSecondaryImage),
+                UseSecondaryImage: useSecondaryImage),
+
+            BrochurePrintLayoutVariant.Dense => new BrochurePrintVariantSpec(
+                variant,
+                BodyFontSize: ProjectBodyPreferredFontSize,
+                BodyLineHeight: 1.01f,
+                TitleFontSize: ProjectTitlePreferredFontSize,
+                TitleMinimumHeightPoints: 16.75f,
+                ImageWidthPoints: Math.Clamp(imageWidthPoints, AdaptiveImageMinimumPoints, AdaptiveImageMaximumPoints),
+                BodyPaddingPoints: 4.6f,
+                ParagraphSpacingPoints: 1.35f,
+                QualityRank: 2,
+                VisualQualityScore: QualityScore(variant, imageWidthPoints, useSecondaryImage),
+                UseSecondaryImage: useSecondaryImage),
 
             _ => new BrochurePrintVariantSpec(
                 BrochurePrintLayoutVariant.Compact,
                 BodyFontSize: ProjectBodyMinimumFontSize,
-                BodyLineHeight: 1.04f,
+                BodyLineHeight: 1.02f,
                 TitleFontSize: 9.5f,
-                ImageWidthPoints: 140f + Math.Clamp(imageAdjustment, -4f, 4f),
-                BodyPaddingPoints: 5.1f,
-                QualityRank: 1)
+                TitleMinimumHeightPoints: 16.5f,
+                ImageWidthPoints: EmergencyImageWidthPoints,
+                BodyPaddingPoints: 4.35f,
+                ParagraphSpacingPoints: 1.2f,
+                QualityRank: 1,
+                VisualQualityScore: 48f + (useSecondaryImage ? 2f : 0f),
+                UseSecondaryImage: useSecondaryImage)
         };
+
+    private static float QualityScore(
+        BrochurePrintLayoutVariant variant,
+        float imageWidthPoints,
+        bool useSecondaryImage)
+    {
+        var densityBase = variant switch
+        {
+            BrochurePrintLayoutVariant.Visual => 100f,
+            BrochurePrintLayoutVariant.Balanced => 94f,
+            BrochurePrintLayoutVariant.Dense => 86f,
+            _ => 48f
+        };
+        var imageBonus = (Math.Clamp(imageWidthPoints, AdaptiveImageMinimumPoints, AdaptiveImageMaximumPoints)
+                          - AdaptiveImageMinimumPoints) * .18f;
+        var galleryBonus = useSecondaryImage ? 2.5f : 0f;
+        return densityBase + imageBonus + galleryBonus;
     }
 }
 
@@ -152,6 +201,10 @@ public sealed record BrochurePrintVariantSpec(
     float BodyFontSize,
     float BodyLineHeight,
     float TitleFontSize,
+    float TitleMinimumHeightPoints,
     float ImageWidthPoints,
     float BodyPaddingPoints,
-    int QualityRank);
+    float ParagraphSpacingPoints,
+    int QualityRank,
+    float VisualQualityScore,
+    bool UseSecondaryImage);
