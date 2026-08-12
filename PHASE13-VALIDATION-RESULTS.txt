@@ -1,0 +1,42 @@
+PRISM Publications Phase 13 — Validation Results
+=================================================
+Phase: Deterministic Print Composition Lock
+Acceptance standard: Print / Compact must be equal to or better than the original reference brochure.
+
+Completed in preparation environment
+------------------------------------
+PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js
+PASS  Publications browser/source contract suite: 44 / 44 tests
+PASS  C# structural delimiter/string/comment-state checks: 7 / 7 modified C# files
+PASS  Phase 12 observed false-break regression is present:
+      Plan_Phase12ObservedThreeProjectCombination_RemainsOnOneSheetAtNinePoint
+PASS  9 pt normal body-copy hard floor is present for Visual and Balanced layouts
+PASS  Compact 8.5 pt is restricted to individually oversized single-project emergency layout
+PASS  Reference image-width cap: 160 pt
+PASS  Residual image expansion cap: 12 pt
+PASS  Single-line project title-band floor: 18 pt
+PASS  Project paragraph spacing: 2.25 pt; repeated blank lines are ignored as extra full text lines
+PASS  Semantic float split contract: Paragraph / Sentence / Word
+PASS  Forced mid-sentence continuation is rendered without new-paragraph justification
+PASS  QuestPDF project modules consume the selected measured TotalHeightPoints as fixed outer height
+PASS  Sheet project spacers and project-to-closing spacer are explicit; no hidden global Column.Spacing geometry
+PASS  Closing panel measured width/padding contract matches compositor geometry
+PASS  Generated institutional artwork alternatives overlay deployed PRISM identity assets; Reference Original is untouched
+PASS  Cover A library: 5 / 5 assets present, each 1600 x 1280 RGB
+PASS  Phase 12 -> Phase 13 patch dry-run applies cleanly to the Phase 12 full baseline
+
+Environment limitations
+-----------------------
+SKIPPED  dotnet restore/build/xUnit execution — .NET SDK is not installed in this preparation environment.
+SKIPPED  PowerShell execution of tools/Test-PrismPublicationsPhase13.ps1 — PowerShell is not installed here.
+
+Mandatory final checks on the PRISM development machine
+--------------------------------------------------------
+1. .\tools\Test-PrismPublicationsPhase13.ps1
+2. dotnet restore .\ProjectManagement.csproj
+3. dotnet build .\ProjectManagement.csproj
+4. dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+5. Regenerate the same nine-project Print / Compact brochure used for Phase 12 comparison.
+6. Confirm actual output: no false two-project page-2 break, 9 pt body copy, image width <= 160 pt,
+   compact title bands, natural float continuation, no clipping/overflow, deterministic project order,
+   Gallery 2 stacked 16:9 behaviour, and closing matter shared with the final project sheet when it fits.

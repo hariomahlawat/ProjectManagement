@@ -5,7 +5,7 @@ using ProjectManagement.Services.Publications;
 namespace ProjectManagement.Utilities.Reporting;
 
 /// <summary>
-/// Original-format hard-copy brochure compositor. Phase 12 locks the approved reference grammar:
+/// Original-format hard-copy brochure compositor. Phase 13 locks deterministic reference-quality geometry:
 /// imagery is anchored upper-right, copy wraps beside it and returns to full width below, image
 /// frames use the same 16:9 geometry as the publication crop pipeline, and Cover A contact headings
 /// reserve an explicit centre lane for the CONTACTS identifier.
@@ -195,12 +195,41 @@ internal static class BrochurePrintCompactComposer
                 {
                     ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
                 }
+                else if (data.Options.InstitutionalCoverArtwork != BrochureInstitutionalCoverArtwork.ReferenceOriginal)
+                {
+                    ComposeOfficialInstitutionalMarks(layers.Layer(), sddLogo, artracLogo);
+                }
             }
             else
             {
                 ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
             }
             ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
+        });
+    }
+
+    private static void ComposeOfficialInstitutionalMarks(
+        IContainer layer,
+        byte[]? sddLogo,
+        byte[]? artracLogo)
+    {
+        // AI-generated artwork is treated as thematic background only. Exact institutional marks
+        // are overlaid from PRISM assets so formal identity is never dependent on generative detail.
+        layer.AlignTop().PaddingTop(10).PaddingHorizontal(12).Row(row =>
+        {
+            if (artracLogo is { Length: > 0 })
+            {
+                row.ConstantItem(52).Height(52).Background(Forest950).Padding(4)
+                    .Image(artracLogo).FitArea();
+            }
+
+            row.RelativeItem();
+
+            if (sddLogo is { Length: > 0 })
+            {
+                row.ConstantItem(52).Height(52).Background(Forest950).Padding(4)
+                    .Image(sddLogo).FitArea();
+            }
         });
     }
 
@@ -434,13 +463,22 @@ internal static class BrochurePrintCompactComposer
 
             page.Content().Column(column =>
             {
-                column.Spacing(BrochurePrintLayoutMetrics.InterModuleSpacingPoints + sheet.ExtraInterModuleSpacingPoints);
-
-                foreach (var plannedProject in sheet.Projects)
+                // Do not use Column.Spacing here. A global spacing rule also inserts hidden gaps
+                // around the closing block, making the physical PDF taller than the planner model.
+                // Every spacer is therefore explicit and shares the exact same metric as planning.
+                for (var projectOffset = 0; projectOffset < sheet.Projects.Count; projectOffset++)
                 {
+                    if (projectOffset > 0)
+                    {
+                        column.Item().Height(
+                            BrochurePrintLayoutMetrics.InterModuleSpacingPoints
+                            + sheet.ExtraInterModuleSpacingPoints);
+                    }
+
+                    var plannedProject = sheet.Projects[projectOffset];
                     var project = data.Projects[plannedProject.ProjectIndex];
                     column.Item()
-                        .MinHeight(plannedProject.Measurement.TotalHeightPoints + sheet.ExtraModuleVerticalPaddingPoints)
+                        .Height(plannedProject.Measurement.TotalHeightPoints + sheet.ExtraModuleVerticalPaddingPoints)
                         .ShowEntire()
                         .Element(module => ComposeProjectModule(
                             module,
@@ -449,13 +487,17 @@ internal static class BrochurePrintCompactComposer
                             sheet.ExtraModuleVerticalPaddingPoints));
                 }
 
-                if (sheet.IncludesClosingMatter)
+                if (sheet.IncludesClosingMatter && sheet.ClosingHeightPoints > .5f)
                 {
                     if (sheet.Projects.Count > 0)
                     {
                         column.Item().Height(BrochurePrintLayoutMetrics.ClosingGapPoints);
                     }
-                    column.Item().ShowEntire().Element(block => ComposeClosingMatter(block, data));
+
+                    column.Item()
+                        .Height(sheet.ClosingHeightPoints)
+                        .ShowEntire()
+                        .Element(block => ComposeClosingMatter(block, data));
                 }
             });
         });
@@ -494,11 +536,13 @@ internal static class BrochurePrintCompactComposer
 
                     if (!hasPrimary || !layout.UsesFloatLayout)
                     {
-                        body.Item().Text(project.Narrative)
-                            .FontSize(layout.BodyFontSize)
-                            .LineHeight(layout.BodyLineHeight)
-                            .Justify()
-                            .FontColor(Ink);
+                        body.Item().Element(text => ComposeNarrativeText(
+                            text,
+                            project.Narrative,
+                            layout.BodyFontSize,
+                            layout.BodyLineHeight,
+                            layout.ParagraphSpacingPoints,
+                            justify: true));
                         return;
                     }
 
@@ -506,10 +550,13 @@ internal static class BrochurePrintCompactComposer
                     // the leading narrative sits beside it; the remainder returns to full width.
                     body.Item().Row(row =>
                     {
-                        row.RelativeItem().Text(layout.LeadingNarrative)
-                            .FontSize(layout.BodyFontSize)
-                            .LineHeight(layout.BodyLineHeight)
-                            .FontColor(Ink);
+                        row.RelativeItem().Element(text => ComposeNarrativeText(
+                            text,
+                            layout.LeadingNarrative,
+                            layout.BodyFontSize,
+                            layout.BodyLineHeight,
+                            layout.ParagraphSpacingPoints,
+                            justify: false));
 
                         row.ConstantItem(BrochurePrintLayoutMetrics.TextImageGapPoints);
                         row.ConstantItem(layout.ImageWidthPoints).AlignTop().Column(images =>
@@ -529,11 +576,14 @@ internal static class BrochurePrintCompactComposer
                     var hasContinuation = !string.IsNullOrWhiteSpace(layout.ContinuationNarrative);
                     if (hasContinuation)
                     {
-                        body.Item().PaddingTop(BrochurePrintLayoutMetrics.FloatRemainderGapPoints)
-                            .Text(layout.ContinuationNarrative)
-                            .FontSize(layout.BodyFontSize)
-                            .LineHeight(layout.BodyLineHeight)
-                            .FontColor(Ink);
+                        body.Item().PaddingTop(layout.RemainderGapPoints)
+                            .Element(text => ComposeNarrativeText(
+                                text,
+                                layout.ContinuationNarrative,
+                                layout.BodyFontSize,
+                                layout.BodyLineHeight,
+                                layout.ParagraphSpacingPoints,
+                                justify: false));
                     }
 
                     if (!string.IsNullOrWhiteSpace(layout.TrailingNarrative))
@@ -541,25 +591,90 @@ internal static class BrochurePrintCompactComposer
                         var trailing = body.Item();
                         if (!hasContinuation)
                         {
-                            trailing = trailing.PaddingTop(BrochurePrintLayoutMetrics.FloatRemainderGapPoints);
+                            trailing = trailing.PaddingTop(layout.RemainderGapPoints);
                         }
-                        trailing.Text(layout.TrailingNarrative)
-                            .FontSize(layout.BodyFontSize)
-                            .LineHeight(layout.BodyLineHeight)
-                            .Justify()
-                            .FontColor(Ink);
+                        trailing.Element(text => ComposeNarrativeText(
+                            text,
+                            layout.TrailingNarrative,
+                            layout.BodyFontSize,
+                            layout.BodyLineHeight,
+                            layout.ParagraphSpacingPoints,
+                            justify: true));
                     }
                 });
             });
     }
 
+    private static void ComposeNarrativeText(
+        IContainer container,
+        string? narrative,
+        float fontSize,
+        float lineHeight,
+        float paragraphSpacingPoints,
+        bool justify,
+        bool italic = false)
+    {
+        var paragraphs = (narrative ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n')
+            .Select(paragraph => paragraph.Trim())
+            .Where(paragraph => paragraph.Length > 0)
+            .ToArray();
+
+        if (paragraphs.Length == 0)
+        {
+            return;
+        }
+
+        container.Column(column =>
+        {
+            column.Spacing(Math.Max(0f, paragraphSpacingPoints));
+            foreach (var paragraph in paragraphs)
+            {
+                if (justify && italic)
+                {
+                    column.Item().Text(paragraph)
+                        .FontSize(fontSize)
+                        .LineHeight(lineHeight)
+                        .Justify()
+                        .Italic()
+                        .FontColor(Ink);
+                }
+                else if (justify)
+                {
+                    column.Item().Text(paragraph)
+                        .FontSize(fontSize)
+                        .LineHeight(lineHeight)
+                        .Justify()
+                        .FontColor(Ink);
+                }
+                else if (italic)
+                {
+                    column.Item().Text(paragraph)
+                        .FontSize(fontSize)
+                        .LineHeight(lineHeight)
+                        .Italic()
+                        .FontColor(Ink);
+                }
+                else
+                {
+                    column.Item().Text(paragraph)
+                        .FontSize(fontSize)
+                        .LineHeight(lineHeight)
+                        .FontColor(Ink);
+                }
+            }
+        });
+    }
+
     private static void ComposeClosingMatter(IContainer container, BrochurePublicationData data)
     {
-        container.PaddingTop(1).Column(column =>
+        container.PaddingTop(1).PaddingBottom(2).Column(column =>
         {
             column.Spacing(5);
 
-            column.Item().Border(4).BorderColor(VisionBlue).Background(VisionPaper).PaddingHorizontal(8).PaddingVertical(7).Column(vision =>
+            column.Item().Border(4.2f).BorderColor(VisionBlue).Background(VisionPaper).PaddingHorizontal(9).PaddingVertical(7).Column(vision =>
             {
                 vision.Spacing(4);
                 vision.Item().AlignCenter().Background(VisionBlue).PaddingHorizontal(8).PaddingVertical(2)
@@ -569,12 +684,14 @@ internal static class BrochurePrintCompactComposer
                     .Italic()
                     .AlignCenter()
                     .FontColor("#FFFFFF");
-                vision.Item().Text(data.Options.PrintVisionaryText ?? string.Empty)
-                    .FontSize(BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize)
-                    .Italic()
-                    .LineHeight(BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight)
-                    .Justify()
-                    .FontColor("#27302B");
+                vision.Item().Element(text => ComposeNarrativeText(
+                    text,
+                    data.Options.PrintVisionaryText,
+                    BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
+                    BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight,
+                    BrochurePrintLayoutMetrics.ClosingVisionParagraphSpacingPoints,
+                    justify: true,
+                    italic: true));
             });
 
             column.Item().Background(Forest800).PaddingHorizontal(8).PaddingVertical(7).Text(text =>

@@ -57,6 +57,14 @@ public enum BrochurePrintLayoutVariant
     Visual = 3
 }
 
+public enum BrochureFloatSplitKind
+{
+    None = 0,
+    Paragraph = 1,
+    Sentence = 2,
+    Word = 3
+}
+
 public enum PublicationIssueSeverity
 {
     Blocker = 1,
@@ -169,7 +177,10 @@ public sealed record BrochurePrintProjectMeasurement(
     float SecondaryImageHeightPoints = 0f,
     bool UsesFloatLayout = false,
     string ContinuationNarrative = "",
-    float ContinuationTextHeightPoints = 0f);
+    float ContinuationTextHeightPoints = 0f,
+    BrochureFloatSplitKind FloatSplitKind = BrochureFloatSplitKind.None,
+    float RemainderGapPoints = 0f,
+    float ParagraphSpacingPoints = 0f);
 
 public sealed record BrochurePrintPlannedProject(
     int ProjectIndex,

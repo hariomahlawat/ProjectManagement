@@ -18,11 +18,10 @@ public interface IBrochurePrintPagePlanner
 }
 
 /// <summary>
-/// Order-preserving, font-aware hard-copy sheet planner. Phase 12 makes publication quality the
-/// first constraint: a 9 pt project body is protected before page count is minimised. Only when an
-/// order-preserving 9 pt solution is impossible may the emergency Compact measurement be selected.
-/// After membership is locked, a bounded residual pass enlarges imagery without changing order or
-/// page membership.
+/// Order-preserving, font-aware hard-copy sheet planner. Phase 13 treats 9 pt project copy and
+/// reference-quality image geometry as hard normal constraints, then minimises page count and worst
+/// residual space. Compact 8.5 pt is available only when an individual project cannot physically fit
+/// on a full sheet at 9 pt. The exact measurement selected here is consumed unchanged by QuestPDF.
 /// </summary>
 public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
 {
@@ -125,9 +124,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         var dedicatedPenalty = projectOnlyPages.Sum(page => page.TypographyPenalty);
         var dedicatedPageCount = projectOnlyPages.Count + 1;
         var chooseShared = hasSharedPlan
-                           && (sharedPenalty < dedicatedPenalty
-                               || (sharedPenalty == dedicatedPenalty
-                                   && sharedPages.Count <= dedicatedPageCount));
+                           && (sharedPages.Count < dedicatedPageCount
+                               || (sharedPages.Count == dedicatedPageCount
+                                   && sharedPenalty <= dedicatedPenalty));
 
         if (chooseShared)
         {
@@ -229,6 +228,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         states[0] = new PlannerState(
             PageCount: 0,
             TypographyPenalty: 0,
+            WorstResidualFraction: 0d,
             Score: 0d,
             PreviousIndex: null,
             Segment: null);
@@ -245,10 +245,12 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             for (var end = start + 1; end <= maxEnd; end++)
             {
                 var isFinal = end == count;
-                var closing = isFinal && requireClosingOnFinalPage
-                    ? finalClosingHeight + BrochurePrintLayoutMetrics.ClosingGapPoints
+                var includesClosingMatter = isFinal && requireClosingOnFinalPage;
+                var closingHeight = includesClosingMatter ? finalClosingHeight : 0f;
+                var closingGap = includesClosingMatter && closingHeight > .5f
+                    ? BrochurePrintLayoutMetrics.ClosingGapPoints
                     : 0f;
-                var projectCapacity = capacity - closing;
+                var projectCapacity = capacity - closingHeight - closingGap;
                 if (projectCapacity <= 0f)
                 {
                     continue;
@@ -259,9 +261,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                     end,
                     measurements,
                     projectCapacity,
-                    closing,
+                    closingHeight,
                     capacity,
-                    isFinal && requireClosingOnFinalPage);
+                    includesClosingMatter);
                 if (segment is null)
                 {
                     continue;
@@ -269,21 +271,28 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
 
                 var typographyPenalty = state.TypographyPenalty + segment.TypographyPenalty;
                 var pageCount = state.PageCount + 1;
+                var residualFraction = Math.Max(0d, (capacity - segment.PhysicalUsedPoints) / capacity);
+                var worstResidual = Math.Max(state.WorstResidualFraction, residualFraction);
                 var score = state.Score + segment.Score;
                 var existing = states[end];
 
-                // Publication quality is lexicographically stronger than page count. This makes an
-                // extra sheet preferable to reducing ordinary project copy below 9 pt.
+                // Normal candidates already satisfy the 9 pt hard floor. Among those valid layouts,
+                // page count wins first, then the worst dead tail, then aggregate composition score.
                 if (existing is null
-                    || typographyPenalty < existing.TypographyPenalty
-                    || (typographyPenalty == existing.TypographyPenalty && pageCount < existing.PageCount)
-                    || (typographyPenalty == existing.TypographyPenalty
-                        && pageCount == existing.PageCount
+                    || pageCount < existing.PageCount
+                    || (pageCount == existing.PageCount && typographyPenalty < existing.TypographyPenalty)
+                    || (pageCount == existing.PageCount
+                        && typographyPenalty == existing.TypographyPenalty
+                        && worstResidual < existing.WorstResidualFraction - .0001d)
+                    || (pageCount == existing.PageCount
+                        && typographyPenalty == existing.TypographyPenalty
+                        && Math.Abs(worstResidual - existing.WorstResidualFraction) <= .0001d
                         && score < existing.Score))
                 {
                     states[end] = new PlannerState(
                         pageCount,
                         typographyPenalty,
+                        worstResidual,
                         score,
                         start,
                         segment);
@@ -344,7 +353,10 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                     return;
                 }
 
-                var physicalUsed = projectHeight + closingHeight;
+                var closingGap = includesClosingMatter && closingHeight > .5f
+                    ? BrochurePrintLayoutMetrics.ClosingGapPoints
+                    : 0f;
+                var physicalUsed = projectHeight + closingGap + closingHeight;
                 var utilization = Math.Min(1d, physicalUsed / physicalCapacity);
                 var underfill = Math.Max(0d, BrochurePrintLayoutMetrics.TargetMinimumUtilization - utilization);
                 var preferredDelta = Math.Abs(BrochurePrintLayoutMetrics.PreferredUtilization - utilization);
@@ -352,9 +364,11 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 var typographyPenalty = selected.Sum(TypographyPenalty);
                 var singleProjectPenalty = itemCount == 1 ? 8d : 0d;
 
-                var score = (underfill * underfill * 6500d)
-                            + (preferredDelta * preferredDelta * 140d)
-                            + (qualityPenalty * 3.5d)
+                var residual = Math.Max(0d, 1d - utilization);
+                var score = (underfill * underfill * 5200d)
+                            + (residual * residual * 900d)
+                            + (preferredDelta * preferredDelta * 90d)
+                            + (qualityPenalty * 3d)
                             + singleProjectPenalty;
 
                 var projects = selected
@@ -383,7 +397,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             }
 
             var set = measurements[start + offset];
-            foreach (var candidate in set.CandidatesForSegment(itemCount))
+            foreach (var candidate in set.CandidatesForSegment(itemCount, physicalCapacity))
             {
                 selected[offset] = candidate;
                 Search(offset + 1);
@@ -640,14 +654,19 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             }
         }
 
-        public IEnumerable<BrochurePrintProjectMeasurement> CandidatesForSegment(int itemCount)
+        public IEnumerable<BrochurePrintProjectMeasurement> CandidatesForSegment(
+            int itemCount,
+            float fullSheetCapacity)
         {
             yield return Visual;
             yield return Balanced;
 
-            // 8.5 pt Compact is a genuine emergency escape hatch for one individually oversized
-            // project. It is never a normal multi-project packing option.
-            if (itemCount == 1)
+            // Compact is not a packing tool. It is exposed only when this individual project cannot
+            // fit on a complete sheet at the normal 9 pt typography floor. It therefore cannot be
+            // selected merely to squeeze closing matter or an additional project onto a page.
+            var requiresEmergencyCompact = Visual.TotalHeightPoints > fullSheetCapacity + .5f
+                                           && Balanced.TotalHeightPoints > fullSheetCapacity + .5f;
+            if (itemCount == 1 && requiresEmergencyCompact)
             {
                 yield return Compact;
             }
@@ -657,6 +676,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
     private sealed record PlannerState(
         int PageCount,
         int TypographyPenalty,
+        double WorstResidualFraction,
         double Score,
         int? PreviousIndex,
         PlannedSegment? Segment);

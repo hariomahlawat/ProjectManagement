@@ -1,123 +1,77 @@
-# PRISM Publications — Phase 12 Output-Verified Reference Quality
+# PRISM Publications — Phase 13
+## Deterministic Print Composition Lock
 
-## Objective
+Phase 13 is an incremental replacement over the Phase 12 Brochure Builder implementation.
 
-Phase 12 moves Print / Compact from "close to the original" to a renderer explicitly engineered
-for **equal-or-better reference quality**. It keeps the Phase 10/11 measured architecture and fixes
-the remaining defects observed in the generated PDF while adding a curated institutional Cover A
-artwork library.
+The acceptance standard is unchanged: **Print / Compact output must be equal to or better than the original reference brochure** while remaining deterministic, editable from PRISM data and safe for offline deployment.
 
-Digital / Comfortable remains isolated except that, when Institutional Cover A is selected, it may
-reuse the same user-selected institutional artwork.
+## What Phase 13 fixes
 
-## What Phase 12 changes
+1. **Planner and renderer now share one exact module-height contract.**
+   - QuestPDF consumes `BrochurePrintProjectMeasurement.TotalHeightPoints` as a fixed module height.
+   - The old `MinHeight(...)` path is removed.
+   - Sheet-level project and closing gaps are explicit measured spacer items; no hidden `Column.Spacing(...)` can inflate the rendered page.
+   - Closing-panel width/padding and top/bottom geometry are measured with the same constants that are rendered.
+   - A planner measurement can no longer reserve invisible height that the rendered card does not occupy.
 
-### 1. Curated Cover A artwork library
+2. **9 pt project body is a hard normal-print constraint.**
+   - Visual and Balanced remain 9 pt.
+   - Compact 8.5 pt is exposed only when an individual project cannot fit on a complete sheet at 9 pt.
+   - Compact cannot be selected merely to squeeze another project or closing matter onto a page.
 
-Cover A now ships with five fully offline hero artworks and exposes them directly in Brochure
-Builder:
+3. **Page count is minimised after quality constraints are satisfied.**
+   - Among equal-page-count layouts, the planner minimises the worst residual/dead-tail space and then aggregate composition cost.
+   - A regression test reproduces the measured Phase 12 three-project combination that was incorrectly split across sheets.
 
-1. **Reference Original** — default and closest to the approved brochure;
-2. **Premium Green–Gold**;
-3. **Cinematic Cyber**;
-4. **Executive Teal**;
-5. **Luminous Halo**.
+4. **Project imagery is bounded to reference scale.**
+   - 16:9 remains canonical.
+   - Normal image expansion is capped at 160 pt rather than the previous 176 pt.
+   - Residual enlargement is limited to 12 pt.
 
-All shipped artwork is normalized to **1600 × 1280 (5:4)** for deterministic print composition.
-The selected artwork is stored in the posted brochure options; no database migration is required.
+5. **Compact paragraph rhythm is explicit and measured.**
+   - Blank-line paragraph gaps are no longer treated as a full 9 pt text line; repeated blank lines do not consume additional measured height.
+   - Project paragraph spacing is 2.25 pt and is shared by Skia measurement and QuestPDF composition.
 
-The selected artwork is treated as full institutional hero artwork, so PRISM does **not** paint a
-second logo/title lockup over it. The authoritative Centre of Expertise statement remains live PDF
-text and is overlaid in the lower safe zone of the hero.
+6. **Float continuation semantics are explicit.**
+   - Paragraph / Sentence / Word split type is carried in the layout contract.
+   - Forced mid-sentence continuations remain left aligned and use a minimal continuation gap.
+   - Semantic paragraph boundaries receive the appropriate compact paragraph gap.
 
-### 2. Cover A first-page integrity
+7. **Title band density is tightened.**
+   - Single-line title-band floor is reduced from 20 pt to 18 pt.
+   - Long titles still grow vertically rather than collapsing typography.
 
-- `CONTACTS` now owns a dedicated row above the agency headings;
-- Developing and Manufacturing Agency headings can no longer collide with the badge;
-- agency columns are deliberately asymmetric (**61 / 39**) because Developing Agency carries
-  more copy;
-- the Centre of Expertise statement is integrated into the artwork hero rather than consuming a
-  separate full-width band;
-- the recovered vertical space supports stronger hero presence and more comfortable copy.
+8. **Generated institutional cover alternatives use exact PRISM identity overlays.**
+   - `Reference Original` is left untouched.
+   - Generated alternatives receive the deployed `img/logos/artrac.png` and `img/logos/sdd.png` assets as formal identity overlays.
 
-### 3. Reference-scale project imagery
+9. **Closing treatment is tightened without introducing a new font dependency.**
+   - Visionary copy is slightly more prominent and compact.
+   - The existing registered offline publication font remains authoritative, avoiding a fragile server-OS serif-font dependency.
 
-Print / Compact retains exact **16:9** project imagery and raises the normal image scale:
+## Files to replace
 
-- Visual: approximately **154 pt** before bounded narrative adjustment;
-- Balanced: approximately **148 pt**;
-- Compact emergency layout: approximately **136 pt**;
-- residual expansion remains bounded at **176 pt** maximum.
+Copy these Phase 13 files to the same relative locations in the project:
 
-This brings the generated visual anchor into the same range as the original brochure while keeping
-PRISM's cleaner standardized 16:9 treatment.
-
-### 4. 9 pt is now the real normal-body floor
-
-Visual and Balanced remain **9 pt**. Compact at 8.5 pt is no longer offered to ordinary multi-
-project packing. It is available only as an emergency escape hatch for a single oversized project
-that cannot physically fit at 9 pt.
-
-This means page count can no longer silently buy density by reducing ordinary project text.
-
-### 5. Mid-sentence float continuation is corrected
-
-When the image-height split has to occur in the middle of a sentence, Phase 12 separates the
-unfinished sentence from normal paragraph copy:
-
-- the unfinished sentence continues full-width **without forced justification**;
-- normal justified publication copy resumes at the next sentence boundary.
-
-This removes the visibly stretched first continuation line that exposed the algorithmic split.
-
-### 6. Under-filled pages use residual space deliberately
-
-Residual optimisation now has three bounded stages without changing project order, page membership
-or typography:
-
-1. enlarge project imagery;
-2. add measured vertical breathing inside project modules;
-3. add modest inter-module spacing.
-
-The target remains approximately **95% physical sheet utilisation** rather than artificial 100%
-fill.
-
-### 7. Closing page is cleaner
-
-The final closing block now ends on **New Simulators**. The institutional strapline remains on the
-first page only, matching the reference logic and avoiding a redundant final-page repeat.
-
-## Files changed
-
-- `Pages/Projects/Publications/Brochure/Index.cshtml`
-- `Pages/Projects/Publications/Brochure/Index.cshtml.cs`
 - `Services/Publications/BrochureContracts.cs`
 - `Services/Publications/BrochurePrintLayoutMetrics.cs`
 - `Services/Publications/BrochurePrintMeasurementService.cs`
 - `Services/Publications/BrochurePrintPagePlanner.cs`
-- `Utilities/Reporting/BrochurePdfReportBuilder.cs`
 - `Utilities/Reporting/BrochurePrintCompactComposer.cs`
 - `ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs`
 - `ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs`
-- `wwwroot/css/pages/projects-publications.css`
-- `wwwroot/js/pages/projects-brochure.js`
 - `wwwroot/js/projects/publications-brochure-contract.test.js`
-- `wwwroot/img/publications/README-COVER-A.txt`
-- `wwwroot/img/publications/covers/*` — five shipped artwork assets
-- `tools/Test-PrismPublicationsPhase12.ps1`
+- `tools/Test-PrismPublicationsPhase13.ps1`
 
-There is **no EF migration** and **no database schema change**.
+The incremental package also carries the five Phase 12 Cover A image assets so it is self-contained. They can safely overwrite the existing copies.
 
 ## Installation
 
-The incremental Phase 12 package assumes Phase 11 is installed. Copy its contents over the
-`ProjectManagement` project root, preserving directories.
-
-Then run:
+From the project root:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\tools\Test-PrismPublicationsPhase12.ps1
+.\tools\Test-PrismPublicationsPhase13.ps1
 
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -126,21 +80,21 @@ dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-## Acceptance run
+## Mandatory acceptance run
 
-Regenerate the same brochure used for the Phase 11 comparison and verify:
+Regenerate the **same nine-project Print / Compact test brochure** used for the Phase 12 review.
 
-- Cover A defaults to **Reference Original** and user can switch among all five artwork cards;
-- no duplicated logos/title are painted over supplied Cover A artwork;
-- CONTACTS does not overlap either agency heading;
-- institutional Centre statement is integrated into the hero;
-- normal project body is 9 pt;
-- normal project images are visibly stronger and remain 16:9;
-- no stretched justified continuation begins in the middle of a sentence;
-- under-filled 3-project sheets use spare space intelligently;
-- project order remains unchanged;
-- final page ends on New Simulators without the repeated strapline;
-- Gallery 2 and long two-line title cases still fit without clipping.
+Check the actual PDF, not only the preflight estimates:
 
-The original brochure remains the minimum visual benchmark. PRISM should retain its advantages in
-consistency, deterministic pagination and clean standardized photography.
+- Page 2 should no longer show the false two-project break seen in Phase 12 when three measured projects fit.
+- Normal project body copy should remain 9 pt.
+- Project images should generally sit near the original reference scale and never exceed 160 pt in normal residual expansion.
+- Mid-sentence wrap continuations should no longer look like newly justified paragraphs.
+- Project title bands should remain compact for single-line titles and expand cleanly for long titles.
+- Gallery 2 must retain right-hand stacked 16:9 imagery.
+- Final closing matter should share the last project sheet whenever it genuinely fits without compromising normal project typography.
+- There must be no clipping, overflow, orphan title bands or project-order changes.
+
+## Important
+
+Phase 13 intentionally does **not** redesign Digital / Comfortable. All changes in this phase are isolated to Print / Compact composition and its regression contracts.

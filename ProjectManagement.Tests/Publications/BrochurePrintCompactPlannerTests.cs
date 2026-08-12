@@ -76,7 +76,7 @@ public sealed class BrochurePrintCompactPlannerTests
     }
 
     [Fact]
-    public void Plan_NinePointTypographyOutranksSavingOneSheet()
+    public void Plan_NormalPackingNeverUsesCompactToSaveASheet()
     {
         var planner = new BrochurePrintPagePlanner(new QualityFloorMeasurementService());
         var projects = Enumerable.Range(1, 4)
@@ -91,7 +91,7 @@ public sealed class BrochurePrintCompactPlannerTests
             hasHandlingMarking: false);
 
         // All four Compact measurements could fit on one project sheet, but they are 8.5 pt.
-        // Phase 12 deliberately chooses more sheets and preserves the 9 pt publication body.
+        // Phase 13 treats 9 pt as a hard normal constraint; Compact cannot be used merely to save a sheet.
         Assert.True(plan.Pages.Count(page => page.Projects.Count > 0) >= 2);
         Assert.All(
             plan.Pages.SelectMany(page => page.Projects),
@@ -123,6 +123,54 @@ public sealed class BrochurePrintCompactPlannerTests
             page.ExtraModuleVerticalPaddingPoints > 0f
             || page.ExtraInterModuleSpacingPoints > 0f
             || page.Projects.Any(project => project.Measurement.ImageWidthPoints > 140f));
+    }
+
+
+    [Fact]
+    public void Plan_Phase12ObservedThreeProjectCombination_RemainsOnOneSheetAtNinePoint()
+    {
+        var planner = new BrochurePrintPagePlanner(new ObservedPhase12MeasurementService());
+        var projects = new[]
+        {
+            PlanningItem(1, words: 150),
+            PlanningItem(2, words: 150),
+            PlanningItem(3, words: 150)
+        };
+
+        var plan = planner.Plan(
+            projects,
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Institutional,
+            "Simulators of the Army, by the Army, for the Army",
+            hasHandlingMarking: false);
+
+        var projectPage = Assert.Single(plan.Pages.Where(page => page.Projects.Count > 0));
+        Assert.Equal(3, projectPage.Projects.Count);
+        Assert.All(projectPage.Projects, project =>
+            Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, project.Measurement.BodyFontSize));
+        Assert.True(projectPage.MeasuredPhysicalUsedPoints <= projectPage.CapacityPoints + .5f);
+    }
+
+    [Fact]
+    public void Plan_ResidualExpansionNeverExceedsReferenceImageCap()
+    {
+        var planner = new BrochurePrintPagePlanner(new DeterministicMeasurementService());
+        var projects = Enumerable.Range(1, 3)
+            .Select(index => PlanningItem(index, words: 95))
+            .ToArray();
+
+        var plan = planner.Plan(
+            projects,
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Institutional,
+            "Simulators of the Army, by the Army, for the Army",
+            hasHandlingMarking: false);
+
+        Assert.All(
+            plan.Pages.SelectMany(page => page.Projects),
+            project => Assert.True(
+                project.Measurement.ImageWidthPoints
+                <= BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints + .01f));
     }
 
     private static BrochurePrintPlanningItem PlanningItem(int id, int words)
@@ -163,7 +211,7 @@ public sealed class BrochurePrintCompactPlannerTests
             var bodyFont = variant == BrochurePrintLayoutVariant.Compact
                 ? BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize
                 : BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize;
-            var imageWidth = 140f + imageWidthAdjustmentPoints;
+            var imageWidth = Math.Min(BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints, 140f + imageWidthAdjustmentPoints);
             var imageExpansionHeight = imageWidthAdjustmentPoints * .45f;
 
             return new BrochurePrintProjectMeasurement(
@@ -184,6 +232,48 @@ public sealed class BrochurePrintCompactPlannerTests
 
         public BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline)
             => new(235f, 165f, 50f, 10f);
+
+        public BrochurePrintFrontPagePlan MeasureFrontPage(
+            BrochurePrintMatter? matter,
+            BrochureCoverStyle coverStyle,
+            string? strapline)
+            => FrontPlan(coverStyle);
+    }
+
+
+    private sealed class ObservedPhase12MeasurementService : IBrochurePrintMeasurementService
+    {
+        private static readonly float[] Heights = [260.9f, 255.8f, 275.3f];
+
+        public BrochurePrintProjectMeasurement MeasureProject(
+            BrochurePrintPlanningItem item,
+            BrochurePrintLayoutVariant variant,
+            float imageWidthAdjustmentPoints = 0f)
+        {
+            var index = Math.Clamp(item.ProjectId - 1, 0, Heights.Length - 1);
+            var bodyFont = variant == BrochurePrintLayoutVariant.Compact
+                ? BrochurePrintLayoutMetrics.ProjectBodyMinimumFontSize
+                : BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize;
+            var height = Heights[index] + (variant == BrochurePrintLayoutVariant.Visual ? 0f : variant == BrochurePrintLayoutVariant.Balanced ? -2f : -10f);
+
+            return new BrochurePrintProjectMeasurement(
+                item.ProjectId,
+                variant,
+                height,
+                18f,
+                variant == BrochurePrintLayoutVariant.Compact ? 9.5f : 10f,
+                bodyFont,
+                1.05f,
+                150f,
+                5.5f,
+                245f,
+                120f,
+                84.375f,
+                variant == BrochurePrintLayoutVariant.Visual ? 3 : variant == BrochurePrintLayoutVariant.Balanced ? 2 : 1);
+        }
+
+        public BrochurePrintClosingMeasurement MeasureClosing(BrochurePrintMatter? matter, string? strapline)
+            => new(0f, 0f, 0f, 0f);
 
         public BrochurePrintFrontPagePlan MeasureFrontPage(
             BrochurePrintMatter? matter,

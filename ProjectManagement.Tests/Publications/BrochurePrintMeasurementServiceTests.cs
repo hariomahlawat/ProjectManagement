@@ -83,7 +83,7 @@ public sealed class BrochurePrintMeasurementServiceTests
         var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
 
         Assert.True(measure.TitleFontSize >= BrochurePrintLayoutMetrics.ProjectTitleMinimumFontSize);
-        Assert.True(measure.TitleHeightPoints > 20f);
+        Assert.True(measure.TitleHeightPoints > 18f);
     }
 
 
@@ -142,6 +142,7 @@ public sealed class BrochurePrintMeasurementServiceTests
         Assert.NotEmpty(measure.LeadingNarrative);
         Assert.NotEmpty(measure.TrailingNarrative);
         Assert.Contains(measure.LeadingNarrative[^1], new[] { '.', '!', '?' });
+        Assert.NotEqual(BrochureFloatSplitKind.Word, measure.FloatSplitKind);
     }
 
     [Fact]
@@ -159,6 +160,63 @@ public sealed class BrochurePrintMeasurementServiceTests
         Assert.True(expanded.ImageWidthPoints > normal.ImageWidthPoints);
         Assert.True(expanded.ImageWidthPoints <= BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints);
         Assert.NotEqual(normal.TotalHeightPoints, expanded.TotalHeightPoints);
+    }
+
+
+    [Fact]
+    public void MeasureProject_NormalImageWidthNeverExceedsReferenceQualityCap()
+    {
+        using var fixture = new Fixture();
+        var item = Item(1, 70, BrochureImageMode.Single, hasSecondary: false);
+
+        var measure = fixture.Service.MeasureProject(
+            item,
+            BrochurePrintLayoutVariant.Visual,
+            BrochurePrintLayoutMetrics.ResidualMaximumImageExpansionPoints);
+
+        Assert.InRange(measure.ImageWidthPoints, 140f, BrochurePrintLayoutMetrics.ResidualMaximumImageWidthPoints);
+        Assert.True(measure.ImageWidthPoints <= 160f);
+    }
+
+    [Fact]
+    public void MeasureProject_ParagraphSpacingIsExplicitAndCompact()
+    {
+        using var fixture = new Fixture();
+        var narrative = "First paragraph has enough copy to wrap naturally beside the image.\n\nSecond paragraph continues the project brief without a full blank line.";
+        var item = new BrochurePrintPlanningItem(
+            1,
+            "Paragraph Rhythm Project",
+            narrative,
+            BrochureImageMode.Single,
+            HasPrimaryPhoto: true,
+            HasSecondaryPhoto: false);
+
+        var measure = fixture.Service.MeasureProject(item, BrochurePrintLayoutVariant.Visual);
+
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints, measure.ParagraphSpacingPoints);
+        Assert.InRange(measure.ParagraphSpacingPoints, 1.5f, 3f);
+    }
+
+    [Fact]
+    public void MeasureProject_RepeatedBlankLinesDoNotReserveFullTextLines()
+    {
+        using var fixture = new Fixture();
+        var compactBreaks = new BrochurePrintPlanningItem(
+            1,
+            "Compact Paragraph Project",
+            "First paragraph contains representative publication copy.\n\nSecond paragraph contains the same continuation copy.",
+            BrochureImageMode.Single,
+            HasPrimaryPhoto: true,
+            HasSecondaryPhoto: false);
+        var excessiveBreaks = compactBreaks with
+        {
+            Narrative = "First paragraph contains representative publication copy.\n\n\n\nSecond paragraph contains the same continuation copy."
+        };
+
+        var normal = fixture.Service.MeasureProject(compactBreaks, BrochurePrintLayoutVariant.Visual);
+        var repeated = fixture.Service.MeasureProject(excessiveBreaks, BrochurePrintLayoutVariant.Visual);
+
+        Assert.InRange(Math.Abs(normal.TotalHeightPoints - repeated.TotalHeightPoints), 0f, .01f);
     }
 
     [Fact]

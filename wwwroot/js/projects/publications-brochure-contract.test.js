@@ -266,7 +266,8 @@ test('phase 8 exposes Gallery 2 directly during publication review', () => {
 test('phase 8 print project typography centres headings and justifies publication copy', () => {
   assert.match(printRenderer, /ProjectName\.ToUpperInvariant\(\)/);
   assert.match(printRenderer, /\.AlignCenter\(\)/);
-  assert.match(printRenderer, /Text\(project\.Narrative\)[\s\S]{0,220}\.Justify\(\)/);
+  assert.match(printRenderer, /ComposeNarrativeText/);
+  assert.match(printRenderer, /if \(justify\)[\s\S]{0,260}\.Justify\(\)/);
 });
 
 test('phase 9 measured Cover A composition removes fixed body/contact spacer geometry', () => {
@@ -329,7 +330,7 @@ test('phase 10 print compact restores reference float composition and removes im
 
 test('phase 10 print compact restores stronger closing matter and reference-green treatment', () => {
   const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
-  assert.match(metrics, /ClosingVisionBodyFontSize = 10\.4f/);
+  assert.match(metrics, /ClosingVisionBodyFontSize = 10\.6f/);
   assert.match(metrics, /ClosingVisionHeadingFontSize = 11\.2f/);
   assert.match(metrics, /ClosingNewSimulatorsFontSize = 8\.8f/);
   assert.match(metrics, /ClosingStraplineFontSize = 8\.2f/);
@@ -342,14 +343,14 @@ test('phase 11 locks 16:9 print imagery and nine-point normal typography', () =>
   assert.match(metrics, /SingleImageAspectRatio = 16f \/ 9f/);
   assert.match(metrics, /GalleryImageAspectRatio = 16f \/ 9f/);
   assert.match(metrics, /BrochurePrintLayoutVariant\.Balanced[\s\S]{0,420}BodyFontSize: ProjectBodyPreferredFontSize/);
-  assert.match(metrics, /ImageWidthPoints: 154f \+ imageAdjustment/);
-  assert.match(metrics, /ImageWidthPoints: 148f \+ imageAdjustment/);
+  assert.match(metrics, /ImageWidthPoints: 154f \+ Math\.Clamp\(imageAdjustment/);
+  assert.match(metrics, /ImageWidthPoints: 148f \+ Math\.Clamp\(imageAdjustment/);
   assert.match(metrics, /ResidualTargetUtilization = \.95f/);
 });
 
 test('phase 11 print planner protects typography before page count and expands residual imagery', () => {
   const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
-  assert.match(planner, /typographyPenalty < existing\.TypographyPenalty/);
+  assert.match(planner, /pageCount < existing\.PageCount/);
   assert.match(planner, /ApplyResidualImageExpansion/);
   assert.match(planner, /ResidualImageExpansionStepPoints/);
   assert.match(planner, /ResidualMaximumImageExpansionPoints/);
@@ -393,8 +394,8 @@ test('phase 12 ships selectable institutional Cover A artwork including the appr
 
 test('phase 12 treats 8.5 pt compact layout as single-project emergency only', () => {
   const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
-  assert.match(planner, /CandidatesForSegment\(itemCount\)/);
-  assert.match(planner, /if \(itemCount == 1\)/);
+  assert.match(planner, /CandidatesForSegment\(itemCount, physicalCapacity\)/);
+  assert.match(planner, /if \(itemCount == 1 && requiresEmergencyCompact\)/);
   assert.match(planner, /yield return Compact/);
 });
 
@@ -406,4 +407,63 @@ test('phase 12 removes forced mid-sentence justification and uses residual breat
   assert.match(planner, /ResidualMaximumExtraModuleVerticalPaddingPoints/);
   assert.match(planner, /ResidualMaximumExtraInterModuleSpacingPoints/);
   assert.doesNotMatch(printRenderer, /ClosingStraplineFontSize/);
+});
+
+
+test('phase 13 planner and renderer consume the same fixed project height contract', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+
+  assert.match(printRenderer, /\.Height\(plannedProject\.Measurement\.TotalHeightPoints \+ sheet\.ExtraModuleVerticalPaddingPoints\)/);
+  assert.doesNotMatch(printRenderer, /\.MinHeight\(plannedProject\.Measurement\.TotalHeightPoints/);
+  assert.match(measurement, /ProjectMeasurementSafetyPoints/);
+  assert.match(metrics, /ProjectMeasurementSafetyPoints = 1\.0f/);
+  assert.match(planner, /WorstResidualFraction/);
+  assert.match(planner, /pageCount < existing\.PageCount/);
+});
+
+test('phase 13 locks nine-point normal copy, compact paragraph rhythm and reference image cap', () => {
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  assert.match(metrics, /ProjectBodyPreferredFontSize = 9f/);
+  assert.match(metrics, /ProjectParagraphSpacingPoints = 2\.25f/);
+  assert.match(metrics, /ResidualMaximumImageWidthPoints = 160f/);
+  assert.match(metrics, /ResidualMaximumImageExpansionPoints = 12f/);
+  assert.match(measurement, /Math\.Max\(\s*18f,/);
+});
+
+test('phase 13 float contract records semantic split kind and renders forced continuations without justification', () => {
+  const contracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureContracts.cs'), 'utf8');
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  assert.match(contracts, /BrochureFloatSplitKind/);
+  assert.match(contracts, /FloatSplitKind/);
+  assert.match(measurement, /BrochureFloatSplitKind\.Paragraph/);
+  assert.match(measurement, /BrochureFloatSplitKind\.Sentence/);
+  assert.match(measurement, /BrochureFloatSplitKind\.Word/);
+  assert.match(printRenderer, /layout\.RemainderGapPoints/);
+  const continuation = printRenderer.slice(printRenderer.indexOf('var hasContinuation'), printRenderer.indexOf('if (!string.IsNullOrWhiteSpace(layout.TrailingNarrative))'));
+  assert.doesNotMatch(continuation, /\.Justify\(\)/);
+});
+
+test('phase 13 generated institutional alternatives overlay exact PRISM identity assets', () => {
+  assert.match(printRenderer, /ComposeOfficialInstitutionalMarks/);
+  assert.match(printRenderer, /InstitutionalCoverArtwork != BrochureInstitutionalCoverArtwork\.ReferenceOriginal/);
+  assert.match(printRenderer, /Image\(artracLogo\)\.FitArea\(\)/);
+  assert.match(printRenderer, /Image\(sddLogo\)\.FitArea\(\)/);
+});
+
+
+test('phase 13 project and closing spacers are explicit so planner and PDF have identical physical geometry', () => {
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  const sheetComposer = printRenderer.slice(
+    printRenderer.indexOf('private static void ComposeProjectSheet'),
+    printRenderer.indexOf('private static void ComposeProjectModule'));
+
+  assert.doesNotMatch(sheetComposer, /column\.Spacing\(BrochurePrintLayoutMetrics\.InterModuleSpacingPoints/);
+  assert.match(sheetComposer, /if \(projectOffset > 0\)/);
+  assert.match(sheetComposer, /InterModuleSpacingPoints[\s\S]{0,120}ExtraInterModuleSpacingPoints/);
+  assert.match(sheetComposer, /Height\(BrochurePrintLayoutMetrics\.ClosingGapPoints\)/);
+  assert.match(measurement, /newSimulatorInnerWidth = outerWidth - 16f/);
+  assert.match(printRenderer, /PaddingTop\(1\)\.PaddingBottom\(2\)\.Column/);
 });

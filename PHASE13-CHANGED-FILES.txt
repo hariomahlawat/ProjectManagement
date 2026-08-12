@@ -1,0 +1,28 @@
+PRISM Publications Phase 13 — changed/replacement files
+======================================================
+
+Application / renderer
+- Services/Publications/BrochureContracts.cs
+- Services/Publications/BrochurePrintLayoutMetrics.cs
+- Services/Publications/BrochurePrintMeasurementService.cs
+- Services/Publications/BrochurePrintPagePlanner.cs
+- Utilities/Reporting/BrochurePrintCompactComposer.cs
+
+Regression tests
+- ProjectManagement.Tests/Publications/BrochurePrintMeasurementServiceTests.cs
+- ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+- wwwroot/js/projects/publications-brochure-contract.test.js
+
+Validation / instructions
+- tools/Test-PrismPublicationsPhase13.ps1
+- README-REPLACE-FIRST.md
+- PHASE13-VALIDATION-RESULTS.txt
+- PRISM-Publications-Phase13-Deterministic-Composition.patch
+- SHA256SUMS.txt
+
+Curated Cover A assets (included again for a self-contained replacement package)
+- wwwroot/img/publications/covers/cover-a-reference-original.jpg
+- wwwroot/img/publications/covers/cover-a-premium-green-gold.jpg
+- wwwroot/img/publications/covers/cover-a-cinematic-cyber.jpg
+- wwwroot/img/publications/covers/cover-a-executive-teal.jpg
+- wwwroot/img/publications/covers/cover-a-luminous-halo.jpg

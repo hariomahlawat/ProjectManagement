@@ -90,8 +90,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         }
 
         var titleHeight = Math.Max(
-            20f,
-            (titleLines * titleFontSize * BrochurePrintLayoutMetrics.ProjectTitleLineHeight) + 6f);
+            18f,
+            (titleLines * titleFontSize * BrochurePrintLayoutMetrics.ProjectTitleLineHeight) + 5f);
 
         var hasPrimary = item.HasPrimaryPhoto;
         var hasSecond = item.HasSecondaryPhoto
@@ -134,6 +134,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         float continuationTextHeight;
         float trailingTextHeight;
         float bodyContentHeight;
+        float remainderGapPoints;
+        BrochureFloatSplitKind floatSplitKind;
 
         if (!hasPrimary)
         {
@@ -147,8 +149,11 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 spec.BodyFontSize,
                 fullTextWidth,
                 spec.BodyLineHeight,
-                FontWeight.Regular);
+                FontWeight.Regular,
+                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
             bodyContentHeight = trailingTextHeight;
+            remainderGapPoints = 0f;
+            floatSplitKind = BrochureFloatSplitKind.None;
         }
         else
         {
@@ -166,11 +171,13 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             leadingTextHeight = split.LeadingHeightPoints;
             continuationTextHeight = split.ContinuationHeightPoints;
             trailingTextHeight = split.TrailingHeightPoints;
+            remainderGapPoints = split.RemainderGapPoints;
+            floatSplitKind = split.Kind;
 
             bodyContentHeight = Math.Max(imageHeight, leadingTextHeight);
             if (!string.IsNullOrWhiteSpace(continuationNarrative) || !string.IsNullOrWhiteSpace(trailingNarrative))
             {
-                bodyContentHeight += BrochurePrintLayoutMetrics.FloatRemainderGapPoints
+                bodyContentHeight += split.RemainderGapPoints
                                      + continuationTextHeight
                                      + trailingTextHeight;
             }
@@ -181,7 +188,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                               + trailingTextHeight
                               + (!string.IsNullOrWhiteSpace(leadingNarrative)
                                  && (!string.IsNullOrWhiteSpace(continuationNarrative) || !string.IsNullOrWhiteSpace(trailingNarrative))
-                                  ? BrochurePrintLayoutMetrics.FloatRemainderGapPoints
+                                  ? remainderGapPoints
                                   : 0f);
         var totalHeight = titleHeight
                           + (spec.BodyPaddingPoints * 2f)
@@ -212,7 +219,10 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             SecondaryImageHeightPoints: secondaryImageHeight,
             UsesFloatLayout: hasPrimary,
             ContinuationNarrative: continuationNarrative,
-            ContinuationTextHeightPoints: continuationTextHeight);
+            ContinuationTextHeightPoints: continuationTextHeight,
+            FloatSplitKind: floatSplitKind,
+            RemainderGapPoints: remainderGapPoints,
+            ParagraphSpacingPoints: BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
     }
 
     public BrochurePrintClosingMeasurement MeasureClosing(
@@ -223,7 +233,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         matter ??= new BrochurePrintMatter(null, null, null, null, null, null, null, null);
 
         var outerWidth = BrochurePrintLayoutMetrics.ModuleWidthPoints;
-        var visionInnerWidth = outerWidth - 8f - 14f; // 4 pt border each side + 7 pt padding each side.
+        var visionInnerWidth = outerWidth - 8.4f - 18f; // 4.2 pt border each side + 9 pt padding each side.
         var visionHeadingHeight = Math.Max(
             14f,
             MeasureTextHeight(
@@ -237,10 +247,11 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
             visionInnerWidth,
             BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight,
-            FontWeight.Regular);
-        var visionPanelHeight = 8f + 14f + visionHeadingHeight + 4f + visionBodyHeight;
+            FontWeight.Regular,
+            BrochurePrintLayoutMetrics.ClosingVisionParagraphSpacingPoints);
+        var visionPanelHeight = 8.4f + 14f + visionHeadingHeight + 4f + visionBodyHeight;
 
-        var newSimulatorInnerWidth = outerWidth - 14f;
+        var newSimulatorInnerWidth = outerWidth - 16f;
         var newSimulatorText = $"New Simulators. {matter.NewSimulatorsGuidance}".Trim();
         var newSimulatorHeight = MeasureTextHeight(
             newSimulatorText,
@@ -434,7 +445,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
     {
         if (string.IsNullOrWhiteSpace(narrative))
         {
-            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f);
+            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f, BrochureFloatSplitKind.None, 0f);
         }
 
         var normalized = narrative
@@ -444,7 +455,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var words = WordToken.Matches(normalized).Cast<Match>().ToArray();
         if (words.Length == 0)
         {
-            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f);
+            return new FloatNarrativeSplit(string.Empty, string.Empty, string.Empty, 0f, 0f, 0f, BrochureFloatSplitKind.None, 0f);
         }
 
         // First identify the largest complete-word prefix that fits beside the image. This is the
@@ -464,7 +475,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fontSize,
                 sideWidth,
                 lineHeight,
-                FontWeight.Regular);
+                FontWeight.Regular,
+                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
 
             if (height <= imageHeight + .35f)
             {
@@ -485,8 +497,9 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fontSize,
                 fullWidth,
                 lineHeight,
-                FontWeight.Regular);
-            return new FloatNarrativeSplit(string.Empty, string.Empty, normalized, 0f, 0f, trailingHeight);
+                FontWeight.Regular,
+                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+            return new FloatNarrativeSplit(string.Empty, string.Empty, normalized, 0f, 0f, trailingHeight, BrochureFloatSplitKind.None, 0f);
         }
 
         var idealEnd = words[bestWordCount - 1].Index + words[bestWordCount - 1].Length;
@@ -518,7 +531,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fontSize,
                 sideWidth,
                 lineHeight,
-                FontWeight.Regular);
+                FontWeight.Regular,
+                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
             if (height > upperTolerance)
             {
                 continue;
@@ -593,7 +607,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fontSize,
                 fullWidth,
                 lineHeight,
-                FontWeight.Regular);
+                FontWeight.Regular,
+                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
         var trailingHeightPoints = string.IsNullOrWhiteSpace(trailing)
             ? 0f
             : MeasureTextHeight(
@@ -601,7 +616,22 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 fontSize,
                 fullWidth,
                 lineHeight,
-                FontWeight.Regular);
+                FontWeight.Regular,
+                BrochurePrintLayoutMetrics.ProjectParagraphSpacingPoints);
+
+        var splitKind = selectedKind switch
+        {
+            EditorialBoundaryKind.Paragraph => BrochureFloatSplitKind.Paragraph,
+            EditorialBoundaryKind.Sentence => BrochureFloatSplitKind.Sentence,
+            _ => BrochureFloatSplitKind.Word
+        };
+        var remainderGap = splitKind switch
+        {
+            BrochureFloatSplitKind.Paragraph => BrochurePrintLayoutMetrics.FloatParagraphContinuationGapPoints,
+            BrochureFloatSplitKind.Sentence => BrochurePrintLayoutMetrics.FloatSentenceContinuationGapPoints,
+            BrochureFloatSplitKind.Word => BrochurePrintLayoutMetrics.FloatWordContinuationGapPoints,
+            _ => BrochurePrintLayoutMetrics.FloatRemainderGapPoints
+        };
 
         return new FloatNarrativeSplit(
             leading,
@@ -609,7 +639,9 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             trailing,
             selectedHeight,
             continuationHeightPoints,
-            trailingHeightPoints);
+            trailingHeightPoints,
+            splitKind,
+            remainderGap);
     }
 
     private static IReadOnlyList<EditorialBoundary> BuildEditorialBoundaries(
@@ -660,10 +692,13 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         float fontSize,
         float width,
         float lineHeight,
-        FontWeight weight)
+        FontWeight weight,
+        float paragraphSpacingPoints = 0f)
     {
         var result = MeasureWrapped(text, fontSize, width, weight);
-        return Math.Max(fontSize * lineHeight, result.LineCount * fontSize * lineHeight);
+        var textHeight = Math.Max(fontSize * lineHeight, result.LineCount * fontSize * lineHeight);
+        var paragraphGap = Math.Max(0, result.ParagraphCount - 1) * Math.Max(0f, paragraphSpacingPoints);
+        return textHeight + paragraphGap;
     }
 
     private WrappedMeasurement MeasureWrapped(
@@ -674,7 +709,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return new WrappedMeasurement(1);
+            return new WrappedMeasurement(1, 1);
         }
 
         var availableWidth = Math.Max(24f, width);
@@ -689,17 +724,20 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         var normalized = text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
-        var paragraphs = normalized.Split('\n');
+        var paragraphs = normalized
+            .Split('\n')
+            .Select(raw => Whitespace.Replace(raw.Trim(), " "))
+            .Where(paragraph => paragraph.Length > 0)
+            .ToArray();
+        if (paragraphs.Length == 0)
+        {
+            return new WrappedMeasurement(1, 1);
+        }
+
         var lines = 0;
 
-        foreach (var rawParagraph in paragraphs)
+        foreach (var paragraph in paragraphs)
         {
-            var paragraph = Whitespace.Replace(rawParagraph.Trim(), " ");
-            if (paragraph.Length == 0)
-            {
-                lines++;
-                continue;
-            }
 
             var currentWidth = 0f;
             var hasWord = false;
@@ -742,7 +780,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             }
         }
 
-        return new WrappedMeasurement(Math.Max(1, lines));
+        return new WrappedMeasurement(Math.Max(1, lines), paragraphs.Length);
     }
 
     private SKTypeface GetTypeface(FontWeight weight)
@@ -857,7 +895,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         SemiBold
     }
 
-    private sealed record WrappedMeasurement(int LineCount);
+    private sealed record WrappedMeasurement(int LineCount, int ParagraphCount);
 
     private sealed record FloatNarrativeSplit(
         string Leading,
@@ -865,7 +903,9 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         string Trailing,
         float LeadingHeightPoints,
         float ContinuationHeightPoints,
-        float TrailingHeightPoints);
+        float TrailingHeightPoints,
+        BrochureFloatSplitKind Kind,
+        float RemainderGapPoints);
 
     private enum EditorialBoundaryKind
     {
