@@ -118,7 +118,7 @@
                         }
                     }
                 </select>
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-preset-load>Load</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-preset-load disabled>Load</button>
                 @if (Model.CanManageSavedBrochures)
                 {
                     <div class="dropdown brochure-preset-save-menu">
@@ -770,7 +770,7 @@
                                 <div class="brochure-smart-flow__header">
                                     <span class="brochure-smart-flow__icon"><i class="bi bi-stars" aria-hidden="true"></i></span>
                                     <div>
-                                        <strong>Smart Flow opportunity</strong>
+                                        <strong data-smart-flow-title>Smart Flow opportunity</strong>
                                         <p data-smart-flow-summary></p>
                                     </div>
                                 </div>
@@ -792,7 +792,7 @@
                                         Undo order change
                                     </button>
                                 </div>
-                                <small>PRISM never reorders projects automatically. The suggestion preserves 9 pt project copy and only changes publication sequence after you approve it.</small>
+                                <small data-smart-flow-note>PRISM does not reorder projects automatically. Apply the suggestion to change publication sequence; project content and image treatment remain unchanged.</small>
                             </div>
                             <small>Layout is measured using final PDF geometry and verified again after composition.</small>
                         </div>

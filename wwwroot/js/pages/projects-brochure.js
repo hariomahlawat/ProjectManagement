@@ -73,6 +73,7 @@
     const printEstimateClosing = form.querySelector("[data-print-estimate-closing]");
     const printSheetMap = form.querySelector("[data-print-sheet-map]");
     const smartFlowPanel = form.querySelector("[data-smart-flow]");
+    const smartFlowTitle = form.querySelector("[data-smart-flow-title]");
     const smartFlowSummary = form.querySelector("[data-smart-flow-summary]");
     const smartFlowPages = form.querySelector("[data-smart-flow-pages]");
     const smartFlowFill = form.querySelector("[data-smart-flow-fill]");
@@ -82,6 +83,7 @@
     const smartFlowSheetMap = form.querySelector("[data-smart-flow-sheet-map]");
     const smartFlowApply = form.querySelector("[data-smart-flow-apply]");
     const smartFlowUndo = form.querySelector("[data-smart-flow-undo]");
+    const smartFlowNote = form.querySelector("[data-smart-flow-note]");
 
     const preflightSpinner = form.querySelector("[data-preflight-spinner]");
     const preflightMessage = form.querySelector("[data-preflight-message]");
@@ -441,10 +443,18 @@
         presetMeta.append(first, second);
     };
 
+    const updatePresetLoadState = () => {
+        if (!presetLoad) return;
+        const selectedId = Number(presetSelect?.value || 0) || null;
+        const nothingSelected = selectedId == null;
+        const alreadyLoadedAndClean = selectedId === activePresetId && !presetDirty;
+        presetLoad.disabled = presetMutationBusy || nothingSelected || alreadyLoadedAndClean;
+    };
+
     const updatePresetSelector = () => {
         if (!(presetSelect instanceof HTMLSelectElement)) return;
         presetSelect.value = activePresetId ? String(activePresetId) : "";
-        if (presetLoad) presetLoad.disabled = presetMutationBusy;
+        updatePresetLoadState();
     };
 
     const renderPresetDirtyState = () => {
@@ -466,6 +476,7 @@
         if (presetDuplicate) presetDuplicate.disabled = !activePresetId || presetMutationBusy;
         if (presetDelete) presetDelete.disabled = !activePresetId || presetMutationBusy;
         if (presetSaveAsNew) presetSaveAsNew.disabled = presetMutationBusy;
+        updatePresetLoadState();
         return presetDirty;
     };
 
@@ -2102,8 +2113,11 @@
         }
 
         smartFlowPanel.hidden = false;
+        smartFlowPanel.classList.toggle("is-applied", !currentSmartFlowSuggestion && canUndo);
         if (currentSmartFlowSuggestion) {
-            if (smartFlowSummary) smartFlowSummary.textContent = currentSmartFlowSuggestion.summary || "A stronger forward-packed page flow is available without reducing project typography.";
+            if (smartFlowTitle) smartFlowTitle.textContent = "Smart Flow opportunity";
+            if (smartFlowSummary) smartFlowSummary.textContent = currentSmartFlowSuggestion.summary || "A more balanced publication sequence is available without reducing project typography.";
+            if (smartFlowNote) smartFlowNote.textContent = "PRISM does not reorder projects automatically. Apply the suggestion to change publication sequence; project content and image treatment remain unchanged.";
             if (smartFlowPages) smartFlowPages.textContent = `${Number(currentSmartFlowSuggestion.currentPageCount || 0)} → ${Number(currentSmartFlowSuggestion.suggestedPageCount || 0)}`;
             if (smartFlowFill) smartFlowFill.textContent = `${formatPositivePercent(currentSmartFlowSuggestion.currentLowestProjectUtilizationPercent)} → ${formatPositivePercent(currentSmartFlowSuggestion.suggestedLowestProjectUtilizationPercent)}`;
             if (smartFlowMoves) smartFlowMoves.textContent = String(Number(currentSmartFlowSuggestion.movedProjectCount || 0));
@@ -2141,7 +2155,9 @@
             }
             if (smartFlowApply) smartFlowApply.hidden = false;
         } else {
-            if (smartFlowSummary) smartFlowSummary.textContent = "Smart Flow order applied. Preflight is now showing the resulting composition.";
+            if (smartFlowTitle) smartFlowTitle.textContent = "Smart Flow applied";
+            if (smartFlowSummary) smartFlowSummary.textContent = "Publication order has been optimised. Preflight is showing the resulting composition.";
+            if (smartFlowNote) smartFlowNote.textContent = "Only the publication sequence changed; project content and image treatment were not altered.";
             if (smartFlowPages) smartFlowPages.textContent = String(Number(result?.estimatedPageCount || 0) || "—");
             if (smartFlowFill) smartFlowFill.textContent = formatPositivePercent(result?.lowestProjectPageUtilizationPercent);
             if (smartFlowMoves) smartFlowMoves.textContent = "Applied";
@@ -2798,7 +2814,7 @@
 
     presetSelect?.addEventListener("change", () => {
         // Selection alone does not load or discard the working brochure. Load is explicit.
-        if (presetLoad) presetLoad.disabled = presetMutationBusy;
+        updatePresetLoadState();
     });
 
     presetLoad?.addEventListener("click", () => {

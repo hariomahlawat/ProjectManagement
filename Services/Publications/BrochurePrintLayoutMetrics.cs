@@ -92,9 +92,12 @@ public static class BrochurePrintLayoutMetrics
     public const float ClosingVisionBodyLineHeight = 1.05f;
     public const float ClosingVisionParagraphSpacingPoints = 2.0f;
     public const float ClosingVisionHeadingFontSize = 10.6f;
-    public const float ClosingVisionBorderPoints = 1.1f;
-    public const float ClosingVisionHorizontalPaddingPoints = 9f;
-    public const float ClosingVisionVerticalPaddingPoints = 7f;
+    // Phase 19 restores the reference brochure's distinctive closing-frame hierarchy without
+    // changing the measured content box: the stronger border is exactly offset by lower padding.
+    // This preserves line wrapping, closing height and the already verified page plan.
+    public const float ClosingVisionBorderPoints = 2f;
+    public const float ClosingVisionHorizontalPaddingPoints = 8.1f;
+    public const float ClosingVisionVerticalPaddingPoints = 6.1f;
     public const float ClosingVisionHeadingHorizontalPaddingPoints = 8f;
     public const float ClosingVisionHeadingVerticalPaddingPoints = 2f;
     public const float ClosingSectionSpacingPoints = 5f;

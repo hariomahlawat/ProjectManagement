@@ -5,6 +5,19 @@ namespace ProjectManagement.Tests.Publications;
 
 public sealed class BrochurePrintCompactPlannerTests
 {
+
+    [Fact]
+    public void ClosingHeritageFrame_StrongerBorderPreservesMeasuredContentShell()
+    {
+        var horizontalShell = (BrochurePrintLayoutMetrics.ClosingVisionBorderPoints * 2f)
+                              + (BrochurePrintLayoutMetrics.ClosingVisionHorizontalPaddingPoints * 2f);
+        var verticalShell = (BrochurePrintLayoutMetrics.ClosingVisionBorderPoints * 2f)
+                            + (BrochurePrintLayoutMetrics.ClosingVisionVerticalPaddingPoints * 2f);
+
+        Assert.InRange(horizontalShell, 20.199f, 20.201f);
+        Assert.InRange(verticalShell, 16.199f, 16.201f);
+    }
+
     [Fact]
     public void Plan_DenseNinePointCandidates_EnableFourUpWithoutReducingTypography()
     {

@@ -23,7 +23,8 @@ internal static class BrochurePrintCompactComposer
     private const string Ink = "#15231F";
     private const string Paper = "#F5F4EF";
     private const string Contact = "#741A16";
-    private const string ClosingPaper = "#F3F1E8";
+    private const string ClosingCream = "#FBF4D8";
+    private const string ClosingNavy = "#173F63";
 
     internal static void Compose(
         IDocumentContainer container,
@@ -652,10 +653,14 @@ internal static class BrochurePrintCompactComposer
         {
             column.Spacing(BrochurePrintLayoutMetrics.ClosingSectionSpacingPoints);
 
+            // Heritage closing panel: retain the original brochure's unmistakable navy/cream
+            // strategic-outlook identity, but use current publication typography and restrained
+            // geometry. Border growth is compensated in BrochurePrintLayoutMetrics so this visual
+            // upgrade does not change measured line wrapping or the verified page plan.
             column.Item()
                 .Border(BrochurePrintLayoutMetrics.ClosingVisionBorderPoints)
-                .BorderColor(Forest700)
-                .Background(ClosingPaper)
+                .BorderColor(ClosingNavy)
+                .Background(ClosingCream)
                 .PaddingHorizontal(BrochurePrintLayoutMetrics.ClosingVisionHorizontalPaddingPoints)
                 .PaddingVertical(BrochurePrintLayoutMetrics.ClosingVisionVerticalPaddingPoints)
                 .Column(vision =>
@@ -663,7 +668,7 @@ internal static class BrochurePrintCompactComposer
                     vision.Spacing(4);
                     vision.Item()
                         .AlignCenter()
-                        .Background(Forest900)
+                        .Background(ClosingNavy)
                         .PaddingHorizontal(BrochurePrintLayoutMetrics.ClosingVisionHeadingHorizontalPaddingPoints)
                         .PaddingVertical(BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints)
                         .Text("Visionary Horizons & Strategic Objectives")

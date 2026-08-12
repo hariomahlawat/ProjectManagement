@@ -1,42 +1,37 @@
-PRISM Capability Brochure — Phase 18 Validation Results
-=======================================================
+PRISM Capability Brochure Phase 19A — Validation Results
+========================================================
 
-Environment validation
+Validation environment
 ----------------------
-PASS  JavaScript syntax
-      node --check wwwroot/js/pages/projects-brochure.js
+Node.js: available
+.NET SDK: not available in this execution environment
 
-PASS  Publication browser/source contract suite
-      node --test wwwroot/js/projects/publications-brochure-contract.test.js
-      Tests: 69 passed, 0 failed
+Completed
+---------
+PASS  node --check wwwroot/js/pages/projects-brochure.js
+PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
+      74 tests passed; 0 failed.
+PASS  C# brace-balance checks for all modified C# sources.
+PASS  Closing-frame geometry compensation invariant:
+      horizontal shell = 2*2.0 + 2*8.1 = 20.2 pt
+      vertical shell   = 2*2.0 + 2*6.1 = 16.2 pt
 
-PASS  Static C# structural validation
-      Balanced braces/parentheses/brackets were checked after stripping comments and literals for:
-      - Models/Publications/BrochurePreset.cs
-      - Data/ApplicationDbContext.cs
-      - Services/Publications/BrochurePresetContracts.cs
-      - Services/Publications/BrochurePresetService.cs
-      - Services/Publications/PublicationServiceCollectionExtensions.cs
-      - Pages/Projects/Publications/Brochure/Index.cshtml.cs
-      - Migrations/20261208100000_AddSharedBrochurePresets.cs
-      - Migrations/ApplicationDbContextModelSnapshot.cs
-      - ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
+Not executable here
+-------------------
+dotnet build .\ProjectManagement.csproj
+dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 
-PASS  Migration integration contract
-      20261208100000_AddSharedBrochurePresets exists.
-      Migrations/immutable-migration-ids.txt contains the ID exactly once.
-      ApplicationDbContext and model snapshot contain the new entities/relationships.
+Run locally
+-----------
+Set-ExecutionPolicy -Scope Process Bypass
+.\tools\Test-PrismPublicationsPhase19.ps1
 
-PASS  UI source contract
-      Offline PDF badge markup removed.
-      Redundant capability-publication eyebrow removed.
-      Compact Saved brochure header control present.
-      HoD/Comdt mutation controls are Razor-role gated.
-
-NOT RUN IN THIS DELIVERY ENVIRONMENT
-------------------------------------
-dotnet build
-dotnet test
-
-Reason: the .NET SDK is not installed in the execution environment used to prepare this bundle.
-Run tools/Test-PrismPublicationsPhase18.ps1 on the PRISM development machine before deployment.
+Critical visual acceptance
+--------------------------
+Regenerate the same Print / Compact brochure used for the final review and confirm:
+1. Planned and physical PDF page counts still agree.
+2. Visionary Horizons is a distinctive navy/cream closing module.
+3. New Simulators remains the existing green terminal band.
+4. Final-page residual whitespace is not stretched or artificially filled.
+5. Smart Flow reads Opportunity before apply and Applied after apply.
+6. Applying/undoing Smart Flow updates Saved Brochure Modified state correctly.

@@ -1024,6 +1024,14 @@
     background: linear-gradient(180deg, #f2faf6 0%, #fbfdfc 100%);
 }
 .brochure-smart-flow[hidden] { display: none !important; }
+
+.brochure-smart-flow.is-applied {
+    border-color: #a9cbbd;
+    background: linear-gradient(180deg, #eef8f3 0%, #fbfdfc 100%);
+}
+.brochure-smart-flow.is-applied .brochure-smart-flow__icon {
+    background: #275f4b;
+}
 .brochure-smart-flow__header { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: .45rem; align-items: start; }
 .brochure-smart-flow__icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: #1f6a50; color: #fff; font-size: .7rem; }
 .brochure-smart-flow__header strong { display: block; color: #214c3c; font-size: .65rem; font-weight: 780; }
@@ -1544,9 +1552,9 @@ body.brochure-modal-open { overflow: hidden; }
     margin-bottom: .28rem;
     color: #456059;
     font-size: .62rem;
-    font-weight: 780;
-    letter-spacing: .02em;
-    text-transform: uppercase;
+    font-weight: 760;
+    letter-spacing: .005em;
+    text-transform: none;
 }
 .brochure-preset-dirty {
     display: inline-flex;

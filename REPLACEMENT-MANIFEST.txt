@@ -1,33 +1,29 @@
-PRISM Capability Brochure Phase 18 — Ready-to-paste files
-=========================================================
+PRISM Capability Brochure Phase 19A — Print / Compact Finalisation
+=================================================================
 
-Apply on top of the Phase 17 implementation.
+Apply on top of the Phase 18 Shared Saved Brochures implementation.
 
 REPLACE
 -------
-Data/ApplicationDbContext.cs
-Migrations/ApplicationDbContextModelSnapshot.cs
-Migrations/immutable-migration-ids.txt
 Pages/Projects/Publications/Brochure/Index.cshtml
-Pages/Projects/Publications/Brochure/Index.cshtml.cs
-Services/Publications/PublicationServiceCollectionExtensions.cs
+Services/Publications/BrochurePrintLayoutMetrics.cs
+Services/Publications/BrochurePrintMeasurementService.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
 wwwroot/css/pages/projects-publications.css
 wwwroot/js/pages/projects-brochure.js
 wwwroot/js/projects/publications-brochure-contract.test.js
+ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
 
 ADD
 ---
-Models/Publications/BrochurePreset.cs
-Services/Publications/BrochurePresetContracts.cs
-Services/Publications/BrochurePresetService.cs
-Migrations/20261208100000_AddSharedBrochurePresets.cs
-ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
-tools/Test-PrismPublicationsPhase18.ps1
+tools/Test-PrismPublicationsPhase19.ps1
 
-NO DATABASE/DEPENDENCY CHANGES OTHER THAN THE INCLUDED EF MIGRATION
--------------------------------------------------------------------
-No new NuGet package.
-No new npm package.
-No change to Phase 17 PDF composition geometry.
-No change to Phase 17 effective-DPI thresholds.
-No approval/preflight/PDF verification state is persisted in a Saved Brochure.
+NO DATABASE OR DEPENDENCY CHANGE
+--------------------------------
+No EF migration.
+No NuGet package change.
+No npm package change.
+No change to the 9 pt Print / Compact typography floor.
+No change to project-card pagination geometry.
+No change to effective-DPI thresholds.
+No change to publication approval, preflight or physical PDF verification policy.

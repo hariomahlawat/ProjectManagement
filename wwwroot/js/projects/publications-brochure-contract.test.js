@@ -328,16 +328,14 @@ test('phase 10 print compact restores reference float composition and removes im
   assert.match(metrics, /ProjectTitleMinimumFontSize = 9\.25f/);
 });
 
-test('phase 16 harmonises compact closing matter with the institutional green publication system', () => {
+test('phase 16 keeps compact closing matter as a measured two-part institutional module', () => {
   const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
   assert.match(metrics, /ClosingVisionBodyFontSize = 9\.8f/);
   assert.match(metrics, /ClosingVisionHeadingFontSize = 10\.6f/);
-  assert.match(metrics, /ClosingVisionBorderPoints = 1\.1f/);
   assert.match(metrics, /ClosingSectionSpacingPoints = 5f/);
-  assert.match(printRenderer, /ClosingPaper = "#F3F1E8"/);
-  assert.match(printRenderer, /Background\(Forest900\)/);
   assert.match(printRenderer, /Visionary Horizons & Strategic Objectives/);
-  assert.doesNotMatch(printRenderer.slice(printRenderer.indexOf('private static void ComposeClosingMatter')), /VisionBlue|VisionPaper/);
+  assert.match(printRenderer, /New Simulators\./);
+  assert.match(printRenderer, /ComposeClosingMatter/);
 });
 
 test('phase 14 keeps exact 16:9 imagery and nine-point typography across all normal density candidates', () => {
@@ -755,4 +753,55 @@ test('phase 18 registers shared preset persistence and includes a dedicated addi
   assert.match(migration, /name: "BrochurePresetProjects"/);
   assert.match(migration, /FK_BrochurePresetProjects_Projects_ProjectId/);
   assert.match(immutable, /20261208100000_AddSharedBrochurePresets/);
+});
+
+
+test('phase 19 gives Smart Flow distinct opportunity and applied states', () => {
+  assert.match(view, /data-smart-flow-title>Smart Flow opportunity</);
+  assert.match(view, /data-smart-flow-note/);
+  assert.match(js, /smartFlowTitle\.textContent = "Smart Flow opportunity"/);
+  assert.match(js, /smartFlowTitle\.textContent = "Smart Flow applied"/);
+  assert.match(js, /Only the publication sequence changed; project content and image treatment were not altered\./);
+  assert.match(js, /smartFlowPanel\.classList\.toggle\("is-applied"/);
+  assert.match(css, /\.brochure-smart-flow\.is-applied/);
+});
+
+test('phase 19 disables Load when there is no saved brochure to load', () => {
+  assert.match(view, /data-preset-load disabled>Load<\/button>/);
+  assert.match(js, /const updatePresetLoadState = \(\) =>/);
+  assert.match(js, /const nothingSelected = selectedId == null/);
+  assert.match(js, /presetLoad\.disabled = presetMutationBusy \|\| nothingSelected \|\| alreadyLoadedAndClean/);
+  assert.match(js, /presetSelect\?\.addEventListener\("change", \(\) => \{[\s\S]{0,180}updatePresetLoadState\(\)/);
+});
+
+test('phase 19 Smart Flow participates in shared-brochure dirty-state fingerprinting and undo restores the original sequence', () => {
+  const snapshot = js.slice(js.indexOf('const capturePresetSnapshot'), js.indexOf('const formatPresetDate'));
+  assert.match(snapshot, /projects: orderedIds\.map/);
+  assert.match(js, /smartFlowUndoOrder = \[\.\.\.orderedIds\];[\s\S]{0,100}orderedIds = suggestedIds;[\s\S]{0,100}renderSelected\(true, false\)/);
+  assert.match(js, /orderedIds = \[\.\.\.smartFlowUndoOrder\];[\s\S]{0,120}renderSelected\(true, false\)/);
+  assert.match(js, /const schedulePreflight = \(\) => \{[\s\S]{0,120}renderPresetDirtyState\(\)/);
+});
+
+test('phase 19 restores a modernised heritage identity to the final Visionary panel without changing its measured content box', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  const closing = printRenderer.slice(printRenderer.indexOf('private static void ComposeClosingMatter'), printRenderer.indexOf('private static void ComposeImage'));
+  assert.match(metrics, /ClosingVisionBorderPoints = 2f/);
+  assert.match(metrics, /ClosingVisionHorizontalPaddingPoints = 8\.1f/);
+  assert.match(metrics, /ClosingVisionVerticalPaddingPoints = 6\.1f/);
+  assert.match(measurement, /visionInnerWidth = outerWidth[\s\S]{0,180}ClosingVisionBorderPoints[\s\S]{0,180}ClosingVisionHorizontalPaddingPoints/);
+  assert.match(printRenderer, /ClosingCream = "#FBF4D8"/);
+  assert.match(printRenderer, /ClosingNavy = "#173F63"/);
+  assert.match(closing, /BorderColor\(ClosingNavy\)/);
+  assert.match(closing, /Background\(ClosingCream\)/);
+  assert.match(closing, /Background\(ClosingNavy\)/);
+  assert.match(closing, /justify: false/);
+  assert.doesNotMatch(closing, /\.Italic\(\)/);
+  assert.match(closing, /Background\(Forest800\)/);
+});
+
+test('phase 19 saved brochure label uses sentence case', () => {
+  assert.match(view, /<span>Saved brochure<\/span>/);
+  const labelRule = css.slice(css.indexOf('.brochure-preset-control__label'), css.indexOf('.brochure-preset-dirty'));
+  assert.match(labelRule, /text-transform:\s*none/);
 });

@@ -421,6 +421,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         matter ??= new BrochurePrintMatter(null, null, null, null, null, null, null, null);
 
         var outerWidth = BrochurePrintLayoutMetrics.ModuleWidthPoints;
+        // The Phase 19 heritage frame uses a stronger border with compensating padding. Always
+        // derive the content box from shared metrics so measurement and QuestPDF remain identical.
         var visionInnerWidth = outerWidth
                                - (BrochurePrintLayoutMetrics.ClosingVisionBorderPoints * 2f)
                                - (BrochurePrintLayoutMetrics.ClosingVisionHorizontalPaddingPoints * 2f);
