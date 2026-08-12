@@ -1,20 +1,28 @@
-READY-TO-REPLACE PRODUCTION FILES
-=================================
-Pages/Workspace/BriefingDecks/Index.cshtml
-Pages/Workspace/BriefingDecks/Index.cshtml.cs
-Pages/Workspace/BriefingDecks/_InstitutionalProfileEditor.cshtml
-Services/ProjectBriefings/ProjectBriefingDeckService.cs
-wwwroot/css/pages/project-briefing-decks.css
-wwwroot/js/pages/project-briefing-decks.js
+PRISM Capability Brochure — Phase 15 UX restructuring
 
-REGRESSION TEST FILES
-=====================
-ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-ProjectManagement.Tests/ProjectManagement.Tests.csproj
-wwwroot/js/projects/project-briefing-decks.test.js
+REPLACE THESE FILES IN THE PROJECT ROOT:
+1. Pages/Projects/Publications/Brochure/Index.cshtml
+2. wwwroot/css/pages/projects-publications.css
+3. wwwroot/js/pages/projects-brochure.js
+4. wwwroot/js/projects/publications-brochure-contract.test.js
 
-IMPORTANT
-=========
-_InstitutionalProfileEditor.cshtml is a new file and includes:
-@using ProjectManagement.Services.ProjectBriefings
-This resolves CS0103 for ProjectBriefingInstitutionalProfileOptions.
+IMPLEMENTED:
+- Final PDF actions moved into a persistent Final output card; Download can no longer be clipped by sidebar content.
+- Publication preflight moved from the narrow right rail to full-width Step 4: Publication readiness.
+- Preflight/finding nested scrolling removed; findings use the main page workspace.
+- Change image / Adjust crop now open a dedicated modal image editor with backdrop, Escape close, Done action and focus return.
+- Review narrative no longer uses a short nested scrollbar.
+- Approval terminology standardised in the editorial UI.
+- Image/crop/treatment edits explicitly notify when publication approval is reset.
+- Final output card explains exactly why preview/download is disabled and reports ready/warning/blocked states.
+- Publication order remains the only right-rail scroll owner and Final output remains visible.
+
+VALIDATION PERFORMED IN THIS PACKAGE:
+- node --check wwwroot/js/pages/projects-brochure.js : PASS
+- node --test wwwroot/js/projects/publications-brochure-contract.test.js : 48/48 PASS
+- dotnet build could not be executed in the packaging environment because the dotnet CLI is not installed.
+
+RECOMMENDED AFTER PASTE:
+dotnet build .\ProjectManagement.csproj
+node --check .\wwwroot\js\pages\projects-brochure.js
+node --test .\wwwroot\js\projects\publications-brochure-contract.test.js

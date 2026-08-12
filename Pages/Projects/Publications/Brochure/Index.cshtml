@@ -536,7 +536,7 @@
                             <span class="publication-step">3</span>
                             <div>
                                 <h2>Review publication</h2>
-                                <p><strong data-review-reviewed-count>0</strong> of <strong data-review-total-count>0</strong> reviewed · Preview is available after technical preflight; final download requires review.</p>
+                                <p><strong data-review-reviewed-count>0</strong> of <strong data-review-total-count>0</strong> approved · Preview follows technical preflight; final download requires publication approval.</p>
                             </div>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-review-next-unreviewed disabled>
@@ -549,6 +549,10 @@
                             <strong>Select projects to begin publication review.</strong>
                             <span>Review uses the authoritative selected narrative and the exact brochure image choice.</span>
                         </div>
+                        <div class="brochure-review-notice" hidden data-review-notice role="status" aria-live="polite">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span data-review-notice-text></span>
+                        </div>
                         <div class="brochure-review-workspace" hidden data-review-workspace>
                             <nav class="brochure-review-nav" aria-label="Selected projects for publication review" data-review-nav></nav>
                             <article class="brochure-review-card">
@@ -558,7 +562,7 @@
                                         <h3 data-review-project-name></h3>
                                         <small data-review-project-meta></small>
                                     </div>
-                                    <span class="brochure-review-state" data-review-state>Review required</span>
+                                    <span class="brochure-review-state" data-review-state>Approval required</span>
                                 </div>
                                 <div class="brochure-review-card__content">
                                     <div class="brochure-review-image">
@@ -601,100 +605,28 @@
                                     </div>
                                     <button type="button" class="btn btn-sm btn-success" data-review-mark-reviewed>
                                         <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                                        Approve project
+                                        Approve for publication
                                     </button>
                                 </footer>
                             </article>
                         </div>
                     </div>
                 </section>
-            </main>
-
-            <aside class="brochure-sidebar">
-                <section class="publication-panel brochure-selection-panel">
-                    <header class="publication-panel__header publication-panel__header--compact">
-                        <div>
-                            <div>
-                                <h2>Publication order</h2>
-                                <p><strong data-brochure-selected-count>0</strong> selected</p>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-link" data-brochure-clear disabled>Clear</button>
-                    </header>
-                    <div class="publication-panel__body brochure-selection-body">
-                        <div class="brochure-selected-empty" data-brochure-selected-empty>
-                            <i class="bi bi-journals" aria-hidden="true"></i>
-                            <span>Select projects from the portfolio.</span>
-                        </div>
-                        <ol class="brochure-selected-list" data-brochure-selected-list></ol>
-                    </div>
-                </section>
-
-                <section class="publication-panel brochure-photo-editor" hidden data-brochure-photo-editor>
-                    <header class="publication-panel__header publication-panel__header--compact">
-                        <div>
-                            <div>
-                                <p class="publication-panel__kicker">PROJECT IMAGERY</p>
-                                <h2 data-photo-editor-title>Photograph setup</h2>
-                            </div>
-                        </div>
-                        <button type="button" class="brochure-icon-button" data-photo-editor-close title="Close imagery editor" aria-label="Close imagery editor">
-                            <i class="bi bi-x-lg" aria-hidden="true"></i>
-                        </button>
-                    </header>
-                    <div class="publication-panel__body">
-                        <label class="brochure-image-mode-field">
-                            <span>Image treatment</span>
-                            <select class="form-select form-select-sm" data-photo-image-mode>
-                                <option value="@((int)BrochureImageMode.Automatic)">Automatic</option>
-                                <option value="@((int)BrochureImageMode.Single)">Single image</option>
-                                <option value="@((int)BrochureImageMode.GalleryTwo)">Gallery 2</option>
-                            </select>
-                            <small>Automatic uses a second image only when you explicitly select one and the page layout has room.</small>
-                        </label>
-
-                        <div class="brochure-photo-editor-section">
-                            <div class="brochure-photo-editor-heading">
-                                <strong>Primary photograph</strong>
-                                <span>Used on project pages. Cover B imagery is selected independently.</span>
-                            </div>
-                            <div class="brochure-photo-picker" data-primary-photo-picker></div>
-                            <div class="brochure-focal-stage" data-primary-focal-stage hidden>
-                                <img alt="Primary brochure focal-point source" data-primary-focal-image />
-                                <span class="brochure-focal-crop-frame" data-primary-crop-frame aria-hidden="true"></span>
-                                <span class="brochure-focal-marker" data-primary-focal-marker aria-hidden="true"></span>
-                                <button type="button" class="brochure-focal-reset" data-primary-focal-reset>Reset</button>
-                            </div>
-                            <small class="brochure-focal-help">Click the source image to set the focal point. The outlined frame is the 16:9 publication crop.</small>
-                        </div>
-
-                        <div class="brochure-photo-editor-section" data-secondary-photo-section>
-                            <div class="brochure-photo-editor-heading">
-                                <strong>Second photograph</strong>
-                                <span>Optional in Automatic; required for Gallery 2.</span>
-                            </div>
-                            <div class="brochure-photo-picker" data-secondary-photo-picker></div>
-                            <div class="brochure-focal-stage" data-secondary-focal-stage hidden>
-                                <img alt="Second brochure focal-point source" data-secondary-focal-image />
-                                <span class="brochure-focal-crop-frame" data-secondary-crop-frame aria-hidden="true"></span>
-                                <span class="brochure-focal-marker" data-secondary-focal-marker aria-hidden="true"></span>
-                                <button type="button" class="brochure-focal-reset" data-secondary-focal-reset>Reset</button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
 
                 <section class="publication-panel brochure-preflight-panel">
-                    <header class="publication-panel__header publication-panel__header--compact">
+                    <header class="publication-panel__header publication-panel__header--actions">
                         <div>
+                            <span class="publication-step">4</span>
                             <div>
-                                <h2>Publication preflight</h2>
-                                <p>Authoritative server check of selected records and source images.</p>
+                                <h2>Publication readiness</h2>
+                                <p>Authoritative preflight, measured print composition and final publication findings.</p>
                             </div>
                         </div>
-                        <span class="brochure-preflight-spinner" hidden data-preflight-spinner><span class="spinner-border spinner-border-sm" aria-hidden="true"></span></span>
+                        <span class="brochure-preflight-spinner" hidden data-preflight-spinner>
+                            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        </span>
                     </header>
-                    <div class="publication-panel__body">
+                    <div class="publication-panel__body brochure-preflight-body">
                         <div class="brochure-preflight-grid">
                             <div><span>Selected</span><strong data-preflight-selected>0</strong></div>
                             <div class="is-blocker"><span>Blockers</span><strong data-preflight-blockers>0</strong></div>
@@ -756,6 +688,12 @@
                         <div class="brochure-preflight-message" data-preflight-message>
                             Select projects to run publication preflight.
                         </div>
+                        <div class="brochure-preflight-findings-heading">
+                            <div>
+                                <strong>Findings</strong>
+                                <span>Resolve blockers before preview. Review warnings before final issue.</span>
+                            </div>
+                        </div>
                         <div class="brochure-preflight-issues" data-preflight-issues></div>
                         <button type="button" class="brochure-preflight-show-all" hidden data-preflight-show-all>Show all findings</button>
                     </div>
@@ -775,7 +713,47 @@
                         </div>
                     </section>
                 }
+            </main>
 
+            <aside class="brochure-sidebar" aria-label="Publication controls">
+                <section class="publication-panel brochure-selection-panel">
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <h2>Publication order</h2>
+                                <p><strong data-brochure-selected-count>0</strong> selected · drag to reorder</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link" data-brochure-clear disabled>Clear</button>
+                    </header>
+                    <div class="publication-panel__body brochure-selection-body">
+                        <div class="brochure-selected-empty" data-brochure-selected-empty>
+                            <i class="bi bi-journals" aria-hidden="true"></i>
+                            <span>Select projects from the portfolio.</span>
+                        </div>
+                        <ol class="brochure-selected-list" data-brochure-selected-list></ol>
+                    </div>
+                </section>
+
+                <section class="publication-panel brochure-output-panel">
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <h2>Final output</h2>
+                                <p>Preview at any technically valid stage; download after publication approval.</p>
+                            </div>
+                        </div>
+                    </header>
+                    <div class="publication-panel__body brochure-output-body">
+                        <div class="brochure-output-readiness is-pending" data-output-readiness>
+                            <span class="brochure-output-readiness__icon" data-output-readiness-icon>
+                                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                            </span>
+                            <span>
+                                <strong data-output-readiness-title>Not ready</strong>
+                                <small data-output-readiness-detail>Select projects to begin.</small>
+                            </span>
+                        </div>
                 <div class="brochure-generate-actions">
                     <button type="submit"
                             class="btn btn-outline-primary brochure-preview-button"
@@ -791,10 +769,90 @@
                         <span data-brochure-generate-label>Download brochure PDF</span>
                     </button>
                     <div class="brochure-export-status" role="status" aria-live="polite" data-brochure-export-status></div>
-                    <small>Preview and download use the same PDF composer. Final download also requires Publication Review.</small>
+                    <small>Preview and download use the same PDF composer. Final download also requires publication approval.</small>
                 </div>
+                    </div>
+                </section>
             </aside>
         </div>
+
+        <div class="brochure-photo-editor"
+             hidden
+             data-brochure-photo-editor
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="brochure-photo-editor-title">
+            <button type="button"
+                    class="brochure-photo-editor__backdrop"
+                    data-photo-editor-dismiss
+                    tabindex="-1"
+                    aria-label="Close photograph setup"></button>
+            <section class="publication-panel brochure-photo-editor-panel">
+                    <header class="publication-panel__header publication-panel__header--compact">
+                        <div>
+                            <div>
+                                <p class="publication-panel__kicker">PROJECT IMAGERY</p>
+                                <h2 id="brochure-photo-editor-title" data-photo-editor-title>Photograph setup</h2>
+                                <p class="brochure-photo-editor-project" data-photo-editor-project-name></p>
+                            </div>
+                        </div>
+                        <button type="button" class="brochure-icon-button" data-photo-editor-close title="Close imagery editor" aria-label="Close imagery editor">
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
+                    </header>
+                    <div class="publication-panel__body">
+                        <label class="brochure-image-mode-field">
+                            <span>Image treatment</span>
+                            <select class="form-select form-select-sm" data-photo-image-mode>
+                                <option value="@((int)BrochureImageMode.Automatic)">Automatic</option>
+                                <option value="@((int)BrochureImageMode.Single)">Single image</option>
+                                <option value="@((int)BrochureImageMode.GalleryTwo)">Gallery 2</option>
+                            </select>
+                            <small>Automatic uses a second image only when you explicitly select one and the page layout has room.</small>
+                        </label>
+
+                        <div class="brochure-photo-editor-section">
+                            <div class="brochure-photo-editor-heading">
+                                <strong>Primary photograph</strong>
+                                <span>Used on project pages. Cover B imagery is selected independently.</span>
+                            </div>
+                            <div class="brochure-photo-picker" data-primary-photo-picker></div>
+                            <div class="brochure-focal-stage" data-primary-focal-stage hidden>
+                                <img alt="Primary brochure focal-point source" data-primary-focal-image />
+                                <span class="brochure-focal-crop-frame" data-primary-crop-frame aria-hidden="true"></span>
+                                <span class="brochure-focal-marker" data-primary-focal-marker aria-hidden="true"></span>
+                                <button type="button" class="brochure-focal-reset" data-primary-focal-reset>Reset</button>
+                            </div>
+                            <small class="brochure-focal-help">Click the source image to set the focal point. The outlined frame is the 16:9 publication crop.</small>
+                        </div>
+
+                        <div class="brochure-photo-editor-section" data-secondary-photo-section>
+                            <div class="brochure-photo-editor-heading">
+                                <strong>Second photograph</strong>
+                                <span>Optional in Automatic; required for Gallery 2.</span>
+                            </div>
+                            <div class="brochure-photo-picker" data-secondary-photo-picker></div>
+                            <div class="brochure-focal-stage" data-secondary-focal-stage hidden>
+                                <img alt="Second brochure focal-point source" data-secondary-focal-image />
+                                <span class="brochure-focal-crop-frame" data-secondary-crop-frame aria-hidden="true"></span>
+                                <span class="brochure-focal-marker" data-secondary-focal-marker aria-hidden="true"></span>
+                                <button type="button" class="brochure-focal-reset" data-secondary-focal-reset>Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                <footer class="brochure-photo-editor__footer">
+                    <div>
+                        <strong>Publication image editor</strong>
+                        <span>Image or crop changes reset this project's publication approval.</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary" data-photo-editor-close>
+                        <i class="bi bi-check2" aria-hidden="true"></i>
+                        Done
+                    </button>
+                </footer>
+            </section>
+        </div>
+
     </form>
 </div>
 

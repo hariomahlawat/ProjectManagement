@@ -1,23 +1,5 @@
-PRISM Publications Phase 5 — validation results
-=================================================
+PRISM Capability Brochure Phase 15
 
-Validation performed against the complete Phase 4 publication tree overlaid on the supplied PRISM source.
-
-PASS  JavaScript syntax: wwwroot/js/pages/projects-brochure.js
-PASS  Browser/Razor/CSS/renderer contract tests: 13/13
-PASS  C# structural delimiter scan on all modified C# files
-PASS  CSS structural balance: 392 opening / 392 closing braces
-PASS  Brochure Razor/JavaScript brochure-* class coverage: no unstyled current classes detected
-PASS  Cross-tab refresh recursion guard present (renderSelected(false, false))
-PASS  Explicit Cover B hero contract present
-PASS  Publication Review final-download gate present
-PASS  Fetch/Blob PDF preview/download contract present
-PASS  Dedicated TwoFeature renderer and optional back cover contract present
-PASS  Front-cover 'Generated from authoritative PRISM records' text removed
-PASS  No duplicate-Project-Brief / near-duplicate validation added
-PASS  Incremental package does not replace Program.cs, navigation, Compendium services, database models, migrations, or fonts
-
-NOT RUN  dotnet build / xUnit — .NET SDK is not installed in this preparation environment.
-          Run the commands in README-REPLACE-FIRST.md in the actual PRISM development environment.
-
-The user's Phase 4 baseline previously built successfully on .NET 8; Phase 5 is provided as an incremental replacement over that baseline.
+JavaScript syntax: PASS
+Publication brochure contract suite: PASS (48 tests, 0 failed)
+.NET/Razor compilation: NOT RUN — dotnet CLI unavailable in the execution environment.

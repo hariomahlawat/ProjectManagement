@@ -90,7 +90,7 @@ test('phase 6 keeps cover hero independent from project ordering and project pri
 
 test('phase 6 provides project approval and cover approval for final download', () => {
   assert.match(view, /Review publication/);
-  assert.match(view, /Approve project/);
+  assert.match(view, /Approve for publication/);
   assert.match(view, /data-cover-hero-approve/);
   assert.doesNotMatch(view, /Use this image/);
   assert.match(js, /allReviewed/);
@@ -506,4 +506,26 @@ test('preflight has one findings scroll owner and reports review completion accu
   assert.match(js, /Publication preflight and all required approvals are complete/);
   assert.match(js, /Approve the Cover B hero and crop before final issue/);
   assert.match(js, /name\.title = name\.textContent/);
+});
+
+test('phase 15 keeps final output permanently separate from preflight and moves image editing into a modal workspace', () => {
+  assert.match(view, /<h2>Publication readiness<\/h2>/);
+  assert.match(view, /<h2>Final output<\/h2>/);
+  assert.match(view, /data-output-readiness/);
+  assert.match(view, /data-brochure-photo-editor[\s\S]{0,220}role="dialog"|role="dialog"[\s\S]{0,220}data-brochure-photo-editor/);
+  assert.match(view, /data-photo-editor-dismiss/);
+  assert.match(css, /\.brochure-sidebar \{[\s\S]{0,280}grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto;/);
+  assert.match(css, /\.brochure-preflight-panel > \.publication-panel__body,[\s\S]{0,180}max-height:\s*none;/);
+  assert.match(css, /\.brochure-photo-editor \{[\s\S]{0,120}position:\s*fixed;/);
+  assert.match(js, /photoEditorCloseButtons\.forEach/);
+  assert.match(js, /document\.body\.classList\.add\("brochure-modal-open"\)/);
+  assert.match(js, /setOutputReadiness/);
+});
+
+test('phase 15 explicitly reports approval invalidation after editorial image changes', () => {
+  assert.match(view, /data-review-notice/);
+  assert.match(js, /showReviewNotice/);
+  assert.match(js, /Primary image changed/);
+  assert.match(js, /Image crop changed/);
+  assert.match(js, /publication approval reset/);
 });

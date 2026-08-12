@@ -1081,3 +1081,297 @@
     border-style: dashed;
     background: rgba(var(--bs-secondary-rgb), .06);
 }
+
+/* ============================================================
+   Capability Brochure Builder — Phase 15 editorial workspace
+   Full-width readiness, persistent output actions and image modal
+   ============================================================ */
+.brochure-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1rem;
+}
+
+/* The rail now has one scroll owner: Publication order. Final output
+   always remains visible inside the sticky viewport. */
+.brochure-sidebar {
+    position: sticky;
+    top: calc(var(--topbar-height, 56px) + 62px);
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: .72rem;
+    min-width: 0;
+    max-height: calc(100vh - var(--topbar-height, 56px) - 78px);
+    overflow: visible;
+}
+.brochure-selection-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.brochure-selection-panel .publication-panel__header { flex: 0 0 auto; }
+.brochure-selection-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.brochure-selected-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.brochure-selected-empty { flex: 1 1 auto; }
+
+/* Final output is deliberately separated from diagnostics. It can never
+   be displaced below a long preflight card or image editor. */
+.brochure-output-panel { flex: 0 0 auto; }
+.brochure-output-body { display: grid; gap: .58rem; padding: .62rem; }
+.brochure-output-readiness {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: .52rem;
+    align-items: start;
+    padding: .56rem .58rem;
+    border: 1px solid #dce6e2;
+    border-radius: 9px;
+    background: #f8faf9;
+}
+.brochure-output-readiness__icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 8px;
+    background: #e9efed;
+    color: #61766e;
+    font-size: .78rem;
+}
+.brochure-output-readiness strong,
+.brochure-output-readiness small { display: block; }
+.brochure-output-readiness strong { color: #29453b; font-size: .66rem; font-weight: 780; }
+.brochure-output-readiness small { margin-top: .08rem; color: #6f8079; font-size: .56rem; line-height: 1.35; }
+.brochure-output-readiness.is-blocked { border-color: #efc5bf; background: #fff7f5; }
+.brochure-output-readiness.is-blocked .brochure-output-readiness__icon { background: #fbe4e0; color: #a33c31; }
+.brochure-output-readiness.is-warning { border-color: #ead8a8; background: #fffaf0; }
+.brochure-output-readiness.is-warning .brochure-output-readiness__icon { background: #f7edcd; color: #8a670d; }
+.brochure-output-readiness.is-ready { border-color: #b9d8ca; background: #f1faf5; }
+.brochure-output-readiness.is-ready .brochure-output-readiness__icon { background: #dff1e8; color: #24694e; }
+.brochure-generate-actions {
+    position: static;
+    z-index: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .42rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+.brochure-generate-actions > small { padding-inline: .25rem; }
+.brochure-export-status { min-height: .85rem; }
+
+/* Step 4 is a main-workspace capability, not a narrow sidebar widget. */
+.brochure-preflight-panel {
+    min-height: 0;
+}
+.brochure-preflight-panel > .publication-panel__body,
+.brochure-preflight-body {
+    display: block;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
+}
+.brochure-preflight-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .55rem;
+}
+.brochure-preflight-grid > div {
+    min-height: 66px;
+    padding: .65rem .72rem;
+}
+.brochure-preflight-grid span { font-size: .6rem; }
+.brochure-preflight-grid strong { font-size: 1.08rem; }
+.brochure-print-plan-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .55rem;
+    margin-top: .68rem;
+    padding: .7rem;
+}
+.brochure-print-plan-summary__closing { grid-column: 1 / -1; }
+.brochure-print-sheet-map,
+.brochure-smart-flow,
+.brochure-print-plan-summary > small { grid-column: 1 / -1; }
+.brochure-preflight-message {
+    margin-top: .68rem;
+    padding: .66rem .72rem;
+    font-size: .64rem;
+}
+.brochure-preflight-findings-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: .8rem;
+    margin-top: .78rem;
+    padding-top: .7rem;
+    border-top: 1px solid #e4ebe8;
+}
+.brochure-preflight-findings-heading strong,
+.brochure-preflight-findings-heading span { display: block; }
+.brochure-preflight-findings-heading strong { color: #29463b; font-size: .72rem; font-weight: 780; }
+.brochure-preflight-findings-heading span { margin-top: .08rem; color: #71827b; font-size: .58rem; line-height: 1.35; }
+.brochure-preflight-panel .brochure-preflight-issues {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+    max-height: none;
+    overflow: visible;
+    margin-top: .52rem;
+    padding-right: 0;
+}
+.brochure-preflight-issue {
+    min-height: 100%;
+    padding: .58rem .62rem;
+    font-size: .61rem;
+}
+.brochure-preflight-show-all {
+    width: auto;
+    margin: .45rem 0 0 auto;
+    padding-inline: .2rem;
+}
+
+/* Project copy is primary review content; avoid a nested reading scrollbar. */
+.brochure-review-narrative {
+    min-height: 180px;
+    max-height: none;
+    overflow: visible;
+    padding: .7rem .74rem;
+    font-size: .68rem;
+    line-height: 1.55;
+}
+.brochure-review-notice {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: .45rem;
+    align-items: start;
+    margin-bottom: .58rem;
+    padding: .52rem .6rem;
+    border: 1px solid #d6e3de;
+    border-radius: 8px;
+    background: #f5f9f7;
+    color: #456158;
+    font-size: .61rem;
+    line-height: 1.4;
+}
+.brochure-review-notice[hidden] { display: none !important; }
+.brochure-review-notice.is-warning { border-color: #ead7aa; background: #fff9eb; color: #795d18; }
+.brochure-review-notice.is-info { border-color: #cbdde8; background: #f4f9fc; color: #3d6177; }
+
+/* Dedicated image editor. The editor owns its own vertical scrolling while
+   the publication page remains stable behind it. */
+body.brochure-modal-open { overflow: hidden; }
+.brochure-photo-editor {
+    position: fixed;
+    inset: 0;
+    z-index: 1085;
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    padding: 24px;
+    overflow: hidden;
+}
+.brochure-photo-editor[hidden] { display: none !important; }
+.brochure-photo-editor__backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(15, 29, 24, .52);
+    cursor: default;
+    backdrop-filter: blur(2px);
+}
+.brochure-photo-editor-panel {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(980px, calc(100vw - 48px));
+    max-height: min(86vh, 820px);
+    overflow: hidden;
+    border-color: #bfd3cb;
+    box-shadow: 0 24px 72px rgba(12, 31, 24, .24);
+}
+.brochure-photo-editor-panel > .publication-panel__body {
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: .9rem 1rem 1rem;
+    scrollbar-gutter: stable;
+}
+.brochure-photo-editor-project {
+    max-width: 720px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.brochure-photo-editor-panel .brochure-photo-picker {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .45rem;
+}
+.brochure-photo-editor-panel .brochure-focal-stage {
+    width: min(100%, 760px);
+    margin-top: .65rem;
+}
+.brochure-photo-editor__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .62rem .78rem;
+    border-top: 1px solid #e1e9e6;
+    background: #fafcfb;
+}
+.brochure-photo-editor__footer strong,
+.brochure-photo-editor__footer span { display: block; }
+.brochure-photo-editor__footer strong { color: #29443a; font-size: .64rem; }
+.brochure-photo-editor__footer span { margin-top: .08rem; color: #71817b; font-size: .55rem; line-height: 1.3; }
+.brochure-photo-editor__footer .btn { min-width: 92px; }
+
+@media (max-width: 1180px) {
+    .brochure-layout { grid-template-columns: minmax(0, 1fr) 320px; }
+    .brochure-preflight-panel .brochure-preflight-issues { grid-template-columns: 1fr; }
+    .brochure-photo-editor-panel .brochure-photo-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+    .brochure-layout { grid-template-columns: 1fr; }
+    .brochure-sidebar {
+        position: static;
+        display: grid;
+        grid-template-rows: auto auto;
+        max-height: none;
+        overflow: visible;
+    }
+    .brochure-selection-body { overflow: visible; }
+    .brochure-selected-list { max-height: 360px; }
+    .brochure-preflight-grid,
+    .brochure-print-plan-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .brochure-photo-editor-panel .brochure-photo-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+    .brochure-photo-editor { padding: 10px; }
+    .brochure-photo-editor-panel { width: calc(100vw - 20px); max-height: calc(100vh - 20px); }
+    .brochure-photo-editor-panel .brochure-photo-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .brochure-photo-editor__footer { align-items: stretch; flex-direction: column; }
+    .brochure-photo-editor__footer .btn { width: 100%; }
+    .brochure-preflight-grid,
+    .brochure-print-plan-summary { grid-template-columns: 1fr 1fr; }
+}

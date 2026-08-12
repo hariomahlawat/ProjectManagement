@@ -55,6 +55,10 @@
     const generateIcon = form.querySelector("[data-brochure-generate-icon]");
     const generateLabel = form.querySelector("[data-brochure-generate-label]");
     const exportStatus = form.querySelector("[data-brochure-export-status]");
+    const outputReadiness = form.querySelector("[data-output-readiness]");
+    const outputReadinessIcon = form.querySelector("[data-output-readiness-icon]");
+    const outputReadinessTitle = form.querySelector("[data-output-readiness-title]");
+    const outputReadinessDetail = form.querySelector("[data-output-readiness-detail]");
     const printMatterFields = [...form.querySelectorAll("[data-brochure-print-matter]")];
     const restoreApprovedPrint = form.querySelector("[data-print-restore-approved]");
     const printPlanSummary = form.querySelector("[data-print-plan-summary]");
@@ -86,7 +90,9 @@
 
     const photoEditor = form.querySelector("[data-brochure-photo-editor]");
     const photoEditorTitle = form.querySelector("[data-photo-editor-title]");
-    const photoEditorClose = form.querySelector("[data-photo-editor-close]");
+    const photoEditorProjectName = form.querySelector("[data-photo-editor-project-name]");
+    const photoEditorCloseButtons = [...form.querySelectorAll("[data-photo-editor-close]")];
+    const photoEditorDismiss = form.querySelector("[data-photo-editor-dismiss]");
     const imageModeSelect = form.querySelector("[data-photo-image-mode]");
     const primaryPicker = form.querySelector("[data-primary-photo-picker]");
     const secondaryPicker = form.querySelector("[data-secondary-photo-picker]");
@@ -123,6 +129,8 @@
     const coverHeroCropClose = form.querySelector("[data-cover-hero-crop-close]");
 
     const reviewPanel = form.querySelector("[data-brochure-review-panel]");
+    const reviewNotice = form.querySelector("[data-review-notice]");
+    const reviewNoticeText = form.querySelector("[data-review-notice-text]");
     const reviewEmpty = form.querySelector("[data-review-empty]");
     const reviewWorkspace = form.querySelector("[data-review-workspace]");
     const reviewNav = form.querySelector("[data-review-nav]");
@@ -234,6 +242,7 @@
 
     let activePhotoProjectId = null;
     let photoEditorFocusMode = "select";
+    let photoEditorReturnFocus = null;
     let activeReviewProjectId = orderedIds[0] ?? null;
     let draggedId = null;
     let preflightTimer = null;
@@ -247,6 +256,7 @@
     let currentProjectReviewFingerprints = new Map();
     let showAllFindings = false;
     let exportBusy = false;
+    let reviewNoticeTimer = null;
     let explicitCoverHeroProjectId = Number(coverHeroInput?.value) > 0 ? Number(coverHeroInput.value) : null;
     let explicitCoverHeroPhotoId = Number(coverHeroPhotoInput?.value) > 0 ? Number(coverHeroPhotoInput.value) : null;
     let coverHeroFocalX = clamp(coverHeroFocalXInput?.value);
@@ -365,12 +375,40 @@
         if (coverReviewFingerprintInput) coverReviewFingerprintInput.value = coverReviewFingerprint;
     };
 
-    const invalidateReview = (id, { unconfirmPhoto = false } = {}) => {
+    const scheduleReviewNoticeDismiss = () => {
+        if (!reviewNotice || reviewNotice.hidden) return;
+        if (reviewNoticeTimer) window.clearTimeout(reviewNoticeTimer);
+        reviewNoticeTimer = window.setTimeout(() => {
+            reviewNotice.hidden = true;
+            reviewNotice.classList.remove("is-warning", "is-info");
+            reviewNoticeTimer = null;
+        }, 6500);
+    };
+
+    const showReviewNotice = (message, tone = "warning") => {
+        if (!reviewNotice || !reviewNoticeText) return;
+        if (reviewNoticeTimer) {
+            window.clearTimeout(reviewNoticeTimer);
+            reviewNoticeTimer = null;
+        }
+        reviewNoticeText.textContent = message;
+        reviewNotice.hidden = false;
+        reviewNotice.classList.toggle("is-warning", tone === "warning");
+        reviewNotice.classList.toggle("is-info", tone === "info");
+        if (!photoEditor || photoEditor.hidden) scheduleReviewNoticeDismiss();
+    };
+
+    const invalidateReview = (id, { unconfirmPhoto = false, announce = false, reason = "Publication inputs changed" } = {}) => {
         const config = ensureConfig(id);
-        if (!config) return;
+        if (!config) return false;
+        const wasApproved = Boolean(config.isReviewed || config.reviewFingerprint);
         config.isReviewed = false;
         config.reviewFingerprint = "";
         if (unconfirmPhoto) config.primaryPhotoConfirmed = false;
+        if (announce && wasApproved) {
+            showReviewNotice(`${reason} · publication approval reset.`);
+        }
+        return wasApproved;
     };
 
     const invalidateAllReviews = () => {
@@ -472,10 +510,10 @@
         const meta = document.createElement("span");
         meta.className = "brochure-selected-item__meta";
         const state = config?.isReviewed && config.reviewFingerprint
-            ? "Reviewed"
+            ? "Approved"
             : config?.primaryPhotoConfirmed
                 ? "Image confirmed"
-                : "Review required";
+                : "Approval required";
         meta.textContent = `${state} · ${modeLabel(config?.imageMode)}`;
         copy.append(name, meta);
 
@@ -799,7 +837,8 @@
         if (!project || !config) return;
 
         photoEditor.hidden = false;
-        if (photoEditorTitle) photoEditorTitle.textContent = project.projectName;
+        if (photoEditorTitle) photoEditorTitle.textContent = "Photograph setup";
+        if (photoEditorProjectName) photoEditorProjectName.textContent = project.projectName;
         if (imageModeSelect) imageModeSelect.value = String(config.imageMode);
         if (secondarySection) secondarySection.hidden = config.imageMode === modeSingle;
 
@@ -820,7 +859,7 @@
                         config.primaryFocalX = 0.5;
                         config.primaryFocalY = 0.5;
                         config.primaryPhotoConfirmed = true;
-                        invalidateReview(project.projectId);
+                        invalidateReview(project.projectId, { announce: true, reason: "Primary image changed" });
                         renderPhotoEditor();
                         renderSelected(false);
                         schedulePreflight();
@@ -831,7 +870,7 @@
         if (secondaryPicker) {
             const choices = [photoChoice(project.projectId, null, config.secondaryPhotoId == null, () => {
                 config.secondaryPhotoId = null;
-                invalidateReview(project.projectId);
+                invalidateReview(project.projectId, { announce: true, reason: "Second image removed" });
                 renderPhotoEditor();
                 renderSelected(false);
                 schedulePreflight();
@@ -846,7 +885,7 @@
                         config.secondaryPhotoId = Number(photo.photoId);
                         config.secondaryFocalX = 0.5;
                         config.secondaryFocalY = 0.5;
-                        invalidateReview(project.projectId);
+                        invalidateReview(project.projectId, { announce: true, reason: "Second image changed" });
                         renderPhotoEditor();
                         renderSelected(false);
                         schedulePreflight();
@@ -861,16 +900,15 @@
     const focusPhotoEditor = () => {
         if (!photoEditor || photoEditor.hidden) return;
         window.requestAnimationFrame(() => {
-            photoEditor.scrollIntoView({ block: "nearest", behavior: "smooth" });
             const body = photoEditor.querySelector(".publication-panel__body");
             if (!(body instanceof HTMLElement)) return;
 
             if (photoEditorFocusMode === "crop" && primaryStage && !primaryStage.hidden) {
-                body.scrollTo({ top: Math.max(0, primaryStage.offsetTop - 12), behavior: "smooth" });
+                body.scrollTo({ top: Math.max(0, primaryStage.offsetTop - 18), behavior: "smooth" });
                 primaryStage.setAttribute("tabindex", "-1");
                 primaryStage.focus({ preventScroll: true });
             } else if (photoEditorFocusMode === "secondary" && secondarySection && !secondarySection.hidden) {
-                body.scrollTo({ top: Math.max(0, secondarySection.offsetTop - 12), behavior: "smooth" });
+                body.scrollTo({ top: Math.max(0, secondarySection.offsetTop - 18), behavior: "smooth" });
                 const firstSecondaryChoice = secondaryPicker?.querySelector("button:not(.is-none)") ?? secondaryPicker?.querySelector("button");
                 if (firstSecondaryChoice instanceof HTMLElement) {
                     firstSecondaryChoice.focus({ preventScroll: true });
@@ -888,6 +926,8 @@
     const openPhotoEditor = (id, focusMode = "select") => {
         activePhotoProjectId = id;
         photoEditorFocusMode = focusMode === "crop" || focusMode === "secondary" ? focusMode : "select";
+        photoEditorReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        document.body.classList.add("brochure-modal-open");
         renderSelected(false);
         renderPhotoEditor();
         focusPhotoEditor();
@@ -897,7 +937,13 @@
         activePhotoProjectId = null;
         photoEditorFocusMode = "select";
         if (photoEditor) photoEditor.hidden = true;
+        document.body.classList.remove("brochure-modal-open");
         renderSelected(false);
+        scheduleReviewNoticeDismiss();
+        if (photoEditorReturnFocus?.isConnected) {
+            window.requestAnimationFrame(() => photoEditorReturnFocus?.focus({ preventScroll: true }));
+        }
+        photoEditorReturnFocus = null;
     };
 
     const setFocalFromEvent = (kind, event) => {
@@ -924,7 +970,7 @@
             config.secondaryFocalX = x;
             config.secondaryFocalY = y;
         }
-        invalidateReview(activePhotoProjectId);
+        invalidateReview(activePhotoProjectId, { announce: true, reason: "Image crop changed" });
         updateFocalStage(kind, activePhotoProjectId);
         syncHiddenInputs();
         renderReview();
@@ -943,7 +989,7 @@
             config.secondaryFocalX = 0.5;
             config.secondaryFocalY = 0.5;
         }
-        invalidateReview(activePhotoProjectId);
+        invalidateReview(activePhotoProjectId, { announce: true, reason: "Image crop reset" });
         updateFocalStage(kind, activePhotoProjectId);
         syncHiddenInputs();
         renderReview();
@@ -1017,7 +1063,7 @@
                 });
                 const newSignature = projectSignature(project);
                 if (oldSignature && oldSignature !== newSignature) {
-                    invalidateReview(id);
+                    invalidateReview(id, { announce: id === activeReviewProjectId, reason: "Authoritative project content changed" });
                     if (explicitCoverHeroProjectId === id) {
                         coverReviewed = false;
                         coverReviewFingerprint = "";
@@ -1286,7 +1332,7 @@
         if (reviewState) {
             const isReviewed = isProjectReviewed(id);
             reviewState.classList.toggle("is-reviewed", isReviewed);
-            reviewState.textContent = isReviewed ? "Reviewed" : "Review required";
+            reviewState.textContent = isReviewed ? "Approved for publication" : "Approval required";
         }
 
         if (reviewImageFrame) {
@@ -1366,8 +1412,8 @@
             const isReviewed = isProjectReviewed(id);
             reviewMarkReviewed.disabled = !canReview || isReviewed;
             reviewMarkReviewed.innerHTML = isReviewed
-                ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approved'
-                : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approve project';
+                ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approved for publication'
+                : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approve for publication';
         }
         updateButtons(Boolean(lastPreflight?.canGenerate));
     };
@@ -1377,21 +1423,60 @@
         if (node) node.textContent = String(value);
     };
 
+    const setOutputReadiness = (state, title, detail, iconClass) => {
+        if (outputReadiness) {
+            outputReadiness.classList.remove("is-pending", "is-blocked", "is-warning", "is-ready");
+            outputReadiness.classList.add(`is-${state}`);
+        }
+        if (outputReadinessTitle) outputReadinessTitle.textContent = title;
+        if (outputReadinessDetail) outputReadinessDetail.textContent = detail;
+        if (outputReadinessIcon) {
+            outputReadinessIcon.innerHTML = `<i class="bi ${iconClass}" aria-hidden="true"></i>`;
+        }
+    };
+
     const updateButtons = canGenerate => {
         const previewReady = canGenerate && orderedIds.length > 0 && !exportBusy;
         const coverReady = !isContemporaryCover() || Boolean(coverReviewed && coverReviewFingerprint);
         const finalReady = previewReady && allReviewed() && coverReady;
+        const pendingApprovals = Math.max(0, orderedIds.length - reviewedCount());
+        const blockers = Number(lastPreflight?.blockerCount || 0);
+        const warnings = Number(lastPreflight?.warningCount || 0);
+
         if (previewButton) previewButton.disabled = !previewReady;
         if (generateButton) generateButton.disabled = !finalReady;
+
+        if (!orderedIds.length) {
+            setOutputReadiness("pending", "Select projects", "Choose at least one project to begin publication preflight.", "bi-journals");
+        } else if (exportBusy) {
+            setOutputReadiness("pending", "Preparing PDF", "PRISM is composing the exact offline publication.", "bi-arrow-repeat");
+        } else if (!canGenerate) {
+            const detail = blockers > 0
+                ? `${blockers} blocker${blockers === 1 ? "" : "s"} must be resolved before preview or download.`
+                : "Technical preflight is still running or requires attention.";
+            setOutputReadiness(blockers > 0 ? "blocked" : "pending", blockers > 0 ? "Preflight blocked" : "Checking publication", detail, blockers > 0 ? "bi-x-octagon-fill" : "bi-hourglass-split");
+        } else if (pendingApprovals > 0) {
+            setOutputReadiness("pending", "Preview ready", `${pendingApprovals} project approval${pendingApprovals === 1 ? "" : "s"} remaining before final download.`, "bi-eye");
+        } else if (!coverReady) {
+            setOutputReadiness("pending", "Cover approval required", "Approve the Cover B hero and crop before final download.", "bi-image");
+        } else if (warnings > 0) {
+            setOutputReadiness("warning", "Ready with warnings", `${warnings} warning${warnings === 1 ? "" : "s"} remain for editorial review. Final download is available.`, "bi-exclamation-triangle-fill");
+        } else {
+            setOutputReadiness("ready", "Ready for final issue", `${orderedIds.length} project${orderedIds.length === 1 ? "" : "s"} approved · no blockers.`, "bi-check-circle-fill");
+        }
+
         if (exportStatus && !exportBusy) {
             if (!orderedIds.length) {
                 exportStatus.textContent = "";
-            } else if (canGenerate && !allReviewed()) {
-                const pending = orderedIds.length - reviewedCount();
-                exportStatus.textContent = `${pending} selected project${pending === 1 ? "" : "s"} still require Publication Review.`;
-            } else if (canGenerate && !coverReady) {
+            } else if (!canGenerate) {
+                exportStatus.textContent = blockers > 0
+                    ? "Resolve publication blockers to enable preview and download."
+                    : "Waiting for technical preflight.";
+            } else if (!allReviewed()) {
+                exportStatus.textContent = `${pendingApprovals} selected project${pendingApprovals === 1 ? "" : "s"} still require publication approval.`;
+            } else if (!coverReady) {
                 exportStatus.textContent = "Approve the Cover B hero and crop before final download.";
-            } else if (canGenerate) {
+            } else {
                 exportStatus.textContent = "";
             }
         }
@@ -1409,17 +1494,17 @@
         } else if ((result.warningCount ?? 0) > 0) {
             const coverReady = !isContemporaryCover() || Boolean(coverReviewed && coverReviewFingerprint);
             const reviewStatus = !allReviewed()
-                ? "Complete Publication Review before final download."
+                ? "Complete publication approval before final download."
                 : !coverReady
                     ? "Approve the Cover B hero and crop before final issue."
                     : "All approvals are complete; review the warnings before final issue.";
             preflightMessage.textContent = `Preflight passed with ${result.warningCount} warning${result.warningCount === 1 ? "" : "s"}. ${reviewStatus}`;
             preflightMessage.classList.add("is-warning");
         } else if (!allReviewed()) {
-            preflightMessage.textContent = "Publication preflight passed. Complete Publication Review before final download.";
+            preflightMessage.textContent = "Publication preflight passed. Complete publication approval before final download.";
             preflightMessage.classList.add("is-ready");
         } else if (isContemporaryCover() && !(coverReviewed && coverReviewFingerprint)) {
-            preflightMessage.textContent = "Publication preflight and project review are complete. Approve the Cover B hero and crop before final issue.";
+            preflightMessage.textContent = "Publication preflight and project approvals are complete. Approve the Cover B hero and crop before final issue.";
             preflightMessage.classList.add("is-ready");
         } else {
             preflightMessage.textContent = "Publication preflight and all required approvals are complete. The brochure is ready for final issue.";
@@ -1642,6 +1727,7 @@
                 .map(([projectId, fingerprint]) => [Number(projectId), String(fingerprint || "")])
                 .filter(([projectId, fingerprint]) => projectId > 0 && fingerprint.length > 0));
         let invalidatedApproval = false;
+        let activeApprovalInvalidated = false;
         orderedIds.forEach(id => {
             const config = ensureConfig(id);
             const current = currentProjectReviewFingerprints.get(id);
@@ -1649,6 +1735,7 @@
                 config.isReviewed = false;
                 config.reviewFingerprint = "";
                 invalidatedApproval = true;
+                if (id === activeReviewProjectId) activeApprovalInvalidated = true;
             }
         });
         if (coverReviewed
@@ -1719,6 +1806,9 @@
             renderSelected(false, false);
             renderReview();
             renderPreflightMessage();
+            if (activeApprovalInvalidated) {
+                showReviewNotice("Authoritative publication inputs changed · publication approval reset.");
+            }
         }
         renderCoverHero();
         updateButtons(Boolean(result.canGenerate));
@@ -1876,7 +1966,7 @@
         if (!targetUrl || exportBusy) return;
         if (!lastPreflight?.canGenerate || !orderedIds.length) return;
         if (!preview && !allReviewed()) {
-            if (exportStatus) exportStatus.textContent = "Complete Publication Review for all selected projects before final download.";
+            if (exportStatus) exportStatus.textContent = "Approve all selected projects for publication before final download.";
             reviewPanel?.scrollIntoView({ block: "start", behavior: "smooth" });
             return;
         }
@@ -1977,7 +2067,11 @@
     });
 
     narrativeSource?.addEventListener("change", () => {
+        const hadApprovals = orderedIds.some(id => isProjectReviewed(id));
         invalidateAllReviews();
+        if (hadApprovals) {
+            showReviewNotice("Narrative source changed · publication approvals reset.");
+        }
         orderedIds.forEach(id => {
             const project = projectById.get(id);
             if (project) {
@@ -2147,13 +2241,14 @@
         const config = ensureConfig(activePhotoProjectId);
         if (!config) return;
         config.imageMode = Number(imageModeSelect.value) || modeAutomatic;
-        invalidateReview(activePhotoProjectId);
+        invalidateReview(activePhotoProjectId, { announce: true, reason: "Image treatment changed" });
         renderPhotoEditor();
         renderSelected(false);
         schedulePreflight();
     });
 
-    photoEditorClose?.addEventListener("click", closePhotoEditor);
+    photoEditorCloseButtons.forEach(button => button.addEventListener("click", closePhotoEditor));
+    photoEditorDismiss?.addEventListener("click", closePhotoEditor);
     primaryStage?.addEventListener("click", event => setFocalFromEvent("primary", event));
     secondaryStage?.addEventListener("click", event => setFocalFromEvent("secondary", event));
     primaryReset?.addEventListener("click", event => { event.stopPropagation(); resetFocal("primary"); });
@@ -2165,7 +2260,7 @@
         if (!config) return;
         const nextMode = Number(reviewImageModeSelect.value) || modeAutomatic;
         config.imageMode = [modeAutomatic, modeSingle, modeGalleryTwo].includes(nextMode) ? nextMode : modeAutomatic;
-        invalidateReview(activeReviewProjectId);
+        invalidateReview(activeReviewProjectId, { announce: true, reason: "Image treatment changed" });
         syncHiddenInputs();
         renderSelected(false);
         renderReview();
@@ -2204,6 +2299,14 @@
         if (config.primaryPhotoId != null) config.primaryPhotoConfirmed = true;
         config.isReviewed = true;
         config.reviewFingerprint = fingerprint;
+        if (reviewNotice) {
+            reviewNotice.hidden = true;
+            reviewNotice.classList.remove("is-warning", "is-info");
+        }
+        if (reviewNoticeTimer) {
+            window.clearTimeout(reviewNoticeTimer);
+            reviewNoticeTimer = null;
+        }
         syncHiddenInputs();
         renderSelected(false, false);
         renderReview();
@@ -2219,6 +2322,13 @@
     preflightShowAll?.addEventListener("click", () => {
         showAllFindings = !showAllFindings;
         renderIssues(lastPreflight?.issues ?? []);
+    });
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && photoEditor && !photoEditor.hidden) {
+            event.preventDefault();
+            closePhotoEditor();
+        }
     });
 
     form.addEventListener("submit", event => {
