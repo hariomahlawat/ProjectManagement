@@ -83,4 +83,45 @@ public sealed class BrochurePhotoPrintQualityEvaluatorTests
         Assert.True(assessment.EffectiveDpi > 190d);
         Assert.True(assessment.MeetsRecommendation);
     }
+    [Fact]
+    public void DigitalComfortable_EditorialSplit_EvaluatesAgainstActualLargerSplitFrame()
+    {
+        var good = BrochurePhotoPrintQualityEvaluator.Assess(
+            1024,
+            1024,
+            BrochurePublicationProfile.DigitalComfortable,
+            BrochurePhotoPrintPlacement.ProjectEditorialSplit);
+        var soft = BrochurePhotoPrintQualityEvaluator.Assess(
+            500,
+            500,
+            BrochurePublicationProfile.DigitalComfortable,
+            BrochurePhotoPrintPlacement.ProjectEditorialSplit);
+
+        Assert.Contains("editorial split", good.PlacementLabel, StringComparison.OrdinalIgnoreCase);
+        Assert.True(good.EffectiveDpi > 325d);
+        Assert.True(good.MeetsRecommendation);
+        Assert.True(soft.EffectiveDpi < BrochurePhotoPrintQualityEvaluator.DigitalComfortableRecommendedDpi);
+        Assert.False(soft.MeetsRecommendation);
+    }
+
+    [Fact]
+    public void DigitalComfortable_CoverHero_UsesPremiumCoverAspectAndPhysicalFrame()
+    {
+        var good = BrochurePhotoPrintQualityEvaluator.Assess(
+            1800,
+            1360,
+            BrochurePublicationProfile.DigitalComfortable,
+            BrochurePhotoPrintPlacement.CoverHero);
+        var soft = BrochurePhotoPrintQualityEvaluator.Assess(
+            1200,
+            907,
+            BrochurePublicationProfile.DigitalComfortable,
+            BrochurePhotoPrintPlacement.CoverHero);
+
+        Assert.True(good.EffectiveDpi > 235d);
+        Assert.True(good.MeetsRecommendation);
+        Assert.True(soft.EffectiveDpi < BrochurePhotoPrintQualityEvaluator.DigitalComfortableRecommendedDpi);
+        Assert.False(soft.MeetsRecommendation);
+    }
+
 }

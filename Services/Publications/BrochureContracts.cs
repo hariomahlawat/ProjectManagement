@@ -122,7 +122,11 @@ public enum BrochurePreflightIssueCode
     ProjectReviewRequired = 24,
     ProjectReviewStale = 25,
     CoverReviewRequired = 26,
-    CoverReviewStale = 27
+    CoverReviewStale = 27,
+    DigitalInstitutionalOpeningMissing = 28,
+    DigitalInstitutionalClosingMissing = 29,
+    DigitalInstitutionalOpeningTooLong = 30,
+    DigitalInstitutionalClosingTooLong = 31
 }
 
 
@@ -469,6 +473,11 @@ public sealed record BrochurePreflight(
     bool? PrintFrontPageUsesMinimumTypography = null,
     IReadOnlyList<BrochurePrintSheetSummary>? PrintSheetPlan = null,
     BrochurePrintFlowSuggestion? SmartFlowSuggestion = null,
+    int? DigitalProjectPageCount = null,
+    int? DigitalSingleFeaturePageCount = null,
+    int? DigitalTwoFeaturePageCount = null,
+    int? DigitalInstitutionalPageCount = null,
+    IReadOnlyList<BrochureDigitalPageSummary>? DigitalPagePlan = null,
     IReadOnlyList<BrochureProjectReviewFingerprint>? ProjectReviewFingerprints = null,
     string? CoverReviewFingerprint = null)
 {

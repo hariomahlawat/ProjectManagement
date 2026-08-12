@@ -29,6 +29,8 @@ public interface IBrochurePublicationService
         BrochurePrintMatter? printMatter,
         string? strapline,
         string? handlingMarking,
+        string? additionalIntroduction,
+        bool includeBackCover,
         CancellationToken cancellationToken = default);
 
     Task<BrochurePublicationData> BuildAsync(
@@ -277,6 +279,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         BrochurePrintMatter? printMatter,
         string? strapline,
         string? handlingMarking,
+        string? additionalIntroduction,
+        bool includeBackCover,
         CancellationToken cancellationToken = default)
     {
         var prepared = await PrepareAsync(
@@ -303,7 +307,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             coverStyle,
             printMatter,
             strapline,
-            handlingMarking);
+            handlingMarking,
+            additionalIntroduction,
+            includeBackCover);
         return prepared.Preflight;
     }
 
@@ -345,7 +351,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             options.CoverStyle,
             BrochurePrintPublicationPolicy.FromOptions(options),
             options.Strapline,
-            options.HandlingMarking);
+            options.HandlingMarking,
+            options.IntroductionText,
+            options.IncludeBackCover);
         if (options.RequirePublicationReview)
         {
             prepared = ApplyReviewApprovalValidation(prepared, options);
@@ -366,7 +374,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         {
             var coverHeroHeight = options.PublicationProfile == BrochurePublicationProfile.PrintCompact
                 ? 1055
-                : 1100;
+                : 1360;
             coverHeroImage = await _photoService.RenderAsync(
                 new BrochurePhotoRenderRequest(
                     prepared.CoverHero.ProjectId,
@@ -458,11 +466,17 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         BrochureCoverStyle coverStyle,
         BrochurePrintMatter? printMatter,
         string? strapline,
-        string? handlingMarking)
+        string? handlingMarking,
+        string? additionalIntroduction,
+        bool includeBackCover)
     {
-        if (publicationProfile != BrochurePublicationProfile.PrintCompact)
+        if (publicationProfile == BrochurePublicationProfile.DigitalComfortable)
         {
-            return prepared;
+            return ApplyDigitalPublicationPreflight(
+                prepared,
+                printMatter,
+                additionalIntroduction,
+                includeBackCover);
         }
 
         var issues = prepared.Preflight.Issues.ToList();
@@ -544,6 +558,67 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             PrintFrontPageUsesMinimumTypography = plan.FrontPage.UsesMinimumTypography,
             PrintSheetPlan = plan.SheetPlan,
             SmartFlowSuggestion = plan.SmartFlowSuggestion
+        };
+
+        return prepared with { Preflight = preflight };
+    }
+
+    private static PreparedPublication ApplyDigitalPublicationPreflight(
+        PreparedPublication prepared,
+        BrochurePrintMatter? institutionalMatter,
+        string? additionalIntroduction,
+        bool includeBackCover)
+    {
+        var issues = prepared.Preflight.Issues.ToList();
+        issues.AddRange(BrochureDigitalPublicationPolicy.ValidateInstitutionalMatter(institutionalMatter));
+        var planningProjects = prepared.Projects
+            .Select(project => new BrochurePublicationProject(
+                project.Row.ProjectId,
+                project.Row.ProjectName,
+                project.Row.ProjectCategory,
+                project.Row.TechnicalCategory,
+                project.Narrative,
+                project.NarrativeWordCount,
+                PrimaryPhoto: null,
+                SecondaryPhoto: null,
+                ImageMode: project.ImageMode))
+            .ToArray();
+
+        var plan = BrochureDigitalPublicationPolicy.Plan(
+            planningProjects,
+            institutionalMatter,
+            additionalIntroduction,
+            includeBackCover);
+
+        if (!plan.IncludesInstitutionalOpening)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.DigitalInstitutionalOpeningMissing,
+                PublicationIssueSeverity.Information,
+                null,
+                null,
+                "Digital / Comfortable has no institutional opening content. Add the Centre of Expertise, simulator-role or future-readiness narrative if this brochure should include an About SDD page."));
+        }
+
+        if (!plan.IncludesInstitutionalClosing)
+        {
+            issues.Add(new BrochurePreflightIssue(
+                BrochurePreflightIssueCode.DigitalInstitutionalClosingMissing,
+                PublicationIssueSeverity.Information,
+                null,
+                null,
+                "Digital / Comfortable has no institutional closing content. Add Visionary Horizons, New Simulators, procurement or contact content if this brochure should include a closing engagement page."));
+        }
+
+        var preflight = prepared.Preflight with
+        {
+            Issues = issues,
+            EstimatedPageCount = plan.EstimatedTotalPageCount,
+            DigitalProjectPageCount = plan.ProjectPageCount,
+            DigitalSingleFeaturePageCount = plan.SingleFeaturePageCount,
+            DigitalTwoFeaturePageCount = plan.TwoFeaturePageCount,
+            DigitalInstitutionalPageCount = plan.InstitutionalPageCount,
+            DigitalPagePlan = plan.PagePlan
         };
 
         return prepared with { Preflight = preflight };
@@ -886,6 +961,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         }
 
         var references = new List<BrochurePhotoReference>();
+        var digitalPhotoPlacements = publicationProfile == BrochurePublicationProfile.DigitalComfortable
+            ? BuildDigitalPhotoPlacements(prepared)
+            : null;
+
         foreach (var project in prepared)
         {
             if (project.PrimaryPhotoId.HasValue)
@@ -945,10 +1024,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                                       && coverHero.PhotoId == project.PrimaryPhotoId.Value;
                     var placement = isCoverHero
                         ? PhotoPlacement.CoverHero
-                        : project.ImageMode == BrochureImageMode.GalleryTwo
-                          || project.NarrativeWordCount > BrochureLayoutPlanner.ThreeProjectMaximumWords
-                            ? PhotoPlacement.Feature
-                            : PhotoPlacement.Card;
+                        : publicationProfile == BrochurePublicationProfile.DigitalComfortable
+                            ? digitalPhotoPlacements!.GetValueOrDefault(project.Row.ProjectId, PhotoPlacement.Feature)
+                            : project.ImageMode == BrochureImageMode.GalleryTwo
+                              || project.NarrativeWordCount > BrochureLayoutPlanner.ThreeProjectMaximumWords
+                                ? PhotoPlacement.Feature
+                                : PhotoPlacement.Card;
                     AddQualityFinding(issues, project, primaryProbe, publicationProfile, placement, isCoverHero ? "Cover hero" : "Primary");
                 }
             }
@@ -969,7 +1050,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 }
                 else
                 {
-                    AddQualityFinding(issues, project, secondaryProbe, publicationProfile, PhotoPlacement.Card, "Second");
+                    var secondaryPlacement = publicationProfile == BrochurePublicationProfile.DigitalComfortable
+                        ? digitalPhotoPlacements!.GetValueOrDefault(project.Row.ProjectId, PhotoPlacement.Feature)
+                        : PhotoPlacement.Card;
+                    AddQualityFinding(issues, project, secondaryProbe, publicationProfile, secondaryPlacement, "Second");
                 }
             }
         }
@@ -1120,7 +1204,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             {
                 var coverTargetHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
                     ? 1055d
-                    : 1100d;
+                    : 1360d;
                 var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveCropDimensions(
                     candidate.Probe!.Width,
                     candidate.Probe.Height,
@@ -1172,7 +1256,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
     {
         var targetHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
             ? 1055d
-            : 1100d;
+            : 1360d;
         var targetAspect = 1800d / targetHeight;
         var (effectiveWidth, effectiveHeight) = BrochurePhotoService.EffectiveCropDimensions(
             width,
@@ -1194,6 +1278,44 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         return BrochurePhotoQuality.Low;
     }
 
+    private static IReadOnlyDictionary<int, PhotoPlacement> BuildDigitalPhotoPlacements(
+        IReadOnlyList<PreparedProject> projects)
+    {
+        var planningProjects = projects
+            .Select(project => new BrochurePublicationProject(
+                project.Row.ProjectId,
+                project.Row.ProjectName,
+                project.Row.ProjectCategory,
+                project.Row.TechnicalCategory,
+                project.Narrative,
+                project.NarrativeWordCount,
+                PrimaryPhoto: null,
+                SecondaryPhoto: null,
+                ImageMode: project.ImageMode))
+            .ToArray();
+
+        var placements = new Dictionary<int, PhotoPlacement>();
+        foreach (var page in BrochureLayoutPlanner.PlanDigitalComfortable(planningProjects))
+        {
+            var placement = page.Layout == BrochurePageLayoutKind.TwoFeature
+                ? PhotoPlacement.EditorialSplit
+                : PhotoPlacement.Feature;
+            foreach (var fragment in page.Items)
+            {
+                // A long project can have multiple fragments. Feature is always the more
+                // conservative physical frame, so it wins if a project ever spans layouts.
+                if (!placements.TryGetValue(fragment.Project.ProjectId, out var existing)
+                    || placement == PhotoPlacement.Feature
+                    || existing == PhotoPlacement.Card)
+                {
+                    placements[fragment.Project.ProjectId] = placement;
+                }
+            }
+        }
+
+        return placements;
+    }
+
     private static void AddQualityFinding(
         ICollection<BrochurePreflightIssue> issues,
         PreparedProject project,
@@ -1206,6 +1328,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         {
             PhotoPlacement.CoverHero => BrochurePhotoPrintPlacement.CoverHero,
             PhotoPlacement.Feature => BrochurePhotoPrintPlacement.ProjectFeature,
+            PhotoPlacement.EditorialSplit => BrochurePhotoPrintPlacement.ProjectEditorialSplit,
             _ => BrochurePhotoPrintPlacement.ProjectCard
         };
         var assessment = BrochurePhotoPrintQualityEvaluator.Assess(
@@ -1236,7 +1359,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
     {
         Card = 1,
         Feature = 2,
-        CoverHero = 3
+        CoverHero = 3,
+        EditorialSplit = 4
     }
 
     private static IEnumerable<BrochurePhotoRenderRequest> BuildRenderRequests(PreparedProject project)

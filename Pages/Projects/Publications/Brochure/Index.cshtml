@@ -422,28 +422,28 @@
                                 <label class="brochure-policy-option" data-brochure-digital-only>
                                     <input asp-for="Input.IncludeBackCover" class="form-check-input" />
                                     <span>
-                                        <strong>Include digital closing/back cover</strong>
-                                        <small>Digital profile only. The compact print profile instead retains the original content-bearing final page.</small>
+                                        <strong>Include digital back cover</strong>
+                                        <small>Digital profile only. The institutional closing page remains content-bearing and is separate from this minimal back cover.</small>
                                     </span>
                                 </label>
                                 <label class="form-label brochure-field" data-brochure-digital-only>
-                                    <span>Introduction heading</span>
+                                    <span>Additional introduction heading</span>
                                     <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" />
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide" data-brochure-digital-only>
-                                    <span>Optional introduction text</span>
-                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional institutional introduction..."></textarea>
-                                    <small>Long introductions are automatically continued without shrinking body text below the publication floor.</small>
+                                    <span>Additional introduction (optional)</span>
+                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional supplementary introduction..."></textarea>
+                                    <small>Digital profile only. This follows the dedicated About SDD page and continues automatically when required.</small>
                                 </label>
                             </div>
                         </details>
 
-                        <details class="brochure-print-content" data-brochure-print-only>
-                            <summary><i class="bi bi-file-text" aria-hidden="true"></i> Print institutional content</summary>
+                        <details class="brochure-print-content">
+                            <summary><i class="bi bi-file-text" aria-hidden="true"></i> Institutional content</summary>
                             <div class="brochure-print-content-note">
                                 <span>
-                                    <strong>Hard-copy first and final pages remain content-bearing.</strong>
-                                    <span>These publication-level fields are pre-populated from the approved reference brochure and can be updated without changing any project record.</span>
+                                    <strong>One authoritative institutional source serves both publication profiles.</strong>
+                                    <span>Print / Compact packs this content into its reference-format front/final pages; Digital / Comfortable creates dedicated About SDD and Future capability &amp; engagement pages.</span>
                                 </span>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-print-restore-approved>
                                     <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
@@ -730,7 +730,7 @@
                             <span class="publication-step">4</span>
                             <div>
                                 <h2>Publication readiness</h2>
-                                <p>Authoritative preflight, measured print composition and final publication findings.</p>
+                                <p>Authoritative preflight, profile-specific composition and final publication findings.</p>
                             </div>
                         </div>
                         <span class="brochure-preflight-spinner" hidden data-preflight-spinner>
@@ -795,6 +795,15 @@
                                 <small data-smart-flow-note>PRISM does not reorder projects automatically. Apply the suggestion to change publication sequence; project content and image treatment remain unchanged.</small>
                             </div>
                             <small>Layout is measured using final PDF geometry and verified again after composition.</small>
+                        </div>
+                        <div class="brochure-digital-plan-summary" hidden data-digital-plan-summary>
+                            <div><span>Planned pages</span><strong data-digital-estimate-pages>—</strong></div>
+                            <div><span>Project pages</span><strong data-digital-project-pages>—</strong></div>
+                            <div><span>Feature pages</span><strong data-digital-feature-pages>—</strong></div>
+                            <div><span>Two-project pages</span><strong data-digital-paired-pages>—</strong></div>
+                            <div><span>Institutional pages</span><strong data-digital-institutional-pages>—</strong></div>
+                            <div class="brochure-digital-page-map" data-digital-page-map></div>
+                            <small>Screen-first composition limits project density to one or two projects per page and is physically verified after PDF generation.</small>
                         </div>
                         <div class="brochure-preflight-message" data-preflight-message>
                             Select projects to run publication preflight.

@@ -58,11 +58,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         }
 
         var fontStatus = _fontService.EnsureRegistered();
-        var pagePlans = BrochureLayoutPlanner.Plan(data.Projects);
         var sddLogo = TryLoadAsset("img/logos/sdd.png");
         var artracLogo = TryLoadAsset("img/logos/artrac.png");
         var institutionalArtwork = TryLoadInstitutionalArtwork(data.Options.InstitutionalCoverArtwork);
         BrochurePrintCompactPlan? printPlan = null;
+        BrochureDigitalPlan? digitalPlan = null;
+
         if (data.Options.PublicationProfile == BrochurePublicationProfile.PrintCompact)
         {
             // Resolve the compact plan exactly once. Preflight and the compositor use the same
@@ -74,6 +75,14 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 data.Options.CoverStyle,
                 data.Options.Strapline,
                 !string.IsNullOrWhiteSpace(data.Options.HandlingMarking));
+        }
+        else
+        {
+            digitalPlan = BrochureDigitalPublicationPolicy.Plan(
+                data.Projects,
+                BrochurePrintPublicationPolicy.FromOptions(data.Options),
+                data.Options.IntroductionText,
+                data.Options.IncludeBackCover);
         }
 
         var document = Document.Create(container =>
@@ -91,6 +100,11 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 return;
             }
 
+            if (digitalPlan is null)
+            {
+                throw new InvalidOperationException("Digital brochure planning did not produce a composition plan.");
+            }
+
             if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
             {
                 ComposeInstitutionalCover(
@@ -106,24 +120,61 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 ComposeContemporaryCover(container, data, fontStatus, sddLogo, artracLogo);
             }
 
-            if (!string.IsNullOrWhiteSpace(data.Options.IntroductionText))
+            var totalPages = digitalPlan.EstimatedTotalPageCount;
+            var institutionalMatter = BrochurePrintPublicationPolicy.FromOptions(data.Options);
+
+            if (digitalPlan.InstitutionalOpeningPageNumber.HasValue)
             {
-                ComposeIntroductionPages(container, data, fontStatus, sddLogo);
+                ComposeDigitalInstitutionalOpening(
+                    container,
+                    data,
+                    fontStatus,
+                    sddLogo,
+                    institutionalArtwork,
+                    institutionalMatter,
+                    digitalPlan.InstitutionalOpeningPageNumber.Value,
+                    totalPages);
             }
 
-            for (var index = 0; index < pagePlans.Count; index++)
+            for (var index = 0; index < digitalPlan.AdditionalIntroductionPages.Count; index++)
+            {
+                ComposeAdditionalIntroductionPage(
+                    container,
+                    data,
+                    fontStatus,
+                    sddLogo,
+                    digitalPlan.AdditionalIntroductionPages[index],
+                    index,
+                    digitalPlan.AdditionalIntroductionPages.Count,
+                    digitalPlan.AdditionalIntroductionPageNumbers[index],
+                    totalPages);
+            }
+
+            for (var index = 0; index < digitalPlan.ProjectPages.Count; index++)
             {
                 ComposeProjectPage(
                     container,
                     data,
                     fontStatus,
-                    pagePlans[index],
-                    index + 1,
-                    pagePlans.Count,
+                    digitalPlan.ProjectPages[index],
+                    digitalPlan.ProjectPageNumbers[index],
+                    totalPages,
                     sddLogo);
             }
 
-            if (data.Options.IncludeBackCover)
+            if (digitalPlan.InstitutionalClosingPageNumber.HasValue)
+            {
+                ComposeDigitalInstitutionalClosing(
+                    container,
+                    data,
+                    fontStatus,
+                    sddLogo,
+                    institutionalMatter,
+                    digitalPlan.InstitutionalClosingPageNumber.Value,
+                    totalPages);
+            }
+
+            if (digitalPlan.IncludesBackCover)
             {
                 ComposeBackCover(container, data, fontStatus, sddLogo, artracLogo);
             }
@@ -145,6 +196,11 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         {
             BrochurePdfCompositionVerifier.Verify(pdfBytes, data, printPlan);
         }
+        else if (digitalPlan is not null)
+        {
+            BrochurePdfCompositionVerifier.VerifyDigital(pdfBytes, data, digitalPlan);
+        }
+
         return pdfBytes;
     }
 
@@ -176,21 +232,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             page.Content().Layers(layers =>
             {
                 layers.Layer().Background(Forest950);
-                layers.Layer()
-                    .AlignRight()
-                    .Width(185)
-                    .Height(842)
-                    .Background(Forest900);
-                layers.Layer()
-                    .AlignRight()
-                    .AlignTop()
-                    .Width(330)
-                    .Height(8)
-                    .Background(Gold);
+                layers.Layer().AlignRight().Width(185).Height(842).Background(Forest900);
+                layers.Layer().AlignRight().AlignTop().Width(330).Height(8).Background(Gold);
 
                 layers.PrimaryLayer().Padding(36).Column(column =>
                 {
-                    column.Spacing(16);
+                    column.Spacing(14);
                     column.Item().Row(row =>
                     {
                         row.RelativeItem().Column(lockup =>
@@ -205,8 +252,8 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                                 .LetterSpacing(1.1f)
                                 .FontColor("#90B6AA");
                         });
-                        // Curated Cover A artwork already carries the official identity. Retain
-                        // separate logo assets only for the asset-missing fallback composition.
+
+                        // Curated Cover A artwork already contains the official identity marks.
                         if (!artworkContainsIdentity)
                         {
                             row.AutoItem().Row(logos =>
@@ -226,22 +273,19 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
                     if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))
                     {
-                        column.Item().AlignLeft().Text(data.Options.HandlingMarking!.ToUpperInvariant())
+                        column.Item().Text(data.Options.HandlingMarking!.ToUpperInvariant())
                             .FontSize(8)
                             .Bold()
                             .LetterSpacing(1.2f)
                             .FontColor("#F5D978");
                     }
 
-                    var coverTitle = column.Item().PaddingTop(42).Text(data.Options.Title)
+                    var coverTitle = column.Item().PaddingTop(30).Text(data.Options.Title)
                         .FontFamily(fonts.DisplayFamily)
                         .FontSize(35)
                         .LineHeight(1.02f)
                         .FontColor("#FFFFFF");
-                    if (!fonts.AlatsiAvailable)
-                    {
-                        coverTitle.Bold();
-                    }
+                    if (!fonts.AlatsiAvailable) coverTitle.Bold();
 
                     column.Item().Width(120).Height(3).Background(Gold);
                     column.Item().Text(data.Options.Subtitle)
@@ -252,33 +296,32 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                         .FontSize(10.5f)
                         .FontColor("#91B7AB");
 
-                    column.Item().PaddingTop(24).BorderLeft(3).BorderColor(Gold).PaddingLeft(16)
+                    column.Item().PaddingTop(18).BorderLeft(3).BorderColor(Gold).PaddingLeft(16)
                         .Text(data.Options.Strapline)
                         .FontSize(17)
                         .SemiBold()
                         .LineHeight(1.18f)
                         .FontColor("#F7F3E5");
 
-                    column.Item().PaddingTop(28).Height(210).Element(box =>
+                    // Digital Cover A treats the institutional artwork as a deliberate editorial
+                    // object, not as half of an empty framed montage. The surrounding dark field
+                    // supplies the negative space.
+                    column.Item().PaddingTop(24).AlignLeft().Element(box =>
                     {
                         if (institutionalArtwork is { Length: > 0 })
                         {
-                            box.Border(1)
-                                .BorderColor("#5E887C")
-                                .Background(Forest900)
+                            box.Width(268)
+                                .Height(268)
+                                .Border(1)
+                                .BorderColor("#6C9489")
                                 .Image(institutionalArtwork)
                                 .FitArea();
                         }
                         else
                         {
-                            ComposeCoverPhotoMontage(box, coverPhotos);
+                            box.Width(360).Height(220).Element(montage => ComposeCoverPhotoMontage(montage, coverPhotos));
                         }
                     });
-
-                    column.Item().PaddingTop(14).Text(data.Options.Edition)
-                        .FontSize(8.5f)
-                        .LetterSpacing(.35f)
-                        .FontColor("#9EC0B6");
                 });
             });
         });
@@ -294,23 +337,23 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         var hero = data.CoverHeroImage?.Content;
         var titleSize = data.Options.Title.Length switch
         {
-            > 78 => 30f,
-            > 52 => 34f,
-            _ => 40f
+            > 78 => 29f,
+            > 52 => 33f,
+            _ => 38f
         };
 
         container.Page(page =>
         {
             page.Size(PageSizes.A4);
             page.Margin(0);
-            page.PageColor(WarmWhite);
-            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor(Ink));
+            page.PageColor(Forest950);
+            page.DefaultTextStyle(style => style.FontFamily(fonts.PrimaryFamily).FontColor("#FFFFFF"));
 
             page.Content().Layers(layers =>
             {
-                layers.PrimaryLayer().Background(WarmWhite);
-
-                layers.Layer().AlignTop().Height(8).Background(Forest800);
+                layers.Layer().Background(Forest950);
+                layers.Layer().AlignTop().Height(8).Background(Gold);
+                layers.Layer().AlignRight().Width(120).Height(842).Background(Forest900);
 
                 layers.Layer().PaddingHorizontal(38).PaddingTop(30).Row(row =>
                 {
@@ -320,11 +363,11 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                             .FontSize(9.5f)
                             .Bold()
                             .LetterSpacing(.8f)
-                            .FontColor(Forest800);
-                        lockup.Item().PaddingTop(2).Text("CAPABILITY PUBLICATION")
-                            .FontSize(7.5f)
-                            .LetterSpacing(1.2f)
-                            .FontColor(Muted);
+                            .FontColor("#DCE9E5");
+                        lockup.Item().PaddingTop(2).Text("CAPABILITY PUBLICATION · CONTEMPORARY EDITION")
+                            .FontSize(7.2f)
+                            .LetterSpacing(1.05f)
+                            .FontColor("#90B6AA");
                     });
                     row.AutoItem().Row(logos =>
                     {
@@ -340,44 +383,50 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     });
                 });
 
-                layers.Layer().PaddingHorizontal(38).PaddingTop(130).Column(title =>
+                layers.Layer().PaddingHorizontal(38).PaddingTop(112).Column(title =>
                 {
-                    title.Spacing(7);
+                    title.Spacing(8);
                     title.Item().Text(data.Options.Title)
+                        .FontFamily(fonts.DisplayFamily)
                         .FontSize(titleSize)
                         .Bold()
                         .LineHeight(1.0f)
-                        .FontColor(Forest950);
+                        .FontColor("#FFFFFF");
+                    title.Item().Width(118).Height(3).Background(Gold);
                     title.Item().Text(data.Options.Subtitle)
-                        .FontSize(15)
+                        .FontSize(14.5f)
                         .SemiBold()
-                        .FontColor(Forest700);
+                        .FontColor("#D6E8E2");
                     title.Item().Text(data.Options.Edition)
-                        .FontSize(10)
-                        .FontColor(Muted);
+                        .FontSize(9.8f)
+                        .FontColor("#9EC0B6");
 
                     if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))
                     {
-                        title.Item().PaddingTop(5).Text(data.Options.HandlingMarking!.ToUpperInvariant())
+                        title.Item().PaddingTop(3).Text(data.Options.HandlingMarking!.ToUpperInvariant())
                             .FontSize(8)
                             .Bold()
                             .LetterSpacing(1.0f)
-                            .FontColor("#986D14");
+                            .FontColor("#F5D978");
                     }
                 });
 
-                // The hero and closing band are bottom-anchored. This prevents the
-                // unexplained white tail that appeared when a fixed-height vertical
-                // column finished before the A4 page ended.
+                // Cover B is intentionally image-led. It uses a large independent hero crop and
+                // a restrained institutional band rather than the curated artwork treatment of A.
                 layers.Layer()
                     .AlignBottom()
-                    .PaddingBottom(92)
-                    .Height(364)
+                    .PaddingBottom(88)
+                    .PaddingHorizontal(26)
+                    .Height(410)
                     .Element(heroBox =>
                     {
                         if (hero is { Length: > 0 })
                         {
-                            heroBox.Background(Forest50).Image(hero).FitArea();
+                            heroBox.Border(1)
+                                .BorderColor("#6C9489")
+                                .Background(Forest900)
+                                .Image(hero)
+                                .FitArea();
                         }
                         else
                         {
@@ -387,89 +436,259 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
                 layers.Layer()
                     .AlignBottom()
-                    .Height(92)
-                    .Background(Forest950)
+                    .Height(88)
+                    .Background("#082A26")
                     .PaddingHorizontal(38)
-                    .PaddingVertical(20)
+                    .PaddingVertical(18)
                     .Column(bottom =>
                     {
-                        bottom.Spacing(6);
+                        bottom.Spacing(5);
                         bottom.Item().Text(data.Options.Strapline)
-                            .FontSize(16)
+                            .FontSize(15.5f)
                             .SemiBold()
                             .FontColor("#FFFFFF");
-                        bottom.Item().Text(data.Options.Edition)
-                            .FontSize(8.2f)
-                            .LetterSpacing(.25f)
-                            .FontColor("#9EC0B6");
+                        bottom.Item().Text("Selected PRISM project imagery · publication crop approved independently")
+                            .FontSize(7.4f)
+                            .FontColor("#8FB5AA");
                     });
             });
         });
     }
 
-    private static void ComposeIntroductionPages(
+    private static void ComposeDigitalInstitutionalOpening(
         IDocumentContainer container,
         BrochurePublicationData data,
         PublicationFontStatus fonts,
-        byte[]? sddLogo)
+        byte[]? sddLogo,
+        byte[]? institutionalArtwork,
+        BrochurePrintMatter matter,
+        int pageNumber,
+        int totalPages)
     {
-        var chunks = SplitIntroduction(data.Options.IntroductionText!, 330);
-        for (var index = 0; index < chunks.Count; index++)
+        container.Page(page =>
         {
-            var chunk = chunks[index];
-            var wordCount = BrochureLayoutPlanner.CountWords(chunk);
-            var firstPage = index == 0;
-            var photoCount = firstPage
-                ? wordCount <= 170 ? 2 : wordCount <= 250 ? 1 : 0
-                : 0;
-
-            container.Page(page =>
+            ConfigureInnerPage(page, data.Options, fonts, sddLogo, "ABOUT SDD", pageNumber, totalPages);
+            page.Content().PaddingTop(8).Column(column =>
             {
-                ConfigureInnerPage(page, data.Options, fonts, sddLogo, "ABOUT SDD");
-                page.Content().PaddingTop(12).Column(column =>
-                {
-                    column.Spacing(18);
-                    column.Item().Text(firstPage
-                            ? string.IsNullOrWhiteSpace(data.Options.IntroductionTitle)
-                                ? "Simulator Development Division"
-                                : data.Options.IntroductionTitle!
-                            : "Introduction · continued")
-                        .FontSize(firstPage ? 25 : 19)
-                        .Bold()
-                        .FontColor(Forest950);
-                    column.Item().Width(92).Height(3).Background(Gold);
-                    column.Item().Text(chunk)
-                        .FontSize(11)
-                        .LineHeight(1.34f)
-                        .FontColor(Ink);
+                column.Spacing(14);
+                column.Item().Text("Simulator Development Division")
+                    .FontFamily(fonts.DisplayFamily)
+                    .FontSize(26)
+                    .Bold()
+                    .FontColor(Forest950);
+                column.Item().Width(96).Height(3).Background(Gold);
 
-                    if (photoCount > 0)
+                if (!string.IsNullOrWhiteSpace(matter.CentreStatement))
+                {
+                    column.Item()
+                        .Background(Forest800)
+                        .PaddingHorizontal(18)
+                        .PaddingVertical(14)
+                        .Text(matter.CentreStatement!)
+                        .FontSize(14)
+                        .SemiBold()
+                        .LineHeight(1.18f)
+                        .FontColor("#FFFFFF");
+                }
+
+                column.Item().PaddingTop(4).Row(row =>
+                {
+                    row.Spacing(22);
+                    row.RelativeItem(1.45f).Column(left =>
                     {
-                        var photos = data.Projects
-                            .Where(project => project.PrimaryPhoto is not null)
-                            .Take(photoCount)
-                            .Select(project => project.PrimaryPhoto!.Content)
-                            .ToArray();
-                        if (photos.Length > 0)
+                        left.Spacing(8);
+                        left.Item().Text("WHY SIMULATORS")
+                            .FontSize(8)
+                            .Bold()
+                            .LetterSpacing(.8f)
+                            .FontColor(Forest700);
+                        if (!string.IsNullOrWhiteSpace(matter.OpeningNarrative))
                         {
-                            column.Item().PaddingTop(10).Height(photoCount == 1 ? 205 : 190).Row(row =>
-                            {
-                                row.Spacing(10);
-                                foreach (var photo in photos)
-                                {
-                                    row.RelativeItem()
-                                        .Border(1)
-                                        .BorderColor(Border)
-                                        .Background(Forest50)
-                                        .Image(photo)
-                                        .FitArea();
-                                }
-                            });
+                            left.Item().Text(matter.OpeningNarrative!)
+                                .FontSize(10.4f)
+                                .LineHeight(1.27f)
+                                .FontColor(Ink);
                         }
-                    }
+                    });
+
+                    row.RelativeItem(1f).Column(right =>
+                    {
+                        right.Spacing(10);
+                        if (institutionalArtwork is { Length: > 0 })
+                        {
+                            right.Item().AlignCenter().Width(174).Height(174)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Image(institutionalArtwork)
+                                .FitArea();
+                        }
+
+                        right.Item().Text("FUTURE-READY CAPABILITY")
+                            .FontSize(8)
+                            .Bold()
+                            .LetterSpacing(.72f)
+                            .FontColor(Forest700);
+                        if (!string.IsNullOrWhiteSpace(matter.FutureNarrative))
+                        {
+                            right.Item().Text(matter.FutureNarrative!)
+                                .FontSize(9.7f)
+                                .LineHeight(1.24f)
+                                .FontColor(Ink);
+                        }
+                    });
                 });
             });
-        }
+        });
+    }
+
+    private static void ComposeAdditionalIntroductionPage(
+        IDocumentContainer container,
+        BrochurePublicationData data,
+        PublicationFontStatus fonts,
+        byte[]? sddLogo,
+        string text,
+        int index,
+        int totalIntroductionPages,
+        int pageNumber,
+        int totalPages)
+    {
+        container.Page(page =>
+        {
+            ConfigureInnerPage(page, data.Options, fonts, sddLogo, "ADDITIONAL INTRODUCTION", pageNumber, totalPages);
+            page.Content().PaddingTop(12).Column(column =>
+            {
+                column.Spacing(18);
+                var heading = index == 0 && !string.IsNullOrWhiteSpace(data.Options.IntroductionTitle)
+                    ? data.Options.IntroductionTitle!
+                    : totalIntroductionPages > 1
+                        ? $"Introduction · {index + 1} of {totalIntroductionPages}"
+                        : "Introduction";
+                column.Item().Text(heading)
+                    .FontFamily(fonts.DisplayFamily)
+                    .FontSize(24)
+                    .Bold()
+                    .FontColor(Forest950);
+                column.Item().Width(92).Height(3).Background(Gold);
+                column.Item().Text(text)
+                    .FontSize(11)
+                    .LineHeight(1.34f)
+                    .FontColor(Ink);
+            });
+        });
+    }
+
+    private static void ComposeDigitalInstitutionalClosing(
+        IDocumentContainer container,
+        BrochurePublicationData data,
+        PublicationFontStatus fonts,
+        byte[]? sddLogo,
+        BrochurePrintMatter matter,
+        int pageNumber,
+        int totalPages)
+    {
+        container.Page(page =>
+        {
+            ConfigureInnerPage(page, data.Options, fonts, sddLogo, "FUTURE CAPABILITY & ENGAGEMENT", pageNumber, totalPages);
+            page.Content().PaddingTop(8).Column(column =>
+            {
+                column.Spacing(14);
+                column.Item().Text("Future capability & engagement")
+                    .FontFamily(fonts.DisplayFamily)
+                    .FontSize(25)
+                    .Bold()
+                    .FontColor(Forest950);
+                column.Item().Width(96).Height(3).Background(Gold);
+
+                if (!string.IsNullOrWhiteSpace(matter.VisionaryHorizons))
+                {
+                    column.Item()
+                        .Border(2)
+                        .BorderColor("#264F78")
+                        .Background("#FBF4D8")
+                        .Padding(14)
+                        .Column(panel =>
+                        {
+                            panel.Spacing(9);
+                            panel.Item().AlignCenter()
+                                .Background("#264F78")
+                                .PaddingHorizontal(16)
+                                .PaddingVertical(5)
+                                .Text("Visionary Horizons & Strategic Objectives")
+                                .FontSize(11.5f)
+                                .SemiBold()
+                                .FontColor("#FFFFFF");
+                            panel.Item().Text(matter.VisionaryHorizons!)
+                                .FontSize(10.2f)
+                                .LineHeight(1.24f)
+                                .FontColor(Ink);
+                        });
+                }
+
+                column.Item().Row(row =>
+                {
+                    row.Spacing(18);
+                    row.RelativeItem(1.35f).Column(left =>
+                    {
+                        left.Spacing(7);
+                        if (!string.IsNullOrWhiteSpace(matter.ProcurementGuidance))
+                        {
+                            left.Item().Text("PROCUREMENT / ENGAGEMENT")
+                                .FontSize(8)
+                                .Bold()
+                                .LetterSpacing(.75f)
+                                .FontColor(Forest700);
+                            left.Item().Text(matter.ProcurementGuidance!)
+                                .FontSize(9.4f)
+                                .LineHeight(1.23f)
+                                .FontColor(Ink);
+                        }
+                    });
+
+                    row.RelativeItem(1f).Column(right =>
+                    {
+                        right.Spacing(10);
+                        if (!string.IsNullOrWhiteSpace(matter.DevelopingAgency))
+                        {
+                            right.Item().Text("DEVELOPING AGENCY")
+                                .FontSize(7.6f)
+                                .Bold()
+                                .LetterSpacing(.65f)
+                                .FontColor(Forest700);
+                            right.Item().Text(matter.DevelopingAgency!)
+                                .FontSize(8.7f)
+                                .LineHeight(1.2f)
+                                .FontColor(Ink);
+                        }
+                        if (!string.IsNullOrWhiteSpace(matter.ManufacturingAgency))
+                        {
+                            right.Item().Text("MANUFACTURING AGENCY")
+                                .FontSize(7.6f)
+                                .Bold()
+                                .LetterSpacing(.65f)
+                                .FontColor(Forest700);
+                            right.Item().Text(matter.ManufacturingAgency!)
+                                .FontSize(8.7f)
+                                .LineHeight(1.2f)
+                                .FontColor(Ink);
+                        }
+                    });
+                });
+
+                if (!string.IsNullOrWhiteSpace(matter.NewSimulatorsGuidance))
+                {
+                    column.Item()
+                        .Background(Forest800)
+                        .PaddingHorizontal(14)
+                        .PaddingVertical(10)
+                        .Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(9.4f).LineHeight(1.18f));
+                            text.Span("New Simulators. ").Bold().FontColor("#F0CD65");
+                            text.Span(matter.NewSimulatorsGuidance!).FontColor("#FFFFFF");
+                        });
+                }
+            });
+        });
     }
 
     internal static IReadOnlyList<string> SplitIntroduction(string text, int maximumWords)
@@ -531,13 +750,13 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         BrochurePublicationData data,
         PublicationFontStatus fonts,
         BrochurePagePlan plan,
-        int sequence,
-        int totalProjectPages,
+        int pageNumber,
+        int totalPages,
         byte[]? sddLogo)
     {
         container.Page(page =>
         {
-            ConfigureInnerPage(page, data.Options, fonts, sddLogo, "PROJECT CAPABILITIES");
+            ConfigureInnerPage(page, data.Options, fonts, sddLogo, "PROJECT CAPABILITIES", pageNumber, totalPages);
 
             page.Content().PaddingTop(6).Column(column =>
             {
@@ -585,17 +804,6 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 }
             });
 
-            page.Footer().Height(22).Row(row =>
-            {
-                row.RelativeItem().AlignMiddle().Text(data.Options.IssuerDisplayName.ToUpperInvariant())
-                    .FontSize(7.3f)
-                    .SemiBold()
-                    .LetterSpacing(.45f)
-                    .FontColor(Muted);
-                row.AutoItem().AlignMiddle().Text($"{sequence} / {totalProjectPages}")
-                    .FontSize(7.5f)
-                    .FontColor(Muted);
-            });
         });
     }
 
@@ -604,7 +812,9 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         BrochureBuildOptions options,
         PublicationFontStatus fonts,
         byte[]? sddLogo,
-        string sectionLabel)
+        string sectionLabel,
+        int pageNumber,
+        int totalPages)
     {
         page.Size(PageSizes.A4);
         page.MarginHorizontal(28);
@@ -640,6 +850,18 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     .LetterSpacing(.65f)
                     .FontColor("#8C6718");
             }
+        });
+
+        page.Footer().Height(22).Row(row =>
+        {
+            row.RelativeItem().AlignMiddle().Text(options.IssuerDisplayName.ToUpperInvariant())
+                .FontSize(7.3f)
+                .SemiBold()
+                .LetterSpacing(.45f)
+                .FontColor(Muted);
+            row.AutoItem().AlignMiddle().Text($"{pageNumber} / {totalPages}")
+                .FontSize(7.5f)
+                .FontColor(Muted);
         });
     }
 

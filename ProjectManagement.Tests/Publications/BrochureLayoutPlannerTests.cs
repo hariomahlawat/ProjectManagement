@@ -124,6 +124,52 @@ public sealed class BrochureLayoutPlannerTests
         Assert.All(pages, page => Assert.Equal(BrochurePageLayoutKind.SingleFeature, page.Layout));
     }
 
+
+    [Fact]
+    public void PlanDigitalComfortable_NeverUsesThreeOrFourProjectLayouts()
+    {
+        var projects = Enumerable.Range(1, 6)
+            .Select(id => Project(id, 70))
+            .ToArray();
+
+        var pages = BrochureLayoutPlanner.PlanDigitalComfortable(projects);
+
+        Assert.Equal(3, pages.Count);
+        Assert.All(pages, page => Assert.Equal(BrochurePageLayoutKind.TwoFeature, page.Layout));
+        Assert.All(pages, page => Assert.InRange(page.Items.Count, 1, 2));
+    }
+
+    [Fact]
+    public void PlanDigitalComfortable_GalleryTwoGetsDedicatedFeaturePage()
+    {
+        var projects = new[]
+        {
+            Project(1, 120, BrochureImageMode.GalleryTwo),
+            Project(2, 120),
+            Project(3, 120)
+        };
+
+        var pages = BrochureLayoutPlanner.PlanDigitalComfortable(projects);
+
+        Assert.Equal(BrochurePageLayoutKind.SingleFeature, pages[0].Layout);
+        Assert.Equal(1, pages[0].Items.Count);
+        Assert.Equal(1, pages[0].Items[0].Project.ProjectId);
+        Assert.Equal(BrochurePageLayoutKind.TwoFeature, pages[1].Layout);
+    }
+
+    [Fact]
+    public void PlanDigitalComfortable_CopyBeyondPairThresholdGetsDedicatedFeaturePage()
+    {
+        var pages = BrochureLayoutPlanner.PlanDigitalComfortable(new[]
+        {
+            Project(1, 190),
+            Project(2, 120)
+        });
+
+        Assert.Equal(2, pages.Count);
+        Assert.All(pages, page => Assert.Equal(BrochurePageLayoutKind.SingleFeature, page.Layout));
+    }
+
     [Fact]
     public void CountWords_TreatsProjectNomenclatureAsWordsWithoutRewritingIt()
     {

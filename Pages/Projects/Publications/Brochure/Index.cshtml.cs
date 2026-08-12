@@ -410,6 +410,8 @@ public sealed class IndexModel : PageModel
             ToPrintMatter(),
             Input.Strapline,
             Input.HandlingMarking,
+            Input.IntroductionText,
+            Input.IncludeBackCover,
             cancellationToken);
         return new JsonResult(ToClientPreflight(preflight));
     }
@@ -492,16 +494,13 @@ public sealed class IndexModel : PageModel
             var fileName = $"{SanitizeFileName(Input.Title, "SDD_Capability_Brochure")}_{generatedAt:yyyyMMdd}.pdf";
 
             Response.Headers["X-PRISM-Publication-FileName"] = fileName;
-            if (Input.PublicationProfile == BrochurePublicationProfile.PrintCompact)
-            {
-                // Build() performs post-composition page-membership verification before returning.
-                // Surface that fact to the browser so the final-output status can distinguish an
-                // estimated preflight from a physically verified PDF.
-                Response.Headers["X-PRISM-Publication-Composition-Verified"] = "true";
-                Response.Headers["X-PRISM-Publication-Page-Count"] =
-                    BrochurePdfCompositionVerifier.CountPages(bytes)
-                        .ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
+            // Both publication profiles are post-compose verified before Build() returns. Surface
+            // the physical result so Final output can distinguish planned composition from the
+            // exact PDF bytes that were actually issued.
+            Response.Headers["X-PRISM-Publication-Composition-Verified"] = "true";
+            Response.Headers["X-PRISM-Publication-Page-Count"] =
+                BrochurePdfCompositionVerifier.CountPages(bytes)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
             if (preview)
             {
                 Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
@@ -514,7 +513,7 @@ public sealed class IndexModel : PageModel
         {
             _logger.LogWarning(
                 exception,
-                "Compact brochure post-composition verification failed. PlannedPages={PlannedPages}, ActualPages={ActualPages}, Project={ProjectName}, ExpectedSheet={ExpectedSheet}",
+                "Brochure post-composition verification failed. PlannedPages={PlannedPages}, ActualPages={ActualPages}, Project={ProjectName}, ExpectedPage={ExpectedSheet}",
                 exception.ExpectedPageCount,
                 exception.ActualPageCount,
                 exception.ProjectName,
@@ -531,7 +530,7 @@ public sealed class IndexModel : PageModel
                 return new JsonResult(new
                 {
                     message = "Physical PDF composition did not match publication preflight.",
-                    code = "printCompositionMismatch",
+                    code = "compositionMismatch",
                     expectedPageCount = exception.ExpectedPageCount,
                     actualPageCount = exception.ActualPageCount,
                     expectedSheetNumber = exception.ExpectedSheetNumber,
@@ -949,6 +948,18 @@ public sealed class IndexModel : PageModel
                 sheet.UtilizationPercent,
                 sheet.Label,
                 sheet.IsFinal
+            }).ToArray(),
+            digitalProjectPageCount = preflight.DigitalProjectPageCount,
+            digitalSingleFeaturePageCount = preflight.DigitalSingleFeaturePageCount,
+            digitalTwoFeaturePageCount = preflight.DigitalTwoFeaturePageCount,
+            digitalInstitutionalPageCount = preflight.DigitalInstitutionalPageCount,
+            digitalPagePlan = preflight.DigitalPagePlan?.Select(page => new
+            {
+                page.PageNumber,
+                page.Kind,
+                page.Label,
+                page.ProjectCount,
+                page.Layout
             }).ToArray(),
             smartFlowSuggestion = preflight.SmartFlowSuggestion is null ? null : new
             {

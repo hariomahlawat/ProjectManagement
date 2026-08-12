@@ -124,9 +124,9 @@ test('phase 5 selection wording refers to matching projects, not viewport visibi
 
 test('phase 6 renderer uses independent Cover B artwork with finalised full-page geometry', () => {
   assert.match(renderer, /var hero = data\.CoverHeroImage\?\.Content/);
-  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,220}PaddingBottom\(92\)[\s\S]{0,120}Height\(364\)/);
-  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,120}Height\(92\)[\s\S]{0,120}Background\(Forest950\)/);
-  const contemporary = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeIntroductionPages'));
+  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,220}PaddingBottom\(88\)[\s\S]{0,180}Height\(410\)/);
+  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,120}Height\(88\)[\s\S]{0,140}Background\("#082A26"\)/);
+  const contemporary = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
   assert.doesNotMatch(contemporary, /Generated from authoritative PRISM records/);
 });
 
@@ -243,7 +243,7 @@ test('phase 8 hard-copy institutional matter participates in authoritative prefl
   assert.match(policy, /PrintInstitutionalContentTooLong/);
   assert.match(view, /data-brochure-approved-print-content/);
   assert.match(js, /updatePrintMatterWordCounts/);
-  assert.match(js, /Restore all hard-copy institutional text/);
+  assert.match(js, /Restore all institutional publication text/);
 });
 
 test('phase 8 exposes compact plan estimates in the same publication preflight panel', () => {
@@ -541,7 +541,7 @@ test('phase 16 post-compose verification makes the rendered PDF the final pagina
   assert.match(verifier, /ActualPageCount/);
   assert.match(verifier, /private static string Canonical\(/);
   assert.match(verifier, /Visionary Horizons & Strategic Objectives/);
-  assert.match(page, /printCompositionMismatch/);
+  assert.match(page, /compositionMismatch/);
   assert.match(page, /X-PRISM-Publication-Composition-Verified/);
   assert.match(page, /X-PRISM-Publication-Page-Count/);
 });
@@ -804,4 +804,82 @@ test('phase 19 saved brochure label uses sentence case', () => {
   assert.match(view, /<span>Saved brochure<\/span>/);
   const labelRule = css.slice(css.indexOf('.brochure-preset-control__label'), css.indexOf('.brochure-preset-dirty'));
   assert.match(labelRule, /text-transform:\s*none/);
+});
+
+
+test('phase 20 Digital Comfortable has a dedicated one-or-two-project screen-first planner', () => {
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureLayoutPlanner.cs'), 'utf8');
+  const policy = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureDigitalPublicationPolicy.cs'), 'utf8');
+  assert.match(planner, /PlanDigitalComfortable/);
+  assert.match(planner, /BrochurePageLayoutKind\.TwoFeature/);
+  assert.match(planner, /BrochurePageLayoutKind\.SingleFeature/);
+  assert.match(planner, /maximumCombinedWords = 350/);
+  assert.match(policy, /ProjectPageCount/);
+  assert.match(policy, /InstitutionalPageCount/);
+  assert.match(policy, /EstimatedTotalPageCount/);
+});
+
+test('phase 20 Digital Comfortable adds dedicated institutional opening and closing pages', () => {
+  assert.match(renderer, /ComposeDigitalInstitutionalOpening/);
+  assert.match(renderer, /WHY SIMULATORS/);
+  assert.match(renderer, /FUTURE-READY CAPABILITY/);
+  assert.match(renderer, /ComposeDigitalInstitutionalClosing/);
+  assert.match(renderer, /Future capability & engagement/);
+  assert.match(renderer, /Visionary Horizons & Strategic Objectives/);
+  assert.match(renderer, /PROCUREMENT \/ ENGAGEMENT/);
+  assert.match(renderer, /New Simulators\./);
+});
+
+test('phase 20 Cover A removes the empty montage frame and duplicate edition while Cover B becomes image-led', () => {
+  const coverA = renderer.slice(renderer.indexOf('private static void ComposeInstitutionalCover'), renderer.indexOf('private static void ComposeContemporaryCover'));
+  const coverB = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
+  assert.match(coverA, /Width\(268\)[\s\S]{0,80}Height\(268\)/);
+  assert.doesNotMatch(coverA, /PaddingTop\(14\)\.Text\(data\.Options\.Edition\)/);
+  assert.match(coverB, /CAPABILITY PUBLICATION · CONTEMPORARY EDITION/);
+  assert.match(coverB, /Height\(410\)/);
+  assert.match(coverB, /Selected PRISM project imagery/);
+});
+
+test('phase 20 institutional content is profile-aware in the builder and digital preflight has its own page map', () => {
+  assert.match(view, /Institutional content<\/summary>/);
+  assert.doesNotMatch(view, />Print institutional content</);
+  assert.match(view, /dedicated About SDD and Future capability &amp; engagement pages/);
+  assert.match(view, /data-digital-plan-summary/);
+  assert.match(view, /data-digital-page-map/);
+  assert.match(js, /showDigitalPlan/);
+  assert.match(js, /digitalSingleFeaturePageCount/);
+  assert.match(js, /brochure-digital-page-chip/);
+});
+
+test('phase 20 uses full physical-document numbering and verifies Digital PDFs after composition', () => {
+  const verifier = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePdfCompositionVerifier.cs'), 'utf8');
+  assert.match(renderer, /ConfigureInnerPage\(page, data\.Options, fonts, sddLogo, "PROJECT CAPABILITIES", pageNumber, totalPages\)/);
+  assert.match(renderer, /Text\(\$"\{pageNumber\} \/ \{totalPages\}"\)/);
+  assert.match(renderer, /BrochurePdfCompositionVerifier\.VerifyDigital\(pdfBytes, data, digitalPlan\)/);
+  assert.match(verifier, /public static void VerifyDigital/);
+  assert.match(verifier, /Digital brochure page membership changed after rendering/);
+});
+
+test('phase 20 Digital institutional content has explicit readability limits and optional additional introduction pagination', () => {
+  const policy = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureDigitalPublicationPolicy.cs'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  assert.match(policy, /InstitutionalOpeningMaximumWords = 430/);
+  assert.match(policy, /InstitutionalClosingMaximumWords = 420/);
+  assert.match(policy, /SplitAdditionalIntroduction/);
+  assert.match(policy, /DigitalInstitutionalOpeningTooLong/);
+  assert.match(policy, /DigitalInstitutionalClosingTooLong/);
+  assert.match(service, /ValidateInstitutionalMatter/);
+  assert.match(view, /Additional introduction \(optional\)/);
+});
+
+test('phase 20 Digital image quality follows actual feature, split and premium-cover render geometry', () => {
+  const evaluator = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePhotoPrintQualityEvaluator.cs'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  assert.match(evaluator, /ProjectEditorialSplit = 4/);
+  assert.match(evaluator, /DigitalEditorialSplitMaximumWidthPoints = 225d/);
+  assert.match(evaluator, /DigitalCoverHeroWidthPoints = 543\.276d/);
+  assert.match(evaluator, /\? 1055d[\s\S]{0,40}: 1360d/);
+  assert.match(service, /BuildDigitalPhotoPlacements/);
+  assert.match(service, /PhotoPlacement\.EditorialSplit/);
+  assert.match(js, /1800 \/ \(isPrintCompactProfile\(\) \? 1055 : 1360\)/);
 });

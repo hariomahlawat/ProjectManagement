@@ -65,12 +65,13 @@ public sealed class BrochurePhotoCropTests
     [Fact]
     public void EffectiveCropDimensions_UsesCoverBAspectIndependentlyFromProjectCardAspect()
     {
-        var cover = BrochurePhotoService.EffectiveCropDimensions(2400, 1600, 1800d / 1100d);
+        var cover = BrochurePhotoService.EffectiveCropDimensions(2400, 1600, 1800d / 1360d);
         var card = BrochurePhotoService.EffectiveWideCropDimensions(2400, 1600);
 
         Assert.True(cover.Height > card.Height);
-        Assert.Equal(2400d, cover.Width);
-        Assert.InRange(cover.Height, 1466d, 1467d);
+        Assert.True(cover.Width < card.Width);
+        Assert.Equal(1600d, cover.Height);
+        Assert.InRange(cover.Width, 2117d, 2118d);
     }
 
     [Theory]

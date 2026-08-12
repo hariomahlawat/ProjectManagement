@@ -277,6 +277,78 @@ public sealed class BrochurePdfReportBuilderTests
     }
 
     [Fact]
+    public void Build_DigitalComfortable_ComposesInstitutionalOpeningClosingAndVerifiedPhysicalPageCount()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var environment = new TestWebHostEnvironment(webRoot);
+            var fontService = new FixedFontService();
+            var builder = CreateBuilder(environment, fontService);
+            var projects = Enumerable.Range(1, 4)
+                .Select(id => new BrochurePublicationProject(
+                    id,
+                    $"Digital Capability Project {id}",
+                    "Other R&D Projects",
+                    "AR / VR",
+                    string.Join(" ", Enumerable.Range(1, 150).Select(index => $"word{index}")),
+                    150,
+                    PrimaryPhoto: null,
+                    SecondaryPhoto: null,
+                    ImageMode: BrochureImageMode.Automatic))
+                .ToArray();
+            var matter = new BrochurePrintMatter(
+                "SDD is the Centre of Expertise in AR/VR and niche technologies.",
+                string.Join(" ", Enumerable.Repeat("simulator", 150)),
+                string.Join(" ", Enumerable.Repeat("future", 80)),
+                string.Join(" ", Enumerable.Repeat("procurement", 70)),
+                "Simulator Development Division, Secunderabad.",
+                "515 Army Base Workshop, Bengaluru.",
+                string.Join(" ", Enumerable.Repeat("vision", 80)),
+                string.Join(" ", Enumerable.Repeat("requirement", 35)));
+            var options = new BrochureBuildOptions(
+                "SDD Capability Brochure",
+                "Simulator Development Division",
+                "Capability Edition · 2026",
+                "Simulators of the Army, by the Army, for the Army",
+                BrochureCoverStyle.Institutional,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.DigitalComfortable,
+                IntroductionTitle: null,
+                IntroductionText: null,
+                HandlingMarking: null,
+                IssuerDisplayName: "Simulator Development Division",
+                AllowTextOnlyProjects: true,
+                GeneratedAtUtc: new DateTimeOffset(2026, 8, 12, 14, 0, 0, TimeSpan.Zero),
+                IncludeBackCover: true,
+                PrintIntroText: matter.OpeningNarrative,
+                PrintFutureText: matter.FutureNarrative,
+                PrintProcurementText: matter.ProcurementGuidance,
+                PrintCentreStatement: matter.CentreStatement,
+                PrintDevelopingAgencyText: matter.DevelopingAgency,
+                PrintManufacturingAgencyText: matter.ManufacturingAgency,
+                PrintVisionaryText: matter.VisionaryHorizons,
+                PrintNewSimulatorsText: matter.NewSimulatorsGuidance);
+            var data = new BrochurePublicationData(
+                options,
+                projects,
+                new BrochurePreflight(projects.Length, Array.Empty<BrochurePreflightIssue>()));
+            var expectedPlan = BrochureDigitalPublicationPolicy.Plan(projects, matter, null, includeBackCover: true);
+
+            var bytes = builder.Build(data);
+
+            Assert.Equal(expectedPlan.EstimatedTotalPageCount, BrochurePdfCompositionVerifier.CountPages(bytes));
+            Assert.True(expectedPlan.IncludesInstitutionalOpening);
+            Assert.True(expectedPlan.IncludesInstitutionalClosing);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void SplitIntroduction_KeepsShortCopyOnOnePage()
     {
         const string text = "A concise institutional introduction for the capability publication.";

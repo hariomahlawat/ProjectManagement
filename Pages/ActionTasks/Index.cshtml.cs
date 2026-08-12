@@ -592,8 +592,13 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> GetSprintTasksByStatus(string status)
         => ToDisplayItems(SelectedSprintTasks.Where(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase)).ToList());
 
-    public string ResolveActorName(string performedByUserId)
+    public string ResolveActorName(string? performedByUserId)
     {
+        if (string.IsNullOrWhiteSpace(performedByUserId))
+        {
+            return "System";
+        }
+
         return TaskActorNames.TryGetValue(performedByUserId, out var actorName)
             ? actorName
             : "User";

@@ -56,6 +56,80 @@ public static partial class BrochureLayoutPlanner
         }
     }
 
+    /// <summary>
+    /// Screen-first planner for the Digital / Comfortable profile. It deliberately limits
+    /// composition to one or two projects per page; readability and image prominence win
+    /// over page-count minimisation. Project order remains authoritative.
+    /// </summary>
+    public static IReadOnlyList<BrochurePagePlan> PlanDigitalComfortable(
+        IReadOnlyList<BrochurePublicationProject> projects)
+    {
+        ArgumentNullException.ThrowIfNull(projects);
+
+        var fragments = projects.SelectMany(CreateFragments).ToArray();
+        if (fragments.Length == 0)
+        {
+            return Array.Empty<BrochurePagePlan>();
+        }
+
+        var pages = new List<BrochurePagePlan>();
+        var index = 0;
+        while (index < fragments.Length)
+        {
+            var current = fragments[index];
+            if (IsDigitalForcedFeature(current))
+            {
+                pages.Add(new BrochurePagePlan(
+                    BrochurePageLayoutKind.SingleFeature,
+                    new[] { current }));
+                index++;
+                continue;
+            }
+
+            if (index + 1 < fragments.Length)
+            {
+                var next = fragments[index + 1];
+                if (CanUseDigitalPair(current, next))
+                {
+                    pages.Add(new BrochurePagePlan(
+                        BrochurePageLayoutKind.TwoFeature,
+                        new[] { current, next }));
+                    index += 2;
+                    continue;
+                }
+            }
+
+            pages.Add(new BrochurePagePlan(
+                BrochurePageLayoutKind.SingleFeature,
+                new[] { current }));
+            index++;
+        }
+
+        return pages;
+    }
+
+    private static bool IsDigitalForcedFeature(BrochureProjectFragment fragment)
+        => fragment.FragmentCount > 1
+           || fragment.IsContinuation
+           || fragment.NarrativeWordCount > TwoFeatureMaximumWords
+           || fragment.Project.ImageMode == BrochureImageMode.GalleryTwo;
+
+    private static bool CanUseDigitalPair(
+        BrochureProjectFragment first,
+        BrochureProjectFragment second)
+    {
+        if (IsDigitalForcedFeature(first) || IsDigitalForcedFeature(second))
+        {
+            return false;
+        }
+
+        const int maximumCombinedWords = 350;
+        const int maximumTitleLength = 135;
+        return first.NarrativeWordCount + second.NarrativeWordCount <= maximumCombinedWords
+               && first.Project.ProjectName.Length <= maximumTitleLength
+               && second.Project.ProjectName.Length <= maximumTitleLength;
+    }
+
     public static int CountWords(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? 0

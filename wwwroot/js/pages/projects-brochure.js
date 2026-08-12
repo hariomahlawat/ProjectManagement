@@ -72,6 +72,13 @@
     const printFinalFill = form.querySelector("[data-print-final-fill]");
     const printEstimateClosing = form.querySelector("[data-print-estimate-closing]");
     const printSheetMap = form.querySelector("[data-print-sheet-map]");
+    const digitalPlanSummary = form.querySelector("[data-digital-plan-summary]");
+    const digitalEstimatePages = form.querySelector("[data-digital-estimate-pages]");
+    const digitalProjectPages = form.querySelector("[data-digital-project-pages]");
+    const digitalFeaturePages = form.querySelector("[data-digital-feature-pages]");
+    const digitalPairedPages = form.querySelector("[data-digital-paired-pages]");
+    const digitalInstitutionalPages = form.querySelector("[data-digital-institutional-pages]");
+    const digitalPageMap = form.querySelector("[data-digital-page-map]");
     const smartFlowPanel = form.querySelector("[data-smart-flow]");
     const smartFlowTitle = form.querySelector("[data-smart-flow-title]");
     const smartFlowSummary = form.querySelector("[data-smart-flow-summary]");
@@ -738,6 +745,9 @@
         if (printPlanSummary && !printCompact) {
             printPlanSummary.hidden = true;
         }
+        if (digitalPlanSummary && printCompact) {
+            digitalPlanSummary.hidden = true;
+        }
     };
 
     const createImage = (src, alt = "") => {
@@ -1186,7 +1196,7 @@
             coverHeroCropFrame,
             coverHeroFocalX,
             coverHeroFocalY,
-            1800 / (isPrintCompactProfile() ? 1055 : 1100));
+            1800 / (isPrintCompactProfile() ? 1055 : 1360));
 
         const absolute = new URL(photo.previewUrl, window.location.href).href;
         coverHeroFocalImage.onerror = () => { coverHeroCropPanel.hidden = true; };
@@ -2267,6 +2277,39 @@
             }
         }
 
+        if (digitalPlanSummary) {
+            const showDigitalPlan = !isPrintCompactProfile()
+                && orderedIds.length > 0
+                && Number(result.estimatedPageCount) > 0;
+            digitalPlanSummary.hidden = !showDigitalPlan;
+            if (showDigitalPlan) {
+                if (digitalEstimatePages) digitalEstimatePages.textContent = String(result.estimatedPageCount || "—");
+                if (digitalProjectPages) digitalProjectPages.textContent = String(result.digitalProjectPageCount ?? "—");
+                if (digitalFeaturePages) digitalFeaturePages.textContent = String(result.digitalSingleFeaturePageCount ?? "—");
+                if (digitalPairedPages) digitalPairedPages.textContent = String(result.digitalTwoFeaturePageCount ?? "—");
+                if (digitalInstitutionalPages) digitalInstitutionalPages.textContent = String(result.digitalInstitutionalPageCount ?? "—");
+                if (digitalPageMap) {
+                    digitalPageMap.replaceChildren();
+                    const pages = Array.isArray(result.digitalPagePlan) ? result.digitalPagePlan : [];
+                    pages.forEach(page => {
+                        const chip = document.createElement("div");
+                        chip.className = "brochure-digital-page-chip";
+                        chip.classList.toggle("is-project", page.kind === "projects");
+                        chip.classList.toggle("is-institutional", String(page.kind || "").startsWith("institutional"));
+                        chip.classList.toggle("is-cover", page.kind === "cover" || page.kind === "back-cover");
+                        const label = document.createElement("strong");
+                        label.textContent = `${page.pageNumber}. ${page.label || "Page"}`;
+                        const meta = document.createElement("span");
+                        meta.textContent = page.kind === "projects"
+                            ? `${Number(page.projectCount || 0)} project${Number(page.projectCount || 0) === 1 ? "" : "s"}`
+                            : page.kind === "back-cover" ? "minimal" : "editorial";
+                        chip.append(label, meta);
+                        digitalPageMap.appendChild(chip);
+                    });
+                }
+            }
+        }
+
         renderSmartFlow(result.smartFlowSuggestion ?? null, result);
 
         renderPreflightMessage();
@@ -2591,7 +2634,7 @@
     });
 
     restoreApprovedPrint?.addEventListener("click", () => {
-        const shouldRestore = window.confirm("Restore all hard-copy institutional text to the approved reference wording?");
+        const shouldRestore = window.confirm("Restore all institutional publication text to the approved reference wording?");
         if (!shouldRestore) return;
 
         printMatterFields.forEach(field => {

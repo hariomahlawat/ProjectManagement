@@ -1780,3 +1780,89 @@ body.brochure-modal-open { overflow: hidden; }
     .brochure-preset-control,
     .brochure-preset-diagnostics { display: none !important; }
 }
+
+/* Phase 20 — Digital / Comfortable publication plan */
+.brochure-digital-plan-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .55rem;
+    margin-top: .68rem;
+    padding: .7rem;
+    border: 1px solid #cddfd8;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #f8fbfa 0%, #f3f8f6 100%);
+}
+.brochure-digital-plan-summary[hidden] { display: none !important; }
+.brochure-digital-plan-summary > div {
+    display: grid;
+    gap: .08rem;
+    min-width: 0;
+}
+.brochure-digital-plan-summary > div > span {
+    color: #718079;
+    font-size: .55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+}
+.brochure-digital-plan-summary > div > strong {
+    color: #1f4e3e;
+    font-size: .8rem;
+    line-height: 1.2;
+}
+.brochure-digital-plan-summary > small {
+    grid-column: 1 / -1;
+    padding-top: .28rem;
+    border-top: 1px solid #dce9e4;
+    color: #75847e;
+    font-size: .56rem;
+    line-height: 1.35;
+}
+.brochure-digital-page-map {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+    padding-top: .16rem;
+}
+.brochure-digital-page-chip {
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    gap: .08rem .38rem;
+    align-items: center;
+    padding: .32rem .44rem;
+    border: 1px solid #d6e5df;
+    border-radius: 6px;
+    background: #fff;
+    color: #324a42;
+    font-size: .55rem;
+    line-height: 1.2;
+}
+.brochure-digital-page-chip strong {
+    color: #1f4e3e;
+    font-size: .58rem;
+    font-weight: 760;
+}
+.brochure-digital-page-chip span {
+    color: #74837d;
+    white-space: nowrap;
+}
+.brochure-digital-page-chip.is-project {
+    border-color: #c9ddd5;
+    background: #f7fbf9;
+}
+.brochure-digital-page-chip.is-institutional {
+    border-color: #d9c892;
+    background: #fffaf0;
+}
+.brochure-digital-page-chip.is-cover {
+    border-color: #b8cbc4;
+    background: #eef5f2;
+}
+
+@media (max-width: 1100px) {
+    .brochure-digital-plan-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+    .brochure-digital-plan-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

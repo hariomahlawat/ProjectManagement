@@ -8,7 +8,8 @@ public enum BrochurePhotoPrintPlacement
 {
     ProjectCard = 1,
     ProjectFeature = 2,
-    CoverHero = 3
+    CoverHero = 3,
+    ProjectEditorialSplit = 4
 }
 
 public sealed record BrochurePhotoPrintAssessment(
@@ -32,7 +33,7 @@ public sealed record BrochurePhotoPrintAssessment(
 public static class BrochurePhotoPrintQualityEvaluator
 {
     private const double PointsPerInch = 72d;
-    private const double DigitalA4WidthPoints = 595.276d;
+    private const double DigitalCoverHeroWidthPoints = 543.276d; // A4 width minus 26 pt side gutters
 
     // Print / Compact is intended for hard copy. 240 effective dpi is a conservative warning floor;
     // images above it remain suitable for the small project frames even if they are below a generic
@@ -43,6 +44,7 @@ public static class BrochurePhotoPrintQualityEvaluator
     // Largest frames used by the Digital / Comfortable composer. Evaluating against the largest
     // frame is conservative: if the image passes here, it also passes in smaller card layouts.
     private const double DigitalCardMaximumWidthPoints = 164d;
+    private const double DigitalEditorialSplitMaximumWidthPoints = 225d;
     private const double DigitalFeatureMaximumWidthPoints = 382d;
 
     public static BrochurePhotoPrintAssessment Assess(
@@ -88,7 +90,7 @@ public static class BrochurePhotoPrintQualityEvaluator
 
         var targetHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
             ? 1055d
-            : 1100d;
+            : 1360d;
         return 1800d / targetHeight;
     }
 
@@ -105,8 +107,9 @@ public static class BrochurePhotoPrintQualityEvaluator
 
         return placement switch
         {
-            BrochurePhotoPrintPlacement.CoverHero => DigitalA4WidthPoints,
+            BrochurePhotoPrintPlacement.CoverHero => DigitalCoverHeroWidthPoints,
             BrochurePhotoPrintPlacement.ProjectFeature => DigitalFeatureMaximumWidthPoints,
+            BrochurePhotoPrintPlacement.ProjectEditorialSplit => DigitalEditorialSplitMaximumWidthPoints,
             _ => DigitalCardMaximumWidthPoints
         };
     }
@@ -126,6 +129,7 @@ public static class BrochurePhotoPrintQualityEvaluator
         {
             BrochurePhotoPrintPlacement.CoverHero => "Digital / Comfortable Cover B hero",
             BrochurePhotoPrintPlacement.ProjectFeature => "largest Digital / Comfortable feature frame",
+            BrochurePhotoPrintPlacement.ProjectEditorialSplit => "Digital / Comfortable editorial split frame",
             _ => "largest Digital / Comfortable project card"
         };
     }

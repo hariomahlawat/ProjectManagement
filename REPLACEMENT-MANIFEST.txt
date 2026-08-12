@@ -1,29 +1,29 @@
-PRISM Capability Brochure Phase 19A — Print / Compact Finalisation
-=================================================================
-
-Apply on top of the Phase 18 Shared Saved Brochures implementation.
+PRISM Brochure Phase 20 - Digital / Comfortable Editorial Publication
 
 REPLACE
--------
 Pages/Projects/Publications/Brochure/Index.cshtml
-Services/Publications/BrochurePrintLayoutMetrics.cs
-Services/Publications/BrochurePrintMeasurementService.cs
-Utilities/Reporting/BrochurePrintCompactComposer.cs
+Pages/Projects/Publications/Brochure/Index.cshtml.cs
+Services/Publications/BrochureContracts.cs
+Services/Publications/BrochureLayoutPlanner.cs
+Services/Publications/BrochurePublicationService.cs
+Services/Publications/BrochurePhotoPrintQualityEvaluator.cs
+Utilities/Reporting/BrochurePdfReportBuilder.cs
+Utilities/Reporting/BrochurePdfCompositionVerifier.cs
 wwwroot/css/pages/projects-publications.css
 wwwroot/js/pages/projects-brochure.js
 wwwroot/js/projects/publications-brochure-contract.test.js
-ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
+ProjectManagement.Tests/Publications/BrochureLayoutPlannerTests.cs
+ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+ProjectManagement.Tests/Publications/BrochurePhotoPrintQualityEvaluatorTests.cs
+ProjectManagement.Tests/Publications/BrochurePhotoCropTests.cs
 
 ADD
----
-tools/Test-PrismPublicationsPhase19.ps1
+Services/Publications/BrochureDigitalPublicationPolicy.cs
+ProjectManagement.Tests/Publications/BrochureDigitalPublicationPolicyTests.cs
+tools/Test-PrismPublicationsPhase20.ps1
 
-NO DATABASE OR DEPENDENCY CHANGE
---------------------------------
-No EF migration.
-No NuGet package change.
-No npm package change.
-No change to the 9 pt Print / Compact typography floor.
-No change to project-card pagination geometry.
-No change to effective-DPI thresholds.
-No change to publication approval, preflight or physical PDF verification policy.
+NO CHANGE REQUIRED
+- Database schema / EF migration
+- NuGet packages
+- npm packages
+- Phase 19 Print / Compact compositor geometry

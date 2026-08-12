@@ -31,9 +31,9 @@ public sealed class BrochurePdfCompositionException : InvalidOperationException
 }
 
 /// <summary>
-/// Post-composition contract for Print / Compact. The planner decides page membership; after
-/// QuestPDF has generated the bytes we re-open that exact PDF and verify both physical page count
-/// and project-title membership. This catches renderer pagination drift before preview/download.
+/// Post-composition contract for both brochure profiles. The selected profile planner decides page
+/// membership; after QuestPDF has generated the bytes we re-open that exact PDF and verify the
+/// physical page count and planned content membership before preview/download is allowed.
 /// </summary>
 internal static class BrochurePdfCompositionVerifier
 {
@@ -128,6 +128,105 @@ internal static class BrochurePdfCompositionVerifier
                 }
             }
         }
+    }
+
+    public static void VerifyDigital(
+        byte[] pdfBytes,
+        BrochurePublicationData data,
+        BrochureDigitalPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(pdfBytes);
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(plan);
+
+        using var stream = new MemoryStream(pdfBytes, writable: false);
+        using var document = PdfDocument.Open(stream);
+        var pages = document.GetPages().ToArray();
+        var actualPageCount = pages.Length;
+        var expectedPageCount = plan.EstimatedTotalPageCount;
+        if (actualPageCount != expectedPageCount)
+        {
+            throw new BrochurePdfCompositionException(
+                $"Digital brochure composition drifted after rendering: preflight planned {expectedPageCount} physical page{Plural(expectedPageCount)}, but the generated PDF contains {actualPageCount}. The PDF was not issued.",
+                expectedPageCount,
+                actualPageCount);
+        }
+
+        var canonicalPages = pages.Select(page => Canonical(page.Text)).ToArray();
+
+        if (plan.InstitutionalOpeningPageNumber.HasValue)
+        {
+            VerifyHeadingOnPage(
+                canonicalPages,
+                "Simulator Development Division",
+                plan.InstitutionalOpeningPageNumber.Value,
+                expectedPageCount,
+                actualPageCount,
+                "Digital institutional opening");
+        }
+
+        for (var index = 0; index < plan.ProjectPages.Count; index++)
+        {
+            var plannedPage = plan.ProjectPages[index];
+            var physicalPageNumber = plan.ProjectPageNumbers[index];
+            var pageText = canonicalPages[physicalPageNumber - 1];
+            foreach (var fragment in plannedPage.Items)
+            {
+                var title = Canonical(fragment.Project.ProjectName);
+                if (title.Length < 3 || pageText.Contains(title, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var actualPhysicalPage = FindPage(canonicalPages, title);
+                var location = actualPhysicalPage.HasValue
+                    ? $" It rendered on physical page {actualPhysicalPage.Value}."
+                    : " Its title could not be located in the generated PDF.";
+                throw new BrochurePdfCompositionException(
+                    $"Digital brochure page membership changed after rendering for '{fragment.Project.ProjectName}'. Preflight assigned the project to physical page {physicalPageNumber}.{location} The PDF was not issued.",
+                    expectedPageCount,
+                    actualPageCount,
+                    physicalPageNumber,
+                    fragment.Project.ProjectName);
+            }
+        }
+
+        if (plan.InstitutionalClosingPageNumber.HasValue)
+        {
+            VerifyHeadingOnPage(
+                canonicalPages,
+                ClosingHeading,
+                plan.InstitutionalClosingPageNumber.Value,
+                expectedPageCount,
+                actualPageCount,
+                "Digital institutional closing");
+        }
+    }
+
+    private static void VerifyHeadingOnPage(
+        IReadOnlyList<string> canonicalPages,
+        string heading,
+        int physicalPageNumber,
+        int expectedPageCount,
+        int actualPageCount,
+        string description)
+    {
+        var canonicalHeading = Canonical(heading);
+        var pageText = canonicalPages[physicalPageNumber - 1];
+        if (pageText.Contains(canonicalHeading, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var actualPage = FindPage(canonicalPages, canonicalHeading);
+        var location = actualPage.HasValue
+            ? $" It rendered on physical page {actualPage.Value}."
+            : " The expected heading could not be located in the generated PDF.";
+        throw new BrochurePdfCompositionException(
+            $"{description} changed page after rendering. Preflight assigned it to physical page {physicalPageNumber}.{location} The PDF was not issued.",
+            expectedPageCount,
+            actualPageCount,
+            physicalPageNumber);
     }
 
     private static int? FindPage(IReadOnlyList<string> canonicalPages, string canonicalNeedle)
