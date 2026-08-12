@@ -59,7 +59,7 @@ public interface IBrochurePresetService
 /// </summary>
 public sealed class BrochurePresetService : IBrochurePresetService
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private const int MaximumProjects = 100;
 
     private readonly ApplicationDbContext _db;
@@ -240,32 +240,41 @@ public sealed class BrochurePresetService : IBrochurePresetService
         }
 
         var configuration = new BrochurePresetConfiguration(
-            RequireStoredText(preset.Title, "brochure title"),
-            RequireStoredText(preset.Subtitle, "brochure subtitle"),
-            RequireStoredText(preset.Edition, "brochure edition"),
-            RequireStoredText(preset.Strapline, "brochure strapline"),
-            ParseEnum(preset.CoverStyle, BrochureCoverStyle.Institutional),
-            ParseEnum(preset.InstitutionalCoverArtwork, BrochureInstitutionalCoverArtwork.ReferenceOriginal),
-            ParseEnum(preset.NarrativeSource, BrochureNarrativeSource.ProjectBrief),
-            ParseEnum(preset.PublicationProfile, BrochurePublicationProfile.PrintCompact),
-            preset.IntroductionTitle,
-            preset.IntroductionText,
-            preset.PrintIntroText,
-            preset.PrintFutureText,
-            preset.PrintProcurementText,
-            preset.PrintCentreStatement,
-            preset.PrintDevelopingAgencyText,
-            preset.PrintManufacturingAgencyText,
-            preset.PrintVisionaryText,
-            preset.PrintNewSimulatorsText,
-            preset.HandlingMarking,
-            preset.AllowTextOnlyProjects,
-            preset.IncludeBackCover,
-            coverHeroProjectId,
-            coverHeroPhotoId,
-            coverHeroProjectId is null ? .5d : ClampFocal(preset.CoverHeroFocalX),
-            coverHeroProjectId is null ? .5d : ClampFocal(preset.CoverHeroFocalY),
-            projects);
+            Title: RequireStoredText(preset.Title, "brochure title"),
+            Subtitle: RequireStoredText(preset.Subtitle, "brochure subtitle"),
+            Edition: RequireStoredText(preset.Edition, "brochure edition"),
+            Strapline: RequireStoredText(preset.Strapline, "brochure strapline"),
+            CoverStyle: ParseEnum(preset.CoverStyle, BrochureCoverStyle.Institutional),
+            InstitutionalCoverArtwork: ParseEnum(preset.InstitutionalCoverArtwork, BrochureInstitutionalCoverArtwork.ReferenceOriginal),
+            NarrativeSource: ParseEnum(preset.NarrativeSource, BrochureNarrativeSource.ProjectBrief),
+            PublicationProfile: ParseEnum(preset.PublicationProfile, BrochurePublicationProfile.PrintCompact),
+            IntroductionTitle: preset.IntroductionTitle,
+            IntroductionText: preset.IntroductionText,
+            PrintIntroText: preset.PrintIntroText,
+            PrintFutureText: preset.PrintFutureText,
+            PrintProcurementText: preset.PrintProcurementText,
+            PrintCentreStatement: preset.PrintCentreStatement,
+            PrintDevelopingAgencyText: preset.PrintDevelopingAgencyText,
+            PrintManufacturingAgencyText: preset.PrintManufacturingAgencyText,
+            PrintVisionaryText: preset.PrintVisionaryText,
+            PrintNewSimulatorsText: preset.PrintNewSimulatorsText,
+            HandlingMarking: preset.HandlingMarking,
+            AllowTextOnlyProjects: preset.AllowTextOnlyProjects,
+            IncludeBackCover: preset.IncludeBackCover,
+            CoverHeroProjectId: coverHeroProjectId,
+            CoverHeroPhotoId: coverHeroPhotoId,
+            CoverHeroFocalX: coverHeroProjectId is null ? .5d : ClampFocal(preset.CoverHeroFocalX),
+            CoverHeroFocalY: coverHeroProjectId is null ? .5d : ClampFocal(preset.CoverHeroFocalY),
+            Projects: projects,
+            FrontCoverKicker: preset.FrontCoverKicker,
+            FrontCoverDescriptor: preset.FrontCoverDescriptor,
+            ShowFrontCoverTitle: preset.ShowFrontCoverTitle,
+            ShowFrontCoverSubtitle: preset.ShowFrontCoverSubtitle,
+            ShowFrontCoverEdition: preset.ShowFrontCoverEdition,
+            ShowFrontCoverStrapline: preset.ShowFrontCoverStrapline,
+            BackCoverKicker: preset.BackCoverKicker,
+            BackCoverStrapline: preset.BackCoverStrapline,
+            BackCoverEdition: preset.BackCoverEdition);
 
         return new BrochurePresetLoadResult(
             ToSummary(preset),
@@ -679,6 +688,11 @@ public sealed class BrochurePresetService : IBrochurePresetService
             Subtitle = RequireText(configuration.Subtitle, 160, "Brochure subtitle"),
             Edition = RequireText(configuration.Edition, 80, "Brochure edition"),
             Strapline = RequireText(configuration.Strapline, 180, "Cover strapline"),
+            FrontCoverKicker = NormalizeOptional(configuration.FrontCoverKicker, 120),
+            FrontCoverDescriptor = NormalizeOptional(configuration.FrontCoverDescriptor, 160),
+            BackCoverKicker = NormalizeOptional(configuration.BackCoverKicker, 120),
+            BackCoverStrapline = NormalizeOptional(configuration.BackCoverStrapline, 180),
+            BackCoverEdition = NormalizeOptional(configuration.BackCoverEdition, 80),
             IntroductionTitle = NormalizeOptional(configuration.IntroductionTitle, 120),
             IntroductionText = NormalizeOptional(configuration.IntroductionText, 3000, preserveLineBreaks: true),
             PrintIntroText = NormalizeOptional(configuration.PrintIntroText, 5000, preserveLineBreaks: true),
@@ -733,6 +747,15 @@ public sealed class BrochurePresetService : IBrochurePresetService
         preset.Subtitle = configuration.Subtitle;
         preset.Edition = configuration.Edition;
         preset.Strapline = configuration.Strapline;
+        preset.FrontCoverKicker = configuration.FrontCoverKicker;
+        preset.FrontCoverDescriptor = configuration.FrontCoverDescriptor;
+        preset.ShowFrontCoverTitle = configuration.ShowFrontCoverTitle;
+        preset.ShowFrontCoverSubtitle = configuration.ShowFrontCoverSubtitle;
+        preset.ShowFrontCoverEdition = configuration.ShowFrontCoverEdition;
+        preset.ShowFrontCoverStrapline = configuration.ShowFrontCoverStrapline;
+        preset.BackCoverKicker = configuration.BackCoverKicker;
+        preset.BackCoverStrapline = configuration.BackCoverStrapline;
+        preset.BackCoverEdition = configuration.BackCoverEdition;
         preset.CoverStyle = configuration.CoverStyle.ToString();
         preset.InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork.ToString();
         preset.NarrativeSource = configuration.NarrativeSource.ToString();
@@ -781,6 +804,15 @@ public sealed class BrochurePresetService : IBrochurePresetService
             Subtitle = source.Subtitle,
             Edition = source.Edition,
             Strapline = source.Strapline,
+            FrontCoverKicker = source.FrontCoverKicker,
+            FrontCoverDescriptor = source.FrontCoverDescriptor,
+            ShowFrontCoverTitle = source.ShowFrontCoverTitle,
+            ShowFrontCoverSubtitle = source.ShowFrontCoverSubtitle,
+            ShowFrontCoverEdition = source.ShowFrontCoverEdition,
+            ShowFrontCoverStrapline = source.ShowFrontCoverStrapline,
+            BackCoverKicker = source.BackCoverKicker,
+            BackCoverStrapline = source.BackCoverStrapline,
+            BackCoverEdition = source.BackCoverEdition,
             CoverStyle = source.CoverStyle,
             InstitutionalCoverArtwork = source.InstitutionalCoverArtwork,
             NarrativeSource = source.NarrativeSource,

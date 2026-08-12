@@ -63,7 +63,16 @@ public sealed record BrochurePresetConfiguration(
     int? CoverHeroPhotoId,
     double CoverHeroFocalX,
     double CoverHeroFocalY,
-    IReadOnlyList<BrochurePresetProjectConfiguration> Projects);
+    IReadOnlyList<BrochurePresetProjectConfiguration> Projects,
+    string? FrontCoverKicker = null,
+    string? FrontCoverDescriptor = null,
+    bool ShowFrontCoverTitle = true,
+    bool ShowFrontCoverSubtitle = true,
+    bool ShowFrontCoverEdition = true,
+    bool ShowFrontCoverStrapline = true,
+    string? BackCoverKicker = null,
+    string? BackCoverStrapline = null,
+    string? BackCoverEdition = null);
 
 public sealed record BrochurePresetLoadResult(
     BrochurePresetSummaryVm Preset,

@@ -1,16 +1,17 @@
-PRISM Publications Phase 20.3 validation
-========================================
+PRISM Brochure Builder — Phase 21 validation performed in the packaging environment
 
-PASS  ComposeContemporaryCover contains exactly one QuestPDF PrimaryLayer.
-PASS  PrimaryLayer is the full-page Forest950 institutional field.
-PASS  Existing Cover B geometry/overlay structure remains unchanged.
-PASS  Structured pdfCompositionFailed diagnostic code added for unexpected HTTP 500 composition failures.
-PASS  Targeted C# Cover B hero-byte runtime regression test added.
-PASS  BrochurePagePlan.Items Phase 20.1 correction retained.
 PASS  node --check wwwroot/js/pages/projects-brochure.js
-PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js: 89 passed, 0 failed.
+PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
+      98 tests passed, 0 failed
+PASS  Changed C# source structural delimiter scan (17 changed/new .cs files)
+PASS  No stale BrochurePagePlan.Fragments references
+PASS  No active Pages/Views/CSS/JS references to fonts.googleapis.com or fonts.gstatic.com
+PASS  No known system-owned cover fallback copy remains in BrochurePdfReportBuilder
+PASS  Phase 21 migration ID appears exactly once in immutable-migration-ids.txt
+PASS  Digital KPI uses EditorialPageCount / DigitalEditorialPageCount
+PASS  Cover B low-DPI issue has dedicated LowResolutionCoverHero routing
+PASS  Shared Saved Brochure schema version advanced to 2
+PASS  Cover B still contains exactly the Phase 20.3 PrimaryLayer contract (guarded by JS contract tests)
 
-NOT RUN HERE
-------------
-dotnet build / dotnet test: .NET SDK is not installed in this execution environment.
-Run tools/Test-PrismPublicationsPhase20_3.ps1 on the development machine.
+NOT EXECUTED HERE
+The .NET SDK is not installed in this environment, so dotnet build and dotnet test could not be executed. Test-PrismPublicationsPhase21.ps1 runs both automatically when dotnet is available on the development machine.

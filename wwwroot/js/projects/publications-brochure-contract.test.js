@@ -124,8 +124,8 @@ test('phase 5 selection wording refers to matching projects, not viewport visibi
 
 test('phase 6 renderer uses independent Cover B artwork with finalised full-page geometry', () => {
   assert.match(renderer, /var hero = data\.CoverHeroImage\?\.Content/);
-  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,220}PaddingBottom\(88\)[\s\S]{0,180}Height\(410\)/);
-  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,120}Height\(88\)[\s\S]{0,140}Background\("#082A26"\)/);
+  assert.match(renderer, /AlignBottom\(\)[\s\S]{0,220}PaddingBottom\(108\)[\s\S]{0,180}Height\(410\)/);
+  assert.match(renderer, /Height\(showFrontStrapline \? 88 : 24\)[\s\S]{0,180}Background\("#082A26"\)/);
   const contemporary = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
   assert.doesNotMatch(contemporary, /Generated from authoritative PRISM records/);
   const primaryLayers = contemporary.match(/layers\.PrimaryLayer\(\)/g) ?? [];
@@ -138,7 +138,7 @@ test('phase 6 renderer gives two-project pages adaptive imagery and SingleFeatur
   assert.match(renderer, /<= 125 => \(225f, 145f, 112f\)/);
   assert.match(renderer, /<= 155 => \(215f, 132f, 108f\)/);
   assert.match(renderer, /ComposeSingleFeaturePage/);
-  assert.match(renderer, /Width\(445\)\.Height\(250\)/);
+  assert.match(renderer, /singleHeroWidth[\s\S]{0,220}singleHeroHeight = singleHeroWidth \* 9f \/ 16f/);
   assert.match(renderer, /imageOnRight:\s*index % 2 == 0/);
 });
 
@@ -818,7 +818,7 @@ test('phase 20 Digital Comfortable has a dedicated one-or-two-project screen-fir
   assert.match(planner, /BrochurePageLayoutKind\.SingleFeature/);
   assert.match(planner, /maximumCombinedWords = 350/);
   assert.match(policy, /ProjectPageCount/);
-  assert.match(policy, /InstitutionalPageCount/);
+  assert.match(policy, /EditorialPageCount/);
   assert.match(policy, /EstimatedTotalPageCount/);
 });
 
@@ -838,9 +838,9 @@ test('phase 20 Cover A removes the empty montage frame and duplicate edition whi
   const coverB = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
   assert.match(coverA, /Width\(268\)[\s\S]{0,80}Height\(268\)/);
   assert.doesNotMatch(coverA, /PaddingTop\(14\)\.Text\(data\.Options\.Edition\)/);
-  assert.match(coverB, /CAPABILITY PUBLICATION · CONTEMPORARY EDITION/);
+  assert.match(coverB, /FrontCoverDescriptor/);
   assert.match(coverB, /Height\(410\)/);
-  assert.match(coverB, /Selected PRISM project imagery/);
+  assert.doesNotMatch(coverB, /Selected PRISM project imagery/);
 });
 
 test('phase 20 institutional content is profile-aware in the builder and digital preflight has its own page map', () => {
@@ -963,4 +963,98 @@ test('phase 20.2 publication photo rendering treats ImageSharp processing failur
   assert.match(photoService, /ArgumentException/);
   assert.match(photoService, /NotSupportedException/);
   assert.match(photoService, /StartsWith\("SixLabors\.ImageSharp\."/);
+});
+
+
+test('phase 21 makes every PRISM-added Digital front/back cover line editable or suppressible', () => {
+  const contracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureContracts.cs'), 'utf8');
+  const preset = fs.readFileSync(path.join(root, 'Models', 'Publications', 'BrochurePreset.cs'), 'utf8');
+  const coverB = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
+  const back = renderer.slice(renderer.indexOf('private static void ComposeBackCover'), renderer.indexOf('private byte[]? TryLoadInstitutionalArtwork'));
+  assert.match(view, /Digital cover text/);
+  assert.match(view, /Input\.FrontCoverKicker/);
+  assert.match(view, /Input\.FrontCoverDescriptor/);
+  assert.match(view, /Input\.ShowFrontCoverTitle/);
+  assert.match(view, /Input\.BackCoverKicker/);
+  assert.match(view, /Input\.BackCoverStrapline/);
+  assert.match(view, /Input\.BackCoverEdition/);
+  assert.match(contracts, /FrontCoverKicker/);
+  assert.match(contracts, /ShowFrontCoverStrapline/);
+  assert.match(preset, /BackCoverEdition/);
+  assert.doesNotMatch(coverB, /Selected PRISM project imagery/);
+  assert.doesNotMatch(coverB, /CAPABILITY PUBLICATION · CONTEMPORARY EDITION/);
+  assert.doesNotMatch(back, /Text\("SIMULATOR DEVELOPMENT DIVISION"\)/);
+  assert.match(back, /BackCoverKicker/);
+  assert.match(back, /BackCoverStrapline/);
+  assert.match(back, /BackCoverEdition/);
+});
+
+test('phase 21 cover copy is durable shared-brochure state and has an additive migration', () => {
+  const migration = fs.readFileSync(path.join(root, 'Migrations', '20261208110000_AddBrochureCoverTextControls.cs'), 'utf8');
+  const immutable = fs.readFileSync(path.join(root, 'Migrations', 'immutable-migration-ids.txt'), 'utf8');
+  assert.match(js, /"Input\.FrontCoverKicker"/);
+  assert.match(js, /"Input\.ShowFrontCoverTitle"/);
+  assert.match(js, /"Input\.BackCoverStrapline"/);
+  assert.match(migration, /FrontCoverKicker/);
+  assert.match(migration, /BackCoverStrapline/);
+  assert.match(migration, /SettingsSchemaVersion/);
+  assert.match(immutable, /20261208110000_AddBrochureCoverTextControls/);
+});
+
+test('phase 21 front-cover copy changes invalidate the exact Cover B approval fingerprint', () => {
+  const fingerprint = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureReviewFingerprint.cs'), 'utf8');
+  assert.match(fingerprint, /brochure-cover-review-v2/);
+  assert.match(fingerprint, /context\.FrontCoverKicker/);
+  assert.match(fingerprint, /context\.FrontCoverDescriptor/);
+  assert.match(fingerprint, /context\.ShowFrontCoverTitle/);
+  assert.match(js, /Input\.FrontCoverKicker/);
+  assert.match(js, /Input\.ShowFrontCoverStrapline/);
+});
+
+test('phase 21 Digital feature pages adapt hero size without lowering comfortable body typography', () => {
+  const feature = renderer.slice(renderer.indexOf('private static void ComposeSingleFeaturePage'), renderer.indexOf('private static void ComposeProjectCard'));
+  assert.match(feature, /digitalBodyMinimum = 10\.2f/);
+  assert.match(feature, /<= 165 => 500f/);
+  assert.match(feature, /<= 200 => 470f/);
+  assert.match(feature, /singleHeroHeight = singleHeroWidth \* 9f \/ 16f/);
+  assert.match(feature, /galleryItemWidth/);
+  assert.match(feature, /galleryHeight = galleryItemWidth \* 9f \/ 16f/);
+});
+
+test('phase 21 About SDD uses exact institutional-artwork geometry and avoids immediate Cover A repetition', () => {
+  const opening = renderer.slice(renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'), renderer.indexOf('private static void ComposeAdditionalIntroductionPage'));
+  assert.match(opening, /CoverStyle == BrochureCoverStyle\.Contemporary/);
+  assert.match(opening, /Width\(174\)\.Height\(139\.2f\)/);
+  assert.match(opening, /showInstitutionalArtwork/);
+});
+
+test('phase 21 Digital readiness reports all non-project pages as Editorial pages', () => {
+  const policy = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureDigitalPublicationPolicy.cs'), 'utf8');
+  assert.match(view, /<span>Editorial pages<\/span><strong data-digital-editorial-pages>/);
+  assert.match(js, /digitalEditorialPageCount/);
+  assert.match(policy, /EditorialPageCount/);
+  assert.match(policy, /1 \+ \(includeOpening \? 1 : 0\)/);
+});
+
+test('phase 21 cover-hero quality finding is routed to Fix cover rather than the project image editor', () => {
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  assert.match(service, /BrochurePreflightIssueCode\.LowResolutionCoverHero/);
+  assert.match(js, /"LowResolutionCoverHero"/);
+  assert.match(js, /issue\.code === "LowResolutionCoverHero"/);
+  assert.match(js, /fixCover\.textContent = "Fix cover"/);
+});
+
+test('phase 21 Cover B automatic action is explicit and PDF verification remains profile-neutral', () => {
+  assert.match(view, />Use automatic hero</);
+  const verification = js.slice(js.indexOf('const renderPdfVerification'), js.indexOf('const updateButtons'));
+  assert.match(verification, /PDF verified ·/);
+  assert.doesNotMatch(verification, /isPrintCompactProfile/);
+});
+
+test('phase 21 cover image fallbacks are graphic-only and never inject uneditable system copy', () => {
+  const montage = renderer.slice(renderer.indexOf('private static void ComposeCoverPhotoMontage'), renderer.indexOf('private static void ComposeBackCover'));
+  assert.doesNotMatch(montage, /SDD · PRISM/);
+  assert.doesNotMatch(montage, /SIMULATORS · AI · AR\/VR · ROBOTICS · DRONES/);
+  assert.doesNotMatch(montage, /Capability imagery is drawn from/);
+  assert.match(montage, /Deliberately graphic-only/);
 });

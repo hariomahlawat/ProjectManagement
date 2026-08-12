@@ -1910,3 +1910,81 @@ body.brochure-modal-open { overflow: hidden; }
 @media (max-width: 720px) {
     .brochure-digital-plan-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Phase 21 — editable Digital front/back cover copy */
+.brochure-cover-text {
+    margin-top: .78rem;
+    border: 1px solid #dfe8e5;
+    border-radius: 10px;
+    background: #fafcfc;
+}
+.brochure-cover-text > summary {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .58rem .7rem;
+    color: #52655f;
+    font-size: .69rem;
+    font-weight: 730;
+    cursor: pointer;
+    list-style: none;
+}
+.brochure-cover-text > summary::-webkit-details-marker { display: none; }
+.brochure-cover-text[open] > summary { border-bottom: 1px solid #e2eae7; }
+.brochure-cover-text__note {
+    display: flex;
+    gap: .48rem;
+    align-items: flex-start;
+    margin: .62rem .7rem 0;
+    padding: .55rem .62rem;
+    border: 1px solid #dce9e4;
+    border-radius: 8px;
+    background: #f4f9f7;
+    color: #60736c;
+    font-size: .59rem;
+    line-height: 1.36;
+}
+.brochure-cover-text__note i { color: #2f725e; margin-top: .05rem; }
+.brochure-cover-text-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+    padding: .7rem;
+}
+.brochure-cover-text-group {
+    min-width: 0;
+    padding: .68rem;
+    border: 1px solid #e1e9e6;
+    border-radius: 9px;
+    background: #fff;
+}
+.brochure-cover-text-group h3 {
+    margin: 0 0 .58rem;
+    color: #234438;
+    font-size: .72rem;
+    font-weight: 760;
+}
+.brochure-cover-text-group > small,
+.brochure-cover-text-group .brochure-field > span small {
+    color: #7b8984;
+    font-size: .55rem;
+    font-weight: 500;
+}
+.brochure-cover-visibility {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .36rem .65rem;
+    margin: .2rem 0 .55rem;
+}
+.brochure-cover-visibility label {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+    color: #40564e;
+    font-size: .61rem;
+    font-weight: 650;
+}
+@media (max-width: 900px) {
+    .brochure-cover-text-grid { grid-template-columns: 1fr; }
+}

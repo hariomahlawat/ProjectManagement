@@ -557,6 +557,15 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.Subtitle).HasMaxLength(160).IsRequired();
                 entity.Property(preset => preset.Edition).HasMaxLength(80).IsRequired();
                 entity.Property(preset => preset.Strapline).HasMaxLength(180).IsRequired();
+                entity.Property(preset => preset.FrontCoverKicker).HasMaxLength(120);
+                entity.Property(preset => preset.FrontCoverDescriptor).HasMaxLength(160);
+                entity.Property(preset => preset.BackCoverKicker).HasMaxLength(120);
+                entity.Property(preset => preset.BackCoverStrapline).HasMaxLength(180);
+                entity.Property(preset => preset.BackCoverEdition).HasMaxLength(80);
+                entity.Property(preset => preset.ShowFrontCoverTitle).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontCoverSubtitle).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontCoverEdition).HasDefaultValue(true).IsRequired();
+                entity.Property(preset => preset.ShowFrontCoverStrapline).HasDefaultValue(true).IsRequired();
                 entity.Property(preset => preset.CoverStyle).HasMaxLength(32).IsRequired();
                 entity.Property(preset => preset.InstitutionalCoverArtwork).HasMaxLength(48).IsRequired();
                 entity.Property(preset => preset.NarrativeSource).HasMaxLength(32).IsRequired();
@@ -574,7 +583,7 @@ namespace ProjectManagement.Data
                 entity.Property(preset => preset.HandlingMarking).HasMaxLength(80);
                 entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
                 entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
-                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(1).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(2).IsRequired();
                 entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
                 ConfigureRowVersion(entity);
 

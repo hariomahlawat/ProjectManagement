@@ -5043,6 +5043,18 @@ namespace ProjectManagement.Migrations
                     b.Property<bool>("AllowTextOnlyProjects")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("BackCoverEdition")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("BackCoverKicker")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("BackCoverStrapline")
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
                     b.Property<int?>("CoverHeroPhotoId")
                         .HasColumnType("integer");
 
@@ -5076,6 +5088,14 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
+
+                    b.Property<string>("FrontCoverDescriptor")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("FrontCoverKicker")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<string>("HandlingMarking")
                         .HasMaxLength(80)
@@ -5167,7 +5187,27 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("SettingsSchemaVersion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasDefaultValue(1);
+                        .HasDefaultValue(2);
+
+                    b.Property<bool>("ShowFrontCoverEdition")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("ShowFrontCoverStrapline")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("ShowFrontCoverSubtitle")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("ShowFrontCoverTitle")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Strapline")
                         .IsRequired()

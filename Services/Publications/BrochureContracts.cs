@@ -126,7 +126,8 @@ public enum BrochurePreflightIssueCode
     DigitalInstitutionalOpeningMissing = 28,
     DigitalInstitutionalClosingMissing = 29,
     DigitalInstitutionalOpeningTooLong = 30,
-    DigitalInstitutionalClosingTooLong = 31
+    DigitalInstitutionalClosingTooLong = 31,
+    LowResolutionCoverHero = 32
 }
 
 
@@ -362,7 +363,13 @@ public sealed record BrochureCoverReviewContext(
     string Subtitle,
     string Edition,
     string Strapline,
-    string? HandlingMarking);
+    string? HandlingMarking,
+    string? FrontCoverKicker = null,
+    string? FrontCoverDescriptor = null,
+    bool ShowFrontCoverTitle = true,
+    bool ShowFrontCoverSubtitle = true,
+    bool ShowFrontCoverEdition = true,
+    bool ShowFrontCoverStrapline = true);
 
 public sealed record BrochureProjectReviewFingerprint(
     int ProjectId,
@@ -447,7 +454,16 @@ public sealed record BrochureBuildOptions(
     BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork = BrochureInstitutionalCoverArtwork.ReferenceOriginal,
     bool RequirePublicationReview = false,
     bool CoverReviewed = false,
-    string? CoverReviewFingerprint = null);
+    string? CoverReviewFingerprint = null,
+    string? FrontCoverKicker = null,
+    string? FrontCoverDescriptor = null,
+    bool ShowFrontCoverTitle = true,
+    bool ShowFrontCoverSubtitle = true,
+    bool ShowFrontCoverEdition = true,
+    bool ShowFrontCoverStrapline = true,
+    string? BackCoverKicker = null,
+    string? BackCoverStrapline = null,
+    string? BackCoverEdition = null);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,
@@ -476,7 +492,7 @@ public sealed record BrochurePreflight(
     int? DigitalProjectPageCount = null,
     int? DigitalSingleFeaturePageCount = null,
     int? DigitalTwoFeaturePageCount = null,
-    int? DigitalInstitutionalPageCount = null,
+    int? DigitalEditorialPageCount = null,
     IReadOnlyList<BrochureDigitalPageSummary>? DigitalPagePlan = null,
     IReadOnlyList<BrochureProjectReviewFingerprint>? ProjectReviewFingerprints = null,
     string? CoverReviewFingerprint = null)

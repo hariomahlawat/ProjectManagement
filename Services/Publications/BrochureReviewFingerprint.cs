@@ -59,12 +59,18 @@ public static class BrochureReviewFingerprint
         ArgumentNullException.ThrowIfNull(context);
 
         return Hash(
-            "brochure-cover-review-v1",
+            "brochure-cover-review-v2",
             context.Title,
             context.Subtitle,
             context.Edition,
             context.Strapline,
             context.HandlingMarking,
+            context.FrontCoverKicker,
+            context.FrontCoverDescriptor,
+            context.ShowFrontCoverTitle ? "1" : "0",
+            context.ShowFrontCoverSubtitle ? "1" : "0",
+            context.ShowFrontCoverEdition ? "1" : "0",
+            context.ShowFrontCoverStrapline ? "1" : "0",
             ((int)publicationProfile).ToString(CultureInfo.InvariantCulture),
             heroProjectId.ToString(CultureInfo.InvariantCulture),
             heroPhotoId.ToString(CultureInfo.InvariantCulture),

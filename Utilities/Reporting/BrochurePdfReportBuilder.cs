@@ -242,15 +242,21 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     {
                         row.RelativeItem().Column(lockup =>
                         {
-                            lockup.Item().Text(data.Options.IssuerDisplayName.ToUpperInvariant())
-                                .FontSize(11)
-                                .SemiBold()
-                                .LetterSpacing(.7f)
-                                .FontColor("#DCE9E5");
-                            lockup.Item().PaddingTop(3).Text("OFFICIAL CAPABILITY PUBLICATION")
-                                .FontSize(7.5f)
-                                .LetterSpacing(1.1f)
-                                .FontColor("#90B6AA");
+                            if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverKicker))
+                            {
+                                lockup.Item().Text(data.Options.FrontCoverKicker!)
+                                    .FontSize(11)
+                                    .SemiBold()
+                                    .LetterSpacing(.7f)
+                                    .FontColor("#DCE9E5");
+                            }
+                            if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverDescriptor))
+                            {
+                                lockup.Item().PaddingTop(3).Text(data.Options.FrontCoverDescriptor!)
+                                    .FontSize(7.5f)
+                                    .LetterSpacing(1.1f)
+                                    .FontColor("#90B6AA");
+                            }
                         });
 
                         // Curated Cover A artwork already contains the official identity marks.
@@ -280,28 +286,38 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                             .FontColor("#F5D978");
                     }
 
-                    var coverTitle = column.Item().PaddingTop(30).Text(data.Options.Title)
-                        .FontFamily(fonts.DisplayFamily)
-                        .FontSize(35)
-                        .LineHeight(1.02f)
-                        .FontColor("#FFFFFF");
-                    if (!fonts.AlatsiAvailable) coverTitle.Bold();
-
-                    column.Item().Width(120).Height(3).Background(Gold);
-                    column.Item().Text(data.Options.Subtitle)
-                        .FontSize(15)
-                        .SemiBold()
-                        .FontColor("#D6E8E2");
-                    column.Item().Text(data.Options.Edition)
-                        .FontSize(10.5f)
-                        .FontColor("#91B7AB");
-
-                    column.Item().PaddingTop(18).BorderLeft(3).BorderColor(Gold).PaddingLeft(16)
-                        .Text(data.Options.Strapline)
-                        .FontSize(17)
-                        .SemiBold()
-                        .LineHeight(1.18f)
-                        .FontColor("#F7F3E5");
+                    if (data.Options.ShowFrontCoverTitle)
+                    {
+                        var coverTitle = column.Item().PaddingTop(30).Text(data.Options.Title)
+                            .FontFamily(fonts.DisplayFamily)
+                            .FontSize(35)
+                            .LineHeight(1.02f)
+                            .FontColor("#FFFFFF");
+                        if (!fonts.AlatsiAvailable) coverTitle.Bold();
+                        column.Item().Width(120).Height(3).Background(Gold);
+                    }
+                    if (data.Options.ShowFrontCoverSubtitle)
+                    {
+                        column.Item().Text(data.Options.Subtitle)
+                            .FontSize(15)
+                            .SemiBold()
+                            .FontColor("#D6E8E2");
+                    }
+                    if (data.Options.ShowFrontCoverEdition)
+                    {
+                        column.Item().Text(data.Options.Edition)
+                            .FontSize(10.5f)
+                            .FontColor("#91B7AB");
+                    }
+                    if (data.Options.ShowFrontCoverStrapline && !string.IsNullOrWhiteSpace(data.Options.Strapline))
+                    {
+                        column.Item().PaddingTop(18).BorderLeft(3).BorderColor(Gold).PaddingLeft(16)
+                            .Text(data.Options.Strapline)
+                            .FontSize(17)
+                            .SemiBold()
+                            .LineHeight(1.18f)
+                            .FontColor("#F7F3E5");
+                    }
 
                     // Digital Cover A treats the institutional artwork as a deliberate editorial
                     // object, not as half of an empty framed montage. The surrounding dark field
@@ -364,15 +380,21 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 {
                     row.RelativeItem().Column(lockup =>
                     {
-                        lockup.Item().Text("SIMULATOR DEVELOPMENT DIVISION")
-                            .FontSize(9.5f)
-                            .Bold()
-                            .LetterSpacing(.8f)
-                            .FontColor("#DCE9E5");
-                        lockup.Item().PaddingTop(2).Text("CAPABILITY PUBLICATION · CONTEMPORARY EDITION")
-                            .FontSize(7.2f)
-                            .LetterSpacing(1.05f)
-                            .FontColor("#90B6AA");
+                        if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverKicker))
+                        {
+                            lockup.Item().Text(data.Options.FrontCoverKicker!)
+                                .FontSize(9.5f)
+                                .Bold()
+                                .LetterSpacing(.8f)
+                                .FontColor("#DCE9E5");
+                        }
+                        if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverDescriptor))
+                        {
+                            lockup.Item().PaddingTop(2).Text(data.Options.FrontCoverDescriptor!)
+                                .FontSize(7.2f)
+                                .LetterSpacing(1.05f)
+                                .FontColor("#90B6AA");
+                        }
                     });
                     row.AutoItem().Row(logos =>
                     {
@@ -388,23 +410,32 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     });
                 });
 
-                layers.Layer().PaddingHorizontal(38).PaddingTop(112).Column(title =>
+                layers.Layer().PaddingHorizontal(38).PaddingTop(128).Column(title =>
                 {
                     title.Spacing(8);
-                    title.Item().Text(data.Options.Title)
-                        .FontFamily(fonts.DisplayFamily)
-                        .FontSize(titleSize)
-                        .Bold()
-                        .LineHeight(1.0f)
-                        .FontColor("#FFFFFF");
-                    title.Item().Width(118).Height(3).Background(Gold);
-                    title.Item().Text(data.Options.Subtitle)
-                        .FontSize(14.5f)
-                        .SemiBold()
-                        .FontColor("#D6E8E2");
-                    title.Item().Text(data.Options.Edition)
-                        .FontSize(9.8f)
-                        .FontColor("#9EC0B6");
+                    if (data.Options.ShowFrontCoverTitle)
+                    {
+                        title.Item().Text(data.Options.Title)
+                            .FontFamily(fonts.DisplayFamily)
+                            .FontSize(titleSize)
+                            .Bold()
+                            .LineHeight(1.0f)
+                            .FontColor("#FFFFFF");
+                        title.Item().Width(118).Height(3).Background(Gold);
+                    }
+                    if (data.Options.ShowFrontCoverSubtitle)
+                    {
+                        title.Item().Text(data.Options.Subtitle)
+                            .FontSize(14.5f)
+                            .SemiBold()
+                            .FontColor("#D6E8E2");
+                    }
+                    if (data.Options.ShowFrontCoverEdition)
+                    {
+                        title.Item().Text(data.Options.Edition)
+                            .FontSize(9.8f)
+                            .FontColor("#9EC0B6");
+                    }
 
                     if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))
                     {
@@ -420,7 +451,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 // a restrained institutional band rather than the curated artwork treatment of A.
                 layers.Layer()
                     .AlignBottom()
-                    .PaddingBottom(88)
+                    .PaddingBottom(108)
                     .PaddingHorizontal(26)
                     .Height(410)
                     .Element(heroBox =>
@@ -439,22 +470,23 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                         }
                     });
 
+                var showFrontStrapline = data.Options.ShowFrontCoverStrapline
+                    && !string.IsNullOrWhiteSpace(data.Options.Strapline);
                 layers.Layer()
                     .AlignBottom()
-                    .Height(88)
+                    .Height(showFrontStrapline ? 88 : 24)
                     .Background("#082A26")
                     .PaddingHorizontal(38)
-                    .PaddingVertical(18)
+                    .PaddingVertical(showFrontStrapline ? 18 : 0)
                     .Column(bottom =>
                     {
-                        bottom.Spacing(5);
-                        bottom.Item().Text(data.Options.Strapline)
-                            .FontSize(15.5f)
-                            .SemiBold()
-                            .FontColor("#FFFFFF");
-                        bottom.Item().Text("Selected PRISM project imagery · publication crop approved independently")
-                            .FontSize(7.4f)
-                            .FontColor("#8FB5AA");
+                        if (showFrontStrapline)
+                        {
+                            bottom.Item().Text(data.Options.Strapline)
+                                .FontSize(15.5f)
+                                .SemiBold()
+                                .FontColor("#FFFFFF");
+                        }
                     });
             });
         });
@@ -475,7 +507,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             ConfigureInnerPage(page, data.Options, fonts, sddLogo, "ABOUT SDD", pageNumber, totalPages);
             page.Content().PaddingTop(8).Column(column =>
             {
-                column.Spacing(14);
+                column.Spacing(16);
                 column.Item().Text("Simulator Development Division")
                     .FontFamily(fonts.DisplayFamily)
                     .FontSize(26)
@@ -496,10 +528,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                         .FontColor("#FFFFFF");
                 }
 
-                column.Item().PaddingTop(4).Row(row =>
+                var showInstitutionalArtwork = data.Options.CoverStyle == BrochureCoverStyle.Contemporary
+                    && institutionalArtwork is { Length: > 0 };
+                column.Item().PaddingTop(6).Row(row =>
                 {
                     row.Spacing(22);
-                    row.RelativeItem(1.45f).Column(left =>
+                    row.RelativeItem(showInstitutionalArtwork ? 1.45f : 1.18f).Column(left =>
                     {
                         left.Spacing(8);
                         left.Item().Text("WHY SIMULATORS")
@@ -510,8 +544,8 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                         if (!string.IsNullOrWhiteSpace(matter.OpeningNarrative))
                         {
                             left.Item().Text(matter.OpeningNarrative!)
-                                .FontSize(10.4f)
-                                .LineHeight(1.27f)
+                                .FontSize(10.6f)
+                                .LineHeight(1.30f)
                                 .FontColor(Ink);
                         }
                     });
@@ -519,12 +553,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     row.RelativeItem(1f).Column(right =>
                     {
                         right.Spacing(10);
-                        if (institutionalArtwork is { Length: > 0 })
+                        if (showInstitutionalArtwork)
                         {
-                            right.Item().AlignCenter().Width(174).Height(174)
+                            right.Item().AlignCenter().Width(174).Height(139.2f)
                                 .Border(1)
                                 .BorderColor(Border)
-                                .Image(institutionalArtwork)
+                                .Image(institutionalArtwork!)
                                 .FitArea();
                         }
 
@@ -536,8 +570,8 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                         if (!string.IsNullOrWhiteSpace(matter.FutureNarrative))
                         {
                             right.Item().Text(matter.FutureNarrative!)
-                                .FontSize(9.7f)
-                                .LineHeight(1.24f)
+                                .FontSize(9.9f)
+                                .LineHeight(1.27f)
                                 .FontColor(Ink);
                         }
                     });
@@ -1002,7 +1036,19 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             > 72 => 11.4f,
             _ => 12.4f
         };
-        var bodySize = fragment.NarrativeWordCount > 200 ? 10.2f : 10.5f;
+        const float digitalBodyMinimum = 10.2f;
+        var bodySize = fragment.NarrativeWordCount > 200 ? digitalBodyMinimum : 10.5f;
+        var singleHeroWidth = fragment.NarrativeWordCount switch
+        {
+            <= 165 => 500f,
+            <= 200 => 470f,
+            _ => 445f
+        };
+        var singleHeroHeight = singleHeroWidth * 9f / 16f;
+        const float galleryWidth = 500f;
+        const float galleryGap = 10f;
+        var galleryItemWidth = (galleryWidth - galleryGap) / 2f;
+        var galleryHeight = galleryItemWidth * 9f / 16f;
 
         container.PaddingTop(3).Column(column =>
         {
@@ -1033,16 +1079,16 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 {
                     if (ShouldUseSecondImage(fragment.Project, BrochurePageLayoutKind.SingleFeature))
                     {
-                        imageArea.Width(500).Height(205).Row(row =>
+                        imageArea.Width(galleryWidth).Height(galleryHeight).Row(row =>
                         {
-                            row.Spacing(10);
+                            row.Spacing(galleryGap);
                             row.RelativeItem().Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto.Content));
                             row.RelativeItem().Element(box => ComposeImageFrame(box, fragment.Project.SecondaryPhoto!.Content));
                         });
                     }
                     else
                     {
-                        imageArea.Width(445).Height(250)
+                        imageArea.Width(singleHeroWidth).Height(singleHeroHeight)
                             .Element(box => ComposeImageFrame(box, fragment.Project.PrimaryPhoto.Content));
                     }
                 });
@@ -1258,10 +1304,15 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 }
                 else
                 {
-                    row.RelativeItem().Background(Forest900).Padding(12).AlignMiddle().Text("SDD · PRISM")
-                        .FontSize(10)
-                        .SemiBold()
-                        .FontColor("#9EC0B6");
+                    // A cover fallback must never inject system-owned copy. Keep the
+                    // empty montage cell purely decorative so every visible cover line
+                    // remains user-editable/suppressible.
+                    row.RelativeItem().Background(Forest900).Padding(12).Column(fallback =>
+                    {
+                        fallback.Item().Height(4).Width(72).Background(Gold);
+                        fallback.Item().PaddingTop(10).Height(18).Background("#184C42");
+                        fallback.Item().PaddingTop(6).Height(8).Width(96).Background("#2C6A5B");
+                    });
                 }
             });
         });
@@ -1269,19 +1320,20 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
 
     private static void ComposeGraphicPlaceholder(IContainer container)
     {
+        // Deliberately graphic-only. This helper is used by cover fallbacks, so it must
+        // never introduce copy the user cannot edit or suppress in the builder.
         container.Background(Forest900).Padding(24).Column(column =>
         {
-            column.Spacing(10);
+            column.Spacing(12);
             column.Item().Height(5).Width(165).Background(Gold);
-            column.Item().Text("SIMULATORS · AI · AR/VR · ROBOTICS · DRONES")
-                .FontSize(12)
-                .SemiBold()
-                .LetterSpacing(.6f)
-                .FontColor("#DCE9E5");
-            column.Item().Text("Capability imagery is drawn from the selected PRISM project photographs when available.")
-                .FontSize(9)
-                .LineHeight(1.25f)
-                .FontColor("#9EC0B6");
+            column.Item().Height(42).Row(row =>
+            {
+                row.RelativeItem(1.15f).Background("#184C42");
+                row.ConstantItem(10);
+                row.RelativeItem(.85f).Background("#2C6A5B");
+            });
+            column.Item().Height(18).Width(210).Background("#123D35");
+            column.Item().Height(8).Width(126).Background("#5B8C7E");
         });
     }
 
@@ -1318,21 +1370,30 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                             logos.ConstantItem(50).Height(50).Image(sddLogo).FitArea();
                         }
                     });
-                    column.Item().PaddingTop(36).Text("SIMULATOR DEVELOPMENT DIVISION")
-                        .FontSize(12)
-                        .Bold()
-                        .LetterSpacing(.9f)
-                        .FontColor("#CFE2DC");
-                    column.Item().Text(data.Options.Strapline)
-                        .FontSize(25)
-                        .SemiBold()
-                        .LineHeight(1.13f)
-                        .FontColor("#FFFFFF");
-                    column.Item().Width(110).Height(3).Background(Gold);
-                    column.Item().Text(data.Options.Edition)
-                        .FontSize(10)
-                        .LetterSpacing(.35f)
-                        .FontColor("#9EC0B6");
+                    if (!string.IsNullOrWhiteSpace(data.Options.BackCoverKicker))
+                    {
+                        column.Item().PaddingTop(36).Text(data.Options.BackCoverKicker!)
+                            .FontSize(12)
+                            .Bold()
+                            .LetterSpacing(.9f)
+                            .FontColor("#CFE2DC");
+                    }
+                    if (!string.IsNullOrWhiteSpace(data.Options.BackCoverStrapline))
+                    {
+                        column.Item().Text(data.Options.BackCoverStrapline!)
+                            .FontSize(25)
+                            .SemiBold()
+                            .LineHeight(1.13f)
+                            .FontColor("#FFFFFF");
+                        column.Item().Width(110).Height(3).Background(Gold);
+                    }
+                    if (!string.IsNullOrWhiteSpace(data.Options.BackCoverEdition))
+                    {
+                        column.Item().Text(data.Options.BackCoverEdition!)
+                            .FontSize(10)
+                            .LetterSpacing(.35f)
+                            .FontColor("#9EC0B6");
+                    }
                 });
 
                 if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))

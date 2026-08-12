@@ -406,7 +406,13 @@ public sealed class IndexModel : PageModel
                 Input.Subtitle!,
                 Input.Edition!,
                 Input.Strapline!,
-                Input.HandlingMarking),
+                Input.HandlingMarking,
+                Input.FrontCoverKicker,
+                Input.FrontCoverDescriptor,
+                Input.ShowFrontCoverTitle,
+                Input.ShowFrontCoverSubtitle,
+                Input.ShowFrontCoverEdition,
+                Input.ShowFrontCoverStrapline),
             ToPrintMatter(),
             Input.Strapline,
             Input.HandlingMarking,
@@ -484,7 +490,16 @@ public sealed class IndexModel : PageModel
                 Input.InstitutionalCoverArtwork,
                 RequirePublicationReview: !preview,
                 CoverReviewed: Input.CoverReviewed,
-                CoverReviewFingerprint: Input.CoverReviewFingerprint);
+                CoverReviewFingerprint: Input.CoverReviewFingerprint,
+                FrontCoverKicker: NullIfWhiteSpace(Input.FrontCoverKicker),
+                FrontCoverDescriptor: NullIfWhiteSpace(Input.FrontCoverDescriptor),
+                ShowFrontCoverTitle: Input.ShowFrontCoverTitle,
+                ShowFrontCoverSubtitle: Input.ShowFrontCoverSubtitle,
+                ShowFrontCoverEdition: Input.ShowFrontCoverEdition,
+                ShowFrontCoverStrapline: Input.ShowFrontCoverStrapline,
+                BackCoverKicker: NullIfWhiteSpace(Input.BackCoverKicker),
+                BackCoverStrapline: NullIfWhiteSpace(Input.BackCoverStrapline),
+                BackCoverEdition: NullIfWhiteSpace(Input.BackCoverEdition));
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -670,6 +685,14 @@ public sealed class IndexModel : PageModel
         Input.Strapline = string.IsNullOrWhiteSpace(Input.Strapline)
             ? "Simulators of the Army, by the Army, for the Army"
             : Input.Strapline;
+        if (HttpMethods.IsGet(Request.Method))
+        {
+            Input.FrontCoverKicker ??= "Simulator Development Division";
+            Input.FrontCoverDescriptor ??= "Capability Publication";
+            Input.BackCoverKicker ??= "Simulator Development Division";
+            Input.BackCoverStrapline ??= Input.Strapline;
+            Input.BackCoverEdition ??= Input.Edition;
+        }
         if (includePrintMatter)
         {
             var approved = BrochurePrintPublicationPolicy.ApprovedReference;
@@ -692,6 +715,15 @@ public sealed class IndexModel : PageModel
             Subtitle = configuration.Subtitle,
             Edition = configuration.Edition,
             Strapline = configuration.Strapline,
+            FrontCoverKicker = configuration.FrontCoverKicker,
+            FrontCoverDescriptor = configuration.FrontCoverDescriptor,
+            ShowFrontCoverTitle = configuration.ShowFrontCoverTitle,
+            ShowFrontCoverSubtitle = configuration.ShowFrontCoverSubtitle,
+            ShowFrontCoverEdition = configuration.ShowFrontCoverEdition,
+            ShowFrontCoverStrapline = configuration.ShowFrontCoverStrapline,
+            BackCoverKicker = configuration.BackCoverKicker,
+            BackCoverStrapline = configuration.BackCoverStrapline,
+            BackCoverEdition = configuration.BackCoverEdition,
             CoverStyle = configuration.CoverStyle,
             InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork,
             NarrativeSource = configuration.NarrativeSource,
@@ -736,32 +768,32 @@ public sealed class IndexModel : PageModel
 
     private BrochurePresetConfiguration ToPresetConfiguration()
         => new(
-            Input.Title ?? string.Empty,
-            Input.Subtitle ?? string.Empty,
-            Input.Edition ?? string.Empty,
-            Input.Strapline ?? string.Empty,
-            Input.CoverStyle,
-            Input.InstitutionalCoverArtwork,
-            Input.NarrativeSource,
-            Input.PublicationProfile,
-            Input.IntroductionTitle,
-            Input.IntroductionText,
-            Input.PrintIntroText,
-            Input.PrintFutureText,
-            Input.PrintProcurementText,
-            Input.PrintCentreStatement,
-            Input.PrintDevelopingAgencyText,
-            Input.PrintManufacturingAgencyText,
-            Input.PrintVisionaryText,
-            Input.PrintNewSimulatorsText,
-            Input.HandlingMarking,
-            Input.AllowTextOnlyProjects,
-            Input.IncludeBackCover,
-            Input.CoverHeroProjectId,
-            Input.CoverHeroPhotoId,
-            Input.CoverHeroFocalX,
-            Input.CoverHeroFocalY,
-            Input.Selections
+            Title: Input.Title ?? string.Empty,
+            Subtitle: Input.Subtitle ?? string.Empty,
+            Edition: Input.Edition ?? string.Empty,
+            Strapline: Input.Strapline ?? string.Empty,
+            CoverStyle: Input.CoverStyle,
+            InstitutionalCoverArtwork: Input.InstitutionalCoverArtwork,
+            NarrativeSource: Input.NarrativeSource,
+            PublicationProfile: Input.PublicationProfile,
+            IntroductionTitle: Input.IntroductionTitle,
+            IntroductionText: Input.IntroductionText,
+            PrintIntroText: Input.PrintIntroText,
+            PrintFutureText: Input.PrintFutureText,
+            PrintProcurementText: Input.PrintProcurementText,
+            PrintCentreStatement: Input.PrintCentreStatement,
+            PrintDevelopingAgencyText: Input.PrintDevelopingAgencyText,
+            PrintManufacturingAgencyText: Input.PrintManufacturingAgencyText,
+            PrintVisionaryText: Input.PrintVisionaryText,
+            PrintNewSimulatorsText: Input.PrintNewSimulatorsText,
+            HandlingMarking: Input.HandlingMarking,
+            AllowTextOnlyProjects: Input.AllowTextOnlyProjects,
+            IncludeBackCover: Input.IncludeBackCover,
+            CoverHeroProjectId: Input.CoverHeroProjectId,
+            CoverHeroPhotoId: Input.CoverHeroPhotoId,
+            CoverHeroFocalX: Input.CoverHeroFocalX,
+            CoverHeroFocalY: Input.CoverHeroFocalY,
+            Projects: Input.Selections
                 .Select(selection => new BrochurePresetProjectConfiguration(
                     selection.ProjectId,
                     selection.PrimaryPhotoId,
@@ -771,7 +803,16 @@ public sealed class IndexModel : PageModel
                     selection.SecondaryFocalX,
                     selection.SecondaryFocalY,
                     selection.ImageMode))
-                .ToArray());
+                .ToArray(),
+            FrontCoverKicker: Input.FrontCoverKicker,
+            FrontCoverDescriptor: Input.FrontCoverDescriptor,
+            ShowFrontCoverTitle: Input.ShowFrontCoverTitle,
+            ShowFrontCoverSubtitle: Input.ShowFrontCoverSubtitle,
+            ShowFrontCoverEdition: Input.ShowFrontCoverEdition,
+            ShowFrontCoverStrapline: Input.ShowFrontCoverStrapline,
+            BackCoverKicker: Input.BackCoverKicker,
+            BackCoverStrapline: Input.BackCoverStrapline,
+            BackCoverEdition: Input.BackCoverEdition);
 
     private string RequireActorUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -796,6 +837,11 @@ public sealed class IndexModel : PageModel
         Input.Subtitle = Normalize(Input.Subtitle, 160);
         Input.Edition = Normalize(Input.Edition, 80);
         Input.Strapline = Normalize(Input.Strapline, 180);
+        Input.FrontCoverKicker = NormalizeOptional(Input.FrontCoverKicker, 120);
+        Input.FrontCoverDescriptor = NormalizeOptional(Input.FrontCoverDescriptor, 160);
+        Input.BackCoverKicker = NormalizeOptional(Input.BackCoverKicker, 120);
+        Input.BackCoverStrapline = NormalizeOptional(Input.BackCoverStrapline, 180);
+        Input.BackCoverEdition = NormalizeOptional(Input.BackCoverEdition, 80);
         Input.IntroductionTitle = NormalizeOptional(Input.IntroductionTitle, 120);
         Input.IntroductionText = NormalizeOptional(Input.IntroductionText, 3000, preserveLineBreaks: true);
         Input.PrintIntroText = NormalizeOptional(Input.PrintIntroText, 5000, preserveLineBreaks: true);
@@ -973,7 +1019,7 @@ public sealed class IndexModel : PageModel
             digitalProjectPageCount = preflight.DigitalProjectPageCount,
             digitalSingleFeaturePageCount = preflight.DigitalSingleFeaturePageCount,
             digitalTwoFeaturePageCount = preflight.DigitalTwoFeaturePageCount,
-            digitalInstitutionalPageCount = preflight.DigitalInstitutionalPageCount,
+            digitalEditorialPageCount = preflight.DigitalEditorialPageCount,
             digitalPagePlan = preflight.DigitalPagePlan?.Select(page => new
             {
                 page.PageNumber,
@@ -1173,6 +1219,26 @@ public sealed class IndexModel : PageModel
         [Required]
         [StringLength(180)]
         public string? Strapline { get; set; }
+
+        [StringLength(120)]
+        public string? FrontCoverKicker { get; set; }
+
+        [StringLength(160)]
+        public string? FrontCoverDescriptor { get; set; }
+
+        public bool ShowFrontCoverTitle { get; set; } = true;
+        public bool ShowFrontCoverSubtitle { get; set; } = true;
+        public bool ShowFrontCoverEdition { get; set; } = true;
+        public bool ShowFrontCoverStrapline { get; set; } = true;
+
+        [StringLength(120)]
+        public string? BackCoverKicker { get; set; }
+
+        [StringLength(180)]
+        public string? BackCoverStrapline { get; set; }
+
+        [StringLength(80)]
+        public string? BackCoverEdition { get; set; }
 
         [Required]
         public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Institutional;

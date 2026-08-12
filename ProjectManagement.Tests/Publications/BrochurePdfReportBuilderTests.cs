@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Services.Publications;
 using ProjectManagement.Utilities.Reporting;
+using UglyToad.PdfPig;
 using Xunit;
 
 namespace ProjectManagement.Tests.Publications;
@@ -101,6 +102,194 @@ public sealed class BrochurePdfReportBuilderTests
             Assert.True(bytes.Length > 5_000);
             Assert.Equal("%PDF-", Encoding.ASCII.GetString(bytes, 0, 5));
             Assert.True(BrochurePdfCompositionVerifier.CountPages(bytes) >= 1);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Build_DigitalContemporaryCover_AutomaticResolvedHero_ComposesAndVerifies()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var builder = CreateBuilder(new TestWebHostEnvironment(webRoot), new FixedFontService());
+            var pixel = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            var hero = new BrochurePublicationImage(9101, pixel, 1920, 1440, true, "automatic-cover-b", BrochurePhotoQuality.Excellent);
+            var project = new BrochurePublicationProject(
+                1,
+                "Automatic Cover B Project",
+                "Other R&D Projects",
+                "AR / VR",
+                string.Join(" ", Enumerable.Range(1, 90).Select(index => $"word{index}")),
+                90,
+                hero,
+                null,
+                BrochureImageMode.Automatic);
+            var options = new BrochureBuildOptions(
+                "SDD Capability Brochure",
+                "Simulator Development Division",
+                "Capability Edition · 2026",
+                "Simulators of the Army, by the Army, for the Army",
+                BrochureCoverStyle.Contemporary,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.DigitalComfortable,
+                null,
+                null,
+                null,
+                "Simulator Development Division",
+                false,
+                new DateTimeOffset(2026, 8, 12, 17, 5, 0, TimeSpan.Zero),
+                IncludeBackCover: true,
+                FrontCoverKicker: "Simulator Development Division",
+                FrontCoverDescriptor: "Capability Publication");
+            var preflight = new BrochurePreflight(
+                1,
+                Array.Empty<BrochurePreflightIssue>(),
+                ResolvedCoverHeroProjectId: project.ProjectId,
+                ResolvedCoverHeroPhotoId: hero.PhotoId);
+            var data = new BrochurePublicationData(options, new[] { project }, preflight, hero);
+
+            var bytes = builder.Build(data);
+
+            Assert.True(bytes.Length > 5_000);
+            Assert.Equal("%PDF-", Encoding.ASCII.GetString(bytes, 0, 5));
+            Assert.True(BrochurePdfCompositionVerifier.CountPages(bytes) >= 2);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Build_DigitalGalleryTwo_ComposesDedicatedFeatureWithBothPublicationImages()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var builder = CreateBuilder(new TestWebHostEnvironment(webRoot), new FixedFontService());
+            var pixel = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            var primary = new BrochurePublicationImage(101, pixel, 1920, 1080, true, "gallery-primary", BrochurePhotoQuality.Excellent);
+            var secondary = new BrochurePublicationImage(102, pixel, 1920, 1080, true, "gallery-secondary", BrochurePhotoQuality.Excellent);
+            var project = new BrochurePublicationProject(
+                1,
+                "Gallery Two Digital Feature",
+                "Other R&D Projects",
+                "AR / VR",
+                string.Join(" ", Enumerable.Range(1, 120).Select(index => $"word{index}")),
+                120,
+                primary,
+                secondary,
+                BrochureImageMode.GalleryTwo);
+            var options = new BrochureBuildOptions(
+                "SDD Capability Brochure",
+                "Simulator Development Division",
+                "Capability Edition · 2026",
+                "Simulators of the Army, by the Army, for the Army",
+                BrochureCoverStyle.Institutional,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.DigitalComfortable,
+                null,
+                null,
+                null,
+                "Simulator Development Division",
+                false,
+                new DateTimeOffset(2026, 8, 12, 17, 0, 0, TimeSpan.Zero),
+                IncludeBackCover: false);
+            var data = new BrochurePublicationData(
+                options,
+                new[] { project },
+                new BrochurePreflight(1, Array.Empty<BrochurePreflightIssue>()));
+
+            var bytes = builder.Build(data);
+            var plan = BrochureDigitalPublicationPolicy.Plan(
+                new[] { project },
+                institutionalMatter: null,
+                additionalIntroduction: null,
+                includeBackCover: false);
+
+            Assert.True(bytes.Length > 5_000);
+            Assert.Equal("%PDF-", Encoding.ASCII.GetString(bytes, 0, 5));
+            Assert.Equal(1, plan.ProjectPageCount);
+            Assert.Equal(1, plan.SingleFeaturePageCount);
+            Assert.Equal(plan.EstimatedTotalPageCount, BrochurePdfCompositionVerifier.CountPages(bytes));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Build_DigitalCovers_RenderNoMandatorySystemTextWhenUserSuppressesCoverCopy()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var builder = CreateBuilder(new TestWebHostEnvironment(webRoot), new FixedFontService());
+            var pixel = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            var hero = new BrochurePublicationImage(901, pixel, 1920, 1440, true, "cover-text-regression", BrochurePhotoQuality.Excellent);
+            var project = new BrochurePublicationProject(
+                1,
+                "Cover Copy Regression Project",
+                "Other R&D Projects",
+                "AR / VR",
+                string.Join(" ", Enumerable.Range(1, 80).Select(index => $"word{index}")),
+                80,
+                hero,
+                null,
+                BrochureImageMode.Single);
+            var options = new BrochureBuildOptions(
+                "Metadata title must not appear on cover",
+                "Metadata subtitle must not appear on cover",
+                "Metadata edition must not appear on cover",
+                "Metadata strapline must not appear on cover",
+                BrochureCoverStyle.Contemporary,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.DigitalComfortable,
+                null,
+                null,
+                null,
+                "Simulator Development Division",
+                false,
+                new DateTimeOffset(2026, 8, 12, 17, 15, 0, TimeSpan.Zero),
+                CoverHeroProjectId: 1,
+                CoverHeroPhotoId: 901,
+                IncludeBackCover: true,
+                FrontCoverKicker: null,
+                FrontCoverDescriptor: null,
+                ShowFrontCoverTitle: false,
+                ShowFrontCoverSubtitle: false,
+                ShowFrontCoverEdition: false,
+                ShowFrontCoverStrapline: false,
+                BackCoverKicker: null,
+                BackCoverStrapline: null,
+                BackCoverEdition: null);
+            var data = new BrochurePublicationData(
+                options,
+                new[] { project },
+                new BrochurePreflight(1, Array.Empty<BrochurePreflightIssue>(), ResolvedCoverHeroProjectId: 1, ResolvedCoverHeroPhotoId: 901),
+                hero);
+
+            var bytes = builder.Build(data);
+            using var stream = new MemoryStream(bytes, writable: false);
+            using var document = PdfDocument.Open(stream);
+            var firstPageText = document.GetPage(1).Text;
+            var lastPageText = document.GetPage(document.NumberOfPages).Text;
+
+            Assert.False(firstPageText.Contains("CAPABILITY PUBLICATION", StringComparison.OrdinalIgnoreCase));
+            Assert.False(firstPageText.Contains("Selected PRISM project imagery", StringComparison.OrdinalIgnoreCase));
+            Assert.False(firstPageText.Contains("Metadata title must not appear on cover", StringComparison.Ordinal));
+            Assert.True(string.IsNullOrWhiteSpace(lastPageText));
         }
         finally
         {

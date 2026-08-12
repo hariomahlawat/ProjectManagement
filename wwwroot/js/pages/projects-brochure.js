@@ -77,7 +77,7 @@
     const digitalProjectPages = form.querySelector("[data-digital-project-pages]");
     const digitalFeaturePages = form.querySelector("[data-digital-feature-pages]");
     const digitalPairedPages = form.querySelector("[data-digital-paired-pages]");
-    const digitalInstitutionalPages = form.querySelector("[data-digital-institutional-pages]");
+    const digitalEditorialPages = form.querySelector("[data-digital-editorial-pages]");
     const digitalPageMap = form.querySelector("[data-digital-page-map]");
     const smartFlowPanel = form.querySelector("[data-smart-flow]");
     const smartFlowTitle = form.querySelector("[data-smart-flow-title]");
@@ -355,6 +355,15 @@
         "Input.Subtitle",
         "Input.Edition",
         "Input.Strapline",
+        "Input.FrontCoverKicker",
+        "Input.FrontCoverDescriptor",
+        "Input.ShowFrontCoverTitle",
+        "Input.ShowFrontCoverSubtitle",
+        "Input.ShowFrontCoverEdition",
+        "Input.ShowFrontCoverStrapline",
+        "Input.BackCoverKicker",
+        "Input.BackCoverStrapline",
+        "Input.BackCoverEdition",
         "Input.NarrativeSource",
         "Input.PublicationProfile",
         "Input.CoverStyle",
@@ -2001,7 +2010,8 @@
         "GallerySecondPhotoUnavailable",
         "TextOnlyProject",
         "CoverHeroUnavailable",
-        "CoverHeroInvalid"
+        "CoverHeroInvalid",
+        "LowResolutionCoverHero"
     ]);
 
     const resetFiltersForProject = projectId => {
@@ -2041,7 +2051,7 @@
         }
 
         if (photoIssueCodes.has(issue.code)) {
-            const coverIssue = issue.code === "CoverHeroUnavailable" || issue.code === "CoverHeroInvalid";
+            const coverIssue = issue.code === "CoverHeroUnavailable" || issue.code === "CoverHeroInvalid" || issue.code === "LowResolutionCoverHero";
             if (coverIssue && coverHeroPanel) {
                 const fixCover = document.createElement("button");
                 fixCover.type = "button";
@@ -2315,7 +2325,7 @@
                 if (digitalProjectPages) digitalProjectPages.textContent = String(result.digitalProjectPageCount ?? "—");
                 if (digitalFeaturePages) digitalFeaturePages.textContent = String(result.digitalSingleFeaturePageCount ?? "—");
                 if (digitalPairedPages) digitalPairedPages.textContent = String(result.digitalTwoFeaturePageCount ?? "—");
-                if (digitalInstitutionalPages) digitalInstitutionalPages.textContent = String(result.digitalInstitutionalPageCount ?? "—");
+                if (digitalEditorialPages) digitalEditorialPages.textContent = String(result.digitalEditorialPageCount ?? "—");
                 if (digitalPageMap) {
                     digitalPageMap.replaceChildren();
                     const pages = Array.isArray(result.digitalPagePlan) ? result.digitalPagePlan : [];
@@ -2791,12 +2801,14 @@
     });
 
     form.querySelectorAll(
-        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"], [name="Input.HandlingMarking"]'
+        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"], [name="Input.HandlingMarking"], [name="Input.FrontCoverKicker"], [name="Input.FrontCoverDescriptor"], [name="Input.ShowFrontCoverTitle"], [name="Input.ShowFrontCoverSubtitle"], [name="Input.ShowFrontCoverEdition"], [name="Input.ShowFrontCoverStrapline"]'
     ).forEach(field => {
-        field.addEventListener("input", () => {
+        const invalidate = () => {
             invalidateCoverApproval();
             schedulePreflight();
-        });
+        };
+        field.addEventListener("input", invalidate);
+        field.addEventListener("change", invalidate);
     });
 
     coverHeroChoose?.addEventListener("click", () => {

@@ -45,7 +45,7 @@ public static class BrochurePhotoPrintQualityEvaluator
     // frame is conservative: if the image passes here, it also passes in smaller card layouts.
     private const double DigitalCardMaximumWidthPoints = 164d;
     private const double DigitalEditorialSplitMaximumWidthPoints = 225d;
-    private const double DigitalFeatureMaximumWidthPoints = 382d;
+    private const double DigitalFeatureMaximumWidthPoints = 500d;
 
     public static BrochurePhotoPrintAssessment Assess(
         int sourceWidth,

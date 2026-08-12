@@ -362,7 +362,7 @@
                                     <strong>Cover B hero</strong>
                                     <small>Automatic proposes the best suitable selected project image. Choose a hero to lock it independently of project order.</small>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-link" data-cover-hero-automatic>Use automatic</button>
+                                <button type="button" class="btn btn-sm btn-link" data-cover-hero-automatic>Use automatic hero</button>
                             </div>
                             <div class="brochure-cover-hero-current" data-cover-hero-current>
                                 <span class="brochure-cover-hero-current__image" data-cover-hero-image>
@@ -399,6 +399,50 @@
                                 </div>
                             </div>
                         </section>
+
+                        <details class="brochure-cover-text" data-brochure-digital-only>
+                            <summary><i class="bi bi-type" aria-hidden="true"></i> Digital cover text</summary>
+                            <div class="brochure-cover-text__note">
+                                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                <span>Every line PRISM adds to the digital front or back cover is editable or suppressible. Text embedded inside an approved artwork remains part of that artwork.</span>
+                            </div>
+                            <div class="brochure-cover-text-grid">
+                                <section class="brochure-cover-text-group" aria-label="Front cover text">
+                                    <h3>Front cover</h3>
+                                    <label class="form-label brochure-field">
+                                        <span>Institution / kicker <small>optional</small></span>
+                                        <input asp-for="Input.FrontCoverKicker" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Publication descriptor <small>optional</small></span>
+                                        <input asp-for="Input.FrontCoverDescriptor" class="form-control" maxlength="160" placeholder="Capability Publication" data-brochure-preflight-trigger />
+                                    </label>
+                                    <div class="brochure-cover-visibility" aria-label="Front cover visibility">
+                                        <label><input asp-for="Input.ShowFrontCoverTitle" class="form-check-input" data-brochure-preflight-trigger /> <span>Show title</span></label>
+                                        <label><input asp-for="Input.ShowFrontCoverSubtitle" class="form-check-input" data-brochure-preflight-trigger /> <span>Show subtitle</span></label>
+                                        <label><input asp-for="Input.ShowFrontCoverEdition" class="form-check-input" data-brochure-preflight-trigger /> <span>Show edition</span></label>
+                                        <label><input asp-for="Input.ShowFrontCoverStrapline" class="form-check-input" data-brochure-preflight-trigger /> <span>Show strapline</span></label>
+                                    </div>
+                                    <small>Title, subtitle and edition use the publication metadata fields above. The strapline remains editable under Advanced publication settings.</small>
+                                </section>
+                                <section class="brochure-cover-text-group" aria-label="Back cover text">
+                                    <h3>Back cover</h3>
+                                    <label class="form-label brochure-field">
+                                        <span>Organisation line <small>optional</small></span>
+                                        <input asp-for="Input.BackCoverKicker" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Closing strapline <small>optional</small></span>
+                                        <input asp-for="Input.BackCoverStrapline" class="form-control" maxlength="180" data-brochure-preflight-trigger />
+                                    </label>
+                                    <label class="form-label brochure-field">
+                                        <span>Edition line <small>optional</small></span>
+                                        <input asp-for="Input.BackCoverEdition" class="form-control" maxlength="80" data-brochure-preflight-trigger />
+                                    </label>
+                                    <small>Leave any back-cover field blank to omit that line. The back cover remains minimal even when all text is removed.</small>
+                                </section>
+                            </div>
+                        </details>
 
                         <details class="brochure-advanced-options" open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText) || !string.IsNullOrWhiteSpace(Model.Input.HandlingMarking) || Model.Input.AllowTextOnlyProjects ? "open" : null)">
                             <summary><i class="bi bi-sliders" aria-hidden="true"></i> Advanced publication settings</summary>
@@ -804,7 +848,7 @@
                             <div><span>Project pages</span><strong data-digital-project-pages>—</strong></div>
                             <div><span>Feature pages</span><strong data-digital-feature-pages>—</strong></div>
                             <div><span>Two-project pages</span><strong data-digital-paired-pages>—</strong></div>
-                            <div><span>Institutional pages</span><strong data-digital-institutional-pages>—</strong></div>
+                            <div><span>Editorial pages</span><strong data-digital-editorial-pages>—</strong></div>
                             <div class="brochure-digital-page-map" data-digital-page-map></div>
                             <small>Screen-first composition limits project density to one or two projects per page and is physically verified after PDF generation.</small>
                         </div>

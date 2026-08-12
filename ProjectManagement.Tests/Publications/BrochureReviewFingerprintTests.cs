@@ -89,8 +89,27 @@ public sealed class BrochureReviewFingerprintTests
             focalX: .5d,
             focalY: .5d);
 
+        var changedDescriptor = BrochureReviewFingerprint.CreateCover(
+            context with { FrontCoverDescriptor = "Capability publication · special edition" },
+            BrochurePublicationProfile.PrintCompact,
+            heroProjectId: 17,
+            heroPhotoId: 42,
+            heroPhotoVersion: 6,
+            focalX: .5d,
+            focalY: .5d);
+        var hiddenTitle = BrochureReviewFingerprint.CreateCover(
+            context with { ShowFrontCoverTitle = false },
+            BrochurePublicationProfile.PrintCompact,
+            heroProjectId: 17,
+            heroPhotoId: 42,
+            heroPhotoVersion: 6,
+            focalX: .5d,
+            focalY: .5d);
+
         Assert.NotEqual(baseline, newPhotoVersion);
         Assert.NotEqual(baseline, changedTitle);
+        Assert.NotEqual(baseline, changedDescriptor);
+        Assert.NotEqual(baseline, hiddenTitle);
     }
 
     [Theory]

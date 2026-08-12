@@ -32,6 +32,7 @@ public sealed class BrochureDigitalPublicationPolicyTests
         Assert.True(plan.IncludesBackCover);
         Assert.Equal(2, plan.ProjectPageCount);
         Assert.Equal(6, plan.EstimatedTotalPageCount); // cover + opening + 2 project + closing + back
+        Assert.Equal(4, plan.EditorialPageCount); // cover + About SDD + closing + back cover
         Assert.Equal(new[] { "cover", "institutional-opening", "projects", "projects", "institutional-closing", "back-cover" },
             plan.PagePlan.Select(page => page.Kind));
     }

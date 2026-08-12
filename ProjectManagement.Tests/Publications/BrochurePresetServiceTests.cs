@@ -35,6 +35,12 @@ public sealed class BrochurePresetServiceTests
         Assert.Equal(202, loaded.Configuration.Projects[0].PrimaryPhotoId);
         Assert.Equal(BrochureImageMode.Single, loaded.Configuration.Projects[0].ImageMode);
         Assert.Equal(101, loaded.Configuration.Projects[1].PrimaryPhotoId);
+        Assert.Equal("Digital capability publication", loaded.Configuration.FrontCoverKicker);
+        Assert.Equal("Contemporary edition", loaded.Configuration.FrontCoverDescriptor);
+        Assert.False(loaded.Configuration.ShowFrontCoverSubtitle);
+        Assert.Equal("Simulator Development Division", loaded.Configuration.BackCoverKicker);
+        Assert.Equal("Prepared for capability engagement", loaded.Configuration.BackCoverStrapline);
+        Assert.Equal("2026", loaded.Configuration.BackCoverEdition);
         Assert.Empty(loaded.Diagnostics);
 
         // Durable preset contracts intentionally carry no editorial approval authority.
@@ -271,7 +277,16 @@ public sealed class BrochurePresetServiceTests
                 .5d,
                 .5d,
                 .5d,
-                BrochureImageMode.Single)).ToArray());
+                BrochureImageMode.Single)).ToArray(),
+            FrontCoverKicker: "Digital capability publication",
+            FrontCoverDescriptor: "Contemporary edition",
+            ShowFrontCoverTitle: true,
+            ShowFrontCoverSubtitle: false,
+            ShowFrontCoverEdition: true,
+            ShowFrontCoverStrapline: true,
+            BackCoverKicker: "Simulator Development Division",
+            BackCoverStrapline: "Prepared for capability engagement",
+            BackCoverEdition: "2026");
 
     private static BrochurePresetService CreateService(ApplicationDbContext db, string userId, string role)
     {

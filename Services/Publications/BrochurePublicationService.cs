@@ -342,7 +342,13 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 options.Subtitle,
                 options.Edition,
                 options.Strapline,
-                options.HandlingMarking),
+                options.HandlingMarking,
+                options.FrontCoverKicker,
+                options.FrontCoverDescriptor,
+                options.ShowFrontCoverTitle,
+                options.ShowFrontCoverSubtitle,
+                options.ShowFrontCoverEdition,
+                options.ShowFrontCoverStrapline),
             options.CoverHeroFocalX,
             options.CoverHeroFocalY);
         prepared = ApplyPublicationLevelPreflight(
@@ -617,7 +623,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             DigitalProjectPageCount = plan.ProjectPageCount,
             DigitalSingleFeaturePageCount = plan.SingleFeaturePageCount,
             DigitalTwoFeaturePageCount = plan.TwoFeaturePageCount,
-            DigitalInstitutionalPageCount = plan.InstitutionalPageCount,
+            DigitalEditorialPageCount = plan.EditorialPageCount,
             DigitalPagePlan = plan.PagePlan
         };
 
@@ -1347,8 +1353,11 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         var effectiveDpi = Math.Max(1, (int)Math.Round(assessment.EffectiveDpi));
         var recommendedDpi = Math.Max(1, (int)Math.Round(assessment.RecommendedDpi));
 
+        var issueCode = placement == PhotoPlacement.CoverHero
+            ? BrochurePreflightIssueCode.LowResolutionCoverHero
+            : BrochurePreflightIssueCode.LowResolutionPhoto;
         issues.Add(new BrochurePreflightIssue(
-            BrochurePreflightIssueCode.LowResolutionPhoto,
+            issueCode,
             PublicationIssueSeverity.Warning,
             project.Row.ProjectId,
             project.Row.ProjectName,
