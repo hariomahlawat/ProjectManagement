@@ -1461,3 +1461,38 @@ body.brochure-modal-open { overflow: hidden; }
 /* Final-output status already explains readiness; avoid reserving height for a
    redundant instruction line. */
 .brochure-output-body .brochure-generate-actions { align-content: start; }
+
+/* ============================================================
+   Capability Brochure Builder — Phase 17 publication polish
+   ============================================================ */
+.brochure-output-verification {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .32rem;
+    min-height: 1.45rem;
+    padding: .3rem .45rem;
+    border: 1px solid #c9dfd5;
+    border-radius: 7px;
+    background: #f3faf6;
+    color: #24694e;
+    font-size: .58rem;
+    font-weight: 760;
+    line-height: 1.2;
+}
+.brochure-output-verification[hidden] { display: none !important; }
+.brochure-output-verification i { font-size: .68rem; }
+
+.brochure-preflight-issue__actions .is-primary {
+    padding: .12rem .34rem;
+    border: 1px solid #b9d3c8;
+    border-radius: 4px;
+    background: #f1f8f5;
+    color: #235f4b;
+    text-decoration: none;
+}
+.brochure-preflight-issue__actions .is-primary:hover {
+    border-color: #8db7a6;
+    background: #e8f4ef;
+    text-decoration: none;
+}

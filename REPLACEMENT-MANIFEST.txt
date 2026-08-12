@@ -1,18 +1,23 @@
-REPLACE
-=======
+PRISM Capability Brochure — Phase 17 replacement manifest
+=========================================================
+
+Replace:
 Pages/Projects/Publications/Brochure/Index.cshtml
 Pages/Projects/Publications/Brochure/Index.cshtml.cs
+Services/Publications/BrochureContracts.cs
 Services/Publications/BrochurePrintLayoutMetrics.cs
-Services/Publications/BrochurePrintMeasurementService.cs
-Utilities/Reporting/BrochurePrintCompactComposer.cs
-Utilities/Reporting/BrochurePdfReportBuilder.cs
+Services/Publications/BrochurePrintPagePlanner.cs
+Services/Publications/BrochurePublicationService.cs
 wwwroot/css/pages/projects-publications.css
 wwwroot/js/pages/projects-brochure.js
 wwwroot/js/projects/publications-brochure-contract.test.js
-ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
 ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
 
-ADD (NEW)
-=========
-Utilities/Reporting/BrochurePdfCompositionVerifier.cs
-tools/Test-PrismPublicationsPhase16.ps1
+Add (new):
+Services/Publications/BrochurePhotoPrintQualityEvaluator.cs
+ProjectManagement.Tests/Publications/BrochurePhotoPrintQualityEvaluatorTests.cs
+tools/Test-PrismPublicationsPhase17.ps1
+
+No database migration is required.
+No JavaScript package change is required.
+No NuGet package change is required.

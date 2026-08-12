@@ -500,7 +500,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 PublicationIssueSeverity.Warning,
                 null,
                 null,
-                "The hard-copy first page fits at the minimum approved body typography. Review the first sheet carefully before final issue."));
+                "The hard-copy first page fits at the minimum approved body typography. Review the first page carefully before final issue."));
         }
 
         if (planningItems.Length > 0 && !plan.ClosingMatterSharesFinalPage)
@@ -510,7 +510,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 PublicationIssueSeverity.Information,
                 null,
                 null,
-                "The measured final project geometry cannot safely share a sheet with the closing institutional matter. The compact compositor will use a dedicated closing sheet unless project order, copy length or image treatment changes."));
+                "The measured final project geometry cannot safely share a page with the closing institutional matter. The compact compositor will use a dedicated closing page unless project order, copy length or image treatment changes."));
         }
 
         if (plan.SmartFlowSuggestion is not null)
@@ -529,7 +529,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 PublicationIssueSeverity.Information,
                 null,
                 null,
-                $"One non-final hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation. The adaptive 9 pt compositor has already tested approved image widths and dense geometry; any remaining structural whitespace is carried forward where possible, while the final sheet is intentionally exempt."));
+                $"One non-final hard-copy project page is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation. The adaptive 9 pt compositor has already tested approved image widths and dense geometry; any remaining structural whitespace is carried forward where possible, while the final page is intentionally exempt."));
         }
 
         var preflight = prepared.Preflight with
@@ -1202,34 +1202,34 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         PhotoPlacement placement,
         string label)
     {
-        var coverHeroHeight = publicationProfile == BrochurePublicationProfile.PrintCompact
-            ? 1055d
-            : 1100d;
-        var (effectiveWidth, effectiveHeight) = placement == PhotoPlacement.CoverHero
-            ? BrochurePhotoService.EffectiveCropDimensions(probe.Width, probe.Height, 1800d / coverHeroHeight)
-            : BrochurePhotoService.EffectiveWideCropDimensions(probe.Width, probe.Height);
-        var (minimumWidth, minimumHeight, placementLabel) = placement switch
+        var printPlacement = placement switch
         {
-            PhotoPlacement.CoverHero => (1800d, coverHeroHeight, "Cover B hero"),
-            PhotoPlacement.Feature when publicationProfile == BrochurePublicationProfile.PrintCompact
-                => (1100d, 619d, "compact print feature frame"),
-            PhotoPlacement.Card when publicationProfile == BrochurePublicationProfile.PrintCompact
-                => (900d, 506d, "compact print project frame"),
-            PhotoPlacement.Feature => (1400d, 788d, "large feature frame"),
-            _ => (1100d, 619d, "standard project frame")
+            PhotoPlacement.CoverHero => BrochurePhotoPrintPlacement.CoverHero,
+            PhotoPlacement.Feature => BrochurePhotoPrintPlacement.ProjectFeature,
+            _ => BrochurePhotoPrintPlacement.ProjectCard
         };
+        var assessment = BrochurePhotoPrintQualityEvaluator.Assess(
+            probe.Width,
+            probe.Height,
+            publicationProfile,
+            printPlacement);
 
-        if (effectiveWidth >= minimumWidth && effectiveHeight >= minimumHeight)
+        if (assessment.MeetsRecommendation)
         {
             return;
         }
+
+        var effectiveWidth = Math.Max(1, (int)Math.Round(assessment.EffectiveWidthPixels));
+        var effectiveHeight = Math.Max(1, (int)Math.Round(assessment.EffectiveHeightPixels));
+        var effectiveDpi = Math.Max(1, (int)Math.Round(assessment.EffectiveDpi));
+        var recommendedDpi = Math.Max(1, (int)Math.Round(assessment.RecommendedDpi));
 
         issues.Add(new BrochurePreflightIssue(
             BrochurePreflightIssueCode.LowResolutionPhoto,
             PublicationIssueSeverity.Warning,
             project.Row.ProjectId,
             project.Row.ProjectName,
-            $"{label} photograph resolves to {probe.Width}×{probe.Height}px and may look soft in the {placementLabel}. A higher-resolution source is recommended."));
+            $"{label} photograph is {probe.Width}×{probe.Height}px. After the publication crop it provides approximately {effectiveDpi} effective dpi in the {assessment.PlacementLabel} ({effectiveWidth}×{effectiveHeight} usable pixels); {recommendedDpi} dpi or better is recommended. Use a higher-resolution source if available."));
     }
 
     private enum PhotoPlacement

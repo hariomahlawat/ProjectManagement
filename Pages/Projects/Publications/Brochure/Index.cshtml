@@ -648,7 +648,7 @@
                         </div>
                         <div class="brochure-print-plan-summary" hidden data-print-plan-summary>
                             <div>
-                                <span>Planned sheets</span>
+                                <span>Planned pages</span>
                                 <strong data-print-estimate-pages>—</strong>
                             </div>
                             <div>
@@ -664,7 +664,7 @@
                                 <strong data-print-final-fill>—</strong>
                             </div>
                             <div class="brochure-print-plan-summary__closing">
-                                <span>Final-sheet composition</span>
+                                <span>Final page composition</span>
                                 <strong data-print-estimate-closing>—</strong>
                             </div>
                             <div class="brochure-print-sheet-map" data-print-sheet-map></div>
@@ -677,7 +677,7 @@
                                     </div>
                                 </div>
                                 <div class="brochure-smart-flow__metrics">
-                                    <div><span>Sheets</span><strong data-smart-flow-pages>—</strong></div>
+                                    <div><span>Pages</span><strong data-smart-flow-pages>—</strong></div>
                                     <div><span>Lowest page fill</span><strong data-smart-flow-fill>—</strong></div>
                                     <div><span>Order changes</span><strong data-smart-flow-moves>—</strong></div>
                                 </div>
@@ -696,7 +696,7 @@
                                 </div>
                                 <small>PRISM never reorders projects automatically. The suggestion preserves 9 pt project copy and only changes publication sequence after you approve it.</small>
                             </div>
-                            <small>Measured with the bundled publication font, the compositor's canonical geometry and a physical render-safety reserve. Preview/download is then post-compose verified against this page plan.</small>
+                            <small>Layout is measured using final PDF geometry and verified again after composition.</small>
                         </div>
                         <div class="brochure-preflight-message" data-preflight-message>
                             Select projects to run publication preflight.
@@ -766,6 +766,10 @@
                                 <strong data-output-readiness-title>Not ready</strong>
                                 <small data-output-readiness-detail>Select projects to begin.</small>
                             </span>
+                        </div>
+                        <div class="brochure-output-verification" hidden data-output-verification>
+                            <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+                            <span data-output-verification-text>PDF verified</span>
                         </div>
                 <div class="brochure-generate-actions">
                     <button type="submit"

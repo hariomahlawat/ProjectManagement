@@ -172,7 +172,7 @@ public sealed class BrochurePrintCompactPlannerTests
     }
 
     [Fact]
-    public void Plan_CompactEightPointFiveIsEmergencyOnlyForOversizeSingleProject()
+    public void Plan_EmergencyCompactGeometryStillPreservesNinePointBodyCopy()
     {
         var planner = new BrochurePrintPagePlanner(new EmergencyFixtureMeasurementService());
         var normalProjects = new[] { PlanningItem(1), PlanningItem(2) };
@@ -194,7 +194,7 @@ public sealed class BrochurePrintCompactPlannerTests
             hasHandlingMarking: false);
         var oversize = Assert.Single(oversizePlan.Pages.SelectMany(page => page.Projects));
         Assert.Equal(BrochurePrintLayoutVariant.Compact, oversize.Measurement.Variant);
-        Assert.Equal(8.5f, oversize.Measurement.BodyFontSize);
+        Assert.Equal(9f, oversize.Measurement.BodyFontSize);
     }
 
     [Fact]

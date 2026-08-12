@@ -61,6 +61,8 @@
     const outputReadinessIcon = form.querySelector("[data-output-readiness-icon]");
     const outputReadinessTitle = form.querySelector("[data-output-readiness-title]");
     const outputReadinessDetail = form.querySelector("[data-output-readiness-detail]");
+    const outputVerification = form.querySelector("[data-output-verification]");
+    const outputVerificationText = form.querySelector("[data-output-verification-text]");
     const printMatterFields = [...form.querySelectorAll("[data-brochure-print-matter]")];
     const restoreApprovedPrint = form.querySelector("[data-print-restore-approved]");
     const printPlanSummary = form.querySelector("[data-print-plan-summary]");
@@ -258,6 +260,7 @@
     let currentProjectReviewFingerprints = new Map();
     let showAllFindings = false;
     let exportBusy = false;
+    let lastVerifiedPdf = null;
     let reviewNoticeTimer = null;
     let explicitCoverHeroProjectId = Number(coverHeroInput?.value) > 0 ? Number(coverHeroInput.value) : null;
     let explicitCoverHeroPhotoId = Number(coverHeroPhotoInput?.value) > 0 ? Number(coverHeroPhotoInput.value) : null;
@@ -1450,6 +1453,17 @@
         }
     };
 
+    const renderPdfVerification = () => {
+        if (!outputVerification) return;
+        const verified = Boolean(lastVerifiedPdf?.verified)
+            && Number(lastVerifiedPdf?.pageCount || 0) > 0
+            && isPrintCompactProfile();
+        outputVerification.hidden = !verified;
+        if (!verified || !outputVerificationText) return;
+        const pages = Number(lastVerifiedPdf.pageCount);
+        outputVerificationText.textContent = `PDF verified · ${pages} page${pages === 1 ? "" : "s"}`;
+    };
+
     const updateButtons = canGenerate => {
         const previewReady = canGenerate && orderedIds.length > 0 && !exportBusy;
         const coverReady = !isContemporaryCover() || Boolean(coverReviewed && coverReviewFingerprint);
@@ -1488,13 +1502,14 @@
                     ? "Resolve publication blockers to enable preview and download."
                     : "Waiting for technical preflight.";
             } else if (!allReviewed()) {
-                exportStatus.textContent = `${pendingApprovals} selected project${pendingApprovals === 1 ? "" : "s"} still require publication approval.`;
+                exportStatus.textContent = `${pendingApprovals} selected project${pendingApprovals === 1 ? "" : "s"} still ${pendingApprovals === 1 ? "requires" : "require"} publication approval.`;
             } else if (!coverReady) {
                 exportStatus.textContent = "Approve the Cover B hero and crop before final download.";
             } else {
                 exportStatus.textContent = "";
             }
         }
+        renderPdfVerification();
     };
 
     const renderPreflightMessage = () => {
@@ -1560,41 +1575,70 @@
 
     const createIssueAction = issue => {
         if (!issue.projectId) return null;
-        const project = projectById.get(Number(issue.projectId));
+        const projectId = Number(issue.projectId);
+        const project = projectById.get(projectId);
         if (!project) return null;
         const actions = document.createElement("span");
         actions.className = "brochure-preflight-issue__actions";
 
-        const locate = document.createElement("button");
-        locate.type = "button";
-        locate.textContent = "Locate";
-        locate.addEventListener("click", () => resetFiltersForProject(issue.projectId));
-        actions.append(locate);
-
         if (issue.code === "MissingNarrative" && project.overviewUrl) {
+            const show = document.createElement("button");
+            show.type = "button";
+            show.textContent = "Show project";
+            show.addEventListener("click", () => resetFiltersForProject(projectId));
+            actions.append(show);
+
             const link = document.createElement("a");
             link.href = project.overviewUrl;
             link.target = "_blank";
             link.rel = "noopener";
             link.textContent = `Open ${narrativeInfo(project).label}`;
             actions.append(link);
-        } else if (photoIssueCodes.has(issue.code)) {
-            if (orderedIds.includes(Number(issue.projectId)) && project.photos?.length) {
-                const configure = document.createElement("button");
-                configure.type = "button";
-                configure.textContent = "Configure image";
-                configure.addEventListener("click", () => openPhotoEditor(Number(issue.projectId)));
-                actions.append(configure);
+            return actions;
+        }
+
+        if (photoIssueCodes.has(issue.code)) {
+            const coverIssue = issue.code === "CoverHeroUnavailable" || issue.code === "CoverHeroInvalid";
+            if (coverIssue && coverHeroPanel) {
+                const fixCover = document.createElement("button");
+                fixCover.type = "button";
+                fixCover.className = "is-primary";
+                fixCover.textContent = "Fix cover";
+                fixCover.addEventListener("click", () => {
+                    coverHeroPanel.scrollIntoView({ block: "center", behavior: "smooth" });
+                    coverHeroPanel.classList.add("is-highlighted");
+                    window.setTimeout(() => coverHeroPanel.classList.remove("is-highlighted"), 1800);
+                });
+                actions.append(fixCover);
+            } else if (orderedIds.includes(projectId) && project.photos?.length) {
+                const fixImage = document.createElement("button");
+                fixImage.type = "button";
+                fixImage.className = "is-primary";
+                fixImage.textContent = "Fix image";
+                fixImage.addEventListener("click", () => {
+                    activeReviewProjectId = projectId;
+                    renderReview();
+                    openPhotoEditor(projectId, "select");
+                });
+                actions.append(fixImage);
             }
+
             if (project.photosUrl) {
                 const link = document.createElement("a");
                 link.href = project.photosUrl;
                 link.target = "_blank";
                 link.rel = "noopener";
-                link.textContent = project.photos?.length ? "Manage photos" : "Add photo";
+                link.textContent = project.photos?.length ? "Photos" : "Add photo";
                 actions.append(link);
             }
+            return actions.childElementCount ? actions : null;
         }
+
+        const show = document.createElement("button");
+        show.type = "button";
+        show.textContent = "Show project";
+        show.addEventListener("click", () => resetFiltersForProject(projectId));
+        actions.append(show);
         return actions;
     };
 
@@ -1683,7 +1727,7 @@
                     if (!sheet.isFinal
                         && sheet.kind !== "front"
                         && Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
-                    chip.textContent = `${Number(sheet.sheetNumber || 0)} · ${sheet.label || "Sheet"} · ${Number(sheet.utilizationPercent || 0)}%`;
+                    chip.textContent = `${Number(sheet.sheetNumber || 0)} · ${sheet.label || "Page"} · ${Number(sheet.utilizationPercent || 0)}%`;
                     return chip;
                 }));
             }
@@ -1708,7 +1752,7 @@
             if (smartFlowMoves) smartFlowMoves.textContent = "Applied";
             smartFlowMoveList?.replaceChildren();
             smartFlowSheetMap?.replaceChildren();
-            if (smartFlowTreatment) smartFlowTreatment.textContent = "Applied composition remains at the 9 pt publication typography floor.";
+            if (smartFlowTreatment) smartFlowTreatment.textContent = "Applied composition preserves the 9 pt publication typography floor.";
             if (smartFlowApply) smartFlowApply.hidden = true;
         }
         if (smartFlowUndo) smartFlowUndo.hidden = !canUndo;
@@ -1787,7 +1831,7 @@
                     const count = Number(result.estimatedClosingPageProjectCount || 0);
                     printEstimateClosing.textContent = result.closingMatterSharesFinalPage
                         ? `${count} project${count === 1 ? "" : "s"} + closing`
-                        : "Dedicated closing sheet";
+                        : "Dedicated closing page";
                 }
                 if (printSheetMap) {
                     printSheetMap.replaceChildren();
@@ -1802,7 +1846,7 @@
                             && Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
 
                         const label = document.createElement("strong");
-                        label.textContent = `${sheet.sheetNumber}. ${sheet.label || "Sheet"}`;
+                        label.textContent = `${sheet.sheetNumber}. ${sheet.label || "Page"}`;
                         const fill = document.createElement("span");
                         fill.textContent = `${Number(sheet.utilizationPercent || 0)}%`;
                         chip.append(label, fill);
@@ -1879,6 +1923,8 @@
     const schedulePreflight = () => {
         window.clearTimeout(preflightTimer);
         lastPreflight = null;
+        lastVerifiedPdf = null;
+        renderPdfVerification();
         currentProjectReviewFingerprints = new Map();
         updateButtons(false);
         preflightTimer = window.setTimeout(runPreflight, 280);
@@ -2001,9 +2047,10 @@
             if (!type.includes("application/pdf")) throw new Error("The server did not return a PDF publication.");
             const compositionVerified = response.headers.get("X-PRISM-Publication-Composition-Verified") === "true";
             const physicalPageCount = Number(response.headers.get("X-PRISM-Publication-Page-Count") || 0);
-            const verificationSuffix = compositionVerified
-                ? ` · composition verified${physicalPageCount > 0 ? ` (${physicalPageCount} page${physicalPageCount === 1 ? "" : "s"})` : ""}`
-                : "";
+            if (compositionVerified && physicalPageCount > 0) {
+                lastVerifiedPdf = { verified: true, pageCount: physicalPageCount };
+                renderPdfVerification();
+            }
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
             const fileName = fileNameFromResponse(response);
@@ -2011,7 +2058,7 @@
                 if (previewWindow) previewWindow.location.replace(url);
                 else window.open(url, "_blank", "noopener");
                 window.setTimeout(() => URL.revokeObjectURL(url), 120000);
-                if (exportStatus) exportStatus.textContent = `Preview ready${verificationSuffix}.`;
+                if (exportStatus) exportStatus.textContent = "Preview opened.";
             } else {
                 const link = document.createElement("a");
                 link.href = url;
@@ -2020,7 +2067,7 @@
                 link.click();
                 link.remove();
                 window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-                if (exportStatus) exportStatus.textContent = `Brochure ready${verificationSuffix}. Download started.`;
+                if (exportStatus) exportStatus.textContent = "Download started.";
             }
         } catch (error) {
             if (previewWindow && !previewWindow.closed) previewWindow.close();

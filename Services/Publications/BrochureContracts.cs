@@ -52,7 +52,7 @@ public enum BrochureImageMode
 
 public enum BrochurePrintLayoutVariant
 {
-    // Compact remains an emergency 8.5 pt layout for a single pathological project only.
+    // Compact remains an emergency geometry layout for a single pathological project only; body copy remains 9 pt.
     Compact = 1,
     Balanced = 2,
     Visual = 3,

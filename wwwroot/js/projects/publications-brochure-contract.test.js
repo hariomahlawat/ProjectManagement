@@ -65,7 +65,7 @@ test('brochure client renders all preflight findings on demand and offers action
   assert.match(js, /data-preflight-show-all/);
   assert.match(js, /Show all \$\{ordered\.length\} findings/);
   assert.match(js, /Open \${narrativeInfo\(project\)\.label}/);
-  assert.match(js, /Configure image/);
+  assert.match(js, /Fix image/);
   assert.doesNotMatch(js, /slice\(0,\s*8\)/);
 });
 
@@ -323,7 +323,7 @@ test('phase 10 print compact restores reference float composition and removes im
   assert.doesNotMatch(printRenderer, /plannedProject\.ProjectIndex\s*%\s*2/);
   assert.doesNotMatch(printRenderer, /imageOnRight/);
   assert.match(metrics, /ProjectBodyPreferredFontSize = 9f/);
-  assert.match(metrics, /ProjectBodyMinimumFontSize = 8\.5f/);
+  assert.match(metrics, /ProjectBodyMinimumFontSize = 9f/);
   assert.match(metrics, /ProjectTitlePreferredFontSize = 10f/);
   assert.match(metrics, /ProjectTitleMinimumFontSize = 9\.25f/);
 });
@@ -593,8 +593,69 @@ test('phase 16 presents review actions as publication image work versus authorit
   assert.match(css, /\.brochure-review-action-group/);
 });
 
-test('phase 16 output success reports physical composition verification and page count', () => {
+test('phase 16 output success reads physical composition verification and page count', () => {
   assert.match(js, /X-PRISM-Publication-Composition-Verified/);
   assert.match(js, /X-PRISM-Publication-Page-Count/);
-  assert.match(js, /composition verified/);
+  assert.match(js, /physicalPageCount/);
+});
+
+
+test('phase 17 uses page terminology throughout the visible preflight experience', () => {
+  const publicationService = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+  assert.match(view, /<span>Planned pages<\/span>/);
+  assert.match(view, /<span>Final page composition<\/span>/);
+  assert.match(view, /<div><span>Pages<\/span><strong data-smart-flow-pages>/);
+  assert.doesNotMatch(view, />Planned sheets</i);
+  assert.doesNotMatch(view, />Final-sheet composition</i);
+  assert.match(js, /Dedicated closing page/);
+  assert.match(planner, /-page composition is available at 9 pt/);
+  assert.match(publicationService, /dedicated closing page/);
+  assert.match(publicationService, /non-final hard-copy project page/);
+});
+
+test('phase 17 keeps post-compose verification persistently visible until publication geometry changes', () => {
+  assert.match(view, /data-output-verification/);
+  assert.match(view, /data-output-verification-text/);
+  assert.match(css, /\.brochure-output-verification/);
+  assert.match(js, /let lastVerifiedPdf = null/);
+  assert.match(js, /PDF verified · \$\{pages\} page/);
+  assert.match(js, /lastVerifiedPdf = \{ verified: true, pageCount: physicalPageCount \}/);
+  assert.match(js, /const schedulePreflight = \(\) => \{[\s\S]{0,180}lastVerifiedPdf = null/);
+});
+
+test('phase 17 findings provide direct Fix image actions instead of locate-plus-configure indirection', () => {
+  assert.match(js, /fixImage\.textContent = "Fix image"/);
+  assert.match(js, /openPhotoEditor\(projectId, "select"\)/);
+  assert.match(js, /link\.textContent = project\.photos\?\.length \? "Photos" : "Add photo"/);
+  assert.match(js, /show\.textContent = "Show project"/);
+  assert.doesNotMatch(js, /locate\.textContent = "Locate"/);
+  assert.doesNotMatch(js, /configure\.textContent = "Configure image"/);
+});
+
+test('phase 17 evaluates image warnings by effective cropped dpi at physical render size', () => {
+  const evaluator = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePhotoPrintQualityEvaluator.cs'), 'utf8');
+  const publicationService = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  assert.match(evaluator, /EffectiveCropDimensions/);
+  assert.match(evaluator, /EffectiveDpi/);
+  assert.match(evaluator, /PrintCompactRecommendedDpi = 240d/);
+  assert.match(evaluator, /AdaptiveImageMaximumPoints/);
+  assert.match(publicationService, /BrochurePhotoPrintQualityEvaluator\.Assess/);
+  assert.match(publicationService, /effective dpi/);
+  assert.doesNotMatch(publicationService.slice(publicationService.indexOf('private static void AddQualityFinding'), publicationService.indexOf('private enum PhotoPlacement')), /minimumWidth|minimumHeight/);
+});
+
+test('phase 17 makes 9 pt a hard compact-project body-copy floor', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  const contracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureContracts.cs'), 'utf8');
+  assert.match(metrics, /ProjectBodyPreferredFontSize = 9f/);
+  assert.match(metrics, /ProjectBodyMinimumFontSize = 9f/);
+  assert.match(metrics, /BrochurePrintLayoutVariant\.Compact[\s\S]{0,220}BodyFontSize: ProjectBodyMinimumFontSize/);
+  assert.match(contracts, /body copy remains 9 pt/);
+});
+
+test('phase 17 approval status handles singular and plural grammar', () => {
+  const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+  assert.match(js, /pendingApprovals === 1 \? "requires" : "require"/);
+  assert.match(page, /unreviewed == 1 \? "requires" : "require"/);
 });

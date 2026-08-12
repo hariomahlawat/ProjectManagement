@@ -1,15 +1,30 @@
-PRISM Brochure Phase 16 validation
-==================================
+PRISM Brochure Phase 17 — Validation Results
+============================================
 
-PASS  node --check wwwroot/js/pages/projects-brochure.js
-PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
-      55 tests, 55 passed, 0 failed
+Validation workspace:
+Original uploaded PRISM project + Phase 16 replacement set + Phase 17 incremental replacements.
 
-PASS  Structural brace/string/comment balance check for modified C# sources
-PASS  Razor source sanity: exactly one brochure-preflight-grid opening
-PASS  Legacy blue/yellow closing constants removed from compact composer
-PASS  Redundant Final output helper line removed
+PASS: node --check ./wwwroot/js/pages/projects-brochure.js
 
-NOT RUN  dotnet build / dotnet test
-Reason: .NET SDK is not installed in the packaging environment.
-Run tools/Test-PrismPublicationsPhase16.ps1 and the dotnet commands from README-PHASE16.txt after copying into the project.
+PASS: node --test ./wwwroot/js/projects/publications-brochure-contract.test.js
+Tests: 61
+Passed: 61
+Failed: 0
+
+Effective-DPI reference checks:
+400x400 -> effective 16:9 crop 400x225 -> ~184.6 dpi at 156 pt frame -> WARNING
+1024x1024 -> effective 16:9 crop 1024x576 -> ~472.6 dpi -> PASS
+1024x540 -> effective 16:9 crop 960x540 -> ~443.1 dpi -> PASS
+
+C# structural checks:
+Modified/new C# files have balanced brace structure.
+
+NOT RUN: dotnet build
+NOT RUN: dotnet test
+Reason: .NET SDK is not installed in this execution environment.
+
+Required local final validation:
+1. .\tools\Test-PrismPublicationsPhase17.ps1
+2. dotnet build .\ProjectManagement.csproj
+3. dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+4. Preview the same nine-project Print / Compact brochure and confirm physical page count equals preflight and Final Output displays PDF verified · N pages.

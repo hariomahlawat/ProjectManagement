@@ -804,7 +804,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             ? "Reference 9 pt geometry; no additional compaction required."
             : string.Join(" · ", treatmentParts) + ".";
         var summary = saved > 0
-            ? $"A {polished.Plan.EstimatedTotalPageCount}-sheet composition is available at 9 pt with {moves.Count} order change{(moves.Count == 1 ? string.Empty : "s")}. No project is removed."
+            ? $"A {polished.Plan.EstimatedTotalPageCount}-page composition is available at 9 pt with {moves.Count} order change{(moves.Count == 1 ? string.Empty : "s")}. No project is removed."
             : $"A stronger forward-packed composition is available at 9 pt with {moves.Count} order change{(moves.Count == 1 ? string.Empty : "s")}.";
 
         return new BrochurePrintFlowSuggestion(

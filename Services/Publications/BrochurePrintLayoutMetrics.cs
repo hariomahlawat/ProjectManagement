@@ -44,7 +44,7 @@ public static class BrochurePrintLayoutMetrics
 
     // Four modules remains the preferred reference composition. A fifth is permitted only when
     // the measured 9 pt candidates genuinely fit; the planner's bounded search prunes impossible
-    // combinations before composition.
+    // combinations before composition. Project body copy is never reduced below 9 pt.
     public const int PreferredMaximumProjectsPerSheet = 4;
     public const int MaximumProjectsPerSheet = 5;
     public const float TargetMinimumUtilization = .90f;
@@ -60,7 +60,7 @@ public static class BrochurePrintLayoutMetrics
     public const float ProjectTitleMinimumFontSize = 9.25f;
     public const float ProjectTitleLineHeight = 1.0f;
     public const float ProjectBodyPreferredFontSize = 9f;
-    public const float ProjectBodyMinimumFontSize = 8.5f;
+    public const float ProjectBodyMinimumFontSize = 9f;
 
     // Approved adaptive image window. This is deliberately narrower than Phase 13's post-plan
     // 160 pt expansion. The optimiser may compact an individual image, but never below 132 pt

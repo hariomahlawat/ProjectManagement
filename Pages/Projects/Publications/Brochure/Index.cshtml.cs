@@ -539,7 +539,7 @@ public sealed class IndexModel : PageModel
             {
                 ModelState.AddModelError(
                     nameof(Input.Selections),
-                    $"Review all selected projects before final download. {unreviewed} project{(unreviewed == 1 ? string.Empty : "s")} still require review.");
+                    $"Review all selected projects before final download. {unreviewed} project{(unreviewed == 1 ? string.Empty : "s")} still {(unreviewed == 1 ? "requires" : "require")} review.");
             }
 
             if (Input.CoverStyle == BrochureCoverStyle.Contemporary
