@@ -31,6 +31,7 @@
     const coverHeroFocalXInput = form.querySelector("[data-brochure-cover-hero-focal-x]");
     const coverHeroFocalYInput = form.querySelector("[data-brochure-cover-hero-focal-y]");
     const coverReviewedInput = form.querySelector("[data-brochure-cover-reviewed]");
+    const coverReviewFingerprintInput = form.querySelector("[data-brochure-cover-review-fingerprint]");
     const selectedList = form.querySelector("[data-brochure-selected-list]");
     const selectedEmpty = form.querySelector("[data-brochure-selected-empty]");
     const selectedCount = form.querySelector("[data-brochure-selected-count]");
@@ -192,7 +193,8 @@
         secondaryFocalY: 0.5,
         imageMode: modeAutomatic,
         primaryPhotoConfirmed: false,
-        isReviewed: false
+        isReviewed: false,
+        reviewFingerprint: ""
     });
 
     const configs = new Map();
@@ -213,7 +215,8 @@
                 ? Number(selection.imageMode)
                 : modeAutomatic,
             primaryPhotoConfirmed: Boolean(selection.primaryPhotoConfirmed),
-            isReviewed: Boolean(selection.isReviewed)
+            isReviewed: Boolean(selection.isReviewed),
+            reviewFingerprint: String(selection.reviewFingerprint || "")
         });
     });
 
@@ -241,6 +244,7 @@
     let projectStateTimer = null;
     let lastProjectStateRefresh = 0;
     let lastPreflight = null;
+    let currentProjectReviewFingerprints = new Map();
     let showAllFindings = false;
     let exportBusy = false;
     let explicitCoverHeroProjectId = Number(coverHeroInput?.value) > 0 ? Number(coverHeroInput.value) : null;
@@ -248,6 +252,7 @@
     let coverHeroFocalX = clamp(coverHeroFocalXInput?.value);
     let coverHeroFocalY = clamp(coverHeroFocalYInput?.value);
     let coverReviewed = String(coverReviewedInput?.value).toLowerCase() === "true";
+    let coverReviewFingerprint = String(coverReviewFingerprintInput?.value || "");
     let coverSelectionTouched = false;
 
     const ensureConfig = id => {
@@ -347,7 +352,9 @@
             inputs.push(makeHidden(`${prefix}.SecondaryFocalY`, clamp(config.secondaryFocalY).toFixed(4)));
             inputs.push(makeHidden(`${prefix}.ImageMode`, Number(config.imageMode) || modeAutomatic));
             inputs.push(makeHidden(`${prefix}.PrimaryPhotoConfirmed`, config.primaryPhotoConfirmed ? "true" : "false"));
-            inputs.push(makeHidden(`${prefix}.IsReviewed`, config.isReviewed ? "true" : "false"));
+            const hasBoundReview = Boolean(config.isReviewed && config.reviewFingerprint);
+            inputs.push(makeHidden(`${prefix}.IsReviewed`, hasBoundReview ? "true" : "false"));
+            if (config.reviewFingerprint) inputs.push(makeHidden(`${prefix}.ReviewFingerprint`, config.reviewFingerprint));
         });
         hiddenInputs.replaceChildren(...inputs);
         if (coverHeroInput) coverHeroInput.value = explicitCoverHeroProjectId == null ? "" : String(explicitCoverHeroProjectId);
@@ -355,12 +362,14 @@
         if (coverHeroFocalXInput) coverHeroFocalXInput.value = clamp(coverHeroFocalX).toFixed(4);
         if (coverHeroFocalYInput) coverHeroFocalYInput.value = clamp(coverHeroFocalY).toFixed(4);
         if (coverReviewedInput) coverReviewedInput.value = coverReviewed ? "true" : "false";
+        if (coverReviewFingerprintInput) coverReviewFingerprintInput.value = coverReviewFingerprint;
     };
 
     const invalidateReview = (id, { unconfirmPhoto = false } = {}) => {
         const config = ensureConfig(id);
         if (!config) return;
         config.isReviewed = false;
+        config.reviewFingerprint = "";
         if (unconfirmPhoto) config.primaryPhotoConfirmed = false;
     };
 
@@ -370,6 +379,7 @@
 
     const invalidateCoverReview = () => {
         coverReviewed = false;
+        coverReviewFingerprint = "";
         syncHiddenInputs();
     };
 
@@ -431,7 +441,7 @@
         const item = document.createElement("li");
         item.className = "brochure-selected-item";
         if (activePhotoProjectId === id) item.classList.add("is-photo-editing");
-        if (config?.isReviewed) item.classList.add("is-reviewed");
+        if (config?.isReviewed && config.reviewFingerprint) item.classList.add("is-reviewed");
         item.draggable = true;
         item.dataset.selectedId = String(id);
 
@@ -458,9 +468,14 @@
         const name = document.createElement("span");
         name.className = "brochure-selected-item__name";
         name.textContent = project?.projectName ?? `Project ${id}`;
+        name.title = name.textContent;
         const meta = document.createElement("span");
         meta.className = "brochure-selected-item__meta";
-        const state = config?.isReviewed ? "Reviewed" : config?.primaryPhotoConfirmed ? "Image confirmed" : "Review required";
+        const state = config?.isReviewed && config.reviewFingerprint
+            ? "Reviewed"
+            : config?.primaryPhotoConfirmed
+                ? "Image confirmed"
+                : "Review required";
         meta.textContent = `${state} · ${modeLabel(config?.imageMode)}`;
         copy.append(name, meta);
 
@@ -554,11 +569,16 @@
             coverHeroFocalX = 0.5;
             coverHeroFocalY = 0.5;
             coverReviewed = false;
+            coverReviewFingerprint = "";
         }
         renderSelected(true);
     };
 
-    const reviewedCount = () => orderedIds.filter(id => ensureConfig(id)?.isReviewed).length;
+    const isProjectReviewed = id => {
+        const config = ensureConfig(id);
+        return Boolean(config?.isReviewed && config.reviewFingerprint);
+    };
+    const reviewedCount = () => orderedIds.filter(isProjectReviewed).length;
     const allReviewed = () => orderedIds.length > 0 && reviewedCount() === orderedIds.length;
 
     const renderSelected = (runPreflight = true, refreshState = true) => {
@@ -727,6 +747,7 @@
             coverHeroFocalX = 0.5;
             coverHeroFocalY = 0.5;
             coverReviewed = false;
+            coverReviewFingerprint = "";
         }
         syncHiddenInputs();
         return {
@@ -751,6 +772,7 @@
         coverHeroFocalX = clamp(localX / metrics.renderedWidth);
         coverHeroFocalY = clamp(localY / metrics.renderedHeight);
         coverReviewed = false;
+        coverReviewFingerprint = "";
         syncHiddenInputs();
         updateCoverFocalStage();
         renderCoverHero();
@@ -763,6 +785,7 @@
         coverHeroFocalX = 0.5;
         coverHeroFocalY = 0.5;
         coverReviewed = false;
+        coverReviewFingerprint = "";
         syncHiddenInputs();
         updateCoverFocalStage();
         renderCoverHero();
@@ -929,6 +952,10 @@
     };
 
     const projectSignature = project => JSON.stringify({
+        projectName: project.projectName ?? "",
+        lifecycle: project.lifecycle ?? "",
+        projectCategory: project.projectCategory ?? "",
+        technicalCategory: project.technicalCategory ?? "",
         narrative: project.reviewNarrative ?? "",
         hasNarrative: project.reviewHasNarrative ?? false,
         narrativeWordCount: project.reviewNarrativeWordCount ?? 0,
@@ -957,6 +984,7 @@
                 if (!project) return;
                 const oldSignature = project.__publicationSignature;
                 Object.assign(project, {
+                    projectName: updated.projectName,
                     lifecycle: updated.lifecycle,
                     projectCategory: updated.projectCategory,
                     technicalCategory: updated.technicalCategory,
@@ -992,6 +1020,7 @@
                     invalidateReview(id);
                     if (explicitCoverHeroProjectId === id) {
                         coverReviewed = false;
+                        coverReviewFingerprint = "";
                     }
                 }
                 project.__publicationSignature = newSignature;
@@ -1003,12 +1032,14 @@
                     config.primaryFocalY = 0.5;
                     config.primaryPhotoConfirmed = false;
                     config.isReviewed = false;
+                    config.reviewFingerprint = "";
                 }
                 if (config?.secondaryPhotoId != null && !getPhoto(id, config.secondaryPhotoId)) {
                     config.secondaryPhotoId = null;
                     config.secondaryFocalX = 0.5;
                     config.secondaryFocalY = 0.5;
                     config.isReviewed = false;
+                    config.reviewFingerprint = "";
                 }
                 if (explicitCoverHeroProjectId === id
                     && explicitCoverHeroPhotoId != null
@@ -1018,6 +1049,7 @@
                     coverHeroFocalX = 0.5;
                     coverHeroFocalY = 0.5;
                     coverReviewed = false;
+                    coverReviewFingerprint = "";
                 }
                 updateRowPhotoSummary(id);
             });
@@ -1079,6 +1111,7 @@
             coverHeroFocalX = 0.5;
             coverHeroFocalY = 0.5;
             coverReviewed = false;
+            coverReviewFingerprint = "";
         }
 
         const hero = resolvedCoverHero();
@@ -1105,15 +1138,17 @@
 
         if (coverHeroCrop) coverHeroCrop.disabled = !hero;
         if (coverHeroApprove) {
-            coverHeroApprove.disabled = !hero || coverReviewed;
+            const fingerprintReady = Boolean(lastPreflight?.coverReviewFingerprint);
+            coverHeroApprove.disabled = !hero || !fingerprintReady || coverReviewed;
             coverHeroApprove.innerHTML = coverReviewed
                 ? '<i class="bi bi-check-circle-fill" aria-hidden="true"></i> Cover approved'
                 : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approve cover';
         }
         if (coverHeroAutomatic) coverHeroAutomatic.disabled = !hero?.explicit;
         if (coverHeroReviewState) {
-            coverHeroReviewState.classList.toggle("is-reviewed", coverReviewed);
-            coverHeroReviewState.textContent = coverReviewed ? "Cover approved" : "Cover review required";
+            const coverIsReviewed = Boolean(coverReviewed && coverReviewFingerprint);
+            coverHeroReviewState.classList.toggle("is-reviewed", coverIsReviewed);
+            coverHeroReviewState.textContent = coverIsReviewed ? "Cover approved" : "Cover review required";
         }
 
         if (coverHeroImage) {
@@ -1177,6 +1212,7 @@
                         coverHeroFocalX = 0.5;
                         coverHeroFocalY = 0.5;
                         coverReviewed = false;
+                        coverReviewFingerprint = "";
                         coverHeroChoices.hidden = true;
                         if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
                         syncHiddenInputs();
@@ -1220,7 +1256,7 @@
         }
 
         if (!orderedIds.includes(activeReviewProjectId)) {
-            activeReviewProjectId = orderedIds.find(id => !ensureConfig(id)?.isReviewed) ?? orderedIds[0];
+            activeReviewProjectId = orderedIds.find(id => !isProjectReviewed(id)) ?? orderedIds[0];
         }
         const id = activeReviewProjectId;
         const index = orderedIds.indexOf(id);
@@ -1235,9 +1271,9 @@
                 nav.type = "button";
                 nav.className = "brochure-review-nav__item";
                 nav.classList.toggle("is-active", projectId === id);
-                nav.classList.toggle("is-reviewed", Boolean(ensureConfig(projectId)?.isReviewed));
+                nav.classList.toggle("is-reviewed", isProjectReviewed(projectId));
                 nav.title = projectById.get(projectId)?.projectName ?? `Project ${projectId}`;
-                nav.innerHTML = `<span>${projectIndex + 1}</span><i class="bi ${ensureConfig(projectId)?.isReviewed ? "bi-check-circle-fill" : "bi-circle"}" aria-hidden="true"></i>`;
+                nav.innerHTML = `<span>${projectIndex + 1}</span><i class="bi ${isProjectReviewed(projectId) ? "bi-check-circle-fill" : "bi-circle"}" aria-hidden="true"></i>`;
                 nav.addEventListener("click", () => setActiveReview(projectId));
                 return nav;
             });
@@ -1248,8 +1284,9 @@
         if (reviewProjectName) reviewProjectName.textContent = project.projectName;
         if (reviewProjectMeta) reviewProjectMeta.textContent = [project.lifecycle, project.technicalCategory].filter(Boolean).join(" · ");
         if (reviewState) {
-            reviewState.classList.toggle("is-reviewed", config.isReviewed);
-            reviewState.textContent = config.isReviewed ? "Reviewed" : "Review required";
+            const isReviewed = isProjectReviewed(id);
+            reviewState.classList.toggle("is-reviewed", isReviewed);
+            reviewState.textContent = isReviewed ? "Reviewed" : "Review required";
         }
 
         if (reviewImageFrame) {
@@ -1319,13 +1356,16 @@
         if (reviewNext) reviewNext.disabled = index >= total - 1;
         if (reviewMarkReviewed) {
             const imageTreatmentReady = config.imageMode !== modeGalleryTwo || config.secondaryPhotoId != null;
+            const fingerprintReady = currentProjectReviewFingerprints.has(id);
             const canReview = project.reviewHasNarrative === true
                 && typeof project.reviewNarrative === "string"
                 && project.reviewNarrative.trim().length > 0
                 && info.ready
-                && imageTreatmentReady;
-            reviewMarkReviewed.disabled = !canReview || config.isReviewed;
-            reviewMarkReviewed.innerHTML = config.isReviewed
+                && imageTreatmentReady
+                && fingerprintReady;
+            const isReviewed = isProjectReviewed(id);
+            reviewMarkReviewed.disabled = !canReview || isReviewed;
+            reviewMarkReviewed.innerHTML = isReviewed
                 ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approved'
                 : '<i class="bi bi-check2-circle" aria-hidden="true"></i> Approve project';
         }
@@ -1339,7 +1379,7 @@
 
     const updateButtons = canGenerate => {
         const previewReady = canGenerate && orderedIds.length > 0 && !exportBusy;
-        const coverReady = !isContemporaryCover() || coverReviewed;
+        const coverReady = !isContemporaryCover() || Boolean(coverReviewed && coverReviewFingerprint);
         const finalReady = previewReady && allReviewed() && coverReady;
         if (previewButton) previewButton.disabled = !previewReady;
         if (generateButton) generateButton.disabled = !finalReady;
@@ -1354,6 +1394,36 @@
             } else if (canGenerate) {
                 exportStatus.textContent = "";
             }
+        }
+    };
+
+    const renderPreflightMessage = () => {
+        if (!preflightMessage || !lastPreflight) return;
+        const result = lastPreflight;
+        preflightMessage.classList.remove("is-checking", "is-blocked", "is-warning", "is-ready");
+        if (!orderedIds.length) {
+            preflightMessage.textContent = "Select projects to run publication preflight.";
+        } else if ((result.blockerCount ?? 0) > 0) {
+            preflightMessage.textContent = `${result.blockerCount} blocker${result.blockerCount === 1 ? "" : "s"} must be resolved before preview or download.`;
+            preflightMessage.classList.add("is-blocked");
+        } else if ((result.warningCount ?? 0) > 0) {
+            const coverReady = !isContemporaryCover() || Boolean(coverReviewed && coverReviewFingerprint);
+            const reviewStatus = !allReviewed()
+                ? "Complete Publication Review before final download."
+                : !coverReady
+                    ? "Approve the Cover B hero and crop before final issue."
+                    : "All approvals are complete; review the warnings before final issue.";
+            preflightMessage.textContent = `Preflight passed with ${result.warningCount} warning${result.warningCount === 1 ? "" : "s"}. ${reviewStatus}`;
+            preflightMessage.classList.add("is-warning");
+        } else if (!allReviewed()) {
+            preflightMessage.textContent = "Publication preflight passed. Complete Publication Review before final download.";
+            preflightMessage.classList.add("is-ready");
+        } else if (isContemporaryCover() && !(coverReviewed && coverReviewFingerprint)) {
+            preflightMessage.textContent = "Publication preflight and project review are complete. Approve the Cover B hero and crop before final issue.";
+            preflightMessage.classList.add("is-ready");
+        } else {
+            preflightMessage.textContent = "Publication preflight and all required approvals are complete. The brochure is ready for final issue.";
+            preflightMessage.classList.add("is-ready");
         }
     };
 
@@ -1567,6 +1637,27 @@
 
     const renderPreflight = result => {
         lastPreflight = result;
+        currentProjectReviewFingerprints = new Map(
+            Object.entries(result.projectReviewFingerprints ?? {})
+                .map(([projectId, fingerprint]) => [Number(projectId), String(fingerprint || "")])
+                .filter(([projectId, fingerprint]) => projectId > 0 && fingerprint.length > 0));
+        let invalidatedApproval = false;
+        orderedIds.forEach(id => {
+            const config = ensureConfig(id);
+            const current = currentProjectReviewFingerprints.get(id);
+            if (config?.isReviewed && (!current || config.reviewFingerprint !== current)) {
+                config.isReviewed = false;
+                config.reviewFingerprint = "";
+                invalidatedApproval = true;
+            }
+        });
+        if (coverReviewed
+            && (!result.coverReviewFingerprint || coverReviewFingerprint !== result.coverReviewFingerprint)) {
+            coverReviewed = false;
+            coverReviewFingerprint = "";
+            invalidatedApproval = true;
+        }
+        if (invalidatedApproval) syncHiddenInputs();
         setMetric("[data-preflight-selected]", result.selectedProjectCount ?? orderedIds.length);
         setMetric("[data-preflight-blockers]", result.blockerCount ?? 0);
         setMetric("[data-preflight-warnings]", result.warningCount ?? 0);
@@ -1578,7 +1669,11 @@
             printPlanSummary.hidden = !showPlan;
             if (showPlan) {
                 if (printEstimatePages) printEstimatePages.textContent = String(result.estimatedPageCount);
-                if (printEstimateFill) printEstimateFill.textContent = `${Number(result.estimatedAveragePageUtilizationPercent || 0)}%`;
+                if (printEstimateFill) {
+                    printEstimateFill.textContent = result.lowestProjectPageUtilizationPercent == null
+                        ? "—"
+                        : `${Number(result.estimatedAveragePageUtilizationPercent || 0)}%`;
+                }
                 if (printLowestFill) {
                     printLowestFill.textContent = formatPositivePercent(result.lowestProjectPageUtilizationPercent);
                 }
@@ -1617,23 +1712,14 @@
 
         renderSmartFlow(result.smartFlowSuggestion ?? null, result);
 
-        if (preflightMessage) {
-            preflightMessage.classList.remove("is-checking", "is-blocked", "is-warning", "is-ready");
-            if (!orderedIds.length) {
-                preflightMessage.textContent = "Select projects to run publication preflight.";
-            } else if ((result.blockerCount ?? 0) > 0) {
-                preflightMessage.textContent = `${result.blockerCount} blocker${result.blockerCount === 1 ? "" : "s"} must be resolved before preview or download.`;
-                preflightMessage.classList.add("is-blocked");
-            } else if ((result.warningCount ?? 0) > 0) {
-                preflightMessage.textContent = `Preflight passed with ${result.warningCount} warning${result.warningCount === 1 ? "" : "s"}. Complete Publication Review before final download.`;
-                preflightMessage.classList.add("is-warning");
-            } else {
-                preflightMessage.textContent = "Publication preflight passed. Selected records and source images are ready.";
-                preflightMessage.classList.add("is-ready");
-            }
-        }
+        renderPreflightMessage();
 
         renderIssues(result.issues ?? []);
+        if (invalidatedApproval) {
+            renderSelected(false, false);
+            renderReview();
+            renderPreflightMessage();
+        }
         renderCoverHero();
         updateButtons(Boolean(result.canGenerate));
     };
@@ -1672,6 +1758,7 @@
             if (error?.name === "AbortError") return;
             preflightSpinner?.toggleAttribute("hidden", true);
             lastPreflight = null;
+            currentProjectReviewFingerprints = new Map();
             updateButtons(false);
             if (preflightMessage) {
                 preflightMessage.classList.remove("is-checking", "is-warning", "is-ready");
@@ -1687,6 +1774,7 @@
     const schedulePreflight = () => {
         window.clearTimeout(preflightTimer);
         lastPreflight = null;
+        currentProjectReviewFingerprints = new Map();
         updateButtons(false);
         preflightTimer = window.setTimeout(runPreflight, 280);
     };
@@ -1858,6 +1946,7 @@
                 coverHeroFocalX = 0.5;
                 coverHeroFocalY = 0.5;
                 coverReviewed = false;
+                coverReviewFingerprint = "";
             }
         } else {
             for (const row of visible) {
@@ -1869,7 +1958,7 @@
                 }
             }
         }
-        activeReviewProjectId = orderedIds.find(id => !ensureConfig(id)?.isReviewed) ?? orderedIds[0] ?? null;
+        activeReviewProjectId = orderedIds.find(id => !isProjectReviewed(id)) ?? orderedIds[0] ?? null;
         renderSelected(true);
     });
 
@@ -1881,6 +1970,7 @@
         coverHeroFocalX = 0.5;
         coverHeroFocalY = 0.5;
         coverReviewed = false;
+        coverReviewFingerprint = "";
         activeReviewProjectId = null;
         closePhotoEditor();
         renderSelected(true);
@@ -1935,6 +2025,7 @@
     publicationProfileInputs.forEach(input => {
         input.addEventListener("change", () => {
             coverReviewed = false;
+            coverReviewFingerprint = "";
 
             // Official/institutional is the natural hard-copy default; contemporary is the
             // screen-oriented default. Once the user explicitly chooses a cover, profile changes
@@ -1973,6 +2064,7 @@
                 option.classList.toggle("is-selected", option.querySelector("input")?.checked === true);
             });
             coverReviewed = false;
+            coverReviewFingerprint = "";
             if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
             syncHiddenInputs();
             renderCoverHero();
@@ -1981,12 +2073,14 @@
     });
 
     form.querySelectorAll(
-        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"]'
+        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"], [name="Input.HandlingMarking"]'
     ).forEach(field => {
         field.addEventListener("input", () => {
             coverReviewed = false;
+            coverReviewFingerprint = "";
             syncHiddenInputs();
             renderCoverHero();
+            schedulePreflight();
         });
     });
 
@@ -2004,16 +2098,19 @@
         coverHeroFocalX = 0.5;
         coverHeroFocalY = 0.5;
         coverReviewed = false;
+        coverReviewFingerprint = "";
         if (coverHeroChoices) coverHeroChoices.hidden = true;
         if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
         syncHiddenInputs();
         renderCoverHero();
+        renderPreflightMessage();
         schedulePreflight();
     });
     coverHeroCrop?.addEventListener("click", () => {
         const hero = ensureExplicitCoverHero();
         if (!hero || !coverHeroCropPanel) return;
         coverReviewed = false;
+        coverReviewFingerprint = "";
         coverHeroCropPanel.hidden = false;
         syncHiddenInputs();
         renderCoverHero();
@@ -2028,7 +2125,10 @@
     coverHeroApprove?.addEventListener("click", () => {
         const hero = ensureExplicitCoverHero();
         if (!hero) return;
+        const fingerprint = String(lastPreflight?.coverReviewFingerprint || "");
+        if (!fingerprint) return;
         coverReviewed = true;
+        coverReviewFingerprint = fingerprint;
         if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
         syncHiddenInputs();
         renderCoverHero();
@@ -2091,7 +2191,7 @@
         if (index >= 0 && index < orderedIds.length - 1) setActiveReview(orderedIds[index + 1]);
     });
     reviewNextUnreviewed?.addEventListener("click", () => {
-        const id = orderedIds.find(projectId => !ensureConfig(projectId)?.isReviewed);
+        const id = orderedIds.find(projectId => !isProjectReviewed(projectId));
         if (id) setActiveReview(id);
     });
     reviewMarkReviewed?.addEventListener("click", () => {
@@ -2099,14 +2199,18 @@
         const project = projectById.get(activeReviewProjectId);
         const config = ensureConfig(activeReviewProjectId);
         if (!project || !config || project.reviewHasNarrative !== true || !narrativeInfo(project).ready) return;
+        const fingerprint = currentProjectReviewFingerprints.get(activeReviewProjectId);
+        if (!fingerprint) return;
         if (config.primaryPhotoId != null) config.primaryPhotoConfirmed = true;
         config.isReviewed = true;
+        config.reviewFingerprint = fingerprint;
         syncHiddenInputs();
-        renderSelected(false);
+        renderSelected(false, false);
         renderReview();
-        const nextId = orderedIds.find(projectId => !ensureConfig(projectId)?.isReviewed);
+        const nextId = orderedIds.find(projectId => !isProjectReviewed(projectId));
         if (nextId) activeReviewProjectId = nextId;
         renderReview();
+        renderPreflightMessage();
     });
 
     smartFlowApply?.addEventListener("click", applySmartFlow);

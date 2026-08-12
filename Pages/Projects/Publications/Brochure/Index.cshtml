@@ -99,6 +99,7 @@
         <input asp-for="Input.CoverHeroFocalX" type="hidden" data-brochure-cover-hero-focal-x />
         <input asp-for="Input.CoverHeroFocalY" type="hidden" data-brochure-cover-hero-focal-y />
         <input asp-for="Input.CoverReviewed" type="hidden" data-brochure-cover-reviewed />
+        <input asp-for="Input.CoverReviewFingerprint" type="hidden" data-brochure-cover-review-fingerprint />
         <div data-brochure-hidden-inputs></div>
         <script type="application/json" data-brochure-project-data>@Html.Raw(projectJson)</script>
         <script type="application/json" data-brochure-initial-selections>@Html.Raw(selectionJson)</script>
@@ -706,7 +707,7 @@
                                 <strong data-print-estimate-pages>—</strong>
                             </div>
                             <div>
-                                <span>Average fill</span>
+                                <span>Average non-final fill</span>
                                 <strong data-print-estimate-fill>—</strong>
                             </div>
                             <div>

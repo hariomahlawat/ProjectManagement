@@ -118,7 +118,11 @@ public enum BrochurePreflightIssueCode
     PrintFrontPageDoesNotFit = 20,
     PrintFrontPageTightFit = 21,
     PrintPageUnderUtilized = 22,
-    PrintSmartFlowAvailable = 23
+    PrintSmartFlowAvailable = 23,
+    ProjectReviewRequired = 24,
+    ProjectReviewStale = 25,
+    CoverReviewRequired = 26,
+    CoverReviewStale = 27
 }
 
 
@@ -343,7 +347,22 @@ public sealed record BrochureProjectSelection(
     double SecondaryFocalY,
     BrochureImageMode ImageMode,
     bool PrimaryPhotoConfirmed = false,
-    bool IsReviewed = false);
+    bool IsReviewed = false,
+    string? ReviewFingerprint = null);
+
+/// <summary>
+/// Cover fields visible to the reviewer and therefore bound to a Cover B approval.
+/// </summary>
+public sealed record BrochureCoverReviewContext(
+    string Title,
+    string Subtitle,
+    string Edition,
+    string Strapline,
+    string? HandlingMarking);
+
+public sealed record BrochureProjectReviewFingerprint(
+    int ProjectId,
+    string Fingerprint);
 
 public sealed record BrochurePhotoReference(int ProjectId, int PhotoId);
 
@@ -421,7 +440,10 @@ public sealed record BrochureBuildOptions(
     string? PrintManufacturingAgencyText = null,
     string? PrintVisionaryText = null,
     string? PrintNewSimulatorsText = null,
-    BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork = BrochureInstitutionalCoverArtwork.ReferenceOriginal);
+    BrochureInstitutionalCoverArtwork InstitutionalCoverArtwork = BrochureInstitutionalCoverArtwork.ReferenceOriginal,
+    bool RequirePublicationReview = false,
+    bool CoverReviewed = false,
+    string? CoverReviewFingerprint = null);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,
@@ -446,7 +468,9 @@ public sealed record BrochurePreflight(
     int? FinalPageUtilizationPercent = null,
     bool? PrintFrontPageUsesMinimumTypography = null,
     IReadOnlyList<BrochurePrintSheetSummary>? PrintSheetPlan = null,
-    BrochurePrintFlowSuggestion? SmartFlowSuggestion = null)
+    BrochurePrintFlowSuggestion? SmartFlowSuggestion = null,
+    IReadOnlyList<BrochureProjectReviewFingerprint>? ProjectReviewFingerprints = null,
+    string? CoverReviewFingerprint = null)
 {
     public int BlockerCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Blocker);
     public int WarningCount => Issues.Count(issue => issue.Severity == PublicationIssueSeverity.Warning);

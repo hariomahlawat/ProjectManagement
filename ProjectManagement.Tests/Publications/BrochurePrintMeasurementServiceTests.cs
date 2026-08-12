@@ -155,6 +155,42 @@ public sealed class BrochurePrintMeasurementServiceTests
     }
 
     [Fact]
+    public void MeasureProject_AerialDeliveryStyleParagraphsRemainACompleteSingleModule()
+    {
+        using var fixture = new Fixture();
+        var narrative = string.Join("\n\n", new[]
+        {
+            "Aerial delivery training involves packing cargo parachutes and dropping supply loads such as ammunition ration and jerry can from various aircraft and helicopter platforms.",
+            "Due to heavy cost resources involved and limited aircraft availability, live training is restricted to only a few drops during an annual calendar.",
+            "A simulator provides representative training without imposing the same penalty on live resources while preserving safe procedure and realistic task sequence.",
+            "The simulator is a more cost effective option for such training."
+        });
+        var item = new BrochurePrintPlanningItem(
+            17,
+            "VR-BASED AE DELIVERY SYSTEM FOR C17, C130 AND CHINOOK",
+            narrative,
+            BrochureImageMode.Single,
+            HasPrimaryPhoto: true,
+            HasSecondaryPhoto: false);
+
+        var measurement = fixture.Service.MeasureProject(
+            item,
+            BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Dense, 136f));
+        var reconstructed = string.Join(
+            " ",
+            new[]
+            {
+                measurement.LeadingNarrative,
+                measurement.ContinuationNarrative,
+                measurement.TrailingNarrative
+            }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+        Assert.Equal(NormalizeNarrative(narrative), NormalizeNarrative(reconstructed));
+        Assert.True(measurement.TotalHeightPoints > measurement.TitleHeightPoints);
+        Assert.Equal(BrochurePrintLayoutMetrics.ProjectBodyPreferredFontSize, measurement.BodyFontSize);
+    }
+
+    [Fact]
     public void MeasureProject_LongTitleGrowsBandWithoutReducingBodyTypography()
     {
         using var fixture = new Fixture();

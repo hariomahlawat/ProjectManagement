@@ -161,6 +161,11 @@ internal static class BrochurePrintCompactComposer
         byte[]? artracLogo,
         byte[]? institutionalArtwork)
     {
+        var artworkContainsIdentity = institutionalArtwork is { Length: > 0 }
+                                      && BrochureInstitutionalCoverArtworkCatalog.IdentityMode(
+                                          data.Options.InstitutionalCoverArtwork)
+                                      == BrochureInstitutionalArtworkIdentityMode.FullArtwork;
+
         container.Layers(layers =>
         {
             layers.PrimaryLayer().Element(area =>
@@ -191,7 +196,7 @@ internal static class BrochurePrintCompactComposer
             if (data.Options.CoverStyle == BrochureCoverStyle.Institutional)
             {
                 ComposeInstitutionalCentreOverlay(layers.Layer(), data.Options.PrintCentreStatement);
-                if (institutionalArtwork is not { Length: > 0 })
+                if (!artworkContainsIdentity)
                 {
                     ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
                 }

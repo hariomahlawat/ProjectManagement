@@ -241,6 +241,7 @@ public sealed class BrochurePrintCompactPlannerTests
         Assert.True(plan.Pages[0].UtilizationPercent > plan.Pages[1].UtilizationPercent);
         Assert.Equal(plan.Pages[0].UtilizationPercent, plan.LowestProjectPageUtilizationPercent!.Value);
         Assert.Equal(plan.Pages[1].UtilizationPercent, plan.FinalPageUtilizationPercent!.Value);
+        Assert.Equal(plan.Pages[0].UtilizationPercent, plan.AverageContentUtilizationPercent);
         Assert.Equal(0f, plan.Pages[1].ExtraModuleVerticalPaddingPoints);
         Assert.Equal(0f, plan.Pages[1].ExtraInterModuleSpacingPoints);
 

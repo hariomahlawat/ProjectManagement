@@ -94,7 +94,7 @@ test('phase 6 provides project approval and cover approval for final download', 
   assert.match(view, /data-cover-hero-approve/);
   assert.doesNotMatch(view, /Use this image/);
   assert.match(js, /allReviewed/);
-  assert.match(js, /coverReady = !isContemporaryCover\(\) \|\| coverReviewed/);
+  assert.match(js, /coverReady = !isContemporaryCover\(\) \|\| Boolean\(coverReviewed && coverReviewFingerprint\)/);
   assert.match(js, /finalReady = previewReady && allReviewed\(\) && coverReady/);
 });
 
@@ -463,9 +463,47 @@ test('print pagination packs forward, exempts the final sheet, and guards narrat
   assert.match(planner, /allowRaggedResidual/);
   assert.match(planner, /isFinalPage[\s\S]{0,180}page\.Projects\.Count/);
   assert.match(planner, /minimumRemainingHeight/);
+  assert.match(planner, /nonFinalProjectPages\.Average\(page => page\.UtilizationPercent\)/);
   assert.match(metrics, /PreferredMaximumProjectsPerSheet = 4/);
   assert.match(metrics, /MaximumProjectsPerSheet = 5/);
   assert.match(measurement, /EnsureNarrativePartition/);
   assert.match(js, /sheet\.isFinal/);
   assert.match(view, /Lowest non-final sheet/);
+  assert.match(view, /Average non-final fill/);
+});
+
+test('publication approvals are bound to authoritative project and cover fingerprints', () => {
+  const contracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureContracts.cs'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePublicationService.cs'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+  const fingerprint = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureReviewFingerprint.cs'), 'utf8');
+
+  assert.match(contracts, /ReviewFingerprint/);
+  assert.match(contracts, /ProjectReviewStale/);
+  assert.match(contracts, /CoverReviewStale/);
+  assert.match(service, /ApplyReviewApprovalValidation/);
+  assert.match(service, /RequirePublicationReview/);
+  assert.match(service, /SubmittedReviewFingerprint/);
+  assert.match(fingerprint, /IncrementalHash\.CreateHash\(HashAlgorithmName\.SHA256\)/);
+  assert.match(fingerprint, /FixedTimeEquals/);
+  assert.match(page, /RequirePublicationReview:\s*!preview/);
+  assert.match(view, /data-brochure-cover-review-fingerprint/);
+  assert.match(js, /currentProjectReviewFingerprints/);
+  assert.match(js, /config\.reviewFingerprint = fingerprint/);
+  assert.match(js, /coverReviewFingerprint = fingerprint/);
+});
+
+test('compact and digital Cover A renderers use the same identity-mode contract', () => {
+  assert.match(printRenderer, /artworkContainsIdentity/);
+  assert.match(printRenderer, /BrochureInstitutionalCoverArtworkCatalog\.IdentityMode/);
+  assert.match(printRenderer, /if \(!artworkContainsIdentity\)/);
+  assert.match(renderer, /BrochureInstitutionalCoverArtworkCatalog\.IdentityMode/);
+});
+
+test('preflight has one findings scroll owner and reports review completion accurately', () => {
+  assert.match(css, /\.brochure-preflight-panel \.brochure-preflight-issues \{ max-height: none; overflow: visible;/);
+  assert.match(js, /All approvals are complete; review the warnings before final issue/);
+  assert.match(js, /Publication preflight and all required approvals are complete/);
+  assert.match(js, /Approve the Cover B hero and crop before final issue/);
+  assert.match(js, /name\.title = name\.textContent/);
 });

@@ -1046,9 +1046,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             .Take(Math.Max(0, pages.Length - 1))
             .Where(page => page.Projects.Count > 0)
             .ToArray();
-        var averageUtilization = pages.Length == 0
+        var averageUtilization = nonFinalProjectPages.Length == 0
             ? 0
-            : (int)Math.Round(pages.Average(page => page.UtilizationPercent));
+            : (int)Math.Round(nonFinalProjectPages.Average(page => page.UtilizationPercent));
         var lowestProjectUtilization = nonFinalProjectPages.Length == 0
             ? (int?)null
             : nonFinalProjectPages.Min(page => page.UtilizationPercent);

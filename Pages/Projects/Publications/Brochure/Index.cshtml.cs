@@ -181,6 +181,14 @@ public sealed class IndexModel : PageModel
             Input.AllowTextOnlyProjects,
             Input.CoverHeroProjectId,
             Input.CoverHeroPhotoId,
+            Input.CoverHeroFocalX,
+            Input.CoverHeroFocalY,
+            new BrochureCoverReviewContext(
+                Input.Title!,
+                Input.Subtitle!,
+                Input.Edition!,
+                Input.Strapline!,
+                Input.HandlingMarking),
             ToPrintMatter(),
             Input.Strapline,
             Input.HandlingMarking,
@@ -253,7 +261,10 @@ public sealed class IndexModel : PageModel
                 NullIfWhiteSpace(Input.PrintManufacturingAgencyText),
                 NullIfWhiteSpace(Input.PrintVisionaryText),
                 NullIfWhiteSpace(Input.PrintNewSimulatorsText),
-                Input.InstitutionalCoverArtwork);
+                Input.InstitutionalCoverArtwork,
+                RequirePublicationReview: !preview,
+                CoverReviewed: Input.CoverReviewed,
+                CoverReviewFingerprint: Input.CoverReviewFingerprint);
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -399,11 +410,13 @@ public sealed class IndexModel : PageModel
             : null;
         Input.CoverHeroFocalX = ClampFocal(Input.CoverHeroFocalX);
         Input.CoverHeroFocalY = ClampFocal(Input.CoverHeroFocalY);
+        Input.CoverReviewFingerprint = NormalizeFingerprint(Input.CoverReviewFingerprint);
         if (Input.CoverHeroProjectId is null && Input.CoverHeroPhotoId is null)
         {
             Input.CoverHeroFocalX = .5d;
             Input.CoverHeroFocalY = .5d;
             Input.CoverReviewed = false;
+            Input.CoverReviewFingerprint = null;
         }
 
         Input.Selections = Input.Selections
@@ -423,6 +436,7 @@ public sealed class IndexModel : PageModel
                 {
                     selection.ImageMode = BrochureImageMode.Automatic;
                 }
+                selection.ReviewFingerprint = NormalizeFingerprint(selection.ReviewFingerprint);
                 return selection;
             })
             .ToList();
@@ -468,7 +482,8 @@ public sealed class IndexModel : PageModel
 
         if (!preview && Input.Selections.Count > 0)
         {
-            var unreviewed = Input.Selections.Count(selection => !selection.IsReviewed);
+            var unreviewed = Input.Selections.Count(selection =>
+                !selection.IsReviewed || string.IsNullOrWhiteSpace(selection.ReviewFingerprint));
             if (unreviewed > 0)
             {
                 ModelState.AddModelError(
@@ -476,7 +491,8 @@ public sealed class IndexModel : PageModel
                     $"Review all selected projects before final download. {unreviewed} project{(unreviewed == 1 ? string.Empty : "s")} still require review.");
             }
 
-            if (Input.CoverStyle == BrochureCoverStyle.Contemporary && !Input.CoverReviewed)
+            if (Input.CoverStyle == BrochureCoverStyle.Contemporary
+                && (!Input.CoverReviewed || string.IsNullOrWhiteSpace(Input.CoverReviewFingerprint)))
             {
                 ModelState.AddModelError(
                     nameof(Input.CoverReviewed),
@@ -508,7 +524,8 @@ public sealed class IndexModel : PageModel
                 selection.SecondaryFocalY,
                 selection.ImageMode,
                 selection.PrimaryPhotoConfirmed,
-                selection.IsReviewed))
+                selection.IsReviewed,
+                selection.ReviewFingerprint))
             .ToArray();
 
     private static object ToClientPreflight(BrochurePreflight preflight)
@@ -525,6 +542,10 @@ public sealed class IndexModel : PageModel
             resolvedCoverHeroWidth = preflight.ResolvedCoverHeroWidth,
             resolvedCoverHeroHeight = preflight.ResolvedCoverHeroHeight,
             resolvedCoverHeroQuality = preflight.ResolvedCoverHeroQuality?.ToString(),
+            coverReviewFingerprint = preflight.CoverReviewFingerprint,
+            projectReviewFingerprints = preflight.ProjectReviewFingerprints?.ToDictionary(
+                item => item.ProjectId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                item => item.Fingerprint),
             estimatedPageCount = preflight.EstimatedPageCount,
             estimatedAveragePageUtilizationPercent = preflight.EstimatedAveragePageUtilizationPercent,
             estimatedClosingPageProjectCount = preflight.EstimatedClosingPageProjectCount,
@@ -686,6 +707,15 @@ public sealed class IndexModel : PageModel
     private static string? NullIfWhiteSpace(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static string? NormalizeFingerprint(string? value)
+    {
+        var normalized = NullIfWhiteSpace(value)?.ToLowerInvariant();
+        return normalized is { Length: BrochureReviewFingerprint.HexLength }
+               && normalized.All(Uri.IsHexDigit)
+            ? normalized
+            : null;
+    }
+
     private static int? NormalizePhotoId(int? value)
         => value.HasValue && value.Value > 0 ? value : null;
 
@@ -785,6 +815,9 @@ public sealed class IndexModel : PageModel
 
         public bool CoverReviewed { get; set; }
 
+        [StringLength(BrochureReviewFingerprint.HexLength)]
+        public string? CoverReviewFingerprint { get; set; }
+
         public bool IncludeBackCover { get; set; } = true;
 
         public List<BrochureProjectSelectionInput> Selections { get; set; } = new();
@@ -802,5 +835,8 @@ public sealed class IndexModel : PageModel
         public BrochureImageMode ImageMode { get; set; } = BrochureImageMode.Automatic;
         public bool PrimaryPhotoConfirmed { get; set; }
         public bool IsReviewed { get; set; }
+
+        [StringLength(BrochureReviewFingerprint.HexLength)]
+        public string? ReviewFingerprint { get; set; }
     }
 }

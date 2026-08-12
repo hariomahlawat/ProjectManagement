@@ -23,6 +23,9 @@ public interface IBrochurePublicationService
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
+        double coverHeroFocalX,
+        double coverHeroFocalY,
+        BrochureCoverReviewContext? coverReviewContext,
         BrochurePrintMatter? printMatter,
         string? strapline,
         string? handlingMarking,
@@ -268,6 +271,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         bool allowTextOnlyProjects,
         int? coverHeroProjectId,
         int? coverHeroPhotoId,
+        double coverHeroFocalX,
+        double coverHeroFocalY,
+        BrochureCoverReviewContext? coverReviewContext,
         BrochurePrintMatter? printMatter,
         string? strapline,
         string? handlingMarking,
@@ -282,6 +288,14 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             coverHeroProjectId,
             coverHeroPhotoId,
             cancellationToken);
+
+        prepared = AttachCoverReviewFingerprint(
+            prepared,
+            coverStyle,
+            publicationProfile,
+            coverReviewContext,
+            coverHeroFocalX,
+            coverHeroFocalY);
 
         prepared = ApplyPublicationLevelPreflight(
             prepared,
@@ -299,6 +313,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (!Enum.IsDefined(options.InstitutionalCoverArtwork))
+        {
+            throw new InvalidOperationException("The selected institutional cover artwork is invalid.");
+        }
 
         var prepared = await PrepareAsync(
             selections,
@@ -309,6 +327,18 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             options.CoverHeroProjectId,
             options.CoverHeroPhotoId,
             cancellationToken);
+        prepared = AttachCoverReviewFingerprint(
+            prepared,
+            options.CoverStyle,
+            options.PublicationProfile,
+            new BrochureCoverReviewContext(
+                options.Title,
+                options.Subtitle,
+                options.Edition,
+                options.Strapline,
+                options.HandlingMarking),
+            options.CoverHeroFocalX,
+            options.CoverHeroFocalY);
         prepared = ApplyPublicationLevelPreflight(
             prepared,
             options.PublicationProfile,
@@ -316,6 +346,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             BrochurePrintPublicationPolicy.FromOptions(options),
             options.Strapline,
             options.HandlingMarking);
+        if (options.RequirePublicationReview)
+        {
+            prepared = ApplyReviewApprovalValidation(prepared, options);
+        }
         if (!prepared.Preflight.CanGenerate)
         {
             throw new BrochurePublicationValidationException(prepared.Preflight);
@@ -515,6 +549,100 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         return prepared with { Preflight = preflight };
     }
 
+    private static PreparedPublication AttachCoverReviewFingerprint(
+        PreparedPublication prepared,
+        BrochureCoverStyle coverStyle,
+        BrochurePublicationProfile publicationProfile,
+        BrochureCoverReviewContext? context,
+        double focalX,
+        double focalY)
+    {
+        if (coverStyle != BrochureCoverStyle.Contemporary
+            || context is null
+            || prepared.CoverHero is null)
+        {
+            return prepared with
+            {
+                Preflight = prepared.Preflight with { CoverReviewFingerprint = null }
+            };
+        }
+
+        var fingerprint = BrochureReviewFingerprint.CreateCover(
+            context,
+            publicationProfile,
+            prepared.CoverHero.ProjectId,
+            prepared.CoverHero.PhotoId,
+            prepared.CoverHero.PhotoVersion,
+            focalX,
+            focalY);
+
+        return prepared with
+        {
+            Preflight = prepared.Preflight with { CoverReviewFingerprint = fingerprint }
+        };
+    }
+
+    private static PreparedPublication ApplyReviewApprovalValidation(
+        PreparedPublication prepared,
+        BrochureBuildOptions options)
+    {
+        var issues = prepared.Preflight.Issues.ToList();
+        foreach (var project in prepared.Projects)
+        {
+            if (!project.IsReviewed || string.IsNullOrWhiteSpace(project.SubmittedReviewFingerprint))
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.ProjectReviewRequired,
+                    PublicationIssueSeverity.Blocker,
+                    project.Row.ProjectId,
+                    project.Row.ProjectName,
+                    "Approve this project's current publication copy, imagery and crop before final download."));
+                continue;
+            }
+
+            if (!BrochureReviewFingerprint.Matches(
+                    project.SubmittedReviewFingerprint,
+                    project.CurrentReviewFingerprint))
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.ProjectReviewStale,
+                    PublicationIssueSeverity.Blocker,
+                    project.Row.ProjectId,
+                    project.Row.ProjectName,
+                    "This project changed after it was approved. Review and approve its current publication copy, imagery and crop again."));
+            }
+        }
+
+        if (options.CoverStyle == BrochureCoverStyle.Contemporary)
+        {
+            if (!options.CoverReviewed || string.IsNullOrWhiteSpace(options.CoverReviewFingerprint))
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.CoverReviewRequired,
+                    PublicationIssueSeverity.Blocker,
+                    prepared.CoverHero?.ProjectId,
+                    null,
+                    "Approve the current Cover B hero and crop before final download."));
+            }
+            else if (!BrochureReviewFingerprint.Matches(
+                         options.CoverReviewFingerprint,
+                         prepared.Preflight.CoverReviewFingerprint))
+            {
+                issues.Add(new BrochurePreflightIssue(
+                    BrochurePreflightIssueCode.CoverReviewStale,
+                    PublicationIssueSeverity.Blocker,
+                    prepared.CoverHero?.ProjectId,
+                    null,
+                    "Cover B changed after it was approved. Review and approve the current hero, crop and cover text again."));
+            }
+        }
+
+        return prepared with
+        {
+            Preflight = prepared.Preflight with { Issues = issues }
+        };
+    }
+
     private async Task<PreparedPublication> PrepareAsync(
         IReadOnlyList<BrochureProjectSelection> selections,
         BrochureNarrativeSource narrativeSource,
@@ -679,6 +807,28 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 selection.SecondaryPhotoId,
                 primaryPhotoId,
                 projectPhotos);
+            var primaryPhotoVersion = primaryPhotoId.HasValue
+                ? projectPhotos.FirstOrDefault(photo => photo.PhotoId == primaryPhotoId.Value)?.Version ?? 0
+                : 0;
+            var secondaryPhotoVersion = secondaryPhotoId.HasValue
+                ? projectPhotos.FirstOrDefault(photo => photo.PhotoId == secondaryPhotoId.Value)?.Version ?? 0
+                : 0;
+            var currentReviewFingerprint = BrochureReviewFingerprint.CreateProject(
+                row.ProjectId,
+                row.ProjectName,
+                row.ProjectCategory,
+                row.TechnicalCategory,
+                narrativeSource,
+                narrative,
+                primaryPhotoId,
+                primaryPhotoVersion,
+                secondaryPhotoId,
+                secondaryPhotoVersion,
+                selection.PrimaryFocalX,
+                selection.PrimaryFocalY,
+                selection.SecondaryFocalX,
+                selection.SecondaryFocalY,
+                selection.ImageMode);
             if (secondaryInvalid)
             {
                 issues.Add(new BrochurePreflightIssue(
@@ -730,7 +880,9 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 selection.SecondaryFocalY,
                 selection.ImageMode,
                 selection.PrimaryPhotoConfirmed,
-                selection.IsReviewed));
+                selection.IsReviewed,
+                selection.ReviewFingerprint,
+                currentReviewFingerprint));
         }
 
         var references = new List<BrochurePhotoReference>();
@@ -851,7 +1003,12 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                     : DetermineCoverHeroQuality(
                         coverHeroProbe.Width,
                         coverHeroProbe.Height,
-                        publicationProfile)),
+                        publicationProfile),
+                ProjectReviewFingerprints: prepared
+                    .Select(project => new BrochureProjectReviewFingerprint(
+                        project.Row.ProjectId,
+                        project.CurrentReviewFingerprint))
+                    .ToArray()),
             coverHero);
     }
 
@@ -938,7 +1095,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 return null;
             }
 
-            return new CoverHeroResolution(requestedProject.Row.ProjectId, requestedPhoto.PhotoId);
+            return new CoverHeroResolution(
+                requestedProject.Row.ProjectId,
+                requestedPhoto.PhotoId,
+                requestedPhoto.Version);
         }
 
         var projectNames = projects.ToDictionary(
@@ -998,7 +1158,10 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
             return null;
         }
 
-        return new CoverHeroResolution(resolved.Project.Row.ProjectId, resolved.Photo.PhotoId);
+        return new CoverHeroResolution(
+            resolved.Project.Row.ProjectId,
+            resolved.Photo.PhotoId,
+            resolved.Photo.Version);
     }
 
 
@@ -1339,9 +1502,11 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
         double SecondaryFocalY,
         BrochureImageMode ImageMode,
         bool PrimaryPhotoConfirmed,
-        bool IsReviewed);
+        bool IsReviewed,
+        string? SubmittedReviewFingerprint,
+        string CurrentReviewFingerprint);
 
-    private sealed record CoverHeroResolution(int ProjectId, int PhotoId);
+    private sealed record CoverHeroResolution(int ProjectId, int PhotoId, int PhotoVersion);
 
     private sealed record PreparedPublication(
         IReadOnlyList<PreparedProject> Projects,

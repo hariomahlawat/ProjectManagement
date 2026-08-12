@@ -1011,6 +1011,8 @@
 
 /* Phase 14 · adaptive editorial pagination / Smart Flow */
 .brochure-preflight-panel > .publication-panel__body { max-height: 410px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+/* The panel body owns scrolling; findings must not create a competing nested scrollbar. */
+.brochure-preflight-panel .brochure-preflight-issues { max-height: none; overflow: visible; padding-right: 0; }
 .brochure-smart-flow {
     grid-column: 1 / -1;
     display: grid;
