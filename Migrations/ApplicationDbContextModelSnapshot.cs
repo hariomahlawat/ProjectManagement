@@ -5032,6 +5032,241 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePreset", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AllowTextOnlyProjects")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("CoverHeroPhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("CoverHeroFocalX")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("CoverHeroFocalY")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("CoverHeroProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CoverStyle")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Edition")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("HandlingMarking")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<bool>("IncludeBackCover")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("InstitutionalCoverArtwork")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)");
+
+                    b.Property<string>("IntroductionText")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<string>("IntroductionTitle")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("NarrativeSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("PrintCentreStatement")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<string>("PrintDevelopingAgencyText")
+                        .HasMaxLength(1800)
+                        .HasColumnType("character varying(1800)");
+
+                    b.Property<string>("PrintFutureText")
+                        .HasMaxLength(3500)
+                        .HasColumnType("character varying(3500)");
+
+                    b.Property<string>("PrintIntroText")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<string>("PrintManufacturingAgencyText")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<string>("PrintNewSimulatorsText")
+                        .HasMaxLength(1800)
+                        .HasColumnType("character varying(1800)");
+
+                    b.Property<string>("PrintProcurementText")
+                        .HasMaxLength(3500)
+                        .HasColumnType("character varying(3500)");
+
+                    b.Property<string>("PrintVisionaryText")
+                        .HasMaxLength(4500)
+                        .HasColumnType("character varying(4500)");
+
+                    b.Property<string>("PublicationProfile")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("SettingsSchemaVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<string>("Strapline")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<string>("Subtitle")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_BrochurePresets_IsActive");
+
+                    b.HasIndex("LastModifiedByUserId");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BrochurePresets_NormalizedName");
+
+                    b.HasIndex("UpdatedAtUtc")
+                        .HasDatabaseName("IX_BrochurePresets_UpdatedAtUtc");
+
+                    b.ToTable("BrochurePresets");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePresetProject", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ImageMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<long>("PresetId")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("PrimaryFocalX")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("PrimaryFocalY")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("PrimaryPhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProjectNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<double>("SecondaryFocalX")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("SecondaryFocalY")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("SecondaryPhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("IX_BrochurePresetProjects_ProjectId");
+
+                    b.HasIndex("PresetId", "ProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BrochurePresetProjects_Preset_Project");
+
+                    b.HasIndex("PresetId", "SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BrochurePresetProjects_Preset_SortOrder");
+
+                    b.ToTable("BrochurePresetProjects");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.Property<long>("Id")
@@ -8606,6 +8841,43 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePreset", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("LastModifiedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("LastModifiedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePresetProject", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Publications.BrochurePreset", "Preset")
+                        .WithMany("Projects")
+                        .HasForeignKey("PresetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Preset");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
@@ -9478,6 +9750,11 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Arpp.ArppPublishedIssue", b =>
                 {
                     b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Publications.BrochurePreset", b =>
+                {
+                    b.Navigation("Projects");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>

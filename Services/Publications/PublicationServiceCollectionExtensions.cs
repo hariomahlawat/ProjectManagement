@@ -18,6 +18,7 @@ public static class PublicationServiceCollectionExtensions
         services.AddSingleton<IBrochurePrintPagePlanner, BrochurePrintPagePlanner>();
         services.AddScoped<IBrochurePhotoService, BrochurePhotoService>();
         services.AddScoped<IBrochurePublicationService, BrochurePublicationService>();
+        services.AddScoped<IBrochurePresetService, BrochurePresetService>();
         services.AddScoped<IBrochurePdfReportBuilder, BrochurePdfReportBuilder>();
 
         // Fail early if the publication graph or font stack is broken rather than

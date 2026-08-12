@@ -54,6 +54,29 @@
     var projectStateUrl = Url.Page("/Projects/Publications/Brochure/Index", "ProjectState");
     var previewUrl = Url.Page("/Projects/Publications/Brochure/Index", "Preview");
     var generateUrl = Url.Page("/Projects/Publications/Brochure/Index", "Generate");
+    var savePresetUrl = Url.Page("/Projects/Publications/Brochure/Index", "SavePreset");
+    var renamePresetUrl = Url.Page("/Projects/Publications/Brochure/Index", "RenamePreset");
+    var duplicatePresetUrl = Url.Page("/Projects/Publications/Brochure/Index", "DuplicatePreset");
+    var deletePresetUrl = Url.Page("/Projects/Publications/Brochure/Index", "DeletePreset");
+    var savedPresetJson = JsonSerializer.Serialize(Model.SavedBrochures.Select(preset => new
+    {
+        preset.Id,
+        preset.Name,
+        preset.Description,
+        publicationProfile = preset.PublicationProfile.ToString(),
+        preset.ProjectCount,
+        updatedAtUtc = preset.UpdatedAtUtc,
+        preset.UpdatedByDisplay,
+        preset.RowVersion
+    }), jsonOptions);
+    var activePresetJson = JsonSerializer.Serialize(new
+    {
+        id = Model.ActiveSavedBrochure?.Id,
+        name = Model.ActiveSavedBrochure?.Name,
+        description = Model.ActiveSavedBrochure?.Description,
+        rowVersion = Model.ActivePresetRowVersion,
+        canManage = Model.CanManageSavedBrochures
+    }, jsonOptions);
 }
 
 @section Styles {
@@ -69,19 +92,86 @@
         <span aria-current="page">Brochure</span>
     </nav>
 
-    <header class="publications-header publications-header--builder">
-        <div>
-            <p class="publications-eyebrow">CAPABILITY PUBLICATION</p>
+    <header class="publications-header publications-header--builder brochure-workspace-header">
+        <div class="brochure-workspace-header__copy">
             <h1>Brochure Builder</h1>
-            <p>Compose, review and generate either the original-format compact hard-copy brochure or a comfortable A4 digital edition from authoritative PRISM project records.</p>
+            <p>Compose, review and generate capability publications from authoritative PRISM project records.</p>
         </div>
-        <div class="brochure-header-badge" title="PDF generation remains fully offline">
-            <i class="bi bi-cloud-slash" aria-hidden="true"></i>
-            <span>Offline PDF</span>
-        </div>
+
+        <section class="brochure-preset-control" data-brochure-preset-control aria-label="Saved brochure configuration">
+            <div class="brochure-preset-control__label">
+                <span>Saved brochure</span>
+                <span class="brochure-preset-dirty" hidden data-preset-dirty-state></span>
+            </div>
+            <div class="brochure-preset-control__actions">
+                <select class="form-select form-select-sm" data-preset-select aria-label="Choose a saved brochure">
+                    <option value="">Unsaved brochure</option>
+                    @foreach (var preset in Model.SavedBrochures)
+                    {
+                        if (Model.ActivePresetId == preset.Id)
+                        {
+                            <option value="@preset.Id" selected>@preset.Name</option>
+                        }
+                        else
+                        {
+                            <option value="@preset.Id">@preset.Name</option>
+                        }
+                    }
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-preset-load>Load</button>
+                @if (Model.CanManageSavedBrochures)
+                {
+                    <div class="dropdown brochure-preset-save-menu">
+                        <button type="button"
+                                class="btn btn-sm btn-primary dropdown-toggle"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                data-preset-save-menu>
+                            Save
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><button type="button" class="dropdown-item" data-preset-save-changes>Save changes</button></li>
+                            <li><button type="button" class="dropdown-item" data-preset-save-as-new>Save as new</button></li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><button type="button" class="dropdown-item" data-preset-rename>Rename</button></li>
+                            <li><button type="button" class="dropdown-item" data-preset-duplicate>Duplicate saved version</button></li>
+                            <li><button type="button" class="dropdown-item" data-preset-manage>Manage saved brochures</button></li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><button type="button" class="dropdown-item text-danger" data-preset-delete>Delete saved brochure</button></li>
+                        </ul>
+                    </div>
+                }
+            </div>
+            <div class="brochure-preset-control__meta" data-preset-meta>
+                @if (Model.ActiveSavedBrochure is not null)
+                {
+                    <span>Shared · @Model.ActiveSavedBrochure.ProjectCount project@(Model.ActiveSavedBrochure.ProjectCount == 1 ? string.Empty : "s")</span>
+                    <span>Updated @Model.ActiveSavedBrochure.UpdatedAtUtc.ToString("dd MMM yyyy") · @Model.ActiveSavedBrochure.UpdatedByDisplay</span>
+                }
+                else
+                {
+                    <span>Load a shared institutional configuration, or continue with an ad-hoc brochure.</span>
+                }
+            </div>
+            <div class="brochure-preset-control__status" hidden role="status" aria-live="polite" data-preset-status></div>
+        </section>
     </header>
 
     <partial name="/Pages/Projects/Publications/_PublicationTabs.cshtml" />
+
+    @if (Model.PresetLoadDiagnostics.Count > 0)
+    {
+        <section class="brochure-preset-diagnostics" aria-label="Saved brochure load diagnostics">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            <div>
+                <strong>Saved brochure loaded with changes</strong>
+                @foreach (var diagnostic in Model.PresetLoadDiagnostics)
+                {
+                    <span>@diagnostic.Message</span>
+                }
+            </div>
+        </section>
+    }
 
     <div asp-validation-summary="ModelOnly" class="alert alert-danger brochure-validation" role="alert"></div>
     <span asp-validation-for="Input.Selections" class="text-danger small"></span>
@@ -93,7 +183,13 @@
           data-brochure-preflight-url="@preflightUrl"
           data-brochure-project-state-url="@projectStateUrl"
           data-brochure-preview-url="@previewUrl"
-          data-brochure-generate-url="@generateUrl">
+          data-brochure-generate-url="@generateUrl"
+          data-brochure-save-preset-url="@savePresetUrl"
+          data-brochure-rename-preset-url="@renamePresetUrl"
+          data-brochure-duplicate-preset-url="@duplicatePresetUrl"
+          data-brochure-delete-preset-url="@deletePresetUrl">
+        <input asp-for="ActivePresetId" type="hidden" data-active-preset-id />
+        <input asp-for="ActivePresetRowVersion" type="hidden" data-active-preset-row-version />
         <input asp-for="Input.CoverHeroProjectId" type="hidden" data-brochure-cover-hero-project />
         <input asp-for="Input.CoverHeroPhotoId" type="hidden" data-brochure-cover-hero-photo />
         <input asp-for="Input.CoverHeroFocalX" type="hidden" data-brochure-cover-hero-focal-x />
@@ -104,6 +200,8 @@
         <script type="application/json" data-brochure-project-data>@Html.Raw(projectJson)</script>
         <script type="application/json" data-brochure-initial-selections>@Html.Raw(selectionJson)</script>
         <script type="application/json" data-brochure-approved-print-content>@Html.Raw(approvedPrintJson)</script>
+        <script type="application/json" data-brochure-saved-presets>@Html.Raw(savedPresetJson)</script>
+        <script type="application/json" data-brochure-active-preset>@Html.Raw(activePresetJson)</script>
 
         <div class="brochure-layout">
             <main class="brochure-main">
@@ -870,6 +968,152 @@
         </div>
 
     </form>
+
+    @if (Model.CanManageSavedBrochures)
+    {
+        <div class="modal fade" id="brochurePresetSaveModal" tabindex="-1" aria-labelledby="brochurePresetSaveModalTitle" aria-hidden="true" data-preset-save-modal>
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content brochure-preset-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-6" id="brochurePresetSaveModalTitle">Save shared brochure</h2>
+                            <p>Creates a reusable institutional configuration available to all authorised Publications users.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">
+                            <span>Name</span>
+                            <input type="text" class="form-control" maxlength="120" data-preset-save-name />
+                        </label>
+                        <label class="form-label">
+                            <span>Description <small>optional</small></span>
+                            <textarea class="form-control" rows="3" maxlength="500" data-preset-save-description></textarea>
+                        </label>
+                        <div class="brochure-preset-modal__message" hidden data-preset-save-message></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-preset-save-confirm>Save shared brochure</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="brochurePresetRenameModal" tabindex="-1" aria-labelledby="brochurePresetRenameModalTitle" aria-hidden="true" data-preset-rename-modal>
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content brochure-preset-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-6" id="brochurePresetRenameModalTitle">Rename shared brochure</h2>
+                            <p>The configuration and project order are unchanged.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">
+                            <span>Name</span>
+                            <input type="text" class="form-control" maxlength="120" data-preset-rename-name />
+                        </label>
+                        <div class="brochure-preset-modal__message" hidden data-preset-rename-message></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-preset-rename-confirm>Rename</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="brochurePresetDuplicateModal" tabindex="-1" aria-labelledby="brochurePresetDuplicateModalTitle" aria-hidden="true" data-preset-duplicate-modal>
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content brochure-preset-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-6" id="brochurePresetDuplicateModalTitle">Duplicate saved brochure</h2>
+                            <p>Copies the stored shared version. Current unsaved working changes are not included.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">
+                            <span>New name</span>
+                            <input type="text" class="form-control" maxlength="120" data-preset-duplicate-name />
+                        </label>
+                        <label class="form-label">
+                            <span>Description <small>optional</small></span>
+                            <textarea class="form-control" rows="3" maxlength="500" data-preset-duplicate-description></textarea>
+                        </label>
+                        <div class="brochure-preset-modal__message" hidden data-preset-duplicate-message></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-preset-duplicate-confirm>Duplicate</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="brochurePresetManageModal" tabindex="-1" aria-labelledby="brochurePresetManageModalTitle" aria-hidden="true" data-preset-manage-modal>
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content brochure-preset-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-6" id="brochurePresetManageModalTitle">Manage saved brochures</h2>
+                            <p>Shared institutional configurations available to all authorised Publications users.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="brochure-preset-manage-list" data-preset-manage-list>
+                            @foreach (var preset in Model.SavedBrochures)
+                            {
+                                <article data-preset-manage-row data-preset-id="@preset.Id">
+                                    <div>
+                                        <strong>@preset.Name</strong>
+                                        <span>@preset.ProjectCount project@(preset.ProjectCount == 1 ? string.Empty : "s") · @preset.PublicationProfile</span>
+                                        <small>Updated @preset.UpdatedAtUtc.ToString("dd MMM yyyy") · @preset.UpdatedByDisplay</small>
+                                    </div>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-preset-row-load>Load</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-preset-row-rename>Rename</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-preset-row-duplicate>Duplicate</button>
+                                        <button type="button" class="btn btn-sm btn-link text-danger" data-preset-row-delete>Delete</button>
+                                    </div>
+                                </article>
+                            }
+                            @if (Model.SavedBrochures.Count == 0)
+                            {
+                                <div class="brochure-preset-manage-empty" data-preset-manage-empty>No shared brochures have been saved yet.</div>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-preset-manage-create>Save current brochure as new</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="brochurePresetConflictModal" tabindex="-1" aria-labelledby="brochurePresetConflictModalTitle" aria-hidden="true" data-preset-conflict-modal>
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content brochure-preset-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-6" id="brochurePresetConflictModalTitle">Saved brochure has changed</h2>
+                            <p data-preset-conflict-message>This shared brochure was updated by another user after you loaded it.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body brochure-preset-conflict-actions">
+                        <button type="button" class="btn btn-outline-secondary" data-preset-conflict-reload>Reload current version</button>
+                        <button type="button" class="btn btn-primary" data-preset-conflict-save-as-new>Save my version as new</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @section Scripts {

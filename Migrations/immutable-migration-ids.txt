@@ -90,3 +90,4 @@
 20261207190000_StabilizeNotebookModule
 20261207200000_AddNotebookSystemItemPreferences
 20261207210000_AddProjectIdeaGovernanceLifecycle
+20261208100000_AddSharedBrochurePresets

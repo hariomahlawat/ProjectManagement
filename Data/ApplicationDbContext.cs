@@ -29,6 +29,7 @@ using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Models.Publications;
 using ProjectManagement.Models.Usage;
 using ProjectManagement.Models.Arpp;
 
@@ -64,6 +65,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectTechStatus> ProjectTechStatuses => Set<ProjectTechStatus>();
         public DbSet<ProjectBriefingDeck> ProjectBriefingDecks => Set<ProjectBriefingDeck>();
         public DbSet<ProjectBriefingDeckItem> ProjectBriefingDeckItems => Set<ProjectBriefingDeckItem>();
+        public DbSet<BrochurePreset> BrochurePresets => Set<BrochurePreset>();
+        public DbSet<BrochurePresetProject> BrochurePresetProjects => Set<BrochurePresetProject>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<NotebookItem> NotebookItems => Set<NotebookItem>();
@@ -541,6 +544,80 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.DocumentId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: Shared capability brochure presets
+            builder.Entity<BrochurePreset>(entity =>
+            {
+                entity.ToTable("BrochurePresets");
+                entity.Property(preset => preset.Name).HasMaxLength(120).IsRequired();
+                entity.Property(preset => preset.NormalizedName).HasMaxLength(120).IsRequired();
+                entity.Property(preset => preset.Description).HasMaxLength(500);
+                entity.Property(preset => preset.Title).HasMaxLength(120).IsRequired();
+                entity.Property(preset => preset.Subtitle).HasMaxLength(160).IsRequired();
+                entity.Property(preset => preset.Edition).HasMaxLength(80).IsRequired();
+                entity.Property(preset => preset.Strapline).HasMaxLength(180).IsRequired();
+                entity.Property(preset => preset.CoverStyle).HasMaxLength(32).IsRequired();
+                entity.Property(preset => preset.InstitutionalCoverArtwork).HasMaxLength(48).IsRequired();
+                entity.Property(preset => preset.NarrativeSource).HasMaxLength(32).IsRequired();
+                entity.Property(preset => preset.PublicationProfile).HasMaxLength(32).IsRequired();
+                entity.Property(preset => preset.IntroductionTitle).HasMaxLength(120);
+                entity.Property(preset => preset.IntroductionText).HasMaxLength(3000);
+                entity.Property(preset => preset.PrintIntroText).HasMaxLength(5000);
+                entity.Property(preset => preset.PrintFutureText).HasMaxLength(3500);
+                entity.Property(preset => preset.PrintProcurementText).HasMaxLength(3500);
+                entity.Property(preset => preset.PrintCentreStatement).HasMaxLength(1200);
+                entity.Property(preset => preset.PrintDevelopingAgencyText).HasMaxLength(1800);
+                entity.Property(preset => preset.PrintManufacturingAgencyText).HasMaxLength(1200);
+                entity.Property(preset => preset.PrintVisionaryText).HasMaxLength(4500);
+                entity.Property(preset => preset.PrintNewSimulatorsText).HasMaxLength(1800);
+                entity.Property(preset => preset.HandlingMarking).HasMaxLength(80);
+                entity.Property(preset => preset.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(preset => preset.LastModifiedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(preset => preset.SettingsSchemaVersion).HasDefaultValue(1).IsRequired();
+                entity.Property(preset => preset.IsActive).HasDefaultValue(true).IsRequired();
+                ConfigureRowVersion(entity);
+
+                entity.HasIndex(preset => preset.NormalizedName)
+                    .HasDatabaseName("UX_BrochurePresets_NormalizedName")
+                    .IsUnique();
+                entity.HasIndex(preset => preset.UpdatedAtUtc)
+                    .HasDatabaseName("IX_BrochurePresets_UpdatedAtUtc");
+                entity.HasIndex(preset => preset.IsActive)
+                    .HasDatabaseName("IX_BrochurePresets_IsActive");
+
+                entity.HasOne(preset => preset.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(preset => preset.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(preset => preset.LastModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(preset => preset.LastModifiedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<BrochurePresetProject>(entity =>
+            {
+                entity.ToTable("BrochurePresetProjects");
+                entity.Property(item => item.ProjectNameSnapshot).HasMaxLength(160).IsRequired();
+                entity.Property(item => item.ImageMode).HasMaxLength(32).IsRequired();
+                entity.HasIndex(item => new { item.PresetId, item.SortOrder })
+                    .HasDatabaseName("UX_BrochurePresetProjects_Preset_SortOrder")
+                    .IsUnique();
+                entity.HasIndex(item => new { item.PresetId, item.ProjectId })
+                    .HasDatabaseName("UX_BrochurePresetProjects_Preset_Project")
+                    .IsUnique();
+                entity.HasIndex(item => item.ProjectId)
+                    .HasDatabaseName("IX_BrochurePresetProjects_ProjectId");
+
+                entity.HasOne(item => item.Preset)
+                    .WithMany(preset => preset.Projects)
+                    .HasForeignKey(item => item.PresetId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Project)
+                    .WithMany()
+                    .HasForeignKey(item => item.ProjectId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // SECTION: Project briefing decks

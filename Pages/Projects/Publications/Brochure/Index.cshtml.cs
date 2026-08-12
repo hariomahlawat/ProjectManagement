@@ -1,8 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Publications;
 using ProjectManagement.Utilities.Reporting;
@@ -15,6 +18,7 @@ public sealed class IndexModel : PageModel
     private const int MaximumSelectedProjects = 100;
 
     private readonly IBrochurePublicationService _publicationService;
+    private readonly IBrochurePresetService _presetService;
     private readonly IBrochurePhotoService _photoService;
     private readonly IBrochurePdfReportBuilder _pdfBuilder;
     private readonly IPublicationFontService _fontService;
@@ -23,6 +27,7 @@ public sealed class IndexModel : PageModel
 
     public IndexModel(
         IBrochurePublicationService publicationService,
+        IBrochurePresetService presetService,
         IBrochurePhotoService photoService,
         IBrochurePdfReportBuilder pdfBuilder,
         IPublicationFontService fontService,
@@ -30,6 +35,7 @@ public sealed class IndexModel : PageModel
         ILogger<IndexModel> logger)
     {
         _publicationService = publicationService ?? throw new ArgumentNullException(nameof(publicationService));
+        _presetService = presetService ?? throw new ArgumentNullException(nameof(presetService));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _pdfBuilder = pdfBuilder ?? throw new ArgumentNullException(nameof(pdfBuilder));
         _fontService = fontService ?? throw new ArgumentNullException(nameof(fontService));
@@ -54,11 +60,48 @@ public sealed class IndexModel : PageModel
             Array.Empty<string>(),
             "QuestPDF bundled fallback");
 
+    public IReadOnlyList<BrochurePresetSummaryVm> SavedBrochures { get; private set; }
+        = Array.Empty<BrochurePresetSummaryVm>();
+
+    public BrochurePresetSummaryVm? ActiveSavedBrochure { get; private set; }
+
+    public IReadOnlyList<BrochurePresetDiagnostic> PresetLoadDiagnostics { get; private set; }
+        = Array.Empty<BrochurePresetDiagnostic>();
+
+    [BindProperty]
+    public long? ActivePresetId { get; set; }
+
+    [BindProperty]
+    public string? ActivePresetRowVersion { get; set; }
+
+    public bool CanManageSavedBrochures
+        => User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
+
     public BrochurePrintMatter ApprovedPrintMatter => BrochurePrintPublicationPolicy.ApprovedReference;
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    public async Task OnGetAsync(long? presetId, CancellationToken cancellationToken)
     {
         ApplyDefaults(includePrintMatter: true);
+
+        if (presetId is > 0)
+        {
+            try
+            {
+                var loaded = await _presetService.LoadAsync(presetId.Value, cancellationToken);
+                ApplyPresetConfiguration(loaded.Configuration);
+                ActivePresetId = loaded.Preset.Id;
+                ActivePresetRowVersion = loaded.Preset.RowVersion;
+                ActiveSavedBrochure = loaded.Preset;
+                PresetLoadDiagnostics = loaded.Diagnostics;
+            }
+            catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+            {
+                ModelState.AddModelError(string.Empty, exception.Message);
+                ActivePresetId = null;
+                ActivePresetRowVersion = null;
+            }
+        }
+
         await LoadAsync(cancellationToken);
     }
 
@@ -87,6 +130,181 @@ public sealed class IndexModel : PageModel
         Response.Headers["X-PRISM-Publication-Photo-Size"] = $"{preview.SourceWidth}x{preview.SourceHeight}";
         Response.Headers["X-PRISM-Publication-Photo-Quality"] = preview.Quality.ToString();
         return File(preview.Content, preview.ContentType);
+    }
+
+
+    public async Task<IActionResult> OnPostSavePresetAsync(
+        string? presetName,
+        string? presetDescription,
+        bool saveAsNew,
+        CancellationToken cancellationToken)
+    {
+        if (!CanManageSavedBrochures)
+        {
+            return Forbid();
+        }
+
+        ApplyDefaults();
+        NormalizeInput();
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new
+            {
+                message = "Review the brochure settings before saving the shared brochure.",
+                errors = ModelState.Values
+                    .SelectMany(value => value.Errors)
+                    .Select(error => error.ErrorMessage)
+                    .Where(message => !string.IsNullOrWhiteSpace(message))
+                    .ToArray()
+            });
+        }
+
+        try
+        {
+            var actorUserId = RequireActorUserId();
+            var configuration = ToPresetConfiguration();
+            BrochurePresetMutationResult result;
+            if (saveAsNew || ActivePresetId is not > 0)
+            {
+                result = await _presetService.CreateAsync(
+                    actorUserId,
+                    presetName ?? string.Empty,
+                    presetDescription,
+                    configuration,
+                    cancellationToken);
+            }
+            else
+            {
+                result = await _presetService.UpdateAsync(
+                    ActivePresetId.Value,
+                    actorUserId,
+                    ActivePresetRowVersion ?? string.Empty,
+                    configuration,
+                    cancellationToken);
+            }
+
+            return new JsonResult(new
+            {
+                message = saveAsNew || ActivePresetId is not > 0
+                    ? "Shared brochure saved."
+                    : "Shared brochure updated for all authorised users.",
+                preset = ToClientPreset(result.Preset)
+            });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (BrochurePresetConcurrencyException exception)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = exception.Message, code = "presetConflict" });
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { message = exception.Message });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogWarning(exception, "Shared brochure save failed because the stored configuration changed.");
+            return StatusCode(StatusCodes.Status409Conflict, new
+            {
+                message = "The shared brochure changed while it was being saved. Reload the current version or save your working copy as a new brochure.",
+                code = "presetConflict"
+            });
+        }
+    }
+
+    public async Task<IActionResult> OnPostRenamePresetAsync(
+        long presetId,
+        string rowVersion,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        if (!CanManageSavedBrochures) return Forbid();
+        try
+        {
+            var result = await _presetService.RenameAsync(
+                presetId,
+                RequireActorUserId(),
+                rowVersion,
+                name,
+                cancellationToken);
+            return new JsonResult(new { message = "Shared brochure renamed.", preset = ToClientPreset(result.Preset) });
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (BrochurePresetConcurrencyException exception)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = exception.Message, code = "presetConflict" });
+        }
+        catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
+        catch (InvalidOperationException exception) { return BadRequest(new { message = exception.Message }); }
+        catch (DbUpdateException)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = "The shared brochure could not be renamed because it changed on the server.", code = "presetConflict" });
+        }
+    }
+
+    public async Task<IActionResult> OnPostDuplicatePresetAsync(
+        long presetId,
+        string rowVersion,
+        string name,
+        string? description,
+        CancellationToken cancellationToken)
+    {
+        if (!CanManageSavedBrochures) return Forbid();
+        try
+        {
+            var result = await _presetService.DuplicateAsync(
+                presetId,
+                RequireActorUserId(),
+                rowVersion,
+                name,
+                description,
+                cancellationToken);
+            return new JsonResult(new { message = "Shared brochure duplicated.", preset = ToClientPreset(result.Preset) });
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (BrochurePresetConcurrencyException exception)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = exception.Message, code = "presetConflict" });
+        }
+        catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
+        catch (InvalidOperationException exception) { return BadRequest(new { message = exception.Message }); }
+        catch (DbUpdateException)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = "The shared brochure could not be duplicated because its saved version changed.", code = "presetConflict" });
+        }
+    }
+
+    public async Task<IActionResult> OnPostDeletePresetAsync(
+        long presetId,
+        string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!CanManageSavedBrochures) return Forbid();
+        try
+        {
+            await _presetService.DeleteAsync(
+                presetId,
+                RequireActorUserId(),
+                rowVersion,
+                cancellationToken);
+            return new JsonResult(new { message = "Shared brochure deleted." });
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (BrochurePresetConcurrencyException exception)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = exception.Message, code = "presetConflict" });
+        }
+        catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
+        catch (DbUpdateException)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { message = "The shared brochure could not be deleted because it changed on the server.", code = "presetConflict" });
+        }
     }
 
 
@@ -394,6 +612,16 @@ public sealed class IndexModel : PageModel
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        SavedBrochures = await _presetService.ListAsync(cancellationToken);
+        if (ActivePresetId is > 0)
+        {
+            ActiveSavedBrochure = SavedBrochures.FirstOrDefault(preset => preset.Id == ActivePresetId.Value);
+            if (ActiveSavedBrochure is not null)
+            {
+                ActivePresetRowVersion = ActiveSavedBrochure.RowVersion;
+            }
+        }
+
         Projects = await _publicationService.GetProjectOptionsAsync(cancellationToken);
         ProjectCategories = Projects
             .Select(project => project.ProjectCategory)
@@ -435,6 +663,112 @@ public sealed class IndexModel : PageModel
             Input.PrintNewSimulatorsText = string.IsNullOrWhiteSpace(Input.PrintNewSimulatorsText) ? approved.NewSimulatorsGuidance : Input.PrintNewSimulatorsText;
         }
     }
+
+    private void ApplyPresetConfiguration(BrochurePresetConfiguration configuration)
+    {
+        Input = new GenerateBrochureInput
+        {
+            Title = configuration.Title,
+            Subtitle = configuration.Subtitle,
+            Edition = configuration.Edition,
+            Strapline = configuration.Strapline,
+            CoverStyle = configuration.CoverStyle,
+            InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork,
+            NarrativeSource = configuration.NarrativeSource,
+            PublicationProfile = configuration.PublicationProfile,
+            IntroductionTitle = configuration.IntroductionTitle,
+            IntroductionText = configuration.IntroductionText,
+            PrintIntroText = configuration.PrintIntroText,
+            PrintFutureText = configuration.PrintFutureText,
+            PrintProcurementText = configuration.PrintProcurementText,
+            PrintCentreStatement = configuration.PrintCentreStatement,
+            PrintDevelopingAgencyText = configuration.PrintDevelopingAgencyText,
+            PrintManufacturingAgencyText = configuration.PrintManufacturingAgencyText,
+            PrintVisionaryText = configuration.PrintVisionaryText,
+            PrintNewSimulatorsText = configuration.PrintNewSimulatorsText,
+            HandlingMarking = configuration.HandlingMarking,
+            AllowTextOnlyProjects = configuration.AllowTextOnlyProjects,
+            IncludeBackCover = configuration.IncludeBackCover,
+            CoverHeroProjectId = configuration.CoverHeroProjectId,
+            CoverHeroPhotoId = configuration.CoverHeroPhotoId,
+            CoverHeroFocalX = configuration.CoverHeroFocalX,
+            CoverHeroFocalY = configuration.CoverHeroFocalY,
+            CoverReviewed = false,
+            CoverReviewFingerprint = null,
+            Selections = configuration.Projects
+                .Select(project => new BrochureProjectSelectionInput
+                {
+                    ProjectId = project.ProjectId,
+                    PrimaryPhotoId = project.PrimaryPhotoId,
+                    SecondaryPhotoId = project.SecondaryPhotoId,
+                    PrimaryFocalX = project.PrimaryFocalX,
+                    PrimaryFocalY = project.PrimaryFocalY,
+                    SecondaryFocalX = project.SecondaryFocalX,
+                    SecondaryFocalY = project.SecondaryFocalY,
+                    ImageMode = project.ImageMode,
+                    PrimaryPhotoConfirmed = false,
+                    IsReviewed = false,
+                    ReviewFingerprint = null
+                })
+                .ToList()
+        };
+    }
+
+    private BrochurePresetConfiguration ToPresetConfiguration()
+        => new(
+            Input.Title ?? string.Empty,
+            Input.Subtitle ?? string.Empty,
+            Input.Edition ?? string.Empty,
+            Input.Strapline ?? string.Empty,
+            Input.CoverStyle,
+            Input.InstitutionalCoverArtwork,
+            Input.NarrativeSource,
+            Input.PublicationProfile,
+            Input.IntroductionTitle,
+            Input.IntroductionText,
+            Input.PrintIntroText,
+            Input.PrintFutureText,
+            Input.PrintProcurementText,
+            Input.PrintCentreStatement,
+            Input.PrintDevelopingAgencyText,
+            Input.PrintManufacturingAgencyText,
+            Input.PrintVisionaryText,
+            Input.PrintNewSimulatorsText,
+            Input.HandlingMarking,
+            Input.AllowTextOnlyProjects,
+            Input.IncludeBackCover,
+            Input.CoverHeroProjectId,
+            Input.CoverHeroPhotoId,
+            Input.CoverHeroFocalX,
+            Input.CoverHeroFocalY,
+            Input.Selections
+                .Select(selection => new BrochurePresetProjectConfiguration(
+                    selection.ProjectId,
+                    selection.PrimaryPhotoId,
+                    selection.SecondaryPhotoId,
+                    selection.PrimaryFocalX,
+                    selection.PrimaryFocalY,
+                    selection.SecondaryFocalX,
+                    selection.SecondaryFocalY,
+                    selection.ImageMode))
+                .ToArray());
+
+    private string RequireActorUserId()
+        => User.FindFirstValue(ClaimTypes.NameIdentifier)
+           ?? throw new InvalidOperationException("The current user could not be resolved.");
+
+    private static object ToClientPreset(BrochurePresetSummaryVm preset)
+        => new
+        {
+            preset.Id,
+            preset.Name,
+            preset.Description,
+            publicationProfile = preset.PublicationProfile.ToString(),
+            preset.ProjectCount,
+            updatedAtUtc = preset.UpdatedAtUtc,
+            preset.UpdatedByDisplay,
+            preset.RowVersion
+        };
 
     private void NormalizeInput()
     {

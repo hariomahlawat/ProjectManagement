@@ -92,6 +92,56 @@
     const previewUrl = form.dataset.brochurePreviewUrl;
     const generateUrl = form.dataset.brochureGenerateUrl;
 
+    // Phase 18: shared institutional brochure configurations. These endpoints mutate
+    // shared state only for HoD/Comdt; the server repeats the role check on every write.
+    const savePresetUrl = form.dataset.brochureSavePresetUrl;
+    const renamePresetUrl = form.dataset.brochureRenamePresetUrl;
+    const duplicatePresetUrl = form.dataset.brochureDuplicatePresetUrl;
+    const deletePresetUrl = form.dataset.brochureDeletePresetUrl;
+    const savedPresetSeed = parseJson(form.querySelector("[data-brochure-saved-presets]"), []);
+    const activePresetSeed = parseJson(form.querySelector("[data-brochure-active-preset]"), {});
+    const savedPresets = new Map((Array.isArray(savedPresetSeed) ? savedPresetSeed : [])
+        .map(preset => [Number(preset.id), { ...preset, id: Number(preset.id) }])
+        .filter(([id]) => id > 0));
+    const canManagePresets = Boolean(activePresetSeed?.canManage);
+
+    const activePresetIdInput = form.querySelector("[data-active-preset-id]");
+    const activePresetRowVersionInput = form.querySelector("[data-active-preset-row-version]");
+    const presetControl = document.querySelector("[data-brochure-preset-control]");
+    const presetSelect = document.querySelector("[data-preset-select]");
+    const presetLoad = document.querySelector("[data-preset-load]");
+    const presetDirtyState = document.querySelector("[data-preset-dirty-state]");
+    const presetMeta = document.querySelector("[data-preset-meta]");
+    const presetStatus = document.querySelector("[data-preset-status]");
+    const presetSaveChanges = document.querySelector("[data-preset-save-changes]");
+    const presetSaveAsNew = document.querySelector("[data-preset-save-as-new]");
+    const presetRename = document.querySelector("[data-preset-rename]");
+    const presetDuplicate = document.querySelector("[data-preset-duplicate]");
+    const presetManage = document.querySelector("[data-preset-manage]");
+    const presetDelete = document.querySelector("[data-preset-delete]");
+
+    const presetSaveModal = document.querySelector("[data-preset-save-modal]");
+    const presetSaveName = document.querySelector("[data-preset-save-name]");
+    const presetSaveDescription = document.querySelector("[data-preset-save-description]");
+    const presetSaveMessage = document.querySelector("[data-preset-save-message]");
+    const presetSaveConfirm = document.querySelector("[data-preset-save-confirm]");
+    const presetRenameModal = document.querySelector("[data-preset-rename-modal]");
+    const presetRenameName = document.querySelector("[data-preset-rename-name]");
+    const presetRenameMessage = document.querySelector("[data-preset-rename-message]");
+    const presetRenameConfirm = document.querySelector("[data-preset-rename-confirm]");
+    const presetDuplicateModal = document.querySelector("[data-preset-duplicate-modal]");
+    const presetDuplicateName = document.querySelector("[data-preset-duplicate-name]");
+    const presetDuplicateDescription = document.querySelector("[data-preset-duplicate-description]");
+    const presetDuplicateMessage = document.querySelector("[data-preset-duplicate-message]");
+    const presetDuplicateConfirm = document.querySelector("[data-preset-duplicate-confirm]");
+    const presetManageModal = document.querySelector("[data-preset-manage-modal]");
+    const presetManageList = document.querySelector("[data-preset-manage-list]");
+    const presetManageCreate = document.querySelector("[data-preset-manage-create]");
+    const presetConflictModal = document.querySelector("[data-preset-conflict-modal]");
+    const presetConflictMessage = document.querySelector("[data-preset-conflict-message]");
+    const presetConflictReload = document.querySelector("[data-preset-conflict-reload]");
+    const presetConflictSaveAsNew = document.querySelector("[data-preset-conflict-save-as-new]");
+
     const photoEditor = form.querySelector("[data-brochure-photo-editor]");
     const photoEditorTitle = form.querySelector("[data-photo-editor-title]");
     const photoEditorProjectName = form.querySelector("[data-photo-editor-project-name]");
@@ -270,12 +320,357 @@
     let coverReviewFingerprint = String(coverReviewFingerprintInput?.value || "");
     let coverSelectionTouched = false;
 
+    let activePresetId = Number(activePresetIdInput?.value || activePresetSeed?.id || 0) || null;
+    let activePresetRowVersion = String(activePresetRowVersionInput?.value || activePresetSeed?.rowVersion || "");
+    let presetBaselineSnapshot = null;
+    let presetDirty = false;
+    let presetOperationTargetId = activePresetId;
+    let presetMutationBusy = false;
+    let presetNavigationApproved = false;
+    let presetConflictTargetId = null;
+
     const ensureConfig = id => {
         if (!configs.has(id)) {
             const project = projectById.get(id);
             if (project) configs.set(id, defaultConfig(project));
         }
         return configs.get(id);
+    };
+
+
+    const durablePresetFieldNames = [
+        "Input.Title",
+        "Input.Subtitle",
+        "Input.Edition",
+        "Input.Strapline",
+        "Input.NarrativeSource",
+        "Input.PublicationProfile",
+        "Input.CoverStyle",
+        "Input.InstitutionalCoverArtwork",
+        "Input.IntroductionTitle",
+        "Input.IntroductionText",
+        "Input.PrintIntroText",
+        "Input.PrintFutureText",
+        "Input.PrintProcurementText",
+        "Input.PrintCentreStatement",
+        "Input.PrintDevelopingAgencyText",
+        "Input.PrintManufacturingAgencyText",
+        "Input.PrintVisionaryText",
+        "Input.PrintNewSimulatorsText",
+        "Input.HandlingMarking",
+        "Input.AllowTextOnlyProjects",
+        "Input.IncludeBackCover"
+    ];
+
+    const durableFieldValue = name => {
+        const fields = [...form.querySelectorAll(`[name="${CSS.escape(name)}"]`)];
+        if (!fields.length) return null;
+        const first = fields[0];
+        if (first instanceof HTMLInputElement && first.type === "radio") {
+            return fields.find(field => field.checked)?.value ?? "";
+        }
+        if (first instanceof HTMLInputElement && first.type === "checkbox") {
+            return Boolean(first.checked);
+        }
+        return first.value ?? "";
+    };
+
+    // Approval flags, review fingerprints, preflight results and PDF verification are deliberately
+    // excluded. A shared brochure is durable configuration, never durable approval authority.
+    const capturePresetSnapshot = () => JSON.stringify({
+        fields: Object.fromEntries(durablePresetFieldNames.map(name => [name, durableFieldValue(name)])),
+        coverHero: {
+            projectId: explicitCoverHeroProjectId ?? null,
+            photoId: explicitCoverHeroPhotoId ?? null,
+            focalX: Number(clamp(coverHeroFocalX).toFixed(4)),
+            focalY: Number(clamp(coverHeroFocalY).toFixed(4))
+        },
+        projects: orderedIds.map(id => {
+            const config = ensureConfig(id);
+            return {
+                projectId: id,
+                primaryPhotoId: config?.primaryPhotoId ?? null,
+                secondaryPhotoId: config?.secondaryPhotoId ?? null,
+                primaryFocalX: Number(clamp(config?.primaryFocalX).toFixed(4)),
+                primaryFocalY: Number(clamp(config?.primaryFocalY).toFixed(4)),
+                secondaryFocalX: Number(clamp(config?.secondaryFocalX).toFixed(4)),
+                secondaryFocalY: Number(clamp(config?.secondaryFocalY).toFixed(4)),
+                imageMode: Number(config?.imageMode) || modeAutomatic
+            };
+        })
+    });
+
+    const formatPresetDate = value => {
+        const date = value ? new Date(value) : null;
+        if (!date || Number.isNaN(date.getTime())) return "recently";
+        return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    };
+
+    const getPreset = id => savedPresets.get(Number(id)) ?? null;
+
+    const currentPreset = () => activePresetId ? getPreset(activePresetId) : null;
+
+    const setPresetStatus = (message, tone = "info") => {
+        if (!presetStatus) return;
+        window.clearTimeout(setPresetStatus.timer);
+        presetStatus.textContent = message || "";
+        presetStatus.hidden = !message;
+        presetStatus.classList.remove("is-success", "is-warning", "is-error", "is-info");
+        if (message) presetStatus.classList.add(`is-${tone}`);
+        if (message && tone === "success") {
+            setPresetStatus.timer = window.setTimeout(() => {
+                presetStatus.hidden = true;
+                presetStatus.textContent = "";
+            }, 5000);
+        }
+    };
+
+    const renderPresetMeta = () => {
+        if (!presetMeta) return;
+        const preset = currentPreset();
+        presetMeta.replaceChildren();
+        const first = document.createElement("span");
+        const second = document.createElement("span");
+        if (!preset) {
+            first.textContent = "Load a shared institutional configuration, or continue with an ad-hoc brochure.";
+            presetMeta.append(first);
+            return;
+        }
+        first.textContent = `Shared · ${preset.projectCount} project${Number(preset.projectCount) === 1 ? "" : "s"}`;
+        second.textContent = `Updated ${formatPresetDate(preset.updatedAtUtc)} · ${preset.updatedByDisplay || "Unknown user"}`;
+        presetMeta.append(first, second);
+    };
+
+    const updatePresetSelector = () => {
+        if (!(presetSelect instanceof HTMLSelectElement)) return;
+        presetSelect.value = activePresetId ? String(activePresetId) : "";
+        if (presetLoad) presetLoad.disabled = presetMutationBusy;
+    };
+
+    const renderPresetDirtyState = () => {
+        const now = capturePresetSnapshot();
+        presetDirty = presetBaselineSnapshot != null && now !== presetBaselineSnapshot;
+        if (presetDirtyState) {
+            if (!activePresetId || !presetDirty) {
+                presetDirtyState.hidden = true;
+                presetDirtyState.textContent = "";
+                presetDirtyState.classList.remove("is-local");
+            } else {
+                presetDirtyState.hidden = false;
+                presetDirtyState.textContent = canManagePresets ? "Modified" : "Modified locally";
+                presetDirtyState.classList.toggle("is-local", !canManagePresets);
+            }
+        }
+        if (presetSaveChanges) presetSaveChanges.disabled = !activePresetId || !presetDirty || presetMutationBusy;
+        if (presetRename) presetRename.disabled = !activePresetId || presetMutationBusy;
+        if (presetDuplicate) presetDuplicate.disabled = !activePresetId || presetMutationBusy;
+        if (presetDelete) presetDelete.disabled = !activePresetId || presetMutationBusy;
+        if (presetSaveAsNew) presetSaveAsNew.disabled = presetMutationBusy;
+        return presetDirty;
+    };
+
+    const markPresetClean = () => {
+        presetBaselineSnapshot = capturePresetSnapshot();
+        presetDirty = false;
+        renderPresetDirtyState();
+    };
+
+    const syncActivePresetInputs = () => {
+        if (activePresetIdInput) activePresetIdInput.value = activePresetId ? String(activePresetId) : "";
+        if (activePresetRowVersionInput) activePresetRowVersionInput.value = activePresetRowVersion || "";
+        updatePresetSelector();
+        renderPresetMeta();
+        renderPresetDirtyState();
+    };
+
+    const presetUrl = id => {
+        const url = new URL(window.location.href);
+        if (Number(id) > 0) url.searchParams.set("presetId", String(Number(id)));
+        else url.searchParams.delete("presetId");
+        return url.toString();
+    };
+
+    const navigateToPreset = (id, { force = false } = {}) => {
+        if (!force && renderPresetDirtyState()) {
+            const message = canManagePresets
+                ? "Your current brochure has unsaved configuration changes. Discard them and load another saved brochure?"
+                : "Your current brochure has local changes. Discard them and load another saved brochure?";
+            if (!window.confirm(message)) {
+                updatePresetSelector();
+                return;
+            }
+        }
+        presetNavigationApproved = true;
+        window.location.assign(presetUrl(id));
+    };
+
+    const bootstrapModal = node => {
+        if (!node || !window.bootstrap?.Modal) return null;
+        return window.bootstrap.Modal.getOrCreateInstance(node);
+    };
+
+    const showModal = node => bootstrapModal(node)?.show();
+    const hideModal = node => bootstrapModal(node)?.hide();
+
+    const setModalMessage = (node, message, tone = "error") => {
+        if (!node) return;
+        node.textContent = message || "";
+        node.hidden = !message;
+        node.classList.remove("is-error", "is-success", "is-warning");
+        if (message) node.classList.add(`is-${tone}`);
+    };
+
+    const antiforgeryFormData = () => {
+        const payload = new FormData();
+        const token = form.querySelector('input[name="__RequestVerificationToken"]');
+        if (token?.value) payload.append("__RequestVerificationToken", token.value);
+        return payload;
+    };
+
+    const readMutationResponse = async response => {
+        let payload = {};
+        try { payload = await response.json(); } catch { payload = {}; }
+        if (response.ok) return payload;
+        const error = new Error(payload?.message || `Request failed with HTTP ${response.status}.`);
+        error.status = response.status;
+        error.code = payload?.code || "";
+        error.errors = payload?.errors || [];
+        throw error;
+    };
+
+    const postPresetMutation = async (url, payload) => {
+        if (!url) throw new Error("The saved-brochure endpoint is not available.");
+        const response = await fetch(url, {
+            method: "POST",
+            body: payload,
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        return readMutationResponse(response);
+    };
+
+    const normalizeClientPreset = preset => ({
+        ...preset,
+        id: Number(preset?.id || 0),
+        projectCount: Number(preset?.projectCount || 0),
+        rowVersion: String(preset?.rowVersion || "")
+    });
+
+    const upsertPreset = presetPayload => {
+        const preset = normalizeClientPreset(presetPayload);
+        if (!preset.id) return null;
+        savedPresets.set(preset.id, preset);
+        if (presetSelect instanceof HTMLSelectElement) {
+            let option = [...presetSelect.options].find(item => Number(item.value) === preset.id);
+            if (!option) {
+                option = document.createElement("option");
+                option.value = String(preset.id);
+                presetSelect.append(option);
+            }
+            option.textContent = preset.name;
+        }
+        renderPresetManageList();
+        return preset;
+    };
+
+    const removePreset = id => {
+        const numericId = Number(id);
+        savedPresets.delete(numericId);
+        if (presetSelect instanceof HTMLSelectElement) {
+            [...presetSelect.options].find(item => Number(item.value) === numericId)?.remove();
+        }
+        renderPresetManageList();
+    };
+
+    const renderPresetManageList = () => {
+        if (!presetManageList) return;
+        const presets = [...savedPresets.values()]
+            .sort((left, right) => new Date(right.updatedAtUtc || 0) - new Date(left.updatedAtUtc || 0) || String(left.name).localeCompare(String(right.name)));
+        presetManageList.replaceChildren();
+        if (!presets.length) {
+            const empty = document.createElement("div");
+            empty.className = "brochure-preset-manage-empty";
+            empty.dataset.presetManageEmpty = "";
+            empty.textContent = "No shared brochures have been saved yet.";
+            presetManageList.append(empty);
+            return;
+        }
+        presets.forEach(preset => {
+            const row = document.createElement("article");
+            row.dataset.presetManageRow = "";
+            row.dataset.presetId = String(preset.id);
+            row.classList.toggle("is-active", preset.id === activePresetId);
+            const copy = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = preset.name;
+            const detail = document.createElement("span");
+            detail.textContent = `${preset.projectCount} project${preset.projectCount === 1 ? "" : "s"} · ${preset.publicationProfile || "Publication"}`;
+            const updated = document.createElement("small");
+            updated.textContent = `Updated ${formatPresetDate(preset.updatedAtUtc)} · ${preset.updatedByDisplay || "Unknown user"}`;
+            copy.append(title, detail, updated);
+            const actions = document.createElement("div");
+            const action = (label, attr, className = "btn btn-sm btn-outline-secondary") => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = className;
+                button.setAttribute(attr, "");
+                button.textContent = label;
+                return button;
+            };
+            actions.append(
+                action("Load", "data-preset-row-load"),
+                action("Rename", "data-preset-row-rename"),
+                action("Duplicate", "data-preset-row-duplicate"),
+                action("Delete", "data-preset-row-delete", "btn btn-sm btn-link text-danger")
+            );
+            row.append(copy, actions);
+            presetManageList.append(row);
+        });
+    };
+
+    const makeCurrentPresetActive = presetPayload => {
+        const preset = upsertPreset(presetPayload);
+        if (!preset) return;
+        activePresetId = preset.id;
+        activePresetRowVersion = preset.rowVersion;
+        if (activePresetIdInput) activePresetIdInput.value = String(activePresetId);
+        if (activePresetRowVersionInput) activePresetRowVersionInput.value = activePresetRowVersion;
+        const url = new URL(window.location.href);
+        url.searchParams.set("presetId", String(activePresetId));
+        window.history.replaceState(window.history.state, "", url);
+        markPresetClean();
+        syncActivePresetInputs();
+    };
+
+    const openConflict = (message, targetId = null) => {
+        presetConflictTargetId = Number(targetId || presetOperationTargetId || activePresetId || 0) || null;
+        if (presetConflictMessage) presetConflictMessage.textContent = message || "This shared brochure was updated by another user after you loaded it.";
+        if (presetConflictSaveAsNew) presetConflictSaveAsNew.hidden = presetConflictTargetId !== activePresetId;
+        showModal(presetConflictModal);
+    };
+
+    const handlePresetMutationError = (error, messageNode = null) => {
+        if (error?.status === 409 && error?.code === "presetConflict") {
+            hideModal(presetSaveModal);
+            hideModal(presetRenameModal);
+            hideModal(presetDuplicateModal);
+            openConflict(error.message, presetOperationTargetId || activePresetId);
+            return;
+        }
+        const details = Array.isArray(error?.errors) && error.errors.length
+            ? `${error.message} ${error.errors.join(" ")}`
+            : error?.message || "The shared brochure could not be updated.";
+        if (messageNode) setModalMessage(messageNode, details, "error");
+        else setPresetStatus(details, "error");
+    };
+
+    const setPresetMutationBusy = busy => {
+        presetMutationBusy = Boolean(busy);
+        [presetSaveConfirm, presetRenameConfirm, presetDuplicateConfirm].forEach(button => {
+            if (button) button.disabled = presetMutationBusy;
+        });
+        renderPresetDirtyState();
+        updatePresetSelector();
     };
 
     const sourceKind = () => {
@@ -1922,6 +2317,7 @@
 
     const schedulePreflight = () => {
         window.clearTimeout(preflightTimer);
+        renderPresetDirtyState();
         lastPreflight = null;
         lastVerifiedPdf = null;
         renderPdfVerification();
@@ -2400,6 +2796,235 @@
         renderIssues(lastPreflight?.issues ?? []);
     });
 
+    presetSelect?.addEventListener("change", () => {
+        // Selection alone does not load or discard the working brochure. Load is explicit.
+        if (presetLoad) presetLoad.disabled = presetMutationBusy;
+    });
+
+    presetLoad?.addEventListener("click", () => {
+        const id = Number(presetSelect?.value || 0) || null;
+        if (id === activePresetId && !presetDirty) return;
+        navigateToPreset(id);
+    });
+
+    presetSaveChanges?.addEventListener("click", async () => {
+        if (!canManagePresets || !activePresetId || presetMutationBusy) return;
+        if (!renderPresetDirtyState()) {
+            setPresetStatus("No shared brochure changes to save.", "info");
+            return;
+        }
+        const preset = currentPreset();
+        if (!window.confirm(`Update shared brochure “${preset?.name || "this brochure"}”? Changes will be available to all authorised Publications users.`)) return;
+        presetOperationTargetId = activePresetId;
+        setPresetMutationBusy(true);
+        syncHiddenInputs();
+        const payload = new FormData(form);
+        payload.set("saveAsNew", "false");
+        payload.set("presetName", preset?.name || "");
+        payload.set("presetDescription", preset?.description || "");
+        try {
+            const result = await postPresetMutation(savePresetUrl, payload);
+            makeCurrentPresetActive(result.preset);
+            setPresetStatus(result.message || "Shared brochure updated.", "success");
+        } catch (error) {
+            handlePresetMutationError(error);
+        } finally {
+            setPresetMutationBusy(false);
+        }
+    });
+
+    const openSaveAsNew = () => {
+        if (!canManagePresets) return;
+        const source = currentPreset();
+        const suggestedName = source ? `${source.name} — Copy` : String(durableFieldValue("Input.Title") || "SDD Capability Brochure");
+        if (presetSaveName) presetSaveName.value = suggestedName.slice(0, 120);
+        if (presetSaveDescription) presetSaveDescription.value = source?.description || "";
+        setModalMessage(presetSaveMessage, "");
+        showModal(presetSaveModal);
+        window.setTimeout(() => presetSaveName?.focus(), 120);
+    };
+
+    presetSaveAsNew?.addEventListener("click", openSaveAsNew);
+    presetManageCreate?.addEventListener("click", () => {
+        hideModal(presetManageModal);
+        openSaveAsNew();
+    });
+
+    presetSaveConfirm?.addEventListener("click", async () => {
+        if (!canManagePresets || presetMutationBusy) return;
+        const name = String(presetSaveName?.value || "").trim();
+        if (name.length < 3) {
+            setModalMessage(presetSaveMessage, "Enter a saved brochure name of at least 3 characters.");
+            presetSaveName?.focus();
+            return;
+        }
+        setPresetMutationBusy(true);
+        setModalMessage(presetSaveMessage, "");
+        syncHiddenInputs();
+        const payload = new FormData(form);
+        payload.set("saveAsNew", "true");
+        payload.set("presetName", name);
+        payload.set("presetDescription", String(presetSaveDescription?.value || "").trim());
+        try {
+            const result = await postPresetMutation(savePresetUrl, payload);
+            makeCurrentPresetActive(result.preset);
+            hideModal(presetSaveModal);
+            setPresetStatus(result.message || "Shared brochure saved.", "success");
+        } catch (error) {
+            handlePresetMutationError(error, presetSaveMessage);
+        } finally {
+            setPresetMutationBusy(false);
+        }
+    });
+
+    const openRenamePreset = id => {
+        const preset = getPreset(id);
+        if (!preset || !canManagePresets) return;
+        presetOperationTargetId = preset.id;
+        if (presetRenameName) presetRenameName.value = preset.name;
+        setModalMessage(presetRenameMessage, "");
+        showModal(presetRenameModal);
+        window.setTimeout(() => presetRenameName?.select(), 120);
+    };
+
+    presetRename?.addEventListener("click", () => openRenamePreset(activePresetId));
+    presetRenameConfirm?.addEventListener("click", async () => {
+        const preset = getPreset(presetOperationTargetId);
+        if (!preset || presetMutationBusy) return;
+        const name = String(presetRenameName?.value || "").trim();
+        if (name.length < 3) {
+            setModalMessage(presetRenameMessage, "Enter a saved brochure name of at least 3 characters.");
+            return;
+        }
+        setPresetMutationBusy(true);
+        const payload = antiforgeryFormData();
+        payload.append("presetId", String(preset.id));
+        payload.append("rowVersion", String(preset.rowVersion || ""));
+        payload.append("name", name);
+        try {
+            const result = await postPresetMutation(renamePresetUrl, payload);
+            const updated = upsertPreset(result.preset);
+            if (updated && updated.id === activePresetId) {
+                activePresetRowVersion = updated.rowVersion;
+                syncActivePresetInputs();
+            }
+            hideModal(presetRenameModal);
+            setPresetStatus(result.message || "Shared brochure renamed.", "success");
+        } catch (error) {
+            handlePresetMutationError(error, presetRenameMessage);
+        } finally {
+            setPresetMutationBusy(false);
+        }
+    });
+
+    const openDuplicatePreset = id => {
+        const preset = getPreset(id);
+        if (!preset || !canManagePresets) return;
+        presetOperationTargetId = preset.id;
+        if (presetDuplicateName) presetDuplicateName.value = `${preset.name} — Copy`.slice(0, 120);
+        if (presetDuplicateDescription) presetDuplicateDescription.value = preset.description || "";
+        setModalMessage(presetDuplicateMessage, "");
+        showModal(presetDuplicateModal);
+        window.setTimeout(() => presetDuplicateName?.focus(), 120);
+    };
+
+    presetDuplicate?.addEventListener("click", () => openDuplicatePreset(activePresetId));
+    presetDuplicateConfirm?.addEventListener("click", async () => {
+        const preset = getPreset(presetOperationTargetId);
+        if (!preset || presetMutationBusy) return;
+        const name = String(presetDuplicateName?.value || "").trim();
+        if (name.length < 3) {
+            setModalMessage(presetDuplicateMessage, "Enter a new saved brochure name of at least 3 characters.");
+            return;
+        }
+        setPresetMutationBusy(true);
+        const payload = antiforgeryFormData();
+        payload.append("presetId", String(preset.id));
+        payload.append("rowVersion", String(preset.rowVersion || ""));
+        payload.append("name", name);
+        payload.append("description", String(presetDuplicateDescription?.value || "").trim());
+        try {
+            const result = await postPresetMutation(duplicatePresetUrl, payload);
+            upsertPreset(result.preset);
+            hideModal(presetDuplicateModal);
+            setPresetStatus(result.message || "Shared brochure duplicated.", "success");
+        } catch (error) {
+            handlePresetMutationError(error, presetDuplicateMessage);
+        } finally {
+            setPresetMutationBusy(false);
+        }
+    });
+
+    const deletePreset = async id => {
+        const preset = getPreset(id);
+        if (!preset || !canManagePresets || presetMutationBusy) return;
+        if (!window.confirm(`Delete shared brochure “${preset.name}”? It will no longer be available to users. Existing generated PDFs are unaffected.`)) return;
+        setPresetMutationBusy(true);
+        const payload = antiforgeryFormData();
+        payload.append("presetId", String(preset.id));
+        payload.append("rowVersion", String(preset.rowVersion || ""));
+        try {
+            const result = await postPresetMutation(deletePresetUrl, payload);
+            removePreset(preset.id);
+            hideModal(presetManageModal);
+            if (preset.id === activePresetId) {
+                // The active working copy may continue in memory, but it is no longer a shared preset.
+                activePresetId = null;
+                activePresetRowVersion = "";
+                const url = new URL(window.location.href);
+                url.searchParams.delete("presetId");
+                window.history.replaceState(window.history.state, "", url);
+                presetBaselineSnapshot = null;
+                syncActivePresetInputs();
+            }
+            setPresetStatus(result.message || "Shared brochure deleted.", "success");
+        } catch (error) {
+            handlePresetMutationError(error);
+        } finally {
+            setPresetMutationBusy(false);
+        }
+    };
+
+    presetDelete?.addEventListener("click", () => deletePreset(activePresetId));
+    presetManage?.addEventListener("click", () => {
+        renderPresetManageList();
+        showModal(presetManageModal);
+    });
+
+    presetManageList?.addEventListener("click", event => {
+        const button = event.target.closest("button");
+        const row = button?.closest("[data-preset-manage-row]");
+        const id = Number(row?.dataset.presetId || 0);
+        if (!button || !id) return;
+        if (button.matches("[data-preset-row-load]")) {
+            hideModal(presetManageModal);
+            navigateToPreset(id);
+        } else if (button.matches("[data-preset-row-rename]")) {
+            hideModal(presetManageModal);
+            openRenamePreset(id);
+        } else if (button.matches("[data-preset-row-duplicate]")) {
+            hideModal(presetManageModal);
+            openDuplicatePreset(id);
+        } else if (button.matches("[data-preset-row-delete]")) {
+            deletePreset(id);
+        }
+    });
+
+    presetConflictReload?.addEventListener("click", () => {
+        hideModal(presetConflictModal);
+        if (presetConflictTargetId) navigateToPreset(presetConflictTargetId, { force: true });
+    });
+    presetConflictSaveAsNew?.addEventListener("click", () => {
+        hideModal(presetConflictModal);
+        openSaveAsNew();
+    });
+
+    window.addEventListener("beforeunload", event => {
+        if (presetNavigationApproved || !renderPresetDirtyState()) return;
+        event.preventDefault();
+        event.returnValue = "";
+    });
+
     document.addEventListener("keydown", event => {
         if (event.key === "Escape" && photoEditor && !photoEditor.hidden) {
             event.preventDefault();
@@ -2439,10 +3064,15 @@
     updatePrintMatterWordCounts();
     updatePublicationProfileUi();
     updateNarrativeIndicators();
+    renderPresetManageList();
+    syncActivePresetInputs();
     renderSelected(false);
     applyFilters();
     renderCoverHero();
     renderReview();
+    // Baseline is captured only after server-loaded project/photo choices have been fully
+    // normalised in the client. Subsequent approval/preflight activity does not affect it.
+    markPresetClean();
     scheduleProjectStateRefresh();
     schedulePreflight();
 })();

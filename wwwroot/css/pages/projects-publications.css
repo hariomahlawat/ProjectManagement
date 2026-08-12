@@ -1496,3 +1496,279 @@ body.brochure-modal-open { overflow: hidden; }
     background: #e8f4ef;
     text-decoration: none;
 }
+
+/* ============================================================
+   Capability Brochure Builder — Phase 18 shared saved brochures
+   ============================================================ */
+.brochure-builder {
+    padding-top: .82rem;
+}
+.brochure-builder .publications-breadcrumb {
+    margin-bottom: .48rem;
+    font-size: .72rem;
+}
+.brochure-workspace-header {
+    align-items: flex-start;
+    margin-bottom: .68rem;
+}
+.brochure-workspace-header__copy {
+    min-width: 0;
+    padding-top: .14rem;
+}
+.brochure-workspace-header__copy h1 {
+    font-size: clamp(1.75rem, 2.15vw, 2.12rem);
+}
+.brochure-workspace-header__copy p {
+    max-width: 680px !important;
+    margin-top: .25rem !important;
+    line-height: 1.42 !important;
+}
+.brochure-builder > .publication-tabs {
+    margin-bottom: .9rem;
+}
+
+.brochure-preset-control {
+    flex: 0 0 min(460px, 39vw);
+    min-width: 360px;
+    padding: .58rem .62rem .52rem;
+    border: 1px solid #d8e4df;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, .88);
+    box-shadow: 0 3px 12px rgba(27, 57, 47, .035);
+}
+.brochure-preset-control__label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .28rem;
+    color: #456059;
+    font-size: .62rem;
+    font-weight: 780;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+.brochure-preset-dirty {
+    display: inline-flex;
+    align-items: center;
+    min-height: 18px;
+    padding: .13rem .36rem;
+    border-radius: 999px;
+    background: #fff4d9;
+    color: #8a6112;
+    font-size: .52rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.brochure-preset-dirty[hidden] { display: none !important; }
+.brochure-preset-dirty.is-local {
+    background: #eef3ff;
+    color: #4662aa;
+}
+.brochure-preset-control__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: .36rem;
+    align-items: center;
+}
+.brochure-preset-control__actions .form-select {
+    min-width: 0;
+    height: 32px;
+    border-color: #d4dfdb;
+    font-size: .69rem;
+}
+.brochure-preset-control__actions .btn {
+    min-height: 32px;
+    white-space: nowrap;
+    font-size: .67rem;
+}
+.brochure-preset-save-menu .dropdown-menu {
+    min-width: 210px;
+    padding: .35rem;
+    border-color: #dce5e1;
+    box-shadow: 0 12px 30px rgba(28, 52, 44, .12);
+}
+.brochure-preset-save-menu .dropdown-item {
+    padding: .42rem .55rem;
+    border-radius: 6px;
+    font-size: .69rem;
+}
+.brochure-preset-save-menu .dropdown-item:disabled,
+.brochure-preset-save-menu .dropdown-item.disabled {
+    color: #a1aaa6;
+    background: transparent;
+}
+.brochure-preset-control__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-top: .28rem;
+    color: #7b8a84;
+    font-size: .55rem;
+    line-height: 1.3;
+}
+.brochure-preset-control__meta span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.brochure-preset-control__meta span:last-child { text-align: right; }
+.brochure-preset-control__status {
+    margin-top: .34rem;
+    padding: .32rem .42rem;
+    border-radius: 6px;
+    background: #f2f7f5;
+    color: #436258;
+    font-size: .57rem;
+    line-height: 1.35;
+}
+.brochure-preset-control__status.is-error {
+    background: #fff0f1;
+    color: #9d3540;
+}
+.brochure-preset-control__status.is-success {
+    background: #eef8f3;
+    color: #28674f;
+}
+.brochure-preset-control__status[hidden] { display: none !important; }
+
+.brochure-preset-diagnostics {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: .6rem;
+    align-items: start;
+    margin: -.15rem 0 .9rem;
+    padding: .58rem .7rem;
+    border: 1px solid #ead8a8;
+    border-radius: 9px;
+    background: #fff9eb;
+    color: #755719;
+}
+.brochure-preset-diagnostics > i {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 7px;
+    background: #fff0c7;
+}
+.brochure-preset-diagnostics strong,
+.brochure-preset-diagnostics span { display: block; }
+.brochure-preset-diagnostics strong { font-size: .68rem; }
+.brochure-preset-diagnostics span { margin-top: .13rem; font-size: .59rem; line-height: 1.4; }
+
+.brochure-preset-modal {
+    border: 1px solid #d9e4df;
+    border-radius: 13px;
+    box-shadow: 0 22px 62px rgba(13, 35, 27, .18);
+}
+.brochure-preset-modal .modal-header {
+    align-items: flex-start;
+    padding: .82rem .9rem .7rem;
+    border-bottom-color: #e7ecea;
+    background: #fbfcfc;
+}
+.brochure-preset-modal .modal-header h2 { color: #1d392f; font-weight: 770; }
+.brochure-preset-modal .modal-header p {
+    margin: .15rem 0 0;
+    color: #71817b;
+    font-size: .63rem;
+    line-height: 1.4;
+}
+.brochure-preset-modal .modal-body { padding: .85rem .9rem; }
+.brochure-preset-modal .modal-body .form-label { display: block; margin: 0 0 .7rem; }
+.brochure-preset-modal .modal-body .form-label:last-of-type { margin-bottom: 0; }
+.brochure-preset-modal .modal-body .form-label > span {
+    display: block;
+    margin-bottom: .28rem;
+    color: #40574f;
+    font-size: .68rem;
+    font-weight: 720;
+}
+.brochure-preset-modal .modal-body .form-label small { color: #87938f; font-weight: 500; }
+.brochure-preset-modal .form-control { border-color: #d8e2de; font-size: .74rem; }
+.brochure-preset-modal .modal-footer { padding: .58rem .9rem; border-top-color: #e7ecea; }
+.brochure-preset-modal__message {
+    margin-top: .6rem;
+    padding: .42rem .5rem;
+    border-radius: 6px;
+    background: #fff0f1;
+    color: #983640;
+    font-size: .62rem;
+    line-height: 1.4;
+}
+.brochure-preset-modal__message[hidden] { display: none !important; }
+
+.brochure-preset-manage-list { display: grid; gap: .42rem; }
+.brochure-preset-manage-list > article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .8rem;
+    align-items: center;
+    padding: .62rem .68rem;
+    border: 1px solid #e0e8e5;
+    border-radius: 9px;
+    background: #fff;
+}
+.brochure-preset-manage-list > article.is-active {
+    border-color: #9fc3b5;
+    background: #f5faf8;
+}
+.brochure-preset-manage-list strong,
+.brochure-preset-manage-list span,
+.brochure-preset-manage-list small { display: block; }
+.brochure-preset-manage-list strong { color: #243e35; font-size: .72rem; }
+.brochure-preset-manage-list span { margin-top: .08rem; color: #61746d; font-size: .61rem; }
+.brochure-preset-manage-list small { margin-top: .1rem; color: #87938f; font-size: .55rem; }
+.brochure-preset-manage-list > article > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .28rem;
+}
+.brochure-preset-manage-list .btn { font-size: .59rem; }
+.brochure-preset-manage-empty {
+    padding: 1.25rem;
+    border: 1px dashed #d7e1dd;
+    border-radius: 9px;
+    color: #7b8984;
+    font-size: .68rem;
+    text-align: center;
+}
+.brochure-preset-conflict-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .55rem;
+}
+
+@media (max-width: 1180px) {
+    .brochure-preset-control { flex-basis: min(420px, 42vw); min-width: 330px; }
+    .brochure-preset-control__meta { flex-direction: column; gap: .08rem; }
+    .brochure-preset-control__meta span:last-child { text-align: left; }
+}
+
+@media (max-width: 900px) {
+    .brochure-builder { padding-top: .7rem; }
+    .brochure-workspace-header { gap: .65rem; }
+    .brochure-preset-control { width: 100%; min-width: 0; flex-basis: auto; }
+    .brochure-preset-control__meta { flex-direction: row; }
+    .brochure-preset-control__meta span:last-child { text-align: right; }
+}
+
+@media (max-width: 620px) {
+    .brochure-preset-control__actions { grid-template-columns: minmax(0, 1fr) auto; }
+    .brochure-preset-save-menu { grid-column: 1 / -1; }
+    .brochure-preset-save-menu > .btn { width: 100%; }
+    .brochure-preset-control__meta { flex-direction: column; }
+    .brochure-preset-control__meta span:last-child { text-align: left; }
+    .brochure-preset-manage-list > article { grid-template-columns: 1fr; }
+    .brochure-preset-manage-list > article > div:last-child { justify-content: flex-start; }
+    .brochure-preset-conflict-actions { grid-template-columns: 1fr; }
+}
+
+@media print {
+    .brochure-preset-control,
+    .brochure-preset-diagnostics { display: none !important; }
+}

@@ -659,3 +659,100 @@ test('phase 17 approval status handles singular and plural grammar', () => {
   assert.match(js, /pendingApprovals === 1 \? "requires" : "require"/);
   assert.match(page, /unreviewed == 1 \? "requires" : "require"/);
 });
+
+test('phase 18 replaces the brochure hero chrome with a compact shared-publication workspace header', () => {
+  assert.match(view, /brochure-workspace-header/);
+  assert.match(view, /data-brochure-preset-control/);
+  assert.match(view, /Compose, review and generate capability publications from authoritative PRISM project records\./);
+  assert.doesNotMatch(view, /CAPABILITY PUBLICATION/);
+  assert.doesNotMatch(view, />\s*Offline PDF\s*</i);
+  assert.match(css, /\.brochure-workspace-header/);
+  assert.match(css, /\.brochure-preset-control/);
+});
+
+test('phase 18 exposes shared saved brochures to all authorised users while reserving mutations for HoD and Comdt', () => {
+  const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+  assert.match(view, /data-preset-select/);
+  assert.match(view, /@foreach \(var preset in Model\.SavedBrochures\)/);
+  assert.match(view, /@if \(Model\.CanManageSavedBrochures\)/);
+  assert.match(page, /User\.IsInRole\(RoleNames\.HoD\) \|\| User\.IsInRole\(RoleNames\.Comdt\)/);
+  assert.match(service, /!user\.IsInRole\(RoleNames\.HoD\) && !user\.IsInRole\(RoleNames\.Comdt\)/);
+  assert.doesNotMatch(service.slice(service.indexOf('private void EnsureCanManage'), service.indexOf('private static void EnsureVersion')), /RoleNames\.Admin/);
+});
+
+test('phase 18 persists builder configuration but deliberately excludes approvals, preflight and PDF verification', () => {
+  const contracts = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetContracts.cs'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+  assert.match(contracts, /record BrochurePresetConfiguration/);
+  assert.match(contracts, /record BrochurePresetProjectConfiguration/);
+  assert.doesNotMatch(contracts, /CoverReviewed|ReviewFingerprint|IsReviewed|Preflight|VerifiedPdf/);
+  assert.match(page, /CoverReviewed = false/);
+  assert.match(page, /PrimaryPhotoConfirmed = false/);
+  assert.match(page, /IsReviewed = false/);
+  assert.match(page, /ReviewFingerprint = null/);
+  assert.match(js, /durablePresetFieldNames/);
+  const snapshot = js.slice(js.indexOf('const capturePresetSnapshot'), js.indexOf('const formatPresetDate'));
+  assert.doesNotMatch(snapshot, /reviewFingerprint|isReviewed|primaryPhotoConfirmed|lastPreflight|lastVerifiedPdf/);
+});
+
+test('phase 18 supports multiple shared presets, exact ordered project configuration and optimistic concurrency', () => {
+  const model = fs.readFileSync(path.join(root, 'Models', 'Publications', 'BrochurePreset.cs'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+  const db = fs.readFileSync(path.join(root, 'Data', 'ApplicationDbContext.cs'), 'utf8');
+  assert.match(model, /ICollection<BrochurePresetProject> Projects/);
+  assert.match(model, /SortOrder/);
+  assert.match(model, /PrimaryPhotoId/);
+  assert.match(model, /SecondaryPhotoId/);
+  assert.match(model, /PrimaryFocalX/);
+  assert.match(model, /ImageMode/);
+  assert.match(model, /\[ConcurrencyCheck\][\s\S]{0,100}RowVersion/);
+  assert.match(db, /UX_BrochurePresets_NormalizedName/);
+  assert.match(db, /UX_BrochurePresetProjects_Preset_SortOrder/);
+  assert.match(service, /EnsureVersion\(preset, rowVersion\)/);
+  assert.match(service, /BrochurePresetConcurrencyException/);
+});
+
+test('phase 18 rehydrates saved brochures against current PRISM projects and photos with safe diagnostics', () => {
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+  assert.match(service, /projectUnavailable/);
+  assert.match(service, /photoUnavailable/);
+  assert.match(service, /coverHeroUnavailable/);
+  assert.match(service, /!project\.IsDeleted/);
+  assert.match(service, /!project\.IsArchived/);
+  assert.match(service, /PRISM will resolve a current image automatically/);
+});
+
+test('phase 18 distinguishes shared preset dirty state from local working-copy changes', () => {
+  assert.match(js, /presetDirtyState\.textContent = canManagePresets \? "Modified" : "Modified locally"/);
+  assert.match(js, /capturePresetSnapshot/);
+  assert.match(js, /presetBaselineSnapshot/);
+  assert.match(js, /markPresetClean/);
+  assert.match(js, /beforeunload/);
+  assert.match(js, /Your current brochure has local changes/);
+});
+
+test('phase 18 provides save-as-new, update, rename, duplicate, soft-delete and conflict workflows', () => {
+  const service = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePresetService.cs'), 'utf8');
+  assert.match(view, /data-preset-save-as-new/);
+  assert.match(view, /data-preset-save-changes/);
+  assert.match(view, /data-preset-rename/);
+  assert.match(view, /data-preset-duplicate/);
+  assert.match(view, /data-preset-delete/);
+  assert.match(view, /data-preset-conflict-modal/);
+  assert.match(js, /saveAsNew/);
+  assert.match(js, /presetConflict/);
+  assert.match(service, /preset\.IsActive = false/);
+  assert.match(service, /#DELETED#/);
+});
+
+test('phase 18 registers shared preset persistence and includes a dedicated additive migration', () => {
+  const registration = fs.readFileSync(path.join(root, 'Services', 'Publications', 'PublicationServiceCollectionExtensions.cs'), 'utf8');
+  const migration = fs.readFileSync(path.join(root, 'Migrations', '20261208100000_AddSharedBrochurePresets.cs'), 'utf8');
+  const immutable = fs.readFileSync(path.join(root, 'Migrations', 'immutable-migration-ids.txt'), 'utf8');
+  assert.match(registration, /AddScoped<IBrochurePresetService, BrochurePresetService>/);
+  assert.match(migration, /CreateTable\([\s\S]*name: "BrochurePresets"/);
+  assert.match(migration, /name: "BrochurePresetProjects"/);
+  assert.match(migration, /FK_BrochurePresetProjects_Projects_ProjectId/);
+  assert.match(immutable, /20261208100000_AddSharedBrochurePresets/);
+});
