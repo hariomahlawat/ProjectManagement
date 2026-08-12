@@ -274,6 +274,16 @@ public sealed class IndexModel : PageModel
             var fileName = $"{SanitizeFileName(Input.Title, "SDD_Capability_Brochure")}_{generatedAt:yyyyMMdd}.pdf";
 
             Response.Headers["X-PRISM-Publication-FileName"] = fileName;
+            if (Input.PublicationProfile == BrochurePublicationProfile.PrintCompact)
+            {
+                // Build() performs post-composition page-membership verification before returning.
+                // Surface that fact to the browser so the final-output status can distinguish an
+                // estimated preflight from a physically verified PDF.
+                Response.Headers["X-PRISM-Publication-Composition-Verified"] = "true";
+                Response.Headers["X-PRISM-Publication-Page-Count"] =
+                    BrochurePdfCompositionVerifier.CountPages(bytes)
+                        .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
             if (preview)
             {
                 Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
@@ -281,6 +291,47 @@ public sealed class IndexModel : PageModel
             }
 
             return File(bytes, "application/pdf", fileName);
+        }
+        catch (BrochurePdfCompositionException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Compact brochure post-composition verification failed. PlannedPages={PlannedPages}, ActualPages={ActualPages}, Project={ProjectName}, ExpectedSheet={ExpectedSheet}",
+                exception.ExpectedPageCount,
+                exception.ActualPageCount,
+                exception.ProjectName,
+                exception.ExpectedSheetNumber);
+
+            var errors = new[]
+            {
+                exception.Message,
+                "No mismatched PDF was issued. Re-run publication preflight after adjusting project copy, image treatment or order."
+            };
+
+            if (WantsJson())
+            {
+                return new JsonResult(new
+                {
+                    message = "Physical PDF composition did not match publication preflight.",
+                    code = "printCompositionMismatch",
+                    expectedPageCount = exception.ExpectedPageCount,
+                    actualPageCount = exception.ActualPageCount,
+                    expectedSheetNumber = exception.ExpectedSheetNumber,
+                    projectName = exception.ProjectName,
+                    errors
+                })
+                {
+                    StatusCode = StatusCodes.Status409Conflict
+                };
+            }
+
+            foreach (var message in errors)
+            {
+                ModelState.AddModelError(string.Empty, message);
+            }
+
+            await LoadAsync(cancellationToken);
+            return Page();
         }
         catch (BrochurePublicationValidationException exception)
         {

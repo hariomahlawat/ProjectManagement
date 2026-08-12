@@ -49,6 +49,8 @@
     const profileOptions = [...form.querySelectorAll("[data-profile-option]")];
     const printOnlySections = [...form.querySelectorAll("[data-brochure-print-only]")];
     const digitalOnlySections = [...form.querySelectorAll("[data-brochure-digital-only]")];
+    const coverAIdentityFields = [...form.querySelectorAll("[data-cover-a-identity-field]")];
+    const coverAIdentityNote = form.querySelector("[data-cover-a-identity-note]");
     const previewButton = form.querySelector("[data-brochure-preview]");
     const generateButton = form.querySelector("[data-brochure-generate]");
     const generateSpinner = form.querySelector("[data-brochure-generate-spinner]");
@@ -313,6 +315,17 @@
         digitalOnlySections.forEach(section => {
             section.hidden = printCompact;
         });
+
+        // In Print / Compact, institutional Cover A is a complete approved artwork. Its title,
+        // subtitle and edition are intentionally not overlaid on the physical cover, so avoid
+        // presenting those fields as visible-cover controls. Their values remain in the form for
+        // PDF metadata and file naming. Digital and Cover B continue to expose them normally.
+        const coverAUsesFullArtworkIdentity = printCompact && !isContemporaryCover();
+        coverAIdentityFields.forEach(field => {
+            field.hidden = coverAUsesFullArtworkIdentity;
+        });
+        if (coverAIdentityNote) coverAIdentityNote.hidden = !coverAUsesFullArtworkIdentity;
+
         if (printPlanSummary && !printCompact) {
             printPlanSummary.hidden = true;
         }
@@ -530,7 +543,9 @@
         [[-1, "bi-chevron-up", "Move up"], [1, "bi-chevron-down", "Move down"]].forEach(([delta, icon, title]) => {
             const button = document.createElement("button");
             button.type = "button";
+            button.dataset.reorderButton = "";
             button.title = title;
+            button.setAttribute("aria-label", `${title}: ${project?.projectName ?? `Project ${id}`}`);
             button.disabled = delta < 0 ? index === 0 : index === orderedIds.length - 1;
             button.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>`;
             button.addEventListener("click", () => move(id, delta));
@@ -1984,6 +1999,11 @@
             if (!response.ok) throw new Error(await responseError(response));
             const type = response.headers.get("content-type") ?? "";
             if (!type.includes("application/pdf")) throw new Error("The server did not return a PDF publication.");
+            const compositionVerified = response.headers.get("X-PRISM-Publication-Composition-Verified") === "true";
+            const physicalPageCount = Number(response.headers.get("X-PRISM-Publication-Page-Count") || 0);
+            const verificationSuffix = compositionVerified
+                ? ` · composition verified${physicalPageCount > 0 ? ` (${physicalPageCount} page${physicalPageCount === 1 ? "" : "s"})` : ""}`
+                : "";
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
             const fileName = fileNameFromResponse(response);
@@ -1991,7 +2011,7 @@
                 if (previewWindow) previewWindow.location.replace(url);
                 else window.open(url, "_blank", "noopener");
                 window.setTimeout(() => URL.revokeObjectURL(url), 120000);
-                if (exportStatus) exportStatus.textContent = "Preview ready in a new tab.";
+                if (exportStatus) exportStatus.textContent = `Preview ready${verificationSuffix}.`;
             } else {
                 const link = document.createElement("a");
                 link.href = url;
@@ -2000,7 +2020,7 @@
                 link.click();
                 link.remove();
                 window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-                if (exportStatus) exportStatus.textContent = "Brochure ready. Download started.";
+                if (exportStatus) exportStatus.textContent = `Brochure ready${verificationSuffix}. Download started.`;
             }
         } catch (error) {
             if (previewWindow && !previewWindow.closed) previewWindow.close();
@@ -2053,6 +2073,14 @@
     });
 
     clearButton?.addEventListener("click", () => {
+        if (!orderedIds.length) return;
+        const approved = reviewedCount();
+        const detail = approved > 0
+            ? ` This working selection also contains ${approved} publication approval${approved === 1 ? "" : "s"}.`
+            : "";
+        const confirmed = window.confirm(`Clear all ${orderedIds.length} selected project${orderedIds.length === 1 ? "" : "s"}?${detail}`);
+        if (!confirmed) return;
+
         smartFlowUndoOrder = null;
         orderedIds = [];
         explicitCoverHeroProjectId = null;
@@ -2160,6 +2188,7 @@
             coverReviewed = false;
             coverReviewFingerprint = "";
             if (coverHeroCropPanel) coverHeroCropPanel.hidden = true;
+            updatePublicationProfileUi();
             syncHiddenInputs();
             renderCoverHero();
             schedulePreflight();

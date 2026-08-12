@@ -179,6 +179,104 @@ public sealed class BrochurePdfReportBuilderTests
     }
 
     [Fact]
+    public void Build_PrintCompact_MixedSixProjectRegression_MatchesPhysicalPlannerExactly()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"prism-brochure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        try
+        {
+            var environment = new TestWebHostEnvironment(webRoot);
+            var fontService = new FixedFontService();
+            var measurement = new BrochurePrintMeasurementService(
+                environment,
+                fontService,
+                NullLogger<BrochurePrintMeasurementService>.Instance);
+            var planner = new BrochurePrintPagePlanner(measurement);
+            var builder = new BrochurePdfReportBuilder(environment, fontService, planner);
+            var pixel = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+
+            var names = new[]
+            {
+                "VR Based Urban Warfare Sml",
+                "VR Based Map Reading (VR MaRS) Sml",
+                "VR-based Ae Delivery System for C17, C130 and Chinook",
+                "Indigenous Swarm Drones Algorithm",
+                "OSA AK Fg Sml",
+                "Virtual Reality Based Ae Del (VR-AD) Trg Sml (AN 32 and MI 17)"
+            };
+            var wordCounts = new[] { 160, 160, 182, 150, 160, 200 };
+            var projects = names.Select((name, index) =>
+            {
+                var narrative = string.Join(" ", Enumerable.Range(1, wordCounts[index])
+                    .Select(word => $"capability{word}"));
+                var image = new BrochurePublicationImage(
+                    100 + index,
+                    pixel,
+                    1920,
+                    1080,
+                    IsPrintReady: true,
+                    SourceVariant: "regression",
+                    Quality: BrochurePhotoQuality.Excellent);
+                return new BrochurePublicationProject(
+                    index + 1,
+                    name,
+                    "Other R&D Projects",
+                    index == 3 ? "Drones" : "AR / VR",
+                    narrative,
+                    wordCounts[index],
+                    image,
+                    SecondaryPhoto: null,
+                    BrochureImageMode.Automatic);
+            }).ToArray();
+
+            var matter = BrochurePrintPublicationPolicy.ApprovedReference;
+            var options = new BrochureBuildOptions(
+                "SDD Capability Brochure",
+                "Simulator Development Division",
+                "Capability Edition · 2026",
+                "Simulators of the Army, by the Army, for the Army",
+                BrochureCoverStyle.Institutional,
+                BrochureNarrativeSource.ProjectBrief,
+                BrochurePublicationProfile.PrintCompact,
+                IntroductionTitle: null,
+                IntroductionText: null,
+                HandlingMarking: null,
+                IssuerDisplayName: "Simulator Development Division",
+                AllowTextOnlyProjects: false,
+                GeneratedAtUtc: new DateTimeOffset(2026, 8, 12, 7, 0, 0, TimeSpan.Zero),
+                PrintIntroText: matter.OpeningNarrative,
+                PrintFutureText: matter.FutureNarrative,
+                PrintProcurementText: matter.ProcurementGuidance,
+                PrintCentreStatement: matter.CentreStatement,
+                PrintDevelopingAgencyText: matter.DevelopingAgency,
+                PrintManufacturingAgencyText: matter.ManufacturingAgency,
+                PrintVisionaryText: matter.VisionaryHorizons,
+                PrintNewSimulatorsText: matter.NewSimulatorsGuidance);
+            var data = new BrochurePublicationData(
+                options,
+                projects,
+                new BrochurePreflight(projects.Length, Array.Empty<BrochurePreflightIssue>()));
+
+            var expectedPlan = planner.Plan(
+                projects,
+                matter,
+                BrochureCoverStyle.Institutional,
+                options.Strapline,
+                hasHandlingMarking: false);
+            var bytes = builder.Build(data);
+            var actualPages = BrochurePdfCompositionVerifier.CountPages(bytes);
+
+            Assert.Equal(expectedPlan.EstimatedTotalPageCount, actualPages);
+            Assert.True(actualPages >= 2);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void SplitIntroduction_KeepsShortCopyOnOnePage()
     {
         const string text = "A concise institutional introduction for the capability publication.";

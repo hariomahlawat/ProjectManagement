@@ -119,22 +119,22 @@
                     </header>
                     <div class="publication-panel__body brochure-settings-body">
                         <div class="brochure-form-grid brochure-form-grid--compact">
-                            <label class="form-label brochure-field">
+                            <label class="form-label brochure-field" data-cover-a-identity-field>
                                 <span>Brochure title</span>
                                 <input asp-for="Input.Title" class="form-control" maxlength="120" />
                                 <span asp-validation-for="Input.Title" class="text-danger small"></span>
                             </label>
-                            <label class="form-label brochure-field">
+                            <label class="form-label brochure-field" data-cover-a-identity-field>
                                 <span>Edition</span>
                                 <input asp-for="Input.Edition" class="form-control" maxlength="80" />
                                 <span asp-validation-for="Input.Edition" class="text-danger small"></span>
                             </label>
-                            <label class="form-label brochure-field">
+                            <label class="form-label brochure-field" data-cover-a-identity-field>
                                 <span>Subtitle</span>
                                 <input asp-for="Input.Subtitle" class="form-control" maxlength="160" />
                                 <span asp-validation-for="Input.Subtitle" class="text-danger small"></span>
                             </label>
-                            <label class="form-label brochure-field">
+                            <label class="form-label brochure-field" data-narrative-source-field>
                                 <span>Project narrative source</span>
                                 <select asp-for="Input.NarrativeSource"
                                         class="form-select"
@@ -146,6 +146,13 @@
                                 </select>
                                 <small>Sources are never merged automatically.</small>
                             </label>
+                        </div>
+                        <div class="brochure-cover-a-identity-note" hidden data-cover-a-identity-note>
+                            <i class="bi bi-shield-check" aria-hidden="true"></i>
+                            <span>
+                                <strong>Cover A uses the approved institutional artwork unchanged in Print / Compact.</strong>
+                                <small>Brochure title, subtitle and edition remain document metadata and file-naming values; PRISM does not overlay them on the approved artwork.</small>
+                            </span>
                         </div>
 
                         <fieldset class="brochure-profile-fieldset">
@@ -579,9 +586,12 @@
                                             </select>
                                             <small data-review-image-mode-help>Automatic keeps one image unless a second image has been explicitly selected.</small>
                                         </label>
-                                        <div class="brochure-review-image__actions">
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image>Change image</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop>Adjust crop</button>
+                                        <div class="brochure-review-action-group">
+                                            <span>Publication image</span>
+                                            <div class="brochure-review-image__actions">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-review-change-image>Change image</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-review-adjust-crop>Adjust crop</button>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="brochure-review-copy">
@@ -592,9 +602,12 @@
                                         <div class="brochure-review-narrative" data-review-narrative>
                                             Loading current publication copy…
                                         </div>
-                                        <div class="brochure-review-copy__actions">
-                                            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-review-open-brief>Open project brief</a>
-                                            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-review-manage-photos>Manage photos</a>
+                                        <div class="brochure-review-action-group brochure-review-action-group--source">
+                                            <span>Authoritative source</span>
+                                            <div class="brochure-review-copy__actions">
+                                                <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-review-open-brief>Project brief</a>
+                                                <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" data-review-manage-photos>Project photos</a>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -639,15 +652,15 @@
                                 <strong data-print-estimate-pages>—</strong>
                             </div>
                             <div>
-                                <span>Average non-final fill</span>
+                                <span>Average page fill</span>
                                 <strong data-print-estimate-fill>—</strong>
                             </div>
                             <div>
-                                <span>Lowest non-final sheet</span>
+                                <span>Lowest page fill</span>
                                 <strong data-print-lowest-fill>—</strong>
                             </div>
                             <div>
-                                <span>Final sheet</span>
+                                <span>Final page fill</span>
                                 <strong data-print-final-fill>—</strong>
                             </div>
                             <div class="brochure-print-plan-summary__closing">
@@ -665,7 +678,7 @@
                                 </div>
                                 <div class="brochure-smart-flow__metrics">
                                     <div><span>Sheets</span><strong data-smart-flow-pages>—</strong></div>
-                                    <div><span>Lowest non-final</span><strong data-smart-flow-fill>—</strong></div>
+                                    <div><span>Lowest page fill</span><strong data-smart-flow-fill>—</strong></div>
                                     <div><span>Order changes</span><strong data-smart-flow-moves>—</strong></div>
                                 </div>
                                 <div class="brochure-smart-flow__treatment" data-smart-flow-treatment></div>
@@ -683,7 +696,7 @@
                                 </div>
                                 <small>PRISM never reorders projects automatically. The suggestion preserves 9 pt project copy and only changes publication sequence after you approve it.</small>
                             </div>
-                            <small>Measured with the offline publication font and the same geometry used by the hard-copy PDF compositor.</small>
+                            <small>Measured with the bundled publication font, the compositor's canonical geometry and a physical render-safety reserve. Preview/download is then post-compose verified against this page plan.</small>
                         </div>
                         <div class="brochure-preflight-message" data-preflight-message>
                             Select projects to run publication preflight.
@@ -724,7 +737,7 @@
                                 <p><strong data-brochure-selected-count>0</strong> selected · drag to reorder</p>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-link" data-brochure-clear disabled>Clear</button>
+                        <button type="button" class="btn btn-sm btn-link" data-brochure-clear disabled>Clear selection</button>
                     </header>
                     <div class="publication-panel__body brochure-selection-body">
                         <div class="brochure-selected-empty" data-brochure-selected-empty>
@@ -769,7 +782,6 @@
                         <span data-brochure-generate-label>Download brochure PDF</span>
                     </button>
                     <div class="brochure-export-status" role="status" aria-live="polite" data-brochure-export-status></div>
-                    <small>Preview and download use the same PDF composer. Final download also requires publication approval.</small>
                 </div>
                     </div>
                 </section>

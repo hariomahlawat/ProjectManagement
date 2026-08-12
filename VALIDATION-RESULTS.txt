@@ -1,5 +1,15 @@
-PRISM Capability Brochure Phase 15
+PRISM Brochure Phase 16 validation
+==================================
 
-JavaScript syntax: PASS
-Publication brochure contract suite: PASS (48 tests, 0 failed)
-.NET/Razor compilation: NOT RUN — dotnet CLI unavailable in the execution environment.
+PASS  node --check wwwroot/js/pages/projects-brochure.js
+PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
+      55 tests, 55 passed, 0 failed
+
+PASS  Structural brace/string/comment balance check for modified C# sources
+PASS  Razor source sanity: exactly one brochure-preflight-grid opening
+PASS  Legacy blue/yellow closing constants removed from compact composer
+PASS  Redundant Final output helper line removed
+
+NOT RUN  dotnet build / dotnet test
+Reason: .NET SDK is not installed in the packaging environment.
+Run tools/Test-PrismPublicationsPhase16.ps1 and the dotnet commands from README-PHASE16.txt after copying into the project.

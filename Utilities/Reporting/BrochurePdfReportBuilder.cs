@@ -62,18 +62,24 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         var sddLogo = TryLoadAsset("img/logos/sdd.png");
         var artracLogo = TryLoadAsset("img/logos/artrac.png");
         var institutionalArtwork = TryLoadInstitutionalArtwork(data.Options.InstitutionalCoverArtwork);
+        BrochurePrintCompactPlan? printPlan = null;
+        if (data.Options.PublicationProfile == BrochurePublicationProfile.PrintCompact)
+        {
+            // Resolve the compact plan exactly once. Preflight and the compositor use the same
+            // planner/metrics contract; post-composition verification below then proves that
+            // QuestPDF honoured the planned physical page membership.
+            printPlan = _printPagePlanner.Plan(
+                data.Projects,
+                BrochurePrintPublicationPolicy.FromOptions(data.Options),
+                data.Options.CoverStyle,
+                data.Options.Strapline,
+                !string.IsNullOrWhiteSpace(data.Options.HandlingMarking));
+        }
 
         var document = Document.Create(container =>
         {
-            if (data.Options.PublicationProfile == BrochurePublicationProfile.PrintCompact)
+            if (printPlan is not null)
             {
-                var printPlan = _printPagePlanner.Plan(
-                    data.Projects,
-                    BrochurePrintPublicationPolicy.FromOptions(data.Options),
-                    data.Options.CoverStyle,
-                    data.Options.Strapline,
-                    !string.IsNullOrWhiteSpace(data.Options.HandlingMarking));
-
                 BrochurePrintCompactComposer.Compose(
                     container,
                     data,
@@ -134,7 +140,12 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
             ModifiedDate = data.Options.GeneratedAtUtc
         });
 
-        return document.GeneratePdf();
+        var pdfBytes = document.GeneratePdf();
+        if (printPlan is not null)
+        {
+            BrochurePdfCompositionVerifier.Verify(pdfBytes, data, printPlan);
+        }
+        return pdfBytes;
     }
 
     private static void ComposeInstitutionalCover(

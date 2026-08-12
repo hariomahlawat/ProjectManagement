@@ -1375,3 +1375,89 @@ body.brochure-modal-open { overflow: hidden; }
     .brochure-preflight-grid,
     .brochure-print-plan-summary { grid-template-columns: 1fr 1fr; }
 }
+
+/* ==========================================================================
+   Phase 16 — render-verified compact publication polish
+   ========================================================================== */
+
+/* Cover A is an approved full-artwork identity in Print / Compact. Do not ask
+   the user to edit visible title fields that the physical cover intentionally
+   does not render. The values remain posted as document metadata/file naming. */
+.brochure-cover-a-identity-note {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: .58rem;
+    align-items: start;
+    margin-top: .68rem;
+    padding: .62rem .68rem;
+    border: 1px solid #cfe0d9;
+    border-radius: 9px;
+    background: #f4f9f7;
+    color: #456158;
+}
+.brochure-cover-a-identity-note[hidden] { display: none !important; }
+.brochure-cover-a-identity-note > i {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 8px;
+    background: #dfefe8;
+    color: #276b52;
+}
+.brochure-cover-a-identity-note strong,
+.brochure-cover-a-identity-note small { display: block; }
+.brochure-cover-a-identity-note strong { color: #294b3f; font-size: .67rem; font-weight: 780; }
+.brochure-cover-a-identity-note small { margin-top: .1rem; color: #6a7c75; font-size: .58rem; line-height: 1.38; }
+
+/* Give project names enough room to remain recognisable. Reorder controls are
+   discoverable on pointer hover and become visible automatically when reached
+   by keyboard focus, while the ordinary rail stays visually quiet. */
+.brochure-selected-item__name {
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    line-height: 1.22;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.brochure-selected-item__actions [data-reorder-button] {
+    min-width: 0;
+    width: 0;
+    max-width: 0;
+    padding-inline: 0;
+    overflow: hidden;
+    border-width: 0;
+    opacity: 0;
+    transition: width .12s ease, max-width .12s ease, opacity .12s ease;
+}
+.brochure-selected-item:hover .brochure-selected-item__actions [data-reorder-button],
+.brochure-selected-item:focus-within .brochure-selected-item__actions [data-reorder-button] {
+    min-width: 24px;
+    width: 24px;
+    max-width: 24px;
+    padding-inline: 4px;
+    border-width: 1px;
+    opacity: 1;
+}
+
+/* Review actions are deliberately separated into publication edits and
+   authoritative source links so source maintenance is not mistaken for a
+   brochure-local change. */
+.brochure-review-action-group { margin-top: .52rem; }
+.brochure-review-action-group > span {
+    display: block;
+    color: #7a8984;
+    font-size: .54rem;
+    font-weight: 760;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+.brochure-review-action-group .brochure-review-image__actions,
+.brochure-review-action-group .brochure-review-copy__actions { margin-top: .25rem; }
+.brochure-review-action-group--source { padding-top: .18rem; border-top: 1px solid #edf1ef; }
+
+/* Final-output status already explains readiness; avoid reserving height for a
+   redundant instruction line. */
+.brochure-output-body .brochure-generate-actions { align-content: start; }

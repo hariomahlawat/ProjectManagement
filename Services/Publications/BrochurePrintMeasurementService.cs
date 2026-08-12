@@ -421,15 +421,18 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
         matter ??= new BrochurePrintMatter(null, null, null, null, null, null, null, null);
 
         var outerWidth = BrochurePrintLayoutMetrics.ModuleWidthPoints;
-        var visionInnerWidth = outerWidth - 8.4f - 18f; // 4.2 pt border each side + 9 pt padding each side.
-        var visionHeadingHeight = Math.Max(
-            14f,
-            MeasureTextHeight(
-                "Visionary Horizons & Strategic Objectives",
-                BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize,
-                visionInnerWidth - 16f,
-                1.0f,
-                FontWeight.SemiBold) + 4f);
+        var visionInnerWidth = outerWidth
+                               - (BrochurePrintLayoutMetrics.ClosingVisionBorderPoints * 2f)
+                               - (BrochurePrintLayoutMetrics.ClosingVisionHorizontalPaddingPoints * 2f);
+        var visionHeadingInnerWidth = visionInnerWidth
+                                      - (BrochurePrintLayoutMetrics.ClosingVisionHeadingHorizontalPaddingPoints * 2f);
+        var visionHeadingHeight = MeasureTextHeight(
+                                      "Visionary Horizons & Strategic Objectives",
+                                      BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize,
+                                      visionHeadingInnerWidth,
+                                      1.0f,
+                                      FontWeight.SemiBold)
+                                  + (BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints * 2f);
         var visionBodyHeight = MeasureTextHeight(
             matter.VisionaryHorizons,
             BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
@@ -437,7 +440,11 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight,
             FontWeight.Regular,
             BrochurePrintLayoutMetrics.ClosingVisionParagraphSpacingPoints);
-        var visionPanelHeight = 8.4f + 14f + visionHeadingHeight + 4f + visionBodyHeight;
+        var visionPanelHeight = (BrochurePrintLayoutMetrics.ClosingVisionBorderPoints * 2f)
+                                + (BrochurePrintLayoutMetrics.ClosingVisionVerticalPaddingPoints * 2f)
+                                + visionHeadingHeight
+                                + 4f
+                                + visionBodyHeight;
 
         var newSimulatorInnerWidth = outerWidth - 16f;
         var newSimulatorText = $"New Simulators. {matter.NewSimulatorsGuidance}".Trim();
@@ -455,7 +462,7 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
 
         var total = 1f
                     + visionPanelHeight
-                    + 5f
+                    + BrochurePrintLayoutMetrics.ClosingSectionSpacingPoints
                     + newSimulatorHeight
                     + 2f;
 

@@ -416,7 +416,7 @@ public sealed class BrochurePrintCompactPlannerTests
             BrochurePrintPlanningItem item)
             => new[]
             {
-                Measurement(item.ProjectId, BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Balanced, 148f), 205f)
+                Measurement(item.ProjectId, BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Balanced, 148f), 202f)
             };
     }
 

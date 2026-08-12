@@ -23,8 +23,7 @@ internal static class BrochurePrintCompactComposer
     private const string Ink = "#15231F";
     private const string Paper = "#F5F4EF";
     private const string Contact = "#741A16";
-    private const string VisionBlue = "#1C5C77";
-    private const string VisionPaper = "#F7E6A3";
+    private const string ClosingPaper = "#F3F1E8";
 
     internal static void Compose(
         IDocumentContainer container,
@@ -521,7 +520,7 @@ internal static class BrochurePrintCompactComposer
                             layout.BodyFontSize,
                             layout.BodyLineHeight,
                             layout.ParagraphSpacingPoints,
-                            justify: true));
+                            justify: false));
                         return;
                     }
 
@@ -578,7 +577,7 @@ internal static class BrochurePrintCompactComposer
                             layout.BodyFontSize,
                             layout.BodyLineHeight,
                             layout.ParagraphSpacingPoints,
-                            justify: true));
+                            justify: false));
                     }
                 });
             });
@@ -651,35 +650,43 @@ internal static class BrochurePrintCompactComposer
     {
         container.PaddingTop(1).PaddingBottom(2).Column(column =>
         {
-            column.Spacing(5);
+            column.Spacing(BrochurePrintLayoutMetrics.ClosingSectionSpacingPoints);
 
-            column.Item().Border(4.2f).BorderColor(VisionBlue).Background(VisionPaper).PaddingHorizontal(9).PaddingVertical(7).Column(vision =>
-            {
-                vision.Spacing(4);
-                vision.Item().AlignCenter().Background(VisionBlue).PaddingHorizontal(8).PaddingVertical(2)
-                    .Text("Visionary Horizons & Strategic Objectives")
-                    .FontSize(BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize)
-                    .Bold()
-                    .Italic()
-                    .AlignCenter()
-                    .FontColor("#FFFFFF");
-                vision.Item().Element(text => ComposeNarrativeText(
-                    text,
-                    data.Options.PrintVisionaryText,
-                    BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
-                    BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight,
-                    BrochurePrintLayoutMetrics.ClosingVisionParagraphSpacingPoints,
-                    justify: true,
-                    italic: true));
-            });
+            column.Item()
+                .Border(BrochurePrintLayoutMetrics.ClosingVisionBorderPoints)
+                .BorderColor(Forest700)
+                .Background(ClosingPaper)
+                .PaddingHorizontal(BrochurePrintLayoutMetrics.ClosingVisionHorizontalPaddingPoints)
+                .PaddingVertical(BrochurePrintLayoutMetrics.ClosingVisionVerticalPaddingPoints)
+                .Column(vision =>
+                {
+                    vision.Spacing(4);
+                    vision.Item()
+                        .AlignCenter()
+                        .Background(Forest900)
+                        .PaddingHorizontal(BrochurePrintLayoutMetrics.ClosingVisionHeadingHorizontalPaddingPoints)
+                        .PaddingVertical(BrochurePrintLayoutMetrics.ClosingVisionHeadingVerticalPaddingPoints)
+                        .Text("Visionary Horizons & Strategic Objectives")
+                        .FontSize(BrochurePrintLayoutMetrics.ClosingVisionHeadingFontSize)
+                        .SemiBold()
+                        .AlignCenter()
+                        .FontColor("#FFFFFF");
+
+                    vision.Item().Element(text => ComposeNarrativeText(
+                        text,
+                        data.Options.PrintVisionaryText,
+                        BrochurePrintLayoutMetrics.ClosingVisionBodyFontSize,
+                        BrochurePrintLayoutMetrics.ClosingVisionBodyLineHeight,
+                        BrochurePrintLayoutMetrics.ClosingVisionParagraphSpacingPoints,
+                        justify: false));
+                });
 
             column.Item().Background(Forest800).PaddingHorizontal(8).PaddingVertical(7).Text(text =>
             {
                 text.DefaultTextStyle(style => style
                     .FontSize(BrochurePrintLayoutMetrics.ClosingNewSimulatorsFontSize)
                     .LineHeight(BrochurePrintLayoutMetrics.ClosingNewSimulatorsLineHeight));
-                text.Justify();
-                text.Span("New Simulators. ").Bold().Italic().FontColor("#F4D66E");
+                text.Span("New Simulators. ").Bold().FontColor("#F4D66E");
                 text.Span(data.Options.PrintNewSimulatorsText ?? string.Empty).SemiBold().FontColor("#FFFFFF");
             });
         });

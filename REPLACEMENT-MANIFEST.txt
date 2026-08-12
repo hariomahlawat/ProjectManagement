@@ -1,28 +1,18 @@
-PRISM Capability Brochure — Phase 15 UX restructuring
+REPLACE
+=======
+Pages/Projects/Publications/Brochure/Index.cshtml
+Pages/Projects/Publications/Brochure/Index.cshtml.cs
+Services/Publications/BrochurePrintLayoutMetrics.cs
+Services/Publications/BrochurePrintMeasurementService.cs
+Utilities/Reporting/BrochurePrintCompactComposer.cs
+Utilities/Reporting/BrochurePdfReportBuilder.cs
+wwwroot/css/pages/projects-publications.css
+wwwroot/js/pages/projects-brochure.js
+wwwroot/js/projects/publications-brochure-contract.test.js
+ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+ProjectManagement.Tests/Publications/BrochurePrintCompactPlannerTests.cs
 
-REPLACE THESE FILES IN THE PROJECT ROOT:
-1. Pages/Projects/Publications/Brochure/Index.cshtml
-2. wwwroot/css/pages/projects-publications.css
-3. wwwroot/js/pages/projects-brochure.js
-4. wwwroot/js/projects/publications-brochure-contract.test.js
-
-IMPLEMENTED:
-- Final PDF actions moved into a persistent Final output card; Download can no longer be clipped by sidebar content.
-- Publication preflight moved from the narrow right rail to full-width Step 4: Publication readiness.
-- Preflight/finding nested scrolling removed; findings use the main page workspace.
-- Change image / Adjust crop now open a dedicated modal image editor with backdrop, Escape close, Done action and focus return.
-- Review narrative no longer uses a short nested scrollbar.
-- Approval terminology standardised in the editorial UI.
-- Image/crop/treatment edits explicitly notify when publication approval is reset.
-- Final output card explains exactly why preview/download is disabled and reports ready/warning/blocked states.
-- Publication order remains the only right-rail scroll owner and Final output remains visible.
-
-VALIDATION PERFORMED IN THIS PACKAGE:
-- node --check wwwroot/js/pages/projects-brochure.js : PASS
-- node --test wwwroot/js/projects/publications-brochure-contract.test.js : 48/48 PASS
-- dotnet build could not be executed in the packaging environment because the dotnet CLI is not installed.
-
-RECOMMENDED AFTER PASTE:
-dotnet build .\ProjectManagement.csproj
-node --check .\wwwroot\js\pages\projects-brochure.js
-node --test .\wwwroot\js\projects\publications-brochure-contract.test.js
+ADD (NEW)
+=========
+Utilities/Reporting/BrochurePdfCompositionVerifier.cs
+tools/Test-PrismPublicationsPhase16.ps1

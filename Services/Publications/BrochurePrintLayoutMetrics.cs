@@ -16,6 +16,11 @@ public static class BrochurePrintLayoutMetrics
     public const float ProjectMarginTopWithHandlingPoints = 15f;
     public const float ProjectMarginBottomPoints = 5f;
     public const float HandlingHeaderHeightPoints = 10f;
+    // QuestPDF performs final line shaping and page-break decisions after the Skia measurement
+    // pass. Keep a small physical reserve at the bottom of every project sheet so the planner
+    // never relies on the last few points of the page. This reserve is part of the canonical
+    // planning geometry and is therefore shared by preflight and PDF generation.
+    public const float ProjectComposerSafetyReservePoints = 12f;
 
     public const float ModuleBorderPoints = 1.05f;
     public const float ModuleHorizontalPaddingPoints = 7f;
@@ -83,10 +88,16 @@ public static class BrochurePrintLayoutMetrics
     public const int SmartFlowMinimumAverageImprovementPercent = 3;
 
     // Closing matter remains deliberately more prominent than normal project copy.
-    public const float ClosingVisionBodyFontSize = 10.6f;
+    public const float ClosingVisionBodyFontSize = 9.8f;
     public const float ClosingVisionBodyLineHeight = 1.05f;
-    public const float ClosingVisionParagraphSpacingPoints = 2.5f;
-    public const float ClosingVisionHeadingFontSize = 11.2f;
+    public const float ClosingVisionParagraphSpacingPoints = 2.0f;
+    public const float ClosingVisionHeadingFontSize = 10.6f;
+    public const float ClosingVisionBorderPoints = 1.1f;
+    public const float ClosingVisionHorizontalPaddingPoints = 9f;
+    public const float ClosingVisionVerticalPaddingPoints = 7f;
+    public const float ClosingVisionHeadingHorizontalPaddingPoints = 8f;
+    public const float ClosingVisionHeadingVerticalPaddingPoints = 2f;
+    public const float ClosingSectionSpacingPoints = 5f;
     public const float ClosingNewSimulatorsFontSize = 8.8f;
     public const float ClosingNewSimulatorsLineHeight = 1.06f;
     public const float ClosingStraplineFontSize = 8.2f;
@@ -114,7 +125,10 @@ public static class BrochurePrintLayoutMetrics
             ? ProjectMarginTopWithHandlingPoints + HandlingHeaderHeightPoints
             : ProjectMarginTopPoints;
 
-        return ReferenceHeightPoints - top - ProjectMarginBottomPoints;
+        return ReferenceHeightPoints
+               - top
+               - ProjectMarginBottomPoints
+               - ProjectComposerSafetyReservePoints;
     }
 
     public static float ModuleWidthPoints

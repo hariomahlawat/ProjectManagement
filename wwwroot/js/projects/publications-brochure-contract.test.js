@@ -328,14 +328,16 @@ test('phase 10 print compact restores reference float composition and removes im
   assert.match(metrics, /ProjectTitleMinimumFontSize = 9\.25f/);
 });
 
-test('phase 10 print compact restores stronger closing matter and reference-green treatment', () => {
+test('phase 16 harmonises compact closing matter with the institutional green publication system', () => {
   const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
-  assert.match(metrics, /ClosingVisionBodyFontSize = 10\.6f/);
-  assert.match(metrics, /ClosingVisionHeadingFontSize = 11\.2f/);
-  assert.match(metrics, /ClosingNewSimulatorsFontSize = 8\.8f/);
-  assert.match(metrics, /ClosingStraplineFontSize = 8\.2f/);
-  assert.match(printRenderer, /Forest800 = "#156656"/);
-  assert.match(printRenderer, /Text\("CONTACTS"\)/);
+  assert.match(metrics, /ClosingVisionBodyFontSize = 9\.8f/);
+  assert.match(metrics, /ClosingVisionHeadingFontSize = 10\.6f/);
+  assert.match(metrics, /ClosingVisionBorderPoints = 1\.1f/);
+  assert.match(metrics, /ClosingSectionSpacingPoints = 5f/);
+  assert.match(printRenderer, /ClosingPaper = "#F3F1E8"/);
+  assert.match(printRenderer, /Background\(Forest900\)/);
+  assert.match(printRenderer, /Visionary Horizons & Strategic Objectives/);
+  assert.doesNotMatch(printRenderer.slice(printRenderer.indexOf('private static void ComposeClosingMatter')), /VisionBlue|VisionPaper/);
 });
 
 test('phase 14 keeps exact 16:9 imagery and nine-point typography across all normal density candidates', () => {
@@ -468,8 +470,8 @@ test('print pagination packs forward, exempts the final sheet, and guards narrat
   assert.match(metrics, /MaximumProjectsPerSheet = 5/);
   assert.match(measurement, /EnsureNarrativePartition/);
   assert.match(js, /sheet\.isFinal/);
-  assert.match(view, /Lowest non-final sheet/);
-  assert.match(view, /Average non-final fill/);
+  assert.match(view, /Lowest page fill/);
+  assert.match(view, /Average page fill/);
 });
 
 test('publication approvals are bound to authoritative project and cover fingerprints', () => {
@@ -528,4 +530,71 @@ test('phase 15 explicitly reports approval invalidation after editorial image ch
   assert.match(js, /Primary image changed/);
   assert.match(js, /Image crop changed/);
   assert.match(js, /publication approval reset/);
+});
+
+
+test('phase 16 post-compose verification makes the rendered PDF the final pagination authority', () => {
+  const builder = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePdfReportBuilder.cs'), 'utf8');
+  const verifier = fs.readFileSync(path.join(root, 'Utilities', 'Reporting', 'BrochurePdfCompositionVerifier.cs'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'Pages', 'Projects', 'Publications', 'Brochure', 'Index.cshtml.cs'), 'utf8');
+  assert.match(builder, /BrochurePdfCompositionVerifier\.Verify\(pdfBytes, data, printPlan\)/);
+  assert.match(verifier, /PdfDocument\.Open/);
+  assert.match(verifier, /ExpectedPageCount/);
+  assert.match(verifier, /ActualPageCount/);
+  assert.match(verifier, /private static string Canonical\(/);
+  assert.match(verifier, /Visionary Horizons & Strategic Objectives/);
+  assert.match(page, /printCompositionMismatch/);
+  assert.match(page, /X-PRISM-Publication-Composition-Verified/);
+  assert.match(page, /X-PRISM-Publication-Page-Count/);
+});
+
+test('phase 16 gives compact planning a physical compositor reserve and keeps closing measurement geometry shared', () => {
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  assert.match(metrics, /ProjectComposerSafetyReservePoints = 12f/);
+  assert.match(metrics, /ReferenceHeightPoints[\s\S]{0,900}ProjectComposerSafetyReservePoints/);
+  assert.match(measurement, /ClosingVisionHorizontalPaddingPoints/);
+  assert.match(measurement, /ClosingVisionVerticalPaddingPoints/);
+  assert.match(measurement, /ClosingVisionHeadingHorizontalPaddingPoints/);
+  assert.match(measurement, /ClosingSectionSpacingPoints/);
+});
+
+test('phase 16 makes project copy ragged-right while retaining measured semantic float composition', () => {
+  const projectModule = printRenderer.slice(
+    printRenderer.indexOf('private static void ComposeProjectModule'),
+    printRenderer.indexOf('private static void ComposeClosingMatter'));
+  assert.match(projectModule, /justify: false/);
+  assert.doesNotMatch(projectModule, /justify: true/);
+});
+
+test('phase 16 explains Cover A identity ownership and hides non-rendered identity controls without dropping their values', () => {
+  assert.match(view, /data-cover-a-identity-field/);
+  assert.match(view, /data-cover-a-identity-note/);
+  assert.match(view, /approved institutional artwork unchanged in Print \/ Compact/);
+  assert.match(js, /coverAUsesFullArtworkIdentity/);
+  assert.match(js, /field\.hidden = coverAUsesFullArtworkIdentity/);
+  assert.match(js, /coverAIdentityNote\.hidden = !coverAUsesFullArtworkIdentity/);
+});
+
+test('phase 16 simplifies publication order and protects clearing reviewed selections', () => {
+  assert.match(view, />Clear selection</);
+  assert.match(js, /dataset\.reorderButton/);
+  assert.match(js, /window\.confirm/);
+  assert.match(css, /\.brochure-selected-item__name[\s\S]{0,220}-webkit-line-clamp:\s*2/);
+  assert.match(css, /\[data-reorder-button\]/);
+  assert.match(css, /:focus-within/);
+});
+
+test('phase 16 presents review actions as publication image work versus authoritative source work', () => {
+  assert.match(view, /<span>Publication image<\/span>/);
+  assert.match(view, /<span>Authoritative source<\/span>/);
+  assert.match(view, />Project brief</);
+  assert.match(view, />Project photos</);
+  assert.match(css, /\.brochure-review-action-group/);
+});
+
+test('phase 16 output success reports physical composition verification and page count', () => {
+  assert.match(js, /X-PRISM-Publication-Composition-Verified/);
+  assert.match(js, /X-PRISM-Publication-Page-Count/);
+  assert.match(js, /composition verified/);
 });
