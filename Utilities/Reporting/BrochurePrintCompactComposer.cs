@@ -195,41 +195,12 @@ internal static class BrochurePrintCompactComposer
                 {
                     ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
                 }
-                else if (BrochureInstitutionalCoverArtworkCatalog.IdentityMode(data.Options.InstitutionalCoverArtwork)
-                         == BrochureInstitutionalArtworkIdentityMode.BackgroundOnly)
-                {
-                    ComposeOfficialInstitutionalMarks(layers.Layer(), sddLogo, artracLogo);
-                }
             }
             else
             {
                 ComposeFrontLockup(layers.Layer(), data, sddLogo, artracLogo);
             }
             ComposeHandlingMarking(layers.Layer(), data.Options.HandlingMarking);
-        });
-    }
-
-    private static void ComposeOfficialInstitutionalMarks(
-        IContainer layer,
-        byte[]? sddLogo,
-        byte[]? artracLogo)
-    {
-        // Generated alternatives are background-only artwork. Overlay the exact deployed PRISM
-        // identity assets without opaque backing rectangles so the result remains integrated with
-        // the hero rather than looking like a corrective patch.
-        layer.AlignTop().PaddingTop(10).PaddingHorizontal(12).Row(row =>
-        {
-            if (artracLogo is { Length: > 0 })
-            {
-                row.ConstantItem(46).Height(46).Image(artracLogo).FitArea();
-            }
-
-            row.RelativeItem();
-
-            if (sddLogo is { Length: > 0 })
-            {
-                row.ConstantItem(46).Height(46).Image(sddLogo).FitArea();
-            }
         });
     }
 
@@ -477,9 +448,12 @@ internal static class BrochurePrintCompactComposer
 
                     var plannedProject = sheet.Projects[projectOffset];
                     var project = data.Projects[plannedProject.ProjectIndex];
+                    // ShowEntire must wrap the complete fixed-height card. Keeping it outside the
+                    // height constraint makes a measurement mismatch fail as one atomic module
+                    // instead of allowing a titleless continuation to leak onto another page.
                     column.Item()
-                        .Height(plannedProject.Measurement.TotalHeightPoints + sheet.ExtraModuleVerticalPaddingPoints)
                         .ShowEntire()
+                        .Height(plannedProject.Measurement.TotalHeightPoints + sheet.ExtraModuleVerticalPaddingPoints)
                         .Element(module => ComposeProjectModule(
                             module,
                             project,
@@ -495,8 +469,8 @@ internal static class BrochurePrintCompactComposer
                     }
 
                     column.Item()
-                        .Height(sheet.ClosingHeightPoints)
                         .ShowEntire()
+                        .Height(sheet.ClosingHeightPoints)
                         .Element(block => ComposeClosingMatter(block, data));
                 }
             });

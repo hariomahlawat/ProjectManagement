@@ -541,7 +541,8 @@ public sealed class IndexModel : PageModel
                 sheet.ProjectCount,
                 sheet.IncludesClosingMatter,
                 sheet.UtilizationPercent,
-                sheet.Label
+                sheet.Label,
+                sheet.IsFinal
             }).ToArray(),
             smartFlowSuggestion = preflight.SmartFlowSuggestion is null ? null : new
             {
@@ -575,7 +576,8 @@ public sealed class IndexModel : PageModel
                     sheet.ProjectCount,
                     sheet.IncludesClosingMatter,
                     sheet.UtilizationPercent,
-                    sheet.Label
+                    sheet.Label,
+                    sheet.IsFinal
                 }).ToArray()
             },
             issues = preflight.Issues.Select(issue => new

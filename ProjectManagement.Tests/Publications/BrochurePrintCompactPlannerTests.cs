@@ -216,6 +216,56 @@ public sealed class BrochurePrintCompactPlannerTests
         Assert.All(plan.Pages, page =>
             Assert.True(page.ExtraModuleVerticalPaddingPoints >= 0f
                         && page.ExtraInterModuleSpacingPoints >= 0f));
+        var finalPage = Assert.IsType<BrochurePrintCompactPage>(plan.Pages.Last());
+        Assert.Equal(0f, finalPage.ExtraModuleVerticalPaddingPoints);
+        Assert.Equal(0f, finalPage.ExtraInterModuleSpacingPoints);
+    }
+
+    [Fact]
+    public void Plan_PacksNonFinalSheetsForwardAndLeavesResidualOnFinalSheet()
+    {
+        var planner = new BrochurePrintPagePlanner(new UniformFixtureMeasurementService());
+        var projects = Enumerable.Range(1, 5).Select(PlanningItem).ToArray();
+
+        var plan = planner.Plan(
+            projects,
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Institutional,
+            null,
+            hasHandlingMarking: false);
+
+        Assert.Equal(2, plan.Pages.Count);
+        Assert.Equal(4, plan.Pages[0].Projects.Count);
+        Assert.Single(plan.Pages[1].Projects);
+        Assert.True(plan.Pages[1].IncludesClosingMatter);
+        Assert.True(plan.Pages[0].UtilizationPercent > plan.Pages[1].UtilizationPercent);
+        Assert.Equal(plan.Pages[0].UtilizationPercent, plan.LowestProjectPageUtilizationPercent!.Value);
+        Assert.Equal(plan.Pages[1].UtilizationPercent, plan.FinalPageUtilizationPercent!.Value);
+        Assert.Equal(0f, plan.Pages[1].ExtraModuleVerticalPaddingPoints);
+        Assert.Equal(0f, plan.Pages[1].ExtraInterModuleSpacingPoints);
+
+        var finalSummary = Assert.Single(plan.SheetPlan.Where(sheet => sheet.IsFinal));
+        Assert.Equal(plan.EstimatedTotalPageCount, finalSummary.SheetNumber);
+        Assert.Contains("residual allowed", finalSummary.Label, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Plan_AllowsMeasuredFiveUpSheetWithoutReducingTypography()
+    {
+        var planner = new BrochurePrintPagePlanner(new FiveUpFixtureMeasurementService());
+        var projects = Enumerable.Range(1, 5).Select(PlanningItem).ToArray();
+
+        var plan = planner.Plan(
+            projects,
+            BrochurePrintPublicationPolicy.ApprovedReference,
+            BrochureCoverStyle.Institutional,
+            null,
+            hasHandlingMarking: false);
+
+        var fiveUp = Assert.Single(plan.Pages.Where(page => page.Projects.Count == 5));
+        Assert.All(fiveUp.Projects, project => Assert.Equal(9f, project.Measurement.BodyFontSize));
+        Assert.True(fiveUp.MeasuredPhysicalUsedPoints <= fiveUp.CapacityPoints + .5f);
+        Assert.Equal(BrochurePrintLayoutMetrics.MaximumProjectsPerSheet, fiveUp.Projects.Count);
     }
 
     private static BrochurePrintPlanningItem PlanningItem(
@@ -366,6 +416,16 @@ public sealed class BrochurePrintCompactPlannerTests
             => new[]
             {
                 Measurement(item.ProjectId, BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Balanced, 148f), 205f)
+            };
+    }
+
+    private sealed class FiveUpFixtureMeasurementService : FixtureMeasurementService
+    {
+        public override IReadOnlyList<BrochurePrintProjectMeasurement> GenerateProjectCandidates(
+            BrochurePrintPlanningItem item)
+            => new[]
+            {
+                Measurement(item.ProjectId, BrochurePrintLayoutMetrics.VariantSpec(BrochurePrintLayoutVariant.Dense, 132f), 150f)
             };
     }
 

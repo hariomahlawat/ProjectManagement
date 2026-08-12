@@ -495,7 +495,7 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 PublicationIssueSeverity.Information,
                 null,
                 null,
-                $"One hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation. The adaptive 9 pt compositor has already tested approved image widths and dense geometry; the remaining whitespace is structural for the current order."));
+                $"One non-final hard-copy project sheet is planned at {plan.LowestProjectPageUtilizationPercent}% utilisation. The adaptive 9 pt compositor has already tested approved image widths and dense geometry; any remaining structural whitespace is carried forward where possible, while the final sheet is intentionally exempt."));
         }
 
         var preflight = prepared.Preflight with

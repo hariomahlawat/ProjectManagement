@@ -420,14 +420,15 @@ test('phase 14 retains semantic float splitting and avoids forced word-continuat
   assert.doesNotMatch(continuation, /\.Justify\(\)/);
 });
 
-test('phase 14 Cover A keeps reference artwork complete and generated alternatives background-only', () => {
+test('Cover A treats every approved artwork as identity-complete and never overlays duplicate logos', () => {
   const catalog = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureInstitutionalCoverArtworkCatalog.cs'), 'utf8');
-  assert.match(catalog, /ReferenceOriginal[\s\S]{0,100}BrochureInstitutionalArtworkIdentityMode\.FullArtwork/);
-  assert.match(catalog, /BrochureInstitutionalArtworkIdentityMode\.BackgroundOnly/);
-  assert.match(printRenderer, /BrochureInstitutionalCoverArtworkCatalog\.IdentityMode/);
-  assert.match(printRenderer, /ComposeOfficialInstitutionalMarks/);
-  assert.match(printRenderer, /Image\(artracLogo\)\.FitArea\(\)/);
-  assert.match(printRenderer, /Image\(sddLogo\)\.FitArea\(\)/);
+  for (const artwork of ['ReferenceOriginal', 'PremiumGreenGold', 'CinematicCyber', 'ExecutiveTeal', 'LuminousHalo']) {
+    assert.match(catalog, new RegExp(`${artwork}[\\s\\S]{0,130}BrochureInstitutionalArtworkIdentityMode\\.FullArtwork`));
+  }
+  assert.doesNotMatch(catalog, /BrochureInstitutionalArtworkIdentityMode\.BackgroundOnly/);
+  assert.doesNotMatch(printRenderer, /ComposeOfficialInstitutionalMarks/);
+  assert.match(renderer, /artworkContainsIdentity/);
+  assert.match(renderer, /if \(!artworkContainsIdentity\)/);
 });
 
 test('phase 14 preflight returns actionable Smart Flow diagnostics instead of silently reordering', () => {
@@ -447,7 +448,24 @@ test('phase 14 project and closing geometry remains deterministic between planne
     printRenderer.indexOf('private static void ComposeProjectSheet'),
     printRenderer.indexOf('private static void ComposeProjectModule'));
   assert.match(printRenderer, /\.Height\(plannedProject\.Measurement\.TotalHeightPoints \+ sheet\.ExtraModuleVerticalPaddingPoints\)/);
+  assert.match(printRenderer, /\.ShowEntire\(\)\s*\.Height\(plannedProject\.Measurement\.TotalHeightPoints \+ sheet\.ExtraModuleVerticalPaddingPoints\)/);
   assert.match(sheetComposer, /InterModuleSpacingPoints[\s\S]{0,120}ExtraInterModuleSpacingPoints/);
   assert.match(sheetComposer, /Height\(BrochurePrintLayoutMetrics\.ClosingGapPoints\)/);
   assert.match(measurement, /ProjectMeasurementSafetyPoints/);
+});
+
+test('print pagination packs forward, exempts the final sheet, and guards narrative integrity', () => {
+  const planner = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintPagePlanner.cs'), 'utf8');
+  const metrics = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintLayoutMetrics.cs'), 'utf8');
+  const measurement = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochurePrintMeasurementService.cs'), 'utf8');
+  assert.match(planner, /ForwardResidualFractions/);
+  assert.match(planner, /CompareResidualVectors/);
+  assert.match(planner, /allowRaggedResidual/);
+  assert.match(planner, /isFinalPage[\s\S]{0,180}page\.Projects\.Count/);
+  assert.match(planner, /minimumRemainingHeight/);
+  assert.match(metrics, /PreferredMaximumProjectsPerSheet = 4/);
+  assert.match(metrics, /MaximumProjectsPerSheet = 5/);
+  assert.match(measurement, /EnsureNarrativePartition/);
+  assert.match(js, /sheet\.isFinal/);
+  assert.match(view, /Lowest non-final sheet/);
 });

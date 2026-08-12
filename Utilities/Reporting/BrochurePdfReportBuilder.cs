@@ -145,6 +145,10 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
         byte[]? artracLogo,
         byte[]? institutionalArtwork)
     {
+        var artworkContainsIdentity = institutionalArtwork is { Length: > 0 }
+                                      && BrochureInstitutionalCoverArtworkCatalog.IdentityMode(
+                                          data.Options.InstitutionalCoverArtwork)
+                                      == BrochureInstitutionalArtworkIdentityMode.FullArtwork;
         var coverPhotos = data.Projects
             .Where(project => project.PrimaryPhoto is not null)
             .Take(3)
@@ -190,18 +194,23 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                                 .LetterSpacing(1.1f)
                                 .FontColor("#90B6AA");
                         });
-                        row.AutoItem().Row(logos =>
+                        // Curated Cover A artwork already carries the official identity. Retain
+                        // separate logo assets only for the asset-missing fallback composition.
+                        if (!artworkContainsIdentity)
                         {
-                            logos.Spacing(9);
-                            if (artracLogo is { Length: > 0 })
+                            row.AutoItem().Row(logos =>
                             {
-                                logos.ConstantItem(42).Height(42).Image(artracLogo).FitArea();
-                            }
-                            if (sddLogo is { Length: > 0 })
-                            {
-                                logos.ConstantItem(42).Height(42).Image(sddLogo).FitArea();
-                            }
-                        });
+                                logos.Spacing(9);
+                                if (artracLogo is { Length: > 0 })
+                                {
+                                    logos.ConstantItem(42).Height(42).Image(artracLogo).FitArea();
+                                }
+                                if (sddLogo is { Length: > 0 })
+                                {
+                                    logos.ConstantItem(42).Height(42).Image(sddLogo).FitArea();
+                                }
+                            });
+                        }
                     });
 
                     if (!string.IsNullOrWhiteSpace(data.Options.HandlingMarking))

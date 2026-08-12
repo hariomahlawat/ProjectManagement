@@ -1472,6 +1472,11 @@
         return right.every(id => leftSet.has(Number(id)));
     };
 
+    const formatPositivePercent = value => {
+        const numeric = Number(value || 0);
+        return numeric > 0 ? `${numeric}%` : "—";
+    };
+
     const renderSmartFlow = (suggestion, result) => {
         currentSmartFlowSuggestion = suggestion && Array.isArray(suggestion.suggestedProjectIds)
             ? suggestion
@@ -1489,9 +1494,9 @@
 
         smartFlowPanel.hidden = false;
         if (currentSmartFlowSuggestion) {
-            if (smartFlowSummary) smartFlowSummary.textContent = currentSmartFlowSuggestion.summary || "A better page flow is available without reducing project typography.";
+            if (smartFlowSummary) smartFlowSummary.textContent = currentSmartFlowSuggestion.summary || "A stronger forward-packed page flow is available without reducing project typography.";
             if (smartFlowPages) smartFlowPages.textContent = `${Number(currentSmartFlowSuggestion.currentPageCount || 0)} → ${Number(currentSmartFlowSuggestion.suggestedPageCount || 0)}`;
-            if (smartFlowFill) smartFlowFill.textContent = `${Number(currentSmartFlowSuggestion.currentLowestProjectUtilizationPercent || 0)}% → ${Number(currentSmartFlowSuggestion.suggestedLowestProjectUtilizationPercent || 0)}%`;
+            if (smartFlowFill) smartFlowFill.textContent = `${formatPositivePercent(currentSmartFlowSuggestion.currentLowestProjectUtilizationPercent)} → ${formatPositivePercent(currentSmartFlowSuggestion.suggestedLowestProjectUtilizationPercent)}`;
             if (smartFlowMoves) smartFlowMoves.textContent = String(Number(currentSmartFlowSuggestion.movedProjectCount || 0));
             if (smartFlowTreatment) {
                 smartFlowTreatment.textContent = currentSmartFlowSuggestion.adaptiveTreatmentSummary
@@ -1504,7 +1509,10 @@
                 smartFlowSheetMap.replaceChildren(...sheets.map(sheet => {
                     const chip = document.createElement("span");
                     chip.className = "brochure-smart-flow__sheet-chip";
-                    if (Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
+                    if (sheet.isFinal) chip.classList.add("is-final");
+                    if (!sheet.isFinal
+                        && sheet.kind !== "front"
+                        && Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
                     chip.textContent = `${Number(sheet.sheetNumber || 0)} · ${sheet.label || "Sheet"} · ${Number(sheet.utilizationPercent || 0)}%`;
                     return chip;
                 }));
@@ -1526,7 +1534,7 @@
         } else {
             if (smartFlowSummary) smartFlowSummary.textContent = "Smart Flow order applied. Preflight is now showing the resulting composition.";
             if (smartFlowPages) smartFlowPages.textContent = String(Number(result?.estimatedPageCount || 0) || "—");
-            if (smartFlowFill) smartFlowFill.textContent = `${Number(result?.lowestProjectPageUtilizationPercent || 0)}%`;
+            if (smartFlowFill) smartFlowFill.textContent = formatPositivePercent(result?.lowestProjectPageUtilizationPercent);
             if (smartFlowMoves) smartFlowMoves.textContent = "Applied";
             smartFlowMoveList?.replaceChildren();
             smartFlowSheetMap?.replaceChildren();
@@ -1572,8 +1580,7 @@
                 if (printEstimatePages) printEstimatePages.textContent = String(result.estimatedPageCount);
                 if (printEstimateFill) printEstimateFill.textContent = `${Number(result.estimatedAveragePageUtilizationPercent || 0)}%`;
                 if (printLowestFill) {
-                    const value = Number(result.lowestProjectPageUtilizationPercent || 0);
-                    printLowestFill.textContent = value > 0 ? `${value}%` : "—";
+                    printLowestFill.textContent = formatPositivePercent(result.lowestProjectPageUtilizationPercent);
                 }
                 if (printFinalFill) {
                     const value = Number(result.finalPageUtilizationPercent || 0);
@@ -1592,7 +1599,10 @@
                         const chip = document.createElement("div");
                         chip.className = "brochure-print-sheet-chip";
                         if (sheet.kind === "front") chip.classList.add("is-front");
-                        if (Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
+                        if (sheet.isFinal) chip.classList.add("is-final");
+                        if (!sheet.isFinal
+                            && sheet.kind !== "front"
+                            && Number(sheet.utilizationPercent || 0) < 85) chip.classList.add("is-low");
 
                         const label = document.createElement("strong");
                         label.textContent = `${sheet.sheetNumber}. ${sheet.label || "Sheet"}`;

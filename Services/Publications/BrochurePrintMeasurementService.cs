@@ -325,6 +325,8 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
                 spec.BodyLineHeight,
                 spec.ParagraphSpacingPoints);
 
+            EnsureNarrativePartition(item, split);
+
             leadingNarrative = split.Leading;
             continuationNarrative = split.Continuation;
             trailingNarrative = split.Trailing;
@@ -387,6 +389,29 @@ public sealed class BrochurePrintMeasurementService : IBrochurePrintMeasurementS
             VisualQualityScore: spec.VisualQualityScore,
             TitleMinimumHeightPoints: spec.TitleMinimumHeightPoints);
     }
+
+    private static void EnsureNarrativePartition(
+        BrochurePrintPlanningItem item,
+        FloatNarrativeSplit split)
+    {
+        var expected = NormalizeNarrativeForComparison(item.Narrative);
+        var actual = NormalizeNarrativeForComparison(string.Join(
+            " ",
+            new[] { split.Leading, split.Continuation, split.Trailing }
+                .Where(part => !string.IsNullOrWhiteSpace(part))));
+
+        if (!string.Equals(expected, actual, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Print narrative partitioning changed the source copy for project {item.ProjectId}. "
+                + "The brochure was not composed because this could duplicate or omit publication text.");
+        }
+    }
+
+    private static string NormalizeNarrativeForComparison(string? narrative)
+        => string.IsNullOrWhiteSpace(narrative)
+            ? string.Empty
+            : Whitespace.Replace(narrative.Trim(), " ");
 
     public BrochurePrintClosingMeasurement MeasureClosing(
         BrochurePrintMatter? matter,

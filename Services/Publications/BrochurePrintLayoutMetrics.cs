@@ -33,9 +33,15 @@ public static class BrochurePrintLayoutMetrics
 
     public const float InterModuleSpacingPoints = 4.25f;
     public const float ClosingGapPoints = 4f;
-    public const float ProjectMeasurementSafetyPoints = .75f;
+    // SkiaSharp and QuestPDF use the same bundled face but not the same shaping pipeline. Reserve
+    // one normal body line so a rare wrap difference cannot escape an otherwise exact-height card.
+    public const float ProjectMeasurementSafetyPoints = 9.5f;
 
-    public const int MaximumProjectsPerSheet = 4;
+    // Four modules remains the preferred reference composition. A fifth is permitted only when
+    // the measured 9 pt candidates genuinely fit; the planner's bounded search prunes impossible
+    // combinations before composition.
+    public const int PreferredMaximumProjectsPerSheet = 4;
+    public const int MaximumProjectsPerSheet = 5;
     public const float TargetMinimumUtilization = .90f;
     public const float PreferredUtilization = .96f;
 

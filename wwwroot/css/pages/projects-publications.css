@@ -956,6 +956,11 @@
     border-color: #c8dbd3;
     background: #eef7f3;
 }
+.brochure-print-sheet-chip.is-final {
+    border-color: #b9c9c2;
+    border-style: dashed;
+    background: #f5f8f7;
+}
 
 /* Phase 12 · curated institutional Cover A artwork */
 .brochure-institutional-artwork-panel {
@@ -1067,4 +1072,10 @@
 .brochure-smart-flow__sheet-chip.is-low {
     border-color: rgba(var(--bs-warning-rgb), .35);
     background: rgba(var(--bs-warning-rgb), .08);
+}
+
+.brochure-smart-flow__sheet-chip.is-final {
+    border-color: rgba(var(--bs-secondary-rgb), .35);
+    border-style: dashed;
+    background: rgba(var(--bs-secondary-rgb), .06);
 }

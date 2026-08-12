@@ -99,7 +99,7 @@ public sealed class BrochurePrintMeasurementServiceTests
     public void MeasureProject_FloatSplitCarriesSemanticBoundaryClassification()
     {
         using var fixture = new Fixture();
-        var narrative = string.Join(" ", new[]
+        var narrative = string.Join("\n\n", new[]
         {
             "First sentence establishes the opening context and remains deliberately concise.",
             "Second sentence adds enough material to occupy the side column beside the publication photograph.",
@@ -120,6 +120,15 @@ public sealed class BrochurePrintMeasurementServiceTests
 
         Assert.NotEqual(BrochureFloatSplitKind.None, measure.FloatSplitKind);
         Assert.NotEmpty(measure.LeadingNarrative);
+        var reconstructed = string.Join(
+            " ",
+            new[]
+            {
+                measure.LeadingNarrative,
+                measure.ContinuationNarrative,
+                measure.TrailingNarrative
+            }.Where(part => !string.IsNullOrWhiteSpace(part)));
+        Assert.Equal(NormalizeNarrative(narrative), NormalizeNarrative(reconstructed));
     }
 
     [Fact]
@@ -192,6 +201,9 @@ public sealed class BrochurePrintMeasurementServiceTests
             mode,
             HasPrimaryPhoto: true,
             HasSecondaryPhoto: hasSecondary);
+
+    private static string NormalizeNarrative(string value)
+        => string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private sealed class Fixture : IDisposable
     {

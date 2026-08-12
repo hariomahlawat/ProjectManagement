@@ -243,7 +243,8 @@ public sealed record BrochurePrintSheetSummary(
     int ProjectCount,
     bool IncludesClosingMatter,
     int UtilizationPercent,
-    string Label);
+    string Label,
+    bool IsFinal = false);
 
 public sealed record BrochurePrintOrderMove(
     int ProjectId,

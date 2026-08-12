@@ -27,13 +27,15 @@ public interface IBrochurePrintPagePlanner
 /// <summary>
 /// Adaptive, order-safe hard-copy planner.
 ///
-/// Phase 14 rules:
+/// Print pagination rules:
 /// 1. Normal project copy remains 9 pt. Dense composition changes geometry, not typography.
 /// 2. Each project exposes a Pareto frontier of valid 9 pt layouts, including planner-aware
 ///    Automatic Single/Gallery candidates when a second image has been explicitly selected.
 /// 3. Current user order is always authoritative for PDF generation.
 /// 4. Preflight may calculate a bounded Smart Flow alternative, but never applies it silently.
-/// 5. Residual-space handling is a final polish step only; it cannot change page membership.
+/// 5. Non-final sheets are packed from the front. Unavoidable residual space is carried to the
+///    final sheet, which is intentionally exempt from fill penalties and cosmetic stretching.
+/// 6. Residual-space handling is a final polish step only; it cannot change page membership.
 /// </summary>
 public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
 {
@@ -238,7 +240,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         IReadOnlyList<PlannedSegment> selected;
         var sharesClosing = false;
 
-        if (hasSharedPlan && ComparePlanAlternatives(sharedPages, dedicated) < 0)
+        if (hasSharedPlan && ComparePlanAlternatives(sharedPages, dedicated, capacity) < 0)
         {
             selected = sharedPages;
             sharesClosing = true;
@@ -271,7 +273,8 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
 
     private static int ComparePlanAlternatives(
         IReadOnlyList<PlannedSegment> left,
-        IReadOnlyList<PlannedSegment> right)
+        IReadOnlyList<PlannedSegment> right,
+        float capacity)
     {
         if (left.Count != right.Count)
         {
@@ -285,17 +288,32 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             return leftTypography.CompareTo(rightTypography);
         }
 
-        var leftWorst = left.Where(page => page.Projects.Count > 0).Select(page => page.UtilizationPercent).DefaultIfEmpty(100).Min();
-        var rightWorst = right.Where(page => page.Projects.Count > 0).Select(page => page.UtilizationPercent).DefaultIfEmpty(100).Min();
-        if (leftWorst != rightWorst)
+        var residualComparison = CompareResidualVectors(
+            ForwardResidualVector(left, capacity),
+            ForwardResidualVector(right, capacity));
+        if (residualComparison != 0)
         {
-            return rightWorst.CompareTo(leftWorst);
+            return residualComparison;
         }
 
         var leftScore = AggregateCompositionScore(left);
         var rightScore = AggregateCompositionScore(right);
-        return leftScore.CompareTo(rightScore);
+        if (Math.Abs(leftScore - rightScore) > .0001d)
+        {
+            return leftScore.CompareTo(rightScore);
+        }
+
+        return AggregateVisualQuality(right).CompareTo(AggregateVisualQuality(left));
     }
+
+    private static double[] ForwardResidualVector(
+        IReadOnlyList<PlannedSegment> pages,
+        float capacity)
+        => pages
+            .Take(Math.Max(0, pages.Count - 1))
+            .Where(page => page.Projects.Count > 0)
+            .Select(page => Math.Max(0d, (capacity - page.PhysicalUsedPoints) / capacity))
+            .ToArray();
 
     private static PlannedSegment CreateSingleProjectFallback(
         ProjectCandidateSet candidates,
@@ -334,7 +352,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         states[0] = new PlannerState(
             PageCount: 0,
             TypographyPenalty: 0,
-            WorstResidualFraction: 0d,
+            ForwardResidualFractions: Array.Empty<double>(),
             VisualQualityLoss: 0d,
             Score: 0d,
             PreviousIndex: null,
@@ -370,7 +388,8 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                     projectCapacity,
                     closingHeight,
                     capacity,
-                    includesClosingMatter);
+                    includesClosingMatter,
+                    allowRaggedResidual: isFinal && requireClosingOnFinalPage);
                 if (segment is null)
                 {
                     continue;
@@ -379,7 +398,9 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 var pageCount = state.PageCount + 1;
                 var typographyPenalty = state.TypographyPenalty + segment.TypographyPenalty;
                 var residualFraction = Math.Max(0d, (capacity - segment.PhysicalUsedPoints) / capacity);
-                var worstResidual = Math.Max(state.WorstResidualFraction, residualFraction);
+                var forwardResiduals = isFinal && requireClosingOnFinalPage
+                    ? state.ForwardResidualFractions
+                    : state.ForwardResidualFractions.Append(residualFraction).ToArray();
                 var visualQualityLoss = state.VisualQualityLoss + segment.VisualQualityLoss;
                 var score = state.Score + segment.Score;
                 var existing = states[end];
@@ -387,7 +408,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 var candidateState = new PlannerState(
                     pageCount,
                     typographyPenalty,
-                    worstResidual,
+                    forwardResiduals,
                     visualQualityLoss,
                     score,
                     start,
@@ -434,15 +455,34 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         {
             return left.TypographyPenalty.CompareTo(right.TypographyPenalty);
         }
-        if (Math.Abs(left.WorstResidualFraction - right.WorstResidualFraction) > .0001d)
+        var residualComparison = CompareResidualVectors(
+            left.ForwardResidualFractions,
+            right.ForwardResidualFractions);
+        if (residualComparison != 0)
         {
-            return left.WorstResidualFraction.CompareTo(right.WorstResidualFraction);
+            return residualComparison;
         }
         if (Math.Abs(left.Score - right.Score) > .0001d)
         {
             return left.Score.CompareTo(right.Score);
         }
         return left.VisualQualityLoss.CompareTo(right.VisualQualityLoss);
+    }
+
+    private static int CompareResidualVectors(
+        IReadOnlyList<double> left,
+        IReadOnlyList<double> right)
+    {
+        var count = Math.Min(left.Count, right.Count);
+        for (var index = 0; index < count; index++)
+        {
+            if (Math.Abs(left[index] - right[index]) > .0001d)
+            {
+                return left[index].CompareTo(right[index]);
+            }
+        }
+
+        return left.Count.CompareTo(right.Count);
     }
 
     private static PlannedSegment? FindBestSegment(
@@ -452,7 +492,8 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         float projectCapacity,
         float closingHeight,
         float physicalCapacity,
-        bool includesClosingMatter)
+        bool includesClosingMatter,
+        bool allowRaggedResidual)
     {
         var itemCount = endExclusive - start;
         if (itemCount <= 0 || itemCount > BrochurePrintLayoutMetrics.MaximumProjectsPerSheet)
@@ -462,17 +503,33 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
 
         PlannedSegment? best = null;
         var selected = new BrochurePrintProjectMeasurement[itemCount];
+        var options = Enumerable.Range(0, itemCount)
+            .Select(offset => orderedSets[start + offset]
+                .CandidatesForSegment(itemCount, physicalCapacity)
+                .ToArray())
+            .ToArray();
+        if (options.Any(candidates => candidates.Length == 0))
+        {
+            return null;
+        }
 
-        void Search(int offset)
+        // Five-up composition is deliberately bounded. The minimum remaining height lets the
+        // search abandon a branch as soon as no candidate combination can fit the measured page.
+        var minimumRemainingHeight = new float[itemCount + 1];
+        for (var index = itemCount - 1; index >= 0; index--)
+        {
+            minimumRemainingHeight[index] = minimumRemainingHeight[index + 1]
+                                            + options[index].Min(candidate => candidate.TotalHeightPoints)
+                                            + (index > 0
+                                                ? BrochurePrintLayoutMetrics.InterModuleSpacingPoints
+                                                : 0f);
+        }
+
+        void Search(int offset, float usedHeight)
         {
             if (offset == itemCount)
             {
-                var projectHeight = selected.Sum(item => item.TotalHeightPoints)
-                                    + (BrochurePrintLayoutMetrics.InterModuleSpacingPoints * Math.Max(0, itemCount - 1));
-                if (projectHeight > projectCapacity + .5f)
-                {
-                    return;
-                }
+                var projectHeight = usedHeight;
 
                 var closingGap = includesClosingMatter && closingHeight > .5f
                     ? BrochurePrintLayoutMetrics.ClosingGapPoints
@@ -483,17 +540,21 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 var preferredDelta = Math.Abs(BrochurePrintLayoutMetrics.PreferredUtilization - utilization);
                 var typographyPenalty = selected.Sum(TypographyPenalty);
                 var qualityLoss = selected.Sum(VisualQualityLoss);
-                var singleProjectPenalty = itemCount == 1 ? 8d : 0d;
+                var singleProjectPenalty = !allowRaggedResidual && itemCount == 1 ? 8d : 0d;
+                var fiveUpPenalty = itemCount > BrochurePrintLayoutMetrics.PreferredMaximumProjectsPerSheet
+                    ? 2d
+                    : 0d;
                 var residual = Math.Max(0d, 1d - utilization);
 
-                // Underfill remains the dominant within-segment consideration. Visual quality then
-                // breaks near-equal geometry choices so a roomy sheet naturally selects larger,
-                // more comfortable candidates without a post-pagination image expansion pass.
-                var score = (underfill * underfill * 5200d)
-                            + (residual * residual * 900d)
-                            + (preferredDelta * preferredDelta * 90d)
-                            + (qualityLoss * .75d)
-                            + singleProjectPenalty;
+                // Only non-final sheets are rewarded for fill. The final sheet is a deliberate
+                // residual sink and therefore selects the highest-quality fitting treatment
+                // without stretching copy or imagery merely to consume paper.
+                var fillScore = allowRaggedResidual
+                    ? 0d
+                    : (underfill * underfill * 5200d)
+                      + (residual * residual * 900d)
+                      + (preferredDelta * preferredDelta * 90d);
+                var score = fillScore + (qualityLoss * .75d) + singleProjectPenalty + fiveUpPenalty;
 
                 var projects = selected
                     .Select((measurement, offsetIndex) => new BrochurePrintPlannedProject(
@@ -520,15 +581,24 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 return;
             }
 
-            var set = orderedSets[start + offset];
-            foreach (var candidate in set.CandidatesForSegment(itemCount, physicalCapacity))
+            foreach (var candidate in options[offset])
             {
+                var candidateHeight = candidate.TotalHeightPoints
+                                      + (offset > 0
+                                          ? BrochurePrintLayoutMetrics.InterModuleSpacingPoints
+                                          : 0f);
+                var nextHeight = usedHeight + candidateHeight;
+                if (nextHeight + minimumRemainingHeight[offset + 1] > projectCapacity + .5f)
+                {
+                    continue;
+                }
+
                 selected[offset] = candidate;
-                Search(offset + 1);
+                Search(offset + 1, nextHeight);
             }
         }
 
-        Search(0);
+        Search(0, 0f);
         return best;
     }
 
@@ -552,9 +622,13 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         var result = new List<PlannedSegment>(pages.Count);
         var targetPhysicalUsed = capacity * BrochurePrintLayoutMetrics.ResidualTargetUtilization;
 
-        foreach (var page in pages)
+        for (var pageIndex = 0; pageIndex < pages.Count; pageIndex++)
         {
-            if (page.Projects.Count == 0 || page.PhysicalUsedPoints >= targetPhysicalUsed - .5f)
+            var page = pages[pageIndex];
+            var isFinalPage = pageIndex == pages.Count - 1;
+            if (isFinalPage
+                || page.Projects.Count == 0
+                || page.PhysicalUsedPoints >= targetPhysicalUsed - .5f)
             {
                 result.Add(page);
                 continue;
@@ -731,7 +805,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             : string.Join(" · ", treatmentParts) + ".";
         var summary = saved > 0
             ? $"A {polished.Plan.EstimatedTotalPageCount}-sheet composition is available at 9 pt with {moves.Count} order change{(moves.Count == 1 ? string.Empty : "s")}. No project is removed."
-            : $"A better-balanced composition is available at 9 pt with {moves.Count} order change{(moves.Count == 1 ? string.Empty : "s")}.";
+            : $"A stronger forward-packed composition is available at 9 pt with {moves.Count} order change{(moves.Count == 1 ? string.Empty : "s")}.";
 
         return new BrochurePrintFlowSuggestion(
             SuggestedProjectIds: best.Order.Select(index => projects[index].ProjectId).ToArray(),
@@ -739,8 +813,8 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             SuggestedPageCount: polished.Plan.EstimatedTotalPageCount,
             CurrentLowestProjectUtilizationPercent: currentLowest,
             SuggestedLowestProjectUtilizationPercent: suggestedLowest,
-            CurrentAverageUtilizationPercent: current.Plan.AverageContentUtilizationPercent,
-            SuggestedAverageUtilizationPercent: polished.Plan.AverageContentUtilizationPercent,
+            CurrentAverageUtilizationPercent: AverageNonFinalProjectUtilization(current.Plan),
+            SuggestedAverageUtilizationPercent: AverageNonFinalProjectUtilization(polished.Plan),
             MovedProjectCount: moves.Count,
             TotalPositionShift: TotalPositionShift(best.Order, originalPositions),
             DenseProjectCount: denseProjectCount,
@@ -774,12 +848,10 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             var lastCurrent = positions[page.Projects[^1].ProjectIndex];
             var firstNext = positions[next.Projects[0].ProjectIndex];
 
-            var boundaryPriority = (200 - Math.Min(page.UtilizationPercent, next.UtilizationPercent))
-                                   + (pageIndex == projectPages.Length - 2 ? 45 : 0)
-                                   + (next.IncludesClosingMatter ? 80 : 0);
+            var boundaryPriority = 200 - page.UtilizationPercent;
 
             // Pull the first project from the next sheet backwards across the boundary. This is
-            // the most valuable local move when a prior sheet can become four-up at Dense 9 pt.
+            // the most valuable local move when a prior sheet can accept another measured 9 pt module.
             for (var distance = 1; distance <= BrochurePrintLayoutMetrics.SmartFlowMaximumMoveDistance; distance++)
             {
                 var target = firstNext - distance;
@@ -800,23 +872,6 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                     break;
                 }
                 moves.Add(new MoveCandidate(lastCurrent, target, boundaryPriority - distance - 2));
-            }
-        }
-
-        // If the final project sheet is conspicuously sparse, test local movement around its start
-        // even when the previous sheet is not itself below the normal utilisation threshold.
-        var finalProjects = projectPages.LastOrDefault();
-        if (finalProjects is not null && finalProjects.UtilizationPercent < 85 && finalProjects.Projects.Count > 0)
-        {
-            var first = positions[finalProjects.Projects[0].ProjectIndex];
-            for (var distance = 1; distance <= BrochurePrintLayoutMetrics.SmartFlowMaximumMoveDistance; distance++)
-            {
-                var target = first - distance;
-                if (target < 0)
-                {
-                    break;
-                }
-                moves.Add(new MoveCandidate(first, target, 260 - distance));
             }
         }
 
@@ -853,10 +908,10 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         var displacement = TotalPositionShift(state.Order, originalPositions);
 
         // One saved physical sheet must dominate all secondary concerns. Thereafter prefer a
-        // stronger worst sheet, higher average fill and the smallest possible editorial change.
+        // stronger non-final sheet, higher non-final average fill and the smallest editorial change.
         return (plan.EstimatedTotalPageCount * 1_000_000d)
                + ((100 - lowest) * 4_000d)
-               + ((100 - plan.AverageContentUtilizationPercent) * 700d)
+               + ((100 - AverageNonFinalProjectUtilization(plan)) * 700d)
                + (displacement * 90d)
                - (state.Computation.VisualQuality * .2d);
     }
@@ -877,9 +932,21 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
         var currentLowest = current.LowestProjectPageUtilizationPercent ?? 100;
         var suggestedLowest = suggestion.LowestProjectPageUtilizationPercent ?? 100;
         var fillGain = suggestedLowest - currentLowest;
-        var averageGain = suggestion.AverageContentUtilizationPercent - current.AverageContentUtilizationPercent;
+        var averageGain = AverageNonFinalProjectUtilization(suggestion)
+                          - AverageNonFinalProjectUtilization(current);
         return fillGain >= BrochurePrintLayoutMetrics.SmartFlowMinimumFillImprovementPercent
                && averageGain >= BrochurePrintLayoutMetrics.SmartFlowMinimumAverageImprovementPercent;
+    }
+
+    private static int AverageNonFinalProjectUtilization(BrochurePrintCompactPlan plan)
+    {
+        var pages = plan.Pages
+            .Take(Math.Max(0, plan.Pages.Count - 1))
+            .Where(page => page.Projects.Count > 0)
+            .ToArray();
+        return pages.Length == 0
+            ? 100
+            : (int)Math.Round(pages.Average(page => page.UtilizationPercent));
     }
 
     private static IReadOnlyList<BrochurePrintOrderMove> BuildUserFacingMoves(
@@ -975,13 +1042,16 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
             segment.ExtraModuleVerticalPaddingPoints,
             segment.ExtraInterModuleSpacingPoints)).ToArray();
 
-        var projectPages = pages.Where(page => page.Projects.Count > 0).ToArray();
+        var nonFinalProjectPages = pages
+            .Take(Math.Max(0, pages.Length - 1))
+            .Where(page => page.Projects.Count > 0)
+            .ToArray();
         var averageUtilization = pages.Length == 0
             ? 0
             : (int)Math.Round(pages.Average(page => page.UtilizationPercent));
-        var lowestProjectUtilization = projectPages.Length == 0
+        var lowestProjectUtilization = nonFinalProjectPages.Length == 0
             ? (int?)null
-            : projectPages.Min(page => page.UtilizationPercent);
+            : nonFinalProjectPages.Min(page => page.UtilizationPercent);
         var finalPage = pages.LastOrDefault();
         var closingPage = pages.LastOrDefault(page => page.IncludesClosingMatter);
         var ordinalByProject = order
@@ -998,7 +1068,8 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 ProjectCount: 0,
                 IncludesClosingMatter: false,
                 UtilizationPercent: frontPage.UtilizationPercent,
-                Label: "Institutional front page")
+                Label: "Institutional front page",
+                IsFinal: false)
         };
 
         for (var index = 0; index < pages.Length; index++)
@@ -1011,12 +1082,17 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 .ToArray();
             var first = ordinals.Length > 0 ? ordinals[0] : (int?)null;
             var last = ordinals.Length > 0 ? ordinals[^1] : (int?)null;
+            var isFinal = index == pages.Length - 1;
             var label = page.Projects.Count switch
             {
                 0 when page.IncludesClosingMatter => "Closing institutional matter",
                 > 0 when page.IncludesClosingMatter => $"Projects {first}{(first == last ? string.Empty : $"–{last}")} + closing",
                 _ => $"Projects {first}{(first == last ? string.Empty : $"–{last}")}"
             };
+            if (isFinal)
+            {
+                label += " · final / residual allowed";
+            }
 
             sheetSummaries.Add(new BrochurePrintSheetSummary(
                 SheetNumber: index + 2,
@@ -1026,7 +1102,8 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
                 ProjectCount: page.Projects.Count,
                 IncludesClosingMatter: page.IncludesClosingMatter,
                 UtilizationPercent: page.UtilizationPercent,
-                Label: label));
+                Label: label,
+                IsFinal: isFinal));
         }
 
         return new BrochurePrintCompactPlan(
@@ -1068,7 +1145,7 @@ public sealed class BrochurePrintPagePlanner : IBrochurePrintPagePlanner
     private sealed record PlannerState(
         int PageCount,
         int TypographyPenalty,
-        double WorstResidualFraction,
+        IReadOnlyList<double> ForwardResidualFractions,
         double VisualQualityLoss,
         double Score,
         int? PreviousIndex,
