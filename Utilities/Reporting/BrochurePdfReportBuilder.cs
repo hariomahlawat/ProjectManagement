@@ -242,7 +242,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                     {
                         row.RelativeItem().Column(lockup =>
                         {
-                            if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverKicker))
+                            if (data.Options.ShowFrontCoverKicker && !string.IsNullOrWhiteSpace(data.Options.FrontCoverKicker))
                             {
                                 lockup.Item().Text(data.Options.FrontCoverKicker!)
                                     .FontSize(11)
@@ -250,7 +250,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                                     .LetterSpacing(.7f)
                                     .FontColor("#DCE9E5");
                             }
-                            if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverDescriptor))
+                            if (data.Options.ShowFrontCoverDescriptor && !string.IsNullOrWhiteSpace(data.Options.FrontCoverDescriptor))
                             {
                                 lockup.Item().PaddingTop(3).Text(data.Options.FrontCoverDescriptor!)
                                     .FontSize(7.5f)
@@ -380,7 +380,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                 {
                     row.RelativeItem().Column(lockup =>
                     {
-                        if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverKicker))
+                        if (data.Options.ShowFrontCoverKicker && !string.IsNullOrWhiteSpace(data.Options.FrontCoverKicker))
                         {
                             lockup.Item().Text(data.Options.FrontCoverKicker!)
                                 .FontSize(9.5f)
@@ -388,7 +388,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                                 .LetterSpacing(.8f)
                                 .FontColor("#DCE9E5");
                         }
-                        if (!string.IsNullOrWhiteSpace(data.Options.FrontCoverDescriptor))
+                        if (data.Options.ShowFrontCoverDescriptor && !string.IsNullOrWhiteSpace(data.Options.FrontCoverDescriptor))
                         {
                             lockup.Item().PaddingTop(2).Text(data.Options.FrontCoverDescriptor!)
                                 .FontSize(7.2f)
@@ -1370,7 +1370,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                             logos.ConstantItem(50).Height(50).Image(sddLogo).FitArea();
                         }
                     });
-                    if (!string.IsNullOrWhiteSpace(data.Options.BackCoverKicker))
+                    if (data.Options.ShowBackCoverKicker && !string.IsNullOrWhiteSpace(data.Options.BackCoverKicker))
                     {
                         column.Item().PaddingTop(36).Text(data.Options.BackCoverKicker!)
                             .FontSize(12)
@@ -1378,7 +1378,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                             .LetterSpacing(.9f)
                             .FontColor("#CFE2DC");
                     }
-                    if (!string.IsNullOrWhiteSpace(data.Options.BackCoverStrapline))
+                    if (data.Options.ShowBackCoverStrapline && !string.IsNullOrWhiteSpace(data.Options.BackCoverStrapline))
                     {
                         column.Item().Text(data.Options.BackCoverStrapline!)
                             .FontSize(25)
@@ -1387,7 +1387,7 @@ public sealed class BrochurePdfReportBuilder : IBrochurePdfReportBuilder
                             .FontColor("#FFFFFF");
                         column.Item().Width(110).Height(3).Background(Gold);
                     }
-                    if (!string.IsNullOrWhiteSpace(data.Options.BackCoverEdition))
+                    if (data.Options.ShowBackCoverEdition && !string.IsNullOrWhiteSpace(data.Options.BackCoverEdition))
                     {
                         column.Item().Text(data.Options.BackCoverEdition!)
                             .FontSize(10)

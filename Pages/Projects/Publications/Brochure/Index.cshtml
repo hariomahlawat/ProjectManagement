@@ -400,62 +400,105 @@
                             </div>
                         </section>
 
-                        <details class="brochure-cover-text" data-brochure-digital-only>
-                            <summary><i class="bi bi-type" aria-hidden="true"></i> Digital cover text</summary>
+                        <details class="brochure-cover-text" data-brochure-digital-only data-cover-text-panel>
+                            <summary>
+                                <span class="brochure-cover-text__summary-title"><i class="bi bi-type" aria-hidden="true"></i> Cover text</span>
+                                <span class="brochure-cover-text__summary-meta" data-cover-text-summary>Front 0 visible · Back 0 visible</span>
+                            </summary>
                             <div class="brochure-cover-text__note">
                                 <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                <span>Every line PRISM adds to the digital front or back cover is editable or suppressible. Text embedded inside an approved artwork remains part of that artwork.</span>
+                                <span>Every line PRISM adds to the digital front or back cover can be edited or suppressed without deleting its saved wording. Text embedded inside an approved artwork remains part of that artwork.</span>
                             </div>
                             <div class="brochure-cover-text-grid">
                                 <section class="brochure-cover-text-group" aria-label="Front cover text">
                                     <h3>Front cover</h3>
-                                    <label class="form-label brochure-field">
-                                        <span>Institution / kicker <small>optional</small></span>
+
+                                    <div class="brochure-cover-line" data-cover-line data-cover-line-toggle="Input.ShowFrontCoverKicker">
+                                        <div class="brochure-cover-line__heading">
+                                            <span>Institution / kicker</span>
+                                            <label class="brochure-cover-line__toggle"><input asp-for="Input.ShowFrontCoverKicker" class="form-check-input" data-brochure-preflight-trigger /> <span>Show</span></label>
+                                        </div>
                                         <input asp-for="Input.FrontCoverKicker" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger />
-                                    </label>
-                                    <label class="form-label brochure-field">
-                                        <span>Publication descriptor <small>optional</small></span>
-                                        <input asp-for="Input.FrontCoverDescriptor" class="form-control" maxlength="160" placeholder="Capability Publication" data-brochure-preflight-trigger />
-                                    </label>
-                                    <div class="brochure-cover-visibility" aria-label="Front cover visibility">
-                                        <label><input asp-for="Input.ShowFrontCoverTitle" class="form-check-input" data-brochure-preflight-trigger /> <span>Show title</span></label>
-                                        <label><input asp-for="Input.ShowFrontCoverSubtitle" class="form-check-input" data-brochure-preflight-trigger /> <span>Show subtitle</span></label>
-                                        <label><input asp-for="Input.ShowFrontCoverEdition" class="form-check-input" data-brochure-preflight-trigger /> <span>Show edition</span></label>
-                                        <label><input asp-for="Input.ShowFrontCoverStrapline" class="form-check-input" data-brochure-preflight-trigger /> <span>Show strapline</span></label>
                                     </div>
-                                    <small>Title, subtitle and edition use the publication metadata fields above. The strapline remains editable under Advanced publication settings.</small>
+
+                                    <div class="brochure-cover-line" data-cover-line data-cover-line-toggle="Input.ShowFrontCoverDescriptor">
+                                        <div class="brochure-cover-line__heading">
+                                            <span>Publication descriptor</span>
+                                            <label class="brochure-cover-line__toggle"><input asp-for="Input.ShowFrontCoverDescriptor" class="form-check-input" data-brochure-preflight-trigger /> <span>Show</span></label>
+                                        </div>
+                                        <input asp-for="Input.FrontCoverDescriptor" class="form-control" maxlength="160" placeholder="Official Capability Publication" data-brochure-preflight-trigger />
+                                    </div>
+
+                                    <div class="brochure-cover-metadata-visibility" aria-label="Front cover publication metadata visibility">
+                                        <span class="brochure-cover-metadata-visibility__title">Publication metadata</span>
+                                        <div class="brochure-cover-visibility">
+                                            <label><input asp-for="Input.ShowFrontCoverTitle" class="form-check-input" data-brochure-preflight-trigger /> <span>Show title</span></label>
+                                            <label><input asp-for="Input.ShowFrontCoverSubtitle" class="form-check-input" data-brochure-preflight-trigger /> <span>Show subtitle</span></label>
+                                            <label><input asp-for="Input.ShowFrontCoverEdition" class="form-check-input" data-brochure-preflight-trigger /> <span>Show edition</span></label>
+                                            <label><input asp-for="Input.ShowFrontCoverStrapline" class="form-check-input" data-brochure-preflight-trigger /> <span>Show strapline</span></label>
+                                        </div>
+                                        <small>Title, subtitle and edition use the publication metadata fields at the top of Publication settings.</small>
+                                        <div class="brochure-cover-shared-actions">
+                                            <button type="button" class="btn btn-sm btn-link" data-cover-edit-strapline>Edit strapline</button>
+                                            <button type="button" class="btn btn-sm btn-link" data-cover-edit-marking>Edit handling marking</button>
+                                        </div>
+                                    </div>
                                 </section>
+
                                 <section class="brochure-cover-text-group" aria-label="Back cover text">
                                     <h3>Back cover</h3>
-                                    <label class="form-label brochure-field">
-                                        <span>Organisation line <small>optional</small></span>
+
+                                    <div class="brochure-cover-line" data-cover-line data-cover-line-toggle="Input.ShowBackCoverKicker">
+                                        <div class="brochure-cover-line__heading">
+                                            <span>Organisation line</span>
+                                            <label class="brochure-cover-line__toggle"><input asp-for="Input.ShowBackCoverKicker" class="form-check-input" data-brochure-preflight-trigger /> <span>Show</span></label>
+                                        </div>
                                         <input asp-for="Input.BackCoverKicker" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger />
-                                    </label>
-                                    <label class="form-label brochure-field">
-                                        <span>Closing strapline <small>optional</small></span>
+                                    </div>
+
+                                    <div class="brochure-cover-line" data-cover-line data-cover-line-toggle="Input.ShowBackCoverStrapline">
+                                        <div class="brochure-cover-line__heading">
+                                            <span>Closing strapline</span>
+                                            <label class="brochure-cover-line__toggle"><input asp-for="Input.ShowBackCoverStrapline" class="form-check-input" data-brochure-preflight-trigger /> <span>Show</span></label>
+                                        </div>
                                         <input asp-for="Input.BackCoverStrapline" class="form-control" maxlength="180" data-brochure-preflight-trigger />
-                                    </label>
-                                    <label class="form-label brochure-field">
-                                        <span>Edition line <small>optional</small></span>
+                                    </div>
+
+                                    <div class="brochure-cover-line" data-cover-line data-cover-line-toggle="Input.ShowBackCoverEdition">
+                                        <div class="brochure-cover-line__heading">
+                                            <span>Edition line</span>
+                                            <label class="brochure-cover-line__toggle"><input asp-for="Input.ShowBackCoverEdition" class="form-check-input" data-brochure-preflight-trigger /> <span>Show</span></label>
+                                        </div>
                                         <input asp-for="Input.BackCoverEdition" class="form-control" maxlength="80" data-brochure-preflight-trigger />
-                                    </label>
-                                    <small>Leave any back-cover field blank to omit that line. The back cover remains minimal even when all text is removed.</small>
+                                    </div>
+                                    <small>Hiding a line preserves its wording in the working brochure and any shared Saved Brochure.</small>
+                                </section>
+
+                                <section class="brochure-cover-text-group brochure-cover-text-group--wide" aria-label="Cross-profile cover controls">
+                                    <h3>Shared cover controls</h3>
+                                    <div class="brochure-cover-shared-note">
+                                        <span><strong>Cover strapline</strong> and <strong>handling / classification marking</strong> are shared by Print / Compact and Digital / Comfortable. They remain in Advanced publication settings so one authoritative value is used by both profiles.</span>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-edit-strapline>Edit strapline</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-cover-edit-marking>Edit marking</button>
+                                        </div>
+                                    </div>
                                 </section>
                             </div>
                         </details>
 
-                        <details class="brochure-advanced-options" open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText) || !string.IsNullOrWhiteSpace(Model.Input.HandlingMarking) || Model.Input.AllowTextOnlyProjects ? "open" : null)">
+                        <details class="brochure-advanced-options" data-advanced-publication-settings open="@(!string.IsNullOrWhiteSpace(Model.Input.IntroductionText) || !string.IsNullOrWhiteSpace(Model.Input.HandlingMarking) || Model.Input.AllowTextOnlyProjects ? "open" : null)">
                             <summary><i class="bi bi-sliders" aria-hidden="true"></i> Advanced publication settings</summary>
                             <div class="brochure-advanced-grid">
                                 <label class="form-label brochure-field brochure-field--wide">
                                     <span>Cover strapline</span>
-                                    <input asp-for="Input.Strapline" class="form-control" maxlength="180" />
+                                    <input asp-for="Input.Strapline" class="form-control" maxlength="180" data-cover-strapline-field />
                                     <span asp-validation-for="Input.Strapline" class="text-danger small"></span>
                                 </label>
                                 <label class="form-label brochure-field">
                                     <span>Handling/classification marking</span>
-                                    <input asp-for="Input.HandlingMarking" class="form-control" maxlength="80" placeholder="Optional, e.g. RESTRICTED" />
-                                    <small>PRISM never assigns a marking automatically.</small>
+                                    <input asp-for="Input.HandlingMarking" class="form-control" maxlength="80" placeholder="Optional, e.g. RESTRICTED" data-cover-marking-field />
+                                    <small>PRISM never assigns a marking automatically. When present, it is applied consistently to the cover and publication headers.</small>
                                 </label>
                                 <label class="brochure-policy-option">
                                     <input asp-for="Input.AllowTextOnlyProjects"
@@ -475,11 +518,12 @@
                                 </label>
                                 <label class="form-label brochure-field" data-brochure-digital-only>
                                     <span>Additional introduction heading</span>
-                                    <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger />
+                                    <input asp-for="Input.IntroductionTitle" class="form-control" maxlength="120" placeholder="Simulator Development Division" data-brochure-preflight-trigger data-introduction-heading />
+                                    <small>Used only when supplementary introduction text is provided.</small>
                                 </label>
                                 <label class="form-label brochure-field brochure-field--wide" data-brochure-digital-only>
                                     <span>Additional introduction (optional)</span>
-                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional supplementary introduction..." data-brochure-preflight-trigger></textarea>
+                                    <textarea asp-for="Input.IntroductionText" class="form-control" rows="5" maxlength="3000" placeholder="Optional supplementary introduction..." data-brochure-preflight-trigger data-introduction-text></textarea>
                                     <small>Digital profile only. This follows the dedicated About SDD page and continues automatically when required.</small>
                                 </label>
                             </div>

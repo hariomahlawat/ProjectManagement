@@ -366,6 +366,8 @@ public sealed record BrochureCoverReviewContext(
     string? HandlingMarking,
     string? FrontCoverKicker = null,
     string? FrontCoverDescriptor = null,
+    bool ShowFrontCoverKicker = true,
+    bool ShowFrontCoverDescriptor = true,
     bool ShowFrontCoverTitle = true,
     bool ShowFrontCoverSubtitle = true,
     bool ShowFrontCoverEdition = true,
@@ -463,7 +465,12 @@ public sealed record BrochureBuildOptions(
     bool ShowFrontCoverStrapline = true,
     string? BackCoverKicker = null,
     string? BackCoverStrapline = null,
-    string? BackCoverEdition = null);
+    string? BackCoverEdition = null,
+    bool ShowFrontCoverKicker = true,
+    bool ShowFrontCoverDescriptor = true,
+    bool ShowBackCoverKicker = true,
+    bool ShowBackCoverStrapline = true,
+    bool ShowBackCoverEdition = true);
 
 public sealed record BrochurePreflightIssue(
     BrochurePreflightIssueCode Code,

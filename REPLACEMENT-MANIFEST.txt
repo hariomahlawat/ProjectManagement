@@ -1,20 +1,17 @@
-PRISM Brochure Builder — Phase 21 Digital Final Hardening & Design Freeze
-Baseline: Phase 20.3 (Cover B QuestPDF composition fix)
+PRISM Brochure Phase 21.1 — Cover Editor Final Hardening
+=========================================================
+
+Apply on top of Phase 21.
 
 REPLACE
+-------
 Data/ApplicationDbContext.cs
 Migrations/ApplicationDbContextModelSnapshot.cs
 Migrations/immutable-migration-ids.txt
 Models/Publications/BrochurePreset.cs
 Pages/Projects/Publications/Brochure/Index.cshtml
 Pages/Projects/Publications/Brochure/Index.cshtml.cs
-ProjectManagement.Tests/Publications/BrochureDigitalPublicationPolicyTests.cs
-ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
-ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
-ProjectManagement.Tests/Publications/BrochureReviewFingerprintTests.cs
 Services/Publications/BrochureContracts.cs
-Services/Publications/BrochureDigitalPublicationPolicy.cs
-Services/Publications/BrochurePhotoPrintQualityEvaluator.cs
 Services/Publications/BrochurePresetContracts.cs
 Services/Publications/BrochurePresetService.cs
 Services/Publications/BrochurePublicationService.cs
@@ -23,15 +20,21 @@ Utilities/Reporting/BrochurePdfReportBuilder.cs
 wwwroot/css/pages/projects-publications.css
 wwwroot/js/pages/projects-brochure.js
 wwwroot/js/projects/publications-brochure-contract.test.js
+ProjectManagement.Tests/Publications/BrochurePdfReportBuilderTests.cs
+ProjectManagement.Tests/Publications/BrochurePresetServiceTests.cs
+ProjectManagement.Tests/Publications/BrochureReviewFingerprintTests.cs
 
 ADD
-Migrations/20261208110000_AddBrochureCoverTextControls.cs
-tools/Test-PrismPublicationsPhase21.ps1
+---
+Migrations/20261208113000_AddBrochureCoverVisibilityControls.cs
+tools/Test-PrismPublicationsPhase21_1.ps1
+
+UNCHANGED / DO NOT REPLACE SOLELY FOR THIS PHASE
+-----------------------------------------------
+The Phase 21 Digital planner, DPI evaluator, About SDD layout, Future Capability page,
+Gallery 2 compositor, Cover B PrimaryLayer fix and Print / Compact compositor are unchanged.
 
 DATABASE
-Phase 21 adds an EF Core migration. Apply it through the project's normal migration/startup deployment path before relying on persisted Phase 21 cover text in Shared Saved Brochures.
-
-NO CHANGE REQUIRED
-No NuGet package change.
-No npm package change.
-Print / Compact composition geometry is intentionally not redesigned in this phase.
+--------
+Apply the additive migration through the normal PRISM migration process. It preserves the
+current visible state of existing saved brochures and advances preset schema version 2 -> 3.

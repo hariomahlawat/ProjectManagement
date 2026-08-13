@@ -1988,3 +1988,165 @@ body.brochure-modal-open { overflow: hidden; }
 @media (max-width: 900px) {
     .brochure-cover-text-grid { grid-template-columns: 1fr; }
 }
+
+/* Phase 21.1 — cover-editor ergonomics and explicit line visibility */
+.brochure-cover-text > summary {
+    justify-content: space-between;
+}
+.brochure-cover-text__summary-title {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+}
+.brochure-cover-text__summary-meta {
+    margin-left: auto;
+    color: #788983;
+    font-size: .58rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.brochure-cover-text-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: .66rem;
+}
+.brochure-cover-text-group--wide {
+    grid-column: 1 / -1;
+}
+.brochure-cover-text-group h3 {
+    margin-bottom: 0;
+}
+.brochure-cover-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .3rem;
+    min-width: 0;
+    padding: .52rem .56rem;
+    border: 1px solid #e3ebe8;
+    border-radius: 8px;
+    background: #fcfdfd;
+    transition: opacity .14s ease, background .14s ease, border-color .14s ease;
+}
+.brochure-cover-line__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    min-width: 0;
+    color: #3f554d;
+    font-size: .65rem;
+    font-weight: 720;
+}
+.brochure-cover-line__heading > span:first-child {
+    min-width: 0;
+}
+.brochure-cover-line__heading > small,
+.brochure-cover-line > small {
+    color: #7b8984;
+    font-size: .55rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+.brochure-cover-line__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin: 0;
+    color: #496158;
+    font-size: .58rem;
+    font-weight: 680;
+    white-space: nowrap;
+}
+.brochure-cover-line .form-control {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    border-color: #d8e2de;
+    font-size: .72rem;
+}
+.brochure-cover-line.is-suppressed {
+    border-color: #e7ecea;
+    background: #f7f9f8;
+}
+.brochure-cover-line.is-suppressed .form-control {
+    color: #7c8984;
+    background: #f3f6f5;
+}
+.brochure-cover-line.is-suppressed::after {
+    content: "Hidden from cover";
+    color: #8a9691;
+    font-size: .53rem;
+    font-weight: 600;
+}
+.brochure-cover-metadata-visibility {
+    padding: .54rem .58rem;
+    border: 1px solid #e3ebe8;
+    border-radius: 8px;
+    background: #fbfcfc;
+}
+.brochure-cover-metadata-visibility__title {
+    display: block;
+    margin-bottom: .38rem;
+    color: #40564e;
+    font-size: .64rem;
+    font-weight: 720;
+}
+.brochure-cover-metadata-visibility .brochure-cover-visibility {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0 0 .35rem;
+}
+.brochure-cover-metadata-visibility > small {
+    color: #7b8984;
+    font-size: .55rem;
+    line-height: 1.35;
+}
+.brochure-field.is-introduction-heading-inactive {
+    opacity: .58;
+}
+.brochure-field.is-introduction-heading-inactive .form-control {
+    background: #f3f6f5;
+    cursor: default;
+}
+@media (max-width: 900px) {
+    .brochure-cover-text-group--wide { grid-column: auto; }
+    .brochure-cover-metadata-visibility .brochure-cover-visibility { grid-template-columns: 1fr; }
+    .brochure-cover-text__summary-meta { display: none; }
+}
+.brochure-cover-metadata-visibility .brochure-cover-visibility {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.brochure-cover-shared-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem .45rem;
+    margin-top: .35rem;
+}
+.brochure-cover-shared-actions .btn {
+    padding: 0;
+    font-size: .56rem;
+    text-decoration: none;
+}
+.brochure-cover-shared-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    padding: .52rem .58rem;
+    border: 1px solid #e3ebe8;
+    border-radius: 8px;
+    background: #fbfcfc;
+    color: #63756e;
+    font-size: .58rem;
+    line-height: 1.4;
+}
+.brochure-cover-shared-note > span { min-width: 0; }
+.brochure-cover-shared-note > div {
+    display: flex;
+    flex: 0 0 auto;
+    gap: .4rem;
+}
+@media (max-width: 720px) {
+    .brochure-cover-shared-note { align-items: flex-start; flex-direction: column; }
+}

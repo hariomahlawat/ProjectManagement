@@ -20,7 +20,7 @@ public sealed class BrochurePreset
     [MaxLength(500)]
     public string? Description { get; set; }
 
-    public int SettingsSchemaVersion { get; set; } = 2;
+    public int SettingsSchemaVersion { get; set; } = 3;
 
     [Required, MaxLength(120)]
     public string Title { get; set; } = string.Empty;
@@ -40,6 +40,10 @@ public sealed class BrochurePreset
     [MaxLength(160)]
     public string? FrontCoverDescriptor { get; set; }
 
+    public bool ShowFrontCoverKicker { get; set; } = true;
+
+    public bool ShowFrontCoverDescriptor { get; set; } = true;
+
     public bool ShowFrontCoverTitle { get; set; } = true;
 
     public bool ShowFrontCoverSubtitle { get; set; } = true;
@@ -56,6 +60,12 @@ public sealed class BrochurePreset
 
     [MaxLength(80)]
     public string? BackCoverEdition { get; set; }
+
+    public bool ShowBackCoverKicker { get; set; } = true;
+
+    public bool ShowBackCoverStrapline { get; set; } = true;
+
+    public bool ShowBackCoverEdition { get; set; } = true;
 
     [Required, MaxLength(32)]
     public string CoverStyle { get; set; } = string.Empty;

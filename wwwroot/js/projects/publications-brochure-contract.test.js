@@ -971,7 +971,7 @@ test('phase 21 makes every PRISM-added Digital front/back cover line editable or
   const preset = fs.readFileSync(path.join(root, 'Models', 'Publications', 'BrochurePreset.cs'), 'utf8');
   const coverB = renderer.slice(renderer.indexOf('private static void ComposeContemporaryCover'), renderer.indexOf('private static void ComposeDigitalInstitutionalOpening'));
   const back = renderer.slice(renderer.indexOf('private static void ComposeBackCover'), renderer.indexOf('private byte[]? TryLoadInstitutionalArtwork'));
-  assert.match(view, /Digital cover text/);
+  assert.match(view, /Cover text/);
   assert.match(view, /Input\.FrontCoverKicker/);
   assert.match(view, /Input\.FrontCoverDescriptor/);
   assert.match(view, /Input\.ShowFrontCoverTitle/);
@@ -1003,7 +1003,7 @@ test('phase 21 cover copy is durable shared-brochure state and has an additive m
 
 test('phase 21 front-cover copy changes invalidate the exact Cover B approval fingerprint', () => {
   const fingerprint = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureReviewFingerprint.cs'), 'utf8');
-  assert.match(fingerprint, /brochure-cover-review-v2/);
+  assert.match(fingerprint, /brochure-cover-review-v3/);
   assert.match(fingerprint, /context\.FrontCoverKicker/);
   assert.match(fingerprint, /context\.FrontCoverDescriptor/);
   assert.match(fingerprint, /context\.ShowFrontCoverTitle/);
@@ -1057,4 +1057,57 @@ test('phase 21 cover image fallbacks are graphic-only and never inject uneditabl
   assert.doesNotMatch(montage, /SIMULATORS · AI · AR\/VR · ROBOTICS · DRONES/);
   assert.doesNotMatch(montage, /Capability imagery is drawn from/);
   assert.match(montage, /Deliberately graphic-only/);
+});
+
+
+test('phase 21.1 cover editor uses full-width line controls with non-destructive visibility toggles', () => {
+  const visibilityMigration = fs.readFileSync(path.join(root, 'Migrations', '20261208113000_AddBrochureCoverVisibilityControls.cs'), 'utf8');
+  const preset = fs.readFileSync(path.join(root, 'Models', 'Publications', 'BrochurePreset.cs'), 'utf8');
+  assert.match(view, /data-cover-text-panel/);
+  assert.match(view, /data-cover-text-summary/);
+  assert.match(view, /Input\.ShowFrontCoverKicker/);
+  assert.match(view, /Input\.ShowFrontCoverDescriptor/);
+  assert.match(view, /Input\.ShowBackCoverKicker/);
+  assert.match(view, /Input\.ShowBackCoverStrapline/);
+  assert.match(view, /Input\.ShowBackCoverEdition/);
+  assert.match(css, /\.brochure-cover-line\.is-suppressed/);
+  assert.match(css, /Hidden from cover/);
+  assert.match(js, /renderCoverTextUi/);
+  assert.match(js, /Front \$\{frontVisible\} visible · Back \$\{backVisible\} visible/);
+  assert.match(preset, /SettingsSchemaVersion \{ get; set; \} = 3/);
+  assert.match(visibilityMigration, /ShowFrontCoverKicker/);
+  assert.match(visibilityMigration, /ShowBackCoverEdition/);
+  assert.match(visibilityMigration, /defaultValue: 3/);
+});
+
+test('phase 21.1 associates cross-profile strapline and marking without duplicating their authoritative fields', () => {
+  const coverTextStart = view.indexOf('data-cover-text-panel');
+  const advancedStart = view.indexOf('brochure-advanced-options', coverTextStart);
+  const coverText = view.slice(coverTextStart, advancedStart);
+  const advanced = view.slice(advancedStart, view.indexOf('brochure-print-content', advancedStart));
+  assert.match(coverText, /data-cover-edit-strapline/);
+  assert.match(coverText, /data-cover-edit-marking/);
+  assert.match(coverText, /shared by Print \/ Compact and Digital \/ Comfortable/);
+  assert.match(advanced, /asp-for="Input\.Strapline"/);
+  assert.match(advanced, /asp-for="Input\.HandlingMarking"/);
+  assert.match(advanced, /data-cover-strapline-field/);
+  assert.match(advanced, /data-cover-marking-field/);
+  assert.match(js, /openAdvancedCoverField/);
+});
+
+test('phase 21.1 supplementary introduction heading becomes read-only until body text exists', () => {
+  assert.match(view, /data-introduction-heading/);
+  assert.match(view, /data-introduction-text/);
+  assert.match(js, /updateIntroductionHeadingState/);
+  assert.match(js, /introductionHeading\.readOnly = !active/);
+  assert.match(css, /\.brochure-field\.is-introduction-heading-inactive/);
+});
+
+test('phase 21.1 front line visibility is bound into current Cover B approval fingerprint', () => {
+  const fingerprint = fs.readFileSync(path.join(root, 'Services', 'Publications', 'BrochureReviewFingerprint.cs'), 'utf8');
+  assert.match(fingerprint, /brochure-cover-review-v3/);
+  assert.match(fingerprint, /context\.ShowFrontCoverKicker/);
+  assert.match(fingerprint, /context\.ShowFrontCoverDescriptor/);
+  assert.match(js, /"Input\.ShowFrontCoverKicker"/);
+  assert.match(js, /"Input\.ShowFrontCoverDescriptor"/);
 });

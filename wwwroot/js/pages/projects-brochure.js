@@ -191,6 +191,16 @@
     const coverHeroFocalMarker = form.querySelector("[data-cover-hero-focal-marker]");
     const coverHeroFocalReset = form.querySelector("[data-cover-hero-focal-reset]");
     const coverHeroCropClose = form.querySelector("[data-cover-hero-crop-close]");
+    const coverTextPanel = form.querySelector("[data-cover-text-panel]");
+    const coverTextSummary = form.querySelector("[data-cover-text-summary]");
+    const coverTextLines = [...form.querySelectorAll("[data-cover-line]")];
+    const introductionHeading = form.querySelector("[data-introduction-heading]");
+    const introductionText = form.querySelector("[data-introduction-text]");
+    const advancedPublicationSettings = form.querySelector("[data-advanced-publication-settings]");
+    const coverStraplineField = form.querySelector("[data-cover-strapline-field]");
+    const coverMarkingField = form.querySelector("[data-cover-marking-field]");
+    const coverEditStraplineButtons = [...form.querySelectorAll("[data-cover-edit-strapline]")];
+    const coverEditMarkingButtons = [...form.querySelectorAll("[data-cover-edit-marking]")];
 
     const reviewPanel = form.querySelector("[data-brochure-review-panel]");
     const reviewNotice = form.querySelector("[data-review-notice]");
@@ -230,6 +240,52 @@
         .split(/\s+/u)
         .filter(Boolean)
         .length;
+
+    const namedField = name => form.querySelector(`[name="${CSS.escape(name)}"]`);
+    const namedValue = name => String(namedField(name)?.value ?? "").trim();
+    const namedChecked = name => {
+        const field = namedField(name);
+        return field instanceof HTMLInputElement ? Boolean(field.checked) : false;
+    };
+
+    const renderCoverTextUi = () => {
+        if (!coverTextPanel) return;
+
+        coverTextLines.forEach(line => {
+            const toggleName = line.dataset.coverLineToggle;
+            if (!toggleName) return;
+            line.classList.toggle("is-suppressed", !namedChecked(toggleName));
+        });
+
+        const markingVisible = namedValue("Input.HandlingMarking").length > 0;
+        const frontVisible = [
+            namedChecked("Input.ShowFrontCoverKicker") && namedValue("Input.FrontCoverKicker").length > 0,
+            namedChecked("Input.ShowFrontCoverDescriptor") && namedValue("Input.FrontCoverDescriptor").length > 0,
+            namedChecked("Input.ShowFrontCoverTitle") && namedValue("Input.Title").length > 0,
+            namedChecked("Input.ShowFrontCoverSubtitle") && namedValue("Input.Subtitle").length > 0,
+            namedChecked("Input.ShowFrontCoverEdition") && namedValue("Input.Edition").length > 0,
+            namedChecked("Input.ShowFrontCoverStrapline") && namedValue("Input.Strapline").length > 0,
+            markingVisible
+        ].filter(Boolean).length;
+        const backVisible = [
+            namedChecked("Input.ShowBackCoverKicker") && namedValue("Input.BackCoverKicker").length > 0,
+            namedChecked("Input.ShowBackCoverStrapline") && namedValue("Input.BackCoverStrapline").length > 0,
+            namedChecked("Input.ShowBackCoverEdition") && namedValue("Input.BackCoverEdition").length > 0,
+            markingVisible
+        ].filter(Boolean).length;
+
+        if (coverTextSummary) {
+            coverTextSummary.textContent = `Front ${frontVisible} visible · Back ${backVisible} visible`;
+        }
+    };
+
+    const updateIntroductionHeadingState = () => {
+        if (!(introductionHeading instanceof HTMLInputElement) || !(introductionText instanceof HTMLTextAreaElement)) return;
+        const active = introductionText.value.trim().length > 0;
+        introductionHeading.readOnly = !active;
+        introductionHeading.setAttribute("aria-disabled", active ? "false" : "true");
+        introductionHeading.closest(".brochure-field")?.classList.toggle("is-introduction-heading-inactive", !active);
+    };
 
     const approvedPrintFieldMap = {
         "Input.PrintCentreStatement": "centreStatement",
@@ -357,6 +413,8 @@
         "Input.Strapline",
         "Input.FrontCoverKicker",
         "Input.FrontCoverDescriptor",
+        "Input.ShowFrontCoverKicker",
+        "Input.ShowFrontCoverDescriptor",
         "Input.ShowFrontCoverTitle",
         "Input.ShowFrontCoverSubtitle",
         "Input.ShowFrontCoverEdition",
@@ -364,6 +422,9 @@
         "Input.BackCoverKicker",
         "Input.BackCoverStrapline",
         "Input.BackCoverEdition",
+        "Input.ShowBackCoverKicker",
+        "Input.ShowBackCoverStrapline",
+        "Input.ShowBackCoverEdition",
         "Input.NarrativeSource",
         "Input.PublicationProfile",
         "Input.CoverStyle",
@@ -2731,6 +2792,18 @@
         });
     });
 
+    coverTextPanel?.querySelectorAll("input").forEach(element => {
+        const refresh = () => renderCoverTextUi();
+        element.addEventListener("input", refresh);
+        element.addEventListener("change", refresh);
+    });
+    [namedField("Input.Title"), namedField("Input.Subtitle"), namedField("Input.Edition")].forEach(element => {
+        element?.addEventListener("input", renderCoverTextUi);
+        element?.addEventListener("change", renderCoverTextUi);
+    });
+    introductionText?.addEventListener("input", updateIntroductionHeadingState);
+    introductionText?.addEventListener("change", updateIntroductionHeadingState);
+
     printMatterFields.forEach(field => {
         field.addEventListener("input", () => {
             updatePrintMatterWordCounts();
@@ -2801,15 +2874,27 @@
     });
 
     form.querySelectorAll(
-        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"], [name="Input.HandlingMarking"], [name="Input.FrontCoverKicker"], [name="Input.FrontCoverDescriptor"], [name="Input.ShowFrontCoverTitle"], [name="Input.ShowFrontCoverSubtitle"], [name="Input.ShowFrontCoverEdition"], [name="Input.ShowFrontCoverStrapline"]'
+        '[name="Input.Title"], [name="Input.Subtitle"], [name="Input.Edition"], [name="Input.Strapline"], [name="Input.HandlingMarking"], [name="Input.FrontCoverKicker"], [name="Input.FrontCoverDescriptor"], [name="Input.ShowFrontCoverKicker"], [name="Input.ShowFrontCoverDescriptor"], [name="Input.ShowFrontCoverTitle"], [name="Input.ShowFrontCoverSubtitle"], [name="Input.ShowFrontCoverEdition"], [name="Input.ShowFrontCoverStrapline"]'
     ).forEach(field => {
         const invalidate = () => {
+            renderCoverTextUi();
             invalidateCoverApproval();
             schedulePreflight();
         };
         field.addEventListener("input", invalidate);
         field.addEventListener("change", invalidate);
     });
+
+    const openAdvancedCoverField = field => {
+        if (!(field instanceof HTMLElement)) return;
+        if (advancedPublicationSettings instanceof HTMLDetailsElement) advancedPublicationSettings.open = true;
+        window.requestAnimationFrame(() => {
+            field.scrollIntoView({ block: "center", behavior: "smooth" });
+            field.focus({ preventScroll: true });
+        });
+    };
+    coverEditStraplineButtons.forEach(button => button.addEventListener("click", () => openAdvancedCoverField(coverStraplineField)));
+    coverEditMarkingButtons.forEach(button => button.addEventListener("click", () => openAdvancedCoverField(coverMarkingField)));
 
     coverHeroChoose?.addEventListener("click", () => {
         if (!coverHeroChoices) return;
@@ -3220,6 +3305,8 @@
     });
 
     updatePrintMatterWordCounts();
+    renderCoverTextUi();
+    updateIntroductionHeadingState();
     updatePublicationProfileUi();
     updateNarrativeIndicators();
     renderPresetManageList();

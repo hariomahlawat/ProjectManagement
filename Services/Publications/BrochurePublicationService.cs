@@ -345,6 +345,8 @@ public sealed partial class BrochurePublicationService : IBrochurePublicationSer
                 options.HandlingMarking,
                 options.FrontCoverKicker,
                 options.FrontCoverDescriptor,
+                options.ShowFrontCoverKicker,
+                options.ShowFrontCoverDescriptor,
                 options.ShowFrontCoverTitle,
                 options.ShowFrontCoverSubtitle,
                 options.ShowFrontCoverEdition,

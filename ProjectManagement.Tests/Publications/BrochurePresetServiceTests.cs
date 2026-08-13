@@ -37,10 +37,15 @@ public sealed class BrochurePresetServiceTests
         Assert.Equal(101, loaded.Configuration.Projects[1].PrimaryPhotoId);
         Assert.Equal("Digital capability publication", loaded.Configuration.FrontCoverKicker);
         Assert.Equal("Contemporary edition", loaded.Configuration.FrontCoverDescriptor);
+        Assert.False(loaded.Configuration.ShowFrontCoverKicker);
+        Assert.True(loaded.Configuration.ShowFrontCoverDescriptor);
         Assert.False(loaded.Configuration.ShowFrontCoverSubtitle);
         Assert.Equal("Simulator Development Division", loaded.Configuration.BackCoverKicker);
         Assert.Equal("Prepared for capability engagement", loaded.Configuration.BackCoverStrapline);
         Assert.Equal("2026", loaded.Configuration.BackCoverEdition);
+        Assert.True(loaded.Configuration.ShowBackCoverKicker);
+        Assert.False(loaded.Configuration.ShowBackCoverStrapline);
+        Assert.True(loaded.Configuration.ShowBackCoverEdition);
         Assert.Empty(loaded.Diagnostics);
 
         // Durable preset contracts intentionally carry no editorial approval authority.
@@ -280,13 +285,18 @@ public sealed class BrochurePresetServiceTests
                 BrochureImageMode.Single)).ToArray(),
             FrontCoverKicker: "Digital capability publication",
             FrontCoverDescriptor: "Contemporary edition",
+            ShowFrontCoverKicker: false,
+            ShowFrontCoverDescriptor: true,
             ShowFrontCoverTitle: true,
             ShowFrontCoverSubtitle: false,
             ShowFrontCoverEdition: true,
             ShowFrontCoverStrapline: true,
             BackCoverKicker: "Simulator Development Division",
             BackCoverStrapline: "Prepared for capability engagement",
-            BackCoverEdition: "2026");
+            BackCoverEdition: "2026",
+            ShowBackCoverKicker: true,
+            ShowBackCoverStrapline: false,
+            ShowBackCoverEdition: true);
 
     private static BrochurePresetService CreateService(ApplicationDbContext db, string userId, string role)
     {

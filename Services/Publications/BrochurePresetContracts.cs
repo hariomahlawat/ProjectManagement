@@ -66,13 +66,18 @@ public sealed record BrochurePresetConfiguration(
     IReadOnlyList<BrochurePresetProjectConfiguration> Projects,
     string? FrontCoverKicker = null,
     string? FrontCoverDescriptor = null,
+    bool ShowFrontCoverKicker = true,
+    bool ShowFrontCoverDescriptor = true,
     bool ShowFrontCoverTitle = true,
     bool ShowFrontCoverSubtitle = true,
     bool ShowFrontCoverEdition = true,
     bool ShowFrontCoverStrapline = true,
     string? BackCoverKicker = null,
     string? BackCoverStrapline = null,
-    string? BackCoverEdition = null);
+    string? BackCoverEdition = null,
+    bool ShowBackCoverKicker = true,
+    bool ShowBackCoverStrapline = true,
+    bool ShowBackCoverEdition = true);
 
 public sealed record BrochurePresetLoadResult(
     BrochurePresetSummaryVm Preset,

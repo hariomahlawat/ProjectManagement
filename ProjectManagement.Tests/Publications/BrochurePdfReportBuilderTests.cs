@@ -265,15 +265,20 @@ public sealed class BrochurePdfReportBuilderTests
                 CoverHeroProjectId: 1,
                 CoverHeroPhotoId: 901,
                 IncludeBackCover: true,
-                FrontCoverKicker: null,
-                FrontCoverDescriptor: null,
+                FrontCoverKicker: "Hidden front institution",
+                FrontCoverDescriptor: "Hidden front descriptor",
                 ShowFrontCoverTitle: false,
                 ShowFrontCoverSubtitle: false,
                 ShowFrontCoverEdition: false,
                 ShowFrontCoverStrapline: false,
-                BackCoverKicker: null,
-                BackCoverStrapline: null,
-                BackCoverEdition: null);
+                BackCoverKicker: "Hidden back organisation",
+                BackCoverStrapline: "Hidden back strapline",
+                BackCoverEdition: "Hidden back edition",
+                ShowFrontCoverKicker: false,
+                ShowFrontCoverDescriptor: false,
+                ShowBackCoverKicker: false,
+                ShowBackCoverStrapline: false,
+                ShowBackCoverEdition: false);
             var data = new BrochurePublicationData(
                 options,
                 new[] { project },
@@ -289,6 +294,11 @@ public sealed class BrochurePdfReportBuilderTests
             Assert.False(firstPageText.Contains("CAPABILITY PUBLICATION", StringComparison.OrdinalIgnoreCase));
             Assert.False(firstPageText.Contains("Selected PRISM project imagery", StringComparison.OrdinalIgnoreCase));
             Assert.False(firstPageText.Contains("Metadata title must not appear on cover", StringComparison.Ordinal));
+            Assert.False(firstPageText.Contains("Hidden front institution", StringComparison.Ordinal));
+            Assert.False(firstPageText.Contains("Hidden front descriptor", StringComparison.Ordinal));
+            Assert.False(lastPageText.Contains("Hidden back organisation", StringComparison.Ordinal));
+            Assert.False(lastPageText.Contains("Hidden back strapline", StringComparison.Ordinal));
+            Assert.False(lastPageText.Contains("Hidden back edition", StringComparison.Ordinal));
             Assert.True(string.IsNullOrWhiteSpace(lastPageText));
         }
         finally

@@ -1,17 +1,21 @@
-PRISM Brochure Builder — Phase 21 validation performed in the packaging environment
+PRISM Brochure Phase 21.1 — validation performed in this environment
+=====================================================================
 
 PASS  node --check wwwroot/js/pages/projects-brochure.js
-PASS  node --test wwwroot/js/projects/publications-brochure-contract.test.js
-      98 tests passed, 0 failed
-PASS  Changed C# source structural delimiter scan (17 changed/new .cs files)
-PASS  No stale BrochurePagePlan.Fragments references
-PASS  No active Pages/Views/CSS/JS references to fonts.googleapis.com or fonts.gstatic.com
-PASS  No known system-owned cover fallback copy remains in BrochurePdfReportBuilder
-PASS  Phase 21 migration ID appears exactly once in immutable-migration-ids.txt
-PASS  Digital KPI uses EditorialPageCount / DigitalEditorialPageCount
-PASS  Cover B low-DPI issue has dedicated LowResolutionCoverHero routing
-PASS  Shared Saved Brochure schema version advanced to 2
-PASS  Cover B still contains exactly the Phase 20.3 PrimaryLayer contract (guarded by JS contract tests)
+PASS  Phase 21 / Phase 21.1 focused contract tests: 13 passed, 0 failed
+PASS  Coarse C# brace-balance validation across all changed C# sources
+PASS  New visibility field propagation across Razor -> Input model -> build options -> renderer
+      -> saved preset -> EF model/migration
+PASS  Cover review fingerprint advanced to brochure-cover-review-v3 and binds front kicker /
+      descriptor visibility
+PASS  Renderer gates all five new visibility flags
+PASS  Additive migration ID is present in immutable migration manifest
 
-NOT EXECUTED HERE
-The .NET SDK is not installed in this environment, so dotnet build and dotnet test could not be executed. Test-PrismPublicationsPhase21.ps1 runs both automatically when dotnet is available on the development machine.
+The complete historical JavaScript contract suite expects several unchanged project files that are
+not shipped in this delta bundle. The included PowerShell validator runs the complete suite from the
+actual PRISM project root after these files are pasted.
+
+NOT RUN HERE
+------------
+dotnet build / dotnet test — .NET SDK is not installed in this execution environment.
+Run tools/Test-PrismPublicationsPhase21_1.ps1 on the development machine before deployment.

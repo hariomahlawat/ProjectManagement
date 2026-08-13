@@ -409,6 +409,8 @@ public sealed class IndexModel : PageModel
                 Input.HandlingMarking,
                 Input.FrontCoverKicker,
                 Input.FrontCoverDescriptor,
+                Input.ShowFrontCoverKicker,
+                Input.ShowFrontCoverDescriptor,
                 Input.ShowFrontCoverTitle,
                 Input.ShowFrontCoverSubtitle,
                 Input.ShowFrontCoverEdition,
@@ -493,13 +495,18 @@ public sealed class IndexModel : PageModel
                 CoverReviewFingerprint: Input.CoverReviewFingerprint,
                 FrontCoverKicker: NullIfWhiteSpace(Input.FrontCoverKicker),
                 FrontCoverDescriptor: NullIfWhiteSpace(Input.FrontCoverDescriptor),
+                ShowFrontCoverKicker: Input.ShowFrontCoverKicker,
+                ShowFrontCoverDescriptor: Input.ShowFrontCoverDescriptor,
                 ShowFrontCoverTitle: Input.ShowFrontCoverTitle,
                 ShowFrontCoverSubtitle: Input.ShowFrontCoverSubtitle,
                 ShowFrontCoverEdition: Input.ShowFrontCoverEdition,
                 ShowFrontCoverStrapline: Input.ShowFrontCoverStrapline,
                 BackCoverKicker: NullIfWhiteSpace(Input.BackCoverKicker),
                 BackCoverStrapline: NullIfWhiteSpace(Input.BackCoverStrapline),
-                BackCoverEdition: NullIfWhiteSpace(Input.BackCoverEdition));
+                BackCoverEdition: NullIfWhiteSpace(Input.BackCoverEdition),
+                ShowBackCoverKicker: Input.ShowBackCoverKicker,
+                ShowBackCoverStrapline: Input.ShowBackCoverStrapline,
+                ShowBackCoverEdition: Input.ShowBackCoverEdition);
 
             var publication = await _publicationService.BuildAsync(
                 ToSelections(),
@@ -717,6 +724,8 @@ public sealed class IndexModel : PageModel
             Strapline = configuration.Strapline,
             FrontCoverKicker = configuration.FrontCoverKicker,
             FrontCoverDescriptor = configuration.FrontCoverDescriptor,
+            ShowFrontCoverKicker = configuration.ShowFrontCoverKicker,
+            ShowFrontCoverDescriptor = configuration.ShowFrontCoverDescriptor,
             ShowFrontCoverTitle = configuration.ShowFrontCoverTitle,
             ShowFrontCoverSubtitle = configuration.ShowFrontCoverSubtitle,
             ShowFrontCoverEdition = configuration.ShowFrontCoverEdition,
@@ -724,6 +733,9 @@ public sealed class IndexModel : PageModel
             BackCoverKicker = configuration.BackCoverKicker,
             BackCoverStrapline = configuration.BackCoverStrapline,
             BackCoverEdition = configuration.BackCoverEdition,
+            ShowBackCoverKicker = configuration.ShowBackCoverKicker,
+            ShowBackCoverStrapline = configuration.ShowBackCoverStrapline,
+            ShowBackCoverEdition = configuration.ShowBackCoverEdition,
             CoverStyle = configuration.CoverStyle,
             InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork,
             NarrativeSource = configuration.NarrativeSource,
@@ -806,13 +818,18 @@ public sealed class IndexModel : PageModel
                 .ToArray(),
             FrontCoverKicker: Input.FrontCoverKicker,
             FrontCoverDescriptor: Input.FrontCoverDescriptor,
+            ShowFrontCoverKicker: Input.ShowFrontCoverKicker,
+            ShowFrontCoverDescriptor: Input.ShowFrontCoverDescriptor,
             ShowFrontCoverTitle: Input.ShowFrontCoverTitle,
             ShowFrontCoverSubtitle: Input.ShowFrontCoverSubtitle,
             ShowFrontCoverEdition: Input.ShowFrontCoverEdition,
             ShowFrontCoverStrapline: Input.ShowFrontCoverStrapline,
             BackCoverKicker: Input.BackCoverKicker,
             BackCoverStrapline: Input.BackCoverStrapline,
-            BackCoverEdition: Input.BackCoverEdition);
+            BackCoverEdition: Input.BackCoverEdition,
+            ShowBackCoverKicker: Input.ShowBackCoverKicker,
+            ShowBackCoverStrapline: Input.ShowBackCoverStrapline,
+            ShowBackCoverEdition: Input.ShowBackCoverEdition);
 
     private string RequireActorUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -1226,6 +1243,8 @@ public sealed class IndexModel : PageModel
         [StringLength(160)]
         public string? FrontCoverDescriptor { get; set; }
 
+        public bool ShowFrontCoverKicker { get; set; } = true;
+        public bool ShowFrontCoverDescriptor { get; set; } = true;
         public bool ShowFrontCoverTitle { get; set; } = true;
         public bool ShowFrontCoverSubtitle { get; set; } = true;
         public bool ShowFrontCoverEdition { get; set; } = true;
@@ -1239,6 +1258,10 @@ public sealed class IndexModel : PageModel
 
         [StringLength(80)]
         public string? BackCoverEdition { get; set; }
+
+        public bool ShowBackCoverKicker { get; set; } = true;
+        public bool ShowBackCoverStrapline { get; set; } = true;
+        public bool ShowBackCoverEdition { get; set; } = true;
 
         [Required]
         public BrochureCoverStyle CoverStyle { get; set; } = BrochureCoverStyle.Institutional;

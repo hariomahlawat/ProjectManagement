@@ -59,7 +59,7 @@ public static class BrochureReviewFingerprint
         ArgumentNullException.ThrowIfNull(context);
 
         return Hash(
-            "brochure-cover-review-v2",
+            "brochure-cover-review-v3",
             context.Title,
             context.Subtitle,
             context.Edition,
@@ -67,6 +67,8 @@ public static class BrochureReviewFingerprint
             context.HandlingMarking,
             context.FrontCoverKicker,
             context.FrontCoverDescriptor,
+            context.ShowFrontCoverKicker ? "1" : "0",
+            context.ShowFrontCoverDescriptor ? "1" : "0",
             context.ShowFrontCoverTitle ? "1" : "0",
             context.ShowFrontCoverSubtitle ? "1" : "0",
             context.ShowFrontCoverEdition ? "1" : "0",

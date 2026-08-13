@@ -59,7 +59,7 @@ public interface IBrochurePresetService
 /// </summary>
 public sealed class BrochurePresetService : IBrochurePresetService
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private const int MaximumProjects = 100;
 
     private readonly ApplicationDbContext _db;
@@ -268,13 +268,18 @@ public sealed class BrochurePresetService : IBrochurePresetService
             Projects: projects,
             FrontCoverKicker: preset.FrontCoverKicker,
             FrontCoverDescriptor: preset.FrontCoverDescriptor,
+            ShowFrontCoverKicker: preset.ShowFrontCoverKicker,
+            ShowFrontCoverDescriptor: preset.ShowFrontCoverDescriptor,
             ShowFrontCoverTitle: preset.ShowFrontCoverTitle,
             ShowFrontCoverSubtitle: preset.ShowFrontCoverSubtitle,
             ShowFrontCoverEdition: preset.ShowFrontCoverEdition,
             ShowFrontCoverStrapline: preset.ShowFrontCoverStrapline,
             BackCoverKicker: preset.BackCoverKicker,
             BackCoverStrapline: preset.BackCoverStrapline,
-            BackCoverEdition: preset.BackCoverEdition);
+            BackCoverEdition: preset.BackCoverEdition,
+            ShowBackCoverKicker: preset.ShowBackCoverKicker,
+            ShowBackCoverStrapline: preset.ShowBackCoverStrapline,
+            ShowBackCoverEdition: preset.ShowBackCoverEdition);
 
         return new BrochurePresetLoadResult(
             ToSummary(preset),
@@ -749,6 +754,8 @@ public sealed class BrochurePresetService : IBrochurePresetService
         preset.Strapline = configuration.Strapline;
         preset.FrontCoverKicker = configuration.FrontCoverKicker;
         preset.FrontCoverDescriptor = configuration.FrontCoverDescriptor;
+        preset.ShowFrontCoverKicker = configuration.ShowFrontCoverKicker;
+        preset.ShowFrontCoverDescriptor = configuration.ShowFrontCoverDescriptor;
         preset.ShowFrontCoverTitle = configuration.ShowFrontCoverTitle;
         preset.ShowFrontCoverSubtitle = configuration.ShowFrontCoverSubtitle;
         preset.ShowFrontCoverEdition = configuration.ShowFrontCoverEdition;
@@ -756,6 +763,9 @@ public sealed class BrochurePresetService : IBrochurePresetService
         preset.BackCoverKicker = configuration.BackCoverKicker;
         preset.BackCoverStrapline = configuration.BackCoverStrapline;
         preset.BackCoverEdition = configuration.BackCoverEdition;
+        preset.ShowBackCoverKicker = configuration.ShowBackCoverKicker;
+        preset.ShowBackCoverStrapline = configuration.ShowBackCoverStrapline;
+        preset.ShowBackCoverEdition = configuration.ShowBackCoverEdition;
         preset.CoverStyle = configuration.CoverStyle.ToString();
         preset.InstitutionalCoverArtwork = configuration.InstitutionalCoverArtwork.ToString();
         preset.NarrativeSource = configuration.NarrativeSource.ToString();
@@ -806,6 +816,8 @@ public sealed class BrochurePresetService : IBrochurePresetService
             Strapline = source.Strapline,
             FrontCoverKicker = source.FrontCoverKicker,
             FrontCoverDescriptor = source.FrontCoverDescriptor,
+            ShowFrontCoverKicker = source.ShowFrontCoverKicker,
+            ShowFrontCoverDescriptor = source.ShowFrontCoverDescriptor,
             ShowFrontCoverTitle = source.ShowFrontCoverTitle,
             ShowFrontCoverSubtitle = source.ShowFrontCoverSubtitle,
             ShowFrontCoverEdition = source.ShowFrontCoverEdition,
@@ -813,6 +825,9 @@ public sealed class BrochurePresetService : IBrochurePresetService
             BackCoverKicker = source.BackCoverKicker,
             BackCoverStrapline = source.BackCoverStrapline,
             BackCoverEdition = source.BackCoverEdition,
+            ShowBackCoverKicker = source.ShowBackCoverKicker,
+            ShowBackCoverStrapline = source.ShowBackCoverStrapline,
+            ShowBackCoverEdition = source.ShowBackCoverEdition,
             CoverStyle = source.CoverStyle,
             InstitutionalCoverArtwork = source.InstitutionalCoverArtwork,
             NarrativeSource = source.NarrativeSource,
